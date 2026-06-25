@@ -1,0 +1,77 @@
+{
+  "common": {
+    "back": "Voltar",
+    "next": "Próximo",
+    "calculate": "Calcular",
+    "loading": "Calculando...",
+    "error": "Erro",
+    "retry": "Tentar novamente",
+    "print": "Imprimir"
+  },
+  "home": {
+    "title": "Calculadora SolaX",
+    "subtitle": "Dimensionamento de sistemas híbridos solar + bateria",
+    "residential": "Residencial",
+    "residential_desc": "Sistemas para residências e pequenos negócios",
+    "industrial": "Industrial / Comercial",
+    "industrial_desc": "Sistemas de médio e grande porte"
+  },
+  "topology": {
+    "title": "Topologia de Bateria",
+    "subtitle": "Selecione o tipo de bateria para a instalação",
+    "hv": "Alta Tensão (HV)",
+    "hv_desc": "Baterias em série — maior tensão de barramento",
+    "lv": "Baixa Tensão (LV)",
+    "lv_desc": "Baterias em paralelo — tensão padrão 48V"
+  },
+  "grid_type": {
+    "title": "Tipo de Rede",
+    "subtitle": "Selecione a configuração da rede elétrica",
+    "single_phase": "Monofásico 220V",
+    "split_phase": "Bifásico 220V",
+    "three_phase_220": "Trifásico 220V",
+    "three_phase_380": "Trifásico 380V"
+  },
+  "loads": {
+    "title": "Cargas",
+    "subtitle": "Informe os equipamentos que serão alimentados pelo sistema",
+    "catalog": "Catálogo",
+    "manual": "Manual",
+    "add_load": "Adicionar carga",
+    "name": "Nome",
+    "power": "Potência (W)",
+    "hours": "Horas/dia",
+    "qty": "Quantidade",
+    "total_consumption": "Consumo total",
+    "daily_kwh": "kWh/dia",
+    "search_placeholder": "Buscar equipamento...",
+    "no_loads": "Nenhuma carga adicionada"
+  },
+  "result": {
+    "title": "Solução Recomendada",
+    "inverter": "Inversor",
+    "battery": "Bateria",
+    "battery_qty": "Quantidade",
+    "pv_power": "Potência FV recomendada",
+    "accessories": "Acessórios",
+    "no_solution": "Nenhuma solução encontrada para os parâmetros informados."
+  },
+  "error": {
+    "title": "Sem solução",
+    "message": "Não encontramos uma combinação compatível com os parâmetros informados. Revise as cargas ou entre em contato com um especialista SolaX.",
+    "review_loads": "Rever cargas"
+  },
+  "industrial": {
+    "title": "Industrial / Comercial",
+    "params1_title": "Parâmetros do Sistema",
+    "params2_title": "Parâmetros Avançados",
+    "grid_power": "Potência da rede (kW)",
+    "pv_power": "Potência FV instalada (kWp)",
+    "backup_power": "Potência de backup (kW)",
+    "backup_hours": "Horas de backup",
+    "demand_charge": "Gestão de demanda"
+  },
+  "step_indicator": {
+    "step": "Etapa"
+  }
+}

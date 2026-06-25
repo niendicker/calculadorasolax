@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*

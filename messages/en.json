@@ -1,0 +1,77 @@
+{
+  "common": {
+    "back": "Back",
+    "next": "Next",
+    "calculate": "Calculate",
+    "loading": "Calculating...",
+    "error": "Error",
+    "retry": "Try again",
+    "print": "Print"
+  },
+  "home": {
+    "title": "SolaX Calculator",
+    "subtitle": "Hybrid solar + battery system sizing",
+    "residential": "Residential",
+    "residential_desc": "Systems for homes and small businesses",
+    "industrial": "Industrial / Commercial",
+    "industrial_desc": "Medium and large-scale systems"
+  },
+  "topology": {
+    "title": "Battery Topology",
+    "subtitle": "Select the battery type for this installation",
+    "hv": "High Voltage (HV)",
+    "hv_desc": "Series batteries — higher bus voltage",
+    "lv": "Low Voltage (LV)",
+    "lv_desc": "Parallel batteries — standard 48V voltage"
+  },
+  "grid_type": {
+    "title": "Grid Type",
+    "subtitle": "Select the electrical grid configuration",
+    "single_phase": "Single Phase 220V",
+    "split_phase": "Split Phase 220V",
+    "three_phase_220": "Three Phase 220V",
+    "three_phase_380": "Three Phase 380V"
+  },
+  "loads": {
+    "title": "Loads",
+    "subtitle": "Enter the equipment to be powered by the system",
+    "catalog": "Catalog",
+    "manual": "Manual",
+    "add_load": "Add load",
+    "name": "Name",
+    "power": "Power (W)",
+    "hours": "Hours/day",
+    "qty": "Quantity",
+    "total_consumption": "Total consumption",
+    "daily_kwh": "kWh/day",
+    "search_placeholder": "Search equipment...",
+    "no_loads": "No loads added"
+  },
+  "result": {
+    "title": "Recommended Solution",
+    "inverter": "Inverter",
+    "battery": "Battery",
+    "battery_qty": "Quantity",
+    "pv_power": "Recommended PV power",
+    "accessories": "Accessories",
+    "no_solution": "No solution found for the given parameters."
+  },
+  "error": {
+    "title": "No solution",
+    "message": "We could not find a compatible combination for the provided parameters. Review your loads or contact a SolaX specialist.",
+    "review_loads": "Review loads"
+  },
+  "industrial": {
+    "title": "Industrial / Commercial",
+    "params1_title": "System Parameters",
+    "params2_title": "Advanced Parameters",
+    "grid_power": "Grid power (kW)",
+    "pv_power": "Installed PV power (kWp)",
+    "backup_power": "Backup power (kW)",
+    "backup_hours": "Backup hours",
+    "demand_charge": "Demand charge management"
+  },
+  "step_indicator": {
+    "step": "Step"
+  }
+}

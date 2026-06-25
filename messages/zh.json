@@ -1,0 +1,77 @@
+{
+  "common": {
+    "back": "返回",
+    "next": "下一步",
+    "calculate": "计算",
+    "loading": "计算中...",
+    "error": "错误",
+    "retry": "重试",
+    "print": "打印"
+  },
+  "home": {
+    "title": "SolaX 计算器",
+    "subtitle": "光储混合系统配置计算",
+    "residential": "住宅",
+    "residential_desc": "适用于住宅和小型企业的系统",
+    "industrial": "工商业",
+    "industrial_desc": "中大型系统"
+  },
+  "topology": {
+    "title": "电池拓扑",
+    "subtitle": "选择安装的电池类型",
+    "hv": "高压 (HV)",
+    "hv_desc": "串联电池 — 更高母线电压",
+    "lv": "低压 (LV)",
+    "lv_desc": "并联电池 — 标准48V电压"
+  },
+  "grid_type": {
+    "title": "电网类型",
+    "subtitle": "选择电网配置",
+    "single_phase": "单相 220V",
+    "split_phase": "分相 220V",
+    "three_phase_220": "三相 220V",
+    "three_phase_380": "三相 380V"
+  },
+  "loads": {
+    "title": "负载",
+    "subtitle": "输入系统需要供电的设备",
+    "catalog": "目录",
+    "manual": "手动",
+    "add_load": "添加负载",
+    "name": "名称",
+    "power": "功率 (W)",
+    "hours": "小时/天",
+    "qty": "数量",
+    "total_consumption": "总耗电量",
+    "daily_kwh": "kWh/天",
+    "search_placeholder": "搜索设备...",
+    "no_loads": "未添加负载"
+  },
+  "result": {
+    "title": "推荐方案",
+    "inverter": "逆变器",
+    "battery": "电池",
+    "battery_qty": "数量",
+    "pv_power": "推荐光伏功率",
+    "accessories": "配件",
+    "no_solution": "未找到符合所给参数的解决方案。"
+  },
+  "error": {
+    "title": "无方案",
+    "message": "无法找到与所提供参数兼容的组合。请检查您的负载或联系SolaX专家。",
+    "review_loads": "重新检查负载"
+  },
+  "industrial": {
+    "title": "工商业",
+    "params1_title": "系统参数",
+    "params2_title": "高级参数",
+    "grid_power": "电网功率 (kW)",
+    "pv_power": "已安装光伏功率 (kWp)",
+    "backup_power": "备用功率 (kW)",
+    "backup_hours": "备用时长",
+    "demand_charge": "需量管理"
+  },
+  "step_indicator": {
+    "step": "步骤"
+  }
+}
