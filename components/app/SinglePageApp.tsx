@@ -18,7 +18,6 @@ import {
   Settings,
   ShieldUser,
   Sun,
-  Trash2,
   UserRound,
   X,
   Zap,
@@ -26,9 +25,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { createClient } from '@/lib/supabase/client';
 import { useWizardStore, totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
@@ -89,6 +90,8 @@ interface BatteryCatalogOption {
   model: string;
   capacityKwh: number;
   topology: 'HV' | 'LV';
+  imageUrl: string | null;
+  documents: ProductDocument[];
 }
 
 export function SinglePageApp() {
@@ -125,11 +128,13 @@ export function SinglePageApp() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
   const [batteryCatalog, setBatteryCatalog] = useState<BatteryCatalogOption[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadInitialData() {
+      setInitialLoading(true);
       const [{ data: userData }, { data: catalogData }, { data: batteryData }] = await Promise.all([
         supabase.auth.getUser(),
         supabase
@@ -138,7 +143,7 @@ export function SinglePageApp() {
           .order('category'),
         supabase
           .from('batteries')
-          .select('id, model, capacity_kwh, topology')
+          .select('id, model, capacity_kwh, topology, image_url, documents')
           .order('model'),
       ]);
 
@@ -183,9 +188,12 @@ export function SinglePageApp() {
             model: row.model,
             capacityKwh: Number(row.capacity_kwh),
             topology: row.topology as 'HV' | 'LV',
+            imageUrl: row.image_url,
+            documents: (row.documents ?? []) as ProductDocument[],
           }))
         );
       }
+      setInitialLoading(false);
     }
 
     loadInitialData();
@@ -332,6 +340,8 @@ export function SinglePageApp() {
     setProfile(null);
     setUserEmail(null);
     setProfileOpen(false);
+    setMobileMenuOpen(false);
+    router.replace(`/${locale}/login`);
     router.refresh();
   }
 
@@ -370,13 +380,18 @@ export function SinglePageApp() {
 
   function saveProject() {
     const project = saveCurrentProject();
-    setProjectStatus(`Projeto "${project.name}" salvo.`);
+    setProjectStatus(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
   }
 
   function openProject(id: string) {
     loadProject(id);
     setActiveTab('sizing');
     setProjectStatus('Projeto carregado.');
+  }
+
+  function deleteProject(id: string) {
+    removeProject(id);
+    setProjectStatus('Projeto removido.');
   }
 
   function openMobileTab(tab: 'project' | 'sizing') {
@@ -390,8 +405,8 @@ export function SinglePageApp() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto grid min-h-screen w-full max-w-7xl grid-rows-[auto_1fr_auto] lg:grid-cols-[240px_1fr] lg:grid-rows-[1fr]">
+    <main className="h-screen overflow-hidden bg-background">
+      <div className="mx-auto grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]">
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -449,22 +464,30 @@ export function SinglePageApp() {
             )}
           </nav>
 
-          <div className="mt-auto rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-            {userEmail ? (
-              <>
-                <p className="font-medium text-foreground">Sessão ativa</p>
-                <p className="mt-1 truncate">{userEmail}</p>
-              </>
-            ) : (
-              <>
-                <p className="font-medium text-foreground">Acesso restrito</p>
-                <p className="mt-1">Entre para editar perfil e catálogo.</p>
-              </>
+          <div className="mt-auto space-y-2">
+            <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+              {userEmail ? (
+                <>
+                  <p className="font-medium text-foreground">Sessão ativa</p>
+                  <p className="mt-1 truncate">{userEmail}</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-foreground">Acesso restrito</p>
+                  <p className="mt-1">Entre para editar perfil e catálogo.</p>
+                </>
+              )}
+            </div>
+            {userEmail && (
+              <Button variant="outline" className="w-full justify-start" onClick={signOut}>
+                <LogOut className="h-4 w-4" />
+                Sair
+              </Button>
             )}
           </div>
         </aside>
 
-        <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+        <header className="z-20 border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -481,11 +504,12 @@ export function SinglePageApp() {
           </div>
         </header>
 
-        <section className="min-w-0 px-4 py-4 lg:px-6 lg:py-5">
+        <section className="min-h-0 min-w-0 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5">
           {activeTab === 'project' ? (
             <ProjectTab
               projectInfo={projectInfo}
               savedProjects={savedProjects}
+              initialLoading={initialLoading}
               projectStatus={projectStatus}
               topology={residentialOptions.topology}
               batteryModel={residentialOptions.batteryModel}
@@ -497,7 +521,7 @@ export function SinglePageApp() {
               setProjectInfo={setProjectInfo}
               onSave={saveProject}
               onOpen={openProject}
-              onRemove={removeProject}
+              onRemove={deleteProject}
               onGoSizing={() => setActiveTab('sizing')}
             />
           ) : (
@@ -513,6 +537,7 @@ export function SinglePageApp() {
               dailyKwh={dailyKwh}
               canCalculate={Boolean(canCalculate)}
               loading={loading}
+              initialLoading={initialLoading}
               error={error}
               setTopology={setTopology}
               setBatteryModel={setBatteryModel}
@@ -520,6 +545,7 @@ export function SinglePageApp() {
               resetResidential={resetResidential}
               calculate={calculate}
               exportPdf={exportPdf}
+              saveProject={saveProject}
               productMedia={productMedia}
             />
           )}
@@ -605,17 +631,25 @@ export function SinglePageApp() {
               )}
             </nav>
 
-            <div className="mt-auto rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-              {userEmail ? (
-                <>
-                  <p className="font-medium text-foreground">Sessão ativa</p>
-                  <p className="mt-1 truncate">{userEmail}</p>
-                </>
-              ) : (
-                <>
-                  <p className="font-medium text-foreground">Acesso restrito</p>
-                  <p className="mt-1">Entre para editar perfil e catálogo.</p>
-                </>
+            <div className="mt-auto space-y-2">
+              <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+                {userEmail ? (
+                  <>
+                    <p className="font-medium text-foreground">Sessão ativa</p>
+                    <p className="mt-1 truncate">{userEmail}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-foreground">Acesso restrito</p>
+                    <p className="mt-1">Entre para editar perfil e catálogo.</p>
+                  </>
+                )}
+              </div>
+              {userEmail && (
+                <Button variant="outline" className="w-full justify-start" onClick={signOut}>
+                  <LogOut className="h-4 w-4" />
+                  Sair
+                </Button>
               )}
             </div>
           </aside>
@@ -780,6 +814,7 @@ export function SinglePageApp() {
 function ProjectTab({
   projectInfo,
   savedProjects,
+  initialLoading,
   projectStatus,
   topology,
   batteryModel,
@@ -796,6 +831,7 @@ function ProjectTab({
 }: {
   projectInfo: ProjectInfo;
   savedProjects: SavedProject[];
+  initialLoading: boolean;
   projectStatus: string | null;
   topology: BatteryTopology | null;
   batteryModel: string | null;
@@ -812,7 +848,7 @@ function ProjectTab({
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projeto</h1>
           <p className="text-sm text-muted-foreground">
@@ -912,7 +948,9 @@ function ProjectTab({
               <CardTitle>Projetos salvos</CardTitle>
             </CardHeader>
             <CardContent>
-              {savedProjects.length === 0 ? (
+              {initialLoading ? (
+                <ProjectListSkeleton />
+              ) : savedProjects.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   Nenhum projeto salvo ainda. Preencha os dados, configure o dimensionamento e clique em salvar.
                 </div>
@@ -932,20 +970,37 @@ function ProjectTab({
                             timeStyle: 'short',
                           }).format(new Date(project.updatedAt))}
                         </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge variant="outline">
+                            {project.residentialOptions.topology
+                              ? topologyLabels[project.residentialOptions.topology]
+                              : 'Sem topologia'}
+                          </Badge>
+                          <Badge variant="outline">
+                            {project.residentialOptions.batteryModel || 'Sem bateria'}
+                          </Badge>
+                          <Badge variant="outline">
+                            {project.residentialOptions.gridType
+                              ? gridLabels[project.residentialOptions.gridType]
+                              : 'Sem rede'}
+                          </Badge>
+                          <Badge variant="outline">
+                            {project.residentialOptions.loads.length} carga(s)
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" onClick={() => onOpen(project.id)}>
                           <FolderOpen className="h-4 w-4" />
                           Abrir
                         </Button>
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          aria-label={`Remover projeto ${project.name}`}
-                          onClick={() => onRemove(project.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <ConfirmDeleteButton
+                          ariaLabel={`Remover projeto ${project.name}`}
+                          title="Remover projeto?"
+                          description="O projeto salvo e sua configuração serão removidos deste navegador."
+                          confirmLabel="Remover"
+                          onConfirm={() => onRemove(project.id)}
+                        />
                       </div>
                     </div>
                   ))}
@@ -996,6 +1051,32 @@ function ProjectField({
   );
 }
 
+function ProjectListSkeleton() {
+  return (
+    <div className="space-y-2" aria-label="Carregando projetos">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="rounded-lg border bg-background p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-44" />
+              <Skeleton className="h-3 w-64 max-w-full" />
+              <div className="flex flex-wrap gap-1.5">
+                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-8" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SizingTab({
   title,
   subtitle,
@@ -1008,6 +1089,7 @@ function SizingTab({
   dailyKwh,
   canCalculate,
   loading,
+  initialLoading,
   error,
   setTopology,
   setBatteryModel,
@@ -1015,6 +1097,7 @@ function SizingTab({
   resetResidential,
   calculate,
   exportPdf,
+  saveProject,
   productMedia,
 }: {
   title: string;
@@ -1033,6 +1116,7 @@ function SizingTab({
   dailyKwh: number;
   canCalculate: boolean;
   loading: boolean;
+  initialLoading: boolean;
   error: string | null;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
@@ -1040,26 +1124,21 @@ function SizingTab({
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
+  saveProject: () => void;
   productMedia: Record<string, ProductMedia>;
 }) {
-  const selectedBatteryTopology =
-    residentialOptions.topology === 'HighVoltage'
-      ? 'HV'
-      : residentialOptions.topology === 'LowVoltage'
-        ? 'LV'
-        : null;
-  const filteredBatteries = selectedBatteryTopology
-    ? batteryCatalog.filter((battery) => battery.topology === selectedBatteryTopology)
-    : batteryCatalog;
-
   return (
     <>
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="sticky top-0 z-20 -mx-4 mb-5 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={saveProject}>
+            <Save className="h-4 w-4" />
+            Salvar projeto
+          </Button>
           <Button variant="outline" onClick={() => resetResidential()}>
             Limpar
           </Button>
@@ -1085,57 +1164,19 @@ function SizingTab({
                 Configuração
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Topologia da bateria</p>
-                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Topologia da bateria">
-                  {topologyOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={residentialOptions.topology === option.value}
-                      onClick={() => setTopology(option.value)}
-                      className={cn(
-                        'flex h-16 items-center gap-3 rounded-lg border bg-card px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                        residentialOptions.topology === option.value
-                          ? 'border-accent bg-primary/10 shadow-sm'
-                          : 'hover:border-primary/50 hover:bg-muted/70'
-                      )}
-                    >
-                      <Badge variant="secondary">{option.badge}</Badge>
-                      <span className="font-medium">{option.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <CardContent className="space-y-4">
+              <BatteryModelPicker
+                batteries={batteryCatalog}
+                topology={residentialOptions.topology}
+                selectedModel={residentialOptions.batteryModel}
+                loading={initialLoading}
+                setTopology={setTopology}
+                setBatteryModel={setBatteryModel}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="battery-model">Modelo da bateria</Label>
-                <select
-                  id="battery-model"
-                  className="h-16 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  value={residentialOptions.batteryModel ?? ''}
-                  onChange={(event) => setBatteryModel(event.target.value || null)}
-                  disabled={!residentialOptions.topology}
-                >
-                  <option value="">
-                    {residentialOptions.topology ? 'Selecione o modelo' : 'Escolha HV/LV primeiro'}
-                  </option>
-                  {filteredBatteries.map((battery) => (
-                    <option key={battery.id} value={battery.model}>
-                      {battery.model} · {battery.capacityKwh} kWh · {battery.topology}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  A recomendação será limitada às combinações aprovadas com este modelo.
-                </p>
-              </div>
-
-              <div className="space-y-2">
+              <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-medium">Tipo de rede</p>
-                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de rede">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="radiogroup" aria-label="Tipo de rede">
                   {gridOptions.map((option) => (
                     <button
                       key={option.value}
@@ -1144,7 +1185,7 @@ function SizingTab({
                       aria-checked={residentialOptions.gridType === option.value}
                       onClick={() => setGridType(option.value)}
                       className={cn(
-                        'flex h-16 flex-col justify-center rounded-lg border bg-card px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'flex min-h-14 flex-col justify-center rounded-lg border bg-card px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         residentialOptions.gridType === option.value
                           ? 'border-accent bg-primary/10 shadow-sm'
                           : 'hover:border-primary/50 hover:bg-muted/70'
@@ -1194,7 +1235,9 @@ function SizingTab({
                   {error}
                 </p>
               )}
-              {!solution ? (
+              {loading ? (
+                <SolutionSkeleton />
+              ) : !solution ? (
                 <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   <p>Configure os dados para ver a solução recomendada.</p>
                   <ul className="mt-3 space-y-1">
@@ -1212,6 +1255,190 @@ function SizingTab({
         </div>
       </div>
     </>
+  );
+}
+
+function BatteryCardsSkeleton() {
+  return (
+    <div className="grid gap-3 lg:grid-cols-2" aria-label="Carregando baterias">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="grid gap-3 rounded-lg border bg-card p-3 sm:grid-cols-[72px_1fr]">
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <Skeleton className="h-4 w-40 max-w-full" />
+              <Skeleton className="h-5 w-8 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-28" />
+            <div className="flex gap-1">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-6 w-16" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SolutionSkeleton() {
+  return (
+    <div className="space-y-3 rounded-lg border border-dashed p-4" aria-label="Calculando solução">
+      <Skeleton className="h-4 w-48" />
+      <div className="grid gap-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
+      <Skeleton className="h-9 w-full" />
+    </div>
+  );
+}
+
+function BatteryModelPicker({
+  batteries,
+  topology,
+  selectedModel,
+  loading,
+  setTopology,
+  setBatteryModel,
+}: {
+  batteries: BatteryCatalogOption[];
+  topology: BatteryTopology | null;
+  selectedModel: string | null;
+  loading: boolean;
+  setTopology: (topology: BatteryTopology) => void;
+  setBatteryModel: (batteryModel: string | null) => void;
+}) {
+  const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
+  const visibleBatteries = batteries.filter((battery) => battery.topology === activeTopology);
+  const counts = {
+    HV: batteries.filter((battery) => battery.topology === 'HV').length,
+    LV: batteries.filter((battery) => battery.topology === 'LV').length,
+  };
+
+  function selectTab(nextTopology: 'HV' | 'LV') {
+    setTopology(nextTopology === 'HV' ? 'HighVoltage' : 'LowVoltage');
+  }
+
+  function selectBattery(battery: BatteryCatalogOption) {
+    if (battery.topology !== activeTopology) {
+      setTopology(battery.topology === 'HV' ? 'HighVoltage' : 'LowVoltage');
+    } else if (!topology) {
+      setTopology(battery.topology === 'HV' ? 'HighVoltage' : 'LowVoltage');
+    }
+    setBatteryModel(battery.model);
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-background p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium">Modelo da bateria</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Selecione um modelo cadastrado pelo admin.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+          {(['HV', 'LV'] as const).map((tab) => {
+            const active = activeTopology === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                className={cn(
+                  'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition',
+                  active
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+                aria-pressed={active}
+                onClick={() => selectTab(tab)}
+              >
+                {tab}
+                <span className={cn('rounded-full px-1.5 py-0.5 text-[0.7rem]', active ? 'bg-primary/10 text-primary' : 'bg-background')}>
+                  {counts[tab]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {loading ? (
+        <BatteryCardsSkeleton />
+      ) : visibleBatteries.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+          Nenhuma bateria {activeTopology} cadastrada.
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {visibleBatteries.map((battery) => {
+            const selected = selectedModel === battery.model;
+            return (
+              <div
+                key={battery.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                onClick={() => selectBattery(battery)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectBattery(battery);
+                  }
+                }}
+                className={cn(
+                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[72px_1fr]',
+                  selected ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
+                )}
+              >
+                <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
+                  {battery.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={battery.imageUrl} alt={battery.model} className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <Battery className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
+                    <Badge variant="secondary">{battery.topology}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Capacidade: {battery.capacityKwh} kWh
+                  </p>
+                  <div className="flex min-w-0 flex-wrap gap-1">
+                    {battery.documents.length > 0 ? (
+                      battery.documents.slice(0, 2).map((document) => (
+                        <a
+                          key={`${battery.id}-${document.url}`}
+                          href={document.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {document.name || 'Documento'}
+                        </a>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Sem anexos</span>
+                    )}
+                    {battery.documents.length > 2 && (
+                      <span className="rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
+                        +{battery.documents.length - 2}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

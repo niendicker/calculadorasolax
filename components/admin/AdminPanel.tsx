@@ -19,7 +19,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  Trash2,
   X,
   Users,
   Zap,
@@ -27,8 +26,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { createClient } from '@/lib/supabase/client';
 import type { ProductDocument } from '@/lib/types';
 
@@ -445,6 +446,8 @@ export function AdminPanel() {
 
   async function saveInverter() {
     setSaving(true);
+    setStatus(inverterForm.id ? 'Atualizando inversor...' : 'Salvando inversor...');
+    setError(null);
     const action: AdminLogAction = inverterForm.id ? 'update' : 'create';
     const beforeData = inverterForm.id ? inverters.find((row) => row.id === inverterForm.id) : null;
     const payload = {
@@ -484,6 +487,8 @@ export function AdminPanel() {
 
   async function saveBattery() {
     setSaving(true);
+    setStatus(batteryForm.id ? 'Atualizando bateria...' : 'Salvando bateria...');
+    setError(null);
     const action: AdminLogAction = batteryForm.id ? 'update' : 'create';
     const beforeData = batteryForm.id ? batteries.find((row) => row.id === batteryForm.id) : null;
     const payload = {
@@ -517,6 +522,8 @@ export function AdminPanel() {
 
   async function saveAccessory() {
     setSaving(true);
+    setStatus(accessoryForm.id ? 'Atualizando acessório...' : 'Salvando acessório...');
+    setError(null);
     const action: AdminLogAction = accessoryForm.id ? 'update' : 'create';
     const beforeData = accessoryForm.id ? accessories.find((row) => row.id === accessoryForm.id) : null;
     const payload = {
@@ -550,6 +557,8 @@ export function AdminPanel() {
 
   async function saveRule() {
     setSaving(true);
+    setStatus(ruleForm.id ? 'Atualizando regra...' : 'Salvando regra...');
+    setError(null);
     const action: AdminLogAction = ruleForm.id ? 'update' : 'create';
     const beforeData = ruleForm.id ? rules.find((row) => row.id === ruleForm.id) : null;
     const payload = {
@@ -590,6 +599,8 @@ export function AdminPanel() {
 
   async function saveSolution() {
     setSaving(true);
+    setStatus(solutionForm.id ? 'Atualizando combinação...' : 'Salvando combinação...');
+    setError(null);
     const action: AdminLogAction = solutionForm.id ? 'update' : 'create';
     const beforeData = solutionForm.id ? solutions.find((row) => row.id === solutionForm.id) : null;
 
@@ -692,6 +703,8 @@ export function AdminPanel() {
 
   async function removeRow(table: string, id: string, soft = false) {
     setSaving(true);
+    setStatus(soft ? 'Inativando registro...' : 'Removendo registro...');
+    setError(null);
     const logTarget = getLogTarget(table, id);
     const request = soft
       ? supabase.from(table).update({ active: false }).eq('id', id)
@@ -712,13 +725,15 @@ export function AdminPanel() {
           ? { ...logTarget.beforeData, active: false }
           : null,
     });
-    setSuccess('Registro removido.');
+    setSuccess(`${soft ? 'Registro inativado' : 'Registro removido'} com sucesso.`);
     await loadData();
   }
 
   async function sendPasswordReset(email: string) {
     if (!email) return;
     setSaving(true);
+    setStatus('Enviando email de redefinição...');
+    setError(null);
     const origin = window.location.origin;
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/pt/reset-password`,
@@ -741,9 +756,9 @@ export function AdminPanel() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-5">
-        <header className="flex flex-col gap-3 border-b bg-background px-1 pb-4 sm:flex-row sm:items-center sm:justify-between">
+    <main className="h-screen overflow-hidden bg-background">
+      <div className="mx-auto grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] gap-4 px-4 py-5">
+        <header className="z-20 flex flex-col gap-3 border-b bg-background px-1 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Administração de soluções</h1>
             <p className="text-sm text-muted-foreground">
@@ -762,8 +777,8 @@ export function AdminPanel() {
           </div>
         </header>
 
-        <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-          <nav className="hidden gap-2 rounded-lg border bg-card p-2 lg:flex lg:flex-col">
+        <div className="grid min-h-0 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <nav className="hidden min-h-0 gap-2 overflow-y-auto rounded-lg border bg-card p-2 lg:flex lg:flex-col">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -782,7 +797,7 @@ export function AdminPanel() {
             })}
           </nav>
 
-          <section className="min-w-0 space-y-4">
+          <section className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
             {(status || error) && (
               <div
                 role={error ? 'alert' : 'status'}
@@ -795,9 +810,7 @@ export function AdminPanel() {
             )}
 
             {loading ? (
-              <div className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">
-                Carregando dados...
-              </div>
+              <AdminLoadingSkeleton />
             ) : (
               <>
                 {activeTab === 'metrics' && <MetricsPanel simulations={simulations} users={users} />}
@@ -961,6 +974,43 @@ function Field({
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function AdminLoadingSkeleton() {
+  return (
+    <div className="space-y-4" aria-label="Carregando dados administrativos">
+      <div className="grid gap-3 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Card key={index}>
+            <CardContent className="space-y-3 pt-4">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-7 w-24" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Card key={index}>
+            <CardHeader>
+              <Skeleton className="h-5 w-40" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 4 }).map((__, rowIndex) => (
+                <div key={rowIndex} className="space-y-2">
+                  <div className="flex justify-between gap-3">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-4 w-8" />
+                  </div>
+                  <Skeleton className="h-2 w-full rounded-full" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1155,15 +1205,13 @@ function ProductMediaFields({
                   }}
                   placeholder="URL do documento"
                 />
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon"
-                  aria-label={`Remover documento ${document.name}`}
-                  onClick={() => setDocuments(currentDocuments.filter((_, itemIndex) => itemIndex !== index))}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <ConfirmDeleteButton
+                  ariaLabel={`Remover documento ${document.name}`}
+                  title="Remover documento?"
+                  description="O anexo será removido deste produto ao salvar o cadastro."
+                  confirmLabel="Remover"
+                  onConfirm={() => setDocuments(currentDocuments.filter((_, itemIndex) => itemIndex !== index))}
+                />
               </div>
             </div>
           ))}
@@ -1587,14 +1635,13 @@ function SolutionsEditor(props: {
                     <Pencil className="h-4 w-4" />
                     Editar
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="icon-sm"
-                    aria-label={`Inativar combinação ${solution.solution_code}`}
-                    onClick={() => props.onRemove(solution.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <ConfirmDeleteButton
+                    ariaLabel={`Inativar combinação ${solution.solution_code}`}
+                    title="Inativar combinação?"
+                    description="A combinação deixará de ser usada nas recomendações."
+                    confirmLabel="Inativar"
+                    onConfirm={() => props.onRemove(solution.id)}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -2429,9 +2476,13 @@ function RecordCardGrid({
                 <Pencil className="h-4 w-4" />
                 Editar
               </Button>
-              <Button variant="destructive" size="icon-sm" aria-label={`Remover ${item.title}`} onClick={item.onRemove}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <ConfirmDeleteButton
+                ariaLabel={`Remover ${item.title}`}
+                title={`Remover ${item.title}?`}
+                description="Esse registro será removido do cadastro administrativo."
+                confirmLabel="Remover"
+                onConfirm={item.onRemove}
+              />
             </div>
           </CardContent>
         </Card>
