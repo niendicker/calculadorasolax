@@ -13,33 +13,50 @@ interface ResidentialOptions {
   microGrid: 'Gerador' | 'Microinversor' | 'Desabilitada' | null;
 }
 
-interface Inverter {
+interface ApprovedSolution {
   id: string;
-  model: string;
-  power_kw: number;
-  phases: number;
-  topology: string;
-  grid_types: string[];
-  max_battery_qty: number;
+  source_file: string;
+  solution_code: string;
+  inverter_model: string;
+  inverter_quantity: number;
+  battery_ports_used: number;
+  rated_power_w: number;
+  peak_power_w: number;
+  grid_topology: '1p_220V' | '3p_220V' | '3p_380V';
+  battery_model: string;
+  battery_topology: 'HV' | 'LV';
+  battery_quantity: number;
+  battery_power_w: number;
+  available_energy_wh: number;
+  accessories: { model: string | null; quantity: number }[];
+  comments: string[];
 }
 
-interface Battery {
+interface AccessoryRule {
   id: string;
-  model: string;
-  capacity_kwh: number;
-  topology: string;
+  name: string;
+  inclusion: 'required' | 'optional';
+  trigger_metric: 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+  min_quantity: number;
+  inverter_model: string | null;
+  battery_model: string | null;
+  grid_topology: ApprovedSolution['grid_topology'] | null;
+  battery_topology: ApprovedSolution['battery_topology'] | null;
+  quantity_per_match: number;
+  comment: string | null;
+  accessories: { model: string } | null;
 }
 
-const topologyMap: Record<string, string[]> = {
-  HighVoltage: ['HV', 'BOTH'],
-  LowVoltage: ['LV', 'BOTH'],
+const batteryTopologyMap: Record<ResidentialOptions['topology'], 'HV' | 'LV'> = {
+  HighVoltage: 'HV',
+  LowVoltage: 'LV',
 };
 
-const gridPhases: Record<string, number> = {
-  singlePhase_220: 1,
-  splitPhase_220: 1,
-  threePhase_220: 3,
-  threePhase_380: 3,
+const gridTopologyMap: Record<ResidentialOptions['gridType'], ApprovedSolution['grid_topology']> = {
+  singlePhase_220: '1p_220V',
+  splitPhase_220: '1p_220V',
+  threePhase_220: '3p_220V',
+  threePhase_380: '3p_380V',
 };
 
 function totalPeakW(loads: SingleLoad[]): number {
@@ -48,6 +65,20 @@ function totalPeakW(loads: SingleLoad[]): number {
 
 function totalDailyKwh(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty) / 1000, 0);
+}
+
+function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRule['trigger_metric']): number {
+  if (metric === 'inverter_quantity') return solution.inverter_quantity;
+  if (metric === 'battery_quantity') return solution.battery_quantity;
+  return solution.battery_ports_used;
+}
+
+function ruleMatches(solution: ApprovedSolution, rule: AccessoryRule): boolean {
+  if (rule.inverter_model && rule.inverter_model !== solution.inverter_model) return false;
+  if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;
+  if (rule.grid_topology && rule.grid_topology !== solution.grid_topology) return false;
+  if (rule.battery_topology && rule.battery_topology !== solution.battery_topology) return false;
+  return ruleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
 }
 
 Deno.serve(async (req) => {
@@ -69,80 +100,130 @@ Deno.serve(async (req) => {
     );
 
     const peakW = totalPeakW(options.loads);
-    const peakKw = peakW / 1000;
     const dailyKwh = totalDailyKwh(options.loads);
-    const phases = gridPhases[options.gridType];
-    const allowedTopologies = topologyMap[options.topology];
+    const gridTopology = gridTopologyMap[options.gridType];
+    const batteryTopology = batteryTopologyMap[options.topology];
 
-    // Find compatible inverters: topology matches, phases match, power >= peak
-    const { data: inverters, error: invErr } = await supabase
-      .from('inverters')
-      .select('*')
-      .in('topology', allowedTopologies)
-      .eq('phases', phases)
-      .gte('power_kw', peakKw * 0.8)
-      .order('power_kw', { ascending: true });
+    // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
+    const targetEnergyWh = dailyKwh * 0.5 * 1000;
 
-    if (invErr || !inverters?.length) {
-      return Response.json({ error: 'no_inverter' }, { status: 422 });
+    const { data: solutions, error: solutionErr } = await supabase
+      .from('approved_solutions')
+      .select(
+        `
+        id,
+        source_file,
+        solution_code,
+        inverter_model,
+        inverter_quantity,
+        battery_ports_used,
+        rated_power_w,
+        peak_power_w,
+        grid_topology,
+        battery_model,
+        battery_topology,
+        battery_quantity,
+        battery_power_w,
+        available_energy_wh,
+        accessories,
+        comments
+      `
+      )
+      .eq('active', true)
+      .eq('grid_topology', gridTopology)
+      .eq('battery_topology', batteryTopology)
+      .gte('rated_power_w', peakW)
+      .gte('available_energy_wh', targetEnergyWh * 0.8)
+      .order('rated_power_w', { ascending: true })
+      .order('available_energy_wh', { ascending: true })
+      .order('battery_quantity', { ascending: true })
+      .limit(1);
+
+    if (solutionErr) {
+      console.error(solutionErr);
+      return Response.json({ error: 'solution_lookup_failed' }, { status: 500 });
     }
 
-    // Pick smallest inverter that covers the peak load
-    const inverter: Inverter = inverters.find((inv) => inv.power_kw >= peakKw) ?? inverters.at(-1)!;
-
-    // Battery topology key
-    const batTopology = options.topology === 'HighVoltage' ? 'HV' : 'LV';
-
-    const { data: batteries, error: batErr } = await supabase
-      .from('batteries')
-      .select('*')
-      .eq('topology', batTopology)
-      .order('capacity_kwh', { ascending: true });
-
-    if (batErr || !batteries?.length) {
-      return Response.json({ error: 'no_battery' }, { status: 422 });
+    if (!solutions?.length) {
+      return Response.json({ error: 'no_approved_solution' }, { status: 422 });
     }
 
-    // Determine target storage: daily consumption × 0.5 (50% coverage)
-    const targetKwh = dailyKwh * 0.5;
-
-    // Find battery combo: pick smallest battery that with reasonable qty covers target
-    let chosenBattery: Battery | null = null;
-    let chosenQty = 1;
-
-    for (const bat of batteries as Battery[]) {
-      const qty = Math.ceil(targetKwh / bat.capacity_kwh);
-      const cappedQty = Math.min(qty, inverter.max_battery_qty);
-      if (bat.capacity_kwh * cappedQty >= targetKwh * 0.8) {
-        chosenBattery = bat;
-        chosenQty = cappedQty;
-        break;
-      }
-    }
-
-    if (!chosenBattery) {
-      // Fallback: largest battery at max qty
-      chosenBattery = (batteries as Battery[]).at(-1)!;
-      chosenQty = inverter.max_battery_qty;
-    }
+    const solution = solutions[0] as ApprovedSolution;
 
     // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average)
     const pvPowerKw = dailyKwh / 4;
 
-    // Accessories based on grid type
-    const accessories: string[] = [];
-    if (options.gridType === 'threePhase_380') accessories.push('Transformador de isolação');
-    if (options.microGrid === 'Gerador') accessories.push('Módulo EPS');
+    const accessories = solution.accessories
+      .filter((accessory) => accessory.model && accessory.quantity > 0)
+      .map((accessory) =>
+        accessory.quantity > 1 ? `${accessory.model} x${accessory.quantity}` : accessory.model!
+      );
+
+    const { data: rules, error: rulesErr } = await supabase
+      .from('accessory_rules')
+      .select(
+        `
+        id,
+        name,
+        inclusion,
+        trigger_metric,
+        min_quantity,
+        inverter_model,
+        battery_model,
+        grid_topology,
+        battery_topology,
+        quantity_per_match,
+        comment,
+        accessories (model)
+      `
+      )
+      .eq('active', true);
+
+    if (rulesErr) {
+      console.error(rulesErr);
+      return Response.json({ error: 'accessory_rules_lookup_failed' }, { status: 500 });
+    }
+
+    const normalizedAccessoryModels = new Set(
+      accessories.map((accessory) => accessory.replace(/ x\d+$/, '').toLowerCase())
+    );
+    const automaticComments: string[] = [];
+
+    for (const rule of (rules ?? []) as AccessoryRule[]) {
+      if (!rule.accessories?.model || !ruleMatches(solution, rule)) continue;
+
+      const normalizedModel = rule.accessories.model.toLowerCase();
+      const label =
+        rule.quantity_per_match > 1
+          ? `${rule.accessories.model} x${rule.quantity_per_match}`
+          : rule.accessories.model;
+
+      if (!normalizedAccessoryModels.has(normalizedModel)) {
+        accessories.push(rule.inclusion === 'optional' ? `${label} (opcional)` : label);
+        normalizedAccessoryModels.add(normalizedModel);
+      }
+
+      if (rule.comment) automaticComments.push(rule.comment);
+    }
 
     return Response.json(
       {
-        inverterId: inverter.id,
-        inverterModel: inverter.model,
-        batteryId: chosenBattery.id,
-        batteryModel: chosenBattery.model,
-        batteryQty: chosenQty,
+        solutionId: solution.id,
+        solutionCode: solution.solution_code,
+        sourceFile: solution.source_file,
+        inverterId: solution.id,
+        inverterModel: solution.inverter_model,
+        inverterQty: solution.inverter_quantity,
+        inverterRatedPowerW: solution.rated_power_w,
+        inverterPeakPowerW: solution.peak_power_w,
+        batteryId: solution.id,
+        batteryModel: solution.battery_model,
+        batteryQty: solution.battery_quantity,
+        batteryPowerW: solution.battery_power_w,
+        availableEnergyWh: solution.available_energy_wh,
         pvPowerKw: Math.ceil(pvPowerKw * 10) / 10,
         accessories,
+        comments: [...solution.comments, ...automaticComments],
       },
       {
         headers: { 'Access-Control-Allow-Origin': '*' },

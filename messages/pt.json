@@ -50,6 +50,7 @@
   "result": {
     "title": "Solução Recomendada",
     "inverter": "Inversor",
+    "inverter_qty": "Quantidade",
     "battery": "Bateria",
     "battery_qty": "Quantidade",
     "pv_power": "Potência FV recomendada",

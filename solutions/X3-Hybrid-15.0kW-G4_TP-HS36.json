@@ -1,0 +1,1290 @@
+{
+  "meta": {
+    "inverterModel": "X3-Hybrid-15.0kW-G4",
+    "batteryModel": "TP-HS36",
+    "schema_version": "1.0"
+  },
+  "solutions": [
+    {
+      "id": "singleInverter_15K_TP-HS36-103-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 3,
+        "powerW": 5400,
+        "availableEnergyWh": 9720
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-104-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 4,
+        "powerW": 7200,
+        "availableEnergyWh": 12960
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-105-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 5,
+        "powerW": 9000,
+        "availableEnergyWh": 16200
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-106-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 6,
+        "powerW": 10800,
+        "availableEnergyWh": 19440
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-107-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 7,
+        "powerW": 12600,
+        "availableEnergyWh": 22680
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-108-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 8,
+        "powerW": 14400,
+        "availableEnergyWh": 25920
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-109-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 9,
+        "powerW": 16200,
+        "availableEnergyWh": 29160
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-110-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 10,
+        "powerW": 18000,
+        "availableEnergyWh": 32400
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 1
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-111-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 11,
+        "powerW": 19800,
+        "availableEnergyWh": 35640
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 1
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-112-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 12,
+        "powerW": 21600,
+        "availableEnergyWh": 38880
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 1
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_15K_TP-HS36-113-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 15000,
+        "peakPowerW": 30000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 13,
+        "powerW": 23400,
+        "availableEnergyWh": 42120
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 1
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-206-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 6,
+        "powerW": 10800,
+        "availableEnergyWh": 19440
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-208-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 8,
+        "powerW": 14400,
+        "availableEnergyWh": 25920
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-210-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 10,
+        "powerW": 18000,
+        "availableEnergyWh": 32400
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-212-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 12,
+        "powerW": 21600,
+        "availableEnergyWh": 38880
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-214-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 14,
+        "powerW": 25200,
+        "availableEnergyWh": 45360
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-216-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 16,
+        "powerW": 28800,
+        "availableEnergyWh": 51840
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-218-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 18,
+        "powerW": 32400,
+        "availableEnergyWh": 58320
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-220-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 20,
+        "powerW": 36000,
+        "availableEnergyWh": 64800
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 2
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-222-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 22,
+        "powerW": 39600,
+        "availableEnergyWh": 71280
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 2
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-224-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 24,
+        "powerW": 43200,
+        "availableEnergyWh": 77760
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 2
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-226-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 30000,
+        "peakPowerW": 60000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 26,
+        "powerW": 46800,
+        "availableEnergyWh": 84240
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 2
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-309-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 9,
+        "powerW": 16200,
+        "availableEnergyWh": 29160
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-312-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 12,
+        "powerW": 21600,
+        "availableEnergyWh": 38880
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-315-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 15,
+        "powerW": 27000,
+        "availableEnergyWh": 48600
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-318-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 18,
+        "powerW": 32400,
+        "availableEnergyWh": 58320
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-321-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 21,
+        "powerW": 37800,
+        "availableEnergyWh": 68040
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-324-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 24,
+        "powerW": 43200,
+        "availableEnergyWh": 77760
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-327-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 27,
+        "powerW": 48600,
+        "availableEnergyWh": 87480
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-330-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 30,
+        "powerW": 54000,
+        "availableEnergyWh": 97200
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 3
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-333-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 33,
+        "powerW": 59400,
+        "availableEnergyWh": 106920
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 3
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-336-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 36,
+        "powerW": 64800,
+        "availableEnergyWh": 116640
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 3
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    },
+    {
+      "id": "parallelInverter_15K_TP-HS36-339-A1",
+      "inverter": {
+        "model": "X3-Hybrid-15.0kW-G4",
+        "quantity": 3,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 380,
+        "ratedPowerW": 45000,
+        "peakPowerW": 90000,
+        "topology": "3p_380V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 39,
+        "powerW": 70200,
+        "availableEnergyWh": 126360
+      },
+      "accessories": [
+        {
+          "model": "Series Box",
+          "quantity": 3
+        },
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 3
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X3-EPS Parallel Box G2",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. A partir de 10 * HS36. Conecta duas torres.",
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Até 3 inversores para backup Completo. Transferência em até 10 segundos."
+      ]
+    }
+  ]
+}

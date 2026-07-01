@@ -45,11 +45,20 @@ export interface IndustrialOptions {
 export interface Solution {
   inverterId: string;
   inverterModel: string;
+  inverterQty?: number;
+  inverterRatedPowerW?: number;
+  inverterPeakPowerW?: number;
   batteryId: string;
   batteryModel: string;
   batteryQty: number;
+  batteryPowerW?: number;
+  availableEnergyWh?: number;
   pvPowerKw: number;
   accessories: string[];
+  solutionId?: string;
+  solutionCode?: string;
+  sourceFile?: string;
+  comments?: string[];
 }
 
 export interface SimulationNode {

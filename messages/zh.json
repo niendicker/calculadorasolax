@@ -50,6 +50,7 @@
   "result": {
     "title": "推荐方案",
     "inverter": "逆变器",
+    "inverter_qty": "数量",
     "battery": "电池",
     "battery_qty": "数量",
     "pv_power": "推荐光伏功率",

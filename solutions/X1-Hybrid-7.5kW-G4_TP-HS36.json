@@ -1,0 +1,492 @@
+{
+  "meta": {
+    "inverterModel": "X1-Hybrid-7.5kW-G4",
+    "batteryModel": "TP-HS36",
+    "schema_version": "1.0"
+  },
+  "solutions": [
+    {
+      "id": "singleInverter_7.5K_TP-HS36-102-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 2,
+        "powerW": 3600,
+        "availableEnergyWh": 6480
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_7.5K_TP-HS36-103-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 3,
+        "powerW": 5400,
+        "availableEnergyWh": 9720
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_7.5K_TP-HS36-104-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 4,
+        "powerW": 7200,
+        "availableEnergyWh": 12960
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_7.5K_TP-HS36-105-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 5,
+        "powerW": 9000,
+        "availableEnergyWh": 16200
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_7.5K_TP-HS36-106-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 6,
+        "powerW": 10800,
+        "availableEnergyWh": 19440
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_7.5K_TP-HS36-107-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 7,
+        "powerW": 12600,
+        "availableEnergyWh": 22680
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "singleInverter_7.5K_TP-HS36-108-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 1,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 7500,
+        "peakPowerW": 10500,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 8,
+        "powerW": 14400,
+        "availableEnergyWh": 25920
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 1
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        },
+        {
+          "model": "X1-Matebox Advanced",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo.",
+        "Opcional. Para Backup Completo. Não permite paralelo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-204-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 4,
+        "powerW": 7200,
+        "availableEnergyWh": 12960
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-206-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 6,
+        "powerW": 10800,
+        "availableEnergyWh": 19440
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-208-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 8,
+        "powerW": 14400,
+        "availableEnergyWh": 25920
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-210-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 10,
+        "powerW": 18000,
+        "availableEnergyWh": 32400
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-212-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 12,
+        "powerW": 21600,
+        "availableEnergyWh": 38880
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-214-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 14,
+        "powerW": 25200,
+        "availableEnergyWh": 45360
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    },
+    {
+      "id": "parallelInverter_7.5K_TP-HS36-216-A1",
+      "inverter": {
+        "model": "X1-Hybrid-7.5kW-G4",
+        "quantity": 2,
+        "batteryPortsUsed": 1,
+        "nominalVoltageV": 230,
+        "ratedPowerW": 15000,
+        "peakPowerW": 21000,
+        "topology": "1p_220V"
+      },
+      "battery": {
+        "model": "TP-HS36",
+        "quantity": 16,
+        "powerW": 28800,
+        "availableEnergyWh": 51840
+      },
+      "accessories": [
+        {
+          "model": "TBMS-MCS0800",
+          "quantity": 2
+        },
+        {
+          "model": "Smart Meter",
+          "quantity": 1
+        }
+      ],
+      "comments": [
+        "Obrigatório. BMS do sistema de baterias HS36.",
+        "Opcional. Até 3 inversores e sem gerador externo."
+      ]
+    }
+  ]
+}

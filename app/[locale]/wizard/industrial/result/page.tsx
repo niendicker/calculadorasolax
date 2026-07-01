@@ -36,6 +36,11 @@ export default function IndustrialResultPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{solution.inverterModel}</p>
+            {solution.inverterQty && solution.inverterQty > 1 && (
+              <p className="text-muted-foreground text-sm mt-1">
+                {t('inverter_qty')}: <span className="font-semibold text-foreground">x{solution.inverterQty}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -49,7 +54,7 @@ export default function IndustrialResultPage() {
           <CardContent>
             <p className="text-2xl font-bold">{solution.batteryModel}</p>
             <p className="text-muted-foreground text-sm mt-1">
-              {t('battery_qty')}: <span className="font-semibold text-foreground">×{solution.batteryQty}</span>
+              {t('battery_qty')}: <span className="font-semibold text-foreground">x{solution.batteryQty}</span>
             </p>
           </CardContent>
         </Card>

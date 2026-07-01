@@ -50,6 +50,7 @@
   "result": {
     "title": "Recommended Solution",
     "inverter": "Inverter",
+    "inverter_qty": "Quantity",
     "battery": "Battery",
     "battery_qty": "Quantity",
     "pv_power": "Recommended PV power",
