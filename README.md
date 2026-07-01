@@ -132,6 +132,19 @@ Migrações Supabase:
 | `0008_admin_users_metrics.sql` | Métricas de simulações e suporte a visão administrativa |
 | `0009_normalize_inverter_models.sql` | Normalização dos nomes dos modelos de inversores |
 | `0010_admin_activity_logs.sql` | Logs de alterações administrativas |
+| `0011_ess_compatibility_rules.sql` | Regras ESS de compatibilidade entre inversores e baterias |
+| `0012_product_power_specs.sql` | Potências padrão/pico e SOC mínimo no catálogo |
+| `0013_normalize_inverter_grid_types.sql` | Padronização dos acrônimos de rede dos inversores |
+| `0014_standardize_ess_grid_topology.sql` | Padronização histórica das redes em regras ESS |
+| `0015_ess_rule_limits.sql` | Limites de paralelo e baterias nas regras ESS |
+| `0016_constrain_ess_rule_limit_ranges.sql` | Ranges suportados para limites ESS |
+| `0017_ess_min_battery_qty.sql` | Quantidade mínima de baterias por regra ESS |
+| `0018_accessory_rule_solution_metric_grid_patterns.sql` | Regras de acessórios por solução e redes padronizadas |
+| `0019_accessory_rule_multiple_inverters.sql` | Múltiplos inversores por regra de acessório |
+| `0020_inverter_flags.sql` | Flags estruturadas dos inversores |
+| `0021_clear_ess_rule_grid_filters.sql` | Rede ESS derivada do cadastro do inversor |
+| `0022_constrain_inverter_battery_ports.sql` | Portas de bateria limitadas a 1 ou 2 |
+| `0023_inverter_phases_options.sql` | Fases do inversor limitadas a 1, 2 ou 3 |
 
 Aplicar migrações ao projeto linkado:
 
@@ -139,9 +152,11 @@ Aplicar migrações ao projeto linkado:
 npx supabase db push --linked --yes
 ```
 
-## Catálogo de soluções aprovadas
+## Catálogo e geração de soluções
 
-Os arquivos em `solutions/` são a fonte de importação das combinações aprovadas. Cada solução descreve:
+Os arquivos em `solutions/` foram a fonte inicial de importação das combinações aprovadas. O fluxo atual permite gerar combinações a partir dos cadastros e regras administrativas, materializando o resultado em `approved_solutions`.
+
+Cada solução descreve:
 
 - inversor
 - quantidade de inversores
@@ -152,7 +167,18 @@ Os arquivos em `solutions/` são a fonte de importação das combinações aprov
 - acessórios
 - comentários técnicos
 
-A tabela `approved_solutions` é usada pela Edge Function para recomendar somente combinações aprovadas.
+A tabela `approved_solutions` é usada pela Edge Function para recomendar somente combinações aprovadas/geradas. Combinações geradas pelo admin usam `source_file = generated-rules` e `solution_code` determinístico.
+
+O gerador de combinações usa:
+
+- regras ESS ativas para compatibilidade inversor + bateria
+- redes cadastradas no inversor
+- mínimo/máximo de baterias da regra ESS
+- máximo paralelo da regra ESS
+- potência padrão/pico do inversor
+- potência padrão da bateria
+- SOC mínimo da bateria para calcular energia útil
+- regras de acessórios aplicáveis
 
 ## Painel admin
 
@@ -173,17 +199,30 @@ Permite editar:
 - baterias
 - acessórios
 - regras automáticas de acessórios
+- regras ESS de compatibilidade entre inversores e baterias
 - logs de alterações
 
 Regras automáticas podem incluir acessórios obrigatórios ou opcionais com base em:
 
+- cada solução gerada/recomendada
 - quantidade de inversores
 - quantidade de baterias
 - portas de bateria usadas
 
-Produtos administrativos suportam imagem e documentos para clientes, como datasheets e manuais. A UI administrativa usa cards responsivos, formulários em janelas modais, confirmações por popover para ações destrutivas, skeletons de carregamento e feedbacks para salvar/remover.
+Regras de acessórios aceitam filtros por bateria, rede, topologia e um ou mais inversores. Sem inversor selecionado, a regra vale para qualquer inversor.
 
-Na aba de combinações, os registros podem ser agrupados por inversor e por modelo de bateria usando controles segmentados.
+Regras ESS definem:
+
+- inversor e bateria compatíveis
+- topologia da bateria
+- máximo de inversores em paralelo
+- mínimo e máximo de baterias
+
+A rede da regra ESS é derivada das redes cadastradas no inversor, evitando duplicação de configuração.
+
+Produtos administrativos suportam imagem e documentos para clientes, como datasheets e manuais. Inversores possuem flags estruturadas em array para capacidades como Microrrede, Super-Backup, Dual Voltage e ATS Externo. A UI administrativa usa cards responsivos, formulários em janelas modais, confirmações por popover para ações destrutivas, skeletons de carregamento e feedbacks para salvar/remover.
+
+Na aba de combinações, os registros podem ser agrupados por inversor e por modelo de bateria usando controles segmentados. Os agrupamentos mostram somente produtos cadastrados. A ação "Gerar por regras" exibe preview antes de aplicar as combinações em `approved_solutions`.
 
 ## Edge Function
 
@@ -206,6 +245,8 @@ A função recebe as opções residenciais e retorna a menor combinação aprova
 - tipo de rede (`1p_220V`, `3p_220V`, `3p_380V`)
 - pico de carga em W
 - energia alvo para bateria
+- energia útil da bateria calculada com SOC mínimo quando o modelo está cadastrado
+- regras ESS de compatibilidade e limites
 - acessórios definidos na combinação
 - acessórios automáticos por regra
 

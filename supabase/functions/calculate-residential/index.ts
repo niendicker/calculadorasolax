@@ -37,11 +37,12 @@ interface AccessoryRule {
   id: string;
   name: string;
   inclusion: 'required' | 'optional';
-  trigger_metric: 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+  trigger_metric: 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
   min_quantity: number;
   inverter_model: string | null;
+  inverter_models: string[] | null;
   battery_model: string | null;
-  grid_topology: ApprovedSolution['grid_topology'] | null;
+  grid_topology: string | null;
   battery_topology: ApprovedSolution['battery_topology'] | null;
   quantity_per_match: number;
   comment: string | null;
@@ -53,7 +54,10 @@ interface EssCompatibilityRule {
   inverter_model: string;
   battery_model: string;
   battery_topology: ApprovedSolution['battery_topology'] | null;
-  grid_topology: ApprovedSolution['grid_topology'] | null;
+  grid_topology: string | null;
+  max_parallel_inverters: number | null;
+  min_battery_qty: number | null;
+  max_battery_qty: number | null;
   active: boolean;
 }
 
@@ -74,6 +78,33 @@ const gridTopologyMap: Record<ResidentialOptions['gridType'], ApprovedSolution['
   threePhase_380: '3p_380V',
 };
 
+type StandardGridTopology = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
+
+const standardGridTopologyMap: Record<ResidentialOptions['gridType'], StandardGridTopology> = {
+  singlePhase_220: '1P_220V',
+  splitPhase_220: '2P_220V',
+  threePhase_220: '3P_220V',
+  threePhase_380: '3P_380V',
+};
+
+function normalizeStandardGridTopology(value: string | null): StandardGridTopology | null {
+  if (!value) return null;
+  if (value === '1P_220V' || value === '2P_220V' || value === '3P_220V' || value === '3P_380V') {
+    return value;
+  }
+  if (value === '1p_220V') return '1P_220V';
+  if (value === '2p_220V') return '2P_220V';
+  if (value === '3p_220V') return '3P_220V';
+  if (value === '3p_380V') return '3P_380V';
+  return null;
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback = min): number {
+  const parsed = Number(value);
+  const numberValue = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.min(max, Math.max(min, numberValue));
+}
+
 function totalPeakW(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
 }
@@ -83,15 +114,26 @@ function totalDailyKwh(loads: SingleLoad[]): number {
 }
 
 function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRule['trigger_metric']): number {
+  if (metric === 'per_solution') return 1;
   if (metric === 'inverter_quantity') return solution.inverter_quantity;
   if (metric === 'battery_quantity') return solution.battery_quantity;
   return solution.battery_ports_used;
 }
 
 function ruleMatches(solution: ApprovedSolution, rule: AccessoryRule): boolean {
-  if (rule.inverter_model && rule.inverter_model !== solution.inverter_model) return false;
+  const inverterModels = Array.isArray(rule.inverter_models) && rule.inverter_models.length > 0
+    ? rule.inverter_models
+    : rule.inverter_model
+      ? [rule.inverter_model]
+      : [];
+  if (inverterModels.length > 0 && !inverterModels.includes(solution.inverter_model)) return false;
   if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;
-  if (rule.grid_topology && rule.grid_topology !== solution.grid_topology) return false;
+  if (
+    rule.grid_topology &&
+    normalizeStandardGridTopology(rule.grid_topology) !== normalizeStandardGridTopology(solution.grid_topology)
+  ) {
+    return false;
+  }
   if (rule.battery_topology && rule.battery_topology !== solution.battery_topology) return false;
   return ruleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
 }
@@ -117,6 +159,7 @@ Deno.serve(async (req) => {
     const peakW = totalPeakW(options.loads);
     const dailyKwh = totalDailyKwh(options.loads);
     const gridTopology = gridTopologyMap[options.gridType];
+    const standardGridTopology = standardGridTopologyMap[options.gridType];
     const batteryTopology = batteryTopologyMap[options.topology];
 
     // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
@@ -207,7 +250,7 @@ Deno.serve(async (req) => {
     if (options.batteryModel) {
       const { data: essRules, error: essRulesErr } = await supabase
         .from('ess_compatibility_rules')
-        .select('id, inverter_model, battery_model, battery_topology, grid_topology, active')
+        .select('id, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, active')
         .eq('active', true)
         .eq('battery_model', options.batteryModel);
 
@@ -219,12 +262,22 @@ Deno.serve(async (req) => {
       const relevantRules = ((essRules ?? []) as EssCompatibilityRule[]).filter(
         (rule) =>
           (!rule.battery_topology || rule.battery_topology === batteryTopology) &&
-          (!rule.grid_topology || rule.grid_topology === gridTopology)
+          (!rule.grid_topology || normalizeStandardGridTopology(rule.grid_topology) === standardGridTopology)
       );
 
       if (relevantRules.length > 0) {
         compatibleSolutions = compatibleSolutions.filter((solution) =>
-          relevantRules.some((rule) => rule.inverter_model === solution.inverter_model)
+          relevantRules.some((rule) => {
+            const maxParallel = clampNumber(rule.max_parallel_inverters, 1, 10, 1);
+            const minBatteryQty = clampNumber(rule.min_battery_qty, 1, 7, 1);
+            const maxBatteryQty = clampNumber(rule.max_battery_qty, 2, 15, 2);
+            return (
+              rule.inverter_model === solution.inverter_model &&
+              solution.inverter_quantity <= maxParallel &&
+              solution.battery_quantity >= minBatteryQty &&
+              solution.battery_quantity <= maxBatteryQty
+            );
+          })
         );
       }
     }
@@ -258,6 +311,7 @@ Deno.serve(async (req) => {
         trigger_metric,
         min_quantity,
         inverter_model,
+        inverter_models,
         battery_model,
         grid_topology,
         battery_topology,

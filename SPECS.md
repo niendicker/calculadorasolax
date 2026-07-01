@@ -35,10 +35,11 @@ Além das funções de usuário comum:
 - Cadastro de baterias
 - Cadastro de acessórios
 - Upload de imagem e documentos técnicos por produto
-- Edição de combinações aprovadas
+- Edição e geração de combinações aprovadas
 - Agrupamento de combinações por inversor e bateria
 - Criação de regras automáticas de acessórios
 - Definição de acessórios obrigatórios/opcionais por limiar
+- Criação de regras ESS para compatibilidade entre inversor e bateria
 - Lista de usuários cadastrados e envio de reset de senha
 - Indicadores da aplicação
 - Logs de alterações em produtos, combinações e regras
@@ -131,12 +132,32 @@ Campos:
 
 Catálogos de produtos usados nas recomendações.
 
+Campos de inversor:
+
+- `model`
+- `standard_power_kva`
+- `peak_power_kva`
+- `phases`: `1`, `2` ou `3`
+- `topology`: `HV` ou `LV`
+- `grid_types`: array com acrônimos internos `1P_220V`, `2P_220V`, `3P_220V`, `3P_380V`
+- `battery_ports`: `1` ou `2`
+- `flags`: array de chaves estruturadas, atualmente `microgrid`, `super_backup`, `dual_voltage`, `external_ats`
+
+Campos de bateria:
+
+- `model`
+- `capacity_kwh`
+- `topology`: `HV` ou `LV`
+- `standard_power_kw`
+- `peak_power_kw`
+- `min_soc_percent`
+
 Campos de mídia:
 
 - `image_url`: imagem do produto
 - `documents`: lista JSON de documentos `{ name, url }`
 
-Na seleção de bateria do usuário, apenas modelos cadastrados em `batteries` são exibidos. A interface usa tabs `HV` e `LV` e cards com imagem, capacidade e anexos.
+Na seleção de bateria do usuário, apenas modelos cadastrados em `batteries` são exibidos. A interface usa tabs `HV` e `LV` e cards com imagem, capacidade, energia útil, potência e anexos.
 
 ### `accessory_rules`
 
@@ -147,12 +168,31 @@ Campos principais:
 - `accessory_id`
 - `name`
 - `inclusion`: `required` ou `optional`
-- `trigger_metric`: `inverter_quantity`, `battery_quantity`, `battery_ports_used`
+- `trigger_metric`: `per_solution`, `inverter_quantity`, `battery_quantity`, `battery_ports_used`
 - `min_quantity`
-- filtros opcionais: `inverter_model`, `battery_model`, `grid_topology`, `battery_topology`
+- filtros opcionais: `inverter_models`, `battery_model`, `grid_topology`, `battery_topology`
 - `quantity_per_match`
 - `comment`
 - `active`
+
+`per_solution` adiciona a quantidade fixa definida em `quantity_per_match` uma vez por solução. `inverter_models` permite selecionar múltiplos inversores na mesma regra; array vazio significa qualquer inversor.
+
+### `ess_compatibility_rules`
+
+Regras de compatibilidade entre inversores e baterias, usadas para validar o cálculo e gerar combinações.
+
+Campos principais:
+
+- `inverter_model`
+- `battery_model`
+- `battery_topology`
+- `max_parallel_inverters`: 1 a 10
+- `min_battery_qty`: 1 a 7
+- `max_battery_qty`: 2 a 15
+- `comment`
+- `active`
+
+As redes não são escolhidas na regra ESS; são derivadas de `inverters.grid_types`.
 
 ### `admin_activity_logs`
 
@@ -195,9 +235,30 @@ Seleção:
 3. Filtra pelo modelo exato da bateria quando selecionado
 4. Filtra `approved_solutions.active = true`
 5. Exige `rated_power_w >= peakW`
-6. Exige `available_energy_wh >= targetEnergyWh * 0.8`
-7. Ordena por menor potência, menor energia e menor quantidade de baterias
-8. Aplica regras automáticas de acessórios
+6. Usa `capacity_kwh` e `min_soc_percent` do modelo de bateria para calcular energia útil quando disponível
+7. Exige energia útil suficiente para pelo menos `targetEnergyWh * 0.8`
+8. Aplica regras ESS de compatibilidade e limites de paralelo/baterias
+9. Ordena por menor potência, menor energia e menor quantidade de baterias
+10. Aplica regras automáticas de acessórios
+
+## Geração de combinações por regras
+
+O painel admin pode gerar combinações em `approved_solutions` a partir de:
+
+- cadastros de inversores
+- cadastros de baterias
+- regras ESS ativas
+- regras de acessórios ativas
+
+O gerador cria um preview antes de aplicar. Ao aplicar, faz `upsert` em `approved_solutions` com:
+
+- `source_file = generated-rules`
+- `solution_code` determinístico por inversor, bateria, rede e quantidades
+- potência e energia calculadas a partir dos campos do catálogo
+- acessórios e comentários derivados das regras
+- `raw_solution` com os metadados da geração
+
+As abas de agrupamento de combinações mostram apenas modelos presentes no cadastro atual de produtos.
 
 ## Rotas
 

@@ -36,11 +36,12 @@ import { cn } from '@/lib/utils';
 
 type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'rules' | 'logs';
 
-type GridTopology = '1p_220V' | '3p_220V' | '3p_380V';
 type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
+type GridTopology = '1p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
+type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats';
 type BatteryTopology = 'HV' | 'LV';
 type Inclusion = 'required' | 'optional';
-type TriggerMetric = 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+type TriggerMetric = 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
 
 const inverterGridTypeOptions: { value: InverterGridType; label: string }[] = [
   { value: '1P_220V', label: 'Monofásica 220V' },
@@ -64,6 +65,17 @@ const legacyInverterGridTypeMap: Record<string, InverterGridType> = {
   '3p_380V': '3P_380V',
 };
 
+const inverterFlagOptions: { value: InverterFlag; label: string }[] = [
+  { value: 'microgrid', label: 'Microrrede' },
+  { value: 'super_backup', label: 'Super-Backup' },
+  { value: 'dual_voltage', label: 'Dual Voltage' },
+  { value: 'external_ats', label: 'ATS Externo' },
+];
+
+const inverterFlagLabels = new Map(
+  inverterFlagOptions.map((option) => [option.value, option.label])
+);
+
 interface InverterRow {
   id: string;
   model: string;
@@ -75,6 +87,7 @@ interface InverterRow {
   grid_types: string[];
   max_battery_qty: number;
   battery_ports: number;
+  flags: InverterFlag[];
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -108,6 +121,7 @@ interface AccessoryRuleRow {
   trigger_metric: TriggerMetric;
   min_quantity: number;
   inverter_model: string | null;
+  inverter_models: string[] | null;
   battery_model: string | null;
   grid_topology: GridTopology | null;
   battery_topology: BatteryTopology | null;
@@ -123,6 +137,9 @@ interface EssCompatibilityRuleRow {
   battery_model: string;
   battery_topology: BatteryTopology | null;
   grid_topology: GridTopology | null;
+  max_parallel_inverters: number;
+  min_battery_qty: number;
+  max_battery_qty: number;
   comment: string | null;
   active: boolean;
   created_at: string;
@@ -150,6 +167,8 @@ interface SolutionRow {
   raw_solution: unknown;
   active: boolean;
 }
+
+type GeneratedSolutionPayload = Omit<SolutionRow, 'id'>;
 
 interface UserProfileRow {
   id: string;
@@ -217,6 +236,7 @@ const emptyInverter: Partial<InverterRow> = {
   grid_types: [],
   max_battery_qty: 1,
   battery_ports: 1,
+  flags: [],
   image_url: '',
   documents: [],
 };
@@ -244,9 +264,10 @@ const emptyRule: Partial<AccessoryRuleRow> = {
   accessory_id: '',
   name: '',
   inclusion: 'required',
-  trigger_metric: 'battery_quantity',
+  trigger_metric: 'per_solution',
   min_quantity: 1,
   inverter_model: null,
+  inverter_models: [],
   battery_model: null,
   grid_topology: null,
   battery_topology: null,
@@ -260,6 +281,9 @@ const emptyEssRule: Partial<EssCompatibilityRuleRow> = {
   battery_model: '',
   battery_topology: null,
   grid_topology: null,
+  max_parallel_inverters: 1,
+  min_battery_qty: 1,
+  max_battery_qty: 2,
   comment: '',
   active: true,
 };
@@ -291,6 +315,11 @@ function toNumber(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function clampNumber(value: unknown, min: number, max: number, fallback = min) {
+  const parsed = toNumber(value, fallback);
+  return Math.min(max, Math.max(min, parsed));
+}
+
 function parseJson<T>(value: string, fallback: T): T {
   if (!value.trim()) return fallback;
   return JSON.parse(value) as T;
@@ -317,6 +346,211 @@ function normalizeInverterGridTypes(value: unknown): InverterGridType[] {
 function formatInverterGridType(value: string) {
   const normalized = normalizeInverterGridType(value);
   return normalized ? inverterGridTypeLabels.get(normalized) ?? value : value;
+}
+
+function normalizeInverterFlags(value: unknown): InverterFlag[] {
+  const values = Array.isArray(value) ? value : String(value ?? '').split(',');
+  return Array.from(
+    new Set(
+      values
+        .map((item) => String(item).trim())
+        .filter((item): item is InverterFlag => inverterFlagLabels.has(item as InverterFlag))
+    )
+  );
+}
+
+function formatInverterFlags(value: unknown) {
+  return normalizeInverterFlags(value)
+    .map((flag) => inverterFlagLabels.get(flag) ?? flag)
+    .join(', ');
+}
+
+function formatTriggerMetric(value: TriggerMetric) {
+  if (value === 'per_solution') return 'Por solução';
+  if (value === 'inverter_quantity') return 'Qtd. inversores';
+  if (value === 'battery_quantity') return 'Qtd. baterias';
+  return 'Portas de bateria';
+}
+
+function accessoryRuleInverterModels(rule: Partial<AccessoryRuleRow>) {
+  if (Array.isArray(rule.inverter_models) && rule.inverter_models.length > 0) {
+    return rule.inverter_models.filter(Boolean);
+  }
+  return rule.inverter_model ? [rule.inverter_model] : [];
+}
+
+function generatedGridToApprovedTopology(gridType: InverterGridType): Extract<GridTopology, '1p_220V' | '3p_220V' | '3p_380V'> {
+  if (gridType === '3P_220V') return '3p_220V';
+  if (gridType === '3P_380V') return '3p_380V';
+  return '1p_220V';
+}
+
+function nominalVoltageForGrid(gridType: InverterGridType) {
+  return gridType === '3P_380V' ? 380 : 220;
+}
+
+function slugPart(value: string) {
+  return value
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'item';
+}
+
+function solutionRuleMetricValue(solution: Pick<SolutionRow, 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used'>, metric: TriggerMetric) {
+  if (metric === 'per_solution') return 1;
+  if (metric === 'inverter_quantity') return solution.inverter_quantity;
+  if (metric === 'battery_quantity') return solution.battery_quantity;
+  return solution.battery_ports_used;
+}
+
+function accessoryRuleMatches(solution: GeneratedSolutionPayload, rule: AccessoryRuleRow) {
+  if (!rule.active) return false;
+  const inverterModels = accessoryRuleInverterModels(rule);
+  if (inverterModels.length > 0 && !inverterModels.includes(solution.inverter_model)) return false;
+  if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;
+  if (rule.grid_topology) {
+    const ruleGrid = normalizeInverterGridType(rule.grid_topology);
+    const solutionGrid = normalizeInverterGridType(solution.grid_topology);
+    if (ruleGrid && solutionGrid && ruleGrid !== solutionGrid) return false;
+    if (!ruleGrid && rule.grid_topology !== solution.grid_topology) return false;
+  }
+  if (rule.battery_topology && rule.battery_topology !== solution.battery_topology) return false;
+  return solutionRuleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
+}
+
+function applyAccessoryRules(solution: GeneratedSolutionPayload, rules: AccessoryRuleRow[]) {
+  const accessories = new Map<string, number>();
+  const comments: string[] = [];
+
+  for (const rule of rules) {
+    if (!rule.accessories?.model || !accessoryRuleMatches(solution, rule)) continue;
+    const currentQty = accessories.get(rule.accessories.model) ?? 0;
+    accessories.set(rule.accessories.model, currentQty + rule.quantity_per_match);
+    if (rule.comment) comments.push(rule.comment);
+    if (rule.inclusion === 'optional') comments.push(`Acessório opcional: ${rule.accessories.model}.`);
+  }
+
+  return {
+    accessories: Array.from(accessories.entries()).map(([model, quantity]) => ({ model, quantity })),
+    comments,
+  };
+}
+
+function buildRuleGeneratedSolutions({
+  inverters,
+  batteries,
+  accessoryRules,
+  essRules,
+}: {
+  inverters: InverterRow[];
+  batteries: BatteryRow[];
+  accessoryRules: AccessoryRuleRow[];
+  essRules: EssCompatibilityRuleRow[];
+}) {
+  const inverterByModel = new Map(inverters.map((inverter) => [inverter.model, inverter]));
+  const batteryByModel = new Map(batteries.map((battery) => [battery.model, battery]));
+  const generated: GeneratedSolutionPayload[] = [];
+  const seen = new Set<string>();
+
+  for (const rule of essRules) {
+    if (!rule.active || !rule.inverter_model || !rule.battery_model) continue;
+    const inverter = inverterByModel.get(rule.inverter_model);
+    const battery = batteryByModel.get(rule.battery_model);
+    if (!inverter || !battery) continue;
+    if (rule.battery_topology && rule.battery_topology !== battery.topology) continue;
+
+    const inverterGridTypes = normalizeInverterGridTypes(inverter.grid_types);
+    const ruleGridType = rule.grid_topology ? normalizeInverterGridType(rule.grid_topology) : null;
+    const gridTypes = ruleGridType ? [ruleGridType] : inverterGridTypes;
+    const validGridTypes = gridTypes.filter((gridType) => inverterGridTypes.includes(gridType));
+    const minBatteryQty = clampNumber(rule.min_battery_qty, 1, 7, 1);
+    const maxBatteryQty = Math.max(minBatteryQty, clampNumber(rule.max_battery_qty, 2, 15, 2));
+    const inverterQtyMax = Math.max(1, toNumber(rule.max_parallel_inverters, 1));
+
+    for (const gridType of validGridTypes) {
+      for (let inverterQty = 1; inverterQty <= inverterQtyMax; inverterQty += 1) {
+        for (let batteryQty = minBatteryQty; batteryQty <= maxBatteryQty; batteryQty += 1) {
+          const approvedGridTopology = generatedGridToApprovedTopology(gridType);
+          const solutionCode = [
+            'rules',
+            slugPart(inverter.model),
+            slugPart(battery.model),
+            gridType,
+            `${inverterQty}I`,
+            `${batteryQty}B`,
+          ].join('_');
+          if (seen.has(solutionCode)) continue;
+          seen.add(solutionCode);
+
+          const ratedPowerW = Math.max(1, Math.round(toNumber(inverter.standard_power_kva, inverter.power_kw) * 1000 * inverterQty));
+          const peakPowerW = Math.max(ratedPowerW, Math.round(toNumber(inverter.peak_power_kva, inverter.power_kw) * 1000 * inverterQty));
+          const batteryPowerW = Math.max(1, Math.round(toNumber(battery.standard_power_kw, battery.capacity_kwh) * 1000 * batteryQty));
+          const availableEnergyWh = Math.max(
+            1,
+            Math.round(toNumber(battery.capacity_kwh) * (1 - toNumber(battery.min_soc_percent, 10) / 100) * 1000 * batteryQty)
+          );
+          const portsUsed = Math.max(1, Math.min(toNumber(inverter.battery_ports, 1), batteryQty));
+          const baseSolution: GeneratedSolutionPayload = {
+            source_file: 'generated-rules',
+            solution_code: solutionCode,
+            schema_version: '1.0',
+            inverter_model: inverter.model,
+            inverter_quantity: inverterQty,
+            battery_ports_used: portsUsed,
+            nominal_voltage_v: nominalVoltageForGrid(gridType),
+            rated_power_w: ratedPowerW,
+            peak_power_w: peakPowerW,
+            grid_topology: approvedGridTopology,
+            battery_model: battery.model,
+            battery_topology: battery.topology,
+            battery_quantity: batteryQty,
+            battery_power_w: batteryPowerW,
+            available_energy_wh: availableEnergyWh,
+            accessories: [],
+            comments: [`Gerada por regra ESS para ${formatInverterGridType(gridType)}.`],
+            raw_solution: {},
+            active: true,
+          };
+          const ruleExtras = applyAccessoryRules(baseSolution, accessoryRules);
+          const solution = {
+            ...baseSolution,
+            accessories: ruleExtras.accessories.length > 0 ? ruleExtras.accessories : [{ model: null, quantity: 0 }],
+            comments: [...baseSolution.comments, ...ruleExtras.comments],
+          };
+          solution.raw_solution = {
+            id: solution.solution_code,
+            generatedBy: 'admin_rules',
+            gridType,
+            inverter: {
+              model: solution.inverter_model,
+              quantity: solution.inverter_quantity,
+              batteryPortsUsed: solution.battery_ports_used,
+              nominalVoltageV: solution.nominal_voltage_v,
+              ratedPowerW: solution.rated_power_w,
+              peakPowerW: solution.peak_power_w,
+              topology: solution.grid_topology,
+            },
+            battery: {
+              model: solution.battery_model,
+              quantity: solution.battery_quantity,
+              powerW: solution.battery_power_w,
+              availableEnergyWh: solution.available_energy_wh,
+              minSocPercent: battery.min_soc_percent,
+            },
+            accessories: solution.accessories,
+            comments: solution.comments,
+          };
+          generated.push(solution);
+        }
+      }
+    }
+  }
+
+  return generated.sort((a, b) =>
+    a.inverter_model.localeCompare(b.inverter_model) ||
+    a.battery_model.localeCompare(b.battery_model) ||
+    a.battery_quantity - b.battery_quantity
+  );
 }
 
 function selectClasses(className = '') {
@@ -548,7 +782,8 @@ export function AdminPanel() {
       topology: inverterForm.topology,
       grid_types: normalizeInverterGridTypes(inverterForm.grid_types),
       max_battery_qty: toNumber(inverterForm.max_battery_qty, 1),
-      battery_ports: toNumber(inverterForm.battery_ports, 1),
+      battery_ports: clampNumber(inverterForm.battery_ports, 1, 2, 1),
+      flags: normalizeInverterFlags(inverterForm.flags),
       image_url: inverterForm.image_url?.trim() || null,
       documents: inverterForm.documents ?? [],
     };
@@ -574,7 +809,7 @@ export function AdminPanel() {
     await loadData();
   }
 
-  async function saveBattery() {
+  async function saveBattery(afterPersist?: () => void) {
     setSaving(true);
     setStatus(batteryForm.id ? 'Atualizando bateria...' : 'Salvando bateria...');
     setError(null);
@@ -598,6 +833,7 @@ export function AdminPanel() {
 
     setSaving(false);
     if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
     await recordActivityLog({
       entityType: 'battery',
       action,
@@ -653,15 +889,17 @@ export function AdminPanel() {
     setError(null);
     const action: AdminLogAction = ruleForm.id ? 'update' : 'create';
     const beforeData = ruleForm.id ? rules.find((row) => row.id === ruleForm.id) : null;
+    const inverterModels = accessoryRuleInverterModels(ruleForm);
     const payload = {
       accessory_id: ruleForm.accessory_id,
       name: ruleForm.name?.trim(),
       inclusion: ruleForm.inclusion,
       trigger_metric: ruleForm.trigger_metric,
       min_quantity: toNumber(ruleForm.min_quantity, 1),
-      inverter_model: ruleForm.inverter_model || null,
+      inverter_model: inverterModels[0] ?? null,
+      inverter_models: inverterModels,
       battery_model: ruleForm.battery_model || null,
-      grid_topology: ruleForm.grid_topology || null,
+      grid_topology: ruleForm.grid_topology ? normalizeInverterGridType(ruleForm.grid_topology) : null,
       battery_topology: ruleForm.battery_topology || null,
       quantity_per_match: toNumber(ruleForm.quantity_per_match, 1),
       comment: ruleForm.comment?.trim() || null,
@@ -699,7 +937,10 @@ export function AdminPanel() {
       inverter_model: essRuleForm.inverter_model?.trim(),
       battery_model: essRuleForm.battery_model?.trim(),
       battery_topology: essRuleForm.battery_topology || null,
-      grid_topology: essRuleForm.grid_topology || null,
+      grid_topology: null,
+      max_parallel_inverters: clampNumber(essRuleForm.max_parallel_inverters, 1, 10, 1),
+      min_battery_qty: clampNumber(essRuleForm.min_battery_qty, 1, 7, 1),
+      max_battery_qty: clampNumber(essRuleForm.max_battery_qty, 2, 15, 2),
       comment: essRuleForm.comment?.trim() || null,
       active: essRuleForm.active ?? true,
     };
@@ -808,6 +1049,40 @@ export function AdminPanel() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function applyGeneratedSolutions(generatedSolutions: GeneratedSolutionPayload[]) {
+    if (generatedSolutions.length === 0) {
+      setFailure('Nenhuma combinação para gerar.');
+      return;
+    }
+
+    setSaving(true);
+    setStatus(`Gerando ${generatedSolutions.length} combinações...`);
+    setError(null);
+
+    const { error: upsertError } = await supabase
+      .from('approved_solutions')
+      .upsert(generatedSolutions, { onConflict: 'source_file,solution_code' });
+
+    setSaving(false);
+    if (upsertError) return setFailure(upsertError.message);
+
+    await recordActivityLog({
+      entityType: 'solution',
+      action: 'update',
+      targetId: null,
+      targetLabel: 'Combinações geradas por regras',
+      summary: `Gerou/atualizou ${generatedSolutions.length} combinações a partir das regras.`,
+      beforeData: null,
+      afterData: {
+        count: generatedSolutions.length,
+        source_file: 'generated-rules',
+      },
+    });
+
+    setSuccess(`${generatedSolutions.length} combinações geradas/atualizadas.`);
+    await loadData();
   }
 
   function getLogTarget(table: string, id: string) {
@@ -983,9 +1258,12 @@ export function AdminPanel() {
                     setCommentsText={setSolutionCommentsText}
                     inverters={inverters}
                     batteries={batteries}
+                    accessoryRules={rules}
+                    essRules={essRules}
                     onEdit={editSolution}
                     onNew={resetSolution}
                     onSave={saveSolution}
+                    onApplyGenerated={applyGeneratedSolutions}
                     onRemove={(id) => removeRow('approved_solutions', id, true)}
                     removingIds={removingIds}
                     saving={saving}
@@ -1678,9 +1956,12 @@ function SolutionsEditor(props: {
   setCommentsText: (value: string) => void;
   inverters: InverterRow[];
   batteries: BatteryRow[];
+  accessoryRules: AccessoryRuleRow[];
+  essRules: EssCompatibilityRuleRow[];
   onEdit: (row: SolutionRow) => void;
   onNew: () => void;
   onSave: () => void;
+  onApplyGenerated: (generatedSolutions: GeneratedSolutionPayload[]) => void;
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   saving: boolean;
@@ -1689,21 +1970,63 @@ function SolutionsEditor(props: {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedInverter, setSelectedInverter] = useState<string>('all');
   const [selectedBattery, setSelectedBattery] = useState<string>('all');
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+
+  const generatedSolutions = useMemo(
+    () =>
+      buildRuleGeneratedSolutions({
+        inverters: props.inverters,
+        batteries: props.batteries,
+        accessoryRules: props.accessoryRules,
+        essRules: props.essRules,
+      }),
+    [props.inverters, props.batteries, props.accessoryRules, props.essRules]
+  );
+  const existingGeneratedCodes = useMemo(
+    () =>
+      new Set(
+        props.solutions
+          .filter((solution) => solution.source_file === 'generated-rules')
+          .map((solution) => solution.solution_code)
+      ),
+    [props.solutions]
+  );
+  const newGeneratedCount = generatedSolutions.filter(
+    (solution) => !existingGeneratedCodes.has(solution.solution_code)
+  ).length;
+  const updatedGeneratedCount = generatedSolutions.length - newGeneratedCount;
+  const registeredInverterModels = useMemo(
+    () => new Set(props.inverters.map((inverter) => inverter.model)),
+    [props.inverters]
+  );
+  const registeredBatteryModels = useMemo(
+    () => new Set(props.batteries.map((battery) => battery.model)),
+    [props.batteries]
+  );
+  const catalogSolutions = useMemo(
+    () =>
+      props.solutions.filter(
+        (solution) =>
+          registeredInverterModels.has(solution.inverter_model) &&
+          registeredBatteryModels.has(solution.battery_model)
+      ),
+    [props.solutions, registeredInverterModels, registeredBatteryModels]
+  );
 
   const inverterGroups = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const solution of props.solutions) {
+    for (const solution of catalogSolutions) {
       counts.set(solution.inverter_model, (counts.get(solution.inverter_model) ?? 0) + 1);
     }
     return Array.from(counts.entries())
       .map(([label, count]) => ({ value: label, label, count }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [props.solutions]);
+  }, [catalogSolutions]);
 
   const solutionsByInverter =
     selectedInverter === 'all'
-      ? props.solutions
-      : props.solutions.filter((solution) => solution.inverter_model === selectedInverter);
+      ? catalogSolutions
+      : catalogSolutions.filter((solution) => solution.inverter_model === selectedInverter);
 
   const batteryGroups = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1719,6 +2042,19 @@ function SolutionsEditor(props: {
     selectedBattery === 'all'
       ? solutionsByInverter
       : solutionsByInverter.filter((solution) => solution.battery_model === selectedBattery);
+
+  useEffect(() => {
+    if (selectedInverter !== 'all' && !registeredInverterModels.has(selectedInverter)) {
+      setSelectedInverter('all');
+      setSelectedBattery('all');
+    }
+  }, [selectedInverter, registeredInverterModels]);
+
+  useEffect(() => {
+    if (selectedBattery !== 'all' && !registeredBatteryModels.has(selectedBattery)) {
+      setSelectedBattery('all');
+    }
+  }, [selectedBattery, registeredBatteryModels]);
 
   function openNew() {
     props.onNew();
@@ -1750,6 +2086,10 @@ function SolutionsEditor(props: {
               <Plus className="h-4 w-4" />
               Nova combinação
             </Button>
+            <Button variant="outline" onClick={() => setGeneratorOpen(true)}>
+              <Zap className="h-4 w-4" />
+              Gerar por regras
+            </Button>
           </div>
         </div>
 
@@ -1757,7 +2097,7 @@ function SolutionsEditor(props: {
           <SegmentedTabs
             label="Inversor"
             value={selectedInverter}
-            options={[{ value: 'all', label: 'Todos', count: props.solutions.length }, ...inverterGroups]}
+            options={[{ value: 'all', label: 'Todos', count: catalogSolutions.length }, ...inverterGroups]}
             onChange={(value) => {
               setSelectedInverter(value);
               setSelectedBattery('all');
@@ -1820,6 +2160,65 @@ function SolutionsEditor(props: {
           )}
         </div>
       </section>
+
+      {generatorOpen && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Gerador por regras</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Preview das combinações criadas a partir das regras ESS ativas e das regras de acessórios.
+                </p>
+              </div>
+              <Button variant="ghost" size="icon-sm" aria-label="Fechar gerador" onClick={() => setGeneratorOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MetricCard label="Total no preview" value={String(generatedSolutions.length)} />
+              <MetricCard label="Novas" value={String(newGeneratedCount)} />
+              <MetricCard label="Atualizações" value={String(updatedGeneratedCount)} />
+            </div>
+            {generatedSolutions.length === 0 ? (
+              <p className="rounded-lg border border-dashed bg-background p-4 text-sm text-muted-foreground">
+                Nenhuma combinação foi gerada. Verifique se há regras ESS ativas com inversor, bateria e redes compatíveis.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="max-h-80 overflow-auto rounded-lg border">
+                  <div className="grid gap-0 divide-y">
+                    {generatedSolutions.slice(0, 20).map((solution) => (
+                      <div key={solution.solution_code} className="grid gap-2 p-3 text-sm md:grid-cols-[1.2fr_1fr_0.7fr_0.7fr]">
+                        <span className="min-w-0 truncate font-medium">{solution.solution_code}</span>
+                        <span className="text-muted-foreground">{solution.inverter_model}</span>
+                        <span className="text-muted-foreground">{solution.battery_model} x{solution.battery_quantity}</span>
+                        <span className="text-muted-foreground">{solution.available_energy_wh} Wh</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {generatedSolutions.length > 20 && (
+                  <p className="text-xs text-muted-foreground">
+                    Mostrando 20 de {generatedSolutions.length} combinações.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => props.onApplyGenerated(generatedSolutions)} disabled={props.saving}>
+                    <Save className="h-4 w-4" />
+                    Aplicar combinações
+                  </Button>
+                  <Button variant="ghost" onClick={() => setGeneratorOpen(false)} disabled={props.saving}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <EditorModal
         open={formOpen}
@@ -2023,6 +2422,87 @@ function InverterGridTypesInput({
   );
 }
 
+function InverterFlagsInput({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (flags: InverterFlag[]) => void;
+}) {
+  const selected = normalizeInverterFlags(value);
+
+  function toggleFlag(flag: InverterFlag) {
+    if (selected.includes(flag)) {
+      onChange(selected.filter((item) => item !== flag));
+      return;
+    }
+    onChange([...selected, flag]);
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {inverterFlagOptions.map((option) => {
+        const active = selected.includes(option.value);
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            className={cn(
+              'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              active
+                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+            )}
+            onClick={() => toggleFlag(option.value)}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function InlineOptionTabs<T extends string | number>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T | undefined;
+  onChange: (value: T) => void;
+}) {
+  const activeValue = value ?? options[0]?.value;
+
+  return (
+    <div
+      className="grid gap-1 rounded-lg bg-muted p-1"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
+      {options.map((option) => {
+        const active = activeValue === option.value;
+        return (
+          <button
+            key={String(option.value)}
+            type="button"
+            aria-pressed={active}
+            className={cn(
+              'h-8 rounded-md px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              active
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            )}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function InvertersEditor(props: {
   rows: InverterRow[];
   form: Partial<InverterRow>;
@@ -2078,30 +2558,34 @@ function InvertersEditor(props: {
               />
             </Field>
             <Field label="Fases">
-              <select
-                className={selectClasses()}
+              <InlineOptionTabs
+                options={[
+                  { value: 1, label: '1' },
+                  { value: 2, label: '2' },
+                  { value: 3, label: '3' },
+                ]}
                 value={form.phases ?? 1}
-                onChange={(event) => setForm({ ...form, phases: toNumber(event.target.value, 1) })}
-              >
-                <option value={1}>1</option>
-                <option value={3}>3</option>
-              </select>
+                onChange={(phases) => setForm({ ...form, phases })}
+              />
             </Field>
             <Field label="Topologia">
-              <select
-                className={selectClasses()}
-                value={form.topology ?? 'HV'}
-                onChange={(event) => setForm({ ...form, topology: event.target.value as InverterRow['topology'] })}
-              >
-                <option value="HV">HV</option>
-                <option value="LV">LV</option>
-                <option value="BOTH">BOTH</option>
-              </select>
+              <InlineOptionTabs
+                options={[
+                  { value: 'HV' as const, label: 'HV' },
+                  { value: 'LV' as const, label: 'LV' },
+                ]}
+                value={form.topology === 'LV' ? 'LV' : 'HV'}
+                onChange={(topology) => setForm({ ...form, topology })}
+              />
             </Field>
             <Field label="Portas bateria">
-              <NumberInput
+              <InlineOptionTabs
+                options={[
+                  { value: 1, label: '1' },
+                  { value: 2, label: '2' },
+                ]}
                 value={form.battery_ports ?? 1}
-                onChange={(event) => setForm({ ...form, battery_ports: toNumber(event.target.value, 1) })}
+                onChange={(battery_ports) => setForm({ ...form, battery_ports })}
               />
             </Field>
           </div>
@@ -2109,6 +2593,12 @@ function InvertersEditor(props: {
             <InverterGridTypesInput
               value={form.grid_types}
               onChange={(grid_types) => setForm({ ...form, grid_types })}
+            />
+          </Field>
+          <Field label="Flags">
+            <InverterFlagsInput
+              value={form.flags}
+              onChange={(flags) => setForm({ ...form, flags })}
             />
           </Field>
           <ProductMediaFields
@@ -2120,7 +2610,7 @@ function InvertersEditor(props: {
             setDocuments={(documents) => setForm({ ...form, documents })}
             uploadAsset={props.uploadAsset}
           />
-          <Actions onSave={props.onSave} onNew={openNew} onCancel={() => setFormOpen(false)} saving={props.saving} />
+          <Actions onSave={props.onSave} saving={props.saving} />
         </>
       }
       items={props.rows.map((row) => ({
@@ -2132,6 +2622,7 @@ function InvertersEditor(props: {
           ['Potência pico', `${row.peak_power_kva ?? '-'} kVA`],
           ['Portas bateria', String(row.battery_ports ?? 1)],
           ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '-'],
+          ['Flags', formatInverterFlags(row.flags) || '-'],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
         removing: props.removingIds.has(row.id),
@@ -2146,7 +2637,7 @@ function BatteriesEditor(props: {
   rows: BatteryRow[];
   form: Partial<BatteryRow>;
   setForm: (value: Partial<BatteryRow>) => void;
-  onSave: () => void;
+  onSave: (afterPersist?: () => void) => void;
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
@@ -2230,7 +2721,12 @@ function BatteriesEditor(props: {
             setDocuments={(documents) => setForm({ ...form, documents })}
             uploadAsset={props.uploadAsset}
           />
-          <Actions onSave={props.onSave} onNew={openNew} onCancel={() => setFormOpen(false)} saving={props.saving} />
+          <Actions
+            onSave={() => props.onSave(() => setFormOpen(false))}
+            onNew={openNew}
+            onCancel={() => setFormOpen(false)}
+            saving={props.saving}
+          />
         </>
       }
       items={props.rows.map((row) => ({
@@ -2336,6 +2832,55 @@ function AccessoriesEditor(props: {
   );
 }
 
+function InverterModelsInput({
+  inverters,
+  value,
+  onChange,
+}: {
+  inverters: InverterRow[];
+  value: Partial<AccessoryRuleRow>;
+  onChange: (models: string[]) => void;
+}) {
+  const selected = accessoryRuleInverterModels(value);
+
+  function toggle(model: string) {
+    if (selected.includes(model)) {
+      onChange(selected.filter((item) => item !== model));
+      return;
+    }
+    onChange([...selected, model]);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {inverters.map((inverter) => {
+          const active = selected.includes(inverter.model);
+          return (
+            <button
+              key={inverter.id}
+              type="button"
+              aria-pressed={active}
+              className={cn(
+                'inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                active
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+              )}
+              onClick={() => toggle(inverter.model)}
+            >
+              <span className="truncate">{inverter.model}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {selected.length === 0 ? 'Qualquer inversor.' : `${selected.length} inversor(es) selecionado(s).`}
+      </p>
+    </div>
+  );
+}
+
 function RulesEditor(props: {
   rows: AccessoryRuleRow[];
   form: Partial<AccessoryRuleRow>;
@@ -2355,9 +2900,18 @@ function RulesEditor(props: {
 }) {
   const { form, setForm } = props;
   const { essForm, setEssForm } = props;
-  const [rulesTab, setRulesTab] = useState<'accessories' | 'ess'>('accessories');
+  const [rulesTab, setRulesTab] = useState<'accessories' | 'ess'>('ess');
   const [formOpen, setFormOpen] = useState(false);
   const [essFormOpen, setEssFormOpen] = useState(false);
+  const registeredGridTypeOptions = useMemo(() => {
+    const values = new Set<InverterGridType>();
+    for (const inverter of props.inverters) {
+      for (const gridType of normalizeInverterGridTypes(inverter.grid_types)) {
+        values.add(gridType);
+      }
+    }
+    return inverterGridTypeOptions.filter((option) => values.has(option.value));
+  }, [props.inverters]);
 
   function openNew() {
     setForm(emptyRule);
@@ -2379,14 +2933,17 @@ function RulesEditor(props: {
     setEssFormOpen(true);
   }
 
+  const selectedEssInverter = props.inverters.find((inverter) => inverter.model === essForm.inverter_model);
+  const selectedEssInverterGridTypes = normalizeInverterGridTypes(selectedEssInverter?.grid_types);
+
   return (
     <div className="space-y-4">
       <SegmentedTabs
         label="Tipo de regra"
         value={rulesTab}
         options={[
-          { value: 'accessories', label: 'Acessórios', count: props.rows.length },
           { value: 'ess', label: 'ESS', count: props.essRows.length },
+          { value: 'accessories', label: 'Acessórios', count: props.rows.length },
         ]}
         onChange={(value) => setRulesTab(value as 'accessories' | 'ess')}
       />
@@ -2439,8 +2996,16 @@ function RulesEditor(props: {
               <select
                 className={selectClasses()}
                 value={form.trigger_metric ?? 'battery_quantity'}
-                onChange={(event) => setForm({ ...form, trigger_metric: event.target.value as TriggerMetric })}
+                onChange={(event) => {
+                  const trigger_metric = event.target.value as TriggerMetric;
+                  setForm({
+                    ...form,
+                    trigger_metric,
+                    min_quantity: trigger_metric === 'per_solution' ? 1 : form.min_quantity,
+                  });
+                }}
               >
+                <option value="per_solution">Por solução</option>
                 <option value="inverter_quantity">Qtd. inversores</option>
                 <option value="battery_quantity">Qtd. baterias</option>
                 <option value="battery_ports_used">Portas de bateria</option>
@@ -2449,6 +3014,7 @@ function RulesEditor(props: {
             <Field label="Quantidade mínima">
               <NumberInput
                 value={form.min_quantity ?? 1}
+                disabled={form.trigger_metric === 'per_solution'}
                 onChange={(event) => setForm({ ...form, min_quantity: toNumber(event.target.value, 1) })}
               />
             </Field>
@@ -2459,18 +3025,17 @@ function RulesEditor(props: {
             Filtros vazios valem para qualquer combinação.
           </p>
           <Field label="Inversor">
-            <select
-              className={selectClasses()}
-              value={form.inverter_model ?? ''}
-              onChange={(event) => setForm({ ...form, inverter_model: event.target.value || null })}
-            >
-              <option value="">Qualquer</option>
-              {props.inverters.map((inverter) => (
-                <option key={inverter.id} value={inverter.model}>
-                  {inverter.model}
-                </option>
-              ))}
-            </select>
+            <InverterModelsInput
+              inverters={props.inverters}
+              value={form}
+              onChange={(inverter_models) =>
+                setForm({
+                  ...form,
+                  inverter_models,
+                  inverter_model: inverter_models[0] ?? null,
+                })
+              }
+            />
           </Field>
           <Field label="Bateria">
             <select
@@ -2490,13 +3055,15 @@ function RulesEditor(props: {
             <Field label="Rede">
               <select
                 className={selectClasses()}
-                value={form.grid_topology ?? ''}
+                value={form.grid_topology ? normalizeInverterGridType(form.grid_topology) ?? '' : ''}
                 onChange={(event) => setForm({ ...form, grid_topology: (event.target.value || null) as GridTopology | null })}
               >
                 <option value="">Qualquer</option>
-                <option value="1p_220V">1p 220V</option>
-                <option value="3p_220V">3p 220V</option>
-                <option value="3p_380V">3p 380V</option>
+                {registeredGridTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Topologia bateria">
@@ -2535,7 +3102,8 @@ function RulesEditor(props: {
             badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
             details: [
               ['Acessório', row.accessories?.model ?? '-'],
-              ['Condição', `${row.trigger_metric} >= ${row.min_quantity}`],
+              ['Condição', row.trigger_metric === 'per_solution' ? 'Por solução' : `${formatTriggerMetric(row.trigger_metric)} >= ${row.min_quantity}`],
+              ['Inversores', accessoryRuleInverterModels(row).join(', ') || 'Qualquer'],
               ['Quantidade', String(row.quantity_per_match)],
             ],
             description: row.comment ?? undefined,
@@ -2556,66 +3124,111 @@ function RulesEditor(props: {
           onClose={() => setEssFormOpen(false)}
           form={
             <>
-              <Field label="Inversor">
-                <select
-                  className={selectClasses()}
-                  value={essForm.inverter_model ?? ''}
-                  onChange={(event) => setEssForm({ ...essForm, inverter_model: event.target.value })}
-                >
-                  <option value="">Selecione</option>
-                  {props.inverters.map((inverter) => (
-                    <option key={inverter.id} value={inverter.model}>
-                      {inverter.model}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Bateria">
-                <select
-                  className={selectClasses()}
-                  value={essForm.battery_model ?? ''}
-                  onChange={(event) => {
-                    const battery = props.batteries.find((item) => item.model === event.target.value);
-                    setEssForm({
-                      ...essForm,
-                      battery_model: event.target.value,
-                      battery_topology: battery?.topology ?? essForm.battery_topology ?? null,
-                    });
-                  }}
-                >
-                  <option value="">Selecione</option>
-                  {props.batteries.map((battery) => (
-                    <option key={battery.id} value={battery.model}>
-                      {battery.model}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Topologia bateria">
-                  <select
-                    className={selectClasses()}
-                    value={essForm.battery_topology ?? ''}
-                    onChange={(event) => setEssForm({ ...essForm, battery_topology: (event.target.value || null) as BatteryTopology | null })}
-                  >
-                    <option value="">Qualquer</option>
-                    <option value="HV">HV</option>
-                    <option value="LV">LV</option>
-                  </select>
-                </Field>
-                <Field label="Rede">
-                  <select
-                    className={selectClasses()}
-                    value={essForm.grid_topology ?? ''}
-                    onChange={(event) => setEssForm({ ...essForm, grid_topology: (event.target.value || null) as GridTopology | null })}
-                  >
-                    <option value="">Qualquer</option>
-                    <option value="1p_220V">1p 220V</option>
-                    <option value="3p_220V">3p 220V</option>
-                    <option value="3p_380V">3p 380V</option>
-                  </select>
-                </Field>
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">Inversor</p>
+                <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
+                  <Field label="Modelo">
+                    <select
+                      className={selectClasses()}
+                      value={essForm.inverter_model ?? ''}
+                      onChange={(event) => setEssForm({ ...essForm, inverter_model: event.target.value, grid_topology: null })}
+                    >
+                      <option value="">Selecione</option>
+                      {props.inverters.map((inverter) => (
+                        <option key={inverter.id} value={inverter.model}>
+                          {inverter.model}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Máximo paralelo">
+                    <select
+                      className={selectClasses()}
+                      value={essForm.max_parallel_inverters ?? 1}
+                      onChange={(event) => setEssForm({ ...essForm, max_parallel_inverters: toNumber(event.target.value, 1) })}
+                    >
+                      {Array.from({ length: 10 }, (_, index) => index + 1).map((qty) => (
+                        <option key={qty} value={qty}>
+                          {qty}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  Redes do inversor:{' '}
+                  <span className="font-medium text-foreground">
+                    {selectedEssInverterGridTypes.length > 0
+                      ? selectedEssInverterGridTypes.map(formatInverterGridType).join(', ')
+                      : 'Selecione um inversor'}
+                  </span>
+                </div>
               </div>
+
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">Bateria</p>
+                <Field label="Modelo">
+                  <select
+                    className={selectClasses()}
+                    value={essForm.battery_model ?? ''}
+                    onChange={(event) => {
+                      const battery = props.batteries.find((item) => item.model === event.target.value);
+                      setEssForm({
+                        ...essForm,
+                        battery_model: event.target.value,
+                        battery_topology: battery?.topology ?? essForm.battery_topology ?? null,
+                      });
+                    }}
+                  >
+                    <option value="">Selecione</option>
+                    {props.batteries.map((battery) => (
+                      <option key={battery.id} value={battery.model}>
+                        {battery.model}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Topologia">
+                    <select
+                      className={selectClasses()}
+                      value={essForm.battery_topology ?? ''}
+                      onChange={(event) => setEssForm({ ...essForm, battery_topology: (event.target.value || null) as BatteryTopology | null })}
+                    >
+                      <option value="">Qualquer</option>
+                      <option value="HV">HV</option>
+                      <option value="LV">LV</option>
+                    </select>
+                  </Field>
+                  <Field label="Min bateria">
+                    <select
+                      className={selectClasses()}
+                      value={essForm.min_battery_qty ?? 1}
+                      onChange={(event) => setEssForm({ ...essForm, min_battery_qty: toNumber(event.target.value, 1) })}
+                    >
+                      {Array.from({ length: 7 }, (_, index) => index + 1).map((qty) => (
+                        <option key={qty} value={qty}>
+                          {qty}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Max bateria">
+                    <select
+                      className={selectClasses()}
+                      value={essForm.max_battery_qty ?? 2}
+                      onChange={(event) => setEssForm({ ...essForm, max_battery_qty: toNumber(event.target.value, 2) })}
+                    >
+                      {Array.from({ length: 14 }, (_, index) => index + 2).map((qty) => (
+                        <option key={qty} value={qty}>
+                          {qty}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+
               <Field label="Comentário">
                 <textarea
                   className={textareaClasses()}
@@ -2631,23 +3244,30 @@ function RulesEditor(props: {
                 />
                 Ativa
               </label>
-              <Actions onSave={props.onSaveEss} onNew={openNewEss} onCancel={() => setEssFormOpen(false)} saving={props.saving} />
+              <Actions onSave={props.onSaveEss} saving={props.saving} />
             </>
           }
-          items={props.essRows.map((row) => ({
-            id: row.id,
-            title: `${row.inverter_model} + ${row.battery_model}`,
-            badges: [row.active ? 'ativa' : 'inativa', row.battery_topology ?? 'qualquer'],
-            details: [
-              ['Inversor', row.inverter_model],
-              ['Bateria', row.battery_model],
-              ['Rede', row.grid_topology ?? 'Qualquer'],
-            ],
-            description: row.comment ?? undefined,
-            removing: props.removingIds.has(row.id),
-            onEdit: () => openEditEss(row),
-            onRemove: () => props.onRemoveEss(row.id),
-          }))}
+          items={props.essRows.map((row) => {
+            const inverter = props.inverters.find((item) => item.model === row.inverter_model);
+            const gridTypes = normalizeInverterGridTypes(inverter?.grid_types);
+            return {
+              id: row.id,
+              title: `${row.inverter_model} + ${row.battery_model}`,
+              badges: [row.active ? 'ativa' : 'inativa', row.battery_topology ?? 'qualquer'],
+              details: [
+                ['Inversor', row.inverter_model],
+                ['Bateria', row.battery_model],
+                ['Redes do inversor', gridTypes.map(formatInverterGridType).join(', ') || '-'],
+                ['Máx. paralelo', String(row.max_parallel_inverters ?? 1)],
+                ['Min bateria', String(row.min_battery_qty ?? 1)],
+                ['Máx. bateria', String(row.max_battery_qty ?? 1)],
+              ],
+              description: row.comment ?? undefined,
+              removing: props.removingIds.has(row.id),
+              onEdit: () => openEditEss(row),
+              onRemove: () => props.onRemoveEss(row.id),
+            };
+          })}
         />
       )}
     </div>
