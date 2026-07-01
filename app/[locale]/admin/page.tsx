@@ -1,6 +1,12 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { AdminPanel } from '@/components/admin/AdminPanel';
 import { createClient } from '@/lib/supabase/server';
+
+export const metadata: Metadata = {
+  title: 'Administração | Calculadora SolaX',
+  description: 'Administre produtos, combinações aprovadas e regras da Calculadora SolaX.',
+};
 
 export default async function AdminPage({
   params,

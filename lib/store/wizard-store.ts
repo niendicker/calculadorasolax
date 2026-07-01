@@ -7,19 +7,28 @@ import type {
   CatalogItem,
   IndustrialOptions,
   MicroGridOptions,
+  ProjectInfo,
   ResidentialGridType,
   ResidentialOptions,
+  SavedProject,
   SingleLoad,
   Solution,
 } from '@/lib/types';
 
 interface WizardStore {
+  projectInfo: ProjectInfo;
+  savedProjects: SavedProject[];
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
   loadCatalog: CatalogItem[];
 
+  setProjectInfo: (partial: Partial<ProjectInfo>) => void;
+  saveCurrentProject: () => SavedProject;
+  loadProject: (id: string) => void;
+  removeProject: (id: string) => void;
   setTopology: (topology: BatteryTopology) => void;
+  setBatteryModel: (batteryModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setMicroGrid: (microGrid: MicroGridOptions) => void;
   addLoad: (load: SingleLoad) => void;
@@ -35,8 +44,19 @@ interface WizardStore {
   resetIndustrial: () => void;
 }
 
+const defaultProjectInfo: ProjectInfo = {
+  name: '',
+  clientName: '',
+  clientEmail: '',
+  clientPhone: '',
+  clientDocument: '',
+  address: '',
+  notes: '',
+};
+
 const defaultResidential: ResidentialOptions = {
   topology: null,
+  batteryModel: null,
   gridType: null,
   loads: [],
   microGrid: null,
@@ -53,14 +73,89 @@ const defaultIndustrial: IndustrialOptions = {
 export const useWizardStore = create<WizardStore>()(
   persist(
     (set) => ({
+      projectInfo: defaultProjectInfo,
+      savedProjects: [],
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
       loadCatalog: [],
 
+      setProjectInfo: (partial) =>
+        set((s) => ({
+          projectInfo: { ...s.projectInfo, ...partial },
+        })),
+
+      saveCurrentProject: () => {
+        const now = new Date().toISOString();
+        let savedProject: SavedProject;
+
+        set((s) => {
+          const existingId =
+            s.savedProjects.find((project) => project.id === s.projectInfo.name)?.id ??
+            s.savedProjects.find(
+              (project) =>
+                project.name === s.projectInfo.name &&
+                project.clientName === s.projectInfo.clientName
+            )?.id;
+          const id = existingId ?? crypto.randomUUID();
+          const name =
+            s.projectInfo.name.trim() ||
+            s.projectInfo.clientName.trim() ||
+            `Projeto ${new Date().toLocaleDateString('pt-BR')}`;
+
+          savedProject = {
+            id,
+            name,
+            clientName: s.projectInfo.clientName.trim(),
+            updatedAt: now,
+            projectInfo: { ...s.projectInfo, name },
+            residentialOptions: {
+              ...s.residentialOptions,
+              loads: s.residentialOptions.loads.map((load) => ({ ...load })),
+            },
+            solution: s.solution ? { ...s.solution, accessories: [...s.solution.accessories] } : null,
+          };
+
+          return {
+            projectInfo: savedProject.projectInfo,
+            savedProjects: [
+              savedProject,
+              ...s.savedProjects.filter((project) => project.id !== id),
+            ],
+          };
+        });
+
+        return savedProject!;
+      },
+
+      loadProject: (id) =>
+        set((s) => {
+          const project = s.savedProjects.find((item) => item.id === id);
+          if (!project) return {};
+
+          return {
+            projectInfo: project.projectInfo,
+            residentialOptions: {
+              ...project.residentialOptions,
+              loads: project.residentialOptions.loads.map((load) => ({ ...load })),
+            },
+            solution: project.solution,
+          };
+        }),
+
+      removeProject: (id) =>
+        set((s) => ({
+          savedProjects: s.savedProjects.filter((project) => project.id !== id),
+        })),
+
       setTopology: (topology) =>
         set((s) => ({
-          residentialOptions: { ...s.residentialOptions, topology },
+          residentialOptions: { ...s.residentialOptions, topology, batteryModel: null },
+        })),
+
+      setBatteryModel: (batteryModel) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, batteryModel },
         })),
 
       setGridType: (gridType) =>

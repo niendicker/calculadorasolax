@@ -8,6 +8,7 @@ interface SingleLoad {
 
 interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
+  batteryModel: string | null;
   gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
   loads: SingleLoad[];
   microGrid: 'Gerador' | 'Microinversor' | 'Desabilitada' | null;
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
     // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
     const targetEnergyWh = dailyKwh * 0.5 * 1000;
 
-    const { data: solutions, error: solutionErr } = await supabase
+    let solutionQuery = supabase
       .from('approved_solutions')
       .select(
         `
@@ -138,6 +139,12 @@ Deno.serve(async (req) => {
       .order('available_energy_wh', { ascending: true })
       .order('battery_quantity', { ascending: true })
       .limit(1);
+
+    if (options.batteryModel) {
+      solutionQuery = solutionQuery.eq('battery_model', options.batteryModel);
+    }
+
+    const { data: solutions, error: solutionErr } = await solutionQuery;
 
     if (solutionErr) {
       console.error(solutionErr);

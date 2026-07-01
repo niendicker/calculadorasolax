@@ -27,11 +27,27 @@ export interface CatalogItem {
   category: string;
 }
 
+export interface ProductDocument {
+  name: string;
+  url: string;
+}
+
 export interface ResidentialOptions {
   topology: BatteryTopology | null;
+  batteryModel: string | null;
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];
   microGrid: MicroGridOptions | null;
+}
+
+export interface ProjectInfo {
+  name: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientDocument: string;
+  address: string;
+  notes: string;
 }
 
 export interface IndustrialOptions {
@@ -59,6 +75,16 @@ export interface Solution {
   solutionCode?: string;
   sourceFile?: string;
   comments?: string[];
+}
+
+export interface SavedProject {
+  id: string;
+  name: string;
+  clientName: string;
+  updatedAt: string;
+  projectInfo: ProjectInfo;
+  residentialOptions: ResidentialOptions;
+  solution: Solution | null;
 }
 
 export interface SimulationNode {

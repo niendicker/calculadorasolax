@@ -8,11 +8,21 @@ export async function GET(
   const { locale } = await params;
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const next = requestUrl.searchParams.get('next') ?? `/${locale}/profile`;
+  let next = requestUrl.searchParams.get('next') ?? `/${locale}`;
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { data } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (next === `/${locale}` && data.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      if (profile?.role === 'admin') next = `/${locale}/admin`;
+    }
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

@@ -15,6 +15,9 @@ interface Profile {
   full_name: string;
   phone: string;
   role: 'user' | 'admin';
+  company_name: string;
+  company_address: string;
+  company_logo_url: string;
 }
 
 export function ProfilePanel({
@@ -42,6 +45,9 @@ export function ProfilePanel({
       email: profile.email,
       full_name: profile.full_name.trim(),
       phone: profile.phone.trim(),
+      company_name: profile.company_name.trim(),
+      company_address: profile.company_address.trim(),
+      company_logo_url: profile.company_logo_url.trim(),
       updated_at: new Date().toISOString(),
     });
 
@@ -109,6 +115,30 @@ export function ProfilePanel({
                   value={profile.phone}
                   onChange={(event) => setProfile({ ...profile, phone: event.target.value })}
                   required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profileCompanyName">Nome da empresa</Label>
+                <Input
+                  id="profileCompanyName"
+                  value={profile.company_name}
+                  onChange={(event) => setProfile({ ...profile, company_name: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profileCompanyAddress">Endereço da empresa</Label>
+                <Input
+                  id="profileCompanyAddress"
+                  value={profile.company_address}
+                  onChange={(event) => setProfile({ ...profile, company_address: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profileCompanyLogo">URL da logomarca</Label>
+                <Input
+                  id="profileCompanyLogo"
+                  value={profile.company_logo_url}
+                  onChange={(event) => setProfile({ ...profile, company_logo_url: event.target.value })}
                 />
               </div>
               <Button type="submit" disabled={saving}>

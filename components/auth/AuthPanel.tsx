@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, KeyRound, Mail, Phone, ShieldCheck, Sparkles, Sun, User, Zap } from 'lucide-react';
+import { LogIn, Mail, Phone, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
@@ -34,6 +33,23 @@ export function AuthPanel({
     setMessage(null);
   }
 
+  async function resolveRedirect(defaultRedirect: string) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return defaultRedirect;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userData.user.id)
+      .maybeSingle();
+
+    if (profile?.role === 'admin' && defaultRedirect === `/${locale}`) {
+      return `/${locale}/admin`;
+    }
+
+    return defaultRedirect;
+  }
+
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -51,7 +67,8 @@ export function AuthPanel({
       return;
     }
 
-    router.replace(redirectTo);
+    const next = await resolveRedirect(redirectTo);
+    router.replace(next);
     router.refresh();
   }
 
@@ -99,7 +116,8 @@ export function AuthPanel({
     );
 
     if (data.session) {
-      router.replace(redirectTo);
+      const next = await resolveRedirect(redirectTo);
+      router.replace(next);
       router.refresh();
     } else {
       setMode('login');
@@ -130,96 +148,18 @@ export function AuthPanel({
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-2.5rem)] w-full max-w-6xl overflow-hidden rounded-[8px] border bg-card shadow-sm lg:grid-cols-[1fr_460px]">
-        <div className="relative hidden bg-primary p-8 text-primary-foreground lg:flex lg:flex-col">
-          <div className="absolute inset-0 opacity-15 [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:44px_44px]" />
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-accent text-accent-foreground">
-              <Sun className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold leading-none">SolaX</p>
-              <p className="mt-1 text-xs text-primary-foreground/70">Solution Studio</p>
-            </div>
-          </div>
+    <main className="min-h-screen bg-background">
+      <section className="grid min-h-screen grid-rows-[1fr_auto] px-6 py-5 sm:px-10 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-20 xl:px-28">
+        <div className="hidden lg:block" />
 
-          <div className="relative z-10 mt-auto max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 px-3 py-1 text-xs text-primary-foreground/80">
-              <Sparkles className="h-3.5 w-3.5 text-accent" />
-              Plataforma de dimensionamento híbrido
-            </div>
-            <h1 className="text-5xl font-semibold leading-tight tracking-tight">
-              Acesse, calcule e mantenha combinações aprovadas.
-            </h1>
-            <p className="mt-4 max-w-lg text-sm leading-6 text-primary-foreground/72">
-              Usuários comuns calculam soluções e administradores mantêm catálogos,
-              acessórios e regras de recomendação em uma experiência única.
-            </p>
-
-            <div className="mt-8 grid grid-cols-3 gap-3">
-              <InfoTile icon={<Zap className="h-4 w-4" />} label="Cálculo" value="Rápido" />
-              <InfoTile icon={<ShieldCheck className="h-4 w-4" />} label="Acesso" value="Seguro" />
-              <InfoTile icon={<Sun className="h-4 w-4" />} label="Catálogo" value="Aprovado" />
-            </div>
-          </div>
-        </div>
-
-        <section className="flex min-h-full flex-col bg-card">
-          <div className="h-1 bg-accent" />
-          <div className="border-b px-5 py-4 lg:hidden">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary text-primary-foreground">
-                <Sun className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="font-semibold leading-none">SolaX</p>
-                <p className="mt-1 text-xs text-muted-foreground">Solution Studio</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-1 items-start px-5 py-8 sm:px-8 lg:items-center">
-            <div className="w-full">
-              <div className="mb-7">
-                <p className="text-sm font-medium text-muted-foreground">Acesso</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight">
-              {mode === 'login' && 'Entrar'}
-              {mode === 'signup' && 'Criar conta'}
-              {mode === 'recovery' && 'Recuperar senha'}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {mode === 'login' && 'Use email e senha cadastrados.'}
-                  {mode === 'signup' && 'Usuários comuns podem se cadastrar por aqui.'}
-                  {mode === 'recovery' && 'Informe o email para receber o link de recuperação.'}
-                </p>
-              </div>
-
-            <div className="mb-6 grid grid-cols-3 rounded-[8px] border bg-muted p-1">
-              <Button
-                type="button"
-                variant={mode === 'login' ? 'default' : 'ghost'}
-                className="rounded-[6px]"
-                onClick={() => setMode('login')}
-              >
-                Login
-              </Button>
-              <Button
-                type="button"
-                variant={mode === 'signup' ? 'default' : 'ghost'}
-                className="rounded-[6px]"
-                onClick={() => setMode('signup')}
-              >
-                Cadastro
-              </Button>
-              <Button
-                type="button"
-                variant={mode === 'recovery' ? 'default' : 'ghost'}
-                className="rounded-[6px]"
-                onClick={() => setMode('recovery')}
-              >
-                Senha
-              </Button>
+        <div className="flex w-full items-center justify-center py-14 lg:justify-end">
+          <div className="w-full max-w-[420px]">
+            <div className="mb-14 text-center lg:text-left">
+              <h1 className="text-3xl font-bold uppercase leading-tight text-primary sm:text-4xl">
+                {mode === 'login' && 'Seja bem vindo ao futuro da energia'}
+                {mode === 'signup' && 'Crie sua conta SolaX'}
+                {mode === 'recovery' && 'Recupere seu acesso'}
+              </h1>
             </div>
 
             <form
@@ -230,14 +170,15 @@ export function AuthPanel({
                     ? signup
                     : recoverPassword
               }
-              className="space-y-4"
+              className="space-y-6"
             >
               {mode === 'signup' && (
                 <>
                   <FieldIcon id="fullName" label="Nome" icon={<User className="h-4 w-4" />}>
                     <Input
                       id="fullName"
-                      className="pl-8"
+                      className="h-11 border-primary/80 bg-background pl-8"
+                      placeholder="Nome completo"
                       value={fullName}
                       onChange={(event) => setFullName(event.target.value)}
                       required
@@ -246,7 +187,8 @@ export function AuthPanel({
                   <FieldIcon id="phone" label="Telefone" icon={<Phone className="h-4 w-4" />}>
                     <Input
                       id="phone"
-                      className="pl-8"
+                      className="h-11 border-primary/80 bg-background pl-8"
+                      placeholder="Telefone"
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       required
@@ -258,8 +200,9 @@ export function AuthPanel({
               <FieldIcon id="email" label="Email" icon={<Mail className="h-4 w-4" />}>
                 <Input
                   id="email"
-                  className="pl-8"
+                  className="h-11 border-primary/80 bg-background pl-8"
                   type="email"
+                  placeholder="ex: example@email.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
@@ -267,11 +210,12 @@ export function AuthPanel({
               </FieldIcon>
 
               {mode !== 'recovery' && (
-                <FieldIcon id="password" label="Senha" icon={<KeyRound className="h-4 w-4" />}>
+                <FieldIcon id="password" label="Senha">
                   <Input
                     id="password"
-                    className="pl-8"
+                    className="h-11 border-transparent bg-muted"
                     type="password"
+                    placeholder="Senha"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     minLength={6}
@@ -280,12 +224,12 @@ export function AuthPanel({
                 </FieldIcon>
               )}
 
-              <Button className="w-full" type="submit" disabled={loading}>
+              <Button className="h-11 w-full border-border bg-background text-foreground hover:border-primary hover:bg-background hover:text-primary" variant="outline" type="submit" disabled={loading}>
                 {loading && 'Processando...'}
                 {!loading && mode === 'login' && (
                   <>
-                    Entrar
-                    <ArrowRight className="h-4 w-4" />
+                    <LogIn className="h-4 w-4" />
+                    Login
                   </>
                 )}
                 {!loading && mode === 'signup' && 'Cadastrar'}
@@ -293,45 +237,57 @@ export function AuthPanel({
               </Button>
             </form>
 
+            {mode === 'login' ? (
+              <div className="mt-8 space-y-7 text-center text-sm">
+                <p className="text-muted-foreground">
+                  Não possui cadastro?{' '}
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => setMode('signup')}
+                  >
+                    Criar Conta
+                  </button>
+                </p>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => setMode('recovery')}
+                >
+                  Esqueci a senha
+                </button>
+              </div>
+            ) : (
+              <div className="mt-8 text-center text-sm">
+                <button
+                  type="button"
+                  className="font-medium text-primary hover:underline"
+                  onClick={() => setMode('login')}
+                >
+                  Voltar ao login
+                </button>
+              </div>
+            )}
+
             {message && (
-              <p className="rounded-lg border border-emerald-300 px-3 py-2 text-sm text-emerald-700">
+              <p role="status" className="mt-6 rounded-lg border border-primary/30 px-3 py-2 text-sm text-primary">
                 {message}
               </p>
             )}
             {error && (
-              <p className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
+              <p role="alert" className="mt-6 rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
                 {error}
               </p>
             )}
-            <p className="mt-6 text-xs leading-5 text-muted-foreground">
-              Administradores são definidos manualmente no Supabase. O cadastro público cria
-              usuários comuns.
-            </p>
-            </div>
           </div>
-        </section>
-      </div>
-    </main>
-  );
-}
+        </div>
 
-function InfoTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-[8px] border border-primary-foreground/15 bg-primary-foreground/8 p-3">
-      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-[6px] bg-primary-foreground/10 text-accent">
-        {icon}
-      </div>
-      <p className="text-xs text-primary-foreground/58">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
-    </div>
+        <footer className="col-span-full flex flex-col gap-2 py-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>© 2026 SolaX Power Brasil.</span>
+          <span>Versão: 1.1.0</span>
+        </footer>
+      </section>
+    </main>
   );
 }
 
@@ -343,16 +299,20 @@ function FieldIcon({
 }: {
   id: string;
   label: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </Label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-2 top-2 text-muted-foreground">
-          {icon}
-        </span>
+        {icon && (
+          <span className="pointer-events-none absolute left-2 top-3.5 text-muted-foreground">
+            {icon}
+          </span>
+        )}
         {children}
       </div>
     </div>

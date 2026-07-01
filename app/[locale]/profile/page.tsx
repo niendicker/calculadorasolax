@@ -1,6 +1,12 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { ProfilePanel } from '@/components/auth/ProfilePanel';
 import { createClient } from '@/lib/supabase/server';
+
+export const metadata: Metadata = {
+  title: 'Perfil | Calculadora SolaX',
+  description: 'Gerencie seus dados de perfil na Calculadora SolaX.',
+};
 
 export default async function ProfilePage({
   params,
@@ -17,7 +23,7 @@ export default async function ProfilePage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, full_name, phone, role')
+    .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -30,6 +36,9 @@ export default async function ProfilePage({
         full_name: profile?.full_name ?? user.user_metadata?.full_name ?? '',
         phone: profile?.phone ?? user.user_metadata?.phone ?? '',
         role: profile?.role ?? 'user',
+        company_name: profile?.company_name ?? '',
+        company_address: profile?.company_address ?? '',
+        company_logo_url: profile?.company_logo_url ?? '',
       }}
     />
   );
