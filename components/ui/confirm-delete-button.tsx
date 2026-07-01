@@ -54,9 +54,13 @@ export function ConfirmDeleteButton({
     timerRef.current = setTimeout(() => setOpen(false), 300);
   }
 
-  function confirm() {
+  function closeNow() {
     clearTimer();
     setOpen(false);
+  }
+
+  function confirm() {
+    closeNow();
     onConfirm();
   }
 
@@ -105,12 +109,12 @@ export function ConfirmDeleteButton({
               <p className="text-sm font-medium">{title}</p>
               <p className="mt-1 text-xs text-muted-foreground">{description}</p>
             </div>
-            <Button type="button" variant="ghost" size="icon-xs" aria-label="Fechar confirmação" onClick={closeWithDelay}>
+            <Button type="button" variant="ghost" size="icon-xs" aria-label="Fechar confirmação" onClick={closeNow}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={closeWithDelay}>
+            <Button type="button" variant="ghost" size="sm" onClick={closeNow}>
               Cancelar
             </Button>
             <Button type="button" variant="destructive" size="sm" onClick={confirm}>

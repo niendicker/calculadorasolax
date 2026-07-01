@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn, Mail, Phone, User } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Mail, Phone, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,7 @@ export function AuthPanel({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,13 +64,16 @@ export function AuthPanel({
     setLoading(false);
 
     if (authError) {
-      setError(authError.message);
+      setError('Não foi possível entrar. Verifique email e senha.');
       return;
     }
 
     const next = await resolveRedirect(redirectTo);
-    router.replace(next);
-    router.refresh();
+    setMessage('Login realizado com sucesso. Redirecionando...');
+    window.setTimeout(() => {
+      router.replace(next);
+      router.refresh();
+    }, 400);
   }
 
   async function signup(event: React.FormEvent<HTMLFormElement>) {
@@ -211,15 +215,12 @@ export function AuthPanel({
 
               {mode !== 'recovery' && (
                 <FieldIcon id="password" label="Senha">
-                  <Input
+                  <PasswordInput
                     id="password"
-                    className="h-11 border-transparent bg-muted"
-                    type="password"
-                    placeholder="Senha"
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    minLength={6}
-                    required
+                    showPassword={showPassword}
+                    setShowPassword={setShowPassword}
+                    onChange={setPassword}
                   />
                 </FieldIcon>
               )}
@@ -315,6 +316,43 @@ function FieldIcon({
         )}
         {children}
       </div>
+    </div>
+  );
+}
+
+function PasswordInput({
+  id,
+  value,
+  showPassword,
+  setShowPassword,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  showPassword: boolean;
+  setShowPassword: (show: boolean) => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        className="h-11 border-transparent bg-muted pr-10"
+        type={showPassword ? 'text' : 'password'}
+        placeholder="Senha"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        minLength={6}
+        required
+      />
+      <button
+        type="button"
+        className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+        aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+        onClick={() => setShowPassword(!showPassword)}
+      >
+        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
     </div>
   );
 }

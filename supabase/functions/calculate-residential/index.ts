@@ -48,6 +48,20 @@ interface AccessoryRule {
   accessories: { model: string } | null;
 }
 
+interface EssCompatibilityRule {
+  id: string;
+  inverter_model: string;
+  battery_model: string;
+  battery_topology: ApprovedSolution['battery_topology'] | null;
+  grid_topology: ApprovedSolution['grid_topology'] | null;
+  active: boolean;
+}
+
+interface BatteryCatalogRow {
+  capacity_kwh: number;
+  min_soc_percent: number | null;
+}
+
 const batteryTopologyMap: Record<ResidentialOptions['topology'], 'HV' | 'LV'> = {
   HighVoltage: 'HV',
   LowVoltage: 'LV',
@@ -107,6 +121,26 @@ Deno.serve(async (req) => {
 
     // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
     const targetEnergyWh = dailyKwh * 0.5 * 1000;
+    let usefulEnergyWhPerBattery: number | null = null;
+
+    if (options.batteryModel) {
+      const { data: batterySpec, error: batterySpecErr } = await supabase
+        .from('batteries')
+        .select('capacity_kwh, min_soc_percent')
+        .eq('model', options.batteryModel)
+        .maybeSingle();
+
+      if (batterySpecErr) {
+        console.error(batterySpecErr);
+        return Response.json({ error: 'battery_lookup_failed' }, { status: 500 });
+      }
+
+      if (batterySpec) {
+        const spec = batterySpec as BatteryCatalogRow;
+        const minSocPercent = Number(spec.min_soc_percent ?? 10);
+        usefulEnergyWhPerBattery = Number(spec.capacity_kwh) * (1 - minSocPercent / 100) * 1000;
+      }
+    }
 
     let solutionQuery = supabase
       .from('approved_solutions')
@@ -134,11 +168,14 @@ Deno.serve(async (req) => {
       .eq('grid_topology', gridTopology)
       .eq('battery_topology', batteryTopology)
       .gte('rated_power_w', peakW)
-      .gte('available_energy_wh', targetEnergyWh * 0.8)
       .order('rated_power_w', { ascending: true })
       .order('available_energy_wh', { ascending: true })
       .order('battery_quantity', { ascending: true })
-      .limit(1);
+      .limit(50);
+
+    if (usefulEnergyWhPerBattery === null) {
+      solutionQuery = solutionQuery.gte('available_energy_wh', targetEnergyWh * 0.8);
+    }
 
     if (options.batteryModel) {
       solutionQuery = solutionQuery.eq('battery_model', options.batteryModel);
@@ -155,7 +192,52 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'no_approved_solution' }, { status: 422 });
     }
 
-    const solution = solutions[0] as ApprovedSolution;
+    let compatibleSolutions = solutions as ApprovedSolution[];
+
+    if (usefulEnergyWhPerBattery !== null) {
+      compatibleSolutions = compatibleSolutions.filter(
+        (solution) => usefulEnergyWhPerBattery! * solution.battery_quantity >= targetEnergyWh * 0.8
+      );
+
+      if (!compatibleSolutions.length) {
+        return Response.json({ error: 'no_approved_solution' }, { status: 422 });
+      }
+    }
+
+    if (options.batteryModel) {
+      const { data: essRules, error: essRulesErr } = await supabase
+        .from('ess_compatibility_rules')
+        .select('id, inverter_model, battery_model, battery_topology, grid_topology, active')
+        .eq('active', true)
+        .eq('battery_model', options.batteryModel);
+
+      if (essRulesErr) {
+        console.error(essRulesErr);
+        return Response.json({ error: 'ess_rules_lookup_failed' }, { status: 500 });
+      }
+
+      const relevantRules = ((essRules ?? []) as EssCompatibilityRule[]).filter(
+        (rule) =>
+          (!rule.battery_topology || rule.battery_topology === batteryTopology) &&
+          (!rule.grid_topology || rule.grid_topology === gridTopology)
+      );
+
+      if (relevantRules.length > 0) {
+        compatibleSolutions = compatibleSolutions.filter((solution) =>
+          relevantRules.some((rule) => rule.inverter_model === solution.inverter_model)
+        );
+      }
+    }
+
+    if (!compatibleSolutions.length) {
+      return Response.json({ error: 'no_compatible_ess_rule' }, { status: 422 });
+    }
+
+    const solution = compatibleSolutions[0] as ApprovedSolution;
+    const availableEnergyWh =
+      usefulEnergyWhPerBattery === null
+        ? solution.available_energy_wh
+        : Math.round(usefulEnergyWhPerBattery * solution.battery_quantity);
 
     // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average)
     const pvPowerKw = dailyKwh / 4;
@@ -227,7 +309,7 @@ Deno.serve(async (req) => {
         batteryModel: solution.battery_model,
         batteryQty: solution.battery_quantity,
         batteryPowerW: solution.battery_power_w,
-        availableEnergyWh: solution.available_energy_wh,
+        availableEnergyWh,
         pvPowerKw: Math.ceil(pvPowerKw * 10) / 10,
         accessories,
         comments: [...solution.comments, ...automaticComments],

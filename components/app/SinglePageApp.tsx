@@ -90,6 +90,9 @@ interface BatteryCatalogOption {
   model: string;
   capacityKwh: number;
   topology: 'HV' | 'LV';
+  standardPowerKw: number | null;
+  peakPowerKw: number | null;
+  minSocPercent: number;
   imageUrl: string | null;
   documents: ProductDocument[];
 }
@@ -143,7 +146,7 @@ export function SinglePageApp() {
           .order('category'),
         supabase
           .from('batteries')
-          .select('id, model, capacity_kwh, topology, image_url, documents')
+          .select('id, model, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, image_url, documents')
           .order('model'),
       ]);
 
@@ -188,6 +191,9 @@ export function SinglePageApp() {
             model: row.model,
             capacityKwh: Number(row.capacity_kwh),
             topology: row.topology as 'HV' | 'LV',
+            standardPowerKw: row.standard_power_kw === null ? null : Number(row.standard_power_kw),
+            peakPowerKw: row.peak_power_kw === null ? null : Number(row.peak_power_kw),
+            minSocPercent: Number(row.min_soc_percent ?? 10),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
           }))
@@ -1375,6 +1381,7 @@ function BatteryModelPicker({
         <div className="grid gap-3 lg:grid-cols-2">
           {visibleBatteries.map((battery) => {
             const selected = selectedModel === battery.model;
+            const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
             return (
               <div
                 key={battery.id}
@@ -1406,9 +1413,15 @@ function BatteryModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
                     <Badge variant="secondary">{battery.topology}</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Capacidade: {battery.capacityKwh} kWh
-                  </p>
+                  <div className="grid gap-1 text-xs text-muted-foreground">
+                    <span>Capacidade: {battery.capacityKwh} kWh</span>
+                    <span>
+                      Energia útil: {usefulEnergyKwh.toFixed(2)} kWh · SOC mín. {battery.minSocPercent}%
+                    </span>
+                    <span>
+                      Potência: {battery.standardPowerKw ?? '-'} kW · pico {battery.peakPowerKw ?? '-'} kW
+                    </span>
+                  </div>
                   <div className="flex min-w-0 flex-wrap gap-1">
                     {battery.documents.length > 0 ? (
                       battery.documents.slice(0, 2).map((document) => (

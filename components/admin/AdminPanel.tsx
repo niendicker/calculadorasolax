@@ -32,22 +32,49 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { createClient } from '@/lib/supabase/client';
 import type { ProductDocument } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'rules' | 'logs';
 
 type GridTopology = '1p_220V' | '3p_220V' | '3p_380V';
+type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 type BatteryTopology = 'HV' | 'LV';
 type Inclusion = 'required' | 'optional';
 type TriggerMetric = 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+
+const inverterGridTypeOptions: { value: InverterGridType; label: string }[] = [
+  { value: '1P_220V', label: 'Monofásica 220V' },
+  { value: '2P_220V', label: 'Bifásica 220V' },
+  { value: '3P_220V', label: 'Trifásica 220V' },
+  { value: '3P_380V', label: 'Trifásica 380V' },
+];
+
+const inverterGridTypeLabels = new Map(
+  inverterGridTypeOptions.map((option) => [option.value, option.label])
+);
+
+const legacyInverterGridTypeMap: Record<string, InverterGridType> = {
+  singlePhase_220: '1P_220V',
+  splitPhase_220: '2P_220V',
+  threePhase_220: '3P_220V',
+  threePhase_380: '3P_380V',
+  '1p_220V': '1P_220V',
+  '2p_220V': '2P_220V',
+  '3p_220V': '3P_220V',
+  '3p_380V': '3P_380V',
+};
 
 interface InverterRow {
   id: string;
   model: string;
   power_kw: number;
+  standard_power_kva: number | null;
+  peak_power_kva: number | null;
   phases: number;
   topology: 'HV' | 'LV' | 'BOTH';
   grid_types: string[];
   max_battery_qty: number;
+  battery_ports: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -57,6 +84,9 @@ interface BatteryRow {
   model: string;
   capacity_kwh: number;
   topology: BatteryTopology;
+  standard_power_kw: number | null;
+  peak_power_kw: number | null;
+  min_soc_percent: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -85,6 +115,17 @@ interface AccessoryRuleRow {
   comment: string | null;
   active: boolean;
   accessories?: { model: string } | null;
+}
+
+interface EssCompatibilityRuleRow {
+  id: string;
+  inverter_model: string;
+  battery_model: string;
+  battery_topology: BatteryTopology | null;
+  grid_topology: GridTopology | null;
+  comment: string | null;
+  active: boolean;
+  created_at: string;
 }
 
 interface SolutionRow {
@@ -157,22 +198,25 @@ interface AdminActivityLogRow {
 
 const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'metrics', label: 'Indicadores', icon: BarChart3 },
-  { key: 'users', label: 'Usuários', icon: Users },
-  { key: 'solutions', label: 'Combinações', icon: Boxes },
-  { key: 'inverters', label: 'Inversores', icon: Zap },
   { key: 'batteries', label: 'Baterias', icon: Battery },
+  { key: 'inverters', label: 'Inversores', icon: Zap },
   { key: 'accessories', label: 'Acessórios', icon: Cable },
   { key: 'rules', label: 'Regras', icon: CircleHelp },
+  { key: 'solutions', label: 'Combinações', icon: Boxes },
+  { key: 'users', label: 'Usuários', icon: Users },
   { key: 'logs', label: 'Logs', icon: FileClock },
 ];
 
 const emptyInverter: Partial<InverterRow> = {
   model: '',
   power_kw: 0,
+  standard_power_kva: 0,
+  peak_power_kva: 0,
   phases: 1,
   topology: 'HV',
   grid_types: [],
   max_battery_qty: 1,
+  battery_ports: 1,
   image_url: '',
   documents: [],
 };
@@ -181,6 +225,9 @@ const emptyBattery: Partial<BatteryRow> = {
   model: '',
   capacity_kwh: 0,
   topology: 'HV',
+  standard_power_kw: 0,
+  peak_power_kw: 0,
+  min_soc_percent: 10,
   image_url: '',
   documents: [],
 };
@@ -204,6 +251,15 @@ const emptyRule: Partial<AccessoryRuleRow> = {
   grid_topology: null,
   battery_topology: null,
   quantity_per_match: 1,
+  comment: '',
+  active: true,
+};
+
+const emptyEssRule: Partial<EssCompatibilityRuleRow> = {
+  inverter_model: '',
+  battery_model: '',
+  battery_topology: null,
+  grid_topology: null,
   comment: '',
   active: true,
 };
@@ -240,6 +296,29 @@ function parseJson<T>(value: string, fallback: T): T {
   return JSON.parse(value) as T;
 }
 
+function normalizeInverterGridType(value: string): InverterGridType | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (inverterGridTypeLabels.has(trimmed as InverterGridType)) return trimmed as InverterGridType;
+  return legacyInverterGridTypeMap[trimmed] ?? null;
+}
+
+function normalizeInverterGridTypes(value: unknown): InverterGridType[] {
+  const values = Array.isArray(value) ? value : String(value ?? '').split(',');
+  return Array.from(
+    new Set(
+      values
+        .map((item) => normalizeInverterGridType(String(item)))
+        .filter((item): item is InverterGridType => Boolean(item))
+    )
+  );
+}
+
+function formatInverterGridType(value: string) {
+  const normalized = normalizeInverterGridType(value);
+  return normalized ? inverterGridTypeLabels.get(normalized) ?? value : value;
+}
+
 function selectClasses(className = '') {
   return `h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className}`;
 }
@@ -263,6 +342,7 @@ export function AdminPanel() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -270,6 +350,7 @@ export function AdminPanel() {
   const [batteries, setBatteries] = useState<BatteryRow[]>([]);
   const [accessories, setAccessories] = useState<AccessoryRow[]>([]);
   const [rules, setRules] = useState<AccessoryRuleRow[]>([]);
+  const [essRules, setEssRules] = useState<EssCompatibilityRuleRow[]>([]);
   const [solutions, setSolutions] = useState<SolutionRow[]>([]);
   const [users, setUsers] = useState<UserProfileRow[]>([]);
   const [simulations, setSimulations] = useState<SimulationRow[]>([]);
@@ -279,13 +360,14 @@ export function AdminPanel() {
   const [batteryForm, setBatteryForm] = useState<Partial<BatteryRow>>(emptyBattery);
   const [accessoryForm, setAccessoryForm] = useState<Partial<AccessoryRow>>(emptyAccessory);
   const [ruleForm, setRuleForm] = useState<Partial<AccessoryRuleRow>>(emptyRule);
+  const [essRuleForm, setEssRuleForm] = useState<Partial<EssCompatibilityRuleRow>>(emptyEssRule);
   const [solutionForm, setSolutionForm] = useState<Partial<SolutionRow>>(emptySolution);
   const [solutionAccessoriesText, setSolutionAccessoriesText] = useState('[]');
   const [solutionCommentsText, setSolutionCommentsText] = useState('[]');
   const [solutionQuery, setSolutionQuery] = useState('');
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(showSkeleton = true) {
+    if (showSkeleton) setLoading(true);
     setError(null);
 
     const [
@@ -293,6 +375,7 @@ export function AdminPanel() {
       batteryResult,
       accessoryResult,
       ruleResult,
+      essRuleResult,
       solutionResult,
       userResult,
       simulationResult,
@@ -304,6 +387,10 @@ export function AdminPanel() {
       supabase
         .from('accessory_rules')
         .select('*, accessories (model)')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('ess_compatibility_rules')
+        .select('*')
         .order('created_at', { ascending: false }),
       supabase
         .from('approved_solutions')
@@ -331,6 +418,7 @@ export function AdminPanel() {
       batteryResult.error ??
       accessoryResult.error ??
       ruleResult.error ??
+      essRuleResult.error ??
       solutionResult.error ??
       userResult.error ??
       simulationResult.error ??
@@ -343,13 +431,14 @@ export function AdminPanel() {
       setBatteries((batteryResult.data ?? []) as BatteryRow[]);
       setAccessories((accessoryResult.data ?? []) as AccessoryRow[]);
       setRules((ruleResult.data ?? []) as AccessoryRuleRow[]);
+      setEssRules((essRuleResult.data ?? []) as EssCompatibilityRuleRow[]);
       setSolutions((solutionResult.data ?? []) as SolutionRow[]);
       setUsers((userResult.data ?? []) as UserProfileRow[]);
       setSimulations((simulationResult.data ?? []) as SimulationRow[]);
       setActivityLogs((activityLogResult.data ?? []) as AdminActivityLogRow[]);
     }
 
-    setLoading(false);
+    if (showSkeleton) setLoading(false);
   }
 
   useEffect(() => {
@@ -453,13 +542,13 @@ export function AdminPanel() {
     const payload = {
       model: inverterForm.model?.trim(),
       power_kw: toNumber(inverterForm.power_kw),
+      standard_power_kva: toNumber(inverterForm.standard_power_kva),
+      peak_power_kva: toNumber(inverterForm.peak_power_kva),
       phases: toNumber(inverterForm.phases, 1),
       topology: inverterForm.topology,
-      grid_types: String(inverterForm.grid_types ?? '')
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean),
+      grid_types: normalizeInverterGridTypes(inverterForm.grid_types),
       max_battery_qty: toNumber(inverterForm.max_battery_qty, 1),
+      battery_ports: toNumber(inverterForm.battery_ports, 1),
       image_url: inverterForm.image_url?.trim() || null,
       documents: inverterForm.documents ?? [],
     };
@@ -495,6 +584,9 @@ export function AdminPanel() {
       model: batteryForm.model?.trim(),
       capacity_kwh: toNumber(batteryForm.capacity_kwh),
       topology: batteryForm.topology,
+      standard_power_kw: toNumber(batteryForm.standard_power_kw),
+      peak_power_kw: toNumber(batteryForm.peak_power_kw),
+      min_soc_percent: toNumber(batteryForm.min_soc_percent, 10),
       image_url: batteryForm.image_url?.trim() || null,
       documents: batteryForm.documents ?? [],
     };
@@ -594,6 +686,44 @@ export function AdminPanel() {
     });
     setRuleForm(emptyRule);
     setSuccess('Regra salva.');
+    await loadData();
+  }
+
+  async function saveEssRule() {
+    setSaving(true);
+    setStatus(essRuleForm.id ? 'Atualizando regra ESS...' : 'Salvando regra ESS...');
+    setError(null);
+    const action: AdminLogAction = essRuleForm.id ? 'update' : 'create';
+    const beforeData = essRuleForm.id ? essRules.find((row) => row.id === essRuleForm.id) : null;
+    const payload = {
+      inverter_model: essRuleForm.inverter_model?.trim(),
+      battery_model: essRuleForm.battery_model?.trim(),
+      battery_topology: essRuleForm.battery_topology || null,
+      grid_topology: essRuleForm.grid_topology || null,
+      comment: essRuleForm.comment?.trim() || null,
+      active: essRuleForm.active ?? true,
+    };
+
+    const request = essRuleForm.id
+      ? supabase.from('ess_compatibility_rules').update(payload).eq('id', essRuleForm.id)
+      : supabase.from('ess_compatibility_rules').insert(payload);
+    const { error: saveError } = await request;
+
+    setSaving(false);
+    if (saveError) return setFailure(saveError.message);
+    await recordActivityLog({
+      entityType: 'rule',
+      action,
+      targetId: essRuleForm.id ?? null,
+      targetLabel: `${payload.inverter_model || '-'} + ${payload.battery_model || '-'}`,
+      summary: `${action === 'create' ? 'Criou' : 'Atualizou'} regra ESS para ${
+        payload.inverter_model || '-'
+      } com ${payload.battery_model || '-'}.`,
+      beforeData,
+      afterData: payload,
+    });
+    setEssRuleForm(emptyEssRule);
+    setSuccess('Regra ESS salva.');
     await loadData();
   }
 
@@ -697,12 +827,21 @@ export function AdminPanel() {
       const row = solutions.find((item) => item.id === id);
       return { entityType: 'solution' as const, label: row?.solution_code ?? 'Combinação removida', beforeData: row };
     }
+    if (table === 'ess_compatibility_rules') {
+      const row = essRules.find((item) => item.id === id);
+      return {
+        entityType: 'rule' as const,
+        label: row ? `${row.inverter_model} + ${row.battery_model}` : 'Regra ESS removida',
+        beforeData: row,
+      };
+    }
     const row = rules.find((item) => item.id === id);
     return { entityType: 'rule' as const, label: row?.name ?? 'Regra removida', beforeData: row };
   }
 
   async function removeRow(table: string, id: string, soft = false) {
     setSaving(true);
+    setRemovingIds((current) => new Set(current).add(id));
     setStatus(soft ? 'Inativando registro...' : 'Removendo registro...');
     setError(null);
     const logTarget = getLogTarget(table, id);
@@ -712,7 +851,14 @@ export function AdminPanel() {
     const { error: removeError } = await request;
     setSaving(false);
 
-    if (removeError) return setFailure(removeError.message);
+    if (removeError) {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      return setFailure(removeError.message);
+    }
     await recordActivityLog({
       entityType: logTarget.entityType,
       action: soft ? 'deactivate' : 'delete',
@@ -726,7 +872,12 @@ export function AdminPanel() {
           : null,
     });
     setSuccess(`${soft ? 'Registro inativado' : 'Registro removido'} com sucesso.`);
-    await loadData();
+    await loadData(false);
+    setRemovingIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
   }
 
   async function sendPasswordReset(email: string) {
@@ -766,7 +917,7 @@ export function AdminPanel() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={loadData} disabled={loading}>
+            <Button variant="outline" onClick={() => loadData()} disabled={loading}>
               <RefreshCw className="h-4 w-4" />
               Atualizar
             </Button>
@@ -836,6 +987,7 @@ export function AdminPanel() {
                     onNew={resetSolution}
                     onSave={saveSolution}
                     onRemove={(id) => removeRow('approved_solutions', id, true)}
+                    removingIds={removingIds}
                     saving={saving}
                   />
                 )}
@@ -847,6 +999,7 @@ export function AdminPanel() {
                     setForm={setInverterForm}
                     onSave={saveInverter}
                     onRemove={(id) => removeRow('inverters', id)}
+                    removingIds={removingIds}
                     uploadAsset={uploadProductAsset}
                     saving={saving}
                   />
@@ -859,6 +1012,7 @@ export function AdminPanel() {
                     setForm={setBatteryForm}
                     onSave={saveBattery}
                     onRemove={(id) => removeRow('batteries', id)}
+                    removingIds={removingIds}
                     uploadAsset={uploadProductAsset}
                     saving={saving}
                   />
@@ -871,6 +1025,7 @@ export function AdminPanel() {
                     setForm={setAccessoryForm}
                     onSave={saveAccessory}
                     onRemove={(id) => removeRow('accessories', id)}
+                    removingIds={removingIds}
                     uploadAsset={uploadProductAsset}
                     saving={saving}
                   />
@@ -881,11 +1036,17 @@ export function AdminPanel() {
                     rows={rules}
                     form={ruleForm}
                     setForm={setRuleForm}
+                    essRows={essRules}
+                    essForm={essRuleForm}
+                    setEssForm={setEssRuleForm}
                     accessories={accessories}
                     inverters={inverters}
                     batteries={batteries}
                     onSave={saveRule}
+                    onSaveEss={saveEssRule}
                     onRemove={(id) => removeRow('accessory_rules', id)}
+                    onRemoveEss={(id) => removeRow('ess_compatibility_rules', id)}
+                    removingIds={removingIds}
                     saving={saving}
                   />
                 )}
@@ -946,7 +1107,7 @@ export function AdminPanel() {
             </nav>
 
             <div className="mt-auto grid gap-2">
-              <Button variant="outline" onClick={loadData} disabled={loading}>
+              <Button variant="outline" onClick={() => loadData()} disabled={loading}>
                 <RefreshCw className="h-4 w-4" />
                 Atualizar
               </Button>
@@ -1521,6 +1682,7 @@ function SolutionsEditor(props: {
   onNew: () => void;
   onSave: () => void;
   onRemove: (id: string) => void;
+  removingIds: Set<string>;
   saving: boolean;
 }) {
   const { form, setForm } = props;
@@ -1610,8 +1772,11 @@ function SolutionsEditor(props: {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-          {visibleSolutions.map((solution) => (
-            <Card key={solution.id} size="sm">
+          {visibleSolutions.map((solution) => {
+            const removing = props.removingIds.has(solution.id);
+            return (
+            <Card key={solution.id} size="sm" className={removing ? 'relative opacity-70' : 'relative'}>
+              {removing && <RemovingOverlay label="Inativando..." />}
               <CardHeader>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -1640,12 +1805,14 @@ function SolutionsEditor(props: {
                     title="Inativar combinação?"
                     description="A combinação deixará de ser usada nas recomendações."
                     confirmLabel="Inativar"
+                    disabled={removing}
                     onConfirm={() => props.onRemove(solution.id)}
                   />
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
           {visibleSolutions.length === 0 && (
             <div className="rounded-lg border border-dashed bg-background p-6 text-sm text-muted-foreground md:col-span-2 2xl:col-span-3">
               Nenhuma combinação encontrada para o agrupamento selecionado.
@@ -1814,12 +1981,55 @@ function SolutionsEditor(props: {
   );
 }
 
+function InverterGridTypesInput({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (gridTypes: InverterGridType[]) => void;
+}) {
+  const selected = normalizeInverterGridTypes(value);
+
+  function toggleGridType(gridType: InverterGridType) {
+    if (selected.includes(gridType)) {
+      onChange(selected.filter((item) => item !== gridType));
+      return;
+    }
+    onChange([...selected, gridType]);
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {inverterGridTypeOptions.map((option) => {
+        const active = selected.includes(option.value);
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              active
+                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+            )}
+            onClick={() => toggleGridType(option.value)}
+          >
+            <span>{option.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function InvertersEditor(props: {
   rows: InverterRow[];
   form: Partial<InverterRow>;
   setForm: (value: Partial<InverterRow>) => void;
   onSave: () => void;
   onRemove: (id: string) => void;
+  removingIds: Set<string>;
   uploadAsset: (
     table: 'inverters' | 'batteries' | 'accessories',
     model: string | undefined,
@@ -1855,10 +2065,16 @@ function InvertersEditor(props: {
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Potência kW">
+            <Field label="Potência padrão kVA">
               <NumberInput
-                value={form.power_kw ?? 0}
-                onChange={(event) => setForm({ ...form, power_kw: toNumber(event.target.value) })}
+                value={form.standard_power_kva ?? form.power_kw ?? 0}
+                onChange={(event) => setForm({ ...form, standard_power_kva: toNumber(event.target.value), power_kw: toNumber(event.target.value) })}
+              />
+            </Field>
+            <Field label="Potência pico kVA">
+              <NumberInput
+                value={form.peak_power_kva ?? 0}
+                onChange={(event) => setForm({ ...form, peak_power_kva: toNumber(event.target.value) })}
               />
             </Field>
             <Field label="Fases">
@@ -1882,17 +2098,17 @@ function InvertersEditor(props: {
                 <option value="BOTH">BOTH</option>
               </select>
             </Field>
-            <Field label="Máx. baterias">
+            <Field label="Portas bateria">
               <NumberInput
-                value={form.max_battery_qty ?? 1}
-                onChange={(event) => setForm({ ...form, max_battery_qty: toNumber(event.target.value, 1) })}
+                value={form.battery_ports ?? 1}
+                onChange={(event) => setForm({ ...form, battery_ports: toNumber(event.target.value, 1) })}
               />
             </Field>
           </div>
-          <Field label="Tipos de rede separados por vírgula">
-            <Input
-              value={Array.isArray(form.grid_types) ? form.grid_types.join(', ') : String(form.grid_types ?? '')}
-              onChange={(event) => setForm({ ...form, grid_types: event.target.value.split(',') })}
+          <Field label="Tipos de rede">
+            <InverterGridTypesInput
+              value={form.grid_types}
+              onChange={(grid_types) => setForm({ ...form, grid_types })}
             />
           </Field>
           <ProductMediaFields
@@ -1912,11 +2128,13 @@ function InvertersEditor(props: {
         title: row.model,
         badges: [row.topology, `${row.phases} fase${row.phases === 1 ? '' : 's'}`],
         details: [
-          ['Potência', `${row.power_kw} kW`],
-          ['Redes', row.grid_types.join(', ') || '-'],
-          ['Máx. baterias', String(row.max_battery_qty)],
+          ['Potência padrão', `${row.standard_power_kva ?? row.power_kw} kVA`],
+          ['Potência pico', `${row.peak_power_kva ?? '-'} kVA`],
+          ['Portas bateria', String(row.battery_ports ?? 1)],
+          ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '-'],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
+        removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
       }))}
@@ -1930,6 +2148,7 @@ function BatteriesEditor(props: {
   setForm: (value: Partial<BatteryRow>) => void;
   onSave: () => void;
   onRemove: (id: string) => void;
+  removingIds: Set<string>;
   uploadAsset: (
     table: 'inverters' | 'batteries' | 'accessories',
     model: string | undefined,
@@ -1970,6 +2189,20 @@ function BatteriesEditor(props: {
               onChange={(event) => setForm({ ...form, capacity_kwh: toNumber(event.target.value) })}
             />
           </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Potência padrão kW">
+              <NumberInput
+                value={form.standard_power_kw ?? 0}
+                onChange={(event) => setForm({ ...form, standard_power_kw: toNumber(event.target.value) })}
+              />
+            </Field>
+            <Field label="Potência pico kW">
+              <NumberInput
+                value={form.peak_power_kw ?? 0}
+                onChange={(event) => setForm({ ...form, peak_power_kw: toNumber(event.target.value) })}
+              />
+            </Field>
+          </div>
           <Field label="Topologia">
             <select
               className={selectClasses()}
@@ -1979,6 +2212,14 @@ function BatteriesEditor(props: {
               <option value="HV">HV</option>
               <option value="LV">LV</option>
             </select>
+          </Field>
+          <Field label="SOC mínimo (%)">
+            <NumberInput
+              min={0}
+              max={99}
+              value={form.min_soc_percent ?? 10}
+              onChange={(event) => setForm({ ...form, min_soc_percent: toNumber(event.target.value, 10) })}
+            />
           </Field>
           <ProductMediaFields
             table="batteries"
@@ -1996,8 +2237,15 @@ function BatteriesEditor(props: {
         id: row.id,
         title: row.model,
         badges: [row.topology],
-        details: [['Capacidade', `${row.capacity_kwh} kWh`]],
+        details: [
+          ['Capacidade', `${row.capacity_kwh} kWh`],
+          ['Potência padrão', `${row.standard_power_kw ?? '-'} kW`],
+          ['Potência pico', `${row.peak_power_kw ?? '-'} kW`],
+          ['SOC mínimo', `${row.min_soc_percent ?? 10}%`],
+          ['Energia útil', `${(Number(row.capacity_kwh || 0) * (1 - Number(row.min_soc_percent ?? 10) / 100)).toFixed(2)} kWh`],
+        ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
+        removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
       }))}
@@ -2011,6 +2259,7 @@ function AccessoriesEditor(props: {
   setForm: (value: Partial<AccessoryRow>) => void;
   onSave: () => void;
   onRemove: (id: string) => void;
+  removingIds: Set<string>;
   uploadAsset: (
     table: 'inverters' | 'batteries' | 'accessories',
     model: string | undefined,
@@ -2079,6 +2328,7 @@ function AccessoriesEditor(props: {
         description: row.description ?? undefined,
         details: [],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
+        removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
       }))}
@@ -2090,15 +2340,24 @@ function RulesEditor(props: {
   rows: AccessoryRuleRow[];
   form: Partial<AccessoryRuleRow>;
   setForm: (value: Partial<AccessoryRuleRow>) => void;
+  essRows: EssCompatibilityRuleRow[];
+  essForm: Partial<EssCompatibilityRuleRow>;
+  setEssForm: (value: Partial<EssCompatibilityRuleRow>) => void;
   accessories: AccessoryRow[];
   inverters: InverterRow[];
   batteries: BatteryRow[];
   onSave: () => void;
+  onSaveEss: () => void;
   onRemove: (id: string) => void;
+  onRemoveEss: (id: string) => void;
+  removingIds: Set<string>;
   saving: boolean;
 }) {
   const { form, setForm } = props;
+  const { essForm, setEssForm } = props;
+  const [rulesTab, setRulesTab] = useState<'accessories' | 'ess'>('accessories');
   const [formOpen, setFormOpen] = useState(false);
+  const [essFormOpen, setEssFormOpen] = useState(false);
 
   function openNew() {
     setForm(emptyRule);
@@ -2110,15 +2369,37 @@ function RulesEditor(props: {
     setFormOpen(true);
   }
 
+  function openNewEss() {
+    setEssForm(emptyEssRule);
+    setEssFormOpen(true);
+  }
+
+  function openEditEss(row: EssCompatibilityRuleRow) {
+    setEssForm(row);
+    setEssFormOpen(true);
+  }
+
   return (
-    <CatalogLayout
-      title="Regras automáticas"
-      count={props.rows.length}
-      formOpen={formOpen}
-      formTitle={form.id ? 'Editar regra' : 'Nova regra'}
-      onNew={openNew}
-      onClose={() => setFormOpen(false)}
-      form={
+    <div className="space-y-4">
+      <SegmentedTabs
+        label="Tipo de regra"
+        value={rulesTab}
+        options={[
+          { value: 'accessories', label: 'Acessórios', count: props.rows.length },
+          { value: 'ess', label: 'ESS', count: props.essRows.length },
+        ]}
+        onChange={(value) => setRulesTab(value as 'accessories' | 'ess')}
+      />
+
+      {rulesTab === 'accessories' && (
+        <CatalogLayout
+          title="Regras de acessórios"
+          count={props.rows.length}
+          formOpen={formOpen}
+          formTitle={form.id ? 'Editar regra' : 'Nova regra'}
+          onNew={openNew}
+          onClose={() => setFormOpen(false)}
+          form={
         <>
           <Field label="Nome da regra">
             <Input value={form.name ?? ''} onChange={(event) => setForm({ ...form, name: event.target.value })} />
@@ -2247,21 +2528,129 @@ function RulesEditor(props: {
           </label>
           <Actions onSave={props.onSave} onNew={openNew} onCancel={() => setFormOpen(false)} saving={props.saving} />
         </>
-      }
-      items={props.rows.map((row) => ({
-        id: row.id,
-        title: row.name,
-        badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
-        details: [
-          ['Acessório', row.accessories?.model ?? '-'],
-          ['Condição', `${row.trigger_metric} >= ${row.min_quantity}`],
-          ['Quantidade', String(row.quantity_per_match)],
-        ],
-        description: row.comment ?? undefined,
-        onEdit: () => openEdit(row),
-        onRemove: () => props.onRemove(row.id),
-      }))}
-    />
+          }
+          items={props.rows.map((row) => ({
+            id: row.id,
+            title: row.name,
+            badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
+            details: [
+              ['Acessório', row.accessories?.model ?? '-'],
+              ['Condição', `${row.trigger_metric} >= ${row.min_quantity}`],
+              ['Quantidade', String(row.quantity_per_match)],
+            ],
+            description: row.comment ?? undefined,
+            removing: props.removingIds.has(row.id),
+            onEdit: () => openEdit(row),
+            onRemove: () => props.onRemove(row.id),
+          }))}
+        />
+      )}
+
+      {rulesTab === 'ess' && (
+        <CatalogLayout
+          title="Regras ESS"
+          count={props.essRows.length}
+          formOpen={essFormOpen}
+          formTitle={essForm.id ? 'Editar compatibilidade ESS' : 'Nova compatibilidade ESS'}
+          onNew={openNewEss}
+          onClose={() => setEssFormOpen(false)}
+          form={
+            <>
+              <Field label="Inversor">
+                <select
+                  className={selectClasses()}
+                  value={essForm.inverter_model ?? ''}
+                  onChange={(event) => setEssForm({ ...essForm, inverter_model: event.target.value })}
+                >
+                  <option value="">Selecione</option>
+                  {props.inverters.map((inverter) => (
+                    <option key={inverter.id} value={inverter.model}>
+                      {inverter.model}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Bateria">
+                <select
+                  className={selectClasses()}
+                  value={essForm.battery_model ?? ''}
+                  onChange={(event) => {
+                    const battery = props.batteries.find((item) => item.model === event.target.value);
+                    setEssForm({
+                      ...essForm,
+                      battery_model: event.target.value,
+                      battery_topology: battery?.topology ?? essForm.battery_topology ?? null,
+                    });
+                  }}
+                >
+                  <option value="">Selecione</option>
+                  {props.batteries.map((battery) => (
+                    <option key={battery.id} value={battery.model}>
+                      {battery.model}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Topologia bateria">
+                  <select
+                    className={selectClasses()}
+                    value={essForm.battery_topology ?? ''}
+                    onChange={(event) => setEssForm({ ...essForm, battery_topology: (event.target.value || null) as BatteryTopology | null })}
+                  >
+                    <option value="">Qualquer</option>
+                    <option value="HV">HV</option>
+                    <option value="LV">LV</option>
+                  </select>
+                </Field>
+                <Field label="Rede">
+                  <select
+                    className={selectClasses()}
+                    value={essForm.grid_topology ?? ''}
+                    onChange={(event) => setEssForm({ ...essForm, grid_topology: (event.target.value || null) as GridTopology | null })}
+                  >
+                    <option value="">Qualquer</option>
+                    <option value="1p_220V">1p 220V</option>
+                    <option value="3p_220V">3p 220V</option>
+                    <option value="3p_380V">3p 380V</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Comentário">
+                <textarea
+                  className={textareaClasses()}
+                  value={essForm.comment ?? ''}
+                  onChange={(event) => setEssForm({ ...essForm, comment: event.target.value })}
+                />
+              </Field>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={essForm.active ?? true}
+                  onChange={(event) => setEssForm({ ...essForm, active: event.target.checked })}
+                />
+                Ativa
+              </label>
+              <Actions onSave={props.onSaveEss} onNew={openNewEss} onCancel={() => setEssFormOpen(false)} saving={props.saving} />
+            </>
+          }
+          items={props.essRows.map((row) => ({
+            id: row.id,
+            title: `${row.inverter_model} + ${row.battery_model}`,
+            badges: [row.active ? 'ativa' : 'inativa', row.battery_topology ?? 'qualquer'],
+            details: [
+              ['Inversor', row.inverter_model],
+              ['Bateria', row.battery_model],
+              ['Rede', row.grid_topology ?? 'Qualquer'],
+            ],
+            description: row.comment ?? undefined,
+            removing: props.removingIds.has(row.id),
+            onEdit: () => openEditEss(row),
+            onRemove: () => props.onRemoveEss(row.id),
+          }))}
+        />
+      )}
+    </div>
   );
 }
 
@@ -2332,6 +2721,7 @@ function CatalogLayout({
     badges?: string[];
     details: [string, string][];
     media?: React.ReactNode;
+    removing?: boolean;
     onEdit: () => void;
     onRemove: () => void;
   }[];
@@ -2425,6 +2815,17 @@ function DetailItem({ label, value }: { label: string; value: React.ReactNode })
   );
 }
 
+function RemovingOverlay({ label }: { label: string }) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/70 backdrop-blur-[1px]">
+      <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm shadow-sm">
+        <Skeleton className="h-4 w-4 rounded-full" />
+        {label}
+      </div>
+    </div>
+  );
+}
+
 function RecordCardGrid({
   items,
 }: {
@@ -2435,6 +2836,7 @@ function RecordCardGrid({
     badges?: string[];
     details: [string, string][];
     media?: React.ReactNode;
+    removing?: boolean;
     onEdit: () => void;
     onRemove: () => void;
   }[];
@@ -2442,7 +2844,8 @@ function RecordCardGrid({
   return (
     <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
       {items.map((item) => (
-        <Card key={item.id} size="sm">
+        <Card key={item.id} size="sm" className={item.removing ? 'relative opacity-70' : 'relative'}>
+          {item.removing && <RemovingOverlay label="Removendo..." />}
           <CardHeader>
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
@@ -2472,7 +2875,7 @@ function RecordCardGrid({
             )}
             {item.media}
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={item.onEdit}>
+              <Button variant="outline" size="sm" onClick={item.onEdit} disabled={item.removing}>
                 <Pencil className="h-4 w-4" />
                 Editar
               </Button>
@@ -2481,6 +2884,7 @@ function RecordCardGrid({
                 title={`Remover ${item.title}?`}
                 description="Esse registro será removido do cadastro administrativo."
                 confirmLabel="Remover"
+                disabled={item.removing}
                 onConfirm={item.onRemove}
               />
             </div>
