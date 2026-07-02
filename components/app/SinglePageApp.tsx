@@ -98,6 +98,30 @@ interface BatteryCatalogOption {
   documents: ProductDocument[];
 }
 
+interface InverterCatalogOption {
+  id: string;
+  model: string;
+  topology: 'HV' | 'LV' | 'BOTH';
+  phases: number;
+  standardPowerKva: number | null;
+  peakPowerKva: number | null;
+  imageUrl: string | null;
+  documents: ProductDocument[];
+}
+
+interface ApprovedInverterCombo {
+  gridTopology: string;
+  batteryTopology: 'HV' | 'LV';
+  inverterModel: string;
+}
+
+const gridTypeToApprovedTopology: Record<ResidentialGridType, '1p_220V' | '3p_220V' | '3p_380V'> = {
+  singlePhase_220: '1p_220V',
+  splitPhase_220: '1p_220V',
+  threePhase_220: '3p_220V',
+  threePhase_380: '3p_380V',
+};
+
 export function SinglePageApp() {
   const router = useRouter();
   const locale = useLocale();
@@ -115,6 +139,7 @@ export function SinglePageApp() {
     removeProject,
     setTopology,
     setBatteryModel,
+    setInverterModel,
     setGridType,
     setSolution,
     setLoadCatalog,
@@ -132,6 +157,8 @@ export function SinglePageApp() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
   const [batteryCatalog, setBatteryCatalog] = useState<BatteryCatalogOption[]>([]);
+  const [inverterCatalog, setInverterCatalog] = useState<InverterCatalogOption[]>([]);
+  const [approvedInverterCombos, setApprovedInverterCombos] = useState<ApprovedInverterCombo[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +166,13 @@ export function SinglePageApp() {
   useEffect(() => {
     async function loadInitialData() {
       setInitialLoading(true);
-      const [{ data: userData }, { data: catalogData }, { data: batteryData }] = await Promise.all([
+      const [
+        { data: userData },
+        { data: catalogData },
+        { data: batteryData },
+        { data: inverterData },
+        { data: approvedSolutionsData },
+      ] = await Promise.all([
         supabase.auth.getUser(),
         supabase
           .from('load_catalog')
@@ -149,6 +182,14 @@ export function SinglePageApp() {
           .from('batteries')
           .select('id, model, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, image_url, documents')
           .order('model'),
+        supabase
+          .from('inverters')
+          .select('id, model, topology, phases, standard_power_kva, peak_power_kva, image_url, documents')
+          .order('model'),
+        supabase
+          .from('approved_solutions')
+          .select('grid_topology, battery_topology, inverter_model')
+          .eq('active', true),
       ]);
 
       setUserEmail(userData.user?.email ?? null);
@@ -197,6 +238,31 @@ export function SinglePageApp() {
             minSocPercent: Number(row.min_soc_percent ?? 10),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
+          }))
+        );
+      }
+
+      if (inverterData) {
+        setInverterCatalog(
+          inverterData.map((row) => ({
+            id: row.id,
+            model: row.model,
+            topology: row.topology as 'HV' | 'LV' | 'BOTH',
+            phases: Number(row.phases),
+            standardPowerKva: row.standard_power_kva === null ? null : Number(row.standard_power_kva),
+            peakPowerKva: row.peak_power_kva === null ? null : Number(row.peak_power_kva),
+            imageUrl: row.image_url,
+            documents: (row.documents ?? []) as ProductDocument[],
+          }))
+        );
+      }
+
+      if (approvedSolutionsData) {
+        setApprovedInverterCombos(
+          approvedSolutionsData.map((row) => ({
+            gridTopology: row.grid_topology,
+            batteryTopology: row.battery_topology as 'HV' | 'LV',
+            inverterModel: row.inverter_model,
           }))
         );
       }
@@ -255,6 +321,20 @@ export function SinglePageApp() {
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads);
   const peakW = totalPeakW(residentialOptions.loads);
+
+  const availableInverterModels = useMemo(() => {
+    if (!residentialOptions.gridType) return null;
+    const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
+    const batteryTopology = residentialOptions.topology === 'LowVoltage' ? 'LV' : 'HV';
+    return new Set(
+      approvedInverterCombos
+        .filter(
+          (combo) => combo.gridTopology === approvedTopology && combo.batteryTopology === batteryTopology
+        )
+        .map((combo) => combo.inverterModel)
+    );
+  }, [approvedInverterCombos, residentialOptions.gridType, residentialOptions.topology]);
+
   const canCalculate =
     residentialOptions.topology &&
     residentialOptions.batteryModel &&
@@ -539,6 +619,8 @@ export function SinglePageApp() {
               calculateLabel={tc('calculate')}
               residentialOptions={residentialOptions}
               batteryCatalog={batteryCatalog}
+              inverterCatalog={inverterCatalog}
+              availableInverterModels={availableInverterModels}
               solution={solution}
               peakW={peakW}
               dailyKwh={dailyKwh}
@@ -548,6 +630,7 @@ export function SinglePageApp() {
               error={error}
               setTopology={setTopology}
               setBatteryModel={setBatteryModel}
+              setInverterModel={setInverterModel}
               setGridType={setGridType}
               resetResidential={resetResidential}
               calculate={calculate}
@@ -1091,6 +1174,8 @@ function SizingTab({
   calculateLabel,
   residentialOptions,
   batteryCatalog,
+  inverterCatalog,
+  availableInverterModels,
   solution,
   peakW,
   dailyKwh,
@@ -1100,6 +1185,7 @@ function SizingTab({
   error,
   setTopology,
   setBatteryModel,
+  setInverterModel,
   setGridType,
   resetResidential,
   calculate,
@@ -1114,10 +1200,13 @@ function SizingTab({
   residentialOptions: {
     topology: BatteryTopology | null;
     batteryModel: string | null;
+    inverterModel: string | null;
     gridType: ResidentialGridType | null;
     loads: unknown[];
   };
   batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog: InverterCatalogOption[];
+  availableInverterModels: Set<string> | null;
   solution: Solution | null;
   peakW: number;
   dailyKwh: number;
@@ -1127,6 +1216,7 @@ function SizingTab({
   error: string | null;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
+  setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   resetResidential: () => void;
   calculate: () => void;
@@ -1204,6 +1294,14 @@ function SizingTab({
                   ))}
                 </div>
               </div>
+
+              <InverterModelPicker
+                inverters={inverterCatalog}
+                availableModels={availableInverterModels}
+                selectedModel={residentialOptions.inverterModel}
+                loading={initialLoading}
+                setInverterModel={setInverterModel}
+              />
             </CardContent>
           </Card>
 
@@ -1528,6 +1626,132 @@ function BatteryModelPicker({
               </div>
             );
           })}
+        </div>
+      )}
+      <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+    </div>
+  );
+}
+
+function InverterModelPicker({
+  inverters,
+  availableModels,
+  selectedModel,
+  loading,
+  setInverterModel,
+}: {
+  inverters: InverterCatalogOption[];
+  availableModels: Set<string> | null;
+  selectedModel: string | null;
+  loading: boolean;
+  setInverterModel: (inverterModel: string | null) => void;
+}) {
+  const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
+  const visibleInverters = availableModels
+    ? inverters.filter((inverter) => availableModels.has(inverter.model))
+    : inverters;
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-background p-3">
+      <div>
+        <p className="text-sm font-medium">Modelo do inversor</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Escolha um modelo específico ou deixe em &quot;Todos&quot; para o sistema escolher automaticamente.
+        </p>
+      </div>
+
+      {loading ? (
+        <BatteryCardsSkeleton />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-pressed={selectedModel === null}
+            onClick={() => setInverterModel(null)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setInverterModel(null);
+              }
+            }}
+            className={cn(
+              'grid cursor-pointer place-items-center gap-2 rounded-lg border bg-card p-3 text-center transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              selectedModel === null ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
+            )}
+          >
+            <Zap className="h-6 w-6 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-semibold">Todos</p>
+              <p className="text-xs text-muted-foreground">O sistema escolhe o melhor inversor</p>
+            </div>
+          </div>
+
+          {visibleInverters.map((inverter) => {
+            const selected = selectedModel === inverter.model;
+            return (
+              <div
+                key={inverter.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                onClick={() => setInverterModel(inverter.model)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setInverterModel(inverter.model);
+                  }
+                }}
+                className={cn(
+                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[72px_1fr]',
+                  selected ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
+                )}
+              >
+                <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
+                  {inverter.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={inverter.imageUrl} alt={inverter.model} className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <Zap className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
+                    <Badge variant="secondary">{inverter.topology}</Badge>
+                  </div>
+                  <div className="grid gap-1 text-xs text-muted-foreground">
+                    <span>Fases: {inverter.phases}</span>
+                    <span>
+                      Potência: {inverter.standardPowerKva ?? '-'} kVA · pico {inverter.peakPowerKva ?? '-'} kVA
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 flex-wrap gap-1">
+                    {inverter.documents.length > 0 ? (
+                      inverter.documents.map((document) => (
+                        <button
+                          key={`${inverter.id}-${document.url}`}
+                          type="button"
+                          className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          onClick={(event) => { event.stopPropagation(); setPreviewDoc(document); }}
+                        >
+                          {document.name || 'Documento'}
+                        </button>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Sem anexos</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {visibleInverters.length === 0 && (
+            <div className="col-span-full rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Nenhum inversor com solução aprovada para este tipo de rede.
+            </div>
+          )}
         </div>
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />

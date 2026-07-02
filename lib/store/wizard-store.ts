@@ -29,6 +29,7 @@ interface WizardStore {
   removeProject: (id: string) => void;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
+  setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setMicroGrid: (microGrid: MicroGridOptions) => void;
   addLoad: (load: SingleLoad) => void;
@@ -57,6 +58,7 @@ const defaultProjectInfo: ProjectInfo = {
 const defaultResidential: ResidentialOptions = {
   topology: null,
   batteryModel: null,
+  inverterModel: null,
   gridType: null,
   loads: [],
   microGrid: null,
@@ -150,7 +152,12 @@ export const useWizardStore = create<WizardStore>()(
 
       setTopology: (topology) =>
         set((s) => ({
-          residentialOptions: { ...s.residentialOptions, topology, batteryModel: null },
+          residentialOptions: {
+            ...s.residentialOptions,
+            topology,
+            batteryModel: null,
+            inverterModel: null,
+          },
         })),
 
       setBatteryModel: (batteryModel) =>
@@ -158,9 +165,14 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, batteryModel },
         })),
 
+      setInverterModel: (inverterModel) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, inverterModel },
+        })),
+
       setGridType: (gridType) =>
         set((s) => ({
-          residentialOptions: { ...s.residentialOptions, gridType },
+          residentialOptions: { ...s.residentialOptions, gridType, inverterModel: null },
         })),
 
       setMicroGrid: (microGrid) =>
