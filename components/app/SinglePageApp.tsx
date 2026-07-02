@@ -1273,25 +1273,39 @@ function SizingTab({
 
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-medium">Tipo de rede</p>
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="radiogroup" aria-label="Tipo de rede">
-                  {gridOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={residentialOptions.gridType === option.value}
-                      onClick={() => setGridType(option.value)}
-                      className={cn(
-                        'flex min-h-14 flex-col justify-center rounded-lg border bg-card px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                        residentialOptions.gridType === option.value
-                          ? 'border-accent bg-primary/10 shadow-sm'
-                          : 'hover:border-primary/50 hover:bg-muted/70'
-                      )}
-                    >
-                      <span className="font-medium">{option.label}</span>
-                      <span className="text-xs text-muted-foreground">{option.detail}</span>
-                    </button>
-                  ))}
+                <div
+                  className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
+                  role="radiogroup"
+                  aria-label="Tipo de rede"
+                >
+                  {gridOptions.map((option) => {
+                    const active = residentialOptions.gridType === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setGridType(option.value)}
+                        className={cn(
+                          'flex h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                          active
+                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                            : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                        )}
+                      >
+                        {option.label}
+                        <span
+                          className={cn(
+                            'rounded-full px-1.5 py-0.5 text-[0.7rem]',
+                            active ? 'bg-primary/10 text-primary' : 'bg-background'
+                          )}
+                        >
+                          {option.detail}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1449,13 +1463,71 @@ function DocPreviewModal({ doc, onClose }: { doc: ProductDocument | null; onClos
   );
 }
 
+function ImagePreviewModal({
+  image,
+  onClose,
+}: {
+  image: { url: string; alt: string } | null;
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (!image) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [image, onClose]);
+
+  if (!image || !mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4 backdrop-blur-sm sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={image.alt}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="flex h-full flex-col overflow-hidden rounded-lg border bg-card shadow-xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+          <p className="min-w-0 truncate text-sm font-medium">{image.alt}</p>
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={image.url}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted"
+            >
+              Abrir em nova aba
+            </a>
+            <Button variant="ghost" size="icon-sm" aria-label="Fechar pré-visualização" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-background p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image.url} alt={image.alt} className="max-h-full max-w-full object-contain" />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ProductAttachments({
   media,
   onPreview,
+  onPreviewImage,
   inline = false,
 }: {
   media: ProductMedia | undefined;
   onPreview: (doc: ProductDocument) => void;
+  onPreviewImage: (image: { url: string; alt: string }) => void;
   inline?: boolean;
 }) {
   if (!media || (!media.imageUrl && media.documents.length === 0)) return null;
@@ -1463,12 +1535,18 @@ function ProductAttachments({
   return (
     <div className={cn('flex flex-wrap items-center gap-2', inline ? '' : 'mt-2')}>
       {media.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={media.imageUrl}
-          alt={media.model}
-          className="h-10 w-14 shrink-0 rounded border bg-background object-contain p-1"
-        />
+        <button
+          type="button"
+          onClick={() => onPreviewImage({ url: media.imageUrl as string, alt: media.model })}
+          className="shrink-0 rounded border bg-background transition hover:border-primary/50"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={media.imageUrl}
+            alt={media.model}
+            className="h-10 w-14 object-contain p-1"
+          />
+        </button>
       )}
       {media.documents.map((document) => (
         <button
@@ -1500,6 +1578,7 @@ function BatteryModelPicker({
   setBatteryModel: (batteryModel: string | null) => void;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
   const visibleBatteries = batteries.filter((battery) => battery.topology === activeTopology);
   const counts = {
@@ -1586,8 +1665,17 @@ function BatteryModelPicker({
               >
                 <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
                   {battery.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={battery.imageUrl} alt={battery.model} className="h-full w-full object-contain p-2" />
+                    <button
+                      type="button"
+                      className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:bg-muted/70"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPreviewImage({ url: battery.imageUrl as string, alt: battery.model });
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={battery.imageUrl} alt={battery.model} className="h-full w-full object-contain p-2" />
+                    </button>
                   ) : (
                     <Battery className="h-8 w-8 text-muted-foreground" />
                   )}
@@ -1629,6 +1717,7 @@ function BatteryModelPicker({
         </div>
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+      <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }
@@ -1647,6 +1736,7 @@ function InverterModelPicker({
   setInverterModel: (inverterModel: string | null) => void;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const visibleInverters = availableModels
     ? inverters.filter((inverter) => availableModels.has(inverter.model))
     : inverters;
@@ -1709,8 +1799,17 @@ function InverterModelPicker({
               >
                 <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
                   {inverter.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={inverter.imageUrl} alt={inverter.model} className="h-full w-full object-contain p-2" />
+                    <button
+                      type="button"
+                      className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:bg-muted/70"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPreviewImage({ url: inverter.imageUrl as string, alt: inverter.model });
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={inverter.imageUrl} alt={inverter.model} className="h-full w-full object-contain p-2" />
+                    </button>
                   ) : (
                     <Zap className="h-8 w-8 text-muted-foreground" />
                   )}
@@ -1755,6 +1854,7 @@ function InverterModelPicker({
         </div>
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+      <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }
@@ -1793,6 +1893,7 @@ function ResultSummary({
   productMedia: Record<string, ProductMedia>;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
   const batteryMedia = productMedia[solution.batteryModel];
   const mediaItems = [
@@ -1812,7 +1913,7 @@ function ResultSummary({
         {solution.inverterQty && solution.inverterQty > 1 && (
           <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty}</p>
         )}
-        <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} />
+        <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
       <div className="rounded-lg border bg-background p-3">
@@ -1822,7 +1923,7 @@ function ResultSummary({
         </div>
         <p className="mt-1 text-lg font-semibold">{solution.batteryModel}</p>
         <p className="text-sm text-muted-foreground">Quantidade: x{solution.batteryQty}</p>
-        <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} />
+        <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
       <div className="rounded-lg border bg-background p-3">
@@ -1840,7 +1941,12 @@ function ResultSummary({
             {solution.accessories.map((accessory) => (
               <div key={accessory} className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{accessory}</Badge>
-                <ProductAttachments media={productMedia[accessory]} onPreview={setPreviewDoc} inline />
+                <ProductAttachments
+                  media={productMedia[accessory]}
+                  onPreview={setPreviewDoc}
+                  onPreviewImage={setPreviewImage}
+                  inline
+                />
               </div>
             ))}
           </div>
@@ -1855,8 +1961,14 @@ function ResultSummary({
               <div key={item.model} className="grid gap-2 rounded-lg border p-2">
                 <div className="flex items-center gap-3">
                   {item.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.imageUrl} alt={item.model} className="h-12 w-16 rounded border object-contain p-1" />
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImage({ url: item.imageUrl as string, alt: item.model })}
+                      className="shrink-0 rounded border transition hover:border-primary/50"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.imageUrl} alt={item.model} className="h-12 w-16 object-contain p-1" />
+                    </button>
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{item.model}</p>
@@ -1891,6 +2003,7 @@ function ResultSummary({
       </Button>
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+      <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }

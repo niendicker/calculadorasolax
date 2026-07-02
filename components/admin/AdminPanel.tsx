@@ -110,6 +110,7 @@ interface InverterRow {
   battery_voltage_max_v: number | null;
   battery_current_max_a: number | null;
   flags: InverterFlag[];
+  pv_oversizing_percent: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -277,6 +278,7 @@ const emptyInverter: Partial<InverterRow> = {
   battery_voltage_max_v: 0,
   battery_current_max_a: 0,
   flags: [],
+  pv_oversizing_percent: 100,
   image_url: '',
   documents: [],
 };
@@ -953,6 +955,7 @@ export function AdminPanel() {
       battery_voltage_max_v: toNumber(inverterForm.battery_voltage_max_v),
       battery_current_max_a: toNumber(inverterForm.battery_current_max_a),
       flags: normalizeInverterFlags(inverterForm.flags),
+      pv_oversizing_percent: inverterForm.pv_oversizing_percent === 50 ? 50 : 100,
       image_url: inverterForm.image_url?.trim() || null,
       documents: inverterForm.documents ?? [],
     };
@@ -1396,31 +1399,34 @@ export function AdminPanel() {
               <RefreshCw className="h-4 w-4" />
               Atualizar
             </Button>
-            <Button variant="outline" onClick={signOut}>
-              <LogOut className="h-4 w-4" />
-              Sair
-            </Button>
           </div>
         </header>
 
         <div className="grid min-h-0 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
           <nav className="hidden min-h-0 gap-2 overflow-y-auto rounded-lg border bg-card p-2 lg:flex lg:flex-col">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <Button
-                  key={tab.key}
-                  type="button"
-                  aria-current={activeTab === tab.key ? 'page' : undefined}
-                  variant={activeTab === tab.key ? 'default' : 'ghost'}
-                  className="justify-start"
-                  onClick={() => selectTab(tab.key)}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </Button>
-              );
-            })}
+            <div className="flex flex-1 flex-col gap-2">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <Button
+                    key={tab.key}
+                    type="button"
+                    aria-current={activeTab === tab.key ? 'page' : undefined}
+                    variant={activeTab === tab.key ? 'default' : 'ghost'}
+                    className="justify-start"
+                    onClick={() => selectTab(tab.key)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </Button>
+                );
+              })}
+            </div>
+            <Separator />
+            <Button variant="outline" className="justify-start" onClick={signOut}>
+              <LogOut className="h-4 w-4" />
+              Sair
+            </Button>
           </nav>
 
           <section className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
@@ -3192,6 +3198,16 @@ function InvertersEditor(props: {
                     onChange={(grid_types) => setForm({ ...form, grid_types, phases: phasesFromInverterGridTypes(grid_types, form.phases) })}
                   />
                 </Field>
+                <Field asDiv label="Sobredimensionamento FV">
+                  <InlineOptionTabs
+                    options={[
+                      { value: 50 as const, label: '50%' },
+                      { value: 100 as const, label: '100%' },
+                    ]}
+                    value={form.pv_oversizing_percent === 50 ? 50 : 100}
+                    onChange={(pv_oversizing_percent) => setForm({ ...form, pv_oversizing_percent })}
+                  />
+                </Field>
               </div>
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Bateria</p>
@@ -3275,6 +3291,7 @@ function InvertersEditor(props: {
           ['Portas bat.', `${row.battery_ports ?? 1}× · ${row.battery_current_max_a ?? '—'} A`],
           ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '—'],
           ['Tensão bat.', `${row.battery_voltage_min_v ?? '—'} – ${row.battery_voltage_max_v ?? '—'} V`],
+          ['Sobredim. FV', `${row.pv_oversizing_percent ?? 100}%`],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
         removing: props.removingIds.has(row.id),
@@ -3304,6 +3321,23 @@ function BatteriesEditor(props: {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
+  const [selectedTopology, setSelectedTopology] = useState<'all' | 'HV' | 'LV'>('all');
+
+  const topologyOptions = useMemo(() => {
+    const counts = { HV: 0, LV: 0 };
+    for (const row of props.rows) {
+      if (row.topology in counts) counts[row.topology as 'HV' | 'LV']++;
+    }
+    return [
+      { value: 'all', label: 'Todas', count: props.rows.length },
+      { value: 'HV', label: 'HV', count: counts.HV },
+      { value: 'LV', label: 'LV', count: counts.LV },
+    ];
+  }, [props.rows]);
+
+  const visibleRows = selectedTopology === 'all'
+    ? props.rows
+    : props.rows.filter((row) => row.topology === selectedTopology);
 
   function openNew() {
     setForm(emptyBattery);
@@ -3320,12 +3354,22 @@ function BatteriesEditor(props: {
   return (
     <CatalogLayout
       title="Baterias"
-      count={props.rows.length}
+      count={visibleRows.length}
       formOpen={formOpen}
       formTitle={form.id ? 'Editar bateria' : 'Nova bateria'}
       newLabel="Nova bateria"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      filter={
+        <div className="rounded-lg border bg-card p-3">
+          <SegmentedTabs
+            label="Tecnologia"
+            value={selectedTopology}
+            options={topologyOptions}
+            onChange={(value) => setSelectedTopology(value as typeof selectedTopology)}
+          />
+        </div>
+      }
       form={
         <>
           <Field label="Modelo">
@@ -3461,7 +3505,7 @@ function BatteriesEditor(props: {
           <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
-      items={props.rows.map((row) => ({
+      items={visibleRows.map((row) => ({
         id: row.id,
         title: row.model,
         badges: [row.topology],
@@ -4370,7 +4414,7 @@ function RecordCardGrid({
   return (
     <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
       {items.map((item) => (
-        <Card key={item.id} size="sm" className={item.removing ? 'relative opacity-70' : 'relative'}>
+        <Card key={item.id} size="sm" className={cn('relative flex h-full flex-col', item.removing && 'opacity-70')}>
           {item.removing && <RemovingOverlay label="Removendo..." />}
           <CardHeader>
             <div className="flex min-w-0 items-start justify-between gap-3">
@@ -4391,15 +4435,17 @@ function RecordCardGrid({
               )}
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {item.details.length > 0 && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                {item.details.map(([label, value, span]) => (
-                  <DetailItem key={label} label={label} value={value || '—'} className={span ? 'col-span-2' : undefined} />
-                ))}
-              </div>
-            )}
-            {item.media}
+          <CardContent className="flex flex-1 flex-col gap-3">
+            <div className="flex-1 space-y-3">
+              {item.details.length > 0 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  {item.details.map(([label, value, span]) => (
+                    <DetailItem key={label} label={label} value={value || '—'} className={span ? 'col-span-2' : undefined} />
+                  ))}
+                </div>
+              )}
+              {item.media}
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={item.onEdit} disabled={item.removing}>
                 <Pencil className="h-4 w-4" />
