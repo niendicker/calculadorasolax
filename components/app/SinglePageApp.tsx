@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -510,7 +511,7 @@ export function SinglePageApp() {
           </div>
         </header>
 
-        <section className="min-h-0 min-w-0 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5">
+        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-4 lg:px-6 lg:pb-5">
           {activeTab === 'project' ? (
             <ProjectTab
               projectInfo={projectInfo}
@@ -1301,6 +1302,90 @@ function SolutionSkeleton() {
   );
 }
 
+function DocPreviewModal({ doc, onClose }: { doc: ProductDocument | null; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (!doc) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [doc, onClose]);
+
+  if (!doc || !mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4 backdrop-blur-sm sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={doc.name || 'Documento'}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="flex h-full flex-col overflow-hidden rounded-lg border bg-card shadow-xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+          <p className="min-w-0 truncate text-sm font-medium">{doc.name || 'Documento'}</p>
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={doc.url}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted"
+            >
+              Abrir em nova aba
+            </a>
+            <Button variant="ghost" size="icon-sm" aria-label="Fechar pré-visualização" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1">
+          <iframe src={doc.url} className="h-full w-full" title={doc.name || 'Documento'} />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ProductAttachments({
+  media,
+  onPreview,
+  inline = false,
+}: {
+  media: ProductMedia | undefined;
+  onPreview: (doc: ProductDocument) => void;
+  inline?: boolean;
+}) {
+  if (!media || (!media.imageUrl && media.documents.length === 0)) return null;
+
+  return (
+    <div className={cn('flex flex-wrap items-center gap-2', inline ? '' : 'mt-2')}>
+      {media.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={media.imageUrl}
+          alt={media.model}
+          className="h-10 w-14 shrink-0 rounded border bg-background object-contain p-1"
+        />
+      )}
+      {media.documents.map((document) => (
+        <button
+          key={`${media.model}-${document.url}`}
+          type="button"
+          onClick={() => onPreview(document)}
+          className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
+        >
+          {document.name || 'Documento'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function BatteryModelPicker({
   batteries,
   topology,
@@ -1316,6 +1401,7 @@ function BatteryModelPicker({
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
 }) {
+  const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
   const visibleBatteries = batteries.filter((battery) => battery.topology === activeTopology);
   const counts = {
@@ -1424,25 +1510,18 @@ function BatteryModelPicker({
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-1">
                     {battery.documents.length > 0 ? (
-                      battery.documents.slice(0, 2).map((document) => (
-                        <a
+                      battery.documents.map((document) => (
+                        <button
                           key={`${battery.id}-${document.url}`}
-                          href={document.url}
-                          target="_blank"
-                          rel="noreferrer"
+                          type="button"
                           className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                          onClick={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); setPreviewDoc(document); }}
                         >
                           {document.name || 'Documento'}
-                        </a>
+                        </button>
                       ))
                     ) : (
                       <span className="text-xs text-muted-foreground">Sem anexos</span>
-                    )}
-                    {battery.documents.length > 2 && (
-                      <span className="rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
-                        +{battery.documents.length - 2}
-                      </span>
                     )}
                   </div>
                 </div>
@@ -1451,6 +1530,7 @@ function BatteryModelPicker({
           })}
         </div>
       )}
+      <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
   );
 }
@@ -1488,9 +1568,12 @@ function ResultSummary({
   onExport: () => void;
   productMedia: Record<string, ProductMedia>;
 }) {
+  const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
+  const inverterMedia = productMedia[solution.inverterModel];
+  const batteryMedia = productMedia[solution.batteryModel];
   const mediaItems = [
-    productMedia[solution.inverterModel],
-    productMedia[solution.batteryModel],
+    inverterMedia,
+    batteryMedia,
     ...solution.accessories.map((accessory) => productMedia[accessory]),
   ].filter(Boolean) as ProductMedia[];
 
@@ -1505,6 +1588,7 @@ function ResultSummary({
         {solution.inverterQty && solution.inverterQty > 1 && (
           <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty}</p>
         )}
+        <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} />
       </div>
 
       <div className="rounded-lg border bg-background p-3">
@@ -1514,6 +1598,7 @@ function ResultSummary({
         </div>
         <p className="mt-1 text-lg font-semibold">{solution.batteryModel}</p>
         <p className="text-sm text-muted-foreground">Quantidade: x{solution.batteryQty}</p>
+        <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} />
       </div>
 
       <div className="rounded-lg border bg-background p-3">
@@ -1527,11 +1612,12 @@ function ResultSummary({
       {solution.accessories.length > 0 && (
         <div className="rounded-lg border bg-background p-3">
           <p className="text-sm font-medium">Acessórios</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 space-y-2">
             {solution.accessories.map((accessory) => (
-              <Badge key={accessory} variant="secondary">
-                {accessory}
-              </Badge>
+              <div key={accessory} className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{accessory}</Badge>
+                <ProductAttachments media={productMedia[accessory]} onPreview={setPreviewDoc} inline />
+              </div>
             ))}
           </div>
         </div>
@@ -1558,15 +1644,14 @@ function ResultSummary({
                 {item.documents.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {item.documents.map((document) => (
-                      <a
+                      <button
                         key={`${item.model}-${document.url}`}
-                        href={document.url}
-                        target="_blank"
-                        rel="noreferrer"
+                        type="button"
+                        onClick={() => setPreviewDoc(document)}
                         className="rounded-lg border px-2 py-1 text-xs text-primary hover:bg-primary/10"
                       >
                         {document.name || 'Documento'}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1580,6 +1665,8 @@ function ResultSummary({
         <FileText className="h-4 w-4" />
         Exportar relatório em PDF
       </Button>
+
+      <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
   );
 }
