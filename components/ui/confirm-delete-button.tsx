@@ -10,6 +10,7 @@ interface ConfirmDeleteButtonProps {
   title?: string;
   description?: string;
   confirmLabel?: string;
+  icon?: React.ReactNode;
   disabled?: boolean;
   onConfirm: () => void;
 }
@@ -19,6 +20,7 @@ export function ConfirmDeleteButton({
   title = 'Confirmar exclusão',
   description = 'Essa ação não pode ser desfeita.',
   confirmLabel = 'Excluir',
+  icon,
   disabled,
   onConfirm,
 }: ConfirmDeleteButtonProps) {
@@ -91,7 +93,7 @@ export function ConfirmDeleteButton({
         onBlur={closeWithDelay}
         onClick={openWithDelay}
       >
-        <Trash2 className="h-4 w-4" />
+        {icon ?? <Trash2 className="h-4 w-4" />}
       </Button>
 
       {open && mounted && createPortal(

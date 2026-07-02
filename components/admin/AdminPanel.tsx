@@ -10,9 +10,11 @@ import {
   CircleHelp,
   BarChart3,
   Database,
+  EyeOff,
   FileClock,
   FileText,
   ImageIcon,
+  Loader2,
   LogOut,
   Menu,
   Pencil,
@@ -1203,14 +1205,14 @@ export function AdminPanel() {
     }
   }
 
-  async function applyGeneratedSolutions(generatedSolutions: GeneratedSolutionPayload[]) {
+  async function applyGeneratedSolutions(generatedSolutions: GeneratedSolutionPayload[], afterApply?: () => void) {
     if (generatedSolutions.length === 0) {
       setFailure('Nenhuma combinação para gerar.');
       return;
     }
 
     setSaving(true);
-    setStatus(`Gerando ${generatedSolutions.length} combinações...`);
+    setStatus(`Gerando ${generatedSolutions.length} combinação${generatedSolutions.length > 1 ? 'ões' : ''}...`);
     setError(null);
 
     const { error: upsertError } = await supabase
@@ -1219,6 +1221,8 @@ export function AdminPanel() {
 
     setSaving(false);
     if (upsertError) return setFailure(upsertError.message);
+
+    afterApply?.();
 
     await recordActivityLog({
       entityType: 'solution',
@@ -1233,7 +1237,7 @@ export function AdminPanel() {
       },
     });
 
-    setSuccess(`${generatedSolutions.length} combinações geradas/atualizadas.`);
+    setSuccess(`${generatedSolutions.length} combinação${generatedSolutions.length > 1 ? 'ões' : ''} gerada${generatedSolutions.length > 1 ? 's' : ''}/atualizada${generatedSolutions.length > 1 ? 's' : ''}.`);
     await loadData();
   }
 
@@ -1417,6 +1421,7 @@ export function AdminPanel() {
                     onSave={saveSolution}
                     onApplyGenerated={applyGeneratedSolutions}
                     onRemove={(id) => removeRow('approved_solutions', id, true)}
+                    onDelete={(id) => removeRow('approved_solutions', id)}
                     removingIds={removingIds}
                     saving={saving}
                   />
@@ -1457,6 +1462,7 @@ export function AdminPanel() {
                     onRemove={(id) => removeRow('accessories', id)}
                     removingIds={removingIds}
                     uploadAsset={uploadProductAsset}
+                    rules={rules}
                     saving={saving}
                   />
                 )}
@@ -1556,12 +1562,23 @@ export function AdminPanel() {
 function Field({
   label,
   children,
+  asDiv,
 }: {
   label: React.ReactNode;
   children: React.ReactNode;
+  asDiv?: boolean;
 }) {
+  const className = 'flex flex-col gap-1.5 text-sm font-medium';
+  if (asDiv) {
+    return (
+      <div className={className}>
+        <span>{label}</span>
+        {children}
+      </div>
+    );
+  }
   return (
-    <label className="flex flex-col gap-1.5 text-sm font-medium">
+    <label className={className}>
       <span>{label}</span>
       {children}
     </label>
@@ -2162,8 +2179,9 @@ function SolutionsEditor(props: {
   onEdit: (row: SolutionRow) => void;
   onNew: () => void;
   onSave: (afterPersist?: () => void) => void;
-  onApplyGenerated: (generatedSolutions: GeneratedSolutionPayload[]) => void;
+  onApplyGenerated: (generatedSolutions: GeneratedSolutionPayload[], afterApply?: () => void) => void;
   onRemove: (id: string) => void;
+  onDelete: (id: string) => void;
   removingIds: Set<string>;
   saving: boolean;
 }) {
@@ -2171,7 +2189,9 @@ function SolutionsEditor(props: {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedInverter, setSelectedInverter] = useState<string>('all');
   const [selectedBattery, setSelectedBattery] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [applyingCode, setApplyingCode] = useState<string | null>(null);
 
   const generatedSolutions = useMemo(
     () =>
@@ -2239,10 +2259,23 @@ function SolutionsEditor(props: {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [solutionsByInverter]);
 
-  const visibleSolutions =
+  const solutionsByBattery =
     selectedBattery === 'all'
       ? solutionsByInverter
       : solutionsByInverter.filter((solution) => solution.battery_model === selectedBattery);
+
+  const statusGroups = useMemo(() => {
+    let active = 0, inactive = 0;
+    for (const s of solutionsByBattery) {
+      if (s.active) active++; else inactive++;
+    }
+    return { active, inactive };
+  }, [solutionsByBattery]);
+
+  const visibleSolutions =
+    selectedStatus === 'all'
+      ? solutionsByBattery
+      : solutionsByBattery.filter((s) => (selectedStatus === 'active') === s.active);
 
   useEffect(() => {
     if (selectedInverter !== 'all' && !registeredInverterModels.has(selectedInverter)) {
@@ -2256,6 +2289,10 @@ function SolutionsEditor(props: {
       setSelectedBattery('all');
     }
   }, [selectedBattery, registeredBatteryModels]);
+
+  useEffect(() => {
+    setSelectedStatus('all');
+  }, [selectedInverter, selectedBattery]);
 
   function openNew() {
     props.onNew();
@@ -2310,6 +2347,18 @@ function SolutionsEditor(props: {
             options={[{ value: 'all', label: 'Todas', count: solutionsByInverter.length }, ...batteryGroups]}
             onChange={setSelectedBattery}
           />
+          {(statusGroups.active > 0 && statusGroups.inactive > 0) && (
+            <SegmentedTabs
+              label="Status"
+              value={selectedStatus}
+              options={[
+                { value: 'all', label: 'Todas', count: solutionsByBattery.length },
+                { value: 'active', label: 'Ativas', count: statusGroups.active },
+                { value: 'inactive', label: 'Inativas', count: statusGroups.inactive },
+              ]}
+              onChange={(v) => setSelectedStatus(v as 'all' | 'active' | 'inactive')}
+            />
+          )}
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
@@ -2317,16 +2366,16 @@ function SolutionsEditor(props: {
             const removing = props.removingIds.has(solution.id);
             return (
             <Card key={solution.id} size="sm" className={removing ? 'relative opacity-70' : 'relative'}>
-              {removing && <RemovingOverlay label="Inativando..." />}
+              {removing && <RemovingOverlay label="Removendo..." />}
               <CardHeader>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
                     <CardTitle className="truncate">{solution.solution_code}</CardTitle>
                     <p className="truncate text-xs text-muted-foreground">{solution.source_file}</p>
                   </div>
-                  <Badge variant={solution.active ? 'secondary' : 'outline'}>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${solution.active ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400'}`}>
                     {solution.active ? 'ativa' : 'inativa'}
-                  </Badge>
+                  </span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -2344,10 +2393,19 @@ function SolutionsEditor(props: {
                   <ConfirmDeleteButton
                     ariaLabel={`Inativar combinação ${solution.solution_code}`}
                     title="Inativar combinação?"
-                    description="A combinação deixará de ser usada nas recomendações."
+                    description="A combinação ficará inativa e deixará de ser usada nas recomendações."
                     confirmLabel="Inativar"
+                    icon={<EyeOff className="h-4 w-4" />}
                     disabled={removing}
                     onConfirm={() => props.onRemove(solution.id)}
+                  />
+                  <ConfirmDeleteButton
+                    ariaLabel={`Excluir combinação ${solution.solution_code}`}
+                    title="Excluir combinação?"
+                    description="A combinação será removida permanentemente do cadastro."
+                    confirmLabel="Excluir"
+                    disabled={removing}
+                    onConfirm={() => props.onDelete(solution.id)}
                   />
                 </div>
               </CardContent>
@@ -2362,64 +2420,88 @@ function SolutionsEditor(props: {
         </div>
       </section>
 
-      {generatorOpen && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle>Gerador por regras</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Preview das combinações criadas a partir das regras ESS ativas e das regras de acessórios.
-                </p>
-              </div>
-              <Button variant="ghost" size="icon-sm" aria-label="Fechar gerador" onClick={() => setGeneratorOpen(false)}>
-                <X className="h-4 w-4" />
+      <EditorModal
+        open={generatorOpen}
+        title={`Combinações geradas por regras (${generatedSolutions.length})`}
+        onClose={() => setGeneratorOpen(false)}
+        size="xl"
+        footer={
+          generatedSolutions.length > 0 ? (
+            <>
+              <Button
+                onClick={() => props.onApplyGenerated(generatedSolutions, () => setGeneratorOpen(false))}
+                disabled={props.saving}
+              >
+                <Save className="h-4 w-4" />
+                Aplicar todas ({generatedSolutions.length})
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MetricCard label="Total no preview" value={String(generatedSolutions.length)} />
-              <MetricCard label="Novas" value={String(newGeneratedCount)} />
-              <MetricCard label="Atualizações" value={String(updatedGeneratedCount)} />
-            </div>
-            {generatedSolutions.length === 0 ? (
-              <p className="rounded-lg border border-dashed bg-background p-4 text-sm text-muted-foreground">
-                Nenhuma combinação foi gerada. Verifique se há regras ESS ativas com inversor, bateria e redes compatíveis.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <div className="max-h-80 overflow-auto rounded-lg border">
-                  <div className="grid gap-0 divide-y">
-                    {generatedSolutions.slice(0, 20).map((solution) => (
-                      <div key={solution.solution_code} className="grid gap-2 p-3 text-sm md:grid-cols-[1.2fr_1fr_0.7fr_0.7fr]">
-                        <span className="min-w-0 truncate font-medium">{solution.solution_code}</span>
-                        <span className="text-muted-foreground">{solution.inverter_model}</span>
-                        <span className="text-muted-foreground">{solution.battery_model} x{solution.battery_quantity}</span>
-                        <span className="text-muted-foreground">{solution.available_energy_wh} Wh</span>
+              <Button variant="outline" onClick={() => setGeneratorOpen(false)} disabled={props.saving}>
+                Fechar
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" onClick={() => setGeneratorOpen(false)}>Fechar</Button>
+          )
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard label="Total" value={String(generatedSolutions.length)} />
+          <MetricCard label="Novas" value={String(newGeneratedCount)} />
+          <MetricCard label="Atualizações" value={String(updatedGeneratedCount)} />
+        </div>
+        {generatedSolutions.length === 0 ? (
+          <p className="rounded-lg border border-dashed bg-background p-4 text-sm text-muted-foreground">
+            Nenhuma combinação foi gerada. Verifique se há regras ESS ativas com inversor, bateria e redes compatíveis.
+          </p>
+        ) : (
+          <div className="divide-y rounded-lg border pb-1">
+            {generatedSolutions.map((solution) => {
+              const isNew = !existingGeneratedCodes.has(solution.solution_code);
+              const isApplying = applyingCode === solution.solution_code;
+              return (
+                <div key={solution.solution_code} className="grid gap-3 p-4 sm:grid-cols-[1fr_auto]">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{solution.solution_code}</span>
+                      <Badge variant={isNew ? 'default' : 'outline'}>{isNew ? 'Nova' : 'Atualização'}</Badge>
+                    </div>
+                    <div className="grid gap-x-4 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
+                      <span>Inversor: <span className="text-foreground">{solution.inverter_model} ×{solution.inverter_quantity}</span> · {solution.grid_topology}</span>
+                      <span>Bateria: <span className="text-foreground">{solution.battery_model} ×{solution.battery_quantity}</span> · {solution.battery_topology}</span>
+                      <span>Potência: <span className="text-foreground">{(solution.rated_power_w / 1000).toFixed(1)} kW</span> / {(solution.peak_power_w / 1000).toFixed(1)} kW pico</span>
+                      <span>Energia: <span className="text-foreground">{(solution.available_energy_wh / 1000).toFixed(1)} kWh</span></span>
+                    </div>
+                    {solution.accessories.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {solution.accessories.map((acc, i) => (
+                          <span key={i} className="rounded border bg-muted px-1.5 py-0.5 text-xs">{acc.model} ×{acc.quantity}</span>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                    {solution.comments.length > 0 && (
+                      <p className="text-xs text-muted-foreground">{solution.comments.join(' · ')}</p>
+                    )}
+                  </div>
+                  <div className="flex items-start">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={props.saving}
+                      onClick={() => {
+                        setApplyingCode(solution.solution_code);
+                        props.onApplyGenerated([solution], () => setApplyingCode(null));
+                      }}
+                    >
+                      {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      Aplicar
+                    </Button>
                   </div>
                 </div>
-                {generatedSolutions.length > 20 && (
-                  <p className="text-xs text-muted-foreground">
-                    Mostrando 20 de {generatedSolutions.length} combinações.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => props.onApplyGenerated(generatedSolutions)} disabled={props.saving}>
-                    <Save className="h-4 w-4" />
-                    Aplicar combinações
-                  </Button>
-                  <Button variant="ghost" onClick={() => setGeneratorOpen(false)} disabled={props.saving}>
-                    Fechar
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </EditorModal>
 
       <EditorModal
         open={formOpen}
@@ -2691,6 +2773,26 @@ function InvertersEditor(props: {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
+  const [selectedPhase, setSelectedPhase] = useState<'all' | '1' | '2' | '3'>('all');
+
+  const phaseOptions = useMemo(() => {
+    const counts = { '1': 0, '2': 0, '3': 0 };
+    for (const row of props.rows) {
+      const key = String(row.phases) as '1' | '2' | '3';
+      if (key in counts) counts[key]++;
+    }
+    const labels: Record<string, string> = { '1': 'Monofásico', '2': 'Bifásico', '3': 'Trifásico' };
+    return [
+      { value: 'all', label: 'Todos', count: props.rows.length },
+      ...(['1', '2', '3'] as const)
+        .filter((p) => counts[p] > 0)
+        .map((p) => ({ value: p, label: labels[p], count: counts[p] })),
+    ];
+  }, [props.rows]);
+
+  const visibleRows = selectedPhase === 'all'
+    ? props.rows
+    : props.rows.filter((row) => String(row.phases) === selectedPhase);
 
   function openNew() {
     setForm(emptyInverter);
@@ -2707,12 +2809,24 @@ function InvertersEditor(props: {
   return (
     <CatalogLayout
       title="Inversores"
-      count={props.rows.length}
+      count={visibleRows.length}
       formOpen={formOpen}
       formTitle={form.id ? 'Editar inversor' : 'Novo inversor'}
       newLabel="Novo inversor"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      filter={
+        phaseOptions.length > 2 ? (
+          <div className="rounded-lg border bg-card p-3">
+            <SegmentedTabs
+              label="Padrão de rede"
+              value={selectedPhase}
+              options={phaseOptions}
+              onChange={(value) => setSelectedPhase(value as typeof selectedPhase)}
+            />
+          </div>
+        ) : undefined
+      }
       form={
         <>
           <Field label="Modelo">
@@ -2741,7 +2855,7 @@ function InvertersEditor(props: {
                     onChange={(event) => setForm({ ...form, peak_power_kva: toNumber(event.target.value) })}
                   />
                 </div>
-                <Field label="Tipo de rede">
+                <Field asDiv label="Tipo de rede">
                   <ToggleChipsInput
                     options={inverterGridTypeOptions}
                     value={normalizeInverterGridTypes(form.grid_types)}
@@ -2752,7 +2866,7 @@ function InvertersEditor(props: {
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Bateria</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Topologia">
+                  <Field asDiv label="Topologia">
                     <InlineOptionTabs
                       options={[
                         { value: 'HV' as const, label: 'HV' },
@@ -2762,7 +2876,7 @@ function InvertersEditor(props: {
                       onChange={(topology) => setForm({ ...form, topology })}
                     />
                   </Field>
-                  <Field label="Portas">
+                  <Field asDiv label="Portas">
                     <InlineOptionTabs
                       options={[
                         { value: 1, label: '1' },
@@ -2792,7 +2906,7 @@ function InvertersEditor(props: {
                   />
                   <NumberWithUnitField
                     label="Corrente máx."
-                    tip="Corrente máxima de bateria suportada pelo inversor."
+                    tip="Corrente máxima de bateria por porta, suportada pelo inversor."
                     icon={<Activity className="h-4 w-4" />}
                     unit="A"
                     value={form.battery_current_max_a ?? 0}
@@ -2800,7 +2914,7 @@ function InvertersEditor(props: {
                   />
                 </div>
               </div>
-              <Field label="Funcionalidades">
+              <Field asDiv label="Funcionalidades">
                 <ToggleChipsInput
                   options={inverterFlagOptions}
                   value={normalizeInverterFlags(form.flags)}
@@ -2822,7 +2936,7 @@ function InvertersEditor(props: {
           <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
-      items={props.rows.map((row) => ({
+      items={visibleRows.map((row) => ({
         id: row.id,
         title: row.model,
         badges: [row.topology, `${row.phases} fase${row.phases === 1 ? '' : 's'}`],
@@ -2920,7 +3034,7 @@ function BatteriesEditor(props: {
                     value={form.peak_power_kw ?? 0}
                     onChange={(event) => setForm({ ...form, peak_power_kw: toNumber(event.target.value) })}
                   />
-                  <Field label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
+                  <Field asDiv label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
                     <InlineOptionTabs
                       options={[
                         { value: 5, label: '5%' },
@@ -2932,7 +3046,7 @@ function BatteriesEditor(props: {
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Topologia">
+                  <Field asDiv label="Topologia">
                     <InlineOptionTabs
                       options={[
                         { value: 'HV' as const, label: 'HV' },
@@ -3002,7 +3116,7 @@ function BatteriesEditor(props: {
                   />
                 </div>
               </div>
-              <Field label={<InfoLabel label="Flags" tip="Características estruturadas do produto, como grau de proteção IP. Novas flags podem ser adicionadas no código." />}>
+              <Field asDiv label={<InfoLabel label="Flags" tip="Características estruturadas do produto, como grau de proteção IP. Novas flags podem ser adicionadas no código." />}>
                 <ToggleChipsInput
                   options={batteryFlagOptions}
                   value={normalizeBatteryFlags(form.flags)}
@@ -3050,6 +3164,22 @@ function BatteriesEditor(props: {
   );
 }
 
+type AccessoryCategory = 'all' | 'system' | 'inverter' | 'battery';
+
+function accessoryCategories(accessoryId: string, rules: AccessoryRuleRow[]): Set<'system' | 'inverter' | 'battery'> {
+  const cats = new Set<'system' | 'inverter' | 'battery'>();
+  const matched = rules.filter((r) => r.accessory_id === accessoryId);
+  if (matched.length === 0) { cats.add('system'); return cats; }
+  for (const rule of matched) {
+    const hasInverter = accessoryRuleInverterModels(rule).length > 0;
+    const hasBattery = !!rule.battery_model;
+    if (hasInverter) cats.add('inverter');
+    if (hasBattery) cats.add('battery');
+    if (!hasInverter && !hasBattery) cats.add('system');
+  }
+  return cats;
+}
+
 function AccessoriesEditor(props: {
   rows: AccessoryRow[];
   form: Partial<AccessoryRow>;
@@ -3063,11 +3193,34 @@ function AccessoriesEditor(props: {
     kind: 'image' | 'documents',
     file: File
   ) => Promise<string>;
+  rules: AccessoryRuleRow[];
   saving: boolean;
 }) {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
+  const [selectedCategory, setSelectedCategory] = useState<AccessoryCategory>('all');
+
+  const categoryOptions = useMemo(() => {
+    const counts = { system: 0, inverter: 0, battery: 0 };
+    for (const row of props.rows) {
+      const cats = accessoryCategories(row.id, props.rules);
+      if (cats.has('system')) counts.system++;
+      if (cats.has('inverter')) counts.inverter++;
+      if (cats.has('battery')) counts.battery++;
+    }
+    return [
+      { value: 'all', label: 'Todos', count: props.rows.length },
+      ...(counts.system > 0 ? [{ value: 'system', label: 'Sistema', count: counts.system }] : []),
+      ...(counts.inverter > 0 ? [{ value: 'inverter', label: 'Por inversor', count: counts.inverter }] : []),
+      ...(counts.battery > 0 ? [{ value: 'battery', label: 'Por bateria', count: counts.battery }] : []),
+    ] as { value: string; label: string; count: number }[];
+  }, [props.rows, props.rules]);
+
+  const visibleRows = useMemo(() => {
+    if (selectedCategory === 'all') return props.rows;
+    return props.rows.filter((row) => accessoryCategories(row.id, props.rules).has(selectedCategory as 'system' | 'inverter' | 'battery'));
+  }, [props.rows, props.rules, selectedCategory]);
 
   function openNew() {
     setForm(emptyAccessory);
@@ -3084,12 +3237,24 @@ function AccessoriesEditor(props: {
   return (
     <CatalogLayout
       title="Acessórios"
-      count={props.rows.length}
+      count={visibleRows.length}
       formOpen={formOpen}
       formTitle={form.id ? 'Editar acessório' : 'Novo acessório'}
       newLabel="Novo acessório"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      filter={
+        categoryOptions.length > 2 ? (
+          <div className="rounded-lg border bg-card p-3">
+            <SegmentedTabs
+              label="Categoria"
+              value={selectedCategory}
+              options={categoryOptions}
+              onChange={(value) => setSelectedCategory(value as AccessoryCategory)}
+            />
+          </div>
+        ) : undefined
+      }
       form={
         <>
           <Field label="Modelo">
@@ -3128,7 +3293,7 @@ function AccessoriesEditor(props: {
           <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
-      items={props.rows.map((row) => ({
+      items={visibleRows.map((row) => ({
         id: row.id,
         title: row.model,
         badges: [row.active ? 'ativo' : 'inativo'],
@@ -3481,7 +3646,7 @@ function RulesEditor(props: {
           <p className="text-sm text-muted-foreground">
             Filtros vazios valem para qualquer combinação.
           </p>
-          <Field label="Inversor">
+          <Field asDiv label="Inversor">
             <InverterModelsInput
               inverters={props.inverters}
               value={form}
@@ -3508,33 +3673,7 @@ function RulesEditor(props: {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Rede">
-              <select
-                className={selectClasses()}
-                value={form.grid_topology ? normalizeInverterGridType(form.grid_topology) ?? '' : ''}
-                onChange={(event) => setForm({ ...form, grid_topology: (event.target.value || null) as GridTopology | null })}
-              >
-                <option value="">Qualquer</option>
-                {registeredGridTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Topologia bateria">
-              <select
-                className={selectClasses()}
-                value={form.battery_topology ?? ''}
-                onChange={(event) => setForm({ ...form, battery_topology: (event.target.value || null) as BatteryTopology | null })}
-              >
-                <option value="">Qualquer</option>
-                <option value="HV">HV</option>
-                <option value="LV">LV</option>
-              </select>
-            </Field>
-          </div>
+
           <Field label="Comentário automático">
             <textarea
               className={textareaClasses()}
@@ -3698,16 +3837,20 @@ function EditorModal({
   open,
   title,
   children,
+  footer,
   onClose,
   size = 'md',
 }: {
   open: boolean;
   title: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   onClose: () => void;
-  size?: 'md' | 'lg';
+  size?: 'md' | 'lg' | 'xl';
 }) {
   if (!open) return null;
+
+  const maxW = size === 'xl' ? 'max-w-6xl' : size === 'lg' ? 'max-w-5xl' : 'max-w-[46rem]';
 
   return (
     <div
@@ -3721,7 +3864,7 @@ function EditorModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${size === 'lg' ? 'max-w-5xl' : 'max-w-[46rem]'} rounded-lg bg-card text-card-foreground shadow-xl ring-1 ring-border`}
+        className={`w-full ${maxW} rounded-lg bg-card text-card-foreground shadow-xl ring-1 ring-border`}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-lg border-b bg-card px-4 py-3">
           <h2 className="text-base font-semibold tracking-tight">{title}</h2>
@@ -3729,9 +3872,14 @@ function EditorModal({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-4 pt-4">
+        <div className="max-h-[calc(100vh-12rem)] overflow-y-auto px-4 pt-4">
           <div className="space-y-4">{children}</div>
         </div>
+        {footer && (
+          <div className="flex flex-wrap items-center gap-2 rounded-b-lg border-t bg-card px-4 py-3">
+            {footer}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -3746,6 +3894,7 @@ function CatalogLayout({
   onNew,
   onClose,
   form,
+  filter,
   items,
 }: {
   title: string;
@@ -3756,6 +3905,7 @@ function CatalogLayout({
   onNew: () => void;
   onClose: () => void;
   form: React.ReactNode;
+  filter?: React.ReactNode;
   items: {
     id: string;
     title: string;
@@ -3778,6 +3928,8 @@ function CatalogLayout({
           {newLabel}
         </Button>
       </div>
+
+      {filter}
 
       <EditorModal open={formOpen} title={formTitle} onClose={onClose}>
         {form}
