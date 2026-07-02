@@ -1,12 +1,72 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, LogIn, Mail, Phone, User } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, LogIn, Mail, Phone, User, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
+
+interface ToastState {
+  message: string;
+  type: 'success' | 'error';
+}
+
+function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const showTimer = setTimeout(() => setVisible(true), 10);
+    const hideTimer = setTimeout(() => {
+      setVisible(false);
+      setTimeout(onDismiss, 350);
+    }, 5000);
+    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+  }, [onDismiss]);
+
+  function dismiss() {
+    setVisible(false);
+    setTimeout(onDismiss, 350);
+  }
+
+  if (!mounted) return null;
+
+  const isSuccess = toast.type === 'success';
+
+  return createPortal(
+    <div
+      role={isSuccess ? 'status' : 'alert'}
+      aria-live="polite"
+      className={cn(
+        'fixed bottom-5 right-5 z-[9999] flex w-80 max-w-[calc(100vw-2.5rem)] items-start gap-3 rounded-lg border p-4 shadow-xl transition-all duration-300 ease-out',
+        visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0',
+        isSuccess
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-100'
+          : 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/80 dark:text-rose-100'
+      )}
+    >
+      {isSuccess
+        ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        : <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
+      }
+      <p className="min-w-0 flex-1 text-sm font-medium leading-snug">{toast.message}</p>
+      <button
+        type="button"
+        aria-label="Fechar"
+        onClick={dismiss}
+        className="shrink-0 rounded-md p-0.5 opacity-60 hover:opacity-100"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>,
+    document.body
+  );
+}
 
 type Mode = 'login' | 'signup' | 'recovery';
 
@@ -26,13 +86,7 @@ export function AuthPanel({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  function clearFeedback() {
-    setError(null);
-    setMessage(null);
-  }
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   async function resolveRedirect(defaultRedirect: string) {
     const { data: userData } = await supabase.auth.getUser();
@@ -54,7 +108,7 @@ export function AuthPanel({
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    clearFeedback();
+    setToast(null);
 
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -64,22 +118,22 @@ export function AuthPanel({
     setLoading(false);
 
     if (authError) {
-      setError('Não foi possível entrar. Verifique email e senha.');
+      setToast({ message: 'Não foi possível entrar. Verifique email e senha.', type: 'error' });
       return;
     }
 
     const next = await resolveRedirect(redirectTo);
-    setMessage('Login realizado com sucesso. Redirecionando...');
+    setToast({ message: 'Login realizado com sucesso. Redirecionando…', type: 'success' });
     window.setTimeout(() => {
       router.replace(next);
       router.refresh();
-    }, 400);
+    }, 1200);
   }
 
   async function signup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    clearFeedback();
+    setToast(null);
 
     const origin = window.location.origin;
     const { data, error: authError } = await supabase.auth.signUp({
@@ -97,7 +151,7 @@ export function AuthPanel({
 
     if (authError) {
       setLoading(false);
-      setError(authError.message);
+      setToast({ message: authError.message, type: 'error' });
       return;
     }
 
@@ -113,11 +167,12 @@ export function AuthPanel({
     }
 
     setLoading(false);
-    setMessage(
-      data.session
-        ? 'Cadastro criado. Redirecionando...'
-        : 'Cadastro criado. Verifique seu email para confirmar o acesso.'
-    );
+    setToast({
+      message: data.session
+        ? 'Cadastro criado. Redirecionando…'
+        : 'Cadastro criado. Verifique seu email para confirmar o acesso.',
+      type: 'success',
+    });
 
     if (data.session) {
       const next = await resolveRedirect(redirectTo);
@@ -131,7 +186,7 @@ export function AuthPanel({
   async function recoverPassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    clearFeedback();
+    setToast(null);
 
     const origin = window.location.origin;
     const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(
@@ -144,11 +199,11 @@ export function AuthPanel({
     setLoading(false);
 
     if (recoveryError) {
-      setError(recoveryError.message);
+      setToast({ message: recoveryError.message, type: 'error' });
       return;
     }
 
-    setMessage('Enviamos um link de recuperação para o email informado.');
+    setToast({ message: 'Enviamos um link de recuperação para o email informado.', type: 'success' });
   }
 
   return (
@@ -270,16 +325,6 @@ export function AuthPanel({
               </div>
             )}
 
-            {message && (
-              <p role="status" className="mt-6 rounded-lg border border-primary/30 px-3 py-2 text-sm text-primary">
-                {message}
-              </p>
-            )}
-            {error && (
-              <p role="alert" className="mt-6 rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
           </div>
         </div>
 
@@ -288,6 +333,8 @@ export function AuthPanel({
           <span>Versão: 1.1.0</span>
         </footer>
       </section>
+
+      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
     </main>
   );
 }
