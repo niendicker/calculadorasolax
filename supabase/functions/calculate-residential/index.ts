@@ -9,6 +9,7 @@ interface SingleLoad {
 interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
   batteryModel: string | null;
+  inverterModel: string | null;
   gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
   loads: SingleLoad[];
   microGrid: 'Gerador' | 'Microinversor' | 'Desabilitada' | null;
@@ -243,6 +244,10 @@ Deno.serve(async (req) => {
 
     if (options.batteryModel) {
       solutionQuery = solutionQuery.eq('battery_model', options.batteryModel);
+    }
+
+    if (options.inverterModel) {
+      solutionQuery = solutionQuery.eq('inverter_model', options.inverterModel);
     }
 
     const { data: solutions, error: solutionErr } = await solutionQuery;

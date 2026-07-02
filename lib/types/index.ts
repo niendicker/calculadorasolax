@@ -35,6 +35,7 @@ export interface ProductDocument {
 export interface ResidentialOptions {
   topology: BatteryTopology | null;
   batteryModel: string | null;
+  inverterModel: string | null;
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];
   microGrid: MicroGridOptions | null;
