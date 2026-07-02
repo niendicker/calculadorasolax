@@ -492,8 +492,8 @@ export function SinglePageApp() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-background">
-      <div className="mx-auto grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]">
+    <main className="app-shell h-screen overflow-hidden bg-background">
+      <div className="mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]">
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -2022,7 +2022,7 @@ function PrintableReport({
   projectInfo: ProjectInfo;
   profile: InlineProfile | null;
   solution: Solution;
-  loads: { name: string; powerW: number; hoursPerDay: number; qty: number }[];
+  loads: { id: string; name: string; powerW: number; hoursPerDay: number; qty: number }[];
   topology: BatteryTopology | null;
   selectedBatteryModel: string | null;
   gridType: ResidentialGridType | null;
@@ -2062,7 +2062,6 @@ function PrintableReport({
         </div>
         <div className="text-right text-sm text-muted-foreground">
           <p>Calculadora SolaX</p>
-          {solution.solutionCode && <p>Código: {solution.solutionCode}</p>}
         </div>
       </header>
 
@@ -2150,7 +2149,7 @@ function PrintableReport({
           </thead>
           <tbody>
             {loads.map((load) => (
-              <tr key={`${load.name}-${load.powerW}-${load.hoursPerDay}-${load.qty}`}>
+              <tr key={load.id}>
                 <td className="border px-3 py-2">{load.name}</td>
                 <td className="border px-3 py-2">{load.powerW} W</td>
                 <td className="border px-3 py-2">{load.qty}</td>
@@ -2167,12 +2166,16 @@ function PrintableReport({
         <section>
           <h2 className="mb-3 text-lg font-semibold">Observações</h2>
           <ul className="list-disc space-y-1 pl-5 text-sm">
-            {solution.comments.map((comment) => (
-              <li key={comment}>{comment}</li>
+            {solution.comments.map((comment, index) => (
+              <li key={`${index}-${comment}`}>{comment}</li>
             ))}
           </ul>
         </section>
       )}
+
+      <footer className="mt-8 border-t pt-3 text-right text-xs text-muted-foreground">
+        {solution.solutionCode ? `Código: ${solution.solutionCode}` : 'Calculadora SolaX'}
+      </footer>
     </div>
   );
 }

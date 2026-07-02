@@ -1242,7 +1242,7 @@ export function AdminPanel() {
     }
 
     setSaving(true);
-    setStatus(`Aplicando ${generatedSolutions.length} combinação${generatedSolutions.length > 1 ? 'ões' : ''}...`);
+    setStatus(`Aprovando ${generatedSolutions.length} combinação${generatedSolutions.length > 1 ? 'ões' : ''}...`);
     setError(null);
 
     const { error: upsertError } = await supabase
@@ -1256,12 +1256,22 @@ export function AdminPanel() {
 
     if (cleanupStale) {
       const newCodes = new Set(generatedSolutions.map((s) => s.solution_code));
+      // Only clean up stale rows for the inverter+battery pairs actually present in this
+      // batch, so combinations for batteries/inverters left out of the current generation
+      // (e.g. by the filter chips) are never touched.
+      const touchedPairs = new Set(
+        generatedSolutions.map((s) => `${s.inverter_model}::${s.battery_model}`)
+      );
       const { data: existingGenerated } = await supabase
         .from('approved_solutions')
-        .select('id, solution_code')
+        .select('id, solution_code, inverter_model, battery_model')
         .eq('source_file', 'generated-rules');
       const staleIds = (existingGenerated ?? [])
-        .filter((s) => !newCodes.has(s.solution_code))
+        .filter(
+          (s) =>
+            touchedPairs.has(`${s.inverter_model}::${s.battery_model}`) &&
+            !newCodes.has(s.solution_code)
+        )
         .map((s) => s.id);
       if (staleIds.length > 0) {
         await supabase.from('approved_solutions').delete().in('id', staleIds);
@@ -2661,7 +2671,7 @@ function SolutionsEditor(props: {
                     disabled={props.saving}
                   >
                     <Save className="h-4 w-4" />
-                    Aplicar todas ({pendingGenerated.length})
+                    Aprovar todas ({pendingGenerated.length})
                   </Button>
                 </div>
 
@@ -2718,13 +2728,14 @@ function SolutionsEditor(props: {
                                         props.onApplyGenerated([solution], () => {
                                           setApplyingCode(null);
                                           removePending(solution.solution_code);
+                                          setMainTab('generated');
                                         });
                                       }}
                                     >
                                       {isApplying
                                         ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                         : <Save className="h-3.5 w-3.5" />}
-                                      Aplicar
+                                      Aprovar
                                     </Button>
                                     <Button
                                       variant="ghost"

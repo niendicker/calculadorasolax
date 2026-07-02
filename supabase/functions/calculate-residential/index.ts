@@ -398,7 +398,7 @@ Deno.serve(async (req) => {
         availableEnergyWh,
         pvPowerKw: Math.ceil(pvPowerKw * 10) / 10,
         accessories,
-        comments: [...solution.comments, ...automaticComments],
+        comments: Array.from(new Set([...solution.comments, ...automaticComments])),
       },
       {
         headers: { 'Access-Control-Allow-Origin': '*' },

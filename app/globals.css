@@ -117,6 +117,15 @@
   --sidebar-ring: #36d0c5;
 }
 
+.app-shell {
+  --text-xs: 0.84375rem;
+  --text-sm: 0.96875rem;
+  --text-base: 1.09375rem;
+  --text-lg: 1.21875rem;
+  --text-xl: 1.34375rem;
+  --text-2xl: 1.59375rem;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
