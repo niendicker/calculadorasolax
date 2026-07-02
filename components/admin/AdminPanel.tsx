@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  Activity,
   Boxes,
   Battery,
   Cable,
@@ -39,9 +40,11 @@ type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'a
 type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 type GridTopology = '1p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
 type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats';
+type BatteryFlag = 'ip65' | 'ip66';
 type BatteryTopology = 'HV' | 'LV';
 type Inclusion = 'required' | 'optional';
 type TriggerMetric = 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+type ProductEditorTab = 'general' | 'media';
 
 const inverterGridTypeOptions: { value: InverterGridType; label: string }[] = [
   { value: '1P_220V', label: 'Monofásica 220V' },
@@ -76,6 +79,20 @@ const inverterFlagLabels = new Map(
   inverterFlagOptions.map((option) => [option.value, option.label])
 );
 
+const batteryFlagOptions: { value: BatteryFlag; label: string }[] = [
+  { value: 'ip65', label: 'IP65' },
+  { value: 'ip66', label: 'IP66' },
+];
+
+const batteryFlagLabels = new Map(
+  batteryFlagOptions.map((option) => [option.value, option.label])
+);
+
+const productEditorTabOptions: { value: ProductEditorTab; label: string }[] = [
+  { value: 'general', label: 'Informações' },
+  { value: 'media', label: 'Mídias' },
+];
+
 interface InverterRow {
   id: string;
   model: string;
@@ -87,6 +104,9 @@ interface InverterRow {
   grid_types: string[];
   max_battery_qty: number;
   battery_ports: number;
+  battery_voltage_min_v: number | null;
+  battery_voltage_max_v: number | null;
+  battery_current_max_a: number | null;
   flags: InverterFlag[];
   image_url: string | null;
   documents: ProductDocument[];
@@ -100,6 +120,13 @@ interface BatteryRow {
   standard_power_kw: number | null;
   peak_power_kw: number | null;
   min_soc_percent: number;
+  nominal_voltage_v: number | null;
+  voltage_min_v: number | null;
+  voltage_max_v: number | null;
+  recommended_current_a: number | null;
+  max_current_a: number | null;
+  flags: BatteryFlag[];
+  max_association_qty: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -131,6 +158,13 @@ interface AccessoryRuleRow {
   accessories?: { model: string } | null;
 }
 
+interface EssBatteryConfig {
+  battery_model: string;
+  battery_topology: BatteryTopology;
+  min_battery_qty: number;
+  max_battery_qty: number;
+}
+
 interface EssCompatibilityRuleRow {
   id: string;
   inverter_model: string;
@@ -140,6 +174,7 @@ interface EssCompatibilityRuleRow {
   max_parallel_inverters: number;
   min_battery_qty: number;
   max_battery_qty: number;
+  battery_configs: EssBatteryConfig[];
   comment: string | null;
   active: boolean;
   created_at: string;
@@ -236,6 +271,9 @@ const emptyInverter: Partial<InverterRow> = {
   grid_types: [],
   max_battery_qty: 1,
   battery_ports: 1,
+  battery_voltage_min_v: 0,
+  battery_voltage_max_v: 0,
+  battery_current_max_a: 0,
   flags: [],
   image_url: '',
   documents: [],
@@ -248,6 +286,13 @@ const emptyBattery: Partial<BatteryRow> = {
   standard_power_kw: 0,
   peak_power_kw: 0,
   min_soc_percent: 10,
+  nominal_voltage_v: 0,
+  voltage_min_v: 0,
+  voltage_max_v: 0,
+  recommended_current_a: 0,
+  max_current_a: 0,
+  flags: [],
+  max_association_qty: 15,
   image_url: '',
   documents: [],
 };
@@ -284,6 +329,7 @@ const emptyEssRule: Partial<EssCompatibilityRuleRow> = {
   max_parallel_inverters: 1,
   min_battery_qty: 1,
   max_battery_qty: 2,
+  battery_configs: [],
   comment: '',
   active: true,
 };
@@ -348,6 +394,15 @@ function formatInverterGridType(value: string) {
   return normalized ? inverterGridTypeLabels.get(normalized) ?? value : value;
 }
 
+function phasesFromInverterGridTypes(value: unknown, fallback = 1) {
+  const gridTypes = normalizeInverterGridTypes(value);
+  if (gridTypes.some((gridType) => gridType.startsWith('3P_'))) return 3;
+  if (gridTypes.some((gridType) => gridType.startsWith('2P_'))) return 2;
+  if (gridTypes.some((gridType) => gridType.startsWith('1P_'))) return 1;
+  const fallbackValue = Number(fallback);
+  return Math.min(3, Math.max(1, Number.isFinite(fallbackValue) ? fallbackValue : 1));
+}
+
 function normalizeInverterFlags(value: unknown): InverterFlag[] {
   const values = Array.isArray(value) ? value : String(value ?? '').split(',');
   return Array.from(
@@ -365,6 +420,23 @@ function formatInverterFlags(value: unknown) {
     .join(', ');
 }
 
+function normalizeBatteryFlags(value: unknown): BatteryFlag[] {
+  const values = Array.isArray(value) ? value : String(value ?? '').split(',');
+  return Array.from(
+    new Set(
+      values
+        .map((item) => String(item).trim())
+        .filter((item): item is BatteryFlag => batteryFlagLabels.has(item as BatteryFlag))
+    )
+  );
+}
+
+function formatBatteryFlags(value: unknown) {
+  return normalizeBatteryFlags(value)
+    .map((flag) => batteryFlagLabels.get(flag) ?? flag)
+    .join(', ');
+}
+
 function formatTriggerMetric(value: TriggerMetric) {
   if (value === 'per_solution') return 'Por solução';
   if (value === 'inverter_quantity') return 'Qtd. inversores';
@@ -377,6 +449,55 @@ function accessoryRuleInverterModels(rule: Partial<AccessoryRuleRow>) {
     return rule.inverter_models.filter(Boolean);
   }
   return rule.inverter_model ? [rule.inverter_model] : [];
+}
+
+function batteryAssociationMax(battery: BatteryRow | undefined) {
+  return clampNumber(battery?.max_association_qty, 1, 15, 15);
+}
+
+function normalizeEssBatteryConfigs(rule: Partial<EssCompatibilityRuleRow>, batteries: BatteryRow[] = []): EssBatteryConfig[] {
+  const batteryByModel = new Map(batteries.map((battery) => [battery.model, battery]));
+  const rawConfigs = Array.isArray(rule.battery_configs) ? rule.battery_configs : [];
+  const configs = rawConfigs
+    .map((config) => {
+      const battery = batteryByModel.get(config.battery_model);
+      const topology = battery?.topology ?? config.battery_topology;
+      if (!config.battery_model || !topology) return null;
+      const associationMax = batteryAssociationMax(battery);
+      const minQty = clampNumber(config.min_battery_qty, 1, Math.min(7, associationMax), 1);
+      const maxQty = Math.max(minQty, clampNumber(config.max_battery_qty, 1, associationMax, associationMax));
+      return {
+        battery_model: config.battery_model,
+        battery_topology: topology,
+        min_battery_qty: minQty,
+        max_battery_qty: maxQty,
+      };
+    })
+    .filter((config): config is EssBatteryConfig => Boolean(config));
+
+  if (configs.length > 0) return configs;
+  if (!rule.battery_model) return [];
+
+  const battery = batteryByModel.get(rule.battery_model);
+  const topology = battery?.topology ?? rule.battery_topology;
+  if (!topology) return [];
+  const associationMax = batteryAssociationMax(battery);
+  const minQty = clampNumber(rule.min_battery_qty, 1, Math.min(7, associationMax), 1);
+  const maxQty = Math.max(minQty, clampNumber(rule.max_battery_qty, 1, associationMax, associationMax));
+  return [
+    {
+      battery_model: rule.battery_model,
+      battery_topology: topology,
+      min_battery_qty: minQty,
+      max_battery_qty: maxQty,
+    },
+  ];
+}
+
+function inverterSupportedBatteryTopologies(inverter: InverterRow | undefined): BatteryTopology[] {
+  if (!inverter) return [];
+  if (inverter.topology === 'BOTH') return ['HV', 'LV'];
+  return [inverter.topology];
 }
 
 function generatedGridToApprovedTopology(gridType: InverterGridType): Extract<GridTopology, '1p_220V' | '3p_220V' | '3p_380V'> {
@@ -453,94 +574,100 @@ function buildRuleGeneratedSolutions({
   const seen = new Set<string>();
 
   for (const rule of essRules) {
-    if (!rule.active || !rule.inverter_model || !rule.battery_model) continue;
+    if (!rule.active || !rule.inverter_model) continue;
     const inverter = inverterByModel.get(rule.inverter_model);
-    const battery = batteryByModel.get(rule.battery_model);
-    if (!inverter || !battery) continue;
-    if (rule.battery_topology && rule.battery_topology !== battery.topology) continue;
+    if (!inverter) continue;
+    const batteryConfigs = normalizeEssBatteryConfigs(rule, batteries);
+    if (batteryConfigs.length === 0) continue;
 
     const inverterGridTypes = normalizeInverterGridTypes(inverter.grid_types);
     const ruleGridType = rule.grid_topology ? normalizeInverterGridType(rule.grid_topology) : null;
     const gridTypes = ruleGridType ? [ruleGridType] : inverterGridTypes;
     const validGridTypes = gridTypes.filter((gridType) => inverterGridTypes.includes(gridType));
-    const minBatteryQty = clampNumber(rule.min_battery_qty, 1, 7, 1);
-    const maxBatteryQty = Math.max(minBatteryQty, clampNumber(rule.max_battery_qty, 2, 15, 2));
     const inverterQtyMax = Math.max(1, toNumber(rule.max_parallel_inverters, 1));
 
-    for (const gridType of validGridTypes) {
-      for (let inverterQty = 1; inverterQty <= inverterQtyMax; inverterQty += 1) {
-        for (let batteryQty = minBatteryQty; batteryQty <= maxBatteryQty; batteryQty += 1) {
-          const approvedGridTopology = generatedGridToApprovedTopology(gridType);
-          const solutionCode = [
-            'rules',
-            slugPart(inverter.model),
-            slugPart(battery.model),
-            gridType,
-            `${inverterQty}I`,
-            `${batteryQty}B`,
-          ].join('_');
-          if (seen.has(solutionCode)) continue;
-          seen.add(solutionCode);
+    for (const batteryConfig of batteryConfigs) {
+      const battery = batteryByModel.get(batteryConfig.battery_model);
+      if (!battery) continue;
+      if (batteryConfig.battery_topology !== battery.topology) continue;
+      for (const gridType of validGridTypes) {
+        for (let inverterQty = 1; inverterQty <= inverterQtyMax; inverterQty += 1) {
+          for (let batteryQty = batteryConfig.min_battery_qty; batteryQty <= batteryConfig.max_battery_qty; batteryQty += 1) {
+            const maxBatteryQtyByAssociation =
+              clampNumber(battery.max_association_qty, 1, 15, 15) * Math.max(1, toNumber(inverter.battery_ports, 1)) * inverterQty;
+            if (batteryQty > maxBatteryQtyByAssociation) continue;
+            const approvedGridTopology = generatedGridToApprovedTopology(gridType);
+            const solutionCode = [
+              'rules',
+              slugPart(inverter.model),
+              slugPart(battery.model),
+              gridType,
+              `${inverterQty}I`,
+              `${batteryQty}B`,
+            ].join('_');
+            if (seen.has(solutionCode)) continue;
+            seen.add(solutionCode);
 
-          const ratedPowerW = Math.max(1, Math.round(toNumber(inverter.standard_power_kva, inverter.power_kw) * 1000 * inverterQty));
-          const peakPowerW = Math.max(ratedPowerW, Math.round(toNumber(inverter.peak_power_kva, inverter.power_kw) * 1000 * inverterQty));
-          const batteryPowerW = Math.max(1, Math.round(toNumber(battery.standard_power_kw, battery.capacity_kwh) * 1000 * batteryQty));
-          const availableEnergyWh = Math.max(
-            1,
-            Math.round(toNumber(battery.capacity_kwh) * (1 - toNumber(battery.min_soc_percent, 10) / 100) * 1000 * batteryQty)
-          );
-          const portsUsed = Math.max(1, Math.min(toNumber(inverter.battery_ports, 1), batteryQty));
-          const baseSolution: GeneratedSolutionPayload = {
-            source_file: 'generated-rules',
-            solution_code: solutionCode,
-            schema_version: '1.0',
-            inverter_model: inverter.model,
-            inverter_quantity: inverterQty,
-            battery_ports_used: portsUsed,
-            nominal_voltage_v: nominalVoltageForGrid(gridType),
-            rated_power_w: ratedPowerW,
-            peak_power_w: peakPowerW,
-            grid_topology: approvedGridTopology,
-            battery_model: battery.model,
-            battery_topology: battery.topology,
-            battery_quantity: batteryQty,
-            battery_power_w: batteryPowerW,
-            available_energy_wh: availableEnergyWh,
-            accessories: [],
-            comments: [`Gerada por regra ESS para ${formatInverterGridType(gridType)}.`],
-            raw_solution: {},
-            active: true,
-          };
-          const ruleExtras = applyAccessoryRules(baseSolution, accessoryRules);
-          const solution = {
-            ...baseSolution,
-            accessories: ruleExtras.accessories.length > 0 ? ruleExtras.accessories : [{ model: null, quantity: 0 }],
-            comments: [...baseSolution.comments, ...ruleExtras.comments],
-          };
-          solution.raw_solution = {
-            id: solution.solution_code,
-            generatedBy: 'admin_rules',
-            gridType,
-            inverter: {
-              model: solution.inverter_model,
-              quantity: solution.inverter_quantity,
-              batteryPortsUsed: solution.battery_ports_used,
-              nominalVoltageV: solution.nominal_voltage_v,
-              ratedPowerW: solution.rated_power_w,
-              peakPowerW: solution.peak_power_w,
-              topology: solution.grid_topology,
-            },
-            battery: {
-              model: solution.battery_model,
-              quantity: solution.battery_quantity,
-              powerW: solution.battery_power_w,
-              availableEnergyWh: solution.available_energy_wh,
-              minSocPercent: battery.min_soc_percent,
-            },
-            accessories: solution.accessories,
-            comments: solution.comments,
-          };
-          generated.push(solution);
+            const ratedPowerW = Math.max(1, Math.round(toNumber(inverter.standard_power_kva, inverter.power_kw) * 1000 * inverterQty));
+            const peakPowerW = Math.max(ratedPowerW, Math.round(toNumber(inverter.peak_power_kva, inverter.power_kw) * 1000 * inverterQty));
+            const batteryPowerW = Math.max(1, Math.round(toNumber(battery.standard_power_kw, battery.capacity_kwh) * 1000 * batteryQty));
+            const availableEnergyWh = Math.max(
+              1,
+              Math.round(toNumber(battery.capacity_kwh) * (1 - toNumber(battery.min_soc_percent, 10) / 100) * 1000 * batteryQty)
+            );
+            const portsUsed = Math.max(1, Math.min(toNumber(inverter.battery_ports, 1), batteryQty));
+            const baseSolution: GeneratedSolutionPayload = {
+              source_file: 'generated-rules',
+              solution_code: solutionCode,
+              schema_version: '1.0',
+              inverter_model: inverter.model,
+              inverter_quantity: inverterQty,
+              battery_ports_used: portsUsed,
+              nominal_voltage_v: nominalVoltageForGrid(gridType),
+              rated_power_w: ratedPowerW,
+              peak_power_w: peakPowerW,
+              grid_topology: approvedGridTopology,
+              battery_model: battery.model,
+              battery_topology: battery.topology,
+              battery_quantity: batteryQty,
+              battery_power_w: batteryPowerW,
+              available_energy_wh: availableEnergyWh,
+              accessories: [],
+              comments: [`Gerada por regra ESS para ${formatInverterGridType(gridType)}.`],
+              raw_solution: {},
+              active: true,
+            };
+            const ruleExtras = applyAccessoryRules(baseSolution, accessoryRules);
+            const solution = {
+              ...baseSolution,
+              accessories: ruleExtras.accessories.length > 0 ? ruleExtras.accessories : [{ model: null, quantity: 0 }],
+              comments: [...baseSolution.comments, ...ruleExtras.comments],
+            };
+            solution.raw_solution = {
+              id: solution.solution_code,
+              generatedBy: 'admin_rules',
+              gridType,
+              inverter: {
+                model: solution.inverter_model,
+                quantity: solution.inverter_quantity,
+                batteryPortsUsed: solution.battery_ports_used,
+                nominalVoltageV: solution.nominal_voltage_v,
+                ratedPowerW: solution.rated_power_w,
+                peakPowerW: solution.peak_power_w,
+                topology: solution.grid_topology,
+              },
+              battery: {
+                model: solution.battery_model,
+                quantity: solution.battery_quantity,
+                powerW: solution.battery_power_w,
+                availableEnergyWh: solution.available_energy_wh,
+                minSocPercent: battery.min_soc_percent,
+              },
+              accessories: solution.accessories,
+              comments: solution.comments,
+            };
+            generated.push(solution);
+          }
         }
       }
     }
@@ -773,16 +900,20 @@ export function AdminPanel() {
     setError(null);
     const action: AdminLogAction = inverterForm.id ? 'update' : 'create';
     const beforeData = inverterForm.id ? inverters.find((row) => row.id === inverterForm.id) : null;
+    const gridTypes = normalizeInverterGridTypes(inverterForm.grid_types);
     const payload = {
       model: inverterForm.model?.trim(),
       power_kw: toNumber(inverterForm.power_kw),
       standard_power_kva: toNumber(inverterForm.standard_power_kva),
       peak_power_kva: toNumber(inverterForm.peak_power_kva),
-      phases: toNumber(inverterForm.phases, 1),
+      phases: phasesFromInverterGridTypes(gridTypes, inverterForm.phases),
       topology: inverterForm.topology,
-      grid_types: normalizeInverterGridTypes(inverterForm.grid_types),
+      grid_types: gridTypes,
       max_battery_qty: toNumber(inverterForm.max_battery_qty, 1),
       battery_ports: clampNumber(inverterForm.battery_ports, 1, 2, 1),
+      battery_voltage_min_v: toNumber(inverterForm.battery_voltage_min_v),
+      battery_voltage_max_v: toNumber(inverterForm.battery_voltage_max_v),
+      battery_current_max_a: toNumber(inverterForm.battery_current_max_a),
       flags: normalizeInverterFlags(inverterForm.flags),
       image_url: inverterForm.image_url?.trim() || null,
       documents: inverterForm.documents ?? [],
@@ -821,7 +952,14 @@ export function AdminPanel() {
       topology: batteryForm.topology,
       standard_power_kw: toNumber(batteryForm.standard_power_kw),
       peak_power_kw: toNumber(batteryForm.peak_power_kw),
-      min_soc_percent: toNumber(batteryForm.min_soc_percent, 10),
+      min_soc_percent: batteryForm.min_soc_percent === 5 ? 5 : 10,
+      nominal_voltage_v: toNumber(batteryForm.nominal_voltage_v),
+      voltage_min_v: toNumber(batteryForm.voltage_min_v),
+      voltage_max_v: toNumber(batteryForm.voltage_max_v),
+      recommended_current_a: toNumber(batteryForm.recommended_current_a),
+      max_current_a: toNumber(batteryForm.max_current_a),
+      flags: normalizeBatteryFlags(batteryForm.flags),
+      max_association_qty: clampNumber(batteryForm.max_association_qty, 1, 15, 15),
       image_url: batteryForm.image_url?.trim() || null,
       documents: batteryForm.documents ?? [],
     };
@@ -933,14 +1071,17 @@ export function AdminPanel() {
     setError(null);
     const action: AdminLogAction = essRuleForm.id ? 'update' : 'create';
     const beforeData = essRuleForm.id ? essRules.find((row) => row.id === essRuleForm.id) : null;
+    const batteryConfigs = normalizeEssBatteryConfigs(essRuleForm, batteries);
+    const primaryBatteryConfig = batteryConfigs[0];
     const payload = {
       inverter_model: essRuleForm.inverter_model?.trim(),
-      battery_model: essRuleForm.battery_model?.trim(),
-      battery_topology: essRuleForm.battery_topology || null,
+      battery_model: primaryBatteryConfig?.battery_model ?? null,
+      battery_topology: primaryBatteryConfig?.battery_topology ?? null,
       grid_topology: null,
       max_parallel_inverters: clampNumber(essRuleForm.max_parallel_inverters, 1, 10, 1),
-      min_battery_qty: clampNumber(essRuleForm.min_battery_qty, 1, 7, 1),
-      max_battery_qty: clampNumber(essRuleForm.max_battery_qty, 2, 15, 2),
+      min_battery_qty: primaryBatteryConfig?.min_battery_qty ?? 1,
+      max_battery_qty: primaryBatteryConfig?.max_battery_qty ?? 2,
+      battery_configs: batteryConfigs,
       comment: essRuleForm.comment?.trim() || null,
       active: essRuleForm.active ?? true,
     };
@@ -1405,7 +1546,7 @@ function Field({
   label,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -1413,6 +1554,24 @@ function Field({
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function InfoLabel({ label, tip }: { label: string; tip: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span>{label}</span>
+      <span className="group relative inline-flex">
+        <CircleHelp
+          className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary group-focus-visible:text-primary"
+          tabIndex={0}
+          aria-label={tip}
+        />
+        <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 w-56 -translate-x-1/2 rounded-md border bg-popover px-2 py-1.5 text-xs font-normal leading-snug text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {tip}
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -1457,6 +1616,36 @@ function NumberInput(props: React.ComponentProps<typeof Input>) {
   return <Input type="number" inputMode="decimal" {...props} />;
 }
 
+function NumberWithUnitField({
+  label,
+  tip,
+  icon,
+  unit,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode'> & {
+  label: string;
+  tip: string;
+  icon: React.ReactNode;
+  unit: string;
+}) {
+  return (
+    <Field label={<InfoLabel label={label} tip={tip} />}>
+      <div className="flex h-8 items-center rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+        <span className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
+        <Input
+          {...props}
+          type="number"
+          inputMode="decimal"
+          className="h-full border-0 bg-transparent px-1 py-0 focus-visible:border-transparent focus-visible:ring-0"
+        />
+        <span className="mr-2 shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          {unit}
+        </span>
+      </div>
+    </Field>
+  );
+}
+
 function Actions({
   onSave,
   onNew,
@@ -1469,7 +1658,14 @@ function Actions({
   saving: boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div
+      className="sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap gap-2 border-t px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]"
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--card) 72%, transparent)',
+        backdropFilter: 'blur(14px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(140%)',
+      }}
+    >
       <Button onClick={onSave} disabled={saving}>
         <Save className="h-4 w-4" />
         Salvar
@@ -2252,36 +2448,46 @@ function SolutionsEditor(props: {
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Qtd. inversores">
-              <NumberInput
-                value={form.inverter_quantity ?? 1}
-                onChange={(event) => setForm({ ...form, inverter_quantity: toNumber(event.target.value, 1) })}
-              />
-            </Field>
-            <Field label="Portas bateria">
-              <NumberInput
-                value={form.battery_ports_used ?? 1}
-                onChange={(event) => setForm({ ...form, battery_ports_used: toNumber(event.target.value, 1) })}
-              />
-            </Field>
-            <Field label="Potência nominal W">
-              <NumberInput
-                value={form.rated_power_w ?? 0}
-                onChange={(event) => setForm({ ...form, rated_power_w: toNumber(event.target.value) })}
-              />
-            </Field>
-            <Field label="Potência pico W">
-              <NumberInput
-                value={form.peak_power_w ?? 0}
-                onChange={(event) => setForm({ ...form, peak_power_w: toNumber(event.target.value) })}
-              />
-            </Field>
-            <Field label="Tensão V">
-              <NumberInput
-                value={form.nominal_voltage_v ?? 220}
-                onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value, 220) })}
-              />
-            </Field>
+            <NumberWithUnitField
+              label="Qtd. inversores"
+              tip="Quantidade de inversores usados nesta combinação aprovada."
+              icon={<Boxes className="h-4 w-4" />}
+              unit="un."
+              value={form.inverter_quantity ?? 1}
+              onChange={(event) => setForm({ ...form, inverter_quantity: toNumber(event.target.value, 1) })}
+            />
+            <NumberWithUnitField
+              label="Portas"
+              tip="Número de portas de bateria usadas nesta combinação."
+              icon={<Cable className="h-4 w-4" />}
+              unit="un."
+              value={form.battery_ports_used ?? 1}
+              onChange={(event) => setForm({ ...form, battery_ports_used: toNumber(event.target.value, 1) })}
+            />
+            <NumberWithUnitField
+              label="Potência nominal"
+              tip="Potência nominal total disponível na combinação."
+              icon={<Zap className="h-4 w-4" />}
+              unit="W"
+              value={form.rated_power_w ?? 0}
+              onChange={(event) => setForm({ ...form, rated_power_w: toNumber(event.target.value) })}
+            />
+            <NumberWithUnitField
+              label="Potência pico"
+              tip="Potência máxima de pico disponível na combinação."
+              icon={<Zap className="h-4 w-4" />}
+              unit="W"
+              value={form.peak_power_w ?? 0}
+              onChange={(event) => setForm({ ...form, peak_power_w: toNumber(event.target.value) })}
+            />
+            <NumberWithUnitField
+              label="Tensão"
+              tip="Tensão nominal de saída da combinação."
+              icon={<Cable className="h-4 w-4" />}
+              unit="V"
+              value={form.nominal_voltage_v ?? 220}
+              onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value, 220) })}
+            />
             <Field label="Rede">
               <select
                 className={selectClasses()}
@@ -2316,24 +2522,30 @@ function SolutionsEditor(props: {
                 <option value="LV">LV</option>
               </select>
             </Field>
-            <Field label="Qtd. baterias">
-              <NumberInput
-                value={form.battery_quantity ?? 1}
-                onChange={(event) => setForm({ ...form, battery_quantity: toNumber(event.target.value, 1) })}
-              />
-            </Field>
-            <Field label="Potência bateria W">
-              <NumberInput
-                value={form.battery_power_w ?? 0}
-                onChange={(event) => setForm({ ...form, battery_power_w: toNumber(event.target.value) })}
-              />
-            </Field>
-            <Field label="Energia disponível Wh">
-              <NumberInput
-                value={form.available_energy_wh ?? 0}
-                onChange={(event) => setForm({ ...form, available_energy_wh: toNumber(event.target.value) })}
-              />
-            </Field>
+            <NumberWithUnitField
+              label="Qtd. baterias"
+              tip="Quantidade total de baterias nesta combinação."
+              icon={<Battery className="h-4 w-4" />}
+              unit="un."
+              value={form.battery_quantity ?? 1}
+              onChange={(event) => setForm({ ...form, battery_quantity: toNumber(event.target.value, 1) })}
+            />
+            <NumberWithUnitField
+              label="Potência bateria"
+              tip="Potência total disponível pelo banco de baterias."
+              icon={<Zap className="h-4 w-4" />}
+              unit="W"
+              value={form.battery_power_w ?? 0}
+              onChange={(event) => setForm({ ...form, battery_power_w: toNumber(event.target.value) })}
+            />
+            <NumberWithUnitField
+              label="Energia disponível"
+              tip="Energia útil disponível no banco de baterias."
+              icon={<Battery className="h-4 w-4" />}
+              unit="Wh"
+              value={form.available_energy_wh ?? 0}
+              onChange={(event) => setForm({ ...form, available_energy_wh: toNumber(event.target.value) })}
+            />
           </div>
 
           <Field label="Acessórios JSON">
@@ -2358,12 +2570,7 @@ function SolutionsEditor(props: {
             />
             Ativa para recomendação
           </label>
-          <Actions
-            onSave={props.onSave}
-            onNew={openNew}
-            onCancel={() => setFormOpen(false)}
-            saving={props.saving}
-          />
+          <Actions onSave={props.onSave} saving={props.saving} />
       </EditorModal>
 
       <datalist id="admin-inverters">
@@ -2464,6 +2671,48 @@ function InverterFlagsInput({
   );
 }
 
+function BatteryFlagsInput({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (flags: BatteryFlag[]) => void;
+}) {
+  const selected = normalizeBatteryFlags(value);
+
+  function toggleFlag(flag: BatteryFlag) {
+    if (selected.includes(flag)) {
+      onChange(selected.filter((item) => item !== flag));
+      return;
+    }
+    onChange([...selected, flag]);
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {batteryFlagOptions.map((option) => {
+        const active = selected.includes(option.value);
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            className={cn(
+              'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              active
+                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+            )}
+            onClick={() => toggleFlag(option.value)}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function InlineOptionTabs<T extends string | number>({
   options,
   value,
@@ -2520,14 +2769,17 @@ function InvertersEditor(props: {
 }) {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
+  const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
 
   function openNew() {
     setForm(emptyInverter);
+    setActiveFormTab('general');
     setFormOpen(true);
   }
 
   function openEdit(row: InverterRow) {
     setForm(row);
+    setActiveFormTab('general');
     setFormOpen(true);
   }
 
@@ -2544,72 +2796,105 @@ function InvertersEditor(props: {
           <Field label="Modelo">
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Potência padrão kVA">
-              <NumberInput
-                value={form.standard_power_kva ?? form.power_kw ?? 0}
-                onChange={(event) => setForm({ ...form, standard_power_kva: toNumber(event.target.value), power_kw: toNumber(event.target.value) })}
-              />
-            </Field>
-            <Field label="Potência pico kVA">
-              <NumberInput
-                value={form.peak_power_kva ?? 0}
-                onChange={(event) => setForm({ ...form, peak_power_kva: toNumber(event.target.value) })}
-              />
-            </Field>
-            <Field label="Fases">
-              <InlineOptionTabs
-                options={[
-                  { value: 1, label: '1' },
-                  { value: 2, label: '2' },
-                  { value: 3, label: '3' },
-                ]}
-                value={form.phases ?? 1}
-                onChange={(phases) => setForm({ ...form, phases })}
-              />
-            </Field>
-            <Field label="Topologia">
-              <InlineOptionTabs
-                options={[
-                  { value: 'HV' as const, label: 'HV' },
-                  { value: 'LV' as const, label: 'LV' },
-                ]}
-                value={form.topology === 'LV' ? 'LV' : 'HV'}
-                onChange={(topology) => setForm({ ...form, topology })}
-              />
-            </Field>
-            <Field label="Portas bateria">
-              <InlineOptionTabs
-                options={[
-                  { value: 1, label: '1' },
-                  { value: 2, label: '2' },
-                ]}
-                value={form.battery_ports ?? 1}
-                onChange={(battery_ports) => setForm({ ...form, battery_ports })}
-              />
-            </Field>
-          </div>
-          <Field label="Tipos de rede">
-            <InverterGridTypesInput
-              value={form.grid_types}
-              onChange={(grid_types) => setForm({ ...form, grid_types })}
+          <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
+          {activeFormTab === 'general' ? (
+            <>
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">CA</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <NumberWithUnitField
+                    label="Potência padrão"
+                    tip="Potência aparente nominal do inversor."
+                    icon={<Zap className="h-4 w-4" />}
+                    unit="kVA"
+                    value={form.standard_power_kva ?? form.power_kw ?? 0}
+                    onChange={(event) => setForm({ ...form, standard_power_kva: toNumber(event.target.value), power_kw: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Potência pico"
+                    tip="Potência aparente máxima de pico do inversor."
+                    icon={<Zap className="h-4 w-4" />}
+                    unit="kVA"
+                    value={form.peak_power_kva ?? 0}
+                    onChange={(event) => setForm({ ...form, peak_power_kva: toNumber(event.target.value) })}
+                  />
+                </div>
+                <Field label="Tipo de rede">
+                  <InverterGridTypesInput
+                    value={form.grid_types}
+                    onChange={(grid_types) => setForm({ ...form, grid_types, phases: phasesFromInverterGridTypes(grid_types, form.phases) })}
+                  />
+                </Field>
+              </div>
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">Bateria</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Topologia">
+                    <InlineOptionTabs
+                      options={[
+                        { value: 'HV' as const, label: 'HV' },
+                        { value: 'LV' as const, label: 'LV' },
+                      ]}
+                      value={form.topology === 'LV' ? 'LV' : 'HV'}
+                      onChange={(topology) => setForm({ ...form, topology })}
+                    />
+                  </Field>
+                  <Field label="Portas">
+                    <InlineOptionTabs
+                      options={[
+                        { value: 1, label: '1' },
+                        { value: 2, label: '2' },
+                      ]}
+                      value={form.battery_ports ?? 1}
+                      onChange={(battery_ports) => setForm({ ...form, battery_ports })}
+                    />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <NumberWithUnitField
+                    label="Tensão mín."
+                    tip="Menor tensão de bateria aceita pelo inversor."
+                    icon={<Cable className="h-4 w-4" />}
+                    unit="V"
+                    value={form.battery_voltage_min_v ?? 0}
+                    onChange={(event) => setForm({ ...form, battery_voltage_min_v: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Tensão máx."
+                    tip="Maior tensão de bateria aceita pelo inversor."
+                    icon={<Cable className="h-4 w-4" />}
+                    unit="V"
+                    value={form.battery_voltage_max_v ?? 0}
+                    onChange={(event) => setForm({ ...form, battery_voltage_max_v: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Corrente máx."
+                    tip="Corrente máxima de bateria suportada pelo inversor."
+                    icon={<Activity className="h-4 w-4" />}
+                    unit="A"
+                    value={form.battery_current_max_a ?? 0}
+                    onChange={(event) => setForm({ ...form, battery_current_max_a: toNumber(event.target.value) })}
+                  />
+                </div>
+              </div>
+              <Field label="Funcionalidades">
+                <InverterFlagsInput
+                  value={form.flags}
+                  onChange={(flags) => setForm({ ...form, flags })}
+                />
+              </Field>
+            </>
+          ) : (
+            <ProductMediaFields
+              table="inverters"
+              model={form.model}
+              imageUrl={form.image_url}
+              documents={form.documents}
+              setImageUrl={(image_url) => setForm({ ...form, image_url })}
+              setDocuments={(documents) => setForm({ ...form, documents })}
+              uploadAsset={props.uploadAsset}
             />
-          </Field>
-          <Field label="Flags">
-            <InverterFlagsInput
-              value={form.flags}
-              onChange={(flags) => setForm({ ...form, flags })}
-            />
-          </Field>
-          <ProductMediaFields
-            table="inverters"
-            model={form.model}
-            imageUrl={form.image_url}
-            documents={form.documents}
-            setImageUrl={(image_url) => setForm({ ...form, image_url })}
-            setDocuments={(documents) => setForm({ ...form, documents })}
-            uploadAsset={props.uploadAsset}
-          />
+          )}
           <Actions onSave={props.onSave} saving={props.saving} />
         </>
       }
@@ -2620,9 +2905,11 @@ function InvertersEditor(props: {
         details: [
           ['Potência padrão', `${row.standard_power_kva ?? row.power_kw} kVA`],
           ['Potência pico', `${row.peak_power_kva ?? '-'} kVA`],
-          ['Portas bateria', String(row.battery_ports ?? 1)],
+          ['Portas', String(row.battery_ports ?? 1)],
+          ['Tensão bateria', `${row.battery_voltage_min_v ?? '-'}-${row.battery_voltage_max_v ?? '-'} V`],
+          ['Corrente bateria', `${row.battery_current_max_a ?? '-'} A`],
           ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '-'],
-          ['Flags', formatInverterFlags(row.flags) || '-'],
+          ['Funcionalidades', formatInverterFlags(row.flags) || '-'],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
         removing: props.removingIds.has(row.id),
@@ -2650,14 +2937,17 @@ function BatteriesEditor(props: {
 }) {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
+  const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
 
   function openNew() {
     setForm(emptyBattery);
+    setActiveFormTab('general');
     setFormOpen(true);
   }
 
   function openEdit(row: BatteryRow) {
     setForm(row);
+    setActiveFormTab('general');
     setFormOpen(true);
   }
 
@@ -2674,59 +2964,142 @@ function BatteriesEditor(props: {
           <Field label="Modelo">
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
           </Field>
-          <Field label="Capacidade kWh">
-            <NumberInput
-              value={form.capacity_kwh ?? 0}
-              onChange={(event) => setForm({ ...form, capacity_kwh: toNumber(event.target.value) })}
+          <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
+          {activeFormTab === 'general' ? (
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">Configuração</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <NumberWithUnitField
+                    label="Capacidade"
+                    tip="Energia nominal total do modelo de bateria."
+                    icon={<Battery className="h-4 w-4" />}
+                    unit="kWh"
+                    value={form.capacity_kwh ?? 0}
+                    onChange={(event) => setForm({ ...form, capacity_kwh: toNumber(event.target.value) })}
+                  />
+                  <Field label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
+                    <InlineOptionTabs
+                      options={[
+                        { value: 5, label: '5%' },
+                        { value: 10, label: '10%' },
+                      ]}
+                      value={form.min_soc_percent === 5 ? 5 : 10}
+                      onChange={(min_soc_percent) => setForm({ ...form, min_soc_percent })}
+                    />
+                  </Field>
+                  <NumberWithUnitField
+                    label="Potência padrão"
+                    tip="Potência contínua recomendada para o modelo de bateria."
+                    icon={<Zap className="h-4 w-4" />}
+                    unit="kW"
+                    value={form.standard_power_kw ?? 0}
+                    onChange={(event) => setForm({ ...form, standard_power_kw: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Potência pico"
+                    tip="Potência máxima de pico suportada pela bateria."
+                    icon={<Zap className="h-4 w-4" />}
+                    unit="kW"
+                    value={form.peak_power_kw ?? 0}
+                    onChange={(event) => setForm({ ...form, peak_power_kw: toNumber(event.target.value) })}
+                  />
+                  <Field label="Topologia">
+                    <InlineOptionTabs
+                      options={[
+                        { value: 'HV' as const, label: 'HV' },
+                        { value: 'LV' as const, label: 'LV' },
+                      ]}
+                      value={form.topology === 'LV' ? 'LV' : 'HV'}
+                      onChange={(topology) => setForm({ ...form, topology })}
+                    />
+                  </Field>
+                  <Field label={<InfoLabel label="Associação máxima" tip="Quantidade máxima deste modelo em qualquer banco ou porta de bateria de um inversor." />}>
+                    <select
+                      className={selectClasses()}
+                      value={form.max_association_qty ?? 15}
+                      onChange={(event) => setForm({ ...form, max_association_qty: toNumber(event.target.value, 15) })}
+                    >
+                      {Array.from({ length: 15 }, (_, index) => index + 1).map((qty) => (
+                        <option key={qty} value={qty}>
+                          {qty}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-2 rounded-lg border bg-background p-3">
+                  <p className="text-sm font-semibold">Tensões</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <NumberWithUnitField
+                      label="Nominal"
+                      tip="Tensão nominal do modelo de bateria."
+                      icon={<Cable className="h-4 w-4" />}
+                      unit="V"
+                      value={form.nominal_voltage_v ?? 0}
+                      onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value) })}
+                    />
+                    <NumberWithUnitField
+                      label="Mín."
+                      tip="Menor tensão operacional permitida para o banco de baterias."
+                      icon={<Cable className="h-4 w-4" />}
+                      unit="V"
+                      value={form.voltage_min_v ?? 0}
+                      onChange={(event) => setForm({ ...form, voltage_min_v: toNumber(event.target.value) })}
+                    />
+                    <NumberWithUnitField
+                      label="Máx."
+                      tip="Maior tensão operacional permitida para o banco de baterias."
+                      icon={<Cable className="h-4 w-4" />}
+                      unit="V"
+                      value={form.voltage_max_v ?? 0}
+                      onChange={(event) => setForm({ ...form, voltage_max_v: toNumber(event.target.value) })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2 rounded-lg border bg-background p-3">
+                  <p className="text-sm font-semibold">Correntes</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <NumberWithUnitField
+                      label="Recomendada"
+                      tip="Corrente recomendada para operação contínua."
+                      icon={<Activity className="h-4 w-4" />}
+                      unit="A"
+                      value={form.recommended_current_a ?? 0}
+                      onChange={(event) => setForm({ ...form, recommended_current_a: toNumber(event.target.value) })}
+                    />
+                    <NumberWithUnitField
+                      label="Máxima"
+                      tip="Corrente máxima suportada pela bateria."
+                      icon={<Activity className="h-4 w-4" />}
+                      unit="A"
+                      value={form.max_current_a ?? 0}
+                      onChange={(event) => setForm({ ...form, max_current_a: toNumber(event.target.value) })}
+                    />
+                  </div>
+                </div>
+                <Field label={<InfoLabel label="Flags" tip="Características estruturadas do produto, como grau de proteção IP. Novas flags podem ser adicionadas no código." />}>
+                  <BatteryFlagsInput
+                    value={form.flags}
+                    onChange={(flags) => setForm({ ...form, flags })}
+                  />
+                </Field>
+              </div>
+            </div>
+          ) : (
+            <ProductMediaFields
+              table="batteries"
+              model={form.model}
+              imageUrl={form.image_url}
+              documents={form.documents}
+              setImageUrl={(image_url) => setForm({ ...form, image_url })}
+              setDocuments={(documents) => setForm({ ...form, documents })}
+              uploadAsset={props.uploadAsset}
             />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Potência padrão kW">
-              <NumberInput
-                value={form.standard_power_kw ?? 0}
-                onChange={(event) => setForm({ ...form, standard_power_kw: toNumber(event.target.value) })}
-              />
-            </Field>
-            <Field label="Potência pico kW">
-              <NumberInput
-                value={form.peak_power_kw ?? 0}
-                onChange={(event) => setForm({ ...form, peak_power_kw: toNumber(event.target.value) })}
-              />
-            </Field>
-          </div>
-          <Field label="Topologia">
-            <select
-              className={selectClasses()}
-              value={form.topology ?? 'HV'}
-              onChange={(event) => setForm({ ...form, topology: event.target.value as BatteryTopology })}
-            >
-              <option value="HV">HV</option>
-              <option value="LV">LV</option>
-            </select>
-          </Field>
-          <Field label="SOC mínimo (%)">
-            <NumberInput
-              min={0}
-              max={99}
-              value={form.min_soc_percent ?? 10}
-              onChange={(event) => setForm({ ...form, min_soc_percent: toNumber(event.target.value, 10) })}
-            />
-          </Field>
-          <ProductMediaFields
-            table="batteries"
-            model={form.model}
-            imageUrl={form.image_url}
-            documents={form.documents}
-            setImageUrl={(image_url) => setForm({ ...form, image_url })}
-            setDocuments={(documents) => setForm({ ...form, documents })}
-            uploadAsset={props.uploadAsset}
-          />
-          <Actions
-            onSave={() => props.onSave(() => setFormOpen(false))}
-            onNew={openNew}
-            onCancel={() => setFormOpen(false)}
-            saving={props.saving}
-          />
+          )}
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
       items={props.rows.map((row) => ({
@@ -2738,6 +3111,11 @@ function BatteriesEditor(props: {
           ['Potência padrão', `${row.standard_power_kw ?? '-'} kW`],
           ['Potência pico', `${row.peak_power_kw ?? '-'} kW`],
           ['SOC mínimo', `${row.min_soc_percent ?? 10}%`],
+          ['Tensão nominal', `${row.nominal_voltage_v ?? '-'} V`],
+          ['Tensão min/máx', `${row.voltage_min_v ?? '-'}-${row.voltage_max_v ?? '-'} V`],
+          ['Corrente rec./máx', `${row.recommended_current_a ?? '-'} / ${row.max_current_a ?? '-'} A`],
+          ['Associação máxima', String(row.max_association_qty ?? 15)],
+          ['Flags', formatBatteryFlags(row.flags) || '-'],
           ['Energia útil', `${(Number(row.capacity_kwh || 0) * (1 - Number(row.min_soc_percent ?? 10) / 100)).toFixed(2)} kWh`],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
@@ -2766,14 +3144,17 @@ function AccessoriesEditor(props: {
 }) {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
+  const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
 
   function openNew() {
     setForm(emptyAccessory);
+    setActiveFormTab('general');
     setFormOpen(true);
   }
 
   function openEdit(row: AccessoryRow) {
     setForm(row);
+    setActiveFormTab('general');
     setFormOpen(true);
   }
 
@@ -2790,31 +3171,37 @@ function AccessoriesEditor(props: {
           <Field label="Modelo">
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
           </Field>
-          <Field label="Descrição">
-            <textarea
-              className={textareaClasses()}
-              value={form.description ?? ''}
-              onChange={(event) => setForm({ ...form, description: event.target.value })}
+          <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
+          {activeFormTab === 'general' ? (
+            <>
+              <Field label="Descrição">
+                <textarea
+                  className={textareaClasses()}
+                  value={form.description ?? ''}
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                />
+              </Field>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.active ?? true}
+                  onChange={(event) => setForm({ ...form, active: event.target.checked })}
+                />
+                Ativo
+              </label>
+            </>
+          ) : (
+            <ProductMediaFields
+              table="accessories"
+              model={form.model}
+              imageUrl={form.image_url}
+              documents={form.documents}
+              setImageUrl={(image_url) => setForm({ ...form, image_url })}
+              setDocuments={(documents) => setForm({ ...form, documents })}
+              uploadAsset={props.uploadAsset}
             />
-          </Field>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.active ?? true}
-              onChange={(event) => setForm({ ...form, active: event.target.checked })}
-            />
-            Ativo
-          </label>
-          <ProductMediaFields
-            table="accessories"
-            model={form.model}
-            imageUrl={form.image_url}
-            documents={form.documents}
-            setImageUrl={(image_url) => setForm({ ...form, image_url })}
-            setDocuments={(documents) => setForm({ ...form, documents })}
-            uploadAsset={props.uploadAsset}
-          />
-          <Actions onSave={props.onSave} onNew={openNew} onCancel={() => setFormOpen(false)} saving={props.saving} />
+          )}
+          <Actions onSave={props.onSave} saving={props.saving} />
         </>
       }
       items={props.rows.map((row) => ({
@@ -2881,6 +3268,145 @@ function InverterModelsInput({
   );
 }
 
+function EssBatteryConfigsInput({
+  batteries,
+  supportedTopologies,
+  value,
+  onChange,
+}: {
+  batteries: BatteryRow[];
+  supportedTopologies: BatteryTopology[];
+  value: Partial<EssCompatibilityRuleRow>;
+  onChange: (configs: EssBatteryConfig[]) => void;
+}) {
+  const configs = normalizeEssBatteryConfigs(value, batteries);
+  const configByModel = new Map(configs.map((config) => [config.battery_model, config]));
+  const availableBatteries = batteries.filter((battery) => supportedTopologies.includes(battery.topology));
+
+  function toggleBattery(battery: BatteryRow) {
+    const existing = configByModel.get(battery.model);
+    if (existing) {
+      onChange(configs.filter((config) => config.battery_model !== battery.model));
+      return;
+    }
+    const associationMax = batteryAssociationMax(battery);
+    onChange([
+      ...configs,
+      {
+        battery_model: battery.model,
+        battery_topology: battery.topology,
+        min_battery_qty: 1,
+        max_battery_qty: associationMax,
+      },
+    ]);
+  }
+
+  function updateConfig(model: string, patch: Partial<EssBatteryConfig>) {
+    onChange(
+      configs.map((config) => {
+        if (config.battery_model !== model) return config;
+        const battery = batteries.find((item) => item.model === model);
+        const associationMax = batteryAssociationMax(battery);
+        const minQty = clampNumber(patch.min_battery_qty ?? config.min_battery_qty, 1, Math.min(7, associationMax), 1);
+        const maxQty = Math.max(minQty, clampNumber(patch.max_battery_qty ?? config.max_battery_qty, 1, associationMax, associationMax));
+        return { ...config, ...patch, min_battery_qty: minQty, max_battery_qty: maxQty };
+      })
+    );
+  }
+
+  if (supportedTopologies.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+        Selecione um inversor para listar baterias compatíveis.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {availableBatteries.map((battery) => {
+          const active = configByModel.has(battery.model);
+          return (
+            <button
+              key={battery.id}
+              type="button"
+              aria-pressed={active}
+              className={cn(
+                'inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                active
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+              )}
+              onClick={() => toggleBattery(battery)}
+            >
+              <span className="truncate">{battery.model}</span>
+              <span className={active ? 'text-primary-foreground/80' : 'text-muted-foreground'}>{battery.topology}</span>
+            </button>
+          );
+        })}
+      </div>
+      {availableBatteries.length === 0 && (
+        <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          Nenhuma bateria compatível com a topologia do inversor.
+        </p>
+      )}
+      {configs.length > 0 && (
+        <div className="space-y-2">
+          {configs.map((config) => {
+            const battery = batteries.find((item) => item.model === config.battery_model);
+            const associationMax = batteryAssociationMax(battery);
+            const minLimit = Math.min(7, associationMax);
+            return (
+              <div
+                key={config.battery_model}
+                className="grid gap-2 rounded-lg border bg-card p-2 sm:grid-cols-[minmax(0,1fr)_170px]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{config.battery_model}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {config.battery_topology} · associação máx. {associationMax}/porta
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <label className="min-w-0 rounded-md border border-[#4A8BDF]/30 bg-[#EFFAFD] px-2 py-1">
+                    <span className="block text-[10px] font-semibold uppercase text-[#2567B8]">Min/porta</span>
+                    <select
+                      className="h-7 w-full bg-transparent text-sm font-semibold text-[#174F91] outline-none"
+                      value={config.min_battery_qty}
+                      onChange={(event) => updateConfig(config.battery_model, { min_battery_qty: toNumber(event.target.value, 1) })}
+                    >
+                      {Array.from({ length: minLimit }, (_, index) => index + 1).map((qty) => (
+                        <option key={qty} value={qty}>
+                          {qty}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="min-w-0 rounded-md border border-[#A0006D]/30 bg-[#A0006D]/10 px-2 py-1">
+                    <span className="block text-[10px] font-semibold uppercase text-[#A0006D]">Max/porta</span>
+                    <select
+                      className="h-7 w-full bg-transparent text-sm font-semibold text-[#7A0053] outline-none"
+                      value={config.max_battery_qty}
+                      onChange={(event) => updateConfig(config.battery_model, { max_battery_qty: toNumber(event.target.value, associationMax) })}
+                    >
+                      {Array.from({ length: associationMax }, (_, index) => index + 1).map((qty) => (
+                        <option key={qty} value={qty}>
+                          {qty}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RulesEditor(props: {
   rows: AccessoryRuleRow[];
   form: Partial<AccessoryRuleRow>;
@@ -2935,6 +3461,7 @@ function RulesEditor(props: {
 
   const selectedEssInverter = props.inverters.find((inverter) => inverter.model === essForm.inverter_model);
   const selectedEssInverterGridTypes = normalizeInverterGridTypes(selectedEssInverter?.grid_types);
+  const selectedEssInverterTopologies = inverterSupportedBatteryTopologies(selectedEssInverter);
 
   return (
     <div className="space-y-4">
@@ -2986,12 +3513,14 @@ function RulesEditor(props: {
                 <option value="optional">Opcional</option>
               </select>
             </Field>
-            <Field label="Quantidade do acessório">
-              <NumberInput
-                value={form.quantity_per_match ?? 1}
-                onChange={(event) => setForm({ ...form, quantity_per_match: toNumber(event.target.value, 1) })}
-              />
-            </Field>
+            <NumberWithUnitField
+              label="Quantidade do acessório"
+              tip="Quantidade adicionada quando a regra for aplicada."
+              icon={<Boxes className="h-4 w-4" />}
+              unit="un."
+              value={form.quantity_per_match ?? 1}
+              onChange={(event) => setForm({ ...form, quantity_per_match: toNumber(event.target.value, 1) })}
+            />
             <Field label="Limiar baseado em">
               <select
                 className={selectClasses()}
@@ -3011,13 +3540,15 @@ function RulesEditor(props: {
                 <option value="battery_ports_used">Portas de bateria</option>
               </select>
             </Field>
-            <Field label="Quantidade mínima">
-              <NumberInput
-                value={form.min_quantity ?? 1}
-                disabled={form.trigger_metric === 'per_solution'}
-                onChange={(event) => setForm({ ...form, min_quantity: toNumber(event.target.value, 1) })}
-              />
-            </Field>
+            <NumberWithUnitField
+              label="Quantidade mínima"
+              tip="Valor mínimo do critério escolhido para ativar a regra."
+              icon={<Search className="h-4 w-4" />}
+              unit="un."
+              value={form.min_quantity ?? 1}
+              disabled={form.trigger_metric === 'per_solution'}
+              onChange={(event) => setForm({ ...form, min_quantity: toNumber(event.target.value, 1) })}
+            />
           </div>
 
           <Separator />
@@ -3093,7 +3624,7 @@ function RulesEditor(props: {
             />
             Ativa
           </label>
-          <Actions onSave={props.onSave} onNew={openNew} onCancel={() => setFormOpen(false)} saving={props.saving} />
+          <Actions onSave={props.onSave} saving={props.saving} />
         </>
           }
           items={props.rows.map((row) => ({
@@ -3167,66 +3698,24 @@ function RulesEditor(props: {
 
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Bateria</p>
-                <Field label="Modelo">
-                  <select
-                    className={selectClasses()}
-                    value={essForm.battery_model ?? ''}
-                    onChange={(event) => {
-                      const battery = props.batteries.find((item) => item.model === event.target.value);
-                      setEssForm({
-                        ...essForm,
-                        battery_model: event.target.value,
-                        battery_topology: battery?.topology ?? essForm.battery_topology ?? null,
-                      });
-                    }}
-                  >
-                    <option value="">Selecione</option>
-                    {props.batteries.map((battery) => (
-                      <option key={battery.id} value={battery.model}>
-                        {battery.model}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label="Topologia">
-                    <select
-                      className={selectClasses()}
-                      value={essForm.battery_topology ?? ''}
-                      onChange={(event) => setEssForm({ ...essForm, battery_topology: (event.target.value || null) as BatteryTopology | null })}
-                    >
-                      <option value="">Qualquer</option>
-                      <option value="HV">HV</option>
-                      <option value="LV">LV</option>
-                    </select>
-                  </Field>
-                  <Field label="Min bateria">
-                    <select
-                      className={selectClasses()}
-                      value={essForm.min_battery_qty ?? 1}
-                      onChange={(event) => setEssForm({ ...essForm, min_battery_qty: toNumber(event.target.value, 1) })}
-                    >
-                      {Array.from({ length: 7 }, (_, index) => index + 1).map((qty) => (
-                        <option key={qty} value={qty}>
-                          {qty}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Max bateria">
-                    <select
-                      className={selectClasses()}
-                      value={essForm.max_battery_qty ?? 2}
-                      onChange={(event) => setEssForm({ ...essForm, max_battery_qty: toNumber(event.target.value, 2) })}
-                    >
-                      {Array.from({ length: 14 }, (_, index) => index + 2).map((qty) => (
-                        <option key={qty} value={qty}>
-                          {qty}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Topologias compatíveis: {selectedEssInverterTopologies.join(', ') || 'selecione um inversor'}.
+                </p>
+                <EssBatteryConfigsInput
+                  batteries={props.batteries}
+                  supportedTopologies={selectedEssInverterTopologies}
+                  value={essForm}
+                  onChange={(battery_configs) =>
+                    setEssForm({
+                      ...essForm,
+                      battery_configs,
+                      battery_model: battery_configs[0]?.battery_model ?? '',
+                      battery_topology: battery_configs[0]?.battery_topology ?? null,
+                      min_battery_qty: battery_configs[0]?.min_battery_qty ?? 1,
+                      max_battery_qty: battery_configs[0]?.max_battery_qty ?? 2,
+                    })
+                  }
+                />
               </div>
 
               <Field label="Comentário">
@@ -3250,17 +3739,19 @@ function RulesEditor(props: {
           items={props.essRows.map((row) => {
             const inverter = props.inverters.find((item) => item.model === row.inverter_model);
             const gridTypes = normalizeInverterGridTypes(inverter?.grid_types);
+            const batteryConfigs = normalizeEssBatteryConfigs(row, props.batteries);
+            const batterySummary = batteryConfigs
+              .map((config) => `${config.battery_model} (${config.min_battery_qty}-${config.max_battery_qty})`)
+              .join(', ');
             return {
               id: row.id,
-              title: `${row.inverter_model} + ${row.battery_model}`,
-              badges: [row.active ? 'ativa' : 'inativa', row.battery_topology ?? 'qualquer'],
+              title: `${row.inverter_model} + ${batteryConfigs.length} bateria${batteryConfigs.length === 1 ? '' : 's'}`,
+              badges: [row.active ? 'ativa' : 'inativa', ...Array.from(new Set(batteryConfigs.map((config) => config.battery_topology)))],
               details: [
                 ['Inversor', row.inverter_model],
-                ['Bateria', row.battery_model],
+                ['Baterias', batterySummary || '-'],
                 ['Redes do inversor', gridTypes.map(formatInverterGridType).join(', ') || '-'],
                 ['Máx. paralelo', String(row.max_parallel_inverters ?? 1)],
-                ['Min bateria', String(row.min_battery_qty ?? 1)],
-                ['Máx. bateria', String(row.max_battery_qty ?? 1)],
               ],
               description: row.comment ?? undefined,
               removing: props.removingIds.has(row.id),
@@ -3301,7 +3792,7 @@ function EditorModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${size === 'lg' ? 'max-w-4xl' : 'max-w-2xl'} rounded-lg bg-card text-card-foreground shadow-xl ring-1 ring-border`}
+        className={`w-full ${size === 'lg' ? 'max-w-5xl' : 'max-w-[46rem]'} rounded-lg bg-card text-card-foreground shadow-xl ring-1 ring-border`}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-lg border-b bg-card px-4 py-3">
           <h2 className="text-base font-semibold tracking-tight">{title}</h2>
@@ -3309,7 +3800,7 @@ function EditorModal({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-4 py-4">
+        <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-4 pt-4">
           <div className="space-y-4">{children}</div>
         </div>
       </section>

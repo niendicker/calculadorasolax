@@ -58,6 +58,12 @@ interface EssCompatibilityRule {
   max_parallel_inverters: number | null;
   min_battery_qty: number | null;
   max_battery_qty: number | null;
+  battery_configs: {
+    battery_model: string;
+    battery_topology: ApprovedSolution['battery_topology'];
+    min_battery_qty: number | null;
+    max_battery_qty: number | null;
+  }[] | null;
   active: boolean;
 }
 
@@ -111,6 +117,21 @@ function totalPeakW(loads: SingleLoad[]): number {
 
 function totalDailyKwh(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty) / 1000, 0);
+}
+
+function matchingEssBatteryConfig(rule: EssCompatibilityRule, batteryModel: string) {
+  const configs = Array.isArray(rule.battery_configs) ? rule.battery_configs : [];
+  const config = configs.find((item) => item.battery_model === batteryModel);
+  if (config) return config;
+  if (rule.battery_model === batteryModel && rule.battery_topology) {
+    return {
+      battery_model: rule.battery_model,
+      battery_topology: rule.battery_topology,
+      min_battery_qty: rule.min_battery_qty,
+      max_battery_qty: rule.max_battery_qty,
+    };
+  }
+  return null;
 }
 
 function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRule['trigger_metric']): number {
@@ -250,27 +271,33 @@ Deno.serve(async (req) => {
     if (options.batteryModel) {
       const { data: essRules, error: essRulesErr } = await supabase
         .from('ess_compatibility_rules')
-        .select('id, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, active')
-        .eq('active', true)
-        .eq('battery_model', options.batteryModel);
+        .select(
+          'id, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, battery_configs, active'
+        )
+        .eq('active', true);
 
       if (essRulesErr) {
         console.error(essRulesErr);
         return Response.json({ error: 'ess_rules_lookup_failed' }, { status: 500 });
       }
 
-      const relevantRules = ((essRules ?? []) as EssCompatibilityRule[]).filter(
-        (rule) =>
-          (!rule.battery_topology || rule.battery_topology === batteryTopology) &&
+      const relevantRules = ((essRules ?? []) as EssCompatibilityRule[]).filter((rule) => {
+        const config = matchingEssBatteryConfig(rule, options.batteryModel!);
+        return (
+          config &&
+          (!config.battery_topology || config.battery_topology === batteryTopology) &&
           (!rule.grid_topology || normalizeStandardGridTopology(rule.grid_topology) === standardGridTopology)
-      );
+        );
+      });
 
       if (relevantRules.length > 0) {
         compatibleSolutions = compatibleSolutions.filter((solution) =>
           relevantRules.some((rule) => {
+            const config = matchingEssBatteryConfig(rule, options.batteryModel!);
+            if (!config) return false;
             const maxParallel = clampNumber(rule.max_parallel_inverters, 1, 10, 1);
-            const minBatteryQty = clampNumber(rule.min_battery_qty, 1, 7, 1);
-            const maxBatteryQty = clampNumber(rule.max_battery_qty, 2, 15, 2);
+            const minBatteryQty = clampNumber(config.min_battery_qty, 1, 7, 1);
+            const maxBatteryQty = clampNumber(config.max_battery_qty, 1, 15, 1);
             return (
               rule.inverter_model === solution.inverter_model &&
               solution.inverter_quantity <= maxParallel &&

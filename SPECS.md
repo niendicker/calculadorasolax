@@ -137,11 +137,12 @@ Campos de inversor:
 - `model`
 - `standard_power_kva`
 - `peak_power_kva`
-- `phases`: `1`, `2` ou `3`
+- `phases`: `1`, `2` ou `3`, derivado dos tipos de rede selecionados
 - `topology`: `HV` ou `LV`
 - `grid_types`: array com acrônimos internos `1P_220V`, `2P_220V`, `3P_220V`, `3P_380V`
 - `battery_ports`: `1` ou `2`
-- `flags`: array de chaves estruturadas, atualmente `microgrid`, `super_backup`, `dual_voltage`, `external_ats`
+- `battery_voltage_min_v`, `battery_voltage_max_v`, `battery_current_max_a`: limites elétricos do lado da bateria
+- funcionalidades: salvas internamente em `flags`, array de chaves estruturadas, atualmente `microgrid`, `super_backup`, `dual_voltage`, `external_ats`
 
 Campos de bateria:
 
@@ -150,7 +151,11 @@ Campos de bateria:
 - `topology`: `HV` ou `LV`
 - `standard_power_kw`
 - `peak_power_kw`
-- `min_soc_percent`
+- `min_soc_percent`: `5` ou `10`
+- `nominal_voltage_v`, `voltage_min_v`, `voltage_max_v`: especificações de tensão da bateria
+- `recommended_current_a`, `max_current_a`: corrente recomendada e máxima da bateria
+- `flags`: array de chaves estruturadas, atualmente `ip65`, `ip66`
+- `max_association_qty`: associação máxima por banco/porta de inversor, de 1 a 15
 
 Campos de mídia:
 
@@ -184,11 +189,10 @@ Regras de compatibilidade entre inversores e baterias, usadas para validar o cá
 Campos principais:
 
 - `inverter_model`
-- `battery_model`
-- `battery_topology`
+- `battery_configs`: lista de modelos de bateria compatíveis, com topologia e min/max por modelo; o máximo por porta é limitado por `batteries.max_association_qty`
+- `battery_model` e `battery_topology`: espelho do primeiro item para compatibilidade com dados legados
 - `max_parallel_inverters`: 1 a 10
-- `min_battery_qty`: 1 a 7
-- `max_battery_qty`: 2 a 15
+- `min_battery_qty` e `max_battery_qty`: espelho do primeiro item para compatibilidade com dados legados
 - `comment`
 - `active`
 

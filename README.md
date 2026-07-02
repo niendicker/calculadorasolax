@@ -141,10 +141,16 @@ Migrações Supabase:
 | `0017_ess_min_battery_qty.sql` | Quantidade mínima de baterias por regra ESS |
 | `0018_accessory_rule_solution_metric_grid_patterns.sql` | Regras de acessórios por solução e redes padronizadas |
 | `0019_accessory_rule_multiple_inverters.sql` | Múltiplos inversores por regra de acessório |
-| `0020_inverter_flags.sql` | Flags estruturadas dos inversores |
+| `0020_inverter_flags.sql` | Funcionalidades estruturadas dos inversores |
 | `0021_clear_ess_rule_grid_filters.sql` | Rede ESS derivada do cadastro do inversor |
 | `0022_constrain_inverter_battery_ports.sql` | Portas de bateria limitadas a 1 ou 2 |
 | `0023_inverter_phases_options.sql` | Fases do inversor limitadas a 1, 2 ou 3 |
+| `0024_ess_rule_battery_configs.sql` | Múltiplas baterias por regra ESS com limites por modelo |
+| `0025_inverter_battery_electrical_limits.sql` | Limites elétricos da bateria no cadastro de inversores |
+| `0026_battery_flags_association.sql` | Flags e associação máxima por porta no cadastro de baterias |
+| `0027_allow_single_battery_ess_max.sql` | Permite máximo ESS de 1 bateria por porta |
+| `0028_battery_electrical_specs.sql` | Especificações elétricas no cadastro de baterias |
+| `0029_battery_soc_options.sql` | SOC mínimo de baterias limitado a 5% ou 10% |
 
 Aplicar migrações ao projeto linkado:
 
@@ -220,7 +226,7 @@ Regras ESS definem:
 
 A rede da regra ESS é derivada das redes cadastradas no inversor, evitando duplicação de configuração.
 
-Produtos administrativos suportam imagem e documentos para clientes, como datasheets e manuais. Inversores possuem flags estruturadas em array para capacidades como Microrrede, Super-Backup, Dual Voltage e ATS Externo. A UI administrativa usa cards responsivos, formulários em janelas modais, confirmações por popover para ações destrutivas, skeletons de carregamento e feedbacks para salvar/remover.
+Produtos administrativos suportam imagem e documentos para clientes, como datasheets e manuais. Inversores possuem funcionalidades estruturadas em array para capacidades como Microrrede, Super-Backup, Dual Voltage e ATS Externo. A UI administrativa usa cards responsivos, formulários em janelas modais, confirmações por popover para ações destrutivas, skeletons de carregamento e feedbacks para salvar/remover.
 
 Na aba de combinações, os registros podem ser agrupados por inversor e por modelo de bateria usando controles segmentados. Os agrupamentos mostram somente produtos cadastrados. A ação "Gerar por regras" exibe preview antes de aplicar as combinações em `approved_solutions`.
 
