@@ -727,6 +727,12 @@ export function AdminPanel() {
   const [solutionCommentsText, setSolutionCommentsText] = useState('[]');
   const [solutionQuery, setSolutionQuery] = useState('');
 
+  useEffect(() => {
+    if (!status) return;
+    const timer = setTimeout(() => setStatus(null), 3500);
+    return () => clearTimeout(timer);
+  }, [status]);
+
   async function loadData(showSkeleton = true) {
     if (showSkeleton) setLoading(true);
     setError(null);
@@ -807,7 +813,7 @@ export function AdminPanel() {
   }, []);
 
   const filteredSolutions = solutions.filter((solution) => {
-    const text = `${solution.solution_code} ${solution.inverter_model} ${solution.battery_model}`.toLowerCase();
+    const text = `${solution.solution_code} ${solution.inverter_model} ${solution.battery_model} ${solution.grid_topology}`.toLowerCase();
     return text.includes(solutionQuery.toLowerCase());
   });
 
@@ -894,7 +900,7 @@ export function AdminPanel() {
     setSolutionCommentsText('[]');
   }
 
-  async function saveInverter() {
+  async function saveInverter(afterPersist?: () => void) {
     setSaving(true);
     setStatus(inverterForm.id ? 'Atualizando inversor...' : 'Salvando inversor...');
     setError(null);
@@ -926,6 +932,7 @@ export function AdminPanel() {
 
     setSaving(false);
     if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
     await recordActivityLog({
       entityType: 'inverter',
       action,
@@ -986,7 +993,7 @@ export function AdminPanel() {
     await loadData();
   }
 
-  async function saveAccessory() {
+  async function saveAccessory(afterPersist?: () => void) {
     setSaving(true);
     setStatus(accessoryForm.id ? 'Atualizando acessório...' : 'Salvando acessório...');
     setError(null);
@@ -1007,6 +1014,7 @@ export function AdminPanel() {
 
     setSaving(false);
     if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
     await recordActivityLog({
       entityType: 'accessory',
       action,
@@ -1021,7 +1029,7 @@ export function AdminPanel() {
     await loadData();
   }
 
-  async function saveRule() {
+  async function saveRule(afterPersist?: () => void) {
     setSaving(true);
     setStatus(ruleForm.id ? 'Atualizando regra...' : 'Salvando regra...');
     setError(null);
@@ -1051,6 +1059,7 @@ export function AdminPanel() {
 
     setSaving(false);
     if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
     await recordActivityLog({
       entityType: 'rule',
       action,
@@ -1065,7 +1074,7 @@ export function AdminPanel() {
     await loadData();
   }
 
-  async function saveEssRule() {
+  async function saveEssRule(afterPersist?: () => void) {
     setSaving(true);
     setStatus(essRuleForm.id ? 'Atualizando regra ESS...' : 'Salvando regra ESS...');
     setError(null);
@@ -1093,6 +1102,7 @@ export function AdminPanel() {
 
     setSaving(false);
     if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
     await recordActivityLog({
       entityType: 'rule',
       action,
@@ -1109,7 +1119,7 @@ export function AdminPanel() {
     await loadData();
   }
 
-  async function saveSolution() {
+  async function saveSolution(afterPersist?: () => void) {
     setSaving(true);
     setStatus(solutionForm.id ? 'Atualizando combinação...' : 'Salvando combinação...');
     setError(null);
@@ -1171,6 +1181,7 @@ export function AdminPanel() {
       const { error: saveError } = await request;
 
       if (saveError) return setFailure(saveError.message);
+      afterPersist?.();
       await recordActivityLog({
         entityType: 'solution',
         action,
@@ -1613,7 +1624,7 @@ function AdminLoadingSkeleton() {
 }
 
 function NumberInput(props: React.ComponentProps<typeof Input>) {
-  return <Input type="number" inputMode="decimal" {...props} />;
+  return <Input type="number" inputMode="decimal" onFocus={(e) => e.target.select()} {...props} />;
 }
 
 function NumberWithUnitField({
@@ -1636,6 +1647,7 @@ function NumberWithUnitField({
           {...props}
           type="number"
           inputMode="decimal"
+          onFocus={(e) => e.target.select()}
           className="h-full border-0 bg-transparent px-1 py-0 focus-visible:border-transparent focus-visible:ring-0"
         />
         <span className="mr-2 shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
@@ -1658,14 +1670,7 @@ function Actions({
   saving: boolean;
 }) {
   return (
-    <div
-      className="sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap gap-2 border-t px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]"
-      style={{
-        backgroundColor: 'color-mix(in srgb, var(--card) 72%, transparent)',
-        backdropFilter: 'blur(14px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-      }}
-    >
+    <div className="sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap gap-2 border-t bg-card/80 px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md backdrop-saturate-150">
       <Button onClick={onSave} disabled={saving}>
         <Save className="h-4 w-4" />
         Salvar
@@ -1820,7 +1825,7 @@ function ProductMediaFields({
             </div>
           )}
           {currentDocuments.map((document, index) => (
-            <div key={`${document.url}-${index}`} className="grid gap-2 rounded-lg border bg-background p-2">
+            <div key={index} className="grid gap-2 rounded-lg border bg-background p-2">
               <Input
                 value={document.name}
                 onChange={(event) => {
@@ -2156,7 +2161,7 @@ function SolutionsEditor(props: {
   essRules: EssCompatibilityRuleRow[];
   onEdit: (row: SolutionRow) => void;
   onNew: () => void;
-  onSave: () => void;
+  onSave: (afterPersist?: () => void) => void;
   onApplyGenerated: (generatedSolutions: GeneratedSolutionPayload[]) => void;
   onRemove: (id: string) => void;
   removingIds: Set<string>;
@@ -2570,7 +2575,7 @@ function SolutionsEditor(props: {
             />
             Ativa para recomendação
           </label>
-          <Actions onSave={props.onSave} saving={props.saving} />
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
       </EditorModal>
 
       <datalist id="admin-inverters">
@@ -2587,27 +2592,27 @@ function SolutionsEditor(props: {
   );
 }
 
-function InverterGridTypesInput({
+function ToggleChipsInput<T extends string>({
+  options,
   value,
   onChange,
 }: {
-  value: unknown;
-  onChange: (gridTypes: InverterGridType[]) => void;
+  options: readonly { value: T; label: string }[];
+  value: T[];
+  onChange: (value: T[]) => void;
 }) {
-  const selected = normalizeInverterGridTypes(value);
-
-  function toggleGridType(gridType: InverterGridType) {
-    if (selected.includes(gridType)) {
-      onChange(selected.filter((item) => item !== gridType));
-      return;
+  function toggle(item: T) {
+    if (value.includes(item)) {
+      onChange(value.filter((v) => v !== item));
+    } else {
+      onChange([...value, item]);
     }
-    onChange([...selected, gridType]);
   }
 
   return (
     <div className="flex flex-wrap gap-2">
-      {inverterGridTypeOptions.map((option) => {
-        const active = selected.includes(option.value);
+      {options.map((option) => {
+        const active = value.includes(option.value);
         return (
           <button
             key={option.value}
@@ -2619,91 +2624,7 @@ function InverterGridTypesInput({
                 ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                 : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
             )}
-            onClick={() => toggleGridType(option.value)}
-          >
-            <span>{option.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function InverterFlagsInput({
-  value,
-  onChange,
-}: {
-  value: unknown;
-  onChange: (flags: InverterFlag[]) => void;
-}) {
-  const selected = normalizeInverterFlags(value);
-
-  function toggleFlag(flag: InverterFlag) {
-    if (selected.includes(flag)) {
-      onChange(selected.filter((item) => item !== flag));
-      return;
-    }
-    onChange([...selected, flag]);
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {inverterFlagOptions.map((option) => {
-        const active = selected.includes(option.value);
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            className={cn(
-              'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-              active
-                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
-            )}
-            onClick={() => toggleFlag(option.value)}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function BatteryFlagsInput({
-  value,
-  onChange,
-}: {
-  value: unknown;
-  onChange: (flags: BatteryFlag[]) => void;
-}) {
-  const selected = normalizeBatteryFlags(value);
-
-  function toggleFlag(flag: BatteryFlag) {
-    if (selected.includes(flag)) {
-      onChange(selected.filter((item) => item !== flag));
-      return;
-    }
-    onChange([...selected, flag]);
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {batteryFlagOptions.map((option) => {
-        const active = selected.includes(option.value);
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            className={cn(
-              'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-              active
-                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
-            )}
-            onClick={() => toggleFlag(option.value)}
+            onClick={() => toggle(option.value)}
           >
             {option.label}
           </button>
@@ -2756,7 +2677,7 @@ function InvertersEditor(props: {
   rows: InverterRow[];
   form: Partial<InverterRow>;
   setForm: (value: Partial<InverterRow>) => void;
-  onSave: () => void;
+  onSave: (afterPersist?: () => void) => void;
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
@@ -2789,6 +2710,7 @@ function InvertersEditor(props: {
       count={props.rows.length}
       formOpen={formOpen}
       formTitle={form.id ? 'Editar inversor' : 'Novo inversor'}
+      newLabel="Novo inversor"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
       form={
@@ -2820,8 +2742,9 @@ function InvertersEditor(props: {
                   />
                 </div>
                 <Field label="Tipo de rede">
-                  <InverterGridTypesInput
-                    value={form.grid_types}
+                  <ToggleChipsInput
+                    options={inverterGridTypeOptions}
+                    value={normalizeInverterGridTypes(form.grid_types)}
                     onChange={(grid_types) => setForm({ ...form, grid_types, phases: phasesFromInverterGridTypes(grid_types, form.phases) })}
                   />
                 </Field>
@@ -2878,8 +2801,9 @@ function InvertersEditor(props: {
                 </div>
               </div>
               <Field label="Funcionalidades">
-                <InverterFlagsInput
-                  value={form.flags}
+                <ToggleChipsInput
+                  options={inverterFlagOptions}
+                  value={normalizeInverterFlags(form.flags)}
                   onChange={(flags) => setForm({ ...form, flags })}
                 />
               </Field>
@@ -2895,7 +2819,7 @@ function InvertersEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
-          <Actions onSave={props.onSave} saving={props.saving} />
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
       items={props.rows.map((row) => ({
@@ -2915,6 +2839,7 @@ function InvertersEditor(props: {
         removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
+        removeDescription: `O inversor ${row.model} e todos os seus dados serão removidos do cadastro.`,
       }))}
     />
   );
@@ -2957,6 +2882,7 @@ function BatteriesEditor(props: {
       count={props.rows.length}
       formOpen={formOpen}
       formTitle={form.id ? 'Editar bateria' : 'Nova bateria'}
+      newLabel="Nova bateria"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
       form={
@@ -2966,10 +2892,10 @@ function BatteriesEditor(props: {
           </Field>
           <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <>
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Configuração</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <NumberWithUnitField
                     label="Capacidade"
                     tip="Energia nominal total do modelo de bateria."
@@ -2978,16 +2904,6 @@ function BatteriesEditor(props: {
                     value={form.capacity_kwh ?? 0}
                     onChange={(event) => setForm({ ...form, capacity_kwh: toNumber(event.target.value) })}
                   />
-                  <Field label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
-                    <InlineOptionTabs
-                      options={[
-                        { value: 5, label: '5%' },
-                        { value: 10, label: '10%' },
-                      ]}
-                      value={form.min_soc_percent === 5 ? 5 : 10}
-                      onChange={(min_soc_percent) => setForm({ ...form, min_soc_percent })}
-                    />
-                  </Field>
                   <NumberWithUnitField
                     label="Potência padrão"
                     tip="Potência contínua recomendada para o modelo de bateria."
@@ -3004,6 +2920,18 @@ function BatteriesEditor(props: {
                     value={form.peak_power_kw ?? 0}
                     onChange={(event) => setForm({ ...form, peak_power_kw: toNumber(event.target.value) })}
                   />
+                  <Field label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
+                    <InlineOptionTabs
+                      options={[
+                        { value: 5, label: '5%' },
+                        { value: 10, label: '10%' },
+                      ]}
+                      value={form.min_soc_percent === 5 ? 5 : 10}
+                      onChange={(min_soc_percent) => setForm({ ...form, min_soc_percent })}
+                    />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <Field label="Topologia">
                     <InlineOptionTabs
                       options={[
@@ -3029,65 +2957,59 @@ function BatteriesEditor(props: {
                   </Field>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div className="space-y-2 rounded-lg border bg-background p-3">
-                  <p className="text-sm font-semibold">Tensões</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <NumberWithUnitField
-                      label="Nominal"
-                      tip="Tensão nominal do modelo de bateria."
-                      icon={<Cable className="h-4 w-4" />}
-                      unit="V"
-                      value={form.nominal_voltage_v ?? 0}
-                      onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value) })}
-                    />
-                    <NumberWithUnitField
-                      label="Mín."
-                      tip="Menor tensão operacional permitida para o banco de baterias."
-                      icon={<Cable className="h-4 w-4" />}
-                      unit="V"
-                      value={form.voltage_min_v ?? 0}
-                      onChange={(event) => setForm({ ...form, voltage_min_v: toNumber(event.target.value) })}
-                    />
-                    <NumberWithUnitField
-                      label="Máx."
-                      tip="Maior tensão operacional permitida para o banco de baterias."
-                      icon={<Cable className="h-4 w-4" />}
-                      unit="V"
-                      value={form.voltage_max_v ?? 0}
-                      onChange={(event) => setForm({ ...form, voltage_max_v: toNumber(event.target.value) })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 rounded-lg border bg-background p-3">
-                  <p className="text-sm font-semibold">Correntes</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <NumberWithUnitField
-                      label="Recomendada"
-                      tip="Corrente recomendada para operação contínua."
-                      icon={<Activity className="h-4 w-4" />}
-                      unit="A"
-                      value={form.recommended_current_a ?? 0}
-                      onChange={(event) => setForm({ ...form, recommended_current_a: toNumber(event.target.value) })}
-                    />
-                    <NumberWithUnitField
-                      label="Máxima"
-                      tip="Corrente máxima suportada pela bateria."
-                      icon={<Activity className="h-4 w-4" />}
-                      unit="A"
-                      value={form.max_current_a ?? 0}
-                      onChange={(event) => setForm({ ...form, max_current_a: toNumber(event.target.value) })}
-                    />
-                  </div>
-                </div>
-                <Field label={<InfoLabel label="Flags" tip="Características estruturadas do produto, como grau de proteção IP. Novas flags podem ser adicionadas no código." />}>
-                  <BatteryFlagsInput
-                    value={form.flags}
-                    onChange={(flags) => setForm({ ...form, flags })}
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">Elétricas</p>
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+                  <NumberWithUnitField
+                    label="Tensão nominal"
+                    tip="Tensão nominal do modelo de bateria."
+                    icon={<Cable className="h-4 w-4" />}
+                    unit="V"
+                    value={form.nominal_voltage_v ?? 0}
+                    onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value) })}
                   />
-                </Field>
+                  <NumberWithUnitField
+                    label="Tensão mín."
+                    tip="Menor tensão operacional permitida para o banco de baterias."
+                    icon={<Cable className="h-4 w-4" />}
+                    unit="V"
+                    value={form.voltage_min_v ?? 0}
+                    onChange={(event) => setForm({ ...form, voltage_min_v: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Tensão máx."
+                    tip="Maior tensão operacional permitida para o banco de baterias."
+                    icon={<Cable className="h-4 w-4" />}
+                    unit="V"
+                    value={form.voltage_max_v ?? 0}
+                    onChange={(event) => setForm({ ...form, voltage_max_v: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Corrente rec."
+                    tip="Corrente recomendada para operação contínua."
+                    icon={<Activity className="h-4 w-4" />}
+                    unit="A"
+                    value={form.recommended_current_a ?? 0}
+                    onChange={(event) => setForm({ ...form, recommended_current_a: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Corrente máx."
+                    tip="Corrente máxima suportada pela bateria."
+                    icon={<Activity className="h-4 w-4" />}
+                    unit="A"
+                    value={form.max_current_a ?? 0}
+                    onChange={(event) => setForm({ ...form, max_current_a: toNumber(event.target.value) })}
+                  />
+                </div>
               </div>
-            </div>
+              <Field label={<InfoLabel label="Flags" tip="Características estruturadas do produto, como grau de proteção IP. Novas flags podem ser adicionadas no código." />}>
+                <ToggleChipsInput
+                  options={batteryFlagOptions}
+                  value={normalizeBatteryFlags(form.flags)}
+                  onChange={(flags) => setForm({ ...form, flags })}
+                />
+              </Field>
+            </>
           ) : (
             <ProductMediaFields
               table="batteries"
@@ -3122,6 +3044,7 @@ function BatteriesEditor(props: {
         removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
+        removeDescription: `A bateria ${row.model} e todos os seus dados serão removidos do cadastro.`,
       }))}
     />
   );
@@ -3131,7 +3054,7 @@ function AccessoriesEditor(props: {
   rows: AccessoryRow[];
   form: Partial<AccessoryRow>;
   setForm: (value: Partial<AccessoryRow>) => void;
-  onSave: () => void;
+  onSave: (afterPersist?: () => void) => void;
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
@@ -3164,6 +3087,7 @@ function AccessoriesEditor(props: {
       count={props.rows.length}
       formOpen={formOpen}
       formTitle={form.id ? 'Editar acessório' : 'Novo acessório'}
+      newLabel="Novo acessório"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
       form={
@@ -3201,7 +3125,7 @@ function AccessoriesEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
-          <Actions onSave={props.onSave} saving={props.saving} />
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
       items={props.rows.map((row) => ({
@@ -3214,6 +3138,7 @@ function AccessoriesEditor(props: {
         removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
+        removeDescription: `O acessório ${row.model} será removido do cadastro e das regras que o referenciam.`,
       }))}
     />
   );
@@ -3369,10 +3294,10 @@ function EssBatteryConfigsInput({
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  <label className="min-w-0 rounded-md border border-[#4A8BDF]/30 bg-[#EFFAFD] px-2 py-1">
-                    <span className="block text-[10px] font-semibold uppercase text-[#2567B8]">Min/porta</span>
+                  <label className="min-w-0 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 dark:border-blue-800 dark:bg-blue-950/40">
+                    <span className="block text-[10px] font-semibold uppercase text-blue-600 dark:text-blue-400">Min/porta</span>
                     <select
-                      className="h-7 w-full bg-transparent text-sm font-semibold text-[#174F91] outline-none"
+                      className="h-7 w-full bg-transparent text-sm font-semibold text-blue-900 outline-none dark:text-blue-100"
                       value={config.min_battery_qty}
                       onChange={(event) => updateConfig(config.battery_model, { min_battery_qty: toNumber(event.target.value, 1) })}
                     >
@@ -3383,10 +3308,10 @@ function EssBatteryConfigsInput({
                       ))}
                     </select>
                   </label>
-                  <label className="min-w-0 rounded-md border border-[#A0006D]/30 bg-[#A0006D]/10 px-2 py-1">
-                    <span className="block text-[10px] font-semibold uppercase text-[#A0006D]">Max/porta</span>
+                  <label className="min-w-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 dark:border-rose-800 dark:bg-rose-950/40">
+                    <span className="block text-[10px] font-semibold uppercase text-rose-600 dark:text-rose-400">Max/porta</span>
                     <select
-                      className="h-7 w-full bg-transparent text-sm font-semibold text-[#7A0053] outline-none"
+                      className="h-7 w-full bg-transparent text-sm font-semibold text-rose-900 outline-none dark:text-rose-100"
                       value={config.max_battery_qty}
                       onChange={(event) => updateConfig(config.battery_model, { max_battery_qty: toNumber(event.target.value, associationMax) })}
                     >
@@ -3417,8 +3342,8 @@ function RulesEditor(props: {
   accessories: AccessoryRow[];
   inverters: InverterRow[];
   batteries: BatteryRow[];
-  onSave: () => void;
-  onSaveEss: () => void;
+  onSave: (afterPersist?: () => void) => void;
+  onSaveEss: (afterPersist?: () => void) => void;
   onRemove: (id: string) => void;
   onRemoveEss: (id: string) => void;
   removingIds: Set<string>;
@@ -3481,6 +3406,7 @@ function RulesEditor(props: {
           count={props.rows.length}
           formOpen={formOpen}
           formTitle={form.id ? 'Editar regra' : 'Nova regra'}
+          newLabel="Nova regra"
           onNew={openNew}
           onClose={() => setFormOpen(false)}
           form={
@@ -3624,7 +3550,7 @@ function RulesEditor(props: {
             />
             Ativa
           </label>
-          <Actions onSave={props.onSave} saving={props.saving} />
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
           }
           items={props.rows.map((row) => ({
@@ -3641,6 +3567,7 @@ function RulesEditor(props: {
             removing: props.removingIds.has(row.id),
             onEdit: () => openEdit(row),
             onRemove: () => props.onRemove(row.id),
+            removeDescription: `A regra "${row.name}" será removida e não será mais aplicada às combinações.`,
           }))}
         />
       )}
@@ -3651,6 +3578,7 @@ function RulesEditor(props: {
           count={props.essRows.length}
           formOpen={essFormOpen}
           formTitle={essForm.id ? 'Editar compatibilidade ESS' : 'Nova compatibilidade ESS'}
+          newLabel="Nova regra ESS"
           onNew={openNewEss}
           onClose={() => setEssFormOpen(false)}
           form={
@@ -3733,7 +3661,7 @@ function RulesEditor(props: {
                 />
                 Ativa
               </label>
-              <Actions onSave={props.onSaveEss} saving={props.saving} />
+              <Actions onSave={() => props.onSaveEss(() => setEssFormOpen(false))} saving={props.saving} />
             </>
           }
           items={props.essRows.map((row) => {
@@ -3757,6 +3685,7 @@ function RulesEditor(props: {
               removing: props.removingIds.has(row.id),
               onEdit: () => openEditEss(row),
               onRemove: () => props.onRemoveEss(row.id),
+              removeDescription: `A regra ESS de ${row.inverter_model} será removida e as combinações geradas por ela não serão mais atualizadas.`,
             };
           })}
         />
@@ -3784,7 +3713,7 @@ function EditorModal({
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 px-3 py-4 sm:px-6 sm:py-8"
       role="presentation"
-      onMouseDown={(event) => {
+      onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
@@ -3813,6 +3742,7 @@ function CatalogLayout({
   count,
   formOpen,
   formTitle,
+  newLabel = 'Novo',
   onNew,
   onClose,
   form,
@@ -3822,6 +3752,7 @@ function CatalogLayout({
   count: number;
   formOpen: boolean;
   formTitle: string;
+  newLabel?: string;
   onNew: () => void;
   onClose: () => void;
   form: React.ReactNode;
@@ -3835,6 +3766,7 @@ function CatalogLayout({
     removing?: boolean;
     onEdit: () => void;
     onRemove: () => void;
+    removeDescription?: string;
   }[];
 }) {
   return (
@@ -3843,7 +3775,7 @@ function CatalogLayout({
         <SectionHeader title={title} count={count} />
         <Button onClick={onNew}>
           <Plus className="h-4 w-4" />
-          Novo
+          {newLabel}
         </Button>
       </div>
 
@@ -3950,6 +3882,7 @@ function RecordCardGrid({
     removing?: boolean;
     onEdit: () => void;
     onRemove: () => void;
+    removeDescription?: string;
   }[];
 }) {
   return (
@@ -3993,7 +3926,7 @@ function RecordCardGrid({
               <ConfirmDeleteButton
                 ariaLabel={`Remover ${item.title}`}
                 title={`Remover ${item.title}?`}
-                description="Esse registro será removido do cadastro administrativo."
+                description={item.removeDescription ?? 'Esse registro será removido do cadastro administrativo.'}
                 confirmLabel="Remover"
                 disabled={item.removing}
                 onConfirm={item.onRemove}
