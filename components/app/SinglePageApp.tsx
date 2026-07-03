@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Battery,
+  Boxes,
+  Cable,
   Calculator,
   FileText,
   FolderOpen,
@@ -120,6 +122,14 @@ interface InverterCatalogOption {
   documents: ProductDocument[];
 }
 
+interface AccessoryCatalogOption {
+  id: string;
+  model: string;
+  description: string | null;
+  imageUrl: string | null;
+  documents: ProductDocument[];
+}
+
 interface ApprovedInverterCombo {
   gridTopology: string;
   batteryTopology: 'HV' | 'LV';
@@ -161,7 +171,7 @@ export function SinglePageApp() {
   const [profile, setProfile] = useState<InlineProfile | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing'>('project');
+  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog'>('project');
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -169,6 +179,7 @@ export function SinglePageApp() {
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
   const [batteryCatalog, setBatteryCatalog] = useState<BatteryCatalogOption[]>([]);
   const [inverterCatalog, setInverterCatalog] = useState<InverterCatalogOption[]>([]);
+  const [accessoryCatalog, setAccessoryCatalog] = useState<AccessoryCatalogOption[]>([]);
   const [approvedInverterCombos, setApprovedInverterCombos] = useState<ApprovedInverterCombo[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -182,6 +193,7 @@ export function SinglePageApp() {
         { data: catalogData },
         { data: batteryData },
         { data: inverterData },
+        { data: accessoryData },
         { data: approvedSolutionsData },
       ] = await Promise.all([
         supabase.auth.getUser(),
@@ -196,6 +208,11 @@ export function SinglePageApp() {
         supabase
           .from('inverters')
           .select('id, model, topology, phases, standard_power_kva, peak_power_kva, image_url, documents')
+          .order('model'),
+        supabase
+          .from('accessories')
+          .select('id, model, description, image_url, documents')
+          .eq('active', true)
           .order('model'),
         supabase
           .from('approved_solutions')
@@ -263,6 +280,18 @@ export function SinglePageApp() {
             phases: Number(row.phases),
             standardPowerKva: row.standard_power_kva === null ? null : Number(row.standard_power_kva),
             peakPowerKva: row.peak_power_kva === null ? null : Number(row.peak_power_kva),
+            imageUrl: row.image_url,
+            documents: (row.documents ?? []) as ProductDocument[],
+          }))
+        );
+      }
+
+      if (accessoryData) {
+        setAccessoryCatalog(
+          accessoryData.map((row) => ({
+            id: row.id,
+            model: row.model,
+            description: row.description,
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
           }))
@@ -493,7 +522,7 @@ export function SinglePageApp() {
     setProjectStatus('Projeto removido.');
   }
 
-  function openMobileTab(tab: 'project' | 'sizing') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'catalog') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }
@@ -543,6 +572,19 @@ export function SinglePageApp() {
             >
               <LayoutDashboard className="h-4 w-4" />
               Dimensionamento
+            </button>
+            <button
+              type="button"
+              aria-current={activeTab === 'catalog' ? 'page' : undefined}
+              onClick={() => setActiveTab('catalog')}
+              className={cn(
+                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                activeTab === 'catalog' &&
+                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
+              )}
+            >
+              <Boxes className="h-4 w-4" />
+              Catálogo
             </button>
             <button
               type="button"
@@ -622,6 +664,13 @@ export function SinglePageApp() {
               onOpen={openProject}
               onRemove={deleteProject}
               onGoSizing={() => setActiveTab('sizing')}
+            />
+          ) : activeTab === 'catalog' ? (
+            <CatalogTab
+              initialLoading={initialLoading}
+              inverterCatalog={inverterCatalog}
+              batteryCatalog={batteryCatalog}
+              accessoryCatalog={accessoryCatalog}
             />
           ) : (
             <SizingTab
@@ -712,6 +761,18 @@ export function SinglePageApp() {
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Dimensionamento
+              </button>
+              <button
+                type="button"
+                aria-current={activeTab === 'catalog' ? 'page' : undefined}
+                onClick={() => openMobileTab('catalog')}
+                className={cn(
+                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'catalog' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <Boxes className="h-4 w-4" />
+                Catálogo
               </button>
               <button
                 type="button"
@@ -1570,6 +1631,230 @@ function ProductAttachments({
           {document.name || 'Documento'}
         </button>
       ))}
+    </div>
+  );
+}
+
+function CatalogTab({
+  initialLoading,
+  inverterCatalog,
+  batteryCatalog,
+  accessoryCatalog,
+}: {
+  initialLoading: boolean;
+  inverterCatalog: InverterCatalogOption[];
+  batteryCatalog: BatteryCatalogOption[];
+  accessoryCatalog: AccessoryCatalogOption[];
+}) {
+  const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories'>('inverters');
+  const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+
+  const sectionOptions = [
+    { value: 'inverters' as const, label: 'Inversores', count: inverterCatalog.length },
+    { value: 'batteries' as const, label: 'Baterias', count: batteryCatalog.length },
+    { value: 'accessories' as const, label: 'Acessórios', count: accessoryCatalog.length },
+  ];
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 py-4">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Catálogo</h1>
+        <p className="text-sm text-muted-foreground">
+          Produtos cadastrados disponíveis para dimensionamento.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit">
+        {sectionOptions.map((tab) => {
+          const active = section === tab.value;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setSection(tab.value)}
+              className={cn(
+                'flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition',
+                active
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              {tab.label}
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[0.7rem]',
+                  active ? 'bg-primary/10 text-primary' : 'bg-background'
+                )}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {initialLoading ? (
+        <BatteryCardsSkeleton />
+      ) : section === 'inverters' ? (
+        inverterCatalog.length === 0 ? (
+          <CatalogEmptyState label="Nenhum inversor cadastrado." />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {inverterCatalog.map((inverter) => (
+              <CatalogProductCard
+                key={inverter.id}
+                fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
+                model={inverter.model}
+                imageUrl={inverter.imageUrl}
+                documents={inverter.documents}
+                badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
+                specs={[
+                  ['Potência', `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`],
+                ]}
+                onPreviewImage={setPreviewImage}
+                onPreviewDoc={setPreviewDoc}
+              />
+            ))}
+          </div>
+        )
+      ) : section === 'batteries' ? (
+        batteryCatalog.length === 0 ? (
+          <CatalogEmptyState label="Nenhuma bateria cadastrada." />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {batteryCatalog.map((battery) => {
+              const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
+              return (
+                <CatalogProductCard
+                  key={battery.id}
+                  fallbackIcon={<Battery className="h-8 w-8 text-muted-foreground" />}
+                  model={battery.model}
+                  imageUrl={battery.imageUrl}
+                  documents={battery.documents}
+                  badges={[battery.topology]}
+                  specs={[
+                    ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
+                    ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
+                  ]}
+                  onPreviewImage={setPreviewImage}
+                  onPreviewDoc={setPreviewDoc}
+                />
+              );
+            })}
+          </div>
+        )
+      ) : accessoryCatalog.length === 0 ? (
+        <CatalogEmptyState label="Nenhum acessório cadastrado." />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {accessoryCatalog.map((accessory) => (
+            <CatalogProductCard
+              key={accessory.id}
+              fallbackIcon={<Boxes className="h-8 w-8 text-muted-foreground" />}
+              model={accessory.model}
+              imageUrl={accessory.imageUrl}
+              documents={accessory.documents}
+              description={accessory.description}
+              onPreviewImage={setPreviewImage}
+              onPreviewDoc={setPreviewDoc}
+            />
+          ))}
+        </div>
+      )}
+
+      <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+      <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+function CatalogEmptyState({ label }: { label: string }) {
+  return (
+    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+      {label}
+    </div>
+  );
+}
+
+function CatalogProductCard({
+  fallbackIcon,
+  model,
+  imageUrl,
+  documents,
+  badges,
+  specs,
+  description,
+  onPreviewImage,
+  onPreviewDoc,
+}: {
+  fallbackIcon: React.ReactNode;
+  model: string;
+  imageUrl: string | null;
+  documents: ProductDocument[];
+  badges?: string[];
+  specs?: [string, string][];
+  description?: string | null;
+  onPreviewImage: (image: { url: string; alt: string }) => void;
+  onPreviewDoc: (doc: ProductDocument) => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[72px_1fr]">
+      <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
+        {imageUrl ? (
+          <button
+            type="button"
+            className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:bg-muted/70"
+            onClick={() => onPreviewImage({ url: imageUrl, alt: model })}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt={model} className="h-full w-full object-contain p-2" />
+          </button>
+        ) : (
+          fallbackIcon
+        )}
+      </div>
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 break-words text-sm font-semibold leading-snug">{model}</p>
+          {badges && badges.length > 0 && (
+            <div className="flex shrink-0 flex-wrap justify-end gap-1">
+              {badges.map((badge) => (
+                <Badge key={badge} variant="secondary">
+                  {badge}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        {specs && specs.length > 0 && (
+          <div className="grid gap-1 text-xs text-muted-foreground">
+            {specs.map(([label, value]) => (
+              <span key={label}>
+                {label}: {value}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex min-w-0 flex-wrap gap-1">
+          {documents.length > 0 ? (
+            documents.map((document) => (
+              <button
+                key={`${model}-${document.url}`}
+                type="button"
+                className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                onClick={() => onPreviewDoc(document)}
+              >
+                {document.name || 'Documento'}
+              </button>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">Sem anexos</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
