@@ -836,7 +836,7 @@ export function AdminPanel() {
         .from('admin_activity_logs')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(200),
+        .limit(150),
     ]);
 
     const firstError =
@@ -3204,6 +3204,7 @@ function InvertersEditor(props: {
   const [formOpen, setFormOpen] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
   const [selectedPhase, setSelectedPhase] = useState<'all' | '1' | '2' | '3'>('all');
+  const [query, setQuery] = useState('');
 
   const phaseOptions = useMemo(() => {
     const counts = { '1': 0, '2': 0, '3': 0 };
@@ -3220,9 +3221,13 @@ function InvertersEditor(props: {
     ];
   }, [props.rows]);
 
-  const visibleRows = selectedPhase === 'all'
-    ? props.rows
-    : props.rows.filter((row) => String(row.phases) === selectedPhase);
+  const visibleRows = useMemo(() => {
+    const byPhase =
+      selectedPhase === 'all' ? props.rows : props.rows.filter((row) => String(row.phases) === selectedPhase);
+    const q = query.trim().toLowerCase();
+    if (!q) return byPhase;
+    return byPhase.filter((row) => row.model.toLowerCase().includes(q));
+  }, [props.rows, selectedPhase, query]);
 
   function openNew() {
     setForm(emptyInverter);
@@ -3245,6 +3250,18 @@ function InvertersEditor(props: {
       newLabel="Novo inversor"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      search={
+        <label className="relative block sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar inversor por modelo"
+            className="pl-8"
+            placeholder="Buscar por modelo..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      }
       filter={
         phaseOptions.length > 2 ? (
           <div className="rounded-lg border bg-card p-3">
@@ -3416,6 +3433,7 @@ function BatteriesEditor(props: {
   const [formOpen, setFormOpen] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
   const [selectedTopology, setSelectedTopology] = useState<'all' | 'HV' | 'LV'>('all');
+  const [query, setQuery] = useState('');
 
   const topologyOptions = useMemo(() => {
     const counts = { HV: 0, LV: 0 };
@@ -3429,9 +3447,13 @@ function BatteriesEditor(props: {
     ];
   }, [props.rows]);
 
-  const visibleRows = selectedTopology === 'all'
-    ? props.rows
-    : props.rows.filter((row) => row.topology === selectedTopology);
+  const visibleRows = useMemo(() => {
+    const byTopology =
+      selectedTopology === 'all' ? props.rows : props.rows.filter((row) => row.topology === selectedTopology);
+    const q = query.trim().toLowerCase();
+    if (!q) return byTopology;
+    return byTopology.filter((row) => row.model.toLowerCase().includes(q));
+  }, [props.rows, selectedTopology, query]);
 
   function openNew() {
     setForm(emptyBattery);
@@ -3454,6 +3476,18 @@ function BatteriesEditor(props: {
       newLabel="Nova bateria"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      search={
+        <label className="relative block sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar bateria por modelo"
+            className="pl-8"
+            placeholder="Buscar por modelo..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      }
       filter={
         <div className="rounded-lg border bg-card p-3">
           <SegmentedTabs
@@ -3655,6 +3689,7 @@ function AccessoriesEditor(props: {
   const [formOpen, setFormOpen] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
   const [selectedCategory, setSelectedCategory] = useState<AccessoryCategory>('all');
+  const [query, setQuery] = useState('');
 
   const categoryOptions = useMemo(() => {
     const counts = { system: 0, inverter: 0, battery: 0 };
@@ -3673,9 +3708,14 @@ function AccessoriesEditor(props: {
   }, [props.rows, props.rules]);
 
   const visibleRows = useMemo(() => {
-    if (selectedCategory === 'all') return props.rows;
-    return props.rows.filter((row) => accessoryCategories(row.id, props.rules).has(selectedCategory as 'system' | 'inverter' | 'battery'));
-  }, [props.rows, props.rules, selectedCategory]);
+    const byCategory =
+      selectedCategory === 'all'
+        ? props.rows
+        : props.rows.filter((row) => accessoryCategories(row.id, props.rules).has(selectedCategory as 'system' | 'inverter' | 'battery'));
+    const q = query.trim().toLowerCase();
+    if (!q) return byCategory;
+    return byCategory.filter((row) => row.model.toLowerCase().includes(q));
+  }, [props.rows, props.rules, selectedCategory, query]);
 
   function openNew() {
     setForm(emptyAccessory);
@@ -3698,6 +3738,18 @@ function AccessoriesEditor(props: {
       newLabel="Novo acessório"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      search={
+        <label className="relative block sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar acessório por modelo"
+            className="pl-8"
+            placeholder="Buscar por modelo..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      }
       filter={
         categoryOptions.length > 2 ? (
           <div className="rounded-lg border bg-card p-3">
