@@ -22,6 +22,7 @@ import {
   ShieldUser,
   Sun,
   UserRound,
+  Users,
   X,
   Zap,
 } from 'lucide-react';
@@ -179,9 +180,8 @@ export function SinglePageApp() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<InlineProfile | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [clientsManagerOpen, setClientsManagerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog'>('project');
+  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'clients'>('project');
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -450,7 +450,7 @@ export function SinglePageApp() {
       router.push(`/${locale}/login?redirect=/${locale}`);
       return;
     }
-    setClientsManagerOpen(true);
+    setActiveTab('clients');
   }
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -560,7 +560,7 @@ export function SinglePageApp() {
     }
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'catalog') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }
@@ -568,6 +568,11 @@ export function SinglePageApp() {
   function openMobileProfile() {
     setMobileMenuOpen(false);
     openProfile();
+  }
+
+  function openMobileClientsManager() {
+    setMobileMenuOpen(false);
+    openClientsManager();
   }
 
   return (
@@ -623,6 +628,19 @@ export function SinglePageApp() {
             >
               <Boxes className="h-4 w-4" />
               Catálogo
+            </button>
+            <button
+              type="button"
+              aria-current={activeTab === 'clients' ? 'page' : undefined}
+              onClick={openClientsManager}
+              className={cn(
+                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                activeTab === 'clients' &&
+                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Clientes
             </button>
             <button
               type="button"
@@ -705,7 +723,6 @@ export function SinglePageApp() {
               onRemove={deleteProject}
               onGoSizing={() => setActiveTab('sizing')}
               onManageClients={openClientsManager}
-              onQuickAddClient={addClient}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab
@@ -713,6 +730,13 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
+            />
+          ) : activeTab === 'clients' ? (
+            <ClientsTab
+              clients={clients}
+              onAdd={addClient}
+              onUpdate={updateClient}
+              onRemove={removeClient}
             />
           ) : (
             <SizingTab
@@ -815,6 +839,18 @@ export function SinglePageApp() {
               >
                 <Boxes className="h-4 w-4" />
                 Catálogo
+              </button>
+              <button
+                type="button"
+                aria-current={activeTab === 'clients' ? 'page' : undefined}
+                onClick={openMobileClientsManager}
+                className={cn(
+                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'clients' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <Users className="h-4 w-4" />
+                Clientes
               </button>
               <button
                 type="button"
@@ -999,15 +1035,6 @@ export function SinglePageApp() {
         </div>
       )}
 
-      <ClientsManagerModal
-        open={clientsManagerOpen}
-        onClose={() => setClientsManagerOpen(false)}
-        clients={clients}
-        onAdd={addClient}
-        onUpdate={updateClient}
-        onRemove={removeClient}
-      />
-
       {solution && (
         <PrintableReport
           projectInfo={projectInfo}
@@ -1046,7 +1073,6 @@ function ProjectTab({
   onRemove,
   onGoSizing,
   onManageClients,
-  onQuickAddClient,
 }: {
   projectInfo: ProjectInfo;
   savedProjects: SavedProject[];
@@ -1067,35 +1093,7 @@ function ProjectTab({
   onRemove: (id: string) => void;
   onGoSizing: () => void;
   onManageClients: () => void;
-  onQuickAddClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
 }) {
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [quickAddName, setQuickAddName] = useState('');
-  const [quickAddEmail, setQuickAddEmail] = useState('');
-  const [quickAddPhone, setQuickAddPhone] = useState('');
-  const [quickAddSaving, setQuickAddSaving] = useState(false);
-
-  async function handleQuickAddClient() {
-    if (!quickAddName.trim()) return;
-    setQuickAddSaving(true);
-    try {
-      const client = await onQuickAddClient({
-        name: quickAddName,
-        email: quickAddEmail,
-        phone: quickAddPhone,
-        document: '',
-        notes: '',
-      });
-      setProjectInfo({ clientId: client.id });
-      setQuickAddOpen(false);
-      setQuickAddName('');
-      setQuickAddEmail('');
-      setQuickAddPhone('');
-    } finally {
-      setQuickAddSaving(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
@@ -1166,52 +1164,6 @@ function ProjectTab({
                     </option>
                   ))}
                 </select>
-                {!quickAddOpen ? (
-                  <button
-                    type="button"
-                    onClick={() => setQuickAddOpen(true)}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    + Cadastrar novo cliente
-                  </button>
-                ) : (
-                  <div className="space-y-2 rounded-lg border bg-background p-2.5">
-                    <Input
-                      aria-label="Nome do novo cliente"
-                      value={quickAddName}
-                      onChange={(event) => setQuickAddName(event.target.value)}
-                      placeholder="Nome do cliente"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        aria-label="Email do novo cliente"
-                        type="email"
-                        value={quickAddEmail}
-                        onChange={(event) => setQuickAddEmail(event.target.value)}
-                        placeholder="Email"
-                      />
-                      <Input
-                        aria-label="Telefone do novo cliente"
-                        value={quickAddPhone}
-                        onChange={(event) => setQuickAddPhone(event.target.value)}
-                        placeholder="Telefone"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleQuickAddClient}
-                        disabled={!quickAddName.trim() || quickAddSaving}
-                      >
-                        Salvar cliente
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => setQuickAddOpen(false)}>
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
               <ProjectField label="Endereço" id="clientAddress">
                 <Input
@@ -1347,16 +1299,12 @@ function emptyClientForm() {
   return { name: '', email: '', phone: '', document: '', notes: '' };
 }
 
-function ClientsManagerModal({
-  open,
-  onClose,
+function ClientsTab({
   clients,
   onAdd,
   onUpdate,
   onRemove,
 }: {
-  open: boolean;
-  onClose: () => void;
   clients: Client[];
   onAdd: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   onUpdate: (
@@ -1370,8 +1318,6 @@ function ClientsManagerModal({
   const [form, setForm] = useState(emptyClientForm());
   const [saving, setSaving] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
-
-  if (!open) return null;
 
   function openNew() {
     setEditingId(null);
@@ -1420,32 +1366,24 @@ function ClientsManagerModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-end bg-foreground/20 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="clients-manager-title"
-    >
-      <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg border bg-card p-4 shadow-lg sm:max-w-2xl sm:rounded-lg sm:p-5">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 id="clients-manager-title" className="text-xl font-semibold tracking-tight">
-              Clientes
-            </h2>
-            <p className="text-sm text-muted-foreground">Cadastre e gerencie os clientes usados nos projetos.</p>
-          </div>
-          <Button variant="ghost" size="icon" aria-label="Fechar clientes" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+    <div className="mx-auto max-w-3xl space-y-4 py-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
+          <p className="text-sm text-muted-foreground">Cadastre e gerencie os clientes usados nos projetos.</p>
         </div>
+        {!formOpen && (
+          <Button onClick={openNew}>
+            <UserRound className="h-4 w-4" />
+            Novo cliente
+          </Button>
+        )}
+      </div>
 
-        {!formOpen ? (
-          <>
-            <Button className="mb-3" onClick={openNew}>
-              <UserRound className="h-4 w-4" />
-              Novo cliente
-            </Button>
-            {clients.length === 0 ? (
+      <Card>
+        <CardContent className="pt-4">
+          {!formOpen ? (
+            clients.length === 0 ? (
               <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 Nenhum cliente cadastrado ainda.
               </div>
@@ -1481,70 +1419,70 @@ function ClientsManagerModal({
                   </div>
                 ))}
               </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="clientFormName">Nome</Label>
-              <Input
-                id="clientFormName"
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-                placeholder="Nome do cliente"
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            )
+          ) : (
+            <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="clientFormEmail">Email</Label>
+                <Label htmlFor="clientFormName">Nome</Label>
                 <Input
-                  id="clientFormEmail"
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm({ ...form, email: event.target.value })}
-                  placeholder="cliente@email.com"
+                  id="clientFormName"
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  placeholder="Nome do cliente"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="clientFormEmail">Email</Label>
+                  <Input
+                    id="clientFormEmail"
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    placeholder="cliente@email.com"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="clientFormPhone">Telefone</Label>
+                  <Input
+                    id="clientFormPhone"
+                    value={form.phone}
+                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="clientFormDocument">CPF/CNPJ</Label>
+                <Input
+                  id="clientFormDocument"
+                  value={form.document}
+                  onChange={(event) => setForm({ ...form, document: event.target.value })}
+                  placeholder="Documento do cliente"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="clientFormPhone">Telefone</Label>
-                <Input
-                  id="clientFormPhone"
-                  value={form.phone}
-                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                  placeholder="(00) 00000-0000"
+                <Label htmlFor="clientFormNotes">Observações</Label>
+                <textarea
+                  id="clientFormNotes"
+                  className="min-h-20 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={form.notes}
+                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
                 />
               </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setFormOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave} disabled={!form.name.trim() || saving}>
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Salvando...' : 'Salvar cliente'}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="clientFormDocument">CPF/CNPJ</Label>
-              <Input
-                id="clientFormDocument"
-                value={form.document}
-                onChange={(event) => setForm({ ...form, document: event.target.value })}
-                placeholder="Documento do cliente"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="clientFormNotes">Observações</Label>
-              <textarea
-                id="clientFormNotes"
-                className="min-h-20 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                value={form.notes}
-                onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setFormOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave} disabled={!form.name.trim() || saving}>
-                <Save className="h-4 w-4" />
-                {saving ? 'Salvando...' : 'Salvar cliente'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
