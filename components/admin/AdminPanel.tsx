@@ -286,9 +286,9 @@ const emptyInverter: Partial<InverterRow> = {
   grid_types: [],
   max_battery_qty: 1,
   battery_ports: 1,
-  battery_voltage_min_v: 0,
-  battery_voltage_max_v: 0,
-  battery_current_max_a: 0,
+  battery_voltage_min_v: null,
+  battery_voltage_max_v: null,
+  battery_current_max_a: null,
   flags: [],
   pv_oversizing_percent: 100,
   image_url: '',
@@ -299,14 +299,14 @@ const emptyBattery: Partial<BatteryRow> = {
   model: '',
   capacity_kwh: 0,
   topology: 'HV',
-  standard_power_kw: 0,
-  peak_power_kw: 0,
+  standard_power_kw: null,
+  peak_power_kw: null,
   min_soc_percent: 10,
-  nominal_voltage_v: 0,
-  voltage_min_v: 0,
-  voltage_max_v: 0,
-  recommended_current_a: 0,
-  max_current_a: 0,
+  nominal_voltage_v: null,
+  voltage_min_v: null,
+  voltage_max_v: null,
+  recommended_current_a: null,
+  max_current_a: null,
   flags: [],
   max_association_qty: 15,
   image_url: '',
@@ -384,6 +384,12 @@ const emptySolution: Partial<SolutionRow> = {
 function toNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback = min) {
@@ -978,9 +984,9 @@ export function AdminPanel() {
       grid_types: gridTypes,
       max_battery_qty: toNumber(inverterForm.max_battery_qty, 1),
       battery_ports: clampNumber(inverterForm.battery_ports, 1, 2, 1),
-      battery_voltage_min_v: toNumber(inverterForm.battery_voltage_min_v),
-      battery_voltage_max_v: toNumber(inverterForm.battery_voltage_max_v),
-      battery_current_max_a: toNumber(inverterForm.battery_current_max_a),
+      battery_voltage_min_v: toNullableNumber(inverterForm.battery_voltage_min_v),
+      battery_voltage_max_v: toNullableNumber(inverterForm.battery_voltage_max_v),
+      battery_current_max_a: toNullableNumber(inverterForm.battery_current_max_a),
       flags: normalizeInverterFlags(inverterForm.flags),
       pv_oversizing_percent: inverterForm.pv_oversizing_percent === 50 ? 50 : 100,
       image_url: inverterForm.image_url?.trim() || null,
@@ -1019,14 +1025,20 @@ export function AdminPanel() {
       model: batteryForm.model?.trim(),
       capacity_kwh: toNumber(batteryForm.capacity_kwh),
       topology: batteryForm.topology,
-      standard_power_kw: toNumber(batteryForm.nominal_voltage_v) * toNumber(batteryForm.recommended_current_a) / 1000,
-      peak_power_kw: toNumber(batteryForm.nominal_voltage_v) * toNumber(batteryForm.max_current_a) / 1000,
+      standard_power_kw:
+        batteryForm.nominal_voltage_v != null && batteryForm.recommended_current_a != null
+          ? (batteryForm.nominal_voltage_v * batteryForm.recommended_current_a) / 1000
+          : null,
+      peak_power_kw:
+        batteryForm.nominal_voltage_v != null && batteryForm.max_current_a != null
+          ? (batteryForm.nominal_voltage_v * batteryForm.max_current_a) / 1000
+          : null,
       min_soc_percent: batteryForm.min_soc_percent === 5 ? 5 : 10,
-      nominal_voltage_v: toNumber(batteryForm.nominal_voltage_v),
-      voltage_min_v: toNumber(batteryForm.voltage_min_v),
-      voltage_max_v: toNumber(batteryForm.voltage_max_v),
-      recommended_current_a: toNumber(batteryForm.recommended_current_a),
-      max_current_a: toNumber(batteryForm.max_current_a),
+      nominal_voltage_v: toNullableNumber(batteryForm.nominal_voltage_v),
+      voltage_min_v: toNullableNumber(batteryForm.voltage_min_v),
+      voltage_max_v: toNullableNumber(batteryForm.voltage_max_v),
+      recommended_current_a: toNullableNumber(batteryForm.recommended_current_a),
+      max_current_a: toNullableNumber(batteryForm.max_current_a),
       flags: normalizeBatteryFlags(batteryForm.flags),
       max_association_qty: clampNumber(batteryForm.max_association_qty, 1, 15, 15),
       image_url: batteryForm.image_url?.trim() || null,
@@ -1791,24 +1803,40 @@ function NumberWithUnitField({
   tip,
   icon,
   unit,
+  onClear,
   ...props
 }: Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode'> & {
   label: string;
   tip: string;
   icon: React.ReactNode;
   unit: string;
+  onClear?: () => void;
 }) {
+  const hasValue = props.value !== undefined && props.value !== null && props.value !== '';
   return (
     <Field label={<InfoLabel label={label} tip={tip} />}>
       <div className="flex h-8 items-center rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
         <span className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
         <Input
           {...props}
+          value={props.value ?? ''}
           type="number"
           inputMode="decimal"
           onFocus={(e) => e.target.select()}
           className="h-full border-0 bg-transparent px-1 py-0 focus-visible:border-transparent focus-visible:ring-0"
         />
+        {onClear && hasValue && (
+          <button
+            type="button"
+            aria-label="Limpar campo"
+            tabIndex={-1}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onClear}
+            className="mr-1 shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
         <span className="mr-2 shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
           {unit}
         </span>
@@ -2048,11 +2076,40 @@ function UsersPanel({
   onResetPassword: (email: string) => void;
   saving: boolean;
 }) {
+  const [query, setQuery] = useState('');
+
+  const visibleUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((user) =>
+      [user.full_name, user.email, user.company_name, user.phone].some((value) => value?.toLowerCase().includes(q))
+    );
+  }, [users, query]);
+
   return (
     <section className="space-y-3">
-      <SectionHeader title="Usuários cadastrados" count={users.length} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SectionHeader title="Usuários cadastrados" count={visibleUsers.length} />
+        <label className="relative block sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar usuário"
+            className="pl-8"
+            placeholder="Buscar por nome, email ou empresa..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      </div>
+      {visibleUsers.length === 0 && (
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-sm text-muted-foreground">Nenhum usuário encontrado para essa busca.</p>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {users.map((user) => (
+        {visibleUsers.map((user) => (
           <Card key={user.id} size="sm">
             <CardHeader>
               <div className="flex min-w-0 items-start justify-between gap-3">
@@ -2131,9 +2188,55 @@ function MetricsPanel({
 }
 
 function ActivityLogsPanel({ logs }: { logs: AdminActivityLogRow[] }) {
+  const [query, setQuery] = useState('');
+  const [entityFilter, setEntityFilter] = useState<AdminLogEntity | 'all'>('all');
+
+  const entityOptions = useMemo(() => {
+    const values = new Set<AdminLogEntity>();
+    for (const log of logs) values.add(log.entity_type);
+    return Array.from(values).map((value) => ({
+      value,
+      label: entityLabel(value),
+      count: logs.filter((log) => log.entity_type === value).length,
+    }));
+  }, [logs]);
+
+  const visibleLogs = useMemo(() => {
+    const byEntity = entityFilter === 'all' ? logs : logs.filter((log) => log.entity_type === entityFilter);
+    const q = query.trim().toLowerCase();
+    if (!q) return byEntity;
+    return byEntity.filter((log) =>
+      [log.actor_email, log.target_label, log.summary].some((value) => value?.toLowerCase().includes(q))
+    );
+  }, [logs, entityFilter, query]);
+
   return (
     <section className="space-y-3">
-      <SectionHeader title="Logs de alterações" count={logs.length} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SectionHeader title="Logs de alterações" count={visibleLogs.length} />
+        <label className="relative block sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar log por usuário ou item"
+            className="pl-8"
+            placeholder="Buscar por usuário ou item..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      </div>
+
+      {entityOptions.length > 1 && (
+        <div className="rounded-lg border bg-card p-3">
+          <SegmentedTabs
+            label="Entidade"
+            value={entityFilter}
+            options={[{ value: 'all', label: 'Todos', count: logs.length }, ...entityOptions]}
+            onChange={(value) => setEntityFilter(value as AdminLogEntity | 'all')}
+          />
+        </div>
+      )}
+
       {logs.length === 0 ? (
         <Card>
           <CardContent className="pt-4">
@@ -2142,9 +2245,15 @@ function ActivityLogsPanel({ logs }: { logs: AdminActivityLogRow[] }) {
             </p>
           </CardContent>
         </Card>
+      ) : visibleLogs.length === 0 ? (
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-sm text-muted-foreground">Nenhum registro encontrado para esse filtro.</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-3">
-          {logs.map((log) => (
+          {visibleLogs.map((log) => (
             <Card key={log.id} size="sm">
               <CardHeader>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -3350,24 +3459,30 @@ function InvertersEditor(props: {
                     tip="Menor tensão de bateria aceita pelo inversor."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    value={form.battery_voltage_min_v ?? 0}
-                    onChange={(event) => setForm({ ...form, battery_voltage_min_v: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.battery_voltage_min_v ?? undefined}
+                    onChange={(event) => setForm({ ...form, battery_voltage_min_v: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, battery_voltage_min_v: null })}
                   />
                   <NumberWithUnitField
                     label="Tensão máx."
                     tip="Maior tensão de bateria aceita pelo inversor."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    value={form.battery_voltage_max_v ?? 0}
-                    onChange={(event) => setForm({ ...form, battery_voltage_max_v: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.battery_voltage_max_v ?? undefined}
+                    onChange={(event) => setForm({ ...form, battery_voltage_max_v: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, battery_voltage_max_v: null })}
                   />
                   <NumberWithUnitField
                     label="Corrente máx."
                     tip="Corrente máxima de bateria por porta, suportada pelo inversor."
                     icon={<Activity className="h-4 w-4" />}
                     unit="A"
-                    value={form.battery_current_max_a ?? 0}
-                    onChange={(event) => setForm({ ...form, battery_current_max_a: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.battery_current_max_a ?? undefined}
+                    onChange={(event) => setForm({ ...form, battery_current_max_a: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, battery_current_max_a: null })}
                   />
                 </div>
               </div>
@@ -3520,13 +3635,17 @@ function BatteriesEditor(props: {
                   <Field label={<InfoLabel label="Potência padrão" tip="Calculada automaticamente: Tensão nominal × Corrente recomendada." />}>
                     <div className="flex h-8 items-center gap-1.5 rounded-lg border border-dashed bg-muted/40 px-2.5 text-sm text-muted-foreground">
                       <Zap className="h-3.5 w-3.5 shrink-0" />
-                      {((toNumber(form.nominal_voltage_v) * toNumber(form.recommended_current_a)) / 1000).toFixed(2)} kW
+                      {form.nominal_voltage_v != null && form.recommended_current_a != null
+                        ? `${((form.nominal_voltage_v * form.recommended_current_a) / 1000).toFixed(2)} kW`
+                        : '—'}
                     </div>
                   </Field>
                   <Field label={<InfoLabel label="Potência pico" tip="Calculada automaticamente: Tensão nominal × Corrente máxima." />}>
                     <div className="flex h-8 items-center gap-1.5 rounded-lg border border-dashed bg-muted/40 px-2.5 text-sm text-muted-foreground">
                       <Zap className="h-3.5 w-3.5 shrink-0" />
-                      {((toNumber(form.nominal_voltage_v) * toNumber(form.max_current_a)) / 1000).toFixed(2)} kW
+                      {form.nominal_voltage_v != null && form.max_current_a != null
+                        ? `${((form.nominal_voltage_v * form.max_current_a) / 1000).toFixed(2)} kW`
+                        : '—'}
                     </div>
                   </Field>
                   <Field asDiv label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
@@ -3574,40 +3693,50 @@ function BatteriesEditor(props: {
                     tip="Tensão nominal do modelo de bateria."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    value={form.nominal_voltage_v ?? 0}
-                    onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.nominal_voltage_v ?? undefined}
+                    onChange={(event) => setForm({ ...form, nominal_voltage_v: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, nominal_voltage_v: null })}
                   />
                   <NumberWithUnitField
                     label="Tensão mín."
                     tip="Menor tensão operacional permitida para o banco de baterias."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    value={form.voltage_min_v ?? 0}
-                    onChange={(event) => setForm({ ...form, voltage_min_v: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.voltage_min_v ?? undefined}
+                    onChange={(event) => setForm({ ...form, voltage_min_v: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, voltage_min_v: null })}
                   />
                   <NumberWithUnitField
                     label="Tensão máx."
                     tip="Maior tensão operacional permitida para o banco de baterias."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    value={form.voltage_max_v ?? 0}
-                    onChange={(event) => setForm({ ...form, voltage_max_v: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.voltage_max_v ?? undefined}
+                    onChange={(event) => setForm({ ...form, voltage_max_v: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, voltage_max_v: null })}
                   />
                   <NumberWithUnitField
                     label="Corrente rec."
                     tip="Corrente recomendada para operação contínua."
                     icon={<Activity className="h-4 w-4" />}
                     unit="A"
-                    value={form.recommended_current_a ?? 0}
-                    onChange={(event) => setForm({ ...form, recommended_current_a: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.recommended_current_a ?? undefined}
+                    onChange={(event) => setForm({ ...form, recommended_current_a: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, recommended_current_a: null })}
                   />
                   <NumberWithUnitField
                     label="Corrente máx."
                     tip="Corrente máxima suportada pela bateria."
                     icon={<Activity className="h-4 w-4" />}
                     unit="A"
-                    value={form.max_current_a ?? 0}
-                    onChange={(event) => setForm({ ...form, max_current_a: toNumber(event.target.value) })}
+                    placeholder="—"
+                    value={form.max_current_a ?? undefined}
+                    onChange={(event) => setForm({ ...form, max_current_a: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, max_current_a: null })}
                   />
                 </div>
               </div>
@@ -4186,6 +4315,25 @@ function RulesEditor(props: {
   const [rulesTab, setRulesTab] = useState<'accessories' | 'ess'>('ess');
   const [formOpen, setFormOpen] = useState(false);
   const [essFormOpen, setEssFormOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const visibleRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return props.rows;
+    return props.rows.filter((row) =>
+      [row.name, row.accessories?.model, row.comment].some((value) => value?.toLowerCase().includes(q))
+    );
+  }, [props.rows, query]);
+
+  const visibleEssRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return props.essRows;
+    return props.essRows.filter((row) =>
+      [row.inverter_model, row.battery_model, row.comment, ...normalizeEssBatteryConfigs(row, props.batteries).map((config) => config.battery_model)].some(
+        (value) => value?.toLowerCase().includes(q)
+      )
+    );
+  }, [props.essRows, props.batteries, query]);
   const registeredGridTypeOptions = useMemo(() => {
     const values = new Set<InverterGridType>();
     for (const inverter of props.inverters) {
@@ -4235,12 +4383,24 @@ function RulesEditor(props: {
       {rulesTab === 'accessories' && (
         <CatalogLayout
           title="Regras de acessórios"
-          count={props.rows.length}
+          count={visibleRows.length}
           formOpen={formOpen}
           formTitle={form.id ? 'Editar regra' : 'Nova regra'}
           newLabel="Nova regra"
           onNew={openNew}
           onClose={() => setFormOpen(false)}
+          search={
+            <label className="relative block sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Buscar regra"
+                className="pl-8"
+                placeholder="Buscar por nome ou acessório..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+          }
           form={
         <>
           <Field label="Nome da regra">
@@ -4359,7 +4519,7 @@ function RulesEditor(props: {
           <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
           }
-          items={props.rows.map((row) => ({
+          items={visibleRows.map((row) => ({
             id: row.id,
             title: row.name,
             badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
@@ -4381,12 +4541,24 @@ function RulesEditor(props: {
       {rulesTab === 'ess' && (
         <CatalogLayout
           title="Regras ESS"
-          count={props.essRows.length}
+          count={visibleEssRows.length}
           formOpen={essFormOpen}
           formTitle={essForm.id ? 'Editar compatibilidade ESS' : 'Nova compatibilidade ESS'}
           newLabel="Nova regra ESS"
           onNew={openNewEss}
           onClose={() => setEssFormOpen(false)}
+          search={
+            <label className="relative block sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Buscar regra ESS"
+                className="pl-8"
+                placeholder="Buscar por inversor ou bateria..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+          }
           form={
             <>
               <div className="space-y-3 rounded-lg border bg-background p-3">
@@ -4470,7 +4642,7 @@ function RulesEditor(props: {
               <Actions onSave={() => props.onSaveEss(() => setEssFormOpen(false))} saving={props.saving} />
             </>
           }
-          items={props.essRows.map((row) => {
+          items={visibleEssRows.map((row) => {
             const inverter = props.inverters.find((item) => item.model === row.inverter_model);
             const gridTypes = normalizeInverterGridTypes(inverter?.grid_types);
             const batteryConfigs = normalizeEssBatteryConfigs(row, props.batteries);
