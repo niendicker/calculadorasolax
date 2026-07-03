@@ -69,6 +69,17 @@ const gridLabels: Record<ResidentialGridType, string> = {
   threePhase_380: 'Trifásico 380V',
 };
 
+function parseAccessoryLabel(raw: string) {
+  const optional = /\s*\(opcional\)\s*$/.test(raw);
+  const withoutOptional = optional ? raw.replace(/\s*\(opcional\)\s*$/, '') : raw;
+  const qtyMatch = withoutOptional.match(/^(.*)\s+x(\d+)$/);
+  return {
+    model: qtyMatch ? qtyMatch[1] : withoutOptional,
+    qty: qtyMatch ? Number(qtyMatch[2]) : 1,
+    optional,
+  };
+}
+
 interface InlineProfile {
   id: string;
   email: string;
@@ -176,7 +187,7 @@ export function SinglePageApp() {
         supabase.auth.getUser(),
         supabase
           .from('load_catalog')
-          .select('id, name_pt, name_en, name_zh, power_w, category')
+          .select('id, name_pt, name_en, name_zh, power_w, category, ip_in_ratio')
           .order('category'),
         supabase
           .from('batteries')
@@ -222,6 +233,7 @@ export function SinglePageApp() {
           nameZh: row.name_zh,
           powerW: row.power_w,
           category: row.category,
+          ipInRatio: row.ip_in_ratio ?? 1,
         }));
         setLoadCatalog(catalog);
       }
@@ -283,7 +295,7 @@ export function SinglePageApp() {
         new Set([
           solution.inverterModel,
           solution.batteryModel,
-          ...solution.accessories,
+          ...solution.accessories.map((accessory) => parseAccessoryLabel(accessory).model),
         ].filter(Boolean))
       );
 
@@ -320,7 +332,7 @@ export function SinglePageApp() {
   }, [solution, supabase]);
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads);
-  const peakW = totalPeakW(residentialOptions.loads);
+  const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
 
   const availableInverterModels = useMemo(() => {
     if (!residentialOptions.gridType) return null;
@@ -1544,7 +1556,7 @@ function ProductAttachments({
           <img
             src={media.imageUrl}
             alt={media.model}
-            className="h-10 w-14 object-contain p-1"
+            className="h-14 w-20 object-contain p-1"
           />
         </button>
       )}
@@ -1896,11 +1908,6 @@ function ResultSummary({
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
   const batteryMedia = productMedia[solution.batteryModel];
-  const mediaItems = [
-    inverterMedia,
-    batteryMedia,
-    ...solution.accessories.map((accessory) => productMedia[accessory]),
-  ].filter(Boolean) as ProductMedia[];
 
   return (
     <div className="space-y-3">
@@ -1910,9 +1917,7 @@ function ResultSummary({
           Inversor
         </div>
         <p className="mt-1 text-lg font-semibold">{solution.inverterModel}</p>
-        {solution.inverterQty && solution.inverterQty > 1 && (
-          <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty}</p>
-        )}
+        <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty ?? 1}</p>
         <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
@@ -1938,61 +1943,24 @@ function ResultSummary({
         <div className="rounded-lg border bg-background p-3">
           <p className="text-sm font-medium">Acessórios</p>
           <div className="mt-2 space-y-2">
-            {solution.accessories.map((accessory) => (
-              <div key={accessory} className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{accessory}</Badge>
-                <ProductAttachments
-                  media={productMedia[accessory]}
-                  onPreview={setPreviewDoc}
-                  onPreviewImage={setPreviewImage}
-                  inline
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {mediaItems.length > 0 && (
-        <div className="rounded-lg border bg-background p-3">
-          <p className="text-sm font-medium">Materiais técnicos</p>
-          <div className="mt-3 space-y-3">
-            {mediaItems.map((item) => (
-              <div key={item.model} className="grid gap-2 rounded-lg border p-2">
-                <div className="flex items-center gap-3">
-                  {item.imageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewImage({ url: item.imageUrl as string, alt: item.model })}
-                      className="shrink-0 rounded border transition hover:border-primary/50"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.imageUrl} alt={item.model} className="h-12 w-16 object-contain p-1" />
-                    </button>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{item.model}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.documents.length} documento(s)
-                    </p>
-                  </div>
+            {solution.accessories.map((accessory) => {
+              const { model, qty, optional } = parseAccessoryLabel(accessory);
+              return (
+                <div key={accessory}>
+                  <Badge variant="secondary">
+                    {model}
+                    {optional ? ' (opcional)' : ''}
+                  </Badge>
+                  <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
+                  <ProductAttachments
+                    media={productMedia[model]}
+                    onPreview={setPreviewDoc}
+                    onPreviewImage={setPreviewImage}
+                    inline
+                  />
                 </div>
-                {item.documents.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {item.documents.map((document) => (
-                      <button
-                        key={`${item.model}-${document.url}`}
-                        type="button"
-                        onClick={() => setPreviewDoc(document)}
-                        className="rounded-lg border px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                      >
-                        {document.name || 'Documento'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

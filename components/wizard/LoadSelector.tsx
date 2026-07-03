@@ -11,22 +11,22 @@ import { Layers, Plus, Trash2, Search } from 'lucide-react';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, SingleLoad } from '@/lib/types';
 
-function newLoad(partial: Omit<SingleLoad, 'id'>): SingleLoad {
-  return { ...partial, id: crypto.randomUUID() };
+function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
+  return { ipInRatio: 1, ...partial, id: crypto.randomUUID() };
 }
 
 const loadPresets: {
   id: string;
   name: string;
   description: string;
-  loads: Omit<SingleLoad, 'id'>[];
+  loads: (Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number })[];
 }[] = [
   {
     id: 'residential-essential',
     name: 'Residencial essencial',
     description: 'Cargas básicas para simulação rápida de uma residência pequena.',
     loads: [
-      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1 },
+      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1, ipInRatio: 3 },
       { name: 'Iluminação LED', powerW: 12, hoursPerDay: 5, qty: 8 },
       { name: 'Televisão', powerW: 120, hoursPerDay: 4, qty: 1 },
       { name: 'Roteador', powerW: 15, hoursPerDay: 24, qty: 1 },
@@ -38,12 +38,12 @@ const loadPresets: {
     name: 'Residencial médio',
     description: 'Perfil comum com cozinha, lavanderia, iluminação e eletrônicos.',
     loads: [
-      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1 },
-      { name: 'Freezer', powerW: 220, hoursPerDay: 10, qty: 1 },
+      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1, ipInRatio: 3 },
+      { name: 'Freezer', powerW: 220, hoursPerDay: 10, qty: 1, ipInRatio: 3 },
       { name: 'Iluminação LED', powerW: 12, hoursPerDay: 5, qty: 12 },
       { name: 'Televisão', powerW: 120, hoursPerDay: 5, qty: 2 },
       { name: 'Roteador', powerW: 15, hoursPerDay: 24, qty: 1 },
-      { name: 'Máquina de lavar', powerW: 600, hoursPerDay: 1, qty: 1 },
+      { name: 'Máquina de lavar', powerW: 600, hoursPerDay: 1, qty: 1, ipInRatio: 2 },
       { name: 'Micro-ondas', powerW: 1200, hoursPerDay: 0.5, qty: 1 },
     ],
   },
@@ -52,12 +52,12 @@ const loadPresets: {
     name: 'Home office + conforto',
     description: 'Inclui estação de trabalho, ar-condicionado e cargas de uso prolongado.',
     loads: [
-      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1 },
+      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1, ipInRatio: 3 },
       { name: 'Iluminação LED', powerW: 12, hoursPerDay: 6, qty: 10 },
       { name: 'Roteador', powerW: 15, hoursPerDay: 24, qty: 1 },
       { name: 'Notebook', powerW: 90, hoursPerDay: 8, qty: 2 },
       { name: 'Monitor', powerW: 45, hoursPerDay: 8, qty: 2 },
-      { name: 'Ar-condicionado 9.000 BTU', powerW: 900, hoursPerDay: 6, qty: 1 },
+      { name: 'Ar-condicionado 9.000 BTU', powerW: 900, hoursPerDay: 6, qty: 1, ipInRatio: 3 },
       { name: 'Televisão', powerW: 120, hoursPerDay: 4, qty: 1 },
     ],
   },
@@ -66,7 +66,7 @@ const loadPresets: {
 export function LoadSelector() {
   const t = useTranslations('loads');
   const locale = useLocale();
-  const { residentialOptions, loadCatalog, addLoad, removeLoad, updateLoad } =
+  const { residentialOptions, loadCatalog, addLoad, removeLoad, updateLoad, setPeakCalcMode } =
     useWizardStore();
 
   const [tab, setTab] = useState<'presets' | 'catalog' | 'manual'>('presets');
@@ -75,6 +75,7 @@ export function LoadSelector() {
   const [manualPower, setManualPower] = useState('');
   const [manualHours, setManualHours] = useState('');
   const [manualQty, setManualQty] = useState('1');
+  const [manualIpIn, setManualIpIn] = useState('1');
 
   const nameKey = locale === 'zh' ? 'nameZh' : locale === 'en' ? 'nameEn' : 'namePt';
 
@@ -92,6 +93,7 @@ export function LoadSelector() {
         powerW: item.powerW,
         hoursPerDay: 4,
         qty: 1,
+        ipInRatio: item.ipInRatio ?? 1,
       })
     );
   }
@@ -104,12 +106,14 @@ export function LoadSelector() {
         powerW: Number(manualPower),
         hoursPerDay: Number(manualHours) || 4,
         qty: Number(manualQty) || 1,
+        ipInRatio: Number(manualIpIn) || 1,
       })
     );
     setManualName('');
     setManualPower('');
     setManualHours('');
     setManualQty('1');
+    setManualIpIn('1');
   }
 
   function handleAddPreset(preset: (typeof loadPresets)[number]) {
@@ -155,7 +159,10 @@ export function LoadSelector() {
       {tab === 'presets' && (
         <div className="grid gap-2 md:grid-cols-3">
           {loadPresets.map((preset) => {
-            const peakW = preset.loads.reduce((acc, load) => acc + load.powerW * load.qty, 0);
+            const peakW = preset.loads.reduce(
+              (acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty,
+              0
+            );
             const dailyKwh = preset.loads.reduce(
               (acc, load) => acc + (load.powerW * load.hoursPerDay * load.qty) / 1000,
               0
@@ -224,7 +231,7 @@ export function LoadSelector() {
                 onChange={(e) => setManualName(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div>
                 <Label htmlFor="manual-power">{t('power')}</Label>
                 <Input
@@ -257,6 +264,17 @@ export function LoadSelector() {
                   onChange={(e) => setManualQty(e.target.value)}
                 />
               </div>
+              <div>
+                <Label htmlFor="manual-ip-in">IP/IN</Label>
+                <Input
+                  id="manual-ip-in"
+                  type="number"
+                  min={1}
+                  step={0.1}
+                  value={manualIpIn}
+                  onChange={(e) => setManualIpIn(e.target.value)}
+                />
+              </div>
             </div>
             <Button
               className="w-full"
@@ -271,7 +289,38 @@ export function LoadSelector() {
       )}
 
       {residentialOptions.loads.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <div className="rounded-md border bg-card p-2">
+            <p className="text-xs font-medium">Modo de cálculo do pico (IP/IN)</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Como as cargas com maior corrente de partida (IP/IN) somam no pico do sistema.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+              {(
+                [
+                  { value: 'sum' as const, label: 'Soma de todas' },
+                  { value: 'largest-surge' as const, label: 'Só a maior carga' },
+                ]
+              ).map((option) => {
+                const active = (residentialOptions.peakCalcMode ?? 'sum') === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setPeakCalcMode(option.value)}
+                    className={`h-8 rounded-md px-2 text-xs font-medium transition ${
+                      active
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {residentialOptions.loads.map((load) => (
             <div
               key={load.id}
@@ -280,7 +329,7 @@ export function LoadSelector() {
               <div className="flex-1 min-w-0">
                 <span className="font-medium truncate block">{load.name}</span>
                 <span className="text-muted-foreground text-xs">
-                  {load.powerW}W · {load.hoursPerDay}h/dia · ×{load.qty}
+                  {load.powerW}W · {load.hoursPerDay}h/dia · ×{load.qty} · IP/IN {load.ipInRatio ?? 1}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -305,6 +354,17 @@ export function LoadSelector() {
                     updateLoad(load.id, { qty: Number(e.target.value) })
                   }
                   className="w-12 h-7 text-xs"
+                />
+                <Input
+                  aria-label={`IP/IN para ${load.name}`}
+                  type="number"
+                  min={1}
+                  step={0.1}
+                  value={load.ipInRatio ?? 1}
+                  onChange={(e) =>
+                    updateLoad(load.id, { ipInRatio: Number(e.target.value) })
+                  }
+                  className="w-14 h-7 text-xs"
                 />
                 <Button
                   variant="ghost"

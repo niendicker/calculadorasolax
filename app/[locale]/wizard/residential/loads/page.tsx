@@ -24,7 +24,7 @@ export default function LoadsPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from('load_catalog')
-        .select('id, name_pt, name_en, name_zh, power_w, category')
+        .select('id, name_pt, name_en, name_zh, power_w, category, ip_in_ratio')
         .order('category');
 
       if (data) {
@@ -35,6 +35,7 @@ export default function LoadsPage() {
           nameZh: r.name_zh,
           powerW: r.power_w,
           category: r.category,
+          ipInRatio: r.ip_in_ratio ?? 1,
         }));
         setLoadCatalog(catalog);
       }
@@ -69,7 +70,7 @@ export default function LoadsPage() {
   }
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads);
-  const peakW = totalPeakW(residentialOptions.loads);
+  const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
 
   return (
     <WizardLayout currentStep={3} totalSteps={4}>

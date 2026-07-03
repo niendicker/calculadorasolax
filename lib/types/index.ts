@@ -10,12 +10,20 @@ export type MicroGridOptions = 'Gerador' | 'Microinversor' | 'Desabilitada';
 
 export type InstallationType = 'residential' | 'industrial';
 
+// How multiple loads' IP/IN ratios combine into the system's peak apparent power:
+// - 'sum': every load surges at once (nominal x IP/IN for all loads, conservative).
+// - 'largest-surge': only the single highest-surge load unit starts at a time,
+//   everything else runs at nominal power (common generator/inverter sizing rule).
+export type PeakCalcMode = 'sum' | 'largest-surge';
+
 export interface SingleLoad {
   id: string;
   name: string;
   powerW: number;
   hoursPerDay: number;
   qty: number;
+  /** IP/IN: starting (peak) apparent power divided by nominal apparent power. */
+  ipInRatio: number;
 }
 
 export interface CatalogItem {
@@ -25,6 +33,8 @@ export interface CatalogItem {
   nameZh: string;
   powerW: number;
   category: string;
+  /** Default IP/IN for this catalog item, prefilled when added to a project. */
+  ipInRatio: number;
 }
 
 export interface ProductDocument {
@@ -38,6 +48,7 @@ export interface ResidentialOptions {
   inverterModel: string | null;
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];
+  peakCalcMode: PeakCalcMode;
   microGrid: MicroGridOptions | null;
 }
 

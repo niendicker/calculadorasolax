@@ -7,6 +7,7 @@ import type {
   CatalogItem,
   IndustrialOptions,
   MicroGridOptions,
+  PeakCalcMode,
   ProjectInfo,
   ResidentialGridType,
   ResidentialOptions,
@@ -32,6 +33,7 @@ interface WizardStore {
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setMicroGrid: (microGrid: MicroGridOptions) => void;
+  setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
   addLoad: (load: SingleLoad) => void;
   removeLoad: (id: string) => void;
   updateLoad: (id: string, partial: Partial<SingleLoad>) => void;
@@ -61,6 +63,7 @@ const defaultResidential: ResidentialOptions = {
   inverterModel: null,
   gridType: null,
   loads: [],
+  peakCalcMode: 'sum',
   microGrid: null,
 };
 
@@ -180,6 +183,11 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, microGrid },
         })),
 
+      setPeakCalcMode: (peakCalcMode) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, peakCalcMode },
+        })),
+
       addLoad: (load) =>
         set((s) => ({
           residentialOptions: {
@@ -232,6 +240,20 @@ export function totalDailyKwh(loads: SingleLoad[]): number {
   );
 }
 
-export function totalPeakW(loads: SingleLoad[]): number {
-  return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {
+  if (loads.length === 0) return 0;
+
+  if (mode === 'sum') {
+    return loads.reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
+  }
+
+  // 'largest-surge': assume only one unit of the highest-surge load starts at a
+  // time; every other load (and the remaining units of that same load) runs at
+  // nominal power. Peak = nominal sum + the single largest surge "extra".
+  const nominalSum = loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+  const largestExtra = loads.reduce((max, l) => {
+    const extra = l.powerW * ((l.ipInRatio ?? 1) - 1);
+    return extra > max ? extra : max;
+  }, 0);
+  return nominalSum + largestExtra;
 }

@@ -4,7 +4,10 @@ interface SingleLoad {
   powerW: number;
   hoursPerDay: number;
   qty: number;
+  ipInRatio?: number;
 }
+
+type PeakCalcMode = 'sum' | 'largest-surge';
 
 interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
@@ -12,6 +15,7 @@ interface ResidentialOptions {
   inverterModel: string | null;
   gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
   loads: SingleLoad[];
+  peakCalcMode?: PeakCalcMode;
   microGrid: 'Gerador' | 'Microinversor' | 'Desabilitada' | null;
 }
 
@@ -112,8 +116,21 @@ function clampNumber(value: unknown, min: number, max: number, fallback = min): 
   return Math.min(max, Math.max(min, numberValue));
 }
 
-function totalPeakW(loads: SingleLoad[]): number {
-  return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {
+  if (loads.length === 0) return 0;
+
+  if (mode === 'sum') {
+    return loads.reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
+  }
+
+  // 'largest-surge': only the single highest-surge load unit starts at a time;
+  // everything else runs at nominal power.
+  const nominalSum = loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+  const largestExtra = loads.reduce((max, l) => {
+    const extra = l.powerW * ((l.ipInRatio ?? 1) - 1);
+    return extra > max ? extra : max;
+  }, 0);
+  return nominalSum + largestExtra;
 }
 
 function totalDailyKwh(loads: SingleLoad[]): number {
@@ -178,7 +195,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const peakW = totalPeakW(options.loads);
+    const peakW = totalPeakW(options.loads, options.peakCalcMode ?? 'sum');
     const dailyKwh = totalDailyKwh(options.loads);
     const gridTopology = gridTopologyMap[options.gridType];
     const standardGridTopology = standardGridTopologyMap[options.gridType];
