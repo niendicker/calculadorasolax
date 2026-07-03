@@ -16,6 +16,7 @@ import type {
   SavedProject,
   SingleLoad,
   Solution,
+  UserLoadCatalogItem,
 } from '@/lib/types';
 
 interface WizardStore {
@@ -23,6 +24,7 @@ interface WizardStore {
   currentProjectId: string | null;
   savedProjects: SavedProject[];
   clients: Client[];
+  userLoadCatalog: UserLoadCatalogItem[];
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
@@ -38,6 +40,13 @@ interface WizardStore {
   addClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   updateClient: (id: string, partial: Partial<{ name: string; email: string; phone: string; document: string; notes: string }>) => Promise<void>;
   removeClient: (id: string) => Promise<void>;
+  fetchUserLoadCatalog: () => Promise<void>;
+  saveManualLoadToCatalog: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
+  updateUserLoadCatalogItem: (
+    id: string,
+    partial: Partial<{ name: string; powerW: number; ipInRatio: number }>
+  ) => Promise<void>;
+  removeUserLoadCatalogItem: (id: string) => Promise<void>;
   clearUserData: () => void;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
@@ -96,6 +105,17 @@ function clientFromRow(row: Record<string, unknown>): Client {
   };
 }
 
+function userLoadFromRow(row: Record<string, unknown>): UserLoadCatalogItem {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? '',
+    powerW: Number(row.power_w) || 0,
+    ipInRatio: Number(row.ip_in_ratio) || 1,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
 function projectFromRow(row: Record<string, unknown>): SavedProject {
   return {
     id: row.id as string,
@@ -116,6 +136,7 @@ export const useWizardStore = create<WizardStore>()(
       currentProjectId: null,
       savedProjects: [],
       clients: [],
+      userLoadCatalog: [],
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
@@ -277,10 +298,91 @@ export const useWizardStore = create<WizardStore>()(
         }));
       },
 
+      fetchUserLoadCatalog: async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase.from('user_load_catalog').select('*').order('name');
+        if (error) return;
+        set({ userLoadCatalog: (data ?? []).map(userLoadFromRow) });
+      },
+
+      saveManualLoadToCatalog: async (input) => {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+
+        const existing = get().userLoadCatalog.find(
+          (item) => item.name.trim().toLowerCase() === input.name.trim().toLowerCase()
+        );
+
+        if (existing) {
+          const { error } = await supabase
+            .from('user_load_catalog')
+            .update({
+              power_w: input.powerW,
+              ip_in_ratio: input.ipInRatio,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+          if (error) return;
+
+          set((s) => ({
+            userLoadCatalog: s.userLoadCatalog.map((item) =>
+              item.id === existing.id ? { ...item, powerW: input.powerW, ipInRatio: input.ipInRatio } : item
+            ),
+          }));
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('user_load_catalog')
+          .insert({
+            user_id: userData.user.id,
+            name: input.name.trim(),
+            power_w: input.powerW,
+            ip_in_ratio: input.ipInRatio,
+          })
+          .select()
+          .single();
+        if (error) return;
+
+        const item = userLoadFromRow(data);
+        set((s) => ({
+          userLoadCatalog: [...s.userLoadCatalog, item].sort((a, b) => a.name.localeCompare(b.name)),
+        }));
+      },
+
+      updateUserLoadCatalogItem: async (id, partial) => {
+        const supabase = createClient();
+        const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (partial.name !== undefined) payload.name = partial.name.trim();
+        if (partial.powerW !== undefined) payload.power_w = partial.powerW;
+        if (partial.ipInRatio !== undefined) payload.ip_in_ratio = partial.ipInRatio;
+
+        const { error } = await supabase.from('user_load_catalog').update(payload).eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userLoadCatalog: s.userLoadCatalog
+            .map((item) => (item.id === id ? { ...item, ...partial } : item))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        }));
+      },
+
+      removeUserLoadCatalogItem: async (id) => {
+        const supabase = createClient();
+        const { error } = await supabase.from('user_load_catalog').delete().eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userLoadCatalog: s.userLoadCatalog.filter((item) => item.id !== id),
+        }));
+      },
+
       clearUserData: () =>
         set({
           clients: [],
           savedProjects: [],
+          userLoadCatalog: [],
           currentProjectId: null,
         }),
 

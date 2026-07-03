@@ -42,6 +42,17 @@ export interface ProductDocument {
   url: string;
 }
 
+/** A load a user added manually, saved for reuse — kept separate from the
+ * admin-managed global CatalogItem list. */
+export interface UserLoadCatalogItem {
+  id: string;
+  name: string;
+  powerW: number;
+  ipInRatio: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ResidentialOptions {
   topology: BatteryTopology | null;
   batteryModel: string | null;

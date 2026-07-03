@@ -138,8 +138,16 @@ const loadPresets: {
 export function LoadSelector() {
   const t = useTranslations('loads');
   const locale = useLocale();
-  const { residentialOptions, loadCatalog, addLoad, removeLoad, updateLoad, setPeakCalcMode } =
-    useWizardStore();
+  const {
+    residentialOptions,
+    loadCatalog,
+    userLoadCatalog,
+    addLoad,
+    removeLoad,
+    updateLoad,
+    setPeakCalcMode,
+    saveManualLoadToCatalog,
+  } = useWizardStore();
 
   const [tab, setTab] = useState<'presets' | 'catalog' | 'manual'>('presets');
   const [search, setSearch] = useState('');
@@ -158,6 +166,10 @@ export function LoadSelector() {
       .includes(search.toLowerCase())
   );
 
+  const filteredUserItems = userLoadCatalog.filter((item) =>
+    item.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   function handleAddFromCatalog(item: CatalogItem) {
     addLoad(
       newLoad({
@@ -170,17 +182,32 @@ export function LoadSelector() {
     );
   }
 
+  function handleAddFromUserCatalog(item: (typeof userLoadCatalog)[number]) {
+    addLoad(
+      newLoad({
+        name: item.name,
+        powerW: item.powerW,
+        hoursPerDay: 4,
+        qty: 1,
+        ipInRatio: item.ipInRatio,
+      })
+    );
+  }
+
   function handleAddManual() {
     if (!manualName || !manualPower) return;
+    const powerW = Number(manualPower);
+    const ipInRatio = Number(manualIpIn) || 1;
     addLoad(
       newLoad({
         name: manualName,
-        powerW: Number(manualPower),
+        powerW,
         hoursPerDay: Number(manualHours) || 4,
         qty: Number(manualQty) || 1,
-        ipInRatio: Number(manualIpIn) || 1,
+        ipInRatio,
       })
     );
+    saveManualLoadToCatalog({ name: manualName, powerW, ipInRatio });
     setManualName('');
     setManualPower('');
     setManualHours('');
@@ -277,17 +304,39 @@ export function LoadSelector() {
               className="pl-8"
             />
           </div>
-          <div className="grid max-h-52 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleAddFromCatalog(item)}
-                className="flex items-center justify-between rounded-md border bg-card p-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
-                <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}W</span>
-              </button>
-            ))}
+          {filteredUserItems.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Minhas Cargas</p>
+              <div className="grid max-h-40 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                {filteredUserItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleAddFromUserCatalog(item)}
+                    className="flex items-center justify-between rounded-md border bg-card p-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <span className="truncate">{item.name}</span>
+                    <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}W</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {filteredUserItems.length > 0 && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Catálogo geral</p>
+            )}
+            <div className="grid max-h-52 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+              {filtered.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleAddFromCatalog(item)}
+                  className="flex items-center justify-between rounded-md border bg-card p-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
+                  <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}W</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

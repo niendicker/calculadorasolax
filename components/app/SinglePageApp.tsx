@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Plus,
   Save,
   Settings,
   ShieldUser,
@@ -46,6 +47,7 @@ import type {
   ResidentialGridType,
   SavedProject,
   Solution,
+  UserLoadCatalogItem,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -155,6 +157,7 @@ export function SinglePageApp() {
     projectInfo,
     savedProjects,
     clients,
+    userLoadCatalog,
     residentialOptions,
     solution,
     setProjectInfo,
@@ -164,9 +167,13 @@ export function SinglePageApp() {
     removeProject,
     fetchProjects,
     fetchClients,
+    fetchUserLoadCatalog,
     addClient,
     updateClient,
     removeClient,
+    saveManualLoadToCatalog,
+    updateUserLoadCatalogItem,
+    removeUserLoadCatalogItem,
     clearUserData,
     setTopology,
     setBatteryModel,
@@ -251,7 +258,7 @@ export function SinglePageApp() {
           companyLogoUrl: profileData?.company_logo_url ?? '',
         });
 
-        await Promise.all([fetchClients(), fetchProjects()]);
+        await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog()]);
       }
 
       if (catalogData) {
@@ -730,6 +737,10 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
+              userLoadCatalog={userLoadCatalog}
+              onAddUserLoad={saveManualLoadToCatalog}
+              onUpdateUserLoad={updateUserLoadCatalogItem}
+              onRemoveUserLoad={removeUserLoadCatalogItem}
             />
           ) : activeTab === 'clients' ? (
             <ClientsTab
@@ -1912,13 +1923,21 @@ function CatalogTab({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
+  userLoadCatalog,
+  onAddUserLoad,
+  onUpdateUserLoad,
+  onRemoveUserLoad,
 }: {
   initialLoading: boolean;
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
+  userLoadCatalog: UserLoadCatalogItem[];
+  onAddUserLoad: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
+  onUpdateUserLoad: (id: string, partial: Partial<{ name: string; powerW: number; ipInRatio: number }>) => Promise<void>;
+  onRemoveUserLoad: (id: string) => Promise<void>;
 }) {
-  const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories'>('inverters');
+  const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories' | 'loads'>('inverters');
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
 
@@ -1926,6 +1945,7 @@ function CatalogTab({
     { value: 'inverters' as const, label: 'Inversores', count: inverterCatalog.length },
     { value: 'batteries' as const, label: 'Baterias', count: batteryCatalog.length },
     { value: 'accessories' as const, label: 'Acessórios', count: accessoryCatalog.length },
+    { value: 'loads' as const, label: 'Minhas Cargas', count: userLoadCatalog.length },
   ];
 
   return (
@@ -1937,7 +1957,7 @@ function CatalogTab({
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit sm:grid-cols-4">
         {sectionOptions.map((tab) => {
           const active = section === tab.value;
           return (
@@ -2017,27 +2037,206 @@ function CatalogTab({
             })}
           </div>
         )
-      ) : accessoryCatalog.length === 0 ? (
-        <CatalogEmptyState label="Nenhum acessório cadastrado." />
+      ) : section === 'accessories' ? (
+        accessoryCatalog.length === 0 ? (
+          <CatalogEmptyState label="Nenhum acessório cadastrado." />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {accessoryCatalog.map((accessory) => (
+              <CatalogProductCard
+                key={accessory.id}
+                fallbackIcon={<Boxes className="h-8 w-8 text-muted-foreground" />}
+                model={accessory.model}
+                imageUrl={accessory.imageUrl}
+                documents={accessory.documents}
+                description={accessory.description}
+                onPreviewImage={setPreviewImage}
+                onPreviewDoc={setPreviewDoc}
+              />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {accessoryCatalog.map((accessory) => (
-            <CatalogProductCard
-              key={accessory.id}
-              fallbackIcon={<Boxes className="h-8 w-8 text-muted-foreground" />}
-              model={accessory.model}
-              imageUrl={accessory.imageUrl}
-              documents={accessory.documents}
-              description={accessory.description}
-              onPreviewImage={setPreviewImage}
-              onPreviewDoc={setPreviewDoc}
-            />
-          ))}
-        </div>
+        <UserLoadCatalogSection
+          items={userLoadCatalog}
+          onAdd={onAddUserLoad}
+          onUpdate={onUpdateUserLoad}
+          onRemove={onRemoveUserLoad}
+        />
       )}
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+function UserLoadCatalogSection({
+  items,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  items: UserLoadCatalogItem[];
+  onAdd: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
+  onUpdate: (id: string, partial: Partial<{ name: string; powerW: number; ipInRatio: number }>) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [powerW, setPowerW] = useState('');
+  const [ipInRatio, setIpInRatio] = useState('1');
+  const [saving, setSaving] = useState(false);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+
+  function openAdd() {
+    setEditingId(null);
+    setName('');
+    setPowerW('');
+    setIpInRatio('1');
+    setAddOpen(true);
+  }
+
+  function openEdit(item: UserLoadCatalogItem) {
+    setAddOpen(false);
+    setEditingId(item.id);
+    setName(item.name);
+    setPowerW(String(item.powerW));
+    setIpInRatio(String(item.ipInRatio));
+  }
+
+  function closeForm() {
+    setAddOpen(false);
+    setEditingId(null);
+  }
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        await onUpdate(editingId, {
+          name,
+          powerW: Number(powerW) || 0,
+          ipInRatio: Number(ipInRatio) || 1,
+        });
+      } else {
+        await onAdd({
+          name,
+          powerW: Number(powerW) || 0,
+          ipInRatio: Number(ipInRatio) || 1,
+        });
+      }
+      closeForm();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    setRemovingIds((current) => new Set(current).add(id));
+    try {
+      await onRemove(id);
+    } finally {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  const formCard = (
+    <div className="space-y-3 rounded-lg border bg-card p-3">
+      <div className="space-y-1.5">
+        <Label htmlFor="new-load-name">Nome</Label>
+        <Input id="new-load-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome do equipamento" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="new-load-power">Potência (W)</Label>
+          <Input
+            id="new-load-power"
+            type="number"
+            min={1}
+            value={powerW}
+            onChange={(event) => setPowerW(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="new-load-ipin">IP/IN</Label>
+          <Input
+            id="new-load-ipin"
+            type="number"
+            min={1}
+            step={0.1}
+            value={ipInRatio}
+            onChange={(event) => setIpInRatio(event.target.value)}
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={closeForm}>
+          Cancelar
+        </Button>
+        <Button size="sm" onClick={handleSave} disabled={!name.trim() || saving}>
+          <Save className="h-4 w-4" />
+          {saving ? 'Salvando...' : 'Salvar'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Cargas que você cadastrou manualmente no Dimensionamento, disponíveis para reutilizar.
+        </p>
+        {!addOpen && !editingId && (
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="h-4 w-4" />
+            Adicionar carga
+          </Button>
+        )}
+      </div>
+
+      {addOpen && formCard}
+
+      {items.length === 0 && !addOpen ? (
+        <CatalogEmptyState label="Nenhuma carga cadastrada ainda. Clique em “Adicionar carga” ou crie uma na aba Manual do Dimensionamento." />
+      ) : (
+        <div className="space-y-2">
+          {items.map((item) =>
+            editingId === item.id ? (
+              <div key={item.id}>{formCard}</div>
+            ) : (
+              <div key={item.id} className="rounded-lg border bg-card p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.powerW} W nominal · IP/IN {item.ipInRatio}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(item)} disabled={removingIds.has(item.id)}>
+                      Editar
+                    </Button>
+                    <ConfirmDeleteButton
+                      ariaLabel={`Remover carga ${item.name}`}
+                      title="Remover carga?"
+                      description="Essa carga sai do seu catálogo pessoal. Não afeta projetos que já a usam."
+                      confirmLabel="Remover"
+                      disabled={removingIds.has(item.id)}
+                      onConfirm={() => handleRemove(item.id)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }
