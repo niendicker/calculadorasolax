@@ -18,6 +18,7 @@ import {
   LogOut,
   Menu,
   Pencil,
+  Plug,
   Plus,
   RefreshCw,
   Save,
@@ -37,7 +38,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { ProductDocument } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'rules' | 'logs';
+type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'loads' | 'rules' | 'logs';
 
 type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 type GridTopology = '1p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
@@ -143,6 +144,16 @@ interface AccessoryRow {
   documents: ProductDocument[];
 }
 
+interface LoadCatalogRow {
+  id: string;
+  name_pt: string;
+  name_en: string;
+  name_zh: string;
+  power_w: number;
+  category: string;
+  ip_in_ratio: number;
+}
+
 interface AccessoryRuleRow {
   id: string;
   accessory_id: string;
@@ -236,7 +247,7 @@ interface SimulationRow {
   created_at: string;
 }
 
-type AdminLogEntity = 'inverter' | 'battery' | 'accessory' | 'solution' | 'rule';
+type AdminLogEntity = 'inverter' | 'battery' | 'accessory' | 'solution' | 'rule' | 'load_catalog_item';
 type AdminLogAction = 'create' | 'update' | 'delete' | 'deactivate';
 
 interface AdminActivityLogRow {
@@ -258,6 +269,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'batteries', label: 'Baterias', icon: Battery },
   { key: 'inverters', label: 'Inversores', icon: Zap },
   { key: 'accessories', label: 'Acessórios', icon: Cable },
+  { key: 'loads', label: 'Cargas', icon: Plug },
   { key: 'rules', label: 'Regras', icon: CircleHelp },
   { key: 'solutions', label: 'Combinações', icon: Boxes },
   { key: 'users', label: 'Usuários', icon: Users },
@@ -307,6 +319,15 @@ const emptyAccessory: Partial<AccessoryRow> = {
   active: true,
   image_url: '',
   documents: [],
+};
+
+const emptyLoadCatalogItem: Partial<LoadCatalogRow> = {
+  name_pt: '',
+  name_en: '',
+  name_zh: '',
+  power_w: 0,
+  category: '',
+  ip_in_ratio: 1,
 };
 
 const emptyRule: Partial<AccessoryRuleRow> = {
@@ -744,6 +765,7 @@ export function AdminPanel() {
   const [inverters, setInverters] = useState<InverterRow[]>([]);
   const [batteries, setBatteries] = useState<BatteryRow[]>([]);
   const [accessories, setAccessories] = useState<AccessoryRow[]>([]);
+  const [loadCatalogItems, setLoadCatalogItems] = useState<LoadCatalogRow[]>([]);
   const [rules, setRules] = useState<AccessoryRuleRow[]>([]);
   const [essRules, setEssRules] = useState<EssCompatibilityRuleRow[]>([]);
   const [solutions, setSolutions] = useState<SolutionRow[]>([]);
@@ -754,6 +776,7 @@ export function AdminPanel() {
   const [inverterForm, setInverterForm] = useState<Partial<InverterRow>>(emptyInverter);
   const [batteryForm, setBatteryForm] = useState<Partial<BatteryRow>>(emptyBattery);
   const [accessoryForm, setAccessoryForm] = useState<Partial<AccessoryRow>>(emptyAccessory);
+  const [loadCatalogForm, setLoadCatalogForm] = useState<Partial<LoadCatalogRow>>(emptyLoadCatalogItem);
   const [ruleForm, setRuleForm] = useState<Partial<AccessoryRuleRow>>(emptyRule);
   const [essRuleForm, setEssRuleForm] = useState<Partial<EssCompatibilityRuleRow>>(emptyEssRule);
   const [solutionForm, setSolutionForm] = useState<Partial<SolutionRow>>(emptySolution);
@@ -775,6 +798,7 @@ export function AdminPanel() {
       inverterResult,
       batteryResult,
       accessoryResult,
+      loadCatalogResult,
       ruleResult,
       essRuleResult,
       solutionResult,
@@ -785,6 +809,7 @@ export function AdminPanel() {
       supabase.from('inverters').select('*').order('model'),
       supabase.from('batteries').select('*').order('model'),
       supabase.from('accessories').select('*').order('model'),
+      supabase.from('load_catalog').select('*').order('category').order('name_pt'),
       supabase
         .from('accessory_rules')
         .select('*, accessories (model)')
@@ -818,6 +843,7 @@ export function AdminPanel() {
       inverterResult.error ??
       batteryResult.error ??
       accessoryResult.error ??
+      loadCatalogResult.error ??
       ruleResult.error ??
       essRuleResult.error ??
       solutionResult.error ??
@@ -831,6 +857,7 @@ export function AdminPanel() {
       setInverters((inverterResult.data ?? []) as InverterRow[]);
       setBatteries((batteryResult.data ?? []) as BatteryRow[]);
       setAccessories((accessoryResult.data ?? []) as AccessoryRow[]);
+      setLoadCatalogItems((loadCatalogResult.data ?? []) as LoadCatalogRow[]);
       setRules((ruleResult.data ?? []) as AccessoryRuleRow[]);
       setEssRules((essRuleResult.data ?? []) as EssCompatibilityRuleRow[]);
       setSolutions((solutionResult.data ?? []) as SolutionRow[]);
@@ -1061,6 +1088,45 @@ export function AdminPanel() {
     });
     setAccessoryForm(emptyAccessory);
     setSuccess('Acessório salvo.');
+    await loadData();
+  }
+
+  async function saveLoadCatalogItem(afterPersist?: () => void) {
+    setSaving(true);
+    setStatus(loadCatalogForm.id ? 'Atualizando carga...' : 'Salvando carga...');
+    setError(null);
+    const action: AdminLogAction = loadCatalogForm.id ? 'update' : 'create';
+    const beforeData = loadCatalogForm.id
+      ? loadCatalogItems.find((row) => row.id === loadCatalogForm.id)
+      : null;
+    const payload = {
+      name_pt: loadCatalogForm.name_pt?.trim(),
+      name_en: loadCatalogForm.name_en?.trim() || loadCatalogForm.name_pt?.trim(),
+      name_zh: loadCatalogForm.name_zh?.trim() || loadCatalogForm.name_pt?.trim(),
+      power_w: toNumber(loadCatalogForm.power_w),
+      category: loadCatalogForm.category?.trim() || 'Outros',
+      ip_in_ratio: Math.max(1, toNumber(loadCatalogForm.ip_in_ratio, 1)),
+    };
+
+    const request = loadCatalogForm.id
+      ? supabase.from('load_catalog').update(payload).eq('id', loadCatalogForm.id)
+      : supabase.from('load_catalog').insert(payload);
+    const { error: saveError } = await request;
+
+    setSaving(false);
+    if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
+    await recordActivityLog({
+      entityType: 'load_catalog_item',
+      action,
+      targetId: loadCatalogForm.id ?? null,
+      targetLabel: payload.name_pt || 'Carga sem nome',
+      summary: `${action === 'create' ? 'Criou' : 'Atualizou'} a carga ${payload.name_pt || 'sem nome'}.`,
+      beforeData,
+      afterData: payload,
+    });
+    setLoadCatalogForm(emptyLoadCatalogItem);
+    setSuccess('Carga salva.');
     await loadData();
   }
 
@@ -1311,6 +1377,10 @@ export function AdminPanel() {
       const row = accessories.find((item) => item.id === id);
       return { entityType: 'accessory' as const, label: row?.model ?? 'Acessório removido', beforeData: row };
     }
+    if (table === 'load_catalog') {
+      const row = loadCatalogItems.find((item) => item.id === id);
+      return { entityType: 'load_catalog_item' as const, label: row?.name_pt ?? 'Carga removida', beforeData: row };
+    }
     if (table === 'approved_solutions') {
       const row = solutions.find((item) => item.id === id);
       return { entityType: 'solution' as const, label: row?.solution_code ?? 'Combinação removida', beforeData: row };
@@ -1523,6 +1593,18 @@ export function AdminPanel() {
                     removingIds={removingIds}
                     uploadAsset={uploadProductAsset}
                     rules={rules}
+                    saving={saving}
+                  />
+                )}
+
+                {activeTab === 'loads' && (
+                  <LoadCatalogEditor
+                    rows={loadCatalogItems}
+                    form={loadCatalogForm}
+                    setForm={setLoadCatalogForm}
+                    onSave={saveLoadCatalogItem}
+                    onRemove={(id) => removeRow('load_catalog', id)}
+                    removingIds={removingIds}
                     saving={saving}
                   />
                 )}
@@ -2113,6 +2195,7 @@ function entityLabel(entityType: AdminLogEntity) {
     accessory: 'Acessório',
     solution: 'Combinação',
     rule: 'Regra',
+    load_catalog_item: 'Carga',
   };
   return labels[entityType];
 }
@@ -3676,6 +3759,146 @@ function AccessoriesEditor(props: {
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
         removeDescription: `O acessório ${row.model} será removido do cadastro e das regras que o referenciam.`,
+      }))}
+    />
+  );
+}
+
+function LoadCatalogEditor(props: {
+  rows: LoadCatalogRow[];
+  form: Partial<LoadCatalogRow>;
+  setForm: (value: Partial<LoadCatalogRow>) => void;
+  onSave: (afterPersist?: () => void) => void;
+  onRemove: (id: string) => void;
+  removingIds: Set<string>;
+  saving: boolean;
+}) {
+  const { form, setForm } = props;
+  const [formOpen, setFormOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const categoryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of props.rows) {
+      counts.set(row.category, (counts.get(row.category) ?? 0) + 1);
+    }
+    return [
+      { value: 'all', label: 'Todas', count: props.rows.length },
+      ...Array.from(counts.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([category, count]) => ({ value: category, label: category, count })),
+    ];
+  }, [props.rows]);
+
+  const existingCategories = useMemo(
+    () => Array.from(new Set(props.rows.map((row) => row.category))).sort((a, b) => a.localeCompare(b)),
+    [props.rows]
+  );
+
+  const visibleRows =
+    selectedCategory === 'all' ? props.rows : props.rows.filter((row) => row.category === selectedCategory);
+
+  function openNew() {
+    setForm(emptyLoadCatalogItem);
+    setFormOpen(true);
+  }
+
+  function openEdit(row: LoadCatalogRow) {
+    setForm(row);
+    setFormOpen(true);
+  }
+
+  return (
+    <CatalogLayout
+      title="Cargas"
+      count={visibleRows.length}
+      formOpen={formOpen}
+      formTitle={form.id ? 'Editar carga' : 'Nova carga'}
+      newLabel="Nova carga"
+      onNew={openNew}
+      onClose={() => setFormOpen(false)}
+      filter={
+        categoryOptions.length > 2 ? (
+          <div className="rounded-lg border bg-card p-3">
+            <SegmentedTabs
+              label="Categoria"
+              value={selectedCategory}
+              options={categoryOptions}
+              onChange={setSelectedCategory}
+            />
+          </div>
+        ) : undefined
+      }
+      form={
+        <>
+          <Field label="Nome (PT)">
+            <Input
+              value={form.name_pt ?? ''}
+              onChange={(event) => setForm({ ...form, name_pt: event.target.value })}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={<InfoLabel label="Nome (EN)" tip="Se vazio, usa o nome em português como padrão." />}>
+              <Input
+                value={form.name_en ?? ''}
+                onChange={(event) => setForm({ ...form, name_en: event.target.value })}
+              />
+            </Field>
+            <Field label={<InfoLabel label="Nome (ZH)" tip="Se vazio, usa o nome em português como padrão." />}>
+              <Input
+                value={form.name_zh ?? ''}
+                onChange={(event) => setForm({ ...form, name_zh: event.target.value })}
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberWithUnitField
+              label="Potência"
+              tip="Potência aparente nominal do equipamento."
+              icon={<Zap className="h-4 w-4" />}
+              unit="W"
+              value={form.power_w ?? 0}
+              onChange={(event) => setForm({ ...form, power_w: toNumber(event.target.value) })}
+            />
+            <NumberWithUnitField
+              label="IP/IN"
+              tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores/compressores costumam usar 2-3; cargas resistivas/eletrônicas usam 1."
+              icon={<Activity className="h-4 w-4" />}
+              unit="×"
+              min={1}
+              step={0.1}
+              value={form.ip_in_ratio ?? 1}
+              onChange={(event) => setForm({ ...form, ip_in_ratio: toNumber(event.target.value, 1) })}
+            />
+          </div>
+          <Field label="Categoria">
+            <Input
+              list="load-catalog-categories"
+              value={form.category ?? ''}
+              onChange={(event) => setForm({ ...form, category: event.target.value })}
+              placeholder="Ex.: Climatização, Refrigeração..."
+            />
+            <datalist id="load-catalog-categories">
+              {existingCategories.map((category) => (
+                <option key={category} value={category} />
+              ))}
+            </datalist>
+          </Field>
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
+        </>
+      }
+      items={visibleRows.map((row) => ({
+        id: row.id,
+        title: row.name_pt,
+        badges: [row.category],
+        details: [
+          ['Potência', `${row.power_w} W`],
+          ['IP/IN', `${row.ip_in_ratio}×`],
+        ],
+        removing: props.removingIds.has(row.id),
+        onEdit: () => openEdit(row),
+        onRemove: () => props.onRemove(row.id),
+        removeDescription: `A carga "${row.name_pt}" será removida do catálogo.`,
       }))}
     />
   );

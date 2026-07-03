@@ -7,9 +7,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Layers, Plus, Trash2, Search } from 'lucide-react';
+import { Layers, Plus, Trash2, Search, CircleHelp } from 'lucide-react';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, SingleLoad } from '@/lib/types';
+
+function InfoLabel({ label, tip }: { label: string; tip: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      <span className="group relative inline-flex">
+        <CircleHelp
+          className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary group-focus-visible:text-primary"
+          tabIndex={0}
+          aria-label={tip}
+        />
+        <span className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 w-56 max-w-[calc(100vw-2rem)] rounded-md border bg-popover px-2 py-1.5 text-xs font-normal leading-snug text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {tip}
+        </span>
+      </span>
+    </span>
+  );
+}
 
 function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
   return { ipInRatio: 1, ...partial, id: crypto.randomUUID() };
@@ -233,7 +251,9 @@ export function LoadSelector() {
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div>
-                <Label htmlFor="manual-power">{t('power')}</Label>
+                <Label htmlFor="manual-power">
+                  <InfoLabel label={t('power')} tip="Potência aparente nominal do equipamento, informada na etiqueta ou manual (em Watts)." />
+                </Label>
                 <Input
                   id="manual-power"
                   type="number"
@@ -243,7 +263,9 @@ export function LoadSelector() {
                 />
               </div>
               <div>
-                <Label htmlFor="manual-hours">{t('hours')}</Label>
+                <Label htmlFor="manual-hours">
+                  <InfoLabel label={t('hours')} tip="Tempo médio de uso diário desse equipamento. Usado para calcular o consumo em kWh/dia." />
+                </Label>
                 <Input
                   id="manual-hours"
                   type="number"
@@ -255,7 +277,9 @@ export function LoadSelector() {
                 />
               </div>
               <div>
-                <Label htmlFor="manual-qty">{t('qty')}</Label>
+                <Label htmlFor="manual-qty">
+                  <InfoLabel label={t('qty')} tip="Número de unidades desse equipamento na instalação." />
+                </Label>
                 <Input
                   id="manual-qty"
                   type="number"
@@ -265,7 +289,12 @@ export function LoadSelector() {
                 />
               </div>
               <div>
-                <Label htmlFor="manual-ip-in">IP/IN</Label>
+                <Label htmlFor="manual-ip-in">
+                  <InfoLabel
+                    label="IP/IN"
+                    tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
+                  />
+                </Label>
                 <Input
                   id="manual-ip-in"
                   type="number"
@@ -290,16 +319,26 @@ export function LoadSelector() {
 
       {residentialOptions.loads.length > 0 && (
         <div className="space-y-3">
-          <div className="rounded-md border bg-card p-2">
-            <p className="text-xs font-medium">Modo de cálculo do pico (IP/IN)</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Como as cargas com maior corrente de partida (IP/IN) somam no pico do sistema.
+          <div className="rounded-md border bg-card p-3">
+            <p className="text-xs font-medium">
+              <InfoLabel
+                label="Modo de cálculo do pico (IP/IN)"
+                tip="Define como as cargas com maior corrente de partida somam no pico de potência aparente do sistema, usado para escolher o inversor."
+              />
             </p>
             <div className="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
               {(
                 [
-                  { value: 'sum' as const, label: 'Soma de todas' },
-                  { value: 'largest-surge' as const, label: 'Só a maior carga' },
+                  {
+                    value: 'sum' as const,
+                    label: 'Soma de todas',
+                    tip: 'Pico = soma de (potência × IP/IN) de todas as cargas, como se todas partissem ao mesmo tempo. Mais conservador.',
+                  },
+                  {
+                    value: 'largest-surge' as const,
+                    label: 'Só a maior carga',
+                    tip: 'Pico = soma nominal de todas as cargas + o excedente de partida apenas da carga com maior IP/IN, assumindo que só um motor/compressor parte por vez.',
+                  },
                 ]
               ).map((option) => {
                 const active = (residentialOptions.peakCalcMode ?? 'sum') === option.value;
@@ -308,6 +347,7 @@ export function LoadSelector() {
                     key={option.value}
                     type="button"
                     aria-pressed={active}
+                    title={option.tip}
                     onClick={() => setPeakCalcMode(option.value)}
                     className={`h-8 rounded-md px-2 text-xs font-medium transition ${
                       active
@@ -321,63 +361,87 @@ export function LoadSelector() {
               })}
             </div>
           </div>
-          {residentialOptions.loads.map((load) => (
-            <div
-              key={load.id}
-              className="flex items-center gap-2 p-2 rounded-md border bg-card text-sm"
-            >
-              <div className="flex-1 min-w-0">
-                <span className="font-medium truncate block">{load.name}</span>
-                <span className="text-muted-foreground text-xs">
-                  {load.powerW}W · {load.hoursPerDay}h/dia · ×{load.qty} · IP/IN {load.ipInRatio ?? 1}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Input
-                  aria-label={`Horas por dia para ${load.name}`}
-                  type="number"
-                  min={1}
-                  max={24}
-                  step={0.5}
-                  value={load.hoursPerDay}
-                  onChange={(e) =>
-                    updateLoad(load.id, { hoursPerDay: Number(e.target.value) })
-                  }
-                  className="w-14 h-7 text-xs"
-                />
-                <Input
-                  aria-label={`Quantidade para ${load.name}`}
-                  type="number"
-                  min={1}
-                  value={load.qty}
-                  onChange={(e) =>
-                    updateLoad(load.id, { qty: Number(e.target.value) })
-                  }
-                  className="w-12 h-7 text-xs"
-                />
-                <Input
-                  aria-label={`IP/IN para ${load.name}`}
-                  type="number"
-                  min={1}
-                  step={0.1}
-                  value={load.ipInRatio ?? 1}
-                  onChange={(e) =>
-                    updateLoad(load.id, { ipInRatio: Number(e.target.value) })
-                  }
-                  className="w-14 h-7 text-xs"
-                />
+          {residentialOptions.loads.map((load) => {
+            const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
+            const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
+            return (
+            <div key={load.id} className="rounded-lg border bg-card p-3 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{load.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {load.powerW} W nominal · {loadPeakW.toFixed(0)} W pico · {loadEnergyKwh.toFixed(2)} kWh/dia
+                  </p>
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-7 w-7 shrink-0"
                   onClick={() => removeLoad(load.id)}
-                  aria-label="Remover"
+                  aria-label={`Remover ${load.name}`}
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               </div>
+              <div className="mt-2.5 grid grid-cols-3 gap-2">
+                <div>
+                  <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
+                    <InfoLabel
+                      label="Horas/dia"
+                      tip="Tempo médio de uso diário desse equipamento. Usado para calcular o consumo em kWh/dia."
+                    />
+                  </Label>
+                  <Input
+                    id={`hours-${load.id}`}
+                    type="number"
+                    min={1}
+                    max={24}
+                    step={0.5}
+                    value={load.hoursPerDay}
+                    onChange={(e) =>
+                      updateLoad(load.id, { hoursPerDay: Number(e.target.value) })
+                    }
+                    className="mt-1 h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`qty-${load.id}`} className="text-xs font-normal text-muted-foreground">
+                    <InfoLabel label="Quantidade" tip="Número de unidades desse equipamento na instalação." />
+                  </Label>
+                  <Input
+                    id={`qty-${load.id}`}
+                    type="number"
+                    min={1}
+                    value={load.qty}
+                    onChange={(e) =>
+                      updateLoad(load.id, { qty: Number(e.target.value) })
+                    }
+                    className="mt-1 h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`ip-in-${load.id}`} className="text-xs font-normal text-muted-foreground">
+                    <InfoLabel
+                      label="IP/IN"
+                      tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
+                    />
+                  </Label>
+                  <Input
+                    id={`ip-in-${load.id}`}
+                    type="number"
+                    min={1}
+                    step={0.1}
+                    value={load.ipInRatio ?? 1}
+                    onChange={(e) =>
+                      updateLoad(load.id, { ipInRatio: Number(e.target.value) })
+                    }
+                    className="mt-1 h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
