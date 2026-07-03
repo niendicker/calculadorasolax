@@ -407,37 +407,45 @@ export function SinglePageApp() {
     setLoading(true);
     setError(null);
 
-    const { data, error: functionError } = await supabase.functions.invoke(
-      'calculate-residential',
-      { body: residentialOptions }
-    );
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke(
+        'calculate-residential',
+        { body: residentialOptions }
+      );
 
-    setLoading(false);
+      if (functionError || !data) {
+        setSolution(null);
+        setError('Não foi possível encontrar uma solução compatível.');
+        return;
+      }
 
-    if (functionError || !data) {
+      const nextSolution = data as Solution;
+      setSolution(nextSolution);
+
+      const { data: userData } = await supabase.auth.getUser();
+      const { error: simulationError } = await supabase.from('app_simulations').insert({
+        user_id: userData.user?.id ?? null,
+        project_name: projectInfo.name || null,
+        client_name: clients.find((client) => client.id === projectInfo.clientId)?.name || null,
+        topology: residentialOptions.topology,
+        grid_type: residentialOptions.gridType,
+        peak_w: peakW,
+        daily_kwh: dailyKwh,
+        loads: residentialOptions.loads,
+        inverter_model: nextSolution.inverterModel,
+        battery_model: nextSolution.batteryModel,
+        accessories: nextSolution.accessories,
+        solution_code: nextSolution.solutionCode ?? null,
+      });
+
+      if (simulationError) console.error(simulationError);
+    } catch (err) {
+      console.error(err);
       setSolution(null);
       setError('Não foi possível encontrar uma solução compatível.');
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const nextSolution = data as Solution;
-    setSolution(nextSolution);
-
-    const { data: userData } = await supabase.auth.getUser();
-    await supabase.from('app_simulations').insert({
-      user_id: userData.user?.id ?? null,
-      project_name: projectInfo.name || null,
-      client_name: clients.find((client) => client.id === projectInfo.clientId)?.name || null,
-      topology: residentialOptions.topology,
-      grid_type: residentialOptions.gridType,
-      peak_w: peakW,
-      daily_kwh: dailyKwh,
-      loads: residentialOptions.loads,
-      inverter_model: nextSolution.inverterModel,
-      battery_model: nextSolution.batteryModel,
-      accessories: nextSolution.accessories,
-      solution_code: nextSolution.solutionCode ?? null,
-    });
   }
 
   function openProfile() {

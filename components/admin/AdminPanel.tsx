@@ -219,6 +219,26 @@ interface SolutionRow {
 
 type GeneratedSolutionPayload = Omit<SolutionRow, 'id'>;
 
+async function fetchApprovedSolutions(supabase: ReturnType<typeof createClient>) {
+  const pageSize = 1000;
+  const rows: SolutionRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('approved_solutions')
+      .select('*')
+      .order('rated_power_w', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) return { data: rows, error };
+
+    const page = (data ?? []) as SolutionRow[];
+    rows.push(...page);
+
+    if (page.length < pageSize) return { data: rows, error: null };
+  }
+}
+
 interface UserProfileRow {
   id: string;
   email: string;
@@ -555,14 +575,18 @@ function solutionRuleMetricValue(solution: Pick<SolutionRow, 'inverter_quantity'
   return solution.battery_ports_used;
 }
 
-function accessoryRuleMatches(solution: GeneratedSolutionPayload, rule: AccessoryRuleRow) {
+function accessoryRuleMatches(
+  solution: GeneratedSolutionPayload,
+  rule: AccessoryRuleRow,
+  generatedGridType?: InverterGridType
+) {
   if (!rule.active) return false;
   const inverterModels = accessoryRuleInverterModels(rule);
   if (inverterModels.length > 0 && !inverterModels.includes(solution.inverter_model)) return false;
   if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;
   if (rule.grid_topology) {
     const ruleGrid = normalizeInverterGridType(rule.grid_topology);
-    const solutionGrid = normalizeInverterGridType(solution.grid_topology);
+    const solutionGrid = generatedGridType ?? normalizeInverterGridType(solution.grid_topology);
     if (ruleGrid && solutionGrid && ruleGrid !== solutionGrid) return false;
     if (!ruleGrid && rule.grid_topology !== solution.grid_topology) return false;
   }
@@ -570,12 +594,16 @@ function accessoryRuleMatches(solution: GeneratedSolutionPayload, rule: Accessor
   return solutionRuleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
 }
 
-function applyAccessoryRules(solution: GeneratedSolutionPayload, rules: AccessoryRuleRow[]) {
+function applyAccessoryRules(
+  solution: GeneratedSolutionPayload,
+  rules: AccessoryRuleRow[],
+  generatedGridType?: InverterGridType
+) {
   const accessories = new Map<string, number>();
   const comments: string[] = [];
 
   for (const rule of rules) {
-    if (!rule.accessories?.model || !accessoryRuleMatches(solution, rule)) continue;
+    if (!rule.accessories?.model || !accessoryRuleMatches(solution, rule, generatedGridType)) continue;
     const currentQty = accessories.get(rule.accessories.model) ?? 0;
     accessories.set(rule.accessories.model, currentQty + rule.quantity_per_match);
     if (rule.comment) comments.push(rule.comment);
@@ -686,7 +714,7 @@ function buildRuleGeneratedSolutions({
                 active: true,
               };
 
-              const ruleExtras = applyAccessoryRules(baseSolution, accessoryRules);
+              const ruleExtras = applyAccessoryRules(baseSolution, accessoryRules, gridType);
               const solution = {
                 ...baseSolution,
                 accessories: ruleExtras.accessories.length > 0 ? ruleExtras.accessories : [{ model: null, quantity: 0 }],
@@ -824,11 +852,7 @@ export function AdminPanel() {
         .from('ess_compatibility_rules')
         .select('*')
         .order('created_at', { ascending: false }),
-      supabase
-        .from('approved_solutions')
-        .select('*')
-        .order('rated_power_w', { ascending: true })
-        .limit(300),
+      fetchApprovedSolutions(supabase),
       supabase
         .from('profiles')
         .select('id, email, full_name, phone, role, company_name, created_at, updated_at')

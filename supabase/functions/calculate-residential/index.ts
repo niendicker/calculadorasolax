@@ -133,6 +133,10 @@ function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {
   return nominalSum + largestExtra;
 }
 
+function totalNominalW(loads: SingleLoad[]): number {
+  return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+}
+
 function totalDailyKwh(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty) / 1000, 0);
 }
@@ -159,7 +163,11 @@ function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRule['trig
   return solution.battery_ports_used;
 }
 
-function ruleMatches(solution: ApprovedSolution, rule: AccessoryRule): boolean {
+function ruleMatches(
+  solution: ApprovedSolution,
+  rule: AccessoryRule,
+  requestedGridTopology: StandardGridTopology
+): boolean {
   const inverterModels = Array.isArray(rule.inverter_models) && rule.inverter_models.length > 0
     ? rule.inverter_models
     : rule.inverter_model
@@ -169,7 +177,7 @@ function ruleMatches(solution: ApprovedSolution, rule: AccessoryRule): boolean {
   if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;
   if (
     rule.grid_topology &&
-    normalizeStandardGridTopology(rule.grid_topology) !== normalizeStandardGridTopology(solution.grid_topology)
+    normalizeStandardGridTopology(rule.grid_topology) !== requestedGridTopology
   ) {
     return false;
   }
@@ -195,6 +203,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    const nominalW = totalNominalW(options.loads);
     const peakW = totalPeakW(options.loads, options.peakCalcMode ?? 'sum');
     const dailyKwh = totalDailyKwh(options.loads);
     const gridTopology = gridTopologyMap[options.gridType];
@@ -249,7 +258,8 @@ Deno.serve(async (req) => {
       .eq('active', true)
       .eq('grid_topology', gridTopology)
       .eq('battery_topology', batteryTopology)
-      .gte('rated_power_w', peakW)
+      .gte('rated_power_w', nominalW)
+      .gte('peak_power_w', peakW)
       .order('rated_power_w', { ascending: true })
       .order('available_energy_wh', { ascending: true })
       .order('battery_quantity', { ascending: true })
@@ -382,7 +392,7 @@ Deno.serve(async (req) => {
     const automaticComments: string[] = [];
 
     for (const rule of (rules ?? []) as AccessoryRule[]) {
-      if (!rule.accessories?.model || !ruleMatches(solution, rule)) continue;
+      if (!rule.accessories?.model || !ruleMatches(solution, rule, standardGridTopology)) continue;
 
       const normalizedModel = rule.accessories.model.toLowerCase();
       const label =

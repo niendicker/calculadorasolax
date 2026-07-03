@@ -238,12 +238,13 @@ Seleção:
 2. Mapeia topologia para `battery_topology`
 3. Filtra pelo modelo exato da bateria quando selecionado
 4. Filtra `approved_solutions.active = true`
-5. Exige `rated_power_w >= peakW`
-6. Usa `capacity_kwh` e `min_soc_percent` do modelo de bateria para calcular energia útil quando disponível
-7. Exige energia útil suficiente para pelo menos `targetEnergyWh * 0.8`
-8. Aplica regras ESS de compatibilidade e limites de paralelo/baterias
-9. Ordena por menor potência, menor energia e menor quantidade de baterias
-10. Aplica regras automáticas de acessórios
+5. Exige `rated_power_w >= nominalW`
+6. Exige `peak_power_w >= peakW`
+7. Usa `capacity_kwh` e `min_soc_percent` do modelo de bateria para calcular energia útil quando disponível
+8. Exige energia útil suficiente para pelo menos `targetEnergyWh * 0.8`
+9. Aplica regras ESS de compatibilidade e limites de paralelo/baterias
+10. Ordena por menor potência, menor energia e menor quantidade de baterias
+11. Aplica regras automáticas de acessórios
 
 ## Geração de combinações por regras
 
