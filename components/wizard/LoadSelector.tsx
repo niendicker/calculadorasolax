@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Layers, Plus, Trash2, Search, CircleHelp } from 'lucide-react';
+import { Layers, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, SingleLoad } from '@/lib/types';
 
@@ -26,6 +26,60 @@ function InfoLabel({ label, tip }: { label: string; tip: string }) {
         </span>
       </span>
     </span>
+  );
+}
+
+function NumberFieldWithClear({
+  id,
+  value,
+  placeholder,
+  min,
+  max,
+  step,
+  ariaLabel,
+  onChange,
+  onBlur,
+  onClear,
+}: {
+  id?: string;
+  value: string;
+  placeholder: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  ariaLabel?: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="relative mt-1">
+      <Input
+        id={id}
+        aria-label={ariaLabel}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+        className="h-8 pr-6 text-xs"
+      />
+      {value !== '' && (
+        <button
+          type="button"
+          aria-label="Limpar campo"
+          tabIndex={-1}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onClear}
+          className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -361,89 +415,122 @@ export function LoadSelector() {
               })}
             </div>
           </div>
-          {residentialOptions.loads.map((load) => {
-            const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
-            const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
-            return (
-            <div key={load.id} className="rounded-lg border bg-card p-3 text-sm">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{load.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {load.powerW} W nominal · {loadPeakW.toFixed(0)} W pico · {loadEnergyKwh.toFixed(2)} kWh/dia
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => removeLoad(load.id)}
-                  aria-label={`Remover ${load.name}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              </div>
-              <div className="mt-2.5 grid grid-cols-3 gap-2">
-                <div>
-                  <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
-                    <InfoLabel
-                      label="Horas/dia"
-                      tip="Tempo médio de uso diário desse equipamento. Usado para calcular o consumo em kWh/dia."
-                    />
-                  </Label>
-                  <Input
-                    id={`hours-${load.id}`}
-                    type="number"
-                    min={1}
-                    max={24}
-                    step={0.5}
-                    value={load.hoursPerDay}
-                    onChange={(e) =>
-                      updateLoad(load.id, { hoursPerDay: Number(e.target.value) })
-                    }
-                    className="mt-1 h-8 text-xs"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`qty-${load.id}`} className="text-xs font-normal text-muted-foreground">
-                    <InfoLabel label="Quantidade" tip="Número de unidades desse equipamento na instalação." />
-                  </Label>
-                  <Input
-                    id={`qty-${load.id}`}
-                    type="number"
-                    min={1}
-                    value={load.qty}
-                    onChange={(e) =>
-                      updateLoad(load.id, { qty: Number(e.target.value) })
-                    }
-                    className="mt-1 h-8 text-xs"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`ip-in-${load.id}`} className="text-xs font-normal text-muted-foreground">
-                    <InfoLabel
-                      label="IP/IN"
-                      tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
-                    />
-                  </Label>
-                  <Input
-                    id={`ip-in-${load.id}`}
-                    type="number"
-                    min={1}
-                    step={0.1}
-                    value={load.ipInRatio ?? 1}
-                    onChange={(e) =>
-                      updateLoad(load.id, { ipInRatio: Number(e.target.value) })
-                    }
-                    className="mt-1 h-8 text-xs"
-                  />
-                </div>
-              </div>
-            </div>
-            );
-          })}
+          {residentialOptions.loads.map((load) => (
+            <LoadCard key={load.id} load={load} onUpdate={updateLoad} onRemove={removeLoad} />
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function LoadCard({
+  load,
+  onUpdate,
+  onRemove,
+}: {
+  load: SingleLoad;
+  onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [hours, setHours] = useState(String(load.hoursPerDay));
+  const [qty, setQty] = useState(String(load.qty));
+  const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
+
+  function handleChange(
+    field: 'hoursPerDay' | 'qty' | 'ipInRatio',
+    raw: string,
+    setLocal: (value: string) => void
+  ) {
+    setLocal(raw);
+    const parsed = Number(raw);
+    if (raw.trim() !== '' && Number.isFinite(parsed) && parsed > 0) {
+      onUpdate(load.id, { [field]: parsed } as Partial<SingleLoad>);
+    }
+  }
+
+  function revertIfInvalid(raw: string, fallback: number, setLocal: (value: string) => void) {
+    const parsed = Number(raw);
+    if (raw.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
+      setLocal(String(fallback));
+    }
+  }
+
+  const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
+  const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
+
+  return (
+    <div className="rounded-lg border bg-card p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium truncate">{load.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {load.powerW} W nominal · {loadPeakW.toFixed(0)} W pico · {loadEnergyKwh.toFixed(2)} kWh/dia
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          onClick={() => onRemove(load.id)}
+          aria-label={`Remover ${load.name}`}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        </Button>
+      </div>
+      <div className="mt-2.5 grid grid-cols-3 gap-2">
+        <div>
+          <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
+            <InfoLabel
+              label="Horas/dia"
+              tip="Tempo médio de uso diário desse equipamento. Usado para calcular o consumo em kWh/dia."
+            />
+          </Label>
+          <NumberFieldWithClear
+            id={`hours-${load.id}`}
+            value={hours}
+            placeholder="Ex.: 4"
+            min={0.5}
+            max={24}
+            step={0.5}
+            onChange={(value) => handleChange('hoursPerDay', value, setHours)}
+            onBlur={() => revertIfInvalid(hours, load.hoursPerDay, setHours)}
+            onClear={() => setHours('')}
+          />
+        </div>
+        <div>
+          <Label htmlFor={`qty-${load.id}`} className="text-xs font-normal text-muted-foreground">
+            <InfoLabel label="Quantidade" tip="Número de unidades desse equipamento na instalação." />
+          </Label>
+          <NumberFieldWithClear
+            id={`qty-${load.id}`}
+            value={qty}
+            placeholder="Ex.: 1"
+            min={1}
+            onChange={(value) => handleChange('qty', value, setQty)}
+            onBlur={() => revertIfInvalid(qty, load.qty, setQty)}
+            onClear={() => setQty('')}
+          />
+        </div>
+        <div>
+          <Label htmlFor={`ip-in-${load.id}`} className="text-xs font-normal text-muted-foreground">
+            <InfoLabel
+              label="IP/IN"
+              tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
+            />
+          </Label>
+          <NumberFieldWithClear
+            id={`ip-in-${load.id}`}
+            value={ipIn}
+            placeholder="Ex.: 1"
+            min={1}
+            step={0.1}
+            onChange={(value) => handleChange('ipInRatio', value, setIpIn)}
+            onBlur={() => revertIfInvalid(ipIn, load.ipInRatio ?? 1, setIpIn)}
+            onClear={() => setIpIn('')}
+          />
+        </div>
+      </div>
     </div>
   );
 }

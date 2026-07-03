@@ -1572,34 +1572,33 @@ function SizingTab({
 }) {
   return (
     <>
-      <div className="sticky top-0 z-20 -mx-4 mb-5 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={saveProject}>
-            <Save className="h-4 w-4" />
-            Salvar projeto
-          </Button>
-          <Button variant="outline" onClick={() => resetResidential()}>
-            Limpar
-          </Button>
-          {solution && (
-            <Button variant="outline" onClick={exportPdf}>
-              <FileText className="h-4 w-4" />
-              Exportar PDF
-            </Button>
-          )}
-          <Button onClick={calculate} disabled={!canCalculate || loading}>
-            <Calculator className="h-4 w-4" />
-            {loading ? loadingLabel : calculateLabel}
-          </Button>
-        </div>
-      </div>
-
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
+          <div className="sticky top-0 z-20 flex flex-col gap-3 border-b bg-background/95 py-3 backdrop-blur lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={saveProject}>
+                <Save className="h-4 w-4" />
+                Salvar projeto
+              </Button>
+              <Button variant="outline" onClick={() => resetResidential()}>
+                Limpar
+              </Button>
+              {solution && (
+                <Button variant="outline" onClick={exportPdf}>
+                  <FileText className="h-4 w-4" />
+                  Exportar PDF
+                </Button>
+              )}
+              <Button onClick={calculate} disabled={!canCalculate || loading}>
+                <Calculator className="h-4 w-4" />
+                {loading ? loadingLabel : calculateLabel}
+              </Button>
+            </div>
+          </div>
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -1678,15 +1677,15 @@ function SizingTab({
           </Card>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-5 xl:self-start">
-          <Card>
-            <CardHeader className="pb-3">
+        <div className="xl:sticky xl:top-0 xl:h-[calc(100vh_-_1.25rem)]">
+          <Card className="xl:flex xl:h-full xl:flex-col">
+            <CardHeader className="pb-3 xl:shrink-0">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Gauge className="h-4 w-4" />
                 Resumo
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
               <div className="grid grid-cols-2 gap-3">
                 <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kW`} />
                 <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
