@@ -39,6 +39,7 @@ import { useWizardStore, totalDailyKwh, totalPeakW } from '@/lib/store/wizard-st
 import type {
   BatteryTopology,
   CatalogItem,
+  Client,
   ProductDocument,
   ProjectInfo,
   ResidentialGridType,
@@ -152,12 +153,20 @@ export function SinglePageApp() {
   const {
     projectInfo,
     savedProjects,
+    clients,
     residentialOptions,
     solution,
     setProjectInfo,
+    newProjectDraft,
     saveCurrentProject,
     loadProject,
     removeProject,
+    fetchProjects,
+    fetchClients,
+    addClient,
+    updateClient,
+    removeClient,
+    clearUserData,
     setTopology,
     setBatteryModel,
     setInverterModel,
@@ -170,6 +179,7 @@ export function SinglePageApp() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<InlineProfile | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [clientsManagerOpen, setClientsManagerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog'>('project');
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
@@ -240,6 +250,8 @@ export function SinglePageApp() {
           companyAddress: profileData?.company_address ?? '',
           companyLogoUrl: profileData?.company_logo_url ?? '',
         });
+
+        await Promise.all([fetchClients(), fetchProjects()]);
       }
 
       if (catalogData) {
@@ -408,7 +420,7 @@ export function SinglePageApp() {
     await supabase.from('app_simulations').insert({
       user_id: userData.user?.id ?? null,
       project_name: projectInfo.name || null,
-      client_name: projectInfo.clientName || null,
+      client_name: clients.find((client) => client.id === projectInfo.clientId)?.name || null,
       topology: residentialOptions.topology,
       grid_type: residentialOptions.gridType,
       peak_w: peakW,
@@ -431,6 +443,14 @@ export function SinglePageApp() {
     }
 
     setProfileOpen(true);
+  }
+
+  function openClientsManager() {
+    if (!profile) {
+      router.push(`/${locale}/login?redirect=/${locale}`);
+      return;
+    }
+    setClientsManagerOpen(true);
   }
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -469,6 +489,7 @@ export function SinglePageApp() {
     setUserEmail(null);
     setProfileOpen(false);
     setMobileMenuOpen(false);
+    clearUserData();
     router.replace(`/${locale}/login`);
     router.refresh();
   }
@@ -506,9 +527,22 @@ export function SinglePageApp() {
     window.print();
   }
 
-  function saveProject() {
-    const project = saveCurrentProject();
-    setProjectStatus(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
+  async function saveProject() {
+    if (!profile) {
+      router.push(`/${locale}/login?redirect=/${locale}`);
+      return;
+    }
+    try {
+      const project = await saveCurrentProject();
+      setProjectStatus(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
+    } catch {
+      setProjectStatus('Não foi possível salvar o projeto. Tente novamente.');
+    }
+  }
+
+  function startNewProject() {
+    newProjectDraft();
+    setProjectStatus('Novo projeto iniciado.');
   }
 
   function openProject(id: string) {
@@ -517,9 +551,13 @@ export function SinglePageApp() {
     setProjectStatus('Projeto carregado.');
   }
 
-  function deleteProject(id: string) {
-    removeProject(id);
-    setProjectStatus('Projeto removido.');
+  async function deleteProject(id: string) {
+    try {
+      await removeProject(id);
+      setProjectStatus('Projeto removido.');
+    } catch {
+      setProjectStatus('Não foi possível remover o projeto.');
+    }
   }
 
   function openMobileTab(tab: 'project' | 'sizing' | 'catalog') {
@@ -650,6 +688,7 @@ export function SinglePageApp() {
             <ProjectTab
               projectInfo={projectInfo}
               savedProjects={savedProjects}
+              clients={clients}
               initialLoading={initialLoading}
               projectStatus={projectStatus}
               topology={residentialOptions.topology}
@@ -661,9 +700,12 @@ export function SinglePageApp() {
               hasSolution={Boolean(solution)}
               setProjectInfo={setProjectInfo}
               onSave={saveProject}
+              onNew={startNewProject}
               onOpen={openProject}
               onRemove={deleteProject}
               onGoSizing={() => setActiveTab('sizing')}
+              onManageClients={openClientsManager}
+              onQuickAddClient={addClient}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab
@@ -957,9 +999,19 @@ export function SinglePageApp() {
         </div>
       )}
 
+      <ClientsManagerModal
+        open={clientsManagerOpen}
+        onClose={() => setClientsManagerOpen(false)}
+        clients={clients}
+        onAdd={addClient}
+        onUpdate={updateClient}
+        onRemove={removeClient}
+      />
+
       {solution && (
         <PrintableReport
           projectInfo={projectInfo}
+          client={clients.find((c) => c.id === projectInfo.clientId) ?? null}
           profile={profile}
           solution={solution}
           loads={residentialOptions.loads}
@@ -977,6 +1029,7 @@ export function SinglePageApp() {
 function ProjectTab({
   projectInfo,
   savedProjects,
+  clients,
   initialLoading,
   projectStatus,
   topology,
@@ -988,12 +1041,16 @@ function ProjectTab({
   hasSolution,
   setProjectInfo,
   onSave,
+  onNew,
   onOpen,
   onRemove,
   onGoSizing,
+  onManageClients,
+  onQuickAddClient,
 }: {
   projectInfo: ProjectInfo;
   savedProjects: SavedProject[];
+  clients: Client[];
   initialLoading: boolean;
   projectStatus: string | null;
   topology: BatteryTopology | null;
@@ -1005,20 +1062,54 @@ function ProjectTab({
   hasSolution: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onSave: () => void;
+  onNew: () => void;
   onOpen: (id: string) => void;
   onRemove: (id: string) => void;
   onGoSizing: () => void;
+  onManageClients: () => void;
+  onQuickAddClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
 }) {
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddName, setQuickAddName] = useState('');
+  const [quickAddEmail, setQuickAddEmail] = useState('');
+  const [quickAddPhone, setQuickAddPhone] = useState('');
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+
+  async function handleQuickAddClient() {
+    if (!quickAddName.trim()) return;
+    setQuickAddSaving(true);
+    try {
+      const client = await onQuickAddClient({
+        name: quickAddName,
+        email: quickAddEmail,
+        phone: quickAddPhone,
+        document: '',
+        notes: '',
+      });
+      setProjectInfo({ clientId: client.id });
+      setQuickAddOpen(false);
+      setQuickAddName('');
+      setQuickAddEmail('');
+      setQuickAddPhone('');
+    } finally {
+      setQuickAddSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projeto</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastre o cliente e salve a configuração para reutilizar depois.
+            Escolha um cliente cadastrado e salve a configuração para reutilizar depois.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={onNew}>
+            <FolderOpen className="h-4 w-4" />
+            Novo projeto
+          </Button>
           <Button variant="outline" onClick={onGoSizing}>
             <Calculator className="h-4 w-4" />
             Dimensionar
@@ -1040,7 +1131,7 @@ function ProjectTab({
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Dados do cliente</CardTitle>
+              <CardTitle>Dados do projeto</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <ProjectField label="Nome do projeto" id="projectName">
@@ -1051,39 +1142,77 @@ function ProjectTab({
                   placeholder="Ex: Residência Silva"
                 />
               </ProjectField>
-              <ProjectField label="Cliente" id="clientName">
-                <Input
-                  id="clientName"
-                  value={projectInfo.clientName}
-                  onChange={(event) => setProjectInfo({ clientName: event.target.value })}
-                  placeholder="Nome do cliente"
-                />
-              </ProjectField>
-              <ProjectField label="Email" id="clientEmail">
-                <Input
-                  id="clientEmail"
-                  type="email"
-                  value={projectInfo.clientEmail}
-                  onChange={(event) => setProjectInfo({ clientEmail: event.target.value })}
-                  placeholder="cliente@email.com"
-                />
-              </ProjectField>
-              <ProjectField label="Telefone" id="clientPhone">
-                <Input
-                  id="clientPhone"
-                  value={projectInfo.clientPhone}
-                  onChange={(event) => setProjectInfo({ clientPhone: event.target.value })}
-                  placeholder="(00) 00000-0000"
-                />
-              </ProjectField>
-              <ProjectField label="CPF/CNPJ" id="clientDocument">
-                <Input
-                  id="clientDocument"
-                  value={projectInfo.clientDocument}
-                  onChange={(event) => setProjectInfo({ clientDocument: event.target.value })}
-                  placeholder="Documento do cliente"
-                />
-              </ProjectField>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="clientId">Cliente</Label>
+                  <button
+                    type="button"
+                    onClick={onManageClients}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Gerenciar clientes
+                  </button>
+                </div>
+                <select
+                  id="clientId"
+                  className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={projectInfo.clientId ?? ''}
+                  onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
+                >
+                  <option value="">Sem cliente selecionado</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+                {!quickAddOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuickAddOpen(true)}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    + Cadastrar novo cliente
+                  </button>
+                ) : (
+                  <div className="space-y-2 rounded-lg border bg-background p-2.5">
+                    <Input
+                      aria-label="Nome do novo cliente"
+                      value={quickAddName}
+                      onChange={(event) => setQuickAddName(event.target.value)}
+                      placeholder="Nome do cliente"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        aria-label="Email do novo cliente"
+                        type="email"
+                        value={quickAddEmail}
+                        onChange={(event) => setQuickAddEmail(event.target.value)}
+                        placeholder="Email"
+                      />
+                      <Input
+                        aria-label="Telefone do novo cliente"
+                        value={quickAddPhone}
+                        onChange={(event) => setQuickAddPhone(event.target.value)}
+                        placeholder="Telefone"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleQuickAddClient}
+                        disabled={!quickAddName.trim() || quickAddSaving}
+                      >
+                        Salvar cliente
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setQuickAddOpen(false)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <ProjectField label="Endereço" id="clientAddress">
                 <Input
                   id="clientAddress"
@@ -1127,7 +1256,7 @@ function ProjectTab({
                       <div className="min-w-0">
                         <p className="font-medium">{project.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {project.clientName || 'Cliente não informado'} · Atualizado em{' '}
+                          {clients.find((client) => client.id === project.clientId)?.name || 'Cliente não informado'} · Atualizado em{' '}
                           {new Intl.DateTimeFormat('pt-BR', {
                             dateStyle: 'short',
                             timeStyle: 'short',
@@ -1210,6 +1339,212 @@ function ProjectField({
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function emptyClientForm() {
+  return { name: '', email: '', phone: '', document: '', notes: '' };
+}
+
+function ClientsManagerModal({
+  open,
+  onClose,
+  clients,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  open: boolean;
+  onClose: () => void;
+  clients: Client[];
+  onAdd: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
+  onUpdate: (
+    id: string,
+    partial: Partial<{ name: string; email: string; phone: string; document: string; notes: string }>
+  ) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyClientForm());
+  const [saving, setSaving] = useState(false);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+
+  if (!open) return null;
+
+  function openNew() {
+    setEditingId(null);
+    setForm(emptyClientForm());
+    setFormOpen(true);
+  }
+
+  function openEdit(client: Client) {
+    setEditingId(client.id);
+    setForm({
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      document: client.document,
+      notes: client.notes,
+    });
+    setFormOpen(true);
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        await onUpdate(editingId, form);
+      } else {
+        await onAdd(form);
+      }
+      setFormOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    setRemovingIds((current) => new Set(current).add(id));
+    try {
+      await onRemove(id);
+    } finally {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end bg-foreground/20 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="clients-manager-title"
+    >
+      <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg border bg-card p-4 shadow-lg sm:max-w-2xl sm:rounded-lg sm:p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 id="clients-manager-title" className="text-xl font-semibold tracking-tight">
+              Clientes
+            </h2>
+            <p className="text-sm text-muted-foreground">Cadastre e gerencie os clientes usados nos projetos.</p>
+          </div>
+          <Button variant="ghost" size="icon" aria-label="Fechar clientes" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {!formOpen ? (
+          <>
+            <Button className="mb-3" onClick={openNew}>
+              <UserRound className="h-4 w-4" />
+              Novo cliente
+            </Button>
+            {clients.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Nenhum cliente cadastrado ainda.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {clients.map((client) => (
+                  <div
+                    key={client.id}
+                    className={cn(
+                      'flex flex-col gap-2 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between',
+                      removingIds.has(client.id) && 'opacity-60'
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{client.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {[client.email, client.phone, client.document].filter(Boolean).join(' · ') || 'Sem dados de contato'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(client)} disabled={removingIds.has(client.id)}>
+                        Editar
+                      </Button>
+                      <ConfirmDeleteButton
+                        ariaLabel={`Remover cliente ${client.name}`}
+                        title="Remover cliente?"
+                        description="Os projetos que usam esse cliente ficarão sem cliente associado."
+                        confirmLabel="Remover"
+                        disabled={removingIds.has(client.id)}
+                        onConfirm={() => handleRemove(client.id)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="clientFormName">Nome</Label>
+              <Input
+                id="clientFormName"
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                placeholder="Nome do cliente"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="clientFormEmail">Email</Label>
+                <Input
+                  id="clientFormEmail"
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  placeholder="cliente@email.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="clientFormPhone">Telefone</Label>
+                <Input
+                  id="clientFormPhone"
+                  value={form.phone}
+                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="clientFormDocument">CPF/CNPJ</Label>
+              <Input
+                id="clientFormDocument"
+                value={form.document}
+                onChange={(event) => setForm({ ...form, document: event.target.value })}
+                placeholder="Documento do cliente"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="clientFormNotes">Observações</Label>
+              <textarea
+                id="clientFormNotes"
+                className="min-h-20 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                value={form.notes}
+                onChange={(event) => setForm({ ...form, notes: event.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setFormOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={!form.name.trim() || saving}>
+                <Save className="h-4 w-4" />
+                {saving ? 'Salvando...' : 'Salvar cliente'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2263,6 +2598,7 @@ function ResultSummary({
 
 function PrintableReport({
   projectInfo,
+  client,
   profile,
   solution,
   loads,
@@ -2273,6 +2609,7 @@ function PrintableReport({
   dailyKwh,
 }: {
   projectInfo: ProjectInfo;
+  client: Client | null;
   profile: InlineProfile | null;
   solution: Solution;
   loads: { id: string; name: string; powerW: number; hoursPerDay: number; qty: number }[];
@@ -2331,10 +2668,10 @@ function PrintableReport({
         <table className="w-full border-collapse text-sm">
           <tbody>
             <ReportInfoRow label="Projeto" value={projectInfo.name || '-'} />
-            <ReportInfoRow label="Cliente" value={projectInfo.clientName || '-'} />
-            <ReportInfoRow label="Email" value={projectInfo.clientEmail || '-'} />
-            <ReportInfoRow label="Telefone" value={projectInfo.clientPhone || '-'} />
-            <ReportInfoRow label="CPF/CNPJ" value={projectInfo.clientDocument || '-'} />
+            <ReportInfoRow label="Cliente" value={client?.name || '-'} />
+            <ReportInfoRow label="Email" value={client?.email || '-'} />
+            <ReportInfoRow label="Telefone" value={client?.phone || '-'} />
+            <ReportInfoRow label="CPF/CNPJ" value={client?.document || '-'} />
             <ReportInfoRow label="Endereço" value={projectInfo.address || '-'} />
             {projectInfo.notes && <ReportInfoRow label="Observações" value={projectInfo.notes} />}
           </tbody>

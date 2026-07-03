@@ -54,12 +54,20 @@ export interface ResidentialOptions {
 
 export interface ProjectInfo {
   name: string;
-  clientName: string;
-  clientEmail: string;
-  clientPhone: string;
-  clientDocument: string;
+  clientId: string | null;
   address: string;
   notes: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  document: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface IndustrialOptions {
@@ -92,9 +100,10 @@ export interface Solution {
 export interface SavedProject {
   id: string;
   name: string;
-  clientName: string;
+  clientId: string | null;
+  address: string;
+  notes: string;
   updatedAt: string;
-  projectInfo: ProjectInfo;
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
 }
