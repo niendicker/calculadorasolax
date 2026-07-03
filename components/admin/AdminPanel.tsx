@@ -3776,6 +3776,7 @@ function LoadCatalogEditor(props: {
   const { form, setForm } = props;
   const [formOpen, setFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [query, setQuery] = useState('');
 
   const categoryOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -3795,8 +3796,15 @@ function LoadCatalogEditor(props: {
     [props.rows]
   );
 
-  const visibleRows =
-    selectedCategory === 'all' ? props.rows : props.rows.filter((row) => row.category === selectedCategory);
+  const visibleRows = useMemo(() => {
+    const byCategory =
+      selectedCategory === 'all' ? props.rows : props.rows.filter((row) => row.category === selectedCategory);
+    const q = query.trim().toLowerCase();
+    if (!q) return byCategory;
+    return byCategory.filter((row) =>
+      [row.name_pt, row.name_en, row.name_zh].some((name) => name.toLowerCase().includes(q))
+    );
+  }, [props.rows, selectedCategory, query]);
 
   function openNew() {
     setForm(emptyLoadCatalogItem);
@@ -3817,6 +3825,18 @@ function LoadCatalogEditor(props: {
       newLabel="Nova carga"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
+      search={
+        <label className="relative block sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar carga por nome"
+            className="pl-8"
+            placeholder="Buscar por nome..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      }
       filter={
         categoryOptions.length > 2 ? (
           <div className="rounded-lg border bg-card p-3">
@@ -4490,6 +4510,7 @@ function CatalogLayout({
   onClose,
   form,
   filter,
+  search,
   items,
 }: {
   title: string;
@@ -4501,6 +4522,7 @@ function CatalogLayout({
   onClose: () => void;
   form: React.ReactNode;
   filter?: React.ReactNode;
+  search?: React.ReactNode;
   items: {
     id: string;
     title: string;
@@ -4518,10 +4540,13 @@ function CatalogLayout({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SectionHeader title={title} count={count} />
-        <Button onClick={onNew}>
-          <Plus className="h-4 w-4" />
-          {newLabel}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {search}
+          <Button onClick={onNew}>
+            <Plus className="h-4 w-4" />
+            {newLabel}
+          </Button>
+        </div>
       </div>
 
       {filter}
@@ -4565,7 +4590,7 @@ function SegmentedTabs({
           {options.find((option) => option.value === value)?.count ?? 0}
         </Badge>
       </div>
-      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {options.map((option) => {
           const active = option.value === value;
           return (
@@ -4573,7 +4598,7 @@ function SegmentedTabs({
               key={option.value}
               type="button"
               aria-pressed={active}
-              className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition ${
                 active
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
