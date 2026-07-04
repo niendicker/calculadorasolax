@@ -464,9 +464,11 @@ export function LoadSelector() {
               })}
             </div>
           </div>
-          {residentialOptions.loads.map((load) => (
-            <LoadCard key={load.id} load={load} onUpdate={updateLoad} onRemove={removeLoad} />
-          ))}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {residentialOptions.loads.map((load) => (
+              <LoadCard key={load.id} load={load} onUpdate={updateLoad} onRemove={removeLoad} />
+            ))}
+          </div>
         </div>
       )}
     </div>

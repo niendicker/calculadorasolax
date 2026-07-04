@@ -222,6 +222,7 @@ export function SinglePageApp() {
         supabase
           .from('load_catalog')
           .select('id, name_pt, name_en, name_zh, power_w, category, ip_in_ratio')
+          .eq('active', true)
           .order('category'),
         supabase
           .from('batteries')

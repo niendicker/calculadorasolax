@@ -152,6 +152,7 @@ interface LoadCatalogRow {
   power_w: number;
   category: string;
   ip_in_ratio: number;
+  active: boolean;
 }
 
 interface AccessoryRuleRow {
@@ -348,6 +349,7 @@ const emptyLoadCatalogItem: Partial<LoadCatalogRow> = {
   power_w: 0,
   category: '',
   ip_in_ratio: 1,
+  active: true,
 };
 
 const emptyRule: Partial<AccessoryRuleRow> = {
@@ -1143,6 +1145,7 @@ export function AdminPanel() {
       power_w: toNumber(loadCatalogForm.power_w),
       category: loadCatalogForm.category?.trim() || 'Outros',
       ip_in_ratio: Math.max(1, toNumber(loadCatalogForm.ip_in_ratio, 1)),
+      active: loadCatalogForm.active ?? true,
     };
 
     const request = loadCatalogForm.id
@@ -1654,6 +1657,7 @@ export function AdminPanel() {
                     setForm={setLoadCatalogForm}
                     onSave={saveLoadCatalogItem}
                     onRemove={(id) => removeRow('load_catalog', id)}
+                    onDeactivate={(id) => removeRow('load_catalog', id, true)}
                     removingIds={removingIds}
                     saving={saving}
                   />
@@ -4454,6 +4458,7 @@ function LoadCatalogEditor(props: {
   setForm: (value: Partial<LoadCatalogRow>) => void;
   onSave: (afterPersist?: () => void) => void;
   onRemove: (id: string) => void;
+  onDeactivate: (id: string) => void;
   removingIds: Set<string>;
   saving: boolean;
 }) {
@@ -4588,13 +4593,21 @@ function LoadCatalogEditor(props: {
               ))}
             </datalist>
           </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.active ?? true}
+              onChange={(event) => setForm({ ...form, active: event.target.checked })}
+            />
+            Ativa
+          </label>
           <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
       items={visibleRows.map((row) => ({
         id: row.id,
         title: row.name_pt,
-        badges: [row.category],
+        badges: [row.category, row.active ? 'ativa' : 'inativa'],
         details: [
           ['Potência', `${row.power_w} W`],
           ['IP/IN', `${row.ip_in_ratio}×`],
@@ -4603,6 +4616,8 @@ function LoadCatalogEditor(props: {
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
         removeDescription: `A carga "${row.name_pt}" será removida do catálogo.`,
+        onDeactivate: row.active ? () => props.onDeactivate(row.id) : undefined,
+        deactivateDescription: `A carga "${row.name_pt}" fica inativa e para de aparecer para os usuários, sem ser removida do cadastro.`,
       }))}
     />
   );
@@ -5043,6 +5058,8 @@ function RecordCardGrid({
     onEdit: () => void;
     onRemove: () => void;
     removeDescription?: string;
+    onDeactivate?: () => void;
+    deactivateDescription?: string;
   }[];
   className?: string;
 }) {
@@ -5086,6 +5103,20 @@ function RecordCardGrid({
                 <Pencil className="h-4 w-4" />
                 Editar
               </Button>
+              {item.onDeactivate && (
+                <ConfirmDeleteButton
+                  ariaLabel={`Desativar ${item.title}`}
+                  title={`Desativar ${item.title}?`}
+                  description={
+                    item.deactivateDescription ??
+                    'O registro fica inativo e para de aparecer para os usuários, sem ser removido do cadastro.'
+                  }
+                  confirmLabel="Desativar"
+                  icon={<EyeOff className="h-4 w-4" />}
+                  disabled={item.removing}
+                  onConfirm={item.onDeactivate}
+                />
+              )}
               <ConfirmDeleteButton
                 ariaLabel={`Remover ${item.title}`}
                 title={`Remover ${item.title}?`}
