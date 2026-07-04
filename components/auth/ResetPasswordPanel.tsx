@@ -52,7 +52,7 @@ export function ResetPasswordPanel({ locale }: { locale: string }) {
               <div className="space-y-1.5">
                 <Label htmlFor="password">Nova senha</Label>
                 <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                  <KeyRound className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="password"
                     className="pl-8 md:pl-8"

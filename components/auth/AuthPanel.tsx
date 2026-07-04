@@ -244,7 +244,7 @@ export function AuthPanel({
                   <FieldIcon id="fullName" label="Nome" icon={<User className="h-4 w-4" />}>
                     <Input
                       id="fullName"
-                      className="h-11 border-primary/80 bg-background pl-8 md:pl-8"
+                      className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
                       placeholder="Nome completo"
                       value={fullName}
                       onChange={(event) => setFullName(event.target.value)}
@@ -254,7 +254,7 @@ export function AuthPanel({
                   <FieldIcon id="phone" label="Telefone" icon={<Phone className="h-4 w-4" />}>
                     <Input
                       id="phone"
-                      className="h-11 border-primary/80 bg-background pl-8 md:pl-8"
+                      className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
                       placeholder="Telefone"
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
@@ -267,7 +267,7 @@ export function AuthPanel({
               <FieldIcon id="email" label="Email" icon={<Mail className="h-4 w-4" />}>
                 <Input
                   id="email"
-                  className="h-11 border-primary/80 bg-background pl-8 md:pl-8"
+                  className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
                   type="email"
                   placeholder="ex: example@email.com"
                   value={email}
@@ -311,7 +311,7 @@ export function AuthPanel({
                 </label>
               )}
 
-              <Button className="h-11 w-full border-border bg-background text-foreground hover:border-primary hover:bg-background hover:text-primary" variant="outline" type="submit" disabled={loading}>
+              <Button className="h-11 md:h-11 w-full border-border bg-background text-foreground hover:border-primary hover:bg-background hover:text-primary" variant="outline" type="submit" disabled={loading}>
                 {loading && 'Processando...'}
                 {!loading && mode === 'login' && (
                   <>
@@ -388,7 +388,7 @@ function FieldIcon({
       </Label>
       <div className="relative">
         {icon && (
-          <span className="pointer-events-none absolute left-2 top-3.5 text-muted-foreground">
+          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
             {icon}
           </span>
         )}
@@ -415,7 +415,7 @@ function PasswordInput({
     <div className="relative">
       <Input
         id={id}
-        className="h-11 border-transparent bg-muted pr-10 md:pr-10"
+        className="h-11 md:h-11 border-transparent bg-muted pr-10 md:pr-10"
         type={showPassword ? 'text' : 'password'}
         placeholder="Senha"
         value={value}
