@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, Layers, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
-import { useWizardStore } from '@/lib/store/wizard-store';
-import type { CatalogItem, SingleLoad } from '@/lib/types';
+import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
+import type { CatalogItem, LoadPhase, ResidentialGridType, SingleLoad } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function InfoLabel({ label, tip }: { label: string; tip: string }) {
@@ -30,7 +30,7 @@ function InfoLabel({ label, tip }: { label: string; tip: string }) {
   );
 }
 
-function NumberFieldWithClear({
+export function NumberFieldWithClear({
   id,
   value,
   placeholder,
@@ -85,7 +85,7 @@ function NumberFieldWithClear({
 }
 
 function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
-  return { ipInRatio: 1, ...partial, id: crypto.randomUUID() };
+  return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'R', ...partial, id: crypto.randomUUID() };
 }
 
 const loadPresets: {
@@ -149,6 +149,10 @@ export function LoadSelector() {
     setPeakCalcMode,
     saveManualLoadToCatalog,
   } = useWizardStore();
+
+  const gridType = residentialOptions.gridType;
+  const maxPowerPerPhaseW = residentialOptions.maxPowerPerPhaseW;
+  const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
   const [tab, setTab] = useState<'presets' | 'catalog' | 'manual'>('presets');
   const [search, setSearch] = useState('');
@@ -423,6 +427,41 @@ export function LoadSelector() {
 
       {residentialOptions.loads.length > 0 && (
         <div className="space-y-3">
+          {gridType && gridTypePhaseCount[gridType] > 1 && (
+            <div className="rounded-md border bg-card p-3">
+              <p className="text-xs font-medium">
+                <InfoLabel
+                  label="Potência por fase"
+                  tip="Soma da potência nominal das cargas em cada fase. Cargas trifásicas dividem a potência igualmente entre as três fases."
+                />
+              </p>
+              <div className="mt-2 grid gap-2" style={{ gridTemplateColumns: `repeat(${gridTypePhaseCount[gridType]}, minmax(0, 1fr))` }}>
+                {loadPhases.slice(0, gridTypePhaseCount[gridType]).map((phase) => {
+                  const phaseW = phaseTotals[phase];
+                  const overLimit = Boolean(maxPowerPerPhaseW) && phaseW > (maxPowerPerPhaseW as number);
+                  return (
+                    <div
+                      key={phase}
+                      className={cn(
+                        'rounded-lg border p-2 text-center',
+                        overLimit ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/40'
+                      )}
+                    >
+                      <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Fase {phase}</p>
+                      <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
+                        {phaseW.toFixed(0)} W
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {maxPowerPerPhaseW && Object.values(phaseTotals).some((value) => value > maxPowerPerPhaseW) && (
+                <p className="mt-2 text-xs text-destructive">
+                  Uma ou mais fases ultrapassam o máximo configurado ({maxPowerPerPhaseW.toFixed(0)} W). Redistribua as cargas entre as fases.
+                </p>
+              )}
+            </div>
+          )}
           <div className="rounded-md border bg-card p-3">
             <p className="text-xs font-medium">
               <InfoLabel
@@ -467,7 +506,7 @@ export function LoadSelector() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {residentialOptions.loads.map((load) => (
-              <LoadCard key={load.id} load={load} onUpdate={updateLoad} onRemove={removeLoad} />
+              <LoadCard key={load.id} load={load} gridType={residentialOptions.gridType} onUpdate={updateLoad} onRemove={removeLoad} />
             ))}
           </div>
         </div>
@@ -478,10 +517,12 @@ export function LoadSelector() {
 
 function LoadCard({
   load,
+  gridType,
   onUpdate,
   onRemove,
 }: {
   load: SingleLoad;
+  gridType: ResidentialGridType | null;
   onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
   onRemove: (id: string) => void;
 }) {
@@ -489,6 +530,39 @@ function LoadCard({
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
   const [expanded, setExpanded] = useState(false);
+
+  const phaseCount = gridType ? gridTypePhaseCount[gridType] : 3;
+  const validVoltages = gridType ? gridTypeVoltages[gridType] : [110, 220, 380];
+  const phaseToPhaseVoltages = gridType ? gridTypePhaseToPhaseVoltages[gridType] : [];
+  const phaseType = load.phaseType ?? 'mono';
+  const voltageV = load.voltageV ?? 220;
+  // A trifásica load draws from all three phases at once, so it can only be
+  // rated at the network's phase-to-phase voltage, not the phase-neutral one.
+  const voltageOptions = phaseType === 'trifasica' && phaseToPhaseVoltages.length > 0 ? phaseToPhaseVoltages : validVoltages;
+  const voltageValid = voltageOptions.includes(voltageV);
+  const needsTwoPhases = phaseType === 'mono' && phaseCount > 1 && phaseToPhaseVoltages.includes(voltageV);
+  const phase = load.phase ?? 'R';
+  const phasePairs: [LoadPhase, LoadPhase][] = [['R', 'S'], ['S', 'T'], ['R', 'T']];
+
+  useEffect(() => {
+    if (phaseCount < 3 && phaseType === 'trifasica') {
+      onUpdate(load.id, { phaseType: 'mono' });
+    }
+  }, [phaseCount, phaseType, load.id, onUpdate]);
+
+  useEffect(() => {
+    if (phaseType === 'trifasica' && phaseToPhaseVoltages.length > 0 && !phaseToPhaseVoltages.includes(voltageV)) {
+      onUpdate(load.id, { voltageV: phaseToPhaseVoltages[0] as 110 | 220 | 380 });
+    }
+  }, [phaseType, phaseToPhaseVoltages, voltageV, load.id, onUpdate]);
+
+  useEffect(() => {
+    if (needsTwoPhases && !load.phase2) {
+      onUpdate(load.id, { phase: 'R', phase2: 'S' });
+    } else if (!needsTwoPhases && load.phase2) {
+      onUpdate(load.id, { phase2: null });
+    }
+  }, [needsTwoPhases, load.phase2, load.id, onUpdate]);
 
   function handleChange(
     field: 'hoursPerDay' | 'qty' | 'ipInRatio',
@@ -538,6 +612,15 @@ function LoadCard({
             </span>
             <span>
               <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>/dia
+            </span>
+            <span className={cn(!voltageValid && 'font-medium text-destructive')}>
+              {voltageV}V ·{' '}
+              {phaseType === 'trifasica'
+                ? 'Trifásica'
+                : load.phase2
+                  ? `Mono · Fases ${phase}-${load.phase2}`
+                  : `Mono${phaseCount > 1 ? ` · Fase ${phase}` : ''}`}
+              {!voltageValid && ' · tensão incompatível'}
             </span>
           </div>
         </div>
@@ -613,6 +696,134 @@ function LoadCard({
             onClear={() => setIpIn('')}
           />
         </div>
+      </div>
+      )}
+      {expanded && (
+      <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
+        <div>
+          <Label className="text-xs font-normal text-muted-foreground">
+            <InfoLabel label="Tensão" tip="Tensão de operação da carga. Só mostra as tensões disponíveis na rede escolhida." />
+          </Label>
+          <div className="mt-1 flex gap-1 rounded-lg bg-muted p-1">
+            {(voltageValid ? voltageOptions : [...voltageOptions, voltageV]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={voltageV === option}
+                onClick={() => onUpdate(load.id, { voltageV: option as 110 | 220 | 380 })}
+                className={cn(
+                  'h-7 flex-1 rounded-md text-xs font-medium transition',
+                  voltageV === option
+                    ? !voltageValid
+                      ? 'bg-destructive/10 text-destructive ring-1 ring-destructive/40'
+                      : 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+              >
+                {option}V
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <Label className="text-xs font-normal text-muted-foreground">
+            <InfoLabel label="Tipo" tip="Se a carga liga em uma única fase (mono) ou distribui a potência pelas três fases (trifásica)." />
+          </Label>
+          <div className="mt-1 flex gap-1 rounded-lg bg-muted p-1">
+            <button
+              type="button"
+              aria-pressed={phaseType === 'mono'}
+              onClick={() => onUpdate(load.id, { phaseType: 'mono' })}
+              className={cn(
+                'h-7 flex-1 rounded-md text-xs font-medium transition',
+                phaseType === 'mono'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              Mono
+            </button>
+            {phaseCount === 3 && (
+              <button
+                type="button"
+                aria-pressed={phaseType === 'trifasica'}
+                onClick={() => onUpdate(load.id, { phaseType: 'trifasica' })}
+                className={cn(
+                  'h-7 flex-1 rounded-md text-xs font-medium transition',
+                  phaseType === 'trifasica'
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+              >
+                Trifásica
+              </button>
+            )}
+          </div>
+        </div>
+        {phaseCount > 1 && phaseType === 'mono' && needsTwoPhases && phaseCount === 3 && (
+          <div>
+            <Label className="text-xs font-normal text-muted-foreground">
+              <InfoLabel
+                label="Fases"
+                tip="Essa tensão é obtida ligando a carga entre duas fases (não fase-neutro), então a potência soma nas duas fases escolhidas."
+              />
+            </Label>
+            <div className="mt-1 flex gap-1 rounded-lg bg-muted p-1">
+              {phasePairs.map(([a, b]) => {
+                const active = phase === a && load.phase2 === b;
+                return (
+                  <button
+                    key={`${a}${b}`}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onUpdate(load.id, { phase: a, phase2: b })}
+                    className={cn(
+                      'h-7 flex-1 rounded-md text-xs font-medium transition',
+                      active
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                  >
+                    {a}-{b}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {phaseCount === 2 && phaseType === 'mono' && needsTwoPhases && (
+          <div>
+            <Label className="text-xs font-normal text-muted-foreground">Fases</Label>
+            <p className="mt-1 flex h-7 items-center rounded-lg bg-muted px-2 text-xs text-muted-foreground">
+              Ligada entre as duas fases da rede (R-S)
+            </p>
+          </div>
+        )}
+        {phaseCount > 1 && phaseType === 'mono' && !needsTwoPhases && (
+          <div>
+            <Label className="text-xs font-normal text-muted-foreground">
+              <InfoLabel label="Fase" tip="Em qual fase da rede essa carga está conectada, para acompanhar o equilíbrio entre fases." />
+            </Label>
+            <div className="mt-1 flex gap-1 rounded-lg bg-muted p-1">
+              {loadPhases.slice(0, phaseCount).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={phase === option}
+                  onClick={() => onUpdate(load.id, { phase: option })}
+                  className={cn(
+                    'h-7 flex-1 rounded-md text-xs font-medium transition',
+                    phase === option
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       )}
     </div>

@@ -37,9 +37,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoadSelector } from '@/components/wizard/LoadSelector';
+import { LoadSelector, NumberFieldWithClear } from '@/components/wizard/LoadSelector';
 import { createClient } from '@/lib/supabase/client';
-import { useWizardStore, totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
+import { useWizardStore, totalDailyKwh, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import type {
   BatteryTopology,
   CatalogItem,
@@ -181,6 +181,7 @@ export function SinglePageApp() {
     setBatteryModel,
     setInverterModel,
     setGridType,
+    setMaxPowerPerPhaseW,
     setSolution,
     setLoadCatalog,
     resetResidential,
@@ -824,6 +825,7 @@ export function SinglePageApp() {
               setBatteryModel={setBatteryModel}
               setInverterModel={setInverterModel}
               setGridType={setGridType}
+              setMaxPowerPerPhaseW={setMaxPowerPerPhaseW}
               resetResidential={resetResidential}
               calculate={calculate}
               exportPdf={exportPdf}
@@ -1674,6 +1676,7 @@ function SizingTab({
   setBatteryModel,
   setInverterModel,
   setGridType,
+  setMaxPowerPerPhaseW,
   resetResidential,
   calculate,
   exportPdf,
@@ -1690,6 +1693,7 @@ function SizingTab({
     inverterModel: string | null;
     gridType: ResidentialGridType | null;
     loads: unknown[];
+    maxPowerPerPhaseW: number | null;
   };
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
@@ -1705,6 +1709,7 @@ function SizingTab({
   setBatteryModel: (batteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
+  setMaxPowerPerPhaseW: (value: number | null) => void;
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
@@ -1801,6 +1806,18 @@ function SizingTab({
                   loading={initialLoading}
                   setInverterModel={setInverterModel}
                 />
+
+                {residentialOptions.gridType && gridTypePhaseCount[residentialOptions.gridType] > 1 && (
+                  <MaxPowerPerPhaseField
+                    value={residentialOptions.maxPowerPerPhaseW}
+                    defaultValueW={(() => {
+                      const inverter = inverterCatalog.find((item) => item.model === residentialOptions.inverterModel);
+                      const phaseCount = gridTypePhaseCount[residentialOptions.gridType];
+                      return inverter?.standardPowerKva ? (inverter.standardPowerKva * 1000) / phaseCount : null;
+                    })()}
+                    onChange={setMaxPowerPerPhaseW}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -2621,6 +2638,50 @@ function BatteryModelPicker({
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+function MaxPowerPerPhaseField({
+  value,
+  defaultValueW,
+  onChange,
+}: {
+  value: number | null;
+  defaultValueW: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  const [text, setText] = useState(value !== null ? String(value) : '');
+
+  useEffect(() => {
+    setText(value !== null ? String(value) : '');
+  }, [value]);
+
+  return (
+    <div>
+      <Label htmlFor="maxPowerPerPhase" className="text-xs font-normal text-muted-foreground">
+        Potência máxima por fase
+      </Label>
+      <NumberFieldWithClear
+        id="maxPowerPerPhase"
+        value={text}
+        placeholder={defaultValueW ? `Padrão: ${defaultValueW.toFixed(0)} W` : 'Selecione um inversor'}
+        min={1}
+        onChange={(raw) => {
+          setText(raw);
+          const parsed = Number(raw);
+          if (raw.trim() !== '' && Number.isFinite(parsed) && parsed > 0) {
+            onChange(parsed);
+          }
+        }}
+        onBlur={() => {
+          if (text.trim() === '') onChange(null);
+        }}
+        onClear={() => {
+          setText('');
+          onChange(null);
+        }}
+      />
     </div>
   );
 }

@@ -16,6 +16,15 @@ export type InstallationType = 'residential' | 'industrial';
 //   everything else runs at nominal power (common generator/inverter sizing rule).
 export type PeakCalcMode = 'sum' | 'largest-surge';
 
+/** Operating voltage of a single load, in volts. */
+export type LoadVoltage = 110 | 220 | 380;
+
+/** Whether a load draws from a single phase or from all three. */
+export type LoadPhaseType = 'mono' | 'trifasica';
+
+/** Which phase a single-phase load is wired to, for phase-balance tracking. */
+export type LoadPhase = 'R' | 'S' | 'T';
+
 export interface SingleLoad {
   id: string;
   name: string;
@@ -24,6 +33,15 @@ export interface SingleLoad {
   qty: number;
   /** IP/IN: starting (peak) apparent power divided by nominal apparent power. */
   ipInRatio: number;
+  /** Operating voltage; defaults to 220V for loads saved before this field existed. */
+  voltageV?: LoadVoltage;
+  /** Single- or three-phase; defaults to 'mono' for loads saved before this field existed. */
+  phaseType?: LoadPhaseType;
+  /** Phase assignment, only meaningful for mono loads on a multi-phase network. */
+  phase?: LoadPhase;
+  /** Second phase, set when a mono load is wired phase-to-phase (e.g. a 220V
+   * load on a three-phase 220V network) instead of phase-to-neutral. */
+  phase2?: LoadPhase | null;
 }
 
 export interface CatalogItem {
@@ -61,6 +79,8 @@ export interface ResidentialOptions {
   loads: SingleLoad[];
   peakCalcMode: PeakCalcMode;
   microGrid: MicroGridOptions | null;
+  /** Max power allowed per phase (W); null uses the suggested default (inverter power / phase count). */
+  maxPowerPerPhaseW: number | null;
 }
 
 export interface ProjectInfo {

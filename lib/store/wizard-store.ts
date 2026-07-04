@@ -8,6 +8,7 @@ import type {
   CatalogItem,
   Client,
   IndustrialOptions,
+  LoadPhase,
   MicroGridOptions,
   PeakCalcMode,
   ProjectInfo,
@@ -52,6 +53,7 @@ interface WizardStore {
   setBatteryModel: (batteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
+  setMaxPowerPerPhaseW: (maxPowerPerPhaseW: number | null) => void;
   setMicroGrid: (microGrid: MicroGridOptions) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
   addLoad: (load: SingleLoad) => void;
@@ -82,6 +84,7 @@ const defaultResidential: ResidentialOptions = {
   loads: [],
   peakCalcMode: 'sum',
   microGrid: null,
+  maxPowerPerPhaseW: null,
 };
 
 const defaultIndustrial: IndustrialOptions = {
@@ -411,6 +414,11 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, gridType, inverterModel: null },
         })),
 
+      setMaxPowerPerPhaseW: (maxPowerPerPhaseW) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, maxPowerPerPhaseW },
+        })),
+
       setMicroGrid: (microGrid) =>
         set((s) => ({
           residentialOptions: { ...s.residentialOptions, microGrid },
@@ -499,4 +507,53 @@ export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): num
     return extra > max ? extra : max;
   }, 0);
   return nominalSum + largestExtra;
+}
+
+/** Number of live phases the network topology provides. */
+export const gridTypePhaseCount: Record<ResidentialGridType, number> = {
+  singlePhase_220: 1,
+  splitPhase_220: 2,
+  threePhase_220: 3,
+  threePhase_380: 3,
+};
+
+/** Voltages a load can be wired at for each network topology. */
+export const gridTypeVoltages: Record<ResidentialGridType, number[]> = {
+  singlePhase_220: [220],
+  splitPhase_220: [110, 220],
+  threePhase_220: [110, 220],
+  threePhase_380: [220, 380],
+};
+
+/** Voltages that require a phase-to-phase (two-phase) connection instead of
+ * phase-to-neutral, for each network topology — e.g. a 220V mono load on a
+ * three-phase 220V network is wired between two phases, not phase-neutral. */
+export const gridTypePhaseToPhaseVoltages: Record<ResidentialGridType, number[]> = {
+  singlePhase_220: [],
+  splitPhase_220: [220],
+  threePhase_220: [220],
+  threePhase_380: [380],
+};
+
+export const loadPhases: LoadPhase[] = ['R', 'S', 'T'];
+
+/** Nominal power (W) per phase. Three-phase loads split evenly across R/S/T;
+ * mono loads wired phase-to-phase count their full power on both phases they
+ * connect to (they're not divided, since each conductor carries the full
+ * load current); other mono loads count on their single assigned phase. */
+export function totalPowerByPhase(loads: SingleLoad[]): Record<LoadPhase, number> {
+  const totals: Record<LoadPhase, number> = { R: 0, S: 0, T: 0 };
+  for (const load of loads) {
+    const powerW = load.powerW * load.qty;
+    if (load.phaseType === 'trifasica') {
+      totals.R += powerW / 3;
+      totals.S += powerW / 3;
+      totals.T += powerW / 3;
+    } else {
+      const phase = load.phase ?? 'R';
+      totals[phase] += powerW;
+      if (load.phase2) totals[load.phase2] += powerW;
+    }
+  }
+  return totals;
 }
