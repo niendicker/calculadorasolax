@@ -952,8 +952,8 @@ export function SinglePageApp() {
           aria-modal="true"
           aria-labelledby="inline-profile-title"
         >
-          <div className="w-full rounded-t-lg border bg-card p-4 shadow-lg sm:max-w-lg sm:rounded-lg sm:p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex max-h-[calc(100vh-2.5rem)] w-full flex-col rounded-t-lg border bg-card shadow-lg sm:max-w-lg sm:rounded-lg">
+            <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
               <div>
                 <h2 id="inline-profile-title" className="text-xl font-semibold tracking-tight">
                   Meu perfil
@@ -970,7 +970,7 @@ export function SinglePageApp() {
               </Button>
             </div>
 
-            <form onSubmit={saveProfile} className="space-y-4">
+            <form onSubmit={saveProfile} className="space-y-4 overflow-y-auto p-4 sm:p-5">
               <div>
                 <p className="mb-3 text-sm font-medium">Dados pessoais</p>
               </div>
@@ -1764,15 +1764,15 @@ function SizingTab({
                     );
                   })}
                 </div>
-              </div>
 
-              <InverterModelPicker
-                inverters={inverterCatalog}
-                availableModels={availableInverterModels}
-                selectedModel={residentialOptions.inverterModel}
-                loading={initialLoading}
-                setInverterModel={setInverterModel}
-              />
+                <InverterModelPicker
+                  inverters={inverterCatalog}
+                  availableModels={availableInverterModels}
+                  selectedModel={residentialOptions.inverterModel}
+                  loading={initialLoading}
+                  setInverterModel={setInverterModel}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -2611,7 +2611,7 @@ function InverterModelPicker({
     : inverters;
 
   return (
-    <div className="space-y-3 rounded-lg border bg-background p-3">
+    <div className="space-y-3 border-t pt-3">
       <div>
         <p className="text-sm font-medium">Modelo do inversor</p>
         <p className="mt-1 text-xs text-muted-foreground">
