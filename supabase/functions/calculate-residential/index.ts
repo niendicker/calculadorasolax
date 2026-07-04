@@ -28,7 +28,7 @@ interface ApprovedSolution {
   battery_ports_used: number;
   rated_power_w: number;
   peak_power_w: number;
-  grid_topology: '1p_220V' | '3p_220V' | '3p_380V';
+  grid_topology: '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V';
   battery_model: string;
   battery_topology: 'HV' | 'LV';
   battery_quantity: number;
@@ -84,7 +84,7 @@ const batteryTopologyMap: Record<ResidentialOptions['topology'], 'HV' | 'LV'> = 
 
 const gridTopologyMap: Record<ResidentialOptions['gridType'], ApprovedSolution['grid_topology']> = {
   singlePhase_220: '1p_220V',
-  splitPhase_220: '1p_220V',
+  splitPhase_220: '2p_220V',
   threePhase_220: '3p_220V',
   threePhase_380: '3p_380V',
 };

@@ -17,12 +17,15 @@ O app permite ao usuário cadastrar projetos, configurar topologia, modelo de ba
 
 ### Usuário comum
 
-- Cadastro com nome, email, telefone e senha
+- Cadastro com nome, email, telefone e senha, com aceite obrigatório de Termos de Uso e Política de Privacidade
 - Login com email e senha
 - Recuperação de senha por email
 - Edição de nome, telefone, empresa, endereço e logomarca no perfil
-- Cadastro e reutilização de projetos
-- Salvamento da configuração por projeto: bateria, rede, cargas e solução
+- Exclusão da própria conta (com confirmação digitada), apagando dados vinculados
+- Cadastro de clientes próprios, reaproveitados nos projetos
+- Cadastro e reutilização de projetos vinculados a um cliente
+- Salvamento da configuração por projeto: cliente, bateria, rede, cargas e solução
+- Catálogo de produtos cadastrados pelo admin, incluindo catálogo pessoal de cargas adicionadas manualmente (reutilizável, não propagado ao catálogo global)
 - Simulação residencial na página principal
 - Visualização da solução recomendada
 - Exportação de relatório em PDF/impressão com cargas, produtos, comentários e materiais técnicos
@@ -31,18 +34,17 @@ O app permite ao usuário cadastrar projetos, configurar topologia, modelo de ba
 
 Além das funções de usuário comum:
 
-- Cadastro de inversores
+- Cadastro de inversores, incluindo regras ESS de compatibilidade com baterias (aba própria no cadastro do inversor)
 - Cadastro de baterias
-- Cadastro de acessórios
+- Cadastro de acessórios, incluindo regras automáticas de aplicação (aba própria no cadastro do acessório)
+- Ativar/desativar cargas do catálogo global sem excluir
 - Upload de imagem e documentos técnicos por produto
 - Edição e geração de combinações aprovadas
 - Agrupamento de combinações por inversor e bateria
-- Criação de regras automáticas de acessórios
 - Definição de acessórios obrigatórios/opcionais por limiar
-- Criação de regras ESS para compatibilidade entre inversor e bateria
-- Lista de usuários cadastrados e envio de reset de senha
+- Lista de usuários cadastrados (com busca) e envio de reset de senha
 - Indicadores da aplicação
-- Logs de alterações em produtos, combinações e regras
+- Logs de alterações em produtos, combinações e regras (com busca e filtro por entidade)
 
 Administradores são promovidos manualmente no Supabase com `profiles.role = 'admin'`.
 
@@ -79,6 +81,7 @@ Campos:
 | `company_name` | Nome da empresa |
 | `company_address` | Endereço da empresa |
 | `company_logo_url` | Logomarca usada no relatório |
+| `terms_accepted_at` | Data do aceite dos Termos de Uso / Política de Privacidade (LGPD); `null` bloqueia o uso do app |
 | `created_at` | Criação |
 | `updated_at` | Atualização |
 
@@ -88,6 +91,26 @@ Regras:
 - Admin é definido manualmente no banco
 - `/admin` exige login e `role = admin`
 - RLS usa `public.is_admin()` para escrita administrativa
+- Qualquer rota autenticada (`/`, `/admin`, `/profile`) redireciona para `/aceite-termos` enquanto `terms_accepted_at` for nulo
+- Exclusão de conta: `POST /api/account/delete` autentica pela sessão do próprio usuário, usa a service role key só no servidor para chamar `auth.admin.deleteUser`, o que cascateia a remoção de `profiles`, `clients`, `projects` e `user_load_catalog`
+
+## Clientes e projetos
+
+### `clients`
+
+Cadastro de clientes do usuário, referenciado pelos projetos.
+
+Campos: `id`, `user_id`, `name`, `email`, `phone`, `document`, `notes`, `created_at`, `updated_at`. RLS restrita a `auth.uid() = user_id`.
+
+### `projects`
+
+Projetos salvos pelo usuário, substituindo o antigo armazenamento em localStorage.
+
+Campos: `id`, `user_id`, `client_id` (FK para `clients`, `on delete set null`), `name`, `address`, `notes`, `residential_options` (jsonb), `solution` (jsonb), `created_at`, `updated_at`. RLS restrita a `auth.uid() = user_id`.
+
+### `user_load_catalog`
+
+Catálogo pessoal de cargas: quando o usuário adiciona uma carga manualmente durante o dimensionamento, ela é salva aqui para reuso, sem propagar para o catálogo global (`load_catalog`) gerenciado pelo admin. RLS restrita a `auth.uid() = user_id`.
 
 ## Modelo de dados administrativo
 
@@ -164,9 +187,15 @@ Campos de mídia:
 
 Na seleção de bateria do usuário, apenas modelos cadastrados em `batteries` são exibidos. A interface usa tabs `HV` e `LV` e cards com imagem, capacidade, energia útil, potência e anexos.
 
+### `load_catalog`
+
+Catálogo global de cargas, gerenciado pelo admin (aba "Cargas").
+
+Campos: `name_pt`, `name_en`, `name_zh`, `power_w`, `category`, `ip_in_ratio`, `active`. Cargas inativas (`active = false`) somem do catálogo visto pelos usuários (Dimensionamento e aba Catálogo), mas continuam no cadastro para reativação.
+
 ### `accessory_rules`
 
-Regras automáticas de inclusão de acessórios.
+Regras automáticas de inclusão de acessórios. Editadas numa aba própria dentro do cadastro do acessório (não há mais uma aba "Regras" separada no admin); `accessory_id` é implícito ao acessório sendo editado.
 
 Campos principais:
 
@@ -184,10 +213,11 @@ Campos principais:
 
 ### `ess_compatibility_rules`
 
-Regras de compatibilidade entre inversores e baterias, usadas para validar o cálculo e gerar combinações.
+Regras de compatibilidade entre inversores e baterias, usadas para validar o cálculo e gerar combinações. Editadas numa aba própria ("Compatibilidade ESS") dentro do cadastro do inversor; `inverter_model` é implícito ao inversor sendo editado.
 
 Campos principais:
 
+- `name`: nome opcional, exibido no lugar do resumo automático quando preenchido
 - `inverter_model`
 - `battery_configs`: lista de modelos de bateria compatíveis, com topologia e min/max por modelo; o máximo por porta é limitado por `batteries.max_association_qty`
 - `battery_model` e `battery_topology`: espelho do primeiro item para compatibilidade com dados legados
@@ -206,7 +236,7 @@ Campos principais:
 
 - `actor_id`
 - `actor_email`
-- `entity_type`: `inverter`, `battery`, `accessory`, `solution`, `rule`
+- `entity_type`: `inverter`, `battery`, `accessory`, `solution`, `rule`, `load_catalog_item`
 - `action`: `create`, `update`, `delete`, `deactivate`
 - `target_id`
 - `target_label`
@@ -234,7 +264,7 @@ Derivados:
 
 Seleção:
 
-1. Mapeia rede para `grid_topology`
+1. Mapeia rede para `grid_topology` (cada `ResidentialGridType` tem seu próprio valor: `singlePhase_220` → `1p_220V`, `splitPhase_220` → `2p_220V`, `threePhase_220` → `3p_220V`, `threePhase_380` → `3p_380V`; Bifásico não compartilha combinações aprovadas com Monofásico)
 2. Mapeia topologia para `battery_topology`
 3. Filtra pelo modelo exato da bateria quando selecionado
 4. Filtra `approved_solutions.active = true`
@@ -269,14 +299,18 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 
 | Rota | Função |
 |---|---|
-| `/[locale]` | Single-page app principal |
+| `/[locale]` | Single-page app principal (Projeto, Dimensionamento, Catálogo, Clientes) |
 | `/[locale]/login` | Login, cadastro e recuperação |
 | `/[locale]/reset-password` | Nova senha |
-| `/[locale]/profile` | Perfil |
+| `/[locale]/profile` | Perfil (página avulsa; o app principal edita o perfil em modal) |
 | `/[locale]/admin` | Painel admin |
+| `/[locale]/termos` | Termos de Uso |
+| `/[locale]/privacidade` | Política de Privacidade |
+| `/[locale]/aceite-termos` | Bloqueio de aceite de termos (LGPD) |
 | `/[locale]/auth/callback` | Callback de confirmação/recuperação |
 | `/[locale]/wizard/residential/*` | Wizard residencial legado |
 | `/[locale]/wizard/industrial/*` | Wizard industrial legado |
+| `/api/account/delete` | Route handler (POST) para exclusão de conta |
 
 ## Arquivos-chave
 
@@ -284,11 +318,13 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 |---|---|
 | `components/app/SinglePageApp.tsx` | Interface principal single-page |
 | `components/auth/AuthPanel.tsx` | Login, cadastro e recuperação |
-| `components/auth/ProfilePanel.tsx` | Perfil |
+| `components/auth/ProfilePanel.tsx` | Perfil (página avulsa) |
 | `components/auth/ResetPasswordPanel.tsx` | Nova senha |
+| `components/auth/TermsAcceptanceForm.tsx` | Tela de aceite de termos (LGPD) |
 | `components/admin/AdminPanel.tsx` | Painel administrativo |
-| `components/ui/confirm-delete-button.tsx` | Confirmação por popover para ações destrutivas |
+| `components/ui/confirm-delete-button.tsx` | Confirmação por popover para ações destrutivas, com reposicionamento para não sair da tela |
 | `components/ui/skeleton.tsx` | Skeletons de carregamento |
+| `app/api/account/delete/route.ts` | Exclusão de conta via service role |
 | `supabase/functions/calculate-residential/index.ts` | Motor de recomendação |
 | `supabase/migrations/*.sql` | Schema, seeds e policies |
 | `solutions/*.json` | Fonte das combinações aprovadas |
@@ -302,8 +338,9 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 - Menu lateral fixo no desktop
 - Menu mobile oculto por padrão, aberto por botão flutuante
 - Barra de título fixa; somente o conteúdo das páginas rola
-- Interface administrativa em cards, com edição em modal
-- Confirmações destrutivas em popover com delay de 300ms para abrir/fechar
+- Interface administrativa em cards (grade de até 2 colunas), com edição em modal
+- Regras vinculadas a um produto (ESS em inversores, automáticas em acessórios) abrem em modal aninhado dentro do modal de edição do produto, com o modal externo se expandindo à altura máxima disponível nessa aba
+- Confirmações destrutivas em popover com delay de 300ms para abrir/fechar, reposicionado automaticamente (inclusive virando para cima) quando não há espaço abaixo/à direita do botão
 - Skeletons de carregamento em áreas administrativas e de usuário
 - Feedback visual para salvar, remover, inativar, calcular e resetar senha
 

@@ -41,7 +41,7 @@ import { cn } from '@/lib/utils';
 type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'loads' | 'logs';
 
 type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
-type GridTopology = '1p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
+type GridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
 type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats';
 type BatteryFlag = 'ip65' | 'ip66';
 type BatteryTopology = 'HV' | 'LV';
@@ -554,7 +554,8 @@ function inverterSupportedBatteryTopologies(inverter: InverterRow | undefined): 
   return [inverter.topology];
 }
 
-function generatedGridToApprovedTopology(gridType: InverterGridType): Extract<GridTopology, '1p_220V' | '3p_220V' | '3p_380V'> {
+function generatedGridToApprovedTopology(gridType: InverterGridType): Extract<GridTopology, '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V'> {
+  if (gridType === '2P_220V') return '2p_220V';
   if (gridType === '3P_220V') return '3p_220V';
   if (gridType === '3P_380V') return '3p_380V';
   return '1p_220V';
@@ -2601,6 +2602,7 @@ function SolutionsEditor(props: {
 
   const gridTopologyLabel: Record<string, string> = {
     '1p_220V': 'Monofásico 220V',
+    '2p_220V': 'Bifásico 220V',
     '3p_220V': 'Trifásico 220V',
     '3p_380V': 'Trifásico 380V',
   };
@@ -3166,6 +3168,7 @@ function SolutionsEditor(props: {
                 onChange={(event) => setForm({ ...form, grid_topology: event.target.value as GridTopology })}
               >
                 <option value="1p_220V">1p 220V</option>
+                <option value="2p_220V">2p 220V</option>
                 <option value="3p_220V">3p 220V</option>
                 <option value="3p_380V">3p 380V</option>
               </select>

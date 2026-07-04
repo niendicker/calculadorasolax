@@ -52,16 +52,22 @@ npm run build
 
 | Rota | Descrição |
 |---|---|
-| `/pt` | Web app principal de dimensionamento |
+| `/pt` | Web app principal: abas Projeto, Dimensionamento, Catálogo, Clientes e Perfil |
 | `/pt/login` | Login, cadastro comum e recuperação de senha |
 | `/pt/reset-password` | Definição de nova senha após recuperação |
-| `/pt/profile` | Perfil do usuário logado |
+| `/pt/profile` | Perfil do usuário logado (página avulsa; o app principal edita o perfil em modal) |
 | `/pt/admin` | Administração de catálogo, apenas `role = admin` |
+| `/pt/termos` | Termos de Uso |
+| `/pt/privacidade` | Política de Privacidade (LGPD) |
+| `/pt/aceite-termos` | Bloqueio de aceite dos termos, exibido a qualquer usuário logado sem `terms_accepted_at` |
 | `/pt/wizard/residential/*` | Fluxo legado do wizard residencial |
 | `/pt/wizard/industrial/*` | Fluxo legado do wizard industrial |
 | `/pt/wizard/result` | Redirect compatível para o resultado residencial |
+| `/api/account/delete` | Route handler (POST) que apaga a conta do usuário autenticado via service role |
 
 Idiomas suportados: `pt`, `en`, `zh`.
+
+As abas Catálogo, Clientes e Perfil do usuário comum vivem dentro da mesma rota `/pt` (não são páginas separadas); a navegação entre elas é só troca de estado no `SinglePageApp`.
 
 ## Autenticação e perfis
 
@@ -96,16 +102,20 @@ Usuários com `role = admin` entram diretamente em `/pt/admin`. Usuários comuns
 
 ## Projetos e relatório
 
-A aba `Projeto` armazena dados do cliente e permite salvar/reutilizar configurações completas de dimensionamento:
+A aba `Projeto` referencia um cliente cadastrado e permite salvar/reutilizar configurações completas de dimensionamento:
 
-- dados do cliente
+- cliente vinculado (`clients`)
 - topologia de bateria
 - modelo de bateria
 - tipo de rede
 - cargas cadastradas
 - solução calculada
 
+Clientes e projetos são persistidos no Supabase (tabelas `clients` e `projects`, com RLS por `user_id`), não mais no localStorage do navegador. A aba `Clientes` tem cadastro próprio (nome, email, telefone, documento, observações), usado pela aba `Projeto` para vincular um cliente ao invés de duplicar os dados em cada projeto.
+
 A aba `Dimensionamento` também possui ação para salvar o projeto atual. A lista de projetos salvos mostra badges com topologia, bateria, rede e quantidade de cargas.
+
+A aba `Catálogo` mostra todos os produtos cadastrados pelo admin (inversores, baterias, acessórios) e uma sub-aba "Minhas Cargas" com o catálogo pessoal de cargas do usuário (tabela `user_load_catalog`): cargas adicionadas manualmente durante o dimensionamento ficam salvas ali para reuso, sem propagar para o catálogo global gerenciado pelo admin.
 
 O relatório pode ser exportado por impressão/PDF e inclui:
 
@@ -115,6 +125,13 @@ O relatório pode ser exportado por impressão/PDF e inclui:
 - inversor, bateria e acessórios recomendados
 - comentários técnicos
 - materiais técnicos anexados aos produtos
+
+## LGPD
+
+- Cadastro exige aceite de Termos de Uso e Política de Privacidade (checkbox obrigatório); o aceite fica em `profiles.terms_accepted_at`.
+- Qualquer usuário autenticado sem esse campo preenchido é redirecionado para `/aceite-termos` antes de acessar `/`, `/admin` ou `/profile` — cobre tanto novos cadastros quanto contas já existentes na primeira vez que a política mudar.
+- O perfil do usuário (modal "Meu perfil") tem uma seção "Excluir conta": exige digitar `EXCLUIR` para confirmar e chama `POST /api/account/delete`, que roda no servidor com a service role key, apaga o usuário do Supabase Auth (cascateando `profiles`, `clients`, `projects` e `user_load_catalog` via FK) e remove a logomarca do storage.
+- `app_simulations` não grava mais o nome do cliente (dado pessoal de terceiro sem uso real no produto).
 
 ## Banco de dados
 
@@ -151,6 +168,18 @@ Migrações Supabase:
 | `0027_allow_single_battery_ess_max.sql` | Permite máximo ESS de 1 bateria por porta |
 | `0028_battery_electrical_specs.sql` | Especificações elétricas no cadastro de baterias |
 | `0029_battery_soc_options.sql` | SOC mínimo de baterias limitado a 5% ou 10% |
+| `0030_solution_code_unique.sql` | `solution_code` único independentemente da origem |
+| `0031_inverter_pv_oversizing.sql` | Sobredimensionamento FV (50% ou 100%) por inversor |
+| `0032_load_catalog_ip_in_ratio.sql` | Relação IP/IN por carga do catálogo |
+| `0033_load_catalog_admin_write.sql` | Admin passa a poder editar o catálogo de cargas |
+| `0034_admin_activity_logs_fifo.sql` | Logs de alteração como fila FIFO de até 150 registros |
+| `0035_clients_and_projects.sql` | Tabelas `clients` e `projects`, projetos deixam de ficar só no localStorage |
+| `0036_user_load_catalog.sql` | Catálogo pessoal de cargas (`user_load_catalog`), separado do catálogo global |
+| `0037_approved_solutions_peak_power_match_idx.sql` | Índice para casar potência nominal e de pico separadamente |
+| `0038_lgpd_consent_and_minimization.sql` | Aceite de termos (`profiles.terms_accepted_at`) e minimização de dados em `app_simulations` |
+| `0039_ess_compatibility_rule_name.sql` | Nome opcional para regras ESS |
+| `0040_load_catalog_active.sql` | Ativar/desativar carga do catálogo sem excluir |
+| `0041_split_phase_grid_topology.sql` | Bifásico (`2p_220V`) como rede própria em `approved_solutions`, separada de Monofásico |
 
 Aplicar migrações ao projeto linkado:
 
@@ -196,19 +225,22 @@ Disponível em:
 
 Requer usuário autenticado com `profiles.role = 'admin'`.
 
+Abas: Indicadores, Baterias, Inversores, Acessórios, Cargas, Combinações, Usuários, Logs.
+
 Permite editar:
 
 - indicadores da aplicação
-- usuários cadastrados e envio de reset de senha
+- usuários cadastrados (busca por nome/email/empresa) e envio de reset de senha
 - combinações aprovadas
-- inversores
+- inversores, incluindo suas regras ESS de compatibilidade com baterias
 - baterias
-- acessórios
-- regras automáticas de acessórios
-- regras ESS de compatibilidade entre inversores e baterias
-- logs de alterações
+- acessórios, incluindo suas regras automáticas de aplicação
+- cargas do catálogo global, com ativar/desativar sem excluir
+- logs de alterações (busca e filtro por entidade)
 
-Regras automáticas podem incluir acessórios obrigatórios ou opcionais com base em:
+Não existe mais uma aba "Regras" separada: regras ESS são editadas numa aba própria ("Compatibilidade ESS") dentro do cadastro de cada inversor, e regras automáticas de acessórios numa aba própria ("Regras de aplicação") dentro do cadastro de cada acessório — cada regra já nasce vinculada ao produto que está sendo editado, sem seletor de inversor/acessório redundante.
+
+Regras automáticas de acessórios podem incluir itens obrigatórios ou opcionais com base em:
 
 - cada solução gerada/recomendada
 - quantidade de inversores
@@ -219,14 +251,13 @@ Regras de acessórios aceitam filtros por bateria, rede, topologia e um ou mais 
 
 Regras ESS definem:
 
-- inversor e bateria compatíveis
-- topologia da bateria
+- nome opcional (para identificar a regra sem ler inversor/bateria/quantidades)
+- bateria(s) compatível(is), com min/max por porta
 - máximo de inversores em paralelo
-- mínimo e máximo de baterias
 
 A rede da regra ESS é derivada das redes cadastradas no inversor, evitando duplicação de configuração.
 
-Produtos administrativos suportam imagem e documentos para clientes, como datasheets e manuais. Inversores possuem funcionalidades estruturadas em array para capacidades como Microrrede, Super-Backup, Dual Voltage e ATS Externo. A UI administrativa usa cards responsivos, formulários em janelas modais, confirmações por popover para ações destrutivas, skeletons de carregamento e feedbacks para salvar/remover.
+Produtos administrativos suportam imagem e documentos para clientes, como datasheets e manuais. Inversores possuem funcionalidades estruturadas em array para capacidades como Microrrede, Super-Backup, Dual Voltage e ATS Externo, e redes suportadas em `grid_types` (`1P_220V`, `2P_220V`, `3P_220V`, `3P_380V` — Monofásico, Bifásico, Trifásico 220V e Trifásico 380V, cada um tratado como categoria própria). A UI administrativa usa cards responsivos (grade de até 2 colunas), formulários em janelas modais, confirmações por popover para ações destrutivas (com posicionamento que se ajusta para não sair da tela), skeletons de carregamento e feedbacks para salvar/remover.
 
 Na aba de combinações, os registros podem ser agrupados por inversor e por modelo de bateria usando controles segmentados. Os agrupamentos mostram somente produtos cadastrados. A ação "Gerar por regras" exibe preview antes de aplicar as combinações em `approved_solutions`.
 
@@ -248,7 +279,7 @@ A função recebe as opções residenciais e retorna a menor combinação aprova
 
 - topologia da bateria (`HV` / `LV`)
 - modelo exato da bateria selecionada
-- tipo de rede (`1p_220V`, `3p_220V`, `3p_380V`)
+- tipo de rede (`1p_220V` Monofásico, `2p_220V` Bifásico, `3p_220V` Trifásico 220V, `3p_380V` Trifásico 380V)
 - pico de carga em W
 - energia alvo para bateria
 - energia útil da bateria calculada com SOC mínimo quando o modelo está cadastrado
@@ -263,7 +294,8 @@ A função recebe as opções residenciais e retorna a menor combinação aprova
 - Em telas pequenas, o menu fica oculto e abre por botão flutuante.
 - Barras de título e menu lateral permanecem fixos; somente o conteúdo da página rola.
 - Skeletons são usados em carregamentos de admin, projetos, baterias e cálculo.
-- Ações destrutivas exigem confirmação por popover com delay de 300ms para abrir/fechar.
+- Ações destrutivas exigem confirmação por popover com delay de 300ms para abrir/fechar; o popover se reposiciona (inclusive para cima) quando o botão está perto da borda da tela.
+- Cards de listagem (admin e cargas do Dimensionamento) usam grade de até 2 colunas.
 
 ## Observações de segurança
 
