@@ -2186,6 +2186,8 @@ function MetricsPanel({
   const batteryCounts = countBy(simulations, (simulation) => simulation.battery_model || 'Não informado');
   const loadCounts = countLoads(simulations);
   const accessoryCounts = countAccessories(simulations);
+  const weekdayCounts = countSimulationWeekdays(simulations);
+  const hourCounts = countSimulationHours(simulations);
   const totalDailyKwh = simulations.reduce((acc, simulation) => acc + Number(simulation.daily_kwh || 0), 0);
   const totalPeakW = simulations.reduce((acc, simulation) => acc + Number(simulation.peak_w || 0), 0);
 
@@ -2199,6 +2201,8 @@ function MetricsPanel({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        <TemporalHeatmapCard title="Dimensionamentos por dia da semana" rows={weekdayCounts} columns="grid-cols-7" />
+        <TemporalHeatmapCard title="Dimensionamentos por horário" rows={hourCounts} columns="grid-cols-4 sm:grid-cols-6" />
         <ChartCard title="Tipos de rede mais usados" rows={gridTypeCounts} />
         <ChartCard title="Topologias mais usadas" rows={topologyCounts} />
         <ChartCard title="Cargas mais usadas" rows={loadCounts} />
@@ -2364,9 +2368,55 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ChartCard({ title, rows }: { title: string; rows: { label: string; value: number }[] }) {
+function TemporalHeatmapCard({
+  title,
+  rows,
+  columns,
+}: {
+  title: string;
+  rows: { label: string; value: number }[];
+  columns: string;
+}) {
   const max = Math.max(1, ...rows.map((row) => row.value));
-  const topRows = rows.slice(0, 8);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.every((row) => row.value === 0) ? (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            Ainda não há dados suficientes.
+          </p>
+        ) : (
+          <div className={cn('grid gap-2', columns)}>
+            {rows.map((row) => {
+              const intensity = row.value / max;
+              return (
+                <div
+                  key={row.label}
+                  className="min-w-0 rounded-lg border px-2 py-2 text-center transition-colors"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, var(--primary) ${Math.max(8, intensity * 72)}%, var(--card))`,
+                    borderColor: `color-mix(in srgb, var(--primary) ${Math.max(18, intensity * 70)}%, var(--border))`,
+                  }}
+                >
+                  <p className="truncate text-xs font-medium text-foreground">{row.label}</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{row.value}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartCard({ title, rows, limit = 8 }: { title: string; rows: { label: string; value: number }[]; limit?: number }) {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  const topRows = rows.slice(0, limit);
 
   return (
     <Card>
@@ -2435,6 +2485,35 @@ function countAccessories(simulations: SimulationRow[]) {
   return Array.from(counts.entries())
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
+}
+
+function countSimulationWeekdays(simulations: SimulationRow[]) {
+  const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const counts = labels.map((label) => ({ label, value: 0 }));
+
+  for (const simulation of simulations) {
+    const date = new Date(simulation.created_at);
+    if (Number.isNaN(date.getTime())) continue;
+    const mondayFirstIndex = (date.getDay() + 6) % 7;
+    counts[mondayFirstIndex].value += 1;
+  }
+
+  return counts;
+}
+
+function countSimulationHours(simulations: SimulationRow[]) {
+  const counts = Array.from({ length: 24 }, (_, hour) => ({
+    label: `${String(hour).padStart(2, '0')}:00`,
+    value: 0,
+  }));
+
+  for (const simulation of simulations) {
+    const date = new Date(simulation.created_at);
+    if (Number.isNaN(date.getTime())) continue;
+    counts[date.getHours()].value += 1;
+  }
+
+  return counts;
 }
 
 function SolutionsEditor(props: {
@@ -2752,6 +2831,7 @@ function SolutionsEditor(props: {
             <div className="grid gap-3 md:grid-cols-2">
               {visibleSolutions.map((solution) => {
                 const removing = props.removingIds.has(solution.id);
+                const comments = (solution.comments ?? []).filter((comment) => comment.trim());
                 return (
                   <Card key={solution.id} size="sm" className={removing ? 'relative opacity-70' : 'relative'}>
                     {removing && <RemovingOverlay label="Removendo..." />}
@@ -2767,12 +2847,40 @@ function SolutionsEditor(props: {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="grid gap-2 text-sm">
-                        <DetailItem label="Inversor" value={`${solution.inverter_model} x${solution.inverter_quantity}`} />
-                        <DetailItem label="Bateria" value={`${solution.battery_model} x${solution.battery_quantity}`} />
-                        <DetailItem label="Rede" value={solution.grid_topology} />
-                        <DetailItem label="Potência" value={`${solution.rated_power_w} W`} />
+                      <div className="space-y-2 text-sm">
+                        <div className="grid grid-cols-2 gap-3">
+                          <ProductQtyDetail
+                            label="Inversor"
+                            model={solution.inverter_model}
+                            quantity={solution.inverter_quantity}
+                          />
+                          <ProductQtyDetail
+                            label="Bateria"
+                            model={solution.battery_model}
+                            quantity={solution.battery_quantity}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <DetailItem label="Potência nominal" value={`${(solution.rated_power_w / 1000).toFixed(1)} kW`} />
+                          <DetailItem label="Potência pico" value={`${(solution.peak_power_w / 1000).toFixed(1)} kW`} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <DetailItem label="Potência bateria" value={`${(solution.battery_power_w / 1000).toFixed(1)} kW`} />
+                          <DetailItem label="Energia bateria" value={`${(solution.available_energy_wh / 1000).toFixed(1)} kWh`} />
+                        </div>
                       </div>
+                      {comments.length > 0 && (
+                        <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                          <p className="text-xs font-medium text-muted-foreground">Comentários</p>
+                          <ul className="mt-1 space-y-1 text-xs text-foreground">
+                            {comments.map((comment) => (
+                              <li key={comment} className="line-clamp-2">
+                                {comment}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" onClick={() => openEdit(solution)}>
                           <Pencil className="h-4 w-4" />
@@ -3359,6 +3467,9 @@ function InvertersEditor(props: {
   );
   const currentGridTypes = normalizeInverterGridTypes(form.grid_types);
   const currentBatteryTopologies = inverterSupportedBatteryTopologies(form as InverterRow | undefined);
+  const essModalTitle = `${essForm.id ? 'Editar compatibilidade ESS' : 'Nova compatibilidade ESS'}${
+    form.model?.trim() ? ` - ${form.model.trim()}` : ''
+  }`;
 
   function openNewEss() {
     setEssForm({ ...emptyEssRule, inverter_model: form.model ?? '' });
@@ -3619,7 +3730,7 @@ function InvertersEditor(props: {
 
               <EditorModal
                 open={essFormOpen}
-                title={essForm.id ? 'Editar compatibilidade ESS' : 'Nova compatibilidade ESS'}
+                title={essModalTitle}
                 onClose={() => setEssFormOpen(false)}
               >
                 <Field label="Nome da regra">
@@ -4036,6 +4147,9 @@ function AccessoriesEditor(props: {
     () => (form.id ? props.rules.filter((row) => row.accessory_id === form.id) : []),
     [props.rules, form.id]
   );
+  const ruleModalTitle = `${ruleForm.id ? 'Editar regra' : 'Nova regra'}${
+    form.model?.trim() ? ` - ${form.model.trim()}` : ''
+  }`;
 
   function openNewRule() {
     setRuleForm({ ...emptyRule, accessory_id: form.id ?? '' });
@@ -4199,7 +4313,7 @@ function AccessoriesEditor(props: {
 
               <EditorModal
                 open={ruleFormOpen}
-                title={ruleForm.id ? 'Editar regra' : 'Nova regra'}
+                title={ruleModalTitle}
                 onClose={() => setRuleFormOpen(false)}
               >
                 <Field label="Nome da regra">
@@ -4876,6 +4990,28 @@ function DetailItem({ label, value, className }: { label: string; value: string 
       ) : (
         <p className="truncate text-sm font-medium">{value || '—'}</p>
       )}
+      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function ProductQtyDetail({
+  label,
+  model,
+  quantity,
+}: {
+  label: string;
+  model: string;
+  quantity: number;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <p className="truncate text-sm font-medium">{model || '—'}</p>
+        <Badge variant="secondary" className="shrink-0">
+          x{quantity}
+        </Badge>
+      </div>
       <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
   );
