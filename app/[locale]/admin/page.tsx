@@ -23,11 +23,15 @@ export default async function AdminPage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, terms_accepted_at')
     .eq('id', user.id)
     .maybeSingle();
 
   if (profile?.role !== 'admin') redirect(`/${locale}/profile`);
+
+  if (!profile?.terms_accepted_at) {
+    redirect(`/${locale}/aceite-termos?redirect=${encodeURIComponent(`/${locale}/admin`)}`);
+  }
 
   return <AdminPanel />;
 }

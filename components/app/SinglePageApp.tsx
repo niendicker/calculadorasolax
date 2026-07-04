@@ -22,6 +22,7 @@ import {
   Settings,
   ShieldUser,
   Sun,
+  Trash2,
   UserRound,
   Users,
   X,
@@ -193,6 +194,10 @@ export function SinglePageApp() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
   const [batteryCatalog, setBatteryCatalog] = useState<BatteryCatalogOption[]>([]);
   const [inverterCatalog, setInverterCatalog] = useState<InverterCatalogOption[]>([]);
@@ -426,7 +431,6 @@ export function SinglePageApp() {
       const { error: simulationError } = await supabase.from('app_simulations').insert({
         user_id: userData.user?.id ?? null,
         project_name: projectInfo.name || null,
-        client_name: clients.find((client) => client.id === projectInfo.clientId)?.name || null,
         topology: residentialOptions.topology,
         grid_type: residentialOptions.gridType,
         peak_w: peakW,
@@ -507,6 +511,30 @@ export function SinglePageApp() {
     clearUserData();
     router.replace(`/${locale}/login`);
     router.refresh();
+  }
+
+  async function deleteAccount() {
+    setDeletingAccount(true);
+    setDeleteAccountError(null);
+
+    try {
+      const response = await fetch('/api/account/delete', { method: 'POST' });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setDeleteAccountError(result.error ?? 'Não foi possível excluir a conta. Tente novamente.');
+        setDeletingAccount(false);
+        return;
+      }
+
+      await supabase.auth.signOut();
+      clearUserData();
+      router.replace(`/${locale}/login`);
+      router.refresh();
+    } catch {
+      setDeleteAccountError('Não foi possível excluir a conta. Tente novamente.');
+      setDeletingAccount(false);
+    }
   }
 
   async function uploadCompanyLogo(file: File | undefined) {
@@ -1048,6 +1076,70 @@ export function SinglePageApp() {
                   <Save className="h-4 w-4" />
                   {profileSaving ? 'Salvando...' : 'Salvar perfil'}
                 </Button>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                <div>
+                  <p className="text-sm font-medium text-destructive">Excluir conta</p>
+                  <p className="text-xs text-muted-foreground">
+                    Remove definitivamente sua conta e os dados vinculados a ela (clientes, projetos e cargas
+                    pessoais cadastradas). Essa ação não pode ser desfeita.
+                  </p>
+                </div>
+
+                {!deleteAccountOpen ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteAccountOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Excluir minha conta
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="deleteConfirmText">
+                      Digite <span className="font-semibold">EXCLUIR</span> para confirmar
+                    </Label>
+                    <Input
+                      id="deleteConfirmText"
+                      value={deleteConfirmText}
+                      onChange={(event) => setDeleteConfirmText(event.target.value)}
+                      placeholder="EXCLUIR"
+                    />
+                    {deleteAccountError && (
+                      <p role="alert" className="text-xs text-destructive">
+                        {deleteAccountError}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setDeleteAccountOpen(false);
+                          setDeleteConfirmText('');
+                          setDeleteAccountError(null);
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteConfirmText !== 'EXCLUIR' || deletingAccount}
+                        onClick={deleteAccount}
+                      >
+                        {deletingAccount ? 'Excluindo...' : 'Confirmar exclusão definitiva'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
           </div>

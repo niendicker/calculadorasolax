@@ -85,6 +85,7 @@ export function AuthPanel({
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -132,6 +133,12 @@ export function AuthPanel({
 
   async function signup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!acceptedTerms) {
+      setToast({ message: 'É preciso aceitar os Termos de Uso e a Política de Privacidade.', type: 'error' });
+      return;
+    }
+
     setLoading(true);
     setToast(null);
 
@@ -162,6 +169,7 @@ export function AuthPanel({
         full_name: fullName.trim(),
         phone: phone.trim(),
         role: 'user',
+        terms_accepted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
     }
@@ -278,6 +286,29 @@ export function AuthPanel({
                     onChange={setPassword}
                   />
                 </FieldIcon>
+              )}
+
+              {mode === 'signup' && (
+                <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    checked={acceptedTerms}
+                    onChange={(event) => setAcceptedTerms(event.target.checked)}
+                    required
+                  />
+                  <span>
+                    Li e aceito os{' '}
+                    <a href={`/${locale}/termos`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                      Termos de Uso
+                    </a>{' '}
+                    e a{' '}
+                    <a href={`/${locale}/privacidade`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                      Política de Privacidade
+                    </a>
+                    .
+                  </span>
+                </label>
               )}
 
               <Button className="h-11 w-full border-border bg-background text-foreground hover:border-primary hover:bg-background hover:text-primary" variant="outline" type="submit" disabled={loading}>

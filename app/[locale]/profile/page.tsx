@@ -23,9 +23,13 @@ export default async function ProfilePage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url')
+    .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url, terms_accepted_at')
     .eq('id', user.id)
     .maybeSingle();
+
+  if (!profile?.terms_accepted_at) {
+    redirect(`/${locale}/aceite-termos?redirect=${encodeURIComponent(`/${locale}/profile`)}`);
+  }
 
   return (
     <ProfilePanel
