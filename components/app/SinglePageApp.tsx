@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Plug,
   Plus,
   Save,
   Settings,
@@ -189,7 +190,7 @@ export function SinglePageApp() {
   const [profile, setProfile] = useState<InlineProfile | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'clients'>('project');
+  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients'>('project');
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -604,7 +605,7 @@ export function SinglePageApp() {
     }
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'clients') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }
@@ -659,6 +660,19 @@ export function SinglePageApp() {
             >
               <LayoutDashboard className="h-4 w-4" />
               Dimensionamento
+            </button>
+            <button
+              type="button"
+              aria-current={activeTab === 'myLoads' ? 'page' : undefined}
+              onClick={() => setActiveTab('myLoads')}
+              className={cn(
+                'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                activeTab === 'myLoads' &&
+                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
+              )}
+            >
+              <Plug className="h-3.5 w-3.5" />
+              Minhas Cargas
             </button>
             <button
               type="button"
@@ -774,10 +788,6 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
-              userLoadCatalog={userLoadCatalog}
-              onAddUserLoad={saveManualLoadToCatalog}
-              onUpdateUserLoad={updateUserLoadCatalogItem}
-              onRemoveUserLoad={removeUserLoadCatalogItem}
             />
           ) : activeTab === 'clients' ? (
             <ClientsTab
@@ -785,6 +795,13 @@ export function SinglePageApp() {
               onAdd={addClient}
               onUpdate={updateClient}
               onRemove={removeClient}
+            />
+          ) : activeTab === 'myLoads' ? (
+            <MyLoadsTab
+              userLoadCatalog={userLoadCatalog}
+              onAdd={saveManualLoadToCatalog}
+              onUpdate={updateUserLoadCatalogItem}
+              onRemove={removeUserLoadCatalogItem}
             />
           ) : (
             <SizingTab
@@ -875,6 +892,18 @@ export function SinglePageApp() {
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Dimensionamento
+              </button>
+              <button
+                type="button"
+                aria-current={activeTab === 'myLoads' ? 'page' : undefined}
+                onClick={() => openMobileTab('myLoads')}
+                className={cn(
+                  'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'myLoads' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <Plug className="h-3.5 w-3.5" />
+                Minhas Cargas
               </button>
               <button
                 type="button"
@@ -2024,21 +2053,13 @@ function CatalogTab({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
-  userLoadCatalog,
-  onAddUserLoad,
-  onUpdateUserLoad,
-  onRemoveUserLoad,
 }: {
   initialLoading: boolean;
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
-  userLoadCatalog: UserLoadCatalogItem[];
-  onAddUserLoad: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
-  onUpdateUserLoad: (id: string, partial: Partial<{ name: string; powerW: number; ipInRatio: number }>) => Promise<void>;
-  onRemoveUserLoad: (id: string) => Promise<void>;
 }) {
-  const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories' | 'loads'>('inverters');
+  const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories'>('inverters');
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
 
@@ -2046,7 +2067,6 @@ function CatalogTab({
     { value: 'inverters' as const, label: 'Inversores', count: inverterCatalog.length },
     { value: 'batteries' as const, label: 'Baterias', count: batteryCatalog.length },
     { value: 'accessories' as const, label: 'Acessórios', count: accessoryCatalog.length },
-    { value: 'loads' as const, label: 'Minhas Cargas', count: userLoadCatalog.length },
   ];
 
   return (
@@ -2058,7 +2078,7 @@ function CatalogTab({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit sm:grid-cols-4">
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit sm:grid-cols-3">
         {sectionOptions.map((tab) => {
           const active = section === tab.value;
           return (
@@ -2157,17 +2177,34 @@ function CatalogTab({
             ))}
           </div>
         )
-      ) : (
-        <UserLoadCatalogSection
-          items={userLoadCatalog}
-          onAdd={onAddUserLoad}
-          onUpdate={onUpdateUserLoad}
-          onRemove={onRemoveUserLoad}
-        />
-      )}
+      ) : null}
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+function MyLoadsTab({
+  userLoadCatalog,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  userLoadCatalog: UserLoadCatalogItem[];
+  onAdd: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
+  onUpdate: (id: string, partial: Partial<{ name: string; powerW: number; ipInRatio: number }>) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 py-4">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Minhas Cargas</h1>
+        <p className="text-sm text-muted-foreground">
+          Cargas que você cadastrou manualmente durante o dimensionamento, salvas para reutilizar em outros projetos.
+        </p>
+      </div>
+      <UserLoadCatalogSection items={userLoadCatalog} onAdd={onAdd} onUpdate={onUpdate} onRemove={onRemove} />
     </div>
   );
 }
@@ -2291,10 +2328,7 @@ function UserLoadCatalogSection({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Cargas que você cadastrou manualmente no Dimensionamento, disponíveis para reutilizar.
-        </p>
+      <div className="flex items-center justify-end gap-3">
         {!addOpen && !editingId && (
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4" />

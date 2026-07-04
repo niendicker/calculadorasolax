@@ -2122,7 +2122,7 @@ function UsersPanel({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Buscar usuário"
-            className="pl-8"
+            className="pl-8 md:pl-8"
             placeholder="Buscar por nome, email ou empresa..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -2250,7 +2250,7 @@ function ActivityLogsPanel({ logs }: { logs: AdminActivityLogRow[] }) {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Buscar log por usuário ou item"
-            className="pl-8"
+            className="pl-8 md:pl-8"
             placeholder="Buscar por usuário ou item..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -2754,7 +2754,7 @@ function SolutionsEditor(props: {
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     aria-label="Buscar combinações aprovadas"
-                    className="pl-8"
+                    className="pl-8 md:pl-8"
                     placeholder="Buscar código, inversor ou bateria"
                     value={props.query}
                     onChange={(event) => props.setQuery(event.target.value)}
@@ -2772,7 +2772,7 @@ function SolutionsEditor(props: {
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     aria-label="Buscar combinações geradas"
-                    className="pl-8"
+                    className="pl-8 md:pl-8"
                     placeholder="Buscar código, inversor ou bateria"
                     value={generatedQuery}
                     onChange={(event) => setGeneratedQuery(event.target.value)}
@@ -3543,7 +3543,7 @@ function InvertersEditor(props: {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Buscar inversor por modelo"
-            className="pl-8"
+            className="pl-8 md:pl-8"
             placeholder="Buscar por modelo..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -3916,7 +3916,7 @@ function BatteriesEditor(props: {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Buscar bateria por modelo"
-            className="pl-8"
+            className="pl-8 md:pl-8"
             placeholder="Buscar por modelo..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -4226,7 +4226,7 @@ function AccessoriesEditor(props: {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Buscar acessório por modelo"
-            className="pl-8"
+            className="pl-8 md:pl-8"
             placeholder="Buscar por modelo..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -4522,7 +4522,7 @@ function LoadCatalogEditor(props: {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Buscar carga por nome"
-            className="pl-8"
+            className="pl-8 md:pl-8"
             placeholder="Buscar por nome..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}

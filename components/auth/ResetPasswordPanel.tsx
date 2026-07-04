@@ -55,7 +55,7 @@ export function ResetPasswordPanel({ locale }: { locale: string }) {
                   <KeyRound className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    className="pl-8"
+                    className="pl-8 md:pl-8"
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}

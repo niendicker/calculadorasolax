@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Layers, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
+import { ChevronDown, Layers, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, SingleLoad } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 function InfoLabel({ label, tip }: { label: string; tip: string }) {
   return (
@@ -301,7 +302,7 @@ export function LoadSelector() {
               placeholder={t('search_placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
+              className="pl-8 md:pl-8"
             />
           </div>
           {filteredUserItems.length > 0 && (
@@ -487,6 +488,7 @@ function LoadCard({
   const [hours, setHours] = useState(String(load.hoursPerDay));
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
+  const [expanded, setExpanded] = useState(false);
 
   function handleChange(
     field: 'hoursPerDay' | 'qty' | 'ipInRatio',
@@ -511,25 +513,55 @@ function LoadCard({
   const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
 
   return (
-    <div className="rounded-lg border bg-card p-3 text-sm">
-      <div className="flex items-start justify-between gap-2">
+    <div className="rounded-lg border bg-card text-sm">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setExpanded((current) => !current);
+          }
+        }}
+        className="flex w-full cursor-pointer items-start justify-between gap-2 p-3 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
         <div className="min-w-0">
           <p className="font-medium truncate">{load.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {load.powerW} W nominal · {loadPeakW.toFixed(0)} W pico · {loadEnergyKwh.toFixed(2)} kWh/dia
-          </p>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <span>
+              <span className="font-medium text-foreground">{load.powerW} W</span> nominal
+            </span>
+            <span>
+              <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} W</span> pico
+            </span>
+            <span>
+              <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>/dia
+            </span>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="shrink-0 md:h-7 md:w-7"
-          onClick={() => onRemove(load.id)}
-          aria-label={`Remover ${load.name}`}
-        >
-          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 md:h-7 md:w-7"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemove(load.id);
+            }}
+            aria-label={`Remover ${load.name}`}
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+          <ChevronDown
+            className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')}
+            aria-hidden="true"
+          />
+        </div>
       </div>
-      <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {expanded && (
+      <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
         <div>
           <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel
@@ -582,6 +614,7 @@ function LoadCard({
           />
         </div>
       </div>
+      )}
     </div>
   );
 }
