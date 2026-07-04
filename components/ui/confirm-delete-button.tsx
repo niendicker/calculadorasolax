@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ export function ConfirmDeleteButton({
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearTimer() {
@@ -40,16 +41,30 @@ export function ConfirmDeleteButton({
   function openWithDelay() {
     if (disabled) return;
     clearTimer();
-    timerRef.current = setTimeout(() => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const width = 256;
-        const left = Math.min(Math.max(12, rect.right - width), window.innerWidth - width - 12);
-        setPosition({ top: rect.bottom + 8, left });
-      }
-      setOpen(true);
-    }, 300);
+    timerRef.current = setTimeout(() => setOpen(true), 300);
   }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = triggerRef.current?.getBoundingClientRect();
+    const popRect = popoverRef.current?.getBoundingClientRect();
+    if (!rect || !popRect) return;
+
+    const gap = 8;
+    const margin = 12;
+
+    let left = rect.right - popRect.width;
+    left = Math.min(Math.max(margin, left), window.innerWidth - popRect.width - margin);
+
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    let top = spaceBelow >= popRect.height || spaceBelow >= spaceAbove
+      ? rect.bottom + gap
+      : rect.top - gap - popRect.height;
+    top = Math.min(Math.max(margin, top), window.innerHeight - popRect.height - margin);
+
+    setPosition({ top, left });
+  }, [open]);
 
   function closeWithDelay() {
     clearTimer();
@@ -98,10 +113,11 @@ export function ConfirmDeleteButton({
 
       {open && mounted && createPortal(
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label={title}
           className="fixed z-[1000] w-64 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
-          style={{ top: position.top, left: position.left }}
+          style={{ top: position.top, left: position.left, visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible' }}
           onMouseEnter={openWithDelay}
           onMouseLeave={closeWithDelay}
           onBlur={closeOnBlur}
