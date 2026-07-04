@@ -774,11 +774,11 @@ function buildRuleGeneratedSolutions({
 }
 
 function selectClasses(className = '') {
-  return `h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className}`;
+  return `h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:px-2.5 md:text-sm ${className}`;
 }
 
 function textareaClasses(className = '') {
-  return `min-h-20 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className}`;
+  return `min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm ${className}`;
 }
 
 function sanitizePathPart(value: string) {
@@ -1838,7 +1838,7 @@ function NumberWithUnitField({
   const hasValue = props.value !== undefined && props.value !== null && props.value !== '';
   return (
     <Field label={<InfoLabel label={label} tip={tip} />}>
-      <div className="flex h-8 items-center rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+      <div className="flex h-10 items-center rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:h-8">
         {icon && (
           <span className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
         )}
@@ -1860,7 +1860,7 @@ function NumberWithUnitField({
             tabIndex={-1}
             onMouseDown={(event) => event.preventDefault()}
             onClick={onClear}
-            className="mr-1 shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="mr-1 flex size-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground md:size-6"
           >
             <X className="h-3 w-3" />
           </button>

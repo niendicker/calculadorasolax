@@ -65,7 +65,7 @@ function NumberFieldWithClear({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
-        className="h-8 pr-6 text-xs"
+        className="h-10 pr-8 text-base md:h-8 md:pr-6 md:text-xs"
       />
       {value !== '' && (
         <button
@@ -74,7 +74,7 @@ function NumberFieldWithClear({
           tabIndex={-1}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onClear}
-          className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground md:size-5"
         >
           <X className="h-3 w-3" />
         </button>
@@ -352,7 +352,7 @@ export function LoadSelector() {
                 onChange={(e) => setManualName(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
               <div>
                 <Label htmlFor="manual-power">
                   <InfoLabel label={t('power')} tip="Potência aparente nominal do equipamento, informada na etiqueta ou manual (em Watts)." />
@@ -429,7 +429,7 @@ export function LoadSelector() {
                 tip="Define como as cargas com maior corrente de partida somam no pico de potência aparente do sistema, usado para escolher o inversor."
               />
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            <div className="mt-2 grid grid-cols-1 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-2">
               {(
                 [
                   {
@@ -452,7 +452,7 @@ export function LoadSelector() {
                     aria-pressed={active}
                     title={option.tip}
                     onClick={() => setPeakCalcMode(option.value)}
-                    className={`h-8 rounded-md px-2 text-xs font-medium transition ${
+                    className={`h-10 rounded-md px-2 text-sm font-medium transition md:h-8 md:text-xs ${
                       active
                         ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                         : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -522,14 +522,14 @@ function LoadCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0"
+          className="shrink-0 md:h-7 md:w-7"
           onClick={() => onRemove(load.id)}
           aria-label={`Remover ${load.name}`}
         >
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
-      <div className="mt-2.5 grid grid-cols-3 gap-2">
+      <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div>
           <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel

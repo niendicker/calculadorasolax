@@ -1265,7 +1265,7 @@ function ProjectTab({
                 </div>
                 <select
                   id="clientId"
-                  className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm"
                   value={projectInfo.clientId ?? ''}
                   onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
                 >
@@ -1289,7 +1289,7 @@ function ProjectTab({
                 <ProjectField label="Observações" id="projectNotes">
                   <textarea
                     id="projectNotes"
-                    className="min-h-24 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm"
                     value={projectInfo.notes}
                     onChange={(event) => setProjectInfo({ notes: event.target.value })}
                     placeholder="Informações comerciais, restrições da instalação ou preferências do cliente."
@@ -1577,12 +1577,12 @@ function ClientsTab({
                 <Label htmlFor="clientFormNotes">Observações</Label>
                 <textarea
                   id="clientFormNotes"
-                  className="min-h-20 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm"
                   value={form.notes}
                   onChange={(event) => setForm({ ...form, notes: event.target.value })}
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="grid gap-2 sm:flex sm:justify-end">
                 <Button variant="ghost" onClick={() => setFormOpen(false)}>
                   Cancelar
                 </Button>
@@ -2254,7 +2254,7 @@ function UserLoadCatalogSection({
         <Label htmlFor="new-load-name">Nome</Label>
         <Input id="new-load-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome do equipamento" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="new-load-power">Potência (W)</Label>
           <Input
@@ -2277,7 +2277,7 @@ function UserLoadCatalogSection({
           />
         </div>
       </div>
-      <div className="flex justify-end gap-2">
+      <div className="grid gap-2 sm:flex sm:justify-end">
         <Button variant="ghost" size="sm" onClick={closeForm}>
           Cancelar
         </Button>
