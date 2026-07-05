@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
@@ -422,11 +422,6 @@ function clampNumber(value: unknown, min: number, max: number, fallback = min) {
   return Math.min(max, Math.max(min, parsed));
 }
 
-function parseJson<T>(value: string, fallback: T): T {
-  if (!value.trim()) return fallback;
-  return JSON.parse(value) as T;
-}
-
 function normalizeInverterGridType(value: string): InverterGridType | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -470,12 +465,6 @@ function normalizeInverterFlags(value: unknown): InverterFlag[] {
   );
 }
 
-function formatInverterFlags(value: unknown) {
-  return normalizeInverterFlags(value)
-    .map((flag) => inverterFlagLabels.get(flag) ?? flag)
-    .join(', ');
-}
-
 function normalizeBatteryFlags(value: unknown): BatteryFlag[] {
   const values = Array.isArray(value) ? value : String(value ?? '').split(',');
   return Array.from(
@@ -485,12 +474,6 @@ function normalizeBatteryFlags(value: unknown): BatteryFlag[] {
         .filter((item): item is BatteryFlag => batteryFlagLabels.has(item as BatteryFlag))
     )
   );
-}
-
-function formatBatteryFlags(value: unknown) {
-  return normalizeBatteryFlags(value)
-    .map((flag) => batteryFlagLabels.get(flag) ?? flag)
-    .join(', ');
 }
 
 function formatTriggerMetric(value: TriggerMetric) {
@@ -830,7 +813,7 @@ export function AdminPanel() {
     return () => clearTimeout(timer);
   }, [status]);
 
-  async function loadData(showSkeleton = true) {
+  const loadData = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) setLoading(true);
     setError(null);
 
@@ -903,11 +886,11 @@ export function AdminPanel() {
     }
 
     if (showSkeleton) setLoading(false);
-  }
+  }, [supabase]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const filteredSolutions = solutions.filter((solution) => {
     const text = `${solution.solution_code} ${solution.inverter_model} ${solution.battery_model} ${solution.grid_topology}`.toLowerCase();
@@ -1820,10 +1803,6 @@ function AdminLoadingSkeleton() {
   );
 }
 
-function NumberInput(props: React.ComponentProps<typeof Input>) {
-  return <Input type="number" inputMode="decimal" onFocus={(e) => e.target.select()} {...props} />;
-}
-
 function NumberWithUnitField({
   label,
   tip,
@@ -2638,10 +2617,20 @@ function SolutionsEditor(props: {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [catalogSolutions]);
 
+  // Falls back to 'all' when the currently selected filter no longer matches a
+  // registered product (e.g. the inverter/battery was renamed or removed elsewhere).
+  const effectiveSelectedInverter =
+    selectedInverter !== 'all' && !registeredInverterModels.has(selectedInverter) ? 'all' : selectedInverter;
+  const effectiveSelectedBattery =
+    (selectedBattery !== 'all' && !registeredBatteryModels.has(selectedBattery)) ||
+    effectiveSelectedInverter !== selectedInverter
+      ? 'all'
+      : selectedBattery;
+
   const solutionsByInverter =
-    selectedInverter === 'all'
+    effectiveSelectedInverter === 'all'
       ? catalogSolutions
-      : catalogSolutions.filter((solution) => solution.inverter_model === selectedInverter);
+      : catalogSolutions.filter((solution) => solution.inverter_model === effectiveSelectedInverter);
 
   const batteryGroups = useMemo(() => {
     const counts = new Map<string, number>();
@@ -2654,9 +2643,9 @@ function SolutionsEditor(props: {
   }, [solutionsByInverter]);
 
   const solutionsByBattery =
-    selectedBattery === 'all'
+    effectiveSelectedBattery === 'all'
       ? solutionsByInverter
-      : solutionsByInverter.filter((solution) => solution.battery_model === selectedBattery);
+      : solutionsByInverter.filter((solution) => solution.battery_model === effectiveSelectedBattery);
 
   const statusGroups = useMemo(() => {
     let active = 0, inactive = 0;
@@ -2670,23 +2659,6 @@ function SolutionsEditor(props: {
     selectedStatus === 'all'
       ? solutionsByBattery
       : solutionsByBattery.filter((s) => (selectedStatus === 'active') === s.active);
-
-  useEffect(() => {
-    if (selectedInverter !== 'all' && !registeredInverterModels.has(selectedInverter)) {
-      setSelectedInverter('all');
-      setSelectedBattery('all');
-    }
-  }, [selectedInverter, registeredInverterModels]);
-
-  useEffect(() => {
-    if (selectedBattery !== 'all' && !registeredBatteryModels.has(selectedBattery)) {
-      setSelectedBattery('all');
-    }
-  }, [selectedBattery, registeredBatteryModels]);
-
-  useEffect(() => {
-    setSelectedStatus('all');
-  }, [selectedInverter, selectedBattery]);
 
   function openNew() {
     props.onNew();
@@ -2810,18 +2782,22 @@ function SolutionsEditor(props: {
             <div className="space-y-3 rounded-lg border bg-card p-3">
               <SegmentedTabs
                 label="Inversor"
-                value={selectedInverter}
+                value={effectiveSelectedInverter}
                 options={[{ value: 'all', label: 'Todos', count: catalogSolutions.length }, ...inverterGroups]}
                 onChange={(value) => {
                   setSelectedInverter(value);
                   setSelectedBattery('all');
+                  setSelectedStatus('all');
                 }}
               />
               <SegmentedTabs
                 label="Bateria"
-                value={selectedBattery}
+                value={effectiveSelectedBattery}
                 options={[{ value: 'all', label: 'Todas', count: solutionsByInverter.length }, ...batteryGroups]}
-                onChange={setSelectedBattery}
+                onChange={(value) => {
+                  setSelectedBattery(value);
+                  setSelectedStatus('all');
+                }}
               />
               {(statusGroups.active > 0 && statusGroups.inactive > 0) && (
                 <SegmentedTabs
@@ -2988,7 +2964,7 @@ function SolutionsEditor(props: {
             {pendingGenerated.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-background p-6 text-center">
                 <p className="text-sm text-muted-foreground">Nenhuma combinação pendente.</p>
-                <p className="mt-1 text-xs text-muted-foreground">Configure os filtros acima e clique em "Gerar combinações".</p>
+                <p className="mt-1 text-xs text-muted-foreground">Configure os filtros acima e clique em &quot;Gerar combinações&quot;.</p>
               </div>
             ) : (
               <>

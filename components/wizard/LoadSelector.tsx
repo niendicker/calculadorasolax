@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -533,7 +533,10 @@ function LoadCard({
 
   const phaseCount = gridType ? gridTypePhaseCount[gridType] : 3;
   const validVoltages = gridType ? gridTypeVoltages[gridType] : [110, 220, 380];
-  const phaseToPhaseVoltages = gridType ? gridTypePhaseToPhaseVoltages[gridType] : [];
+  const phaseToPhaseVoltages = useMemo(
+    () => (gridType ? gridTypePhaseToPhaseVoltages[gridType] : []),
+    [gridType]
+  );
   const phaseType = load.phaseType ?? 'mono';
   const voltageV = load.voltageV ?? 220;
   // A trifásica load draws from all three phases at once, so it can only be

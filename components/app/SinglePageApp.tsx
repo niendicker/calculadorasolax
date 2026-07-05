@@ -8,7 +8,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import {
   Battery,
   Boxes,
-  Cable,
   Calculator,
   FileText,
   FolderOpen,
@@ -52,11 +51,6 @@ import type {
   UserLoadCatalogItem,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
-
-const topologyOptions: { value: BatteryTopology; label: string; badge: string }[] = [
-  { value: 'HighVoltage', label: 'Alta tensão', badge: 'HV' },
-  { value: 'LowVoltage', label: 'Baixa tensão', badge: 'LV' },
-];
 
 const gridOptions: { value: ResidentialGridType; label: string; detail: string }[] = [
   { value: 'singlePhase_220', label: 'Monofásico', detail: '220V' },
@@ -340,7 +334,7 @@ export function SinglePageApp() {
     }
 
     loadInitialData();
-  }, [setLoadCatalog, supabase]);
+  }, [setLoadCatalog, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog]);
 
   useEffect(() => {
     async function loadProductMedia() {

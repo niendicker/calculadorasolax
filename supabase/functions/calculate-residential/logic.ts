@@ -1,0 +1,285 @@
+// Pure logic for the calculate-residential Edge Function: types, payload
+// validation, and the compatibility/sizing math. Kept free of Deno-specific
+// APIs (no `Deno.*`, no `jsr:` imports) so it can be unit tested with a
+// regular Node-based test runner (see logic.test.ts) instead of requiring a
+// Deno test setup.
+
+export interface SingleLoad {
+  powerW: number;
+  hoursPerDay: number;
+  qty: number;
+  ipInRatio?: number;
+}
+
+export type PeakCalcMode = 'sum' | 'largest-surge';
+
+export interface ResidentialOptions {
+  topology: 'HighVoltage' | 'LowVoltage';
+  batteryModel: string | null;
+  inverterModel: string | null;
+  gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
+  loads: SingleLoad[];
+  peakCalcMode?: PeakCalcMode;
+  microGrid: 'Gerador' | 'Microinversor' | 'Desabilitada' | null;
+}
+
+export interface ApprovedSolution {
+  id: string;
+  source_file: string;
+  solution_code: string;
+  inverter_model: string;
+  inverter_quantity: number;
+  battery_ports_used: number;
+  rated_power_w: number;
+  peak_power_w: number;
+  grid_topology: '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V';
+  battery_model: string;
+  battery_topology: 'HV' | 'LV';
+  battery_quantity: number;
+  battery_power_w: number;
+  available_energy_wh: number;
+  accessories: { model: string | null; quantity: number }[];
+  comments: string[];
+}
+
+export interface AccessoryRule {
+  id: string;
+  name: string;
+  inclusion: 'required' | 'optional';
+  trigger_metric: 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+  min_quantity: number;
+  inverter_model: string | null;
+  inverter_models: string[] | null;
+  battery_model: string | null;
+  grid_topology: string | null;
+  battery_topology: ApprovedSolution['battery_topology'] | null;
+  quantity_per_match: number;
+  comment: string | null;
+  accessories: { model: string } | null;
+}
+
+export interface EssCompatibilityRule {
+  id: string;
+  inverter_model: string;
+  battery_model: string;
+  battery_topology: ApprovedSolution['battery_topology'] | null;
+  grid_topology: string | null;
+  max_parallel_inverters: number | null;
+  min_battery_qty: number | null;
+  max_battery_qty: number | null;
+  battery_configs: {
+    battery_model: string;
+    battery_topology: ApprovedSolution['battery_topology'];
+    min_battery_qty: number | null;
+    max_battery_qty: number | null;
+  }[] | null;
+  active: boolean;
+}
+
+export interface BatteryCatalogRow {
+  capacity_kwh: number;
+  min_soc_percent: number | null;
+}
+
+export const batteryTopologyMap: Record<ResidentialOptions['topology'], 'HV' | 'LV'> = {
+  HighVoltage: 'HV',
+  LowVoltage: 'LV',
+};
+
+export const gridTopologyMap: Record<ResidentialOptions['gridType'], ApprovedSolution['grid_topology']> = {
+  singlePhase_220: '1p_220V',
+  splitPhase_220: '2p_220V',
+  threePhase_220: '3p_220V',
+  threePhase_380: '3p_380V',
+};
+
+export type StandardGridTopology = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
+
+export const standardGridTopologyMap: Record<ResidentialOptions['gridType'], StandardGridTopology> = {
+  singlePhase_220: '1P_220V',
+  splitPhase_220: '2P_220V',
+  threePhase_220: '3P_220V',
+  threePhase_380: '3P_380V',
+};
+
+export function normalizeStandardGridTopology(value: string | null): StandardGridTopology | null {
+  if (!value) return null;
+  if (value === '1P_220V' || value === '2P_220V' || value === '3P_220V' || value === '3P_380V') {
+    return value;
+  }
+  if (value === '1p_220V') return '1P_220V';
+  if (value === '2p_220V') return '2P_220V';
+  if (value === '3p_220V') return '3P_220V';
+  if (value === '3p_380V') return '3P_380V';
+  return null;
+}
+
+export function clampNumber(value: unknown, min: number, max: number, fallback = min): number {
+  const parsed = Number(value);
+  const numberValue = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.min(max, Math.max(min, numberValue));
+}
+
+export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {
+  if (loads.length === 0) return 0;
+
+  if (mode === 'sum') {
+    return loads.reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
+  }
+
+  // 'largest-surge': only the single highest-surge load unit starts at a time;
+  // everything else runs at nominal power.
+  const nominalSum = loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+  const largestExtra = loads.reduce((max, l) => {
+    const extra = l.powerW * ((l.ipInRatio ?? 1) - 1);
+    return extra > max ? extra : max;
+  }, 0);
+  return nominalSum + largestExtra;
+}
+
+export function totalNominalW(loads: SingleLoad[]): number {
+  return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+}
+
+export function totalDailyKwh(loads: SingleLoad[]): number {
+  return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty) / 1000, 0);
+}
+
+export function matchingEssBatteryConfig(rule: EssCompatibilityRule, batteryModel: string) {
+  const configs = Array.isArray(rule.battery_configs) ? rule.battery_configs : [];
+  const config = configs.find((item) => item.battery_model === batteryModel);
+  if (config) return config;
+  if (rule.battery_model === batteryModel && rule.battery_topology) {
+    return {
+      battery_model: rule.battery_model,
+      battery_topology: rule.battery_topology,
+      min_battery_qty: rule.min_battery_qty,
+      max_battery_qty: rule.max_battery_qty,
+    };
+  }
+  return null;
+}
+
+export function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRule['trigger_metric']): number {
+  if (metric === 'per_solution') return 1;
+  if (metric === 'inverter_quantity') return solution.inverter_quantity;
+  if (metric === 'battery_quantity') return solution.battery_quantity;
+  return solution.battery_ports_used;
+}
+
+export function ruleMatches(
+  solution: ApprovedSolution,
+  rule: AccessoryRule,
+  requestedGridTopology: StandardGridTopology
+): boolean {
+  const inverterModels = Array.isArray(rule.inverter_models) && rule.inverter_models.length > 0
+    ? rule.inverter_models
+    : rule.inverter_model
+      ? [rule.inverter_model]
+      : [];
+  if (inverterModels.length > 0 && !inverterModels.includes(solution.inverter_model)) return false;
+  if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;
+  if (
+    rule.grid_topology &&
+    normalizeStandardGridTopology(rule.grid_topology) !== requestedGridTopology
+  ) {
+    return false;
+  }
+  if (rule.battery_topology && rule.battery_topology !== solution.battery_topology) return false;
+  return ruleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
+}
+
+export const VALID_TOPOLOGIES: ResidentialOptions['topology'][] = ['HighVoltage', 'LowVoltage'];
+export const VALID_GRID_TYPES: ResidentialOptions['gridType'][] = [
+  'singlePhase_220',
+  'splitPhase_220',
+  'threePhase_220',
+  'threePhase_380',
+];
+export const VALID_PEAK_CALC_MODES: PeakCalcMode[] = ['sum', 'largest-surge'];
+export const VALID_MICRO_GRID: NonNullable<ResidentialOptions['microGrid']>[] = [
+  'Gerador',
+  'Microinversor',
+  'Desabilitada',
+];
+
+/** Validates the untrusted JSON body before it is treated as ResidentialOptions.
+ * Returns a list of human-readable issues; an empty list means the payload is valid. */
+export function validateResidentialOptions(raw: unknown): string[] {
+  const errors: string[] = [];
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return ['payload must be a JSON object'];
+  }
+
+  const options = raw as Record<string, unknown>;
+
+  if (!VALID_TOPOLOGIES.includes(options.topology as ResidentialOptions['topology'])) {
+    errors.push('topology must be one of: ' + VALID_TOPOLOGIES.join(', '));
+  }
+
+  if (!VALID_GRID_TYPES.includes(options.gridType as ResidentialOptions['gridType'])) {
+    errors.push('gridType must be one of: ' + VALID_GRID_TYPES.join(', '));
+  }
+
+  if (options.batteryModel !== null && typeof options.batteryModel !== 'string') {
+    errors.push('batteryModel must be a string or null');
+  }
+
+  if (options.inverterModel !== null && typeof options.inverterModel !== 'string') {
+    errors.push('inverterModel must be a string or null');
+  }
+
+  if (
+    options.peakCalcMode !== undefined &&
+    !VALID_PEAK_CALC_MODES.includes(options.peakCalcMode as PeakCalcMode)
+  ) {
+    errors.push('peakCalcMode must be one of: ' + VALID_PEAK_CALC_MODES.join(', '));
+  }
+
+  if (
+    options.microGrid !== undefined &&
+    options.microGrid !== null &&
+    !VALID_MICRO_GRID.includes(options.microGrid as NonNullable<ResidentialOptions['microGrid']>)
+  ) {
+    errors.push('microGrid must be one of: ' + VALID_MICRO_GRID.join(', ') + ', or null');
+  }
+
+  if (!Array.isArray(options.loads) || options.loads.length === 0) {
+    errors.push('loads must be a non-empty array');
+  } else {
+    options.loads.forEach((load: unknown, index: number) => {
+      if (!load || typeof load !== 'object') {
+        errors.push(`loads[${index}] must be an object`);
+        return;
+      }
+      const l = load as Record<string, unknown>;
+
+      if (typeof l.powerW !== 'number' || !Number.isFinite(l.powerW) || l.powerW <= 0) {
+        errors.push(`loads[${index}].powerW must be a positive number`);
+      }
+
+      if (
+        typeof l.hoursPerDay !== 'number' ||
+        !Number.isFinite(l.hoursPerDay) ||
+        l.hoursPerDay < 0 ||
+        l.hoursPerDay > 24
+      ) {
+        errors.push(`loads[${index}].hoursPerDay must be a number between 0 and 24`);
+      }
+
+      if (typeof l.qty !== 'number' || !Number.isInteger(l.qty) || l.qty <= 0) {
+        errors.push(`loads[${index}].qty must be a positive integer`);
+      }
+
+      if (
+        l.ipInRatio !== undefined &&
+        (typeof l.ipInRatio !== 'number' || !Number.isFinite(l.ipInRatio) || l.ipInRatio < 1)
+      ) {
+        errors.push(`loads[${index}].ipInRatio must be a number >= 1`);
+      }
+    });
+  }
+
+  return errors;
+}

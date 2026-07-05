@@ -3,8 +3,6 @@
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { WizardLayout } from '@/components/wizard/WizardLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { BatteryTopology } from '@/lib/types';
 import { cn } from '@/lib/utils';
