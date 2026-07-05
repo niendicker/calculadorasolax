@@ -281,6 +281,7 @@ export function CatalogProductCard({
   description,
   onPreviewImage,
   onPreviewDoc,
+  stockControl,
 }: {
   fallbackIcon: React.ReactNode;
   model: string;
@@ -291,6 +292,7 @@ export function CatalogProductCard({
   description?: string | null;
   onPreviewImage: (image: { url: string; alt: string }) => void;
   onPreviewDoc: (doc: ProductDocument) => void;
+  stockControl?: React.ReactNode;
 }) {
   return (
     <div className="grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[72px_1fr]">
@@ -347,6 +349,7 @@ export function CatalogProductCard({
             <span className="text-xs text-muted-foreground">Sem anexos</span>
           )}
         </div>
+        {stockControl}
       </div>
     </div>
   );

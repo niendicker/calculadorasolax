@@ -15,12 +15,14 @@ export function useInitialData({
   fetchClients,
   fetchProjects,
   fetchUserLoadCatalog,
+  fetchUserStockItems,
   setLoadCatalog,
 }: {
   supabase: ReturnType<typeof createClient>;
   fetchClients: () => Promise<void>;
   fetchProjects: () => Promise<void>;
   fetchUserLoadCatalog: () => Promise<void>;
+  fetchUserStockItems: () => Promise<void>;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
 }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function useInitialData({
         });
 
         try {
-          await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog()]);
+          await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog(), fetchUserStockItems()]);
           setUserDataError(null);
         } catch {
           setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');
@@ -169,7 +171,7 @@ export function useInitialData({
     }
 
     loadInitialData();
-  }, [setLoadCatalog, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog]);
+  }, [setLoadCatalog, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, fetchUserStockItems]);
 
   useEffect(() => {
     function handleOnline() {
@@ -181,7 +183,7 @@ export function useInitialData({
 
   async function retryUserData() {
     try {
-      await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog()]);
+      await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog(), fetchUserStockItems()]);
       setUserDataError(null);
     } catch {
       setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');

@@ -17,7 +17,9 @@ import type {
   SavedProject,
   SingleLoad,
   Solution,
+  StockProductType,
   UserLoadCatalogItem,
+  UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
 
@@ -27,6 +29,7 @@ interface WizardStore {
   savedProjects: SavedProject[];
   clients: Client[];
   userLoadCatalog: UserLoadCatalogItem[];
+  userStockItems: UserStockItem[];
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
@@ -49,6 +52,10 @@ interface WizardStore {
     partial: Partial<{ name: string; powerW: number; ipInRatio: number }>
   ) => Promise<void>;
   removeUserLoadCatalogItem: (id: string) => Promise<void>;
+  fetchUserStockItems: () => Promise<void>;
+  addToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
+  updateStockItemValue: (id: string, unitValue: number) => Promise<void>;
+  removeFromStock: (id: string) => Promise<void>;
   clearUserData: () => void;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
@@ -122,6 +129,17 @@ function userLoadFromRow(row: Record<string, unknown>): UserLoadCatalogItem {
   };
 }
 
+function userStockItemFromRow(row: Record<string, unknown>): UserStockItem {
+  return {
+    id: row.id as string,
+    productType: row.product_type as StockProductType,
+    productModel: (row.product_model as string) ?? '',
+    unitValue: Number(row.unit_value) || 0,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
 function projectFromRow(row: Record<string, unknown>): SavedProject {
   return {
     id: row.id as string,
@@ -143,6 +161,7 @@ export const useWizardStore = create<WizardStore>()(
       savedProjects: [],
       clients: [],
       userLoadCatalog: [],
+      userStockItems: [],
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
@@ -384,11 +403,71 @@ export const useWizardStore = create<WizardStore>()(
         }));
       },
 
+      fetchUserStockItems: async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase.from('user_stock_items').select('*').order('product_model');
+        if (error) throw error;
+        set({ userStockItems: (data ?? []).map(userStockItemFromRow) });
+      },
+
+      addToStock: async (input) => {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error('not_authenticated');
+
+        const { data, error } = await supabase
+          .from('user_stock_items')
+          .upsert(
+            {
+              user_id: userData.user.id,
+              product_type: input.productType,
+              product_model: input.productModel,
+              unit_value: input.unitValue,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,product_type,product_model' }
+          )
+          .select()
+          .single();
+        if (error) throw error;
+
+        const item = userStockItemFromRow(data);
+        set((s) => ({
+          userStockItems: [...s.userStockItems.filter((i) => i.id !== item.id), item].sort((a, b) =>
+            a.productModel.localeCompare(b.productModel)
+          ),
+        }));
+      },
+
+      updateStockItemValue: async (id, unitValue) => {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('user_stock_items')
+          .update({ unit_value: unitValue, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userStockItems: s.userStockItems.map((item) => (item.id === id ? { ...item, unitValue } : item)),
+        }));
+      },
+
+      removeFromStock: async (id) => {
+        const supabase = createClient();
+        const { error } = await supabase.from('user_stock_items').delete().eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userStockItems: s.userStockItems.filter((item) => item.id !== id),
+        }));
+      },
+
       clearUserData: () =>
         set({
           clients: [],
           savedProjects: [],
           userLoadCatalog: [],
+          userStockItems: [],
           currentProjectId: null,
         }),
 

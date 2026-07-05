@@ -98,6 +98,19 @@ export interface UserLoadCatalogItem {
   updatedAt: string;
 }
 
+export type StockProductType = 'inverter' | 'battery' | 'accessory';
+
+/** A catalog product the user added to their personal price list, with a
+ * value they set themselves — not a physical stock (no quantity tracking). */
+export interface UserStockItem {
+  id: string;
+  productType: StockProductType;
+  productModel: string;
+  unitValue: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ResidentialOptions {
   topology: BatteryTopology | null;
   batteryModel: string | null;

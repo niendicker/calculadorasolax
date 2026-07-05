@@ -49,6 +49,7 @@ export function SinglePageApp() {
     savedProjects,
     clients,
     userLoadCatalog,
+    userStockItems,
     residentialOptions,
     solution,
     setProjectInfo,
@@ -59,12 +60,16 @@ export function SinglePageApp() {
     fetchProjects,
     fetchClients,
     fetchUserLoadCatalog,
+    fetchUserStockItems,
     addClient,
     updateClient,
     removeClient,
     saveManualLoadToCatalog,
     updateUserLoadCatalogItem,
     removeUserLoadCatalogItem,
+    addToStock,
+    updateStockItemValue,
+    removeFromStock,
     clearUserData,
     setTopology,
     setBatteryModel,
@@ -93,7 +98,7 @@ export function SinglePageApp() {
     initialLoading,
     userDataError,
     retryUserData,
-  } = useInitialData({ supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, setLoadCatalog });
+  } = useInitialData({ supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, fetchUserStockItems, setLoadCatalog });
 
   const {
     profileOpen,
@@ -388,6 +393,10 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
+              userStockItems={userStockItems}
+              onAddToStock={addToStock}
+              onUpdateStockValue={updateStockItemValue}
+              onRemoveFromStock={removeFromStock}
             />
           ) : activeTab === 'clients' ? (
             <ClientsTab
