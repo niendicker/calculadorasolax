@@ -18,11 +18,21 @@ import {
   type ResidentialOptions,
 } from './logic.ts';
 
+// Every response — success or error — must carry this header: the browser
+// enforces CORS on the actual response, not just the OPTIONS preflight, so
+// an error path missing it makes the request fail as an opaque network
+// error instead of surfacing the specific status/body to the client.
+const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*' };
+
+function jsonResponse(body: unknown, init: { status?: number } = {}): Response {
+  return Response.json(body, { ...init, headers: CORS_HEADERS });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...CORS_HEADERS,
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
@@ -33,7 +43,7 @@ Deno.serve(async (req) => {
     try {
       rawOptions = await req.json();
     } catch {
-      return Response.json(
+      return jsonResponse(
         { error: 'invalid_payload', details: ['body must be valid JSON'] },
         { status: 400 }
       );
@@ -41,7 +51,7 @@ Deno.serve(async (req) => {
 
     const validationErrors = validateResidentialOptions(rawOptions);
     if (validationErrors.length > 0) {
-      return Response.json(
+      return jsonResponse(
         { error: 'invalid_payload', details: validationErrors },
         { status: 400 }
       );
@@ -74,7 +84,7 @@ Deno.serve(async (req) => {
 
       if (batterySpecErr) {
         console.error(batterySpecErr);
-        return Response.json({ error: 'battery_lookup_failed' }, { status: 500 });
+        return jsonResponse({ error: 'battery_lookup_failed' }, { status: 500 });
       }
 
       if (batterySpec) {
@@ -132,11 +142,11 @@ Deno.serve(async (req) => {
 
     if (solutionErr) {
       console.error(solutionErr);
-      return Response.json({ error: 'solution_lookup_failed' }, { status: 500 });
+      return jsonResponse({ error: 'solution_lookup_failed' }, { status: 500 });
     }
 
     if (!solutions?.length) {
-      return Response.json({ error: 'no_approved_solution' }, { status: 422 });
+      return jsonResponse({ error: 'no_approved_solution' }, { status: 422 });
     }
 
     let compatibleSolutions = solutions as ApprovedSolution[];
@@ -147,7 +157,7 @@ Deno.serve(async (req) => {
       );
 
       if (!compatibleSolutions.length) {
-        return Response.json({ error: 'no_approved_solution' }, { status: 422 });
+        return jsonResponse({ error: 'no_approved_solution' }, { status: 422 });
       }
     }
 
@@ -161,7 +171,7 @@ Deno.serve(async (req) => {
 
       if (essRulesErr) {
         console.error(essRulesErr);
-        return Response.json({ error: 'ess_rules_lookup_failed' }, { status: 500 });
+        return jsonResponse({ error: 'ess_rules_lookup_failed' }, { status: 500 });
       }
 
       const relevantRules = ((essRules ?? []) as EssCompatibilityRule[]).filter((rule) => {
@@ -193,7 +203,7 @@ Deno.serve(async (req) => {
     }
 
     if (!compatibleSolutions.length) {
-      return Response.json({ error: 'no_compatible_ess_rule' }, { status: 422 });
+      return jsonResponse({ error: 'no_compatible_ess_rule' }, { status: 422 });
     }
 
     const solution = compatibleSolutions[0] as ApprovedSolution;
@@ -234,7 +244,7 @@ Deno.serve(async (req) => {
 
     if (rulesErr) {
       console.error(rulesErr);
-      return Response.json({ error: 'accessory_rules_lookup_failed' }, { status: 500 });
+      return jsonResponse({ error: 'accessory_rules_lookup_failed' }, { status: 500 });
     }
 
     const normalizedAccessoryModels = new Set(
@@ -259,7 +269,7 @@ Deno.serve(async (req) => {
       if (rule.comment) automaticComments.push(rule.comment);
     }
 
-    return Response.json(
+    return jsonResponse(
       {
         solutionId: solution.id,
         solutionCode: solution.solution_code,
@@ -277,13 +287,10 @@ Deno.serve(async (req) => {
         pvPowerKw: Math.ceil(pvPowerKw * 10) / 10,
         accessories,
         comments: Array.from(new Set([...solution.comments, ...automaticComments])),
-      },
-      {
-        headers: { 'Access-Control-Allow-Origin': '*' },
       }
     );
   } catch (err) {
     console.error(err);
-    return Response.json({ error: 'internal' }, { status: 500 });
+    return jsonResponse({ error: 'internal' }, { status: 500 });
   }
 });

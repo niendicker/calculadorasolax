@@ -4,7 +4,7 @@ Este documento lista melhorias identificadas no projeto, em formato acionavel pa
 
 ## Status
 
-7 de 14 itens concluidos: #1, #2, #3, #4, #10, #11, #13. Os demais (#5-#9, #12, #14) seguem pendentes.
+8 de 14 itens concluidos: #1, #2, #3, #4, #5, #10, #11, #13. Os demais (#6-#9, #12, #14) seguem pendentes.
 
 ## Prioridade 1 - Seguranca
 
@@ -90,7 +90,7 @@ Criterio de aceite:
 
 Resolvido em: novo modulo `lib/metrics-queue.ts` com fila em `localStorage` (`enqueuePendingSimulation`, `flushPendingSimulations`, capada em 50 entradas, descartando as mais antigas). `SinglePageApp.tsx` enfileira a métrica quando o insert falha, e tenta reenviar tudo no carregamento inicial do app e no evento `online` do browser. Um guard de concorrência (`flushInFlight`) evita reenvio duplicado quando duas flushes se sobrepõem (ex.: mount + online quase juntos). Esse guard revelou um bug real durante os testes: `try/finally` dentro de uma função async sem nenhum `await` interno (o caminho de fila vazia) roda de forma totalmente sincrona, entao `flushInFlight = null` no finally era sobrescrito pela propria atribuicao `flushInFlight = (...)()` logo em seguida — a fila ficava "travada" permanentemente apos a primeira checagem com fila vazia. Corrigido usando `.finally()` encadeado na promise (callback sempre roda em microtask, nunca sincrono). 9 testes em `lib/metrics-queue.test.ts`, incluindo um especifico para o caso de concorrencia. Verificado no browser com `page.setRequestInterception` (falha vira entrada na fila) e com fila semeada manualmente + reload (flush unico, sem duplicar insercao — confirmado via contagem de POST e limpeza da linha de teste no banco).
 
-### 5. Melhorar mensagens de erro do calculo
+### 5. [CONCLUIDO] Melhorar mensagens de erro do calculo
 
 Arquivos de referencia:
 - `supabase/functions/calculate-residential/index.ts`
@@ -108,6 +108,10 @@ Mapear codigos de erro da Edge Function para mensagens especificas e acionaveis.
 Criterio de aceite:
 - `no_approved_solution`, `no_compatible_ess_rule`, erro de rede e erro interno exibem mensagens diferentes.
 - O estado da solucao anterior e limpo somente quando apropriado.
+
+Resolvido em: novo modulo `lib/calculation-error-messages.ts` mapeando cada codigo (`invalid_payload`, `no_approved_solution`, `no_compatible_ess_rule`, `battery_lookup_failed`, `solution_lookup_failed`, `ess_rules_lookup_failed`, `accessory_rules_lookup_failed`, `internal`) para uma mensagem especifica, mais uma mensagem separada para erro de rede. `SinglePageApp.tsx` usa `FunctionsHttpError`/`FunctionsFetchError` (de `@supabase/supabase-js`) para diferenciar "a function respondeu com um erro" de "a requisicao nem chegou". 12 testes em `lib/calculation-error-messages.test.ts`.
+
+Durante a implementacao foi descoberto um bug pre-existente mais serio no proprio `calculate-residential/index.ts`: todas as respostas de erro (400/422/500) estavam sem o header `Access-Control-Allow-Origin`, presente apenas no preflight OPTIONS e na resposta de sucesso. O browser bloqueia por CORS qualquer resposta cross-origin sem esse header na resposta real (nao so no preflight), entao TODO erro da function sempre apareceu como falha de rede generica para o usuario, tornando o mapeamento de codigos impossivel de fato até esse ponto — isso nunca funcionou desde que a function existe. Corrigido com um helper `jsonResponse()` que sempre inclui o header, usado em todas as respostas. Function redeployada. Verificado no browser: uma carga de 999999 VA (sem solucao aprovada) agora retorna 422 de verdade e mostra "Nenhuma combinação aprovada atende a essa carga, bateria e tipo de rede...", uma requisicao abortada mostra "Não foi possível conectar ao servidor...", e o fluxo valido continua retornando 200 com a solucao normalmente.
 
 ## Prioridade 3 - Performance e manutencao
 

@@ -38,7 +38,9 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { createClient } from '@/lib/supabase/client';
+import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { enqueuePendingSimulation, flushPendingSimulations } from '@/lib/metrics-queue';
+import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
 import { useWizardStore, totalDailyKwh, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import type {
   BatteryTopology,
@@ -144,6 +146,26 @@ const gridTypeToApprovedTopology: Record<ResidentialGridType, '1p_220V' | '2p_22
   threePhase_220: '3p_220V',
   threePhase_380: '3p_380V',
 };
+
+/** Turns a supabase.functions.invoke() error into a specific, actionable
+ * message using the Edge Function's stable error code, falling back to a
+ * network-specific message when the request never reached the function. */
+async function resolveCalculationErrorMessage(functionError: unknown): Promise<string> {
+  if (functionError instanceof FunctionsHttpError) {
+    try {
+      const body = await functionError.context.json();
+      return getCalculationErrorMessage(body?.error);
+    } catch {
+      return getCalculationErrorMessage(undefined);
+    }
+  }
+
+  if (functionError instanceof FunctionsFetchError) {
+    return getNetworkErrorMessage();
+  }
+
+  return getCalculationErrorMessage(undefined);
+}
 
 export function SinglePageApp() {
   const router = useRouter();
@@ -464,7 +486,7 @@ export function SinglePageApp() {
 
       if (functionError || !data) {
         setSolution(null);
-        setError('Não foi possível encontrar uma solução compatível.');
+        setError(await resolveCalculationErrorMessage(functionError));
         return;
       }
 
@@ -494,7 +516,7 @@ export function SinglePageApp() {
     } catch (err) {
       console.error(err);
       setSolution(null);
-      setError('Não foi possível encontrar uma solução compatível.');
+      setError(getNetworkErrorMessage());
     } finally {
       setLoading(false);
     }
