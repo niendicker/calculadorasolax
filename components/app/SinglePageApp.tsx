@@ -440,6 +440,7 @@ export function SinglePageApp() {
               exportPdf={exportPdf}
               saveProject={saveProject}
               productMedia={productMedia}
+              userStockItems={userStockItems}
             />
           )}
         </section>
@@ -799,6 +800,8 @@ export function SinglePageApp() {
           gridType={residentialOptions.gridType}
           peakW={peakW}
           dailyKwh={dailyKwh}
+          userStockItems={userStockItems}
+          whiteTariff={residentialOptions.whiteTariff}
         />
       )}
     </main>

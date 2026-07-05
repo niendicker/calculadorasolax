@@ -1,6 +1,7 @@
 'use client';
 
-import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, Solution } from '@/lib/types';
+import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
+import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL } from './helpers';
 import { ReportInfoRow, ReportMetric } from './shared-ui';
 import { gridLabels, topologyLabels, type InlineProfile } from './types';
 
@@ -15,6 +16,8 @@ export function PrintableReport({
   gridType,
   peakW,
   dailyKwh,
+  userStockItems,
+  whiteTariff,
 }: {
   projectInfo: ProjectInfo;
   client: Client | null;
@@ -26,6 +29,8 @@ export function PrintableReport({
   gridType: ResidentialGridType | null;
   peakW: number;
   dailyKwh: number;
+  userStockItems: UserStockItem[];
+  whiteTariff: WhiteTariffConfig | null;
 }) {
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -34,6 +39,9 @@ export function PrintableReport({
 
   const loadEnergyKwh = (load: { powerW: number; hoursPerDay: number; qty: number }) =>
     (load.powerW * load.hoursPerDay * load.qty) / 1000;
+
+  const systemCost = calculateSystemCost(solution, userStockItems);
+  const tariffSavings = calculateTariffSavings(whiteTariff);
 
   return (
     <div className="print-report">
@@ -161,6 +169,39 @@ export function PrintableReport({
           </tbody>
         </table>
       </section>
+
+      {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
+        <section className="mb-7">
+          <h2 className="mb-3 text-lg font-semibold">Análise econômica</h2>
+          <table className="w-full border-collapse text-sm">
+            <tbody>
+              {systemCost.pricedItemsCount > 0 && (
+                <ReportInfoRow
+                  label="Custo total do sistema"
+                  value={
+                    formatCurrencyBRL(systemCost.totalCost) +
+                    (systemCost.isComplete
+                      ? ''
+                      : ` (parcial: ${systemCost.pricedItemsCount} de ${systemCost.totalItemsCount} itens com valor cadastrado)`)
+                  }
+                />
+              )}
+              {tariffSavings && (
+                <>
+                  <ReportInfoRow
+                    label="Economia estimada com Tarifa Branca"
+                    value={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês`}
+                  />
+                  <ReportInfoRow
+                    label="Economia anual estimada"
+                    value={`${formatCurrencyBRL(tariffSavings.annualSavings)} (considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês)`}
+                  />
+                </>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {solution.comments && solution.comments.length > 0 && (
         <section>

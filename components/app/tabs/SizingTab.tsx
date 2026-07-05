@@ -10,9 +10,17 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import type { BatteryTopology, DesiredFeatureId, ProductDocument, ResidentialGridType, Solution, WhiteTariffConfig } from '@/lib/types';
+import type {
+  BatteryTopology,
+  DesiredFeatureId,
+  ProductDocument,
+  ResidentialGridType,
+  Solution,
+  UserStockItem,
+  WhiteTariffConfig,
+} from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { parseAccessoryLabel } from '../helpers';
+import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAccessoryLabel } from '../helpers';
 import {
   BatteryCardsSkeleton,
   DocPreviewModal,
@@ -51,6 +59,7 @@ export function SizingTab({
   exportPdf,
   saveProject,
   productMedia,
+  userStockItems,
 }: {
   title: string;
   subtitle: string;
@@ -87,6 +96,7 @@ export function SizingTab({
   exportPdf: () => void;
   saveProject: () => void;
   productMedia: Record<string, ProductMedia>;
+  userStockItems: UserStockItem[];
 }) {
   return (
     <>
@@ -247,7 +257,13 @@ export function SizingTab({
                   </ul>
                 </div>
               ) : (
-                <ResultSummary solution={solution} onExport={exportPdf} productMedia={productMedia} />
+                <ResultSummary
+                  solution={solution}
+                  onExport={exportPdf}
+                  productMedia={productMedia}
+                  userStockItems={userStockItems}
+                  whiteTariff={residentialOptions.whiteTariff}
+                />
               )}
             </CardContent>
           </Card>
@@ -681,15 +697,21 @@ function ResultSummary({
   solution,
   onExport,
   productMedia,
+  userStockItems,
+  whiteTariff,
 }: {
   solution: Solution;
   onExport: () => void;
   productMedia: Record<string, ProductMedia>;
+  userStockItems: UserStockItem[];
+  whiteTariff: WhiteTariffConfig | null;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
   const batteryMedia = productMedia[solution.batteryModel];
+  const systemCost = calculateSystemCost(solution, userStockItems);
+  const tariffSavings = calculateTariffSavings(whiteTariff);
 
   return (
     <div className="space-y-3">
@@ -745,6 +767,36 @@ function ResultSummary({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
+        <div className="rounded-lg border bg-background p-3">
+          <p className="text-sm font-medium">Análise econômica</p>
+          <div className="mt-2 space-y-2 text-sm">
+            {systemCost.pricedItemsCount > 0 && (
+              <div>
+                <p className="text-muted-foreground">Custo total do sistema</p>
+                <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
+                {!systemCost.isComplete && (
+                  <p className="text-xs text-muted-foreground">
+                    Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
+                    seu estoque.
+                  </p>
+                )}
+              </div>
+            )}
+            {tariffSavings && (
+              <div>
+                <p className="text-muted-foreground">Economia estimada com Tarifa Branca</p>
+                <p className="text-lg font-semibold">{formatCurrencyBRL(tariffSavings.monthlySavings)}/mês</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatCurrencyBRL(tariffSavings.annualSavings)}/ano · considerando {tariffSavings.businessDaysPerMonth}{' '}
+                  dias úteis/mês
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
