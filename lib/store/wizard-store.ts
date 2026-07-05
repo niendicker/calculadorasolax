@@ -232,14 +232,14 @@ export const useWizardStore = create<WizardStore>()(
           .from('projects')
           .select('*')
           .order('updated_at', { ascending: false });
-        if (error) return;
+        if (error) throw error;
         set({ savedProjects: (data ?? []).map(projectFromRow) });
       },
 
       fetchClients: async () => {
         const supabase = createClient();
         const { data, error } = await supabase.from('clients').select('*').order('name');
-        if (error) return;
+        if (error) throw error;
         set({ clients: (data ?? []).map(clientFromRow) });
       },
 
@@ -304,14 +304,14 @@ export const useWizardStore = create<WizardStore>()(
       fetchUserLoadCatalog: async () => {
         const supabase = createClient();
         const { data, error } = await supabase.from('user_load_catalog').select('*').order('name');
-        if (error) return;
+        if (error) throw error;
         set({ userLoadCatalog: (data ?? []).map(userLoadFromRow) });
       },
 
       saveManualLoadToCatalog: async (input) => {
         const supabase = createClient();
         const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return;
+        if (!userData.user) throw new Error('not_authenticated');
 
         const existing = get().userLoadCatalog.find(
           (item) => item.name.trim().toLowerCase() === input.name.trim().toLowerCase()
@@ -326,7 +326,7 @@ export const useWizardStore = create<WizardStore>()(
               updated_at: new Date().toISOString(),
             })
             .eq('id', existing.id);
-          if (error) return;
+          if (error) throw error;
 
           set((s) => ({
             userLoadCatalog: s.userLoadCatalog.map((item) =>
@@ -346,7 +346,7 @@ export const useWizardStore = create<WizardStore>()(
           })
           .select()
           .single();
-        if (error) return;
+        if (error) throw error;
 
         const item = userLoadFromRow(data);
         set((s) => ({

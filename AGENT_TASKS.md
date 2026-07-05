@@ -4,7 +4,7 @@ Este documento lista melhorias identificadas no projeto, em formato acionavel pa
 
 ## Status
 
-5 de 14 itens concluidos: #1, #2, #10, #11, #13. Os demais (#3-#9, #12, #14) seguem pendentes.
+6 de 14 itens concluidos: #1, #2, #3, #10, #11, #13. Os demais (#4-#9, #12, #14) seguem pendentes.
 
 ## Prioridade 1 - Seguranca
 
@@ -50,7 +50,7 @@ Resolvido em: commit `76aeb35a`. Funcao valida topologia, gridType, batteryModel
 
 ## Prioridade 2 - Confiabilidade e conexao ruim
 
-### 3. Propagar erros no `wizard-store`
+### 3. [CONCLUIDO] Propagar erros no `wizard-store`
 
 Arquivo de referencia: `lib/store/wizard-store.ts`
 
@@ -67,6 +67,8 @@ Criterio de aceite:
 - Falhas de rede em fetch/save aparecem para o usuario.
 - Operacoes de escrita nao somem silenciosamente.
 - Fluxos existentes continuam funcionando quando o Supabase responde com sucesso.
+
+Resolvido em: `fetchProjects`, `fetchClients`, `fetchUserLoadCatalog` e `saveManualLoadToCatalog` agora lancam excecao em erro (`if (error) throw error`), no mesmo padrao ja usado por `addClient`/`updateClient`/`removeClient`/`removeProject`. No `SinglePageApp.tsx`, o carregamento inicial (`fetchClients`/`fetchProjects`/`fetchUserLoadCatalog`) ganhou try/catch com banner de erro + botao "Tentar novamente" visivel em qualquer aba. `ClientsTab` e `UserLoadCatalogSection` (Minhas Cargas) ganharam estado de erro proprio, exibido no formulario, com o formulario permanecendo aberto e os dados digitados preservados quando o salvamento falha — esse mesmo gap (write que falha silenciosamente) ja existia hoje para clientes, mesmo essas funcoes ja lancando excecao, porque a UI nao capturava o erro. O salvamento automatico de carga manual no catalogo pessoal (`LoadSelector.tsx`, best-effort, nao bloqueia o calculo) ganhou um aviso nao bloqueante quando falha. Verificado no browser com `page.setRequestInterception` simulando falha de rede: banner aparece, formulario preserva o texto digitado, e o botao "Tentar novamente" recupera o estado quando a rede volta.
 
 ### 4. Criar fila/retry para metricas de dimensionamento
 

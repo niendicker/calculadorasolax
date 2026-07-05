@@ -161,6 +161,7 @@ export function LoadSelector() {
   const [manualHours, setManualHours] = useState('');
   const [manualQty, setManualQty] = useState('1');
   const [manualIpIn, setManualIpIn] = useState('1');
+  const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
 
   const nameKey = locale === 'zh' ? 'nameZh' : locale === 'en' ? 'nameEn' : 'namePt';
 
@@ -212,7 +213,10 @@ export function LoadSelector() {
         ipInRatio,
       })
     );
-    saveManualLoadToCatalog({ name: manualName, powerW, ipInRatio });
+    setCatalogSaveWarning(null);
+    saveManualLoadToCatalog({ name: manualName, powerW, ipInRatio }).catch(() => {
+      setCatalogSaveWarning('Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.');
+    });
     setManualName('');
     setManualPower('');
     setManualHours('');
@@ -421,6 +425,11 @@ export function LoadSelector() {
               <Plus className="h-4 w-4 mr-1" />
               {t('add_load')}
             </Button>
+            {catalogSaveWarning && (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {catalogSaveWarning}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

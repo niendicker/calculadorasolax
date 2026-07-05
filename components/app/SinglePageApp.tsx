@@ -203,6 +203,7 @@ export function SinglePageApp() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userDataError, setUserDataError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -261,7 +262,12 @@ export function SinglePageApp() {
           companyLogoUrl: profileData?.company_logo_url ?? '',
         });
 
-        await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog()]);
+        try {
+          await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog()]);
+          setUserDataError(null);
+        } catch {
+          setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');
+        }
       }
 
       if (catalogData) {
@@ -335,6 +341,15 @@ export function SinglePageApp() {
 
     loadInitialData();
   }, [setLoadCatalog, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog]);
+
+  async function retryUserData() {
+    try {
+      await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog()]);
+      setUserDataError(null);
+    } catch {
+      setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');
+    }
+  }
 
   useEffect(() => {
     async function loadProductMedia() {
@@ -776,6 +791,14 @@ export function SinglePageApp() {
         </header>
 
         <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-4 lg:px-6 lg:pb-5">
+          {userDataError && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <span>{userDataError}</span>
+              <Button variant="outline" size="sm" onClick={retryUserData}>
+                Tentar novamente
+              </Button>
+            </div>
+          )}
           {activeTab === 'project' ? (
             <ProjectTab
               projectInfo={projectInfo}
@@ -1475,10 +1498,12 @@ function ClientsTab({
   const [form, setForm] = useState(emptyClientForm());
   const [saving, setSaving] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function openNew() {
     setEditingId(null);
     setForm(emptyClientForm());
+    setActionError(null);
     setFormOpen(true);
   }
 
@@ -1491,12 +1516,14 @@ function ClientsTab({
       document: client.document,
       notes: client.notes,
     });
+    setActionError(null);
     setFormOpen(true);
   }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
+    setActionError(null);
     try {
       if (editingId) {
         await onUpdate(editingId, form);
@@ -1504,6 +1531,8 @@ function ClientsTab({
         await onAdd(form);
       }
       setFormOpen(false);
+    } catch {
+      setActionError('Não foi possível salvar o cliente. Verifique sua conexão e tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -1511,8 +1540,11 @@ function ClientsTab({
 
   async function handleRemove(id: string) {
     setRemovingIds((current) => new Set(current).add(id));
+    setActionError(null);
     try {
       await onRemove(id);
+    } catch {
+      setActionError('Não foi possível remover o cliente. Verifique sua conexão e tente novamente.');
     } finally {
       setRemovingIds((current) => {
         const next = new Set(current);
@@ -1539,6 +1571,11 @@ function ClientsTab({
 
       <Card>
         <CardContent className="pt-4">
+          {actionError && (
+            <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {actionError}
+            </div>
+          )}
           {!formOpen ? (
             clients.length === 0 ? (
               <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
@@ -2244,12 +2281,14 @@ function UserLoadCatalogSection({
   const [ipInRatio, setIpInRatio] = useState('1');
   const [saving, setSaving] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function openAdd() {
     setEditingId(null);
     setName('');
     setPowerW('');
     setIpInRatio('1');
+    setActionError(null);
     setAddOpen(true);
   }
 
@@ -2259,6 +2298,7 @@ function UserLoadCatalogSection({
     setName(item.name);
     setPowerW(String(item.powerW));
     setIpInRatio(String(item.ipInRatio));
+    setActionError(null);
   }
 
   function closeForm() {
@@ -2269,6 +2309,7 @@ function UserLoadCatalogSection({
   async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
+    setActionError(null);
     try {
       if (editingId) {
         await onUpdate(editingId, {
@@ -2284,6 +2325,8 @@ function UserLoadCatalogSection({
         });
       }
       closeForm();
+    } catch {
+      setActionError('Não foi possível salvar a carga. Verifique sua conexão e tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -2291,8 +2334,11 @@ function UserLoadCatalogSection({
 
   async function handleRemove(id: string) {
     setRemovingIds((current) => new Set(current).add(id));
+    setActionError(null);
     try {
       await onRemove(id);
+    } catch {
+      setActionError('Não foi possível remover a carga. Verifique sua conexão e tente novamente.');
     } finally {
       setRemovingIds((current) => {
         const next = new Set(current);
@@ -2345,6 +2391,11 @@ function UserLoadCatalogSection({
 
   return (
     <div className="space-y-3">
+      {actionError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      )}
       <div className="flex items-center justify-end gap-3">
         {!addOpen && !editingId && (
           <Button size="sm" onClick={openAdd}>
