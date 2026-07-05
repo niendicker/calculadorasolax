@@ -71,6 +71,8 @@ export function SinglePageApp() {
     setInverterModel,
     setGridType,
     setMaxPowerPerPhaseW,
+    setDesiredFeatures,
+    setWhiteTariffConfig,
     setSolution,
     setLoadCatalog,
     resetResidential,
@@ -422,6 +424,8 @@ export function SinglePageApp() {
               setBatteryModel={setBatteryModel}
               setInverterModel={setInverterModel}
               setGridType={setGridType}
+              setDesiredFeatures={setDesiredFeatures}
+              setWhiteTariffConfig={setWhiteTariffConfig}
               resetResidential={resetResidential}
               calculate={calculate}
               exportPdf={exportPdf}

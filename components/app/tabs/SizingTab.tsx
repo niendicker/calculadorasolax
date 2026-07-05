@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Battery, Calculator, FileText, Gauge, Home, Save, Settings, Sun, Zap } from 'lucide-react';
+import { Battery, Calculator, FileText, Gauge, Home, ListChecks, Save, Settings, Sun, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
-import type { BatteryTopology, ProductDocument, ResidentialGridType, Solution } from '@/lib/types';
+import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
+import type { BatteryTopology, DesiredFeatureId, ProductDocument, ResidentialGridType, Solution, WhiteTariffConfig } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { parseAccessoryLabel } from '../helpers';
 import {
@@ -41,6 +44,8 @@ export function SizingTab({
   setBatteryModel,
   setInverterModel,
   setGridType,
+  setDesiredFeatures,
+  setWhiteTariffConfig,
   resetResidential,
   calculate,
   exportPdf,
@@ -57,6 +62,8 @@ export function SizingTab({
     inverterModel: string | null;
     gridType: ResidentialGridType | null;
     loads: unknown[];
+    desiredFeatures: DesiredFeatureId[];
+    whiteTariff: WhiteTariffConfig | null;
     maxPowerPerPhaseW: number | null;
   };
   batteryCatalog: BatteryCatalogOption[];
@@ -73,6 +80,8 @@ export function SizingTab({
   setBatteryModel: (batteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
+  setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
+  setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
@@ -176,6 +185,23 @@ export function SizingTab({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
+                <ListChecks className="h-4 w-4" />
+                Funcionalidades desejadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DesiredFeaturesPicker
+                value={residentialOptions.desiredFeatures}
+                onChange={setDesiredFeatures}
+                whiteTariff={residentialOptions.whiteTariff}
+                onWhiteTariffChange={setWhiteTariffConfig}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Home className="h-4 w-4" />
                 Cargas
               </CardTitle>
@@ -228,6 +254,129 @@ export function SizingTab({
         </div>
       </div>
     </>
+  );
+}
+
+const emptyWhiteTariffConfig: WhiteTariffConfig = {
+  requiredPowerW: 0,
+  requiredEnergyWh: 0,
+  includeBackupReserve: false,
+  tariffSpreadPerKwh: 0,
+};
+
+function DesiredFeaturesPicker({
+  value,
+  onChange,
+  whiteTariff,
+  onWhiteTariffChange,
+}: {
+  value: DesiredFeatureId[];
+  onChange: (value: DesiredFeatureId[]) => void;
+  whiteTariff: WhiteTariffConfig | null;
+  onWhiteTariffChange: (whiteTariff: WhiteTariffConfig | null) => void;
+}) {
+  function toggle(id: DesiredFeatureId) {
+    if (value.includes(id)) {
+      onChange(value.filter((item) => item !== id));
+      if (id === 'white_tariff') onWhiteTariffChange(null);
+    } else {
+      onChange([...value, id]);
+      if (id === 'white_tariff' && !whiteTariff) onWhiteTariffChange(emptyWhiteTariffConfig);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {DESIRED_FEATURE_DEFINITIONS.map((feature) => {
+          const active = value.includes(feature.id);
+          return (
+            <button
+              key={feature.id}
+              type="button"
+              aria-pressed={active}
+              title={feature.description}
+              onClick={() => toggle(feature.id)}
+              className={cn(
+                'rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                active
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+              )}
+            >
+              {feature.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {value.includes('white_tariff') && (
+        <div className="space-y-3 rounded-lg border bg-background p-3">
+          <p className="text-sm font-medium">Configuração da Tarifa Branca</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="whiteTariffPower">Potência necessária no período (W)</Label>
+              <Input
+                id="whiteTariffPower"
+                type="number"
+                min={0}
+                value={whiteTariff?.requiredPowerW ?? 0}
+                onChange={(event) =>
+                  onWhiteTariffChange({
+                    ...(whiteTariff ?? emptyWhiteTariffConfig),
+                    requiredPowerW: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="whiteTariffEnergy">Energia necessária no período (Wh)</Label>
+              <Input
+                id="whiteTariffEnergy"
+                type="number"
+                min={0}
+                value={whiteTariff?.requiredEnergyWh ?? 0}
+                onChange={(event) =>
+                  onWhiteTariffChange({
+                    ...(whiteTariff ?? emptyWhiteTariffConfig),
+                    requiredEnergyWh: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="whiteTariffSpread">Spread tarifário (R$/kWh)</Label>
+              <Input
+                id="whiteTariffSpread"
+                type="number"
+                min={0}
+                step={0.01}
+                value={whiteTariff?.tariffSpreadPerKwh ?? 0}
+                onChange={(event) =>
+                  onWhiteTariffChange({
+                    ...(whiteTariff ?? emptyWhiteTariffConfig),
+                    tariffSpreadPerKwh: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={whiteTariff?.includeBackupReserve ?? false}
+              onChange={(event) =>
+                onWhiteTariffChange({
+                  ...(whiteTariff ?? emptyWhiteTariffConfig),
+                  includeBackupReserve: event.target.checked,
+                })
+              }
+            />
+            Considerar reserva para backup das minhas cargas
+          </label>
+        </div>
+      )}
+    </div>
   );
 }
 
