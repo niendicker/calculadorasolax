@@ -275,6 +275,12 @@ Deploy:
 npx supabase functions deploy calculate-residential --project-ref xeddlhrmquwzuesvznrd
 ```
 
+`supabase/functions` fica fora do `tsconfig.json` do app (roda no runtime Deno, nao no Next/Node), entao `npm run build` nao valida essa pasta. Para checar tipos/sintaxe da function, use (requer [Deno](https://docs.deno.com/runtime/getting_started/installation/) instalado):
+
+```bash
+npm run check:functions
+```
+
 A função recebe as opções residenciais e retorna a menor combinação aprovada compatível, considerando:
 
 - topologia da bateria (`HV` / `LV`)

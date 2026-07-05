@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
     );
     const automaticComments: string[] = [];
 
-    for (const rule of (rules ?? []) as AccessoryRule[]) {
+    for (const rule of (rules ?? []) as unknown as AccessoryRule[]) {
       if (!rule.accessories?.model || !ruleMatches(solution, rule, standardGridTopology)) continue;
 
       const normalizedModel = rule.accessories.model.toLowerCase();

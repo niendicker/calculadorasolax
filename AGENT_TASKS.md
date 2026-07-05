@@ -4,7 +4,7 @@ Este documento lista melhorias identificadas no projeto, em formato acionavel pa
 
 ## Status
 
-8 de 14 itens concluidos: #1, #2, #3, #4, #5, #10, #11, #13. Os demais (#6-#9, #12, #14) seguem pendentes.
+13 de 14 itens concluidos: #1, #2, #3, #4, #5, #6, #7, #8, #9, #10, #11, #12, #13. Falta apenas #14.
 
 ## Prioridade 1 - Seguranca
 
@@ -115,7 +115,7 @@ Durante a implementacao foi descoberto um bug pre-existente mais serio no propri
 
 ## Prioridade 3 - Performance e manutencao
 
-### 6. Dividir `AdminPanel.tsx`
+### 6. [CONCLUIDO] Dividir `AdminPanel.tsx`
 
 Arquivo de referencia: `components/admin/AdminPanel.tsx`
 
@@ -133,7 +133,9 @@ Criterio de aceite:
 - Nenhum comportamento visual/funcional e removido.
 - `npm run build` continua passando.
 
-### 7. Dividir `SinglePageApp.tsx`
+Resolvido em: arquivo de 5126 linhas dividido em 9: `components/admin/types.ts` (tipos, constantes de label, `emptyXxx`), `helpers.ts` (funcoes puras de normalizacao/formatacao e `fetchApprovedSolutions`), `shared-ui.tsx` (atomos genericos: `Field`, `EditorModal`, `CatalogLayout`, `RecordCardGrid`, `ProductMediaFields`, etc.), `DashboardPanels.tsx` (`UsersPanel`, `MetricsPanel`, `ActivityLogsPanel`), e `editors/{SolutionsEditor,InvertersEditor,BatteriesEditor,AccessoriesEditor,LoadCatalogEditor}.tsx`. `AdminPanel.tsx` ficou com 1001 linhas (era 5126) e passou a ser so o orquestrador: estado, `loadData`, handlers de save/remove/log e a composicao das abas. Verificado com `tsc --noEmit` (0 erros), `npm run lint` (0 erros, so os mesmos warnings pre-existentes de `set-state-in-effect` em outros arquivos), `npm run test` (60 testes, todos passando) e `npm run build` (compilou e gerou todas as rotas). Testado ao vivo no browser (Puppeteer) logado como admin: as 8 abas (Indicadores, Baterias, Inversores, Acessorios, Cargas, Combinacoes, Usuarios, Logs) navegam corretamente; a aba "Compatibilidade ESS" dentro do editor de Inversores e a aba "Regras de aplicacao" dentro do editor de Acessorios abrem e mostram conteudo; os sub-tabs Aprovadas/Geradas em Combinacoes funcionam; o botao de redefinir senha aparece em Usuarios; o menu mobile (drawer) abre e fecha corretamente.
+
+### 7. [CONCLUIDO] Dividir `SinglePageApp.tsx`
 
 Arquivo de referencia: `components/app/SinglePageApp.tsx`
 
@@ -151,7 +153,9 @@ Criterio de aceite:
 - Estado compartilhado permanece claro via store/hooks.
 - `npm run build` continua passando.
 
-### 8. Carregar dados administrativos por aba
+Resolvido em: arquivo de 3165 linhas dividido em 12: `components/app/types.ts` (interfaces e constantes de rede/topologia), `helpers.ts` (`parseAccessoryLabel`, `resolveCalculationErrorMessage`), `shared-ui.tsx` (`Metric`, `Requirement`, `ReportMetric`, `ReportInfoRow`, skeletons, `DocPreviewModal`, `ImagePreviewModal`, `ProductAttachments`, `CatalogEmptyState`, `CatalogProductCard`), `PrintableReport.tsx`, `tabs/{ProjectTab,ClientsTab,SizingTab,CatalogTab,MyLoadsTab}.tsx` (cada aba com seus subcomponentes, ex.: `SizingTab` inclui `BatteryModelPicker`, `InverterModelPicker` e `ResultSummary`), e `hooks/{useInitialData,useProfileActions,useProjectActions,useCalculation}.ts` conforme pedido no criterio (dados iniciais, perfil, projetos e calculo). `SinglePageApp.tsx` ficou com 790 linhas (era 3165) e passou a ser so o orquestrador: estado de navegacao (`activeTab`, `mobileMenuOpen`), composicao dos hooks, e o layout (sidebar, header mobile, drawer mobile, modal de perfil, `PrintableReport`). O estado compartilhado continua fluindo pelo `useWizardStore` (projeto/clientes/cargas) e pelos 4 hooks novos (dados iniciais/perfil/projetos/calculo), sem duplicacao. Verificado com `tsc --noEmit` (0 erros), `npm run lint` (0 erros, mesmos warnings pre-existentes), `npm run test` (60 testes) e `npm run build` (compilou e gerou todas as rotas). Testado ao vivo no browser (Puppeteer) logado como usuario comum: navegacao entre as 5 abas (Projeto, Dimensionamento, Minhas Cargas, Catalogo, Clientes) funciona; selecao de bateria (HV/LV), tipo de rede e adicao de carga via preset no `LoadSelector` funcionam; o calculo completo roda de ponta a ponta e retorna inversor/bateria/FV/acessorios com midia e anexos corretos (peakW/dailyKwh corretos: 0.93 kVA / 4.44 kWh/dia com a carga de teste); modal de perfil (com secao de exclusao de conta) abre e fecha; menu mobile (drawer) abre e fecha; nenhum erro de console/pagina durante todo o fluxo.
+
+### 8. [CONCLUIDO] Carregar dados administrativos por aba
 
 Arquivo de referencia: `components/admin/AdminPanel.tsx`
 
@@ -169,7 +173,9 @@ Criterio de aceite:
 - Tabelas com crescimento usam limite/paginacao.
 - Queries declaram somente as colunas usadas.
 
-### 9. Reaproveitar cache local de midia de produtos
+Resolvido em: `loadData()` (que buscava as 10 tabelas de uma vez no mount) foi substituido por um sistema de carregamento sob demanda por recurso (`ResourceKey`: inverters, batteries, accessories, loadCatalog, rules, essRules, solutions, users, simulations, activityLogs) com um mapa `TAB_RESOURCES` que declara quais recursos cada aba precisa (recursos compartilhados entre abas, como inverters/batteries, sao buscados uma unica vez e reaproveitados). Um `loadedResourcesRef` (ref, nao state) rastreia o que ja foi carregado, permitindo que `ensureTabData` tenha identidade estavel via `useCallback` sem precisar de `eslint-disable`. O mount inicial so carrega os recursos da aba "Indicadores" (`simulations` + `users`); trocar de aba busca so o que falta; o botao "Atualizar" agora recarrega apenas os recursos da aba ativa (`force=true`), em vez de tudo. Todas as 8 queries que usavam `select('*')` (inverters, batteries, accessories, load_catalog, accessory_rules, ess_compatibility_rules, app_simulations, admin_activity_logs) foram trocadas por listas de colunas explicitas (`INVERTER_COLUMNS`, `BATTERY_COLUMNS`, etc. em `helpers.ts`, batendo exatamente com os campos usados pelas interfaces em `types.ts`); `approved_solutions` (via `fetchApprovedSolutions`) tambem passou a usar `SOLUTION_COLUMNS`. `app_simulations` e `admin_activity_logs` (as duas tabelas com crescimento continuo por evento) ganharam paginacao real: carregam uma primeira pagina (200 e 50 linhas respectivamente, antes eram limites fixos de 1000/150 sem "carregar mais") e exibem um botao "Carregar mais simulações"/"Carregar mais logs" quando ha mais paginas. Apos salvar/remover um registro, o codigo agora recarrega so o recurso afetado (`loadResource('inverters')`, etc.) em vez de todas as 10 tabelas. Verificado com `tsc --noEmit` (0 erros), `npm run lint` (0 erros, 4 warnings pre-existentes — uma a menos que antes, pois o novo mount effect nao dispara mais o aviso `react-hooks/set-state-in-effect` que existia no `loadData` antigo), `npm run test` (60 testes) e `npm run build`. Testado ao vivo no browser (Puppeteer) interceptando as requisicoes REST: login no admin dispara so `profiles`+`app_simulations`; clicar em Baterias dispara so `batteries`; voltar para Baterias depois de outra aba nao dispara nenhuma requisicao (cache); clicar em Inversores dispara so `inverters`+`ess_compatibility_rules` (sem repetir `batteries`, ja em cache); clicar em Combinações dispara so `approved_solutions`+`accessory_rules` (inverters/batteries/essRules ja em cache). Botao "Carregar mais logs" testado ao vivo: 50 -> 100 registros. Salvar um inversor continua funcionando e mostrando "Inversor salvo.".
+
+### 9. [CONCLUIDO] Reaproveitar cache local de midia de produtos
 
 Arquivo de referencia: `components/app/SinglePageApp.tsx`
 
@@ -185,6 +191,8 @@ Derivar midia dos catalogos ja carregados quando possivel e consultar Supabase a
 Criterio de aceite:
 - Resultado continua mostrando imagens/documentos.
 - Trocar solucao reduz queries repetidas.
+
+Resolvido em: `components/app/hooks/useCalculation.ts` agora recebe `inverterCatalog`, `batteryCatalog` e `accessoryCatalog` (ja carregados por `useInitialData` com `image_url`/`documents` incluidos) e resolve a midia de cada modelo (inversor, bateria, acessorios da solucao) primeiro por busca local nesses catalogos. So os modelos que nao aparecem em nenhum catalogo (produto descontinuado/inativo referenciado por uma solucao antiga, por exemplo) caem no fallback de consultar Supabase, e mesmo nesse fallback cada modelo e buscado na tabela certa (inverters/batteries/accessories) em vez das 3 tabelas de uma vez como antes. Verificado com `tsc --noEmit` (0 erros), `npm run lint` (0 erros, mesmos 4 warnings pre-existentes), `npm run test` (60 testes) e `npm run build`. Testado ao vivo no browser (Puppeteer): apos carregar os catalogos e rodar "Calcular" (inversor X1-Hybrid-5.0-D + bateria T-BAT-SYS HV 5.8 V2 + acessorios), nenhuma requisicao para `inverters`/`batteries`/`accessories` foi disparada durante a resolucao de midia (0, antes eram 3 sempre) e o resultado continuou mostrando corretamente as imagens e os anexos (Datasheet, Manual do Usuario) de cada produto.
 
 ## Prioridade 4 - Qualidade automatizada
 
@@ -228,7 +236,7 @@ Criterio de aceite:
 
 Resolvido em: Vitest (`vitest.config.ts`, script `npm run test`). `lib/store/wizard-store.ts` ja exportava `totalDailyKwh`/`totalPeakW`/`totalPowerByPhase` como funcoes puras — testes adicionados em `lib/store/wizard-store.test.ts` (16 casos). A logica pura da Edge Function (tipos, `totalPeakW`/`totalNominalW`/`totalDailyKwh`, `ruleMatches`, `matchingEssBatteryConfig`, `normalizeStandardGridTopology`, `validateResidentialOptions`) foi extraida de `index.ts` para um novo modulo `supabase/functions/calculate-residential/logic.ts`, sem nenhuma API especifica do Deno (`Deno.*`, `jsr:`), para poder ser testada com Vitest normalmente; `index.ts` agora so importa de `./logic.ts` e mantem o handler `Deno.serve`. Testes em `logic.test.ts` (31 casos) cobrem os filtros de compatibilidade e a validacao de payload do item #2. Function redeployada e reverificada via curl e browser com resposta identica a anterior a extracao. 47 testes passando no total; `npm run build`, `npm run lint` e `tsc --noEmit` continuam passando.
 
-### 12. Adicionar checagem para Supabase Edge Functions
+### 12. [CONCLUIDO] Adicionar checagem para Supabase Edge Functions
 
 Arquivo de referencia: `supabase/functions/calculate-residential/index.ts`
 
@@ -244,6 +252,8 @@ Adicionar script separado para checar functions, por exemplo com `deno check`.
 Criterio de aceite:
 - Existe comando documentado para validar Edge Functions.
 - O comando falha em erro de tipo/sintaxe da function.
+
+Resolvido em: novo script `npm run check:functions` (`cd supabase/functions && deno check calculate-residential/index.ts`), documentado na secao "Edge Function" do `README.md`. Adicionado `supabase/functions/deno.json` (`nodeModulesDir: "auto"`) e `supabase/functions/deno.lock`, necessarios para o `deno check` resolver as dependencias `npm:` transitivas do `jsr:@supabase/supabase-js@2` (sem isso o Deno nao conseguia localizar `@supabase/realtime-js` etc.). Rodar essa checagem pela primeira vez revelou um bug de tipos real e ate entao invisivel (exatamente o problema que o item descreve): `rules` vindo de um join `accessories (model)` era convertido direto para `AccessoryRule[]`, mas o cliente Supabase sem tipos gerados infere esse join como array (`{ model }[]`) em vez de objeto unico, dando erro de tipo — o mesmo padrao ja visto e corrigido no `AdminPanel.tsx` durante o item #8. Corrigido com `as unknown as AccessoryRule[]` (mudanca so de tipagem, sem alterar o comportamento em runtime, já que o cast é apagado na compilação). Verificado: `npm run check:functions` passa limpo (exit 0); com um erro de tipo injetado de proposito, falha com `TS2322` e exit 1, confirmando que o comando realmente pega erro de tipo. `tsc --noEmit`, `npm run lint`, `npm run test` e `npm run build` do app continuam passando.
 
 ## Prioridade 5 - Banco de dados e schema
 
