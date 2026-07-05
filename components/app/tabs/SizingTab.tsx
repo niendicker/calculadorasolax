@@ -1,7 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Battery, Calculator, FileText, Gauge, Home, ListChecks, Save, Settings, Sun, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  Battery,
+  Calculator,
+  FileText,
+  Gauge,
+  Home,
+  ListChecks,
+  Save,
+  Settings,
+  Sun,
+  Zap,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +25,8 @@ import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import type {
   BatteryTopology,
   DesiredFeatureId,
+  GeneratorConfig,
+  MicrogridConfig,
   ProductDocument,
   ResidentialGridType,
   Solution,
@@ -54,6 +68,8 @@ export function SizingTab({
   setGridType,
   setDesiredFeatures,
   setWhiteTariffConfig,
+  setMicrogridConfig,
+  setGeneratorConfig,
   resetResidential,
   calculate,
   exportPdf,
@@ -73,6 +89,8 @@ export function SizingTab({
     loads: unknown[];
     desiredFeatures: DesiredFeatureId[];
     whiteTariff: WhiteTariffConfig | null;
+    microgrid: MicrogridConfig | null;
+    generator: GeneratorConfig | null;
     maxPowerPerPhaseW: number | null;
   };
   batteryCatalog: BatteryCatalogOption[];
@@ -91,6 +109,8 @@ export function SizingTab({
   setGridType: (gridType: ResidentialGridType) => void;
   setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
+  setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
+  setGeneratorConfig: (generator: GeneratorConfig | null) => void;
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
@@ -205,6 +225,10 @@ export function SizingTab({
                 onChange={setDesiredFeatures}
                 whiteTariff={residentialOptions.whiteTariff}
                 onWhiteTariffChange={setWhiteTariffConfig}
+                microgrid={residentialOptions.microgrid}
+                onMicrogridChange={setMicrogridConfig}
+                generator={residentialOptions.generator}
+                onGeneratorChange={setGeneratorConfig}
               />
             </CardContent>
           </Card>
@@ -280,24 +304,48 @@ const emptyWhiteTariffConfig: WhiteTariffConfig = {
   tariffSpreadPerKwh: 0,
 };
 
+const emptyMicrogridConfig: MicrogridConfig = {
+  onGridPhases: 1,
+  onGridApparentPowerVA: 0,
+  isFundamentalRequirement: false,
+};
+
+const emptyGeneratorConfig: GeneratorConfig = {
+  voltageV: 220,
+  phases: 1,
+  apparentPowerVA: 0,
+};
+
 function DesiredFeaturesPicker({
   value,
   onChange,
   whiteTariff,
   onWhiteTariffChange,
+  microgrid,
+  onMicrogridChange,
+  generator,
+  onGeneratorChange,
 }: {
   value: DesiredFeatureId[];
   onChange: (value: DesiredFeatureId[]) => void;
   whiteTariff: WhiteTariffConfig | null;
   onWhiteTariffChange: (whiteTariff: WhiteTariffConfig | null) => void;
+  microgrid: MicrogridConfig | null;
+  onMicrogridChange: (microgrid: MicrogridConfig | null) => void;
+  generator: GeneratorConfig | null;
+  onGeneratorChange: (generator: GeneratorConfig | null) => void;
 }) {
   function toggle(id: DesiredFeatureId) {
     if (value.includes(id)) {
       onChange(value.filter((item) => item !== id));
       if (id === 'white_tariff') onWhiteTariffChange(null);
+      if (id === 'microgrid') onMicrogridChange(null);
+      if (id === 'external_generator') onGeneratorChange(null);
     } else {
       onChange([...value, id]);
       if (id === 'white_tariff' && !whiteTariff) onWhiteTariffChange(emptyWhiteTariffConfig);
+      if (id === 'microgrid' && !microgrid) onMicrogridChange(emptyMicrogridConfig);
+      if (id === 'external_generator' && !generator) onGeneratorChange(emptyGeneratorConfig);
     }
   }
 
@@ -390,6 +438,129 @@ function DesiredFeaturesPicker({
             />
             Considerar reserva para backup das minhas cargas
           </label>
+        </div>
+      )}
+
+      {value.includes('microgrid') && (
+        <div className="space-y-3 rounded-lg border bg-background p-3">
+          <p className="text-sm font-medium">Configuração da Microrrede</p>
+          <p className="text-xs text-muted-foreground">
+            Dados do sistema ongrid existente que será conectado junto ao novo sistema híbrido.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="microgridPhases">Fases do sistema ongrid</Label>
+              <select
+                id="microgridPhases"
+                className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                value={microgrid?.onGridPhases ?? 1}
+                onChange={(event) =>
+                  onMicrogridChange({
+                    ...(microgrid ?? emptyMicrogridConfig),
+                    onGridPhases: Number(event.target.value) as 1 | 2 | 3,
+                  })
+                }
+              >
+                <option value={1}>Monofásico</option>
+                <option value={2}>Bifásico</option>
+                <option value={3}>Trifásico</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="microgridPower">Potência aparente do sistema ongrid (VA)</Label>
+              <Input
+                id="microgridPower"
+                type="number"
+                min={0}
+                value={microgrid?.onGridApparentPowerVA ?? 0}
+                onChange={(event) =>
+                  onMicrogridChange({
+                    ...(microgrid ?? emptyMicrogridConfig),
+                    onGridApparentPowerVA: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={microgrid?.isFundamentalRequirement ?? false}
+              onChange={(event) =>
+                onMicrogridChange({
+                  ...(microgrid ?? emptyMicrogridConfig),
+                  isFundamentalRequirement: event.target.checked,
+                })
+              }
+            />
+            Microrrede é um requisito fundamental
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Se não for fundamental e a exigência deixar o sistema maior que o necessário para as outras
+            funcionalidades, você poderá escolher entre uma versão econômica e uma versão com microrrede.
+          </p>
+        </div>
+      )}
+
+      {value.includes('external_generator') && (
+        <div className="space-y-3 rounded-lg border bg-background p-3">
+          <p className="text-sm font-medium">Configuração do Gerador Externo</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="generatorVoltage">Tensão (V)</Label>
+              <Input
+                id="generatorVoltage"
+                type="number"
+                min={0}
+                value={generator?.voltageV ?? 220}
+                onChange={(event) =>
+                  onGeneratorChange({
+                    ...(generator ?? emptyGeneratorConfig),
+                    voltageV: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="generatorPhases">Fases</Label>
+              <select
+                id="generatorPhases"
+                className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                value={generator?.phases ?? 1}
+                onChange={(event) =>
+                  onGeneratorChange({
+                    ...(generator ?? emptyGeneratorConfig),
+                    phases: Number(event.target.value) as 1 | 2 | 3,
+                  })
+                }
+              >
+                <option value={1}>Monofásico</option>
+                <option value={2}>Bifásico</option>
+                <option value={3}>Trifásico</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="generatorPower">Potência aparente (VA)</Label>
+              <Input
+                id="generatorPower"
+                type="number"
+                min={0}
+                value={generator?.apparentPowerVA ?? 0}
+                onChange={(event) =>
+                  onGeneratorChange({
+                    ...(generator ?? emptyGeneratorConfig),
+                    apparentPowerVA: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+          </div>
+          {!value.includes('external_ats') && (
+            <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Gerador Externo normalmente exige ATS Externo — considere selecionar essa funcionalidade também.
+            </p>
+          )}
         </div>
       )}
     </div>

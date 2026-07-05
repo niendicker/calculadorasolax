@@ -78,6 +78,8 @@ export function SinglePageApp() {
     setMaxPowerPerPhaseW,
     setDesiredFeatures,
     setWhiteTariffConfig,
+    setMicrogridConfig,
+    setGeneratorConfig,
     setSolution,
     setLoadCatalog,
     resetResidential,
@@ -435,6 +437,8 @@ export function SinglePageApp() {
               setGridType={setGridType}
               setDesiredFeatures={setDesiredFeatures}
               setWhiteTariffConfig={setWhiteTariffConfig}
+              setMicrogridConfig={setMicrogridConfig}
+              setGeneratorConfig={setGeneratorConfig}
               resetResidential={resetResidential}
               calculate={calculate}
               exportPdf={exportPdf}
