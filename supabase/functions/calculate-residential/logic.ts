@@ -52,6 +52,30 @@ export function inverterSatisfiesRequiredFlags(
   return required.every((flag) => flags.has(flag));
 }
 
+/** Minimum power the recommended inverter must sustain: the household's normal
+ * peak, or the white-tariff window's required power if that's higher. */
+export function effectiveTargetPowerW(
+  desiredFeatures: DesiredFeatureId[],
+  whiteTariff: WhiteTariffConfig | null,
+  peakW: number
+): number {
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return peakW;
+  return Math.max(peakW, whiteTariff.requiredPowerW);
+}
+
+/** Minimum battery energy the recommended solution must provide. When Tarifa
+ * Branca is active this replaces the generic backup heuristic with the
+ * energy the customer needs for the tariff window, optionally topped up with
+ * that same backup reserve when includeBackupReserve is set. */
+export function effectiveTargetEnergyWh(
+  desiredFeatures: DesiredFeatureId[],
+  whiteTariff: WhiteTariffConfig | null,
+  baseTargetEnergyWh: number
+): number {
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
+  return whiteTariff.requiredEnergyWh + (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0);
+}
+
 /** Mirrors lib/types.ts WhiteTariffConfig. */
 export interface WhiteTariffConfig {
   requiredPowerW: number;

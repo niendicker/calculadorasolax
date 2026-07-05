@@ -2,6 +2,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
   batteryTopologyMap,
   clampNumber,
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
   gridTopologyMap,
   inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
@@ -72,9 +74,13 @@ Deno.serve(async (req) => {
     const gridTopology = gridTopologyMap[options.gridType];
     const standardGridTopology = standardGridTopologyMap[options.gridType];
     const batteryTopology = batteryTopologyMap[options.topology];
+    const desiredFeatures = options.desiredFeatures ?? [];
 
     // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
-    const targetEnergyWh = dailyKwh * 0.5 * 1000;
+    // When Tarifa Branca is active, this (and targetPowerW below) is combined
+    // with the customer's tariff-window requirements instead of used as-is.
+    const targetEnergyWh = effectiveTargetEnergyWh(desiredFeatures, options.whiteTariff, dailyKwh * 0.5 * 1000);
+    const targetPowerW = effectiveTargetPowerW(desiredFeatures, options.whiteTariff, peakW);
     let usefulEnergyWhPerBattery: number | null = null;
 
     if (options.batteryModel) {
@@ -122,7 +128,7 @@ Deno.serve(async (req) => {
       .eq('grid_topology', gridTopology)
       .eq('battery_topology', batteryTopology)
       .gte('rated_power_w', nominalW)
-      .gte('peak_power_w', peakW)
+      .gte('peak_power_w', targetPowerW)
       .order('rated_power_w', { ascending: true })
       .order('available_energy_wh', { ascending: true })
       .order('battery_quantity', { ascending: true })
@@ -163,7 +169,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const requiredFlags = requiredInverterFlags(options.desiredFeatures ?? []);
+    const requiredFlags = requiredInverterFlags(desiredFeatures);
 
     if (requiredFlags.length > 0) {
       const candidateInverterModels = Array.from(
@@ -244,8 +250,9 @@ Deno.serve(async (req) => {
         ? solution.available_energy_wh
         : Math.round(usefulEnergyWhPerBattery * solution.battery_quantity);
 
-    // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average)
-    const pvPowerKw = dailyKwh / 4;
+    // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average); null when
+    // the customer opted out of PV sizing via the 'no_pv' desired feature.
+    const pvPowerKw = desiredFeatures.includes('no_pv') ? null : dailyKwh / 4;
 
     const accessories = solution.accessories
       .filter((accessory) => accessory.model && accessory.quantity > 0)
@@ -316,7 +323,7 @@ Deno.serve(async (req) => {
         batteryQty: solution.battery_quantity,
         batteryPowerW: solution.battery_power_w,
         availableEnergyWh,
-        pvPowerKw: Math.ceil(pvPowerKw * 10) / 10,
+        pvPowerKw: pvPowerKw === null ? null : Math.ceil(pvPowerKw * 10) / 10,
         accessories,
         comments: Array.from(new Set([...solution.comments, ...automaticComments])),
       }

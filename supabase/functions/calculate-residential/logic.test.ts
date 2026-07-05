@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
   inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
@@ -13,7 +15,18 @@ import {
   type ApprovedSolution,
   type EssCompatibilityRule,
   type SingleLoad,
+  type WhiteTariffConfig,
 } from './logic';
+
+function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {
+  return {
+    requiredPowerW: 2000,
+    requiredEnergyWh: 4000,
+    includeBackupReserve: false,
+    tariffSpreadPerKwh: 0.4,
+    ...partial,
+  };
+}
 
 function makeSolution(partial: Partial<ApprovedSolution> = {}): ApprovedSolution {
   return {
@@ -239,6 +252,42 @@ describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
     expect(inverterSatisfiesRequiredFlags(['external_ats'], ['external_ats', 'microgrid'])).toBe(false);
     expect(inverterSatisfiesRequiredFlags(null, ['external_ats'])).toBe(false);
     expect(inverterSatisfiesRequiredFlags([], ['external_ats'])).toBe(false);
+  });
+});
+
+describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
+  it('returns the base values unchanged when white_tariff is not selected', () => {
+    expect(effectiveTargetPowerW([], makeWhiteTariff(), 3000)).toBe(3000);
+    expect(effectiveTargetPowerW(['external_ats'], makeWhiteTariff(), 3000)).toBe(3000);
+    expect(effectiveTargetEnergyWh([], makeWhiteTariff(), 5000)).toBe(5000);
+  });
+
+  it('returns the base values unchanged when white_tariff is selected but the config is missing', () => {
+    expect(effectiveTargetPowerW(['white_tariff'], null, 3000)).toBe(3000);
+    expect(effectiveTargetEnergyWh(['white_tariff'], null, 5000)).toBe(5000);
+  });
+
+  it('takes the larger of the normal peak and the white-tariff required power', () => {
+    expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 2000 }), 3000)).toBe(3000);
+    expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 5000 }), 3000)).toBe(5000);
+  });
+
+  it('uses only the white-tariff energy when backup reserve is not requested', () => {
+    const energy = effectiveTargetEnergyWh(
+      ['white_tariff'],
+      makeWhiteTariff({ requiredEnergyWh: 4000, includeBackupReserve: false }),
+      5000
+    );
+    expect(energy).toBe(4000);
+  });
+
+  it('adds the base backup reserve on top of the white-tariff energy when requested', () => {
+    const energy = effectiveTargetEnergyWh(
+      ['white_tariff'],
+      makeWhiteTariff({ requiredEnergyWh: 4000, includeBackupReserve: true }),
+      5000
+    );
+    expect(energy).toBe(9000);
   });
 });
 
