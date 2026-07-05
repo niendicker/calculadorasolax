@@ -110,6 +110,7 @@ interface InverterRow {
   battery_voltage_min_v: number | null;
   battery_voltage_max_v: number | null;
   battery_current_max_a: number | null;
+  max_power_per_phase_w: number | null;
   flags: InverterFlag[];
   pv_oversizing_percent: number;
   image_url: string | null;
@@ -310,6 +311,7 @@ const emptyInverter: Partial<InverterRow> = {
   battery_voltage_min_v: null,
   battery_voltage_max_v: null,
   battery_current_max_a: null,
+  max_power_per_phase_w: null,
   flags: [],
   pv_oversizing_percent: 100,
   image_url: '',
@@ -1015,6 +1017,7 @@ export function AdminPanel() {
       battery_voltage_min_v: toNullableNumber(inverterForm.battery_voltage_min_v),
       battery_voltage_max_v: toNullableNumber(inverterForm.battery_voltage_max_v),
       battery_current_max_a: toNullableNumber(inverterForm.battery_current_max_a),
+      max_power_per_phase_w: toNullableNumber(inverterForm.max_power_per_phase_w),
       flags: normalizeInverterFlags(inverterForm.flags),
       pv_oversizing_percent: inverterForm.pv_oversizing_percent === 50 ? 50 : 100,
       image_url: inverterForm.image_url?.trim() || null,
@@ -2201,7 +2204,7 @@ function MetricsPanel({
       <div className="grid gap-3 md:grid-cols-4">
         <MetricCard label="Usuários" value={String(users.length)} />
         <MetricCard label="Simulações" value={String(simulations.length)} />
-        <MetricCard label="Pico médio" value={simulations.length ? `${(totalPeakW / simulations.length / 1000).toFixed(2)} kW` : '0 kW'} />
+        <MetricCard label="Pico médio" value={simulations.length ? `${(totalPeakW / simulations.length / 1000).toFixed(2)} kVA` : '0 kVA'} />
         <MetricCard label="Consumo médio" value={simulations.length ? `${(totalDailyKwh / simulations.length).toFixed(2)} kWh/dia` : '0 kWh/dia'} />
       </div>
 
@@ -2867,8 +2870,8 @@ function SolutionsEditor(props: {
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                          <DetailItem label="Potência nominal" value={`${(solution.rated_power_w / 1000).toFixed(1)} kW`} />
-                          <DetailItem label="Potência pico" value={`${(solution.peak_power_w / 1000).toFixed(1)} kW`} />
+                          <DetailItem label="Potência nominal" value={`${(solution.rated_power_w / 1000).toFixed(1)} kVA`} />
+                          <DetailItem label="Potência pico" value={`${(solution.peak_power_w / 1000).toFixed(1)} kVA`} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <DetailItem label="Potência bateria" value={`${(solution.battery_power_w / 1000).toFixed(1)} kW`} />
@@ -3041,7 +3044,7 @@ function SolutionsEditor(props: {
                                       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                                         <span>Inv ×{solution.inverter_quantity}</span>
                                         <span>Bat ×{solution.battery_quantity} · {solution.battery_topology}</span>
-                                        <span>{(solution.rated_power_w / 1000).toFixed(1)} kW / {(solution.peak_power_w / 1000).toFixed(1)} kW pico</span>
+                                        <span>{(solution.rated_power_w / 1000).toFixed(1)} kVA / {(solution.peak_power_w / 1000).toFixed(1)} kVA pico</span>
                                         <span>{(solution.available_energy_wh / 1000).toFixed(1)} kWh</span>
                                         {solution.accessories.length > 0 && (
                                           <span>{solution.accessories.map((a) => `${a.model} ×${a.quantity}`).join(', ')}</span>
@@ -3141,7 +3144,7 @@ function SolutionsEditor(props: {
               label="Potência nominal"
               tip="Potência nominal total disponível na combinação."
               icon={<Zap className="h-4 w-4" />}
-              unit="W"
+              unit="VA"
               value={form.rated_power_w ?? 0}
               onChange={(event) => setForm({ ...form, rated_power_w: toNumber(event.target.value) })}
             />
@@ -3149,7 +3152,7 @@ function SolutionsEditor(props: {
               label="Potência pico"
               tip="Potência máxima de pico disponível na combinação."
               icon={<Zap className="h-4 w-4" />}
-              unit="W"
+              unit="VA"
               value={form.peak_power_w ?? 0}
               onChange={(event) => setForm({ ...form, peak_power_w: toNumber(event.target.value) })}
             />
@@ -3588,6 +3591,16 @@ function InvertersEditor(props: {
                     unit="kVA"
                     value={form.peak_power_kva ?? 0}
                     onChange={(event) => setForm({ ...form, peak_power_kva: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Potência máxima por fase"
+                    tip="Limite de potência por fase para validação de balanceamento de cargas. Se vazio, o app usa Potência padrão ÷ número de fases da rede."
+                    icon={<Zap className="h-4 w-4" />}
+                    unit="VA"
+                    placeholder="—"
+                    value={form.max_power_per_phase_w ?? ''}
+                    onChange={(event) => setForm({ ...form, max_power_per_phase_w: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, max_power_per_phase_w: null })}
                   />
                 </div>
                 <Field asDiv label="Tipo de rede">
@@ -4568,7 +4581,7 @@ function LoadCatalogEditor(props: {
               label="Potência"
               tip="Potência aparente nominal do equipamento."
               icon={<Zap className="h-4 w-4" />}
-              unit="W"
+              unit="VA"
               value={form.power_w ?? 0}
               onChange={(event) => setForm({ ...form, power_w: toNumber(event.target.value) })}
             />
@@ -4612,7 +4625,7 @@ function LoadCatalogEditor(props: {
         title: row.name_pt,
         badges: [row.category, row.active ? 'ativa' : 'inativa'],
         details: [
-          ['Potência', `${row.power_w} W`],
+          ['Potência', `${row.power_w} VA`],
           ['IP/IN', `${row.ip_in_ratio}×`],
         ],
         removing: props.removingIds.has(row.id),

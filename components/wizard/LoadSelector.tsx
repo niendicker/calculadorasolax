@@ -85,7 +85,7 @@ export function NumberFieldWithClear({
 }
 
 function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
-  return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'R', ...partial, id: crypto.randomUUID() };
+  return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
 }
 
 const loadPresets: {
@@ -288,7 +288,7 @@ export function LoadSelector() {
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Badge variant="secondary">{preset.loads.length} cargas</Badge>
-                  <Badge variant="outline">{(peakW / 1000).toFixed(2)} kW pico</Badge>
+                  <Badge variant="outline">{(peakW / 1000).toFixed(2)} kVA pico</Badge>
                   <Badge variant="outline">{dailyKwh.toFixed(1)} kWh/dia</Badge>
                 </div>
               </button>
@@ -320,7 +320,7 @@ export function LoadSelector() {
                     className="flex items-center justify-between rounded-md border bg-card p-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <span className="truncate">{item.name}</span>
-                    <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}W</span>
+                    <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}VA</span>
                   </button>
                 ))}
               </div>
@@ -338,7 +338,7 @@ export function LoadSelector() {
                   className="flex items-center justify-between rounded-md border bg-card p-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
-                  <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}W</span>
+                  <span className="text-muted-foreground ml-1 shrink-0">{item.powerW}VA</span>
                 </button>
               ))}
             </div>
@@ -360,7 +360,7 @@ export function LoadSelector() {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
               <div>
                 <Label htmlFor="manual-power">
-                  <InfoLabel label={t('power')} tip="Potência aparente nominal do equipamento, informada na etiqueta ou manual (em Watts)." />
+                  <InfoLabel label={t('power')} tip="Potência aparente nominal do equipamento, informada na etiqueta ou manual (em VA)." />
                 </Label>
                 <Input
                   id="manual-power"
@@ -449,7 +449,7 @@ export function LoadSelector() {
                     >
                       <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Fase {phase}</p>
                       <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
-                        {phaseW.toFixed(0)} W
+                        {phaseW.toFixed(0)} VA
                       </p>
                     </div>
                   );
@@ -457,7 +457,7 @@ export function LoadSelector() {
               </div>
               {maxPowerPerPhaseW && Object.values(phaseTotals).some((value) => value > maxPowerPerPhaseW) && (
                 <p className="mt-2 text-xs text-destructive">
-                  Uma ou mais fases ultrapassam o máximo configurado ({maxPowerPerPhaseW.toFixed(0)} W). Redistribua as cargas entre as fases.
+                  Uma ou mais fases ultrapassam o máximo configurado ({maxPowerPerPhaseW.toFixed(0)} VA). Redistribua as cargas entre as fases.
                 </p>
               )}
             </div>
@@ -541,8 +541,8 @@ function LoadCard({
   const voltageOptions = phaseType === 'trifasica' && phaseToPhaseVoltages.length > 0 ? phaseToPhaseVoltages : validVoltages;
   const voltageValid = voltageOptions.includes(voltageV);
   const needsTwoPhases = phaseType === 'mono' && phaseCount > 1 && phaseToPhaseVoltages.includes(voltageV);
-  const phase = load.phase ?? 'R';
-  const phasePairs: [LoadPhase, LoadPhase][] = [['R', 'S'], ['S', 'T'], ['R', 'T']];
+  const phase = load.phase ?? 'L1';
+  const phasePairs: [LoadPhase, LoadPhase][] = [['L1', 'L2'], ['L2', 'L3'], ['L1', 'L3']];
 
   useEffect(() => {
     if (phaseCount < 3 && phaseType === 'trifasica') {
@@ -558,7 +558,7 @@ function LoadCard({
 
   useEffect(() => {
     if (needsTwoPhases && !load.phase2) {
-      onUpdate(load.id, { phase: 'R', phase2: 'S' });
+      onUpdate(load.id, { phase: 'L1', phase2: 'L2' });
     } else if (!needsTwoPhases && load.phase2) {
       onUpdate(load.id, { phase2: null });
     }
@@ -605,10 +605,10 @@ function LoadCard({
           <p className="font-medium truncate">{load.name}</p>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>
-              <span className="font-medium text-foreground">{load.powerW} W</span> nominal
+              <span className="font-medium text-foreground">{load.powerW} VA</span> nominal
             </span>
             <span>
-              <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} W</span> pico
+              <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span> pico
             </span>
             <span>
               <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>/dia
@@ -795,7 +795,7 @@ function LoadCard({
           <div>
             <Label className="text-xs font-normal text-muted-foreground">Fases</Label>
             <p className="mt-1 flex h-7 items-center rounded-lg bg-muted px-2 text-xs text-muted-foreground">
-              Ligada entre as duas fases da rede (R-S)
+              Ligada entre as duas fases da rede (L1-L2)
             </p>
           </div>
         )}

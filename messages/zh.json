@@ -39,7 +39,7 @@
     "manual": "手动",
     "add_load": "添加负载",
     "name": "名称",
-    "power": "功率 (W)",
+    "power": "功率 (VA)",
     "hours": "小时/天",
     "qty": "数量",
     "total_consumption": "总耗电量",

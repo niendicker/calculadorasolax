@@ -23,7 +23,7 @@ export type LoadVoltage = 110 | 220 | 380;
 export type LoadPhaseType = 'mono' | 'trifasica';
 
 /** Which phase a single-phase load is wired to, for phase-balance tracking. */
-export type LoadPhase = 'R' | 'S' | 'T';
+export type LoadPhase = 'L1' | 'L2' | 'L3';
 
 export interface SingleLoad {
   id: string;

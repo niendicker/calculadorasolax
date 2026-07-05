@@ -37,7 +37,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoadSelector, NumberFieldWithClear } from '@/components/wizard/LoadSelector';
+import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { createClient } from '@/lib/supabase/client';
 import { useWizardStore, totalDailyKwh, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import type {
@@ -124,6 +124,7 @@ interface InverterCatalogOption {
   phases: number;
   standardPowerKva: number | null;
   peakPowerKva: number | null;
+  maxPowerPerPhaseW: number | null;
   imageUrl: string | null;
   documents: ProductDocument[];
 }
@@ -232,7 +233,7 @@ export function SinglePageApp() {
           .order('model'),
         supabase
           .from('inverters')
-          .select('id, model, topology, phases, standard_power_kva, peak_power_kva, image_url, documents')
+          .select('id, model, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, image_url, documents')
           .order('model'),
         supabase
           .from('accessories')
@@ -307,6 +308,7 @@ export function SinglePageApp() {
             phases: Number(row.phases),
             standardPowerKva: row.standard_power_kva === null ? null : Number(row.standard_power_kva),
             peakPowerKva: row.peak_power_kva === null ? null : Number(row.peak_power_kva),
+            maxPowerPerPhaseW: row.max_power_per_phase_w === null ? null : Number(row.max_power_per_phase_w),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
           }))
@@ -402,6 +404,25 @@ export function SinglePageApp() {
         .map((combo) => combo.inverterModel)
     );
   }, [approvedInverterCombos, residentialOptions.gridType, residentialOptions.topology]);
+
+  useEffect(() => {
+    const phaseCount = residentialOptions.gridType ? gridTypePhaseCount[residentialOptions.gridType] : 1;
+    if (!residentialOptions.gridType || phaseCount <= 1) {
+      if (residentialOptions.maxPowerPerPhaseW !== null) setMaxPowerPerPhaseW(null);
+      return;
+    }
+    const inverter = inverterCatalog.find((item) => item.model === residentialOptions.inverterModel);
+    const computed =
+      inverter?.maxPowerPerPhaseW ??
+      (inverter?.standardPowerKva ? (inverter.standardPowerKva * 1000) / phaseCount : null);
+    if (computed !== residentialOptions.maxPowerPerPhaseW) setMaxPowerPerPhaseW(computed);
+  }, [
+    residentialOptions.gridType,
+    residentialOptions.inverterModel,
+    residentialOptions.maxPowerPerPhaseW,
+    inverterCatalog,
+    setMaxPowerPerPhaseW,
+  ]);
 
   const canCalculate =
     residentialOptions.topology &&
@@ -825,7 +846,6 @@ export function SinglePageApp() {
               setBatteryModel={setBatteryModel}
               setInverterModel={setInverterModel}
               setGridType={setGridType}
-              setMaxPowerPerPhaseW={setMaxPowerPerPhaseW}
               resetResidential={resetResidential}
               calculate={calculate}
               exportPdf={exportPdf}
@@ -1403,7 +1423,7 @@ function ProjectTab({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kW`} />
+              <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
               <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
             </div>
             <Separator />
@@ -1676,7 +1696,6 @@ function SizingTab({
   setBatteryModel,
   setInverterModel,
   setGridType,
-  setMaxPowerPerPhaseW,
   resetResidential,
   calculate,
   exportPdf,
@@ -1709,7 +1728,6 @@ function SizingTab({
   setBatteryModel: (batteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
-  setMaxPowerPerPhaseW: (value: number | null) => void;
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
@@ -1806,18 +1824,6 @@ function SizingTab({
                   loading={initialLoading}
                   setInverterModel={setInverterModel}
                 />
-
-                {residentialOptions.gridType && gridTypePhaseCount[residentialOptions.gridType] > 1 && (
-                  <MaxPowerPerPhaseField
-                    value={residentialOptions.maxPowerPerPhaseW}
-                    defaultValueW={(() => {
-                      const inverter = inverterCatalog.find((item) => item.model === residentialOptions.inverterModel);
-                      const phaseCount = gridTypePhaseCount[residentialOptions.gridType];
-                      return inverter?.standardPowerKva ? (inverter.standardPowerKva * 1000) / phaseCount : null;
-                    })()}
-                    onChange={setMaxPowerPerPhaseW}
-                  />
-                )}
               </div>
             </CardContent>
           </Card>
@@ -1845,7 +1851,7 @@ function SizingTab({
             </CardHeader>
             <CardContent className="space-y-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
               <div className="grid grid-cols-2 gap-3">
-                <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kW`} />
+                <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
                 <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
               </div>
               <Separator />
@@ -2310,7 +2316,7 @@ function UserLoadCatalogSection({
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="new-load-power">Potência (W)</Label>
+          <Label htmlFor="new-load-power">Potência (VA)</Label>
           <Input
             id="new-load-power"
             type="number"
@@ -2368,7 +2374,7 @@ function UserLoadCatalogSection({
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.powerW} W nominal · IP/IN {item.ipInRatio}</p>
+                    <p className="text-xs text-muted-foreground">{item.powerW} VA nominal · IP/IN {item.ipInRatio}</p>
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <Button variant="outline" size="sm" onClick={() => openEdit(item)} disabled={removingIds.has(item.id)}>
@@ -2638,50 +2644,6 @@ function BatteryModelPicker({
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
-    </div>
-  );
-}
-
-function MaxPowerPerPhaseField({
-  value,
-  defaultValueW,
-  onChange,
-}: {
-  value: number | null;
-  defaultValueW: number | null;
-  onChange: (value: number | null) => void;
-}) {
-  const [text, setText] = useState(value !== null ? String(value) : '');
-
-  useEffect(() => {
-    setText(value !== null ? String(value) : '');
-  }, [value]);
-
-  return (
-    <div>
-      <Label htmlFor="maxPowerPerPhase" className="text-xs font-normal text-muted-foreground">
-        Potência máxima por fase
-      </Label>
-      <NumberFieldWithClear
-        id="maxPowerPerPhase"
-        value={text}
-        placeholder={defaultValueW ? `Padrão: ${defaultValueW.toFixed(0)} W` : 'Selecione um inversor'}
-        min={1}
-        onChange={(raw) => {
-          setText(raw);
-          const parsed = Number(raw);
-          if (raw.trim() !== '' && Number.isFinite(parsed) && parsed > 0) {
-            onChange(parsed);
-          }
-        }}
-        onBlur={() => {
-          if (text.trim() === '') onChange(null);
-        }}
-        onClear={() => {
-          setText('');
-          onChange(null);
-        }}
-      />
     </div>
   );
 }
@@ -2988,7 +2950,7 @@ function PrintableReport({
       </header>
 
       <section className="mb-6 grid grid-cols-4 gap-3">
-        <ReportMetric label="Pico de carga" value={`${(peakW / 1000).toFixed(2)} kW`} />
+        <ReportMetric label="Pico de carga" value={`${(peakW / 1000).toFixed(2)} kVA`} />
         <ReportMetric label="Consumo diário" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
         <ReportMetric label="Topologia" value={topology ? topologyLabels[topology] : '-'} />
         <ReportMetric label="Bateria selecionada" value={selectedBatteryModel || '-'} />
@@ -3027,7 +2989,7 @@ function PrintableReport({
               <td className="border px-3 py-2">{solution.inverterModel}</td>
               <td className="border px-3 py-2">{solution.inverterQty ?? 1}</td>
               <td className="border px-3 py-2">
-                {solution.inverterRatedPowerW ? `${solution.inverterRatedPowerW} W nominal` : '-'}
+                {solution.inverterRatedPowerW ? `${solution.inverterRatedPowerW} VA nominal` : '-'}
               </td>
             </tr>
             <tr>
@@ -3073,10 +3035,10 @@ function PrintableReport({
             {loads.map((load) => (
               <tr key={load.id}>
                 <td className="border px-3 py-2">{load.name}</td>
-                <td className="border px-3 py-2">{load.powerW} W</td>
+                <td className="border px-3 py-2">{load.powerW} VA</td>
                 <td className="border px-3 py-2">{load.qty}</td>
                 <td className="border px-3 py-2">{load.hoursPerDay} h/dia</td>
-                <td className="border px-3 py-2">{load.powerW * load.qty} W</td>
+                <td className="border px-3 py-2">{load.powerW * load.qty} VA</td>
                 <td className="border px-3 py-2">{loadEnergyKwh(load).toFixed(2)} kWh/dia</td>
               </tr>
             ))}

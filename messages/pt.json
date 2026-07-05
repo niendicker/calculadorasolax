@@ -39,7 +39,7 @@
     "manual": "Manual",
     "add_load": "Adicionar carga",
     "name": "Nome",
-    "power": "Potência (W)",
+    "power": "Potência (VA)",
     "hours": "Horas/dia",
     "qty": "Quantidade",
     "total_consumption": "Consumo total",

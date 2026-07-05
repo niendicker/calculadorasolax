@@ -535,22 +535,22 @@ export const gridTypePhaseToPhaseVoltages: Record<ResidentialGridType, number[]>
   threePhase_380: [380],
 };
 
-export const loadPhases: LoadPhase[] = ['R', 'S', 'T'];
+export const loadPhases: LoadPhase[] = ['L1', 'L2', 'L3'];
 
-/** Nominal power (W) per phase. Three-phase loads split evenly across R/S/T;
+/** Nominal power (W) per phase. Three-phase loads split evenly across L1/L2/L3;
  * mono loads wired phase-to-phase count their full power on both phases they
  * connect to (they're not divided, since each conductor carries the full
  * load current); other mono loads count on their single assigned phase. */
 export function totalPowerByPhase(loads: SingleLoad[]): Record<LoadPhase, number> {
-  const totals: Record<LoadPhase, number> = { R: 0, S: 0, T: 0 };
+  const totals: Record<LoadPhase, number> = { L1: 0, L2: 0, L3: 0 };
   for (const load of loads) {
     const powerW = load.powerW * load.qty;
     if (load.phaseType === 'trifasica') {
-      totals.R += powerW / 3;
-      totals.S += powerW / 3;
-      totals.T += powerW / 3;
+      totals.L1 += powerW / 3;
+      totals.L2 += powerW / 3;
+      totals.L3 += powerW / 3;
     } else {
-      const phase = load.phase ?? 'R';
+      const phase = load.phase ?? 'L1';
       totals[phase] += powerW;
       if (load.phase2) totals[load.phase2] += powerW;
     }
