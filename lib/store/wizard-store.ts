@@ -8,8 +8,10 @@ import type {
   CatalogItem,
   Client,
   DesiredFeatureId,
+  GeneratorConfig,
   IndustrialOptions,
   LoadPhase,
+  MicrogridConfig,
   PeakCalcMode,
   ProjectInfo,
   ResidentialGridType,
@@ -64,6 +66,8 @@ interface WizardStore {
   setMaxPowerPerPhaseW: (maxPowerPerPhaseW: number | null) => void;
   setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
+  setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
+  setGeneratorConfig: (generator: GeneratorConfig | null) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
   addLoad: (load: SingleLoad) => void;
   removeLoad: (id: string) => void;
@@ -94,6 +98,8 @@ const defaultResidential: ResidentialOptions = {
   peakCalcMode: 'sum',
   desiredFeatures: [],
   whiteTariff: null,
+  microgrid: null,
+  generator: null,
   maxPowerPerPhaseW: null,
 };
 
@@ -508,12 +514,24 @@ export const useWizardStore = create<WizardStore>()(
             ...s.residentialOptions,
             desiredFeatures,
             whiteTariff: desiredFeatures.includes('white_tariff') ? s.residentialOptions.whiteTariff : null,
+            microgrid: desiredFeatures.includes('microgrid') ? s.residentialOptions.microgrid : null,
+            generator: desiredFeatures.includes('external_generator') ? s.residentialOptions.generator : null,
           },
         })),
 
       setWhiteTariffConfig: (whiteTariff) =>
         set((s) => ({
           residentialOptions: { ...s.residentialOptions, whiteTariff },
+        })),
+
+      setMicrogridConfig: (microgrid) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, microgrid },
+        })),
+
+      setGeneratorConfig: (generator) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, generator },
         })),
 
       setPeakCalcMode: (peakCalcMode) =>

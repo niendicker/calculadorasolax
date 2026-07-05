@@ -37,6 +37,28 @@ export interface WhiteTariffConfig {
   tariffSpreadPerKwh: number;
 }
 
+/** Extra sizing inputs only used when 'microgrid' is a desired feature — describes
+ * the existing on-grid (grid-tied) system that will be connected alongside the
+ * new hybrid system. */
+export interface MicrogridConfig {
+  /** Number of phases of the existing on-grid system. */
+  onGridPhases: 1 | 2 | 3;
+  /** Apparent power of the existing on-grid system (VA). */
+  onGridApparentPowerVA: number;
+  /** When true, microgrid compatibility is enforced even if it forces a bigger
+   * system; when false, the app offers a choice between the smallest solution
+   * and the smallest one that also supports microgrid (see Solution.microgridAlternative). */
+  isFundamentalRequirement: boolean;
+}
+
+/** Extra report inputs only used when 'external_generator' is a desired feature.
+ * Informational only — does not affect which solution gets recommended. */
+export interface GeneratorConfig {
+  voltageV: number;
+  phases: 1 | 2 | 3;
+  apparentPowerVA: number;
+}
+
 // How multiple loads' IP/IN ratios combine into the system's peak apparent power:
 // - 'sum': every load surges at once (nominal x IP/IN for all loads, conservative).
 // - 'largest-surge': only the single highest-surge load unit starts at a time,
@@ -121,6 +143,10 @@ export interface ResidentialOptions {
   desiredFeatures: DesiredFeatureId[];
   /** Only meaningful when 'white_tariff' is in desiredFeatures. */
   whiteTariff: WhiteTariffConfig | null;
+  /** Only meaningful when 'microgrid' is in desiredFeatures. */
+  microgrid: MicrogridConfig | null;
+  /** Only meaningful when 'external_generator' is in desiredFeatures. */
+  generator: GeneratorConfig | null;
   /** Max power allowed per phase (W); null uses the suggested default (inverter power / phase count). */
   maxPowerPerPhaseW: number | null;
 }
@@ -169,6 +195,10 @@ export interface Solution {
   solutionCode?: string;
   sourceFile?: string;
   comments?: string[];
+  /** Present only when 'microgrid' is selected as a non-fundamental requirement
+   * and the microgrid-compatible solution differs from this one — the primary
+   * Solution is the "Versão Econômica", this is the "Versão c/ Microrrede". */
+  microgridAlternative?: Omit<Solution, 'microgridAlternative'>;
 }
 
 export interface SavedProject {

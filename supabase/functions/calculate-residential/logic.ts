@@ -84,6 +84,21 @@ export interface WhiteTariffConfig {
   tariffSpreadPerKwh: number;
 }
 
+/** Mirrors lib/types.ts MicrogridConfig. */
+export interface MicrogridConfig {
+  onGridPhases: 1 | 2 | 3;
+  onGridApparentPowerVA: number;
+  isFundamentalRequirement: boolean;
+}
+
+/** Mirrors lib/types.ts GeneratorConfig. Informational only — not validated
+ * against any solution-filtering logic. */
+export interface GeneratorConfig {
+  voltageV: number;
+  phases: 1 | 2 | 3;
+  apparentPowerVA: number;
+}
+
 export interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
   batteryModel: string | null;
@@ -93,6 +108,8 @@ export interface ResidentialOptions {
   peakCalcMode?: PeakCalcMode;
   desiredFeatures: DesiredFeatureId[];
   whiteTariff: WhiteTariffConfig | null;
+  microgrid: MicrogridConfig | null;
+  generator: GeneratorConfig | null;
 }
 
 export interface ApprovedSolution {
@@ -330,6 +347,40 @@ export function validateResidentialOptions(raw: unknown): string[] {
       }
       if (typeof whiteTariff.tariffSpreadPerKwh !== 'number' || whiteTariff.tariffSpreadPerKwh < 0) {
         errors.push('whiteTariff.tariffSpreadPerKwh must be a number >= 0');
+      }
+    }
+  }
+
+  if (desiredFeatures.includes('microgrid')) {
+    const microgrid = options.microgrid as Record<string, unknown> | null | undefined;
+    if (!microgrid || typeof microgrid !== 'object') {
+      errors.push('microgrid is required when desiredFeatures includes microgrid');
+    } else {
+      if (![1, 2, 3].includes(microgrid.onGridPhases as number)) {
+        errors.push('microgrid.onGridPhases must be 1, 2, or 3');
+      }
+      if (typeof microgrid.onGridApparentPowerVA !== 'number' || microgrid.onGridApparentPowerVA < 0) {
+        errors.push('microgrid.onGridApparentPowerVA must be a number >= 0');
+      }
+      if (typeof microgrid.isFundamentalRequirement !== 'boolean') {
+        errors.push('microgrid.isFundamentalRequirement must be a boolean');
+      }
+    }
+  }
+
+  if (desiredFeatures.includes('external_generator')) {
+    const generator = options.generator as Record<string, unknown> | null | undefined;
+    if (!generator || typeof generator !== 'object') {
+      errors.push('generator is required when desiredFeatures includes external_generator');
+    } else {
+      if (typeof generator.voltageV !== 'number' || generator.voltageV <= 0) {
+        errors.push('generator.voltageV must be a number > 0');
+      }
+      if (![1, 2, 3].includes(generator.phases as number)) {
+        errors.push('generator.phases must be 1, 2, or 3');
+      }
+      if (typeof generator.apparentPowerVA !== 'number' || generator.apparentPowerVA < 0) {
+        errors.push('generator.apparentPowerVA must be a number >= 0');
       }
     }
   }

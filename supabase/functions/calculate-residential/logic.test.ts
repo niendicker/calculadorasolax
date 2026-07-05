@@ -301,6 +301,8 @@ describe('validateResidentialOptions', () => {
       loads: [{ powerW: 100, hoursPerDay: 2, qty: 1 }],
       desiredFeatures: [],
       whiteTariff: null,
+      microgrid: null,
+      generator: null,
     };
   }
 
@@ -410,5 +412,47 @@ describe('validateResidentialOptions', () => {
     expect(invalid.some((e) => e.includes('requiredEnergyWh'))).toBe(true);
     expect(invalid.some((e) => e.includes('includeBackupReserve'))).toBe(true);
     expect(invalid.some((e) => e.includes('tariffSpreadPerKwh'))).toBe(true);
+  });
+
+  it('requires a well-formed microgrid config when microgrid is a desired feature', () => {
+    const missing = validateResidentialOptions({ ...validPayload(), desiredFeatures: ['microgrid'] });
+    expect(missing.some((e) => e.includes('microgrid'))).toBe(true);
+
+    const valid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['microgrid'],
+      microgrid: { onGridPhases: 3, onGridApparentPowerVA: 5000, isFundamentalRequirement: false },
+    });
+    expect(valid).toEqual([]);
+
+    const invalid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['microgrid'],
+      microgrid: { onGridPhases: 4, onGridApparentPowerVA: -1, isFundamentalRequirement: 'yes' },
+    });
+    expect(invalid.some((e) => e.includes('onGridPhases'))).toBe(true);
+    expect(invalid.some((e) => e.includes('onGridApparentPowerVA'))).toBe(true);
+    expect(invalid.some((e) => e.includes('isFundamentalRequirement'))).toBe(true);
+  });
+
+  it('requires a well-formed generator config when external_generator is a desired feature', () => {
+    const missing = validateResidentialOptions({ ...validPayload(), desiredFeatures: ['external_generator'] });
+    expect(missing.some((e) => e.includes('generator'))).toBe(true);
+
+    const valid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['external_generator'],
+      generator: { voltageV: 220, phases: 3, apparentPowerVA: 8000 },
+    });
+    expect(valid).toEqual([]);
+
+    const invalid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['external_generator'],
+      generator: { voltageV: -1, phases: 5, apparentPowerVA: -1 },
+    });
+    expect(invalid.some((e) => e.includes('voltageV'))).toBe(true);
+    expect(invalid.some((e) => e.includes('phases'))).toBe(true);
+    expect(invalid.some((e) => e.includes('apparentPowerVA'))).toBe(true);
   });
 });
