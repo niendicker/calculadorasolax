@@ -185,6 +185,101 @@ function ruleMatches(
   return ruleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
 }
 
+const VALID_TOPOLOGIES: ResidentialOptions['topology'][] = ['HighVoltage', 'LowVoltage'];
+const VALID_GRID_TYPES: ResidentialOptions['gridType'][] = [
+  'singlePhase_220',
+  'splitPhase_220',
+  'threePhase_220',
+  'threePhase_380',
+];
+const VALID_PEAK_CALC_MODES: PeakCalcMode[] = ['sum', 'largest-surge'];
+const VALID_MICRO_GRID: NonNullable<ResidentialOptions['microGrid']>[] = [
+  'Gerador',
+  'Microinversor',
+  'Desabilitada',
+];
+
+/** Validates the untrusted JSON body before it is treated as ResidentialOptions.
+ * Returns a list of human-readable issues; an empty list means the payload is valid. */
+function validateResidentialOptions(raw: unknown): string[] {
+  const errors: string[] = [];
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return ['payload must be a JSON object'];
+  }
+
+  const options = raw as Record<string, unknown>;
+
+  if (!VALID_TOPOLOGIES.includes(options.topology as ResidentialOptions['topology'])) {
+    errors.push('topology must be one of: ' + VALID_TOPOLOGIES.join(', '));
+  }
+
+  if (!VALID_GRID_TYPES.includes(options.gridType as ResidentialOptions['gridType'])) {
+    errors.push('gridType must be one of: ' + VALID_GRID_TYPES.join(', '));
+  }
+
+  if (options.batteryModel !== null && typeof options.batteryModel !== 'string') {
+    errors.push('batteryModel must be a string or null');
+  }
+
+  if (options.inverterModel !== null && typeof options.inverterModel !== 'string') {
+    errors.push('inverterModel must be a string or null');
+  }
+
+  if (
+    options.peakCalcMode !== undefined &&
+    !VALID_PEAK_CALC_MODES.includes(options.peakCalcMode as PeakCalcMode)
+  ) {
+    errors.push('peakCalcMode must be one of: ' + VALID_PEAK_CALC_MODES.join(', '));
+  }
+
+  if (
+    options.microGrid !== undefined &&
+    options.microGrid !== null &&
+    !VALID_MICRO_GRID.includes(options.microGrid as NonNullable<ResidentialOptions['microGrid']>)
+  ) {
+    errors.push('microGrid must be one of: ' + VALID_MICRO_GRID.join(', ') + ', or null');
+  }
+
+  if (!Array.isArray(options.loads) || options.loads.length === 0) {
+    errors.push('loads must be a non-empty array');
+  } else {
+    options.loads.forEach((load: unknown, index: number) => {
+      if (!load || typeof load !== 'object') {
+        errors.push(`loads[${index}] must be an object`);
+        return;
+      }
+      const l = load as Record<string, unknown>;
+
+      if (typeof l.powerW !== 'number' || !Number.isFinite(l.powerW) || l.powerW <= 0) {
+        errors.push(`loads[${index}].powerW must be a positive number`);
+      }
+
+      if (
+        typeof l.hoursPerDay !== 'number' ||
+        !Number.isFinite(l.hoursPerDay) ||
+        l.hoursPerDay < 0 ||
+        l.hoursPerDay > 24
+      ) {
+        errors.push(`loads[${index}].hoursPerDay must be a number between 0 and 24`);
+      }
+
+      if (typeof l.qty !== 'number' || !Number.isInteger(l.qty) || l.qty <= 0) {
+        errors.push(`loads[${index}].qty must be a positive integer`);
+      }
+
+      if (
+        l.ipInRatio !== undefined &&
+        (typeof l.ipInRatio !== 'number' || !Number.isFinite(l.ipInRatio) || l.ipInRatio < 1)
+      ) {
+        errors.push(`loads[${index}].ipInRatio must be a number >= 1`);
+      }
+    });
+  }
+
+  return errors;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -196,7 +291,25 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const options: ResidentialOptions = await req.json();
+    let rawOptions: unknown;
+    try {
+      rawOptions = await req.json();
+    } catch {
+      return Response.json(
+        { error: 'invalid_payload', details: ['body must be valid JSON'] },
+        { status: 400 }
+      );
+    }
+
+    const validationErrors = validateResidentialOptions(rawOptions);
+    if (validationErrors.length > 0) {
+      return Response.json(
+        { error: 'invalid_payload', details: validationErrors },
+        { status: 400 }
+      );
+    }
+
+    const options = rawOptions as ResidentialOptions;
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
