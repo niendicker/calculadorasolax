@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSolutionPayload,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   inverterSatisfiesRequiredFlags,
@@ -224,6 +225,92 @@ describe('ruleMatches', () => {
     const solution = makeSolution({ battery_quantity: 3 });
     const rule = makeRule({ trigger_metric: 'battery_quantity', min_quantity: 2 });
     expect(ruleMatches(solution, rule, '1P_220V')).toBe(true);
+  });
+});
+
+describe('buildSolutionPayload', () => {
+  it('uses the solution own available_energy_wh when there is no per-battery override', () => {
+    const solution = makeSolution({ available_energy_wh: 5220 });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: 1.2,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+    });
+    expect(payload.availableEnergyWh).toBe(5220);
+    expect(payload.pvPowerKw).toBe(1.2);
+    expect(payload.solutionId).toBe(solution.id);
+    expect(payload.inverterModel).toBe(solution.inverter_model);
+  });
+
+  it('overrides available energy with usefulEnergyWhPerBattery x battery_quantity when given', () => {
+    const solution = makeSolution({ available_energy_wh: 9999, battery_quantity: 2 });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: 5220,
+      pvPowerKw: null,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+    });
+    expect(payload.availableEnergyWh).toBe(10440);
+    expect(payload.pvPowerKw).toBeNull();
+  });
+
+  it('rounds pvPowerKw up to one decimal place', () => {
+    const solution = makeSolution();
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: 1.23,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+    });
+    expect(payload.pvPowerKw).toBe(1.3);
+  });
+
+  it('applies matching accessory rules on top of the solution own accessories, deduped and labeled', () => {
+    const solution = makeSolution({ accessories: [{ model: 'X1-Matebox Advanced', quantity: 1 }] });
+    const matchingRule = makeRule({
+      quantity_per_match: 2,
+      inclusion: 'optional',
+      accessories: { model: 'Smart Meter - M1-40' },
+    });
+    const nonMatchingRule = makeRule({
+      inverter_models: ['some-other-inverter'],
+      accessories: { model: 'Should Not Appear' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [matchingRule, nonMatchingRule],
+      standardGridTopology: '1P_220V',
+    });
+    expect(payload.accessories).toContain('X1-Matebox Advanced');
+    expect(payload.accessories).toContain('Smart Meter - M1-40 x2 (opcional)');
+    expect(payload.accessories.some((a) => a.includes('Should Not Appear'))).toBe(false);
+  });
+
+  it('does not duplicate an accessory already present in the solution', () => {
+    const solution = makeSolution({ accessories: [{ model: 'Smart Meter - M1-40', quantity: 1 }] });
+    const rule = makeRule({ accessories: { model: 'Smart Meter - M1-40' } });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+    });
+    expect(payload.accessories.filter((a) => a.includes('Smart Meter')).length).toBe(1);
+  });
+
+  it('merges the solution own comments with automatic comments from matching rules, deduped', () => {
+    const solution = makeSolution({ comments: ['comentário original'] });
+    const rule = makeRule({ comment: 'comentário automático' });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+    });
+    expect(payload.comments).toContain('comentário original');
+    expect(payload.comments).toContain('comentário automático');
   });
 });
 

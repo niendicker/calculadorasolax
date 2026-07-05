@@ -1,6 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
   batteryTopologyMap,
+  buildSolutionPayload,
   clampNumber,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
@@ -9,7 +10,6 @@ import {
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
   requiredInverterFlags,
-  ruleMatches,
   standardGridTopologyMap,
   totalDailyKwh,
   totalNominalW,
@@ -245,20 +245,10 @@ Deno.serve(async (req) => {
     }
 
     const solution = compatibleSolutions[0] as ApprovedSolution;
-    const availableEnergyWh =
-      usefulEnergyWhPerBattery === null
-        ? solution.available_energy_wh
-        : Math.round(usefulEnergyWhPerBattery * solution.battery_quantity);
 
     // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average); null when
     // the customer opted out of PV sizing via the 'no_pv' desired feature.
     const pvPowerKw = desiredFeatures.includes('no_pv') ? null : dailyKwh / 4;
-
-    const accessories = solution.accessories
-      .filter((accessory) => accessory.model && accessory.quantity > 0)
-      .map((accessory) =>
-        accessory.quantity > 1 ? `${accessory.model} x${accessory.quantity}` : accessory.model!
-      );
 
     const { data: rules, error: rulesErr } = await supabase
       .from('accessory_rules')
@@ -286,48 +276,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'accessory_rules_lookup_failed' }, { status: 500 });
     }
 
-    const normalizedAccessoryModels = new Set(
-      accessories.map((accessory) => accessory.replace(/ x\d+$/, '').toLowerCase())
-    );
-    const automaticComments: string[] = [];
+    const accessoryRules = (rules ?? []) as unknown as AccessoryRule[];
 
-    for (const rule of (rules ?? []) as unknown as AccessoryRule[]) {
-      if (!rule.accessories?.model || !ruleMatches(solution, rule, standardGridTopology)) continue;
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery,
+      pvPowerKw,
+      accessoryRules,
+      standardGridTopology,
+    });
 
-      const normalizedModel = rule.accessories.model.toLowerCase();
-      const label =
-        rule.quantity_per_match > 1
-          ? `${rule.accessories.model} x${rule.quantity_per_match}`
-          : rule.accessories.model;
-
-      if (!normalizedAccessoryModels.has(normalizedModel)) {
-        accessories.push(rule.inclusion === 'optional' ? `${label} (opcional)` : label);
-        normalizedAccessoryModels.add(normalizedModel);
-      }
-
-      if (rule.comment) automaticComments.push(rule.comment);
-    }
-
-    return jsonResponse(
-      {
-        solutionId: solution.id,
-        solutionCode: solution.solution_code,
-        sourceFile: solution.source_file,
-        inverterId: solution.id,
-        inverterModel: solution.inverter_model,
-        inverterQty: solution.inverter_quantity,
-        inverterRatedPowerW: solution.rated_power_w,
-        inverterPeakPowerW: solution.peak_power_w,
-        batteryId: solution.id,
-        batteryModel: solution.battery_model,
-        batteryQty: solution.battery_quantity,
-        batteryPowerW: solution.battery_power_w,
-        availableEnergyWh,
-        pvPowerKw: pvPowerKw === null ? null : Math.ceil(pvPowerKw * 10) / 10,
-        accessories,
-        comments: Array.from(new Set([...solution.comments, ...automaticComments])),
-      }
-    );
+    return jsonResponse(payload);
   } catch (err) {
     console.error(err);
     return jsonResponse({ error: 'internal' }, { status: 500 });

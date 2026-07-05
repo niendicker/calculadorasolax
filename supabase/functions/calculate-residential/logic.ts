@@ -278,6 +278,89 @@ export function ruleMatches(
   return ruleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
 }
 
+export interface SolutionPayload {
+  solutionId: string;
+  solutionCode: string;
+  sourceFile: string;
+  inverterId: string;
+  inverterModel: string;
+  inverterQty: number;
+  inverterRatedPowerW: number;
+  inverterPeakPowerW: number;
+  batteryId: string;
+  batteryModel: string;
+  batteryQty: number;
+  batteryPowerW: number;
+  availableEnergyWh: number;
+  pvPowerKw: number | null;
+  accessories: string[];
+  comments: string[];
+}
+
+/** Builds the full response payload for one chosen ApprovedSolution: resolves
+ * available energy (per-battery-model override or the solution's own
+ * figure), rounds pvPowerKw, and applies every matching accessory_rules row
+ * (already fetched by the caller) to extend the solution's own accessories/
+ * comments. Pure and reusable so the microgrid "economic vs with-microgrid"
+ * choice can build two payloads from a single accessory_rules fetch. */
+export function buildSolutionPayload(
+  solution: ApprovedSolution,
+  params: {
+    usefulEnergyWhPerBattery: number | null;
+    pvPowerKw: number | null;
+    accessoryRules: AccessoryRule[];
+    standardGridTopology: StandardGridTopology;
+  }
+): SolutionPayload {
+  const availableEnergyWh =
+    params.usefulEnergyWhPerBattery === null
+      ? solution.available_energy_wh
+      : Math.round(params.usefulEnergyWhPerBattery * solution.battery_quantity);
+
+  const accessories = solution.accessories
+    .filter((accessory) => accessory.model && accessory.quantity > 0)
+    .map((accessory) => (accessory.quantity > 1 ? `${accessory.model} x${accessory.quantity}` : accessory.model!));
+
+  const normalizedAccessoryModels = new Set(
+    accessories.map((accessory) => accessory.replace(/ x\d+$/, '').toLowerCase())
+  );
+  const automaticComments: string[] = [];
+
+  for (const rule of params.accessoryRules) {
+    if (!rule.accessories?.model || !ruleMatches(solution, rule, params.standardGridTopology)) continue;
+
+    const normalizedModel = rule.accessories.model.toLowerCase();
+    const label =
+      rule.quantity_per_match > 1 ? `${rule.accessories.model} x${rule.quantity_per_match}` : rule.accessories.model;
+
+    if (!normalizedAccessoryModels.has(normalizedModel)) {
+      accessories.push(rule.inclusion === 'optional' ? `${label} (opcional)` : label);
+      normalizedAccessoryModels.add(normalizedModel);
+    }
+
+    if (rule.comment) automaticComments.push(rule.comment);
+  }
+
+  return {
+    solutionId: solution.id,
+    solutionCode: solution.solution_code,
+    sourceFile: solution.source_file,
+    inverterId: solution.id,
+    inverterModel: solution.inverter_model,
+    inverterQty: solution.inverter_quantity,
+    inverterRatedPowerW: solution.rated_power_w,
+    inverterPeakPowerW: solution.peak_power_w,
+    batteryId: solution.id,
+    batteryModel: solution.battery_model,
+    batteryQty: solution.battery_quantity,
+    batteryPowerW: solution.battery_power_w,
+    availableEnergyWh,
+    pvPowerKw: params.pvPowerKw === null ? null : Math.ceil(params.pvPowerKw * 10) / 10,
+    accessories,
+    comments: Array.from(new Set([...solution.comments, ...automaticComments])),
+  };
+}
+
 export const VALID_TOPOLOGIES: ResidentialOptions['topology'][] = ['HighVoltage', 'LowVoltage'];
 export const VALID_GRID_TYPES: ResidentialOptions['gridType'][] = [
   'singlePhase_220',
