@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
+  requiredInverterFlags,
   ruleMatches,
   totalDailyKwh,
   totalNominalW,
@@ -209,6 +211,34 @@ describe('ruleMatches', () => {
     const solution = makeSolution({ battery_quantity: 3 });
     const rule = makeRule({ trigger_metric: 'battery_quantity', min_quantity: 2 });
     expect(ruleMatches(solution, rule, '1P_220V')).toBe(true);
+  });
+});
+
+describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
+  it('returns no required flags when no desired feature maps to one', () => {
+    expect(requiredInverterFlags([])).toEqual([]);
+    expect(requiredInverterFlags(['no_pv', 'white_tariff'])).toEqual([]);
+  });
+
+  it('collects the inverter flag for each flag-based desired feature', () => {
+    expect(requiredInverterFlags(['external_ats'])).toEqual(['external_ats']);
+    expect(new Set(requiredInverterFlags(['external_ats', 'microgrid', 'no_pv']))).toEqual(
+      new Set(['external_ats', 'microgrid'])
+    );
+  });
+
+  it('is satisfied with no required flags regardless of the inverter', () => {
+    expect(inverterSatisfiesRequiredFlags(null, [])).toBe(true);
+    expect(inverterSatisfiesRequiredFlags(undefined, [])).toBe(true);
+    expect(inverterSatisfiesRequiredFlags([], [])).toBe(true);
+  });
+
+  it('requires every requested flag to be present', () => {
+    expect(inverterSatisfiesRequiredFlags(['external_ats'], ['external_ats'])).toBe(true);
+    expect(inverterSatisfiesRequiredFlags(['external_ats', 'microgrid'], ['external_ats', 'microgrid'])).toBe(true);
+    expect(inverterSatisfiesRequiredFlags(['external_ats'], ['external_ats', 'microgrid'])).toBe(false);
+    expect(inverterSatisfiesRequiredFlags(null, ['external_ats'])).toBe(false);
+    expect(inverterSatisfiesRequiredFlags([], ['external_ats'])).toBe(false);
   });
 });
 

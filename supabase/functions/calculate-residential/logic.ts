@@ -34,6 +34,24 @@ export const DESIRED_FEATURE_DEFINITIONS: { id: DesiredFeatureId; requiresInvert
 
 export const VALID_DESIRED_FEATURES: DesiredFeatureId[] = DESIRED_FEATURE_DEFINITIONS.map((f) => f.id);
 
+/** The inverter flags a set of desired features requires — features without
+ * a requiresInverterFlag (e.g. 'no_pv', 'white_tariff') contribute nothing here. */
+export function requiredInverterFlags(desiredFeatures: DesiredFeatureId[]): InverterFlag[] {
+  return DESIRED_FEATURE_DEFINITIONS.filter(
+    (feature) => desiredFeatures.includes(feature.id) && feature.requiresInverterFlag
+  ).map((feature) => feature.requiresInverterFlag!);
+}
+
+/** Whether an inverter's flags satisfy every required flag. */
+export function inverterSatisfiesRequiredFlags(
+  inverterFlags: string[] | null | undefined,
+  required: InverterFlag[]
+): boolean {
+  if (required.length === 0) return true;
+  const flags = new Set(inverterFlags ?? []);
+  return required.every((flag) => flags.has(flag));
+}
+
 /** Mirrors lib/types.ts WhiteTariffConfig. */
 export interface WhiteTariffConfig {
   requiredPowerW: number;

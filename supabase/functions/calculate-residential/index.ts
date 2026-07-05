@@ -3,8 +3,10 @@ import {
   batteryTopologyMap,
   clampNumber,
   gridTopologyMap,
+  inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
+  requiredInverterFlags,
   ruleMatches,
   standardGridTopologyMap,
   totalDailyKwh,
@@ -158,6 +160,36 @@ Deno.serve(async (req) => {
 
       if (!compatibleSolutions.length) {
         return jsonResponse({ error: 'no_approved_solution' }, { status: 422 });
+      }
+    }
+
+    const requiredFlags = requiredInverterFlags(options.desiredFeatures ?? []);
+
+    if (requiredFlags.length > 0) {
+      const candidateInverterModels = Array.from(
+        new Set(compatibleSolutions.map((solution) => solution.inverter_model))
+      );
+
+      const { data: candidateInverters, error: inverterErr } = await supabase
+        .from('inverters')
+        .select('model, flags')
+        .in('model', candidateInverterModels);
+
+      if (inverterErr) {
+        console.error(inverterErr);
+        return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
+      }
+
+      const matchingModels = new Set(
+        ((candidateInverters ?? []) as { model: string; flags: string[] | null }[])
+          .filter((inverter) => inverterSatisfiesRequiredFlags(inverter.flags, requiredFlags))
+          .map((inverter) => inverter.model)
+      );
+
+      compatibleSolutions = compatibleSolutions.filter((solution) => matchingModels.has(solution.inverter_model));
+
+      if (!compatibleSolutions.length) {
+        return jsonResponse({ error: 'no_solution_matches_desired_features' }, { status: 422 });
       }
     }
 
