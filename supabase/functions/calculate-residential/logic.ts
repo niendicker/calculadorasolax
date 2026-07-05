@@ -52,6 +52,25 @@ export function inverterSatisfiesRequiredFlags(
   return required.every((flag) => flags.has(flag));
 }
 
+/** Whether a solution can coexist with the on-grid system described by
+ * microgrid: the on-grid apparent power must stay under both the inverter's
+ * rated power and the battery bank's power, and — when the inverter declares
+ * a per-phase limit — under that limit once split across the on-grid
+ * system's own phases (avoids overloading a single phase). */
+export function solutionSupportsMicrogrid(
+  solution: ApprovedSolution,
+  inverterMaxPowerPerPhaseW: number | null,
+  microgrid: MicrogridConfig
+): boolean {
+  if (microgrid.onGridApparentPowerVA >= solution.rated_power_w) return false;
+  if (microgrid.onGridApparentPowerVA >= solution.battery_power_w) return false;
+  if (inverterMaxPowerPerPhaseW !== null) {
+    const perPhaseVA = microgrid.onGridApparentPowerVA / microgrid.onGridPhases;
+    if (perPhaseVA >= inverterMaxPowerPerPhaseW) return false;
+  }
+  return true;
+}
+
 /** Minimum power the recommended inverter must sustain: the household's normal
  * peak, or the white-tariff window's required power if that's higher. */
 export function effectiveTargetPowerW(

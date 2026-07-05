@@ -8,6 +8,7 @@ import {
   normalizeStandardGridTopology,
   requiredInverterFlags,
   ruleMatches,
+  solutionSupportsMicrogrid,
   totalDailyKwh,
   totalNominalW,
   totalPeakW,
@@ -15,6 +16,7 @@ import {
   type AccessoryRule,
   type ApprovedSolution,
   type EssCompatibilityRule,
+  type MicrogridConfig,
   type SingleLoad,
   type WhiteTariffConfig,
 } from './logic';
@@ -339,6 +341,47 @@ describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
     expect(inverterSatisfiesRequiredFlags(['external_ats'], ['external_ats', 'microgrid'])).toBe(false);
     expect(inverterSatisfiesRequiredFlags(null, ['external_ats'])).toBe(false);
     expect(inverterSatisfiesRequiredFlags([], ['external_ats'])).toBe(false);
+  });
+});
+
+describe('solutionSupportsMicrogrid', () => {
+  function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig {
+    return {
+      onGridPhases: 1,
+      onGridApparentPowerVA: 1000,
+      isFundamentalRequirement: false,
+      ...partial,
+    };
+  }
+
+  it('accepts when on-grid power is comfortably below inverter and battery power', () => {
+    const solution = makeSolution({ rated_power_w: 5000, battery_power_w: 2800 });
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 1000 }))).toBe(true);
+  });
+
+  it('rejects when on-grid power is at or above the inverter rated power', () => {
+    const solution = makeSolution({ rated_power_w: 5000, battery_power_w: 8000 });
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 5000 }))).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 6000 }))).toBe(false);
+  });
+
+  it('rejects when on-grid power is at or above the battery power', () => {
+    const solution = makeSolution({ rated_power_w: 8000, battery_power_w: 2800 });
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 2800 }))).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 3000 }))).toBe(false);
+  });
+
+  it('ignores the per-phase check when the inverter has no max_power_per_phase_w', () => {
+    const solution = makeSolution({ rated_power_w: 5000, battery_power_w: 8000 });
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 4000, onGridPhases: 1 }))).toBe(true);
+  });
+
+  it('rejects when the on-grid power divided by phases is at or above max_power_per_phase_w', () => {
+    const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
+    // 3000 VA / 3 phases = 1000 VA per phase, right at the 1000 W limit
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }))).toBe(false);
+    // 2999 VA / 3 phases < 1000 W limit
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2999, onGridPhases: 3 }))).toBe(true);
   });
 });
 

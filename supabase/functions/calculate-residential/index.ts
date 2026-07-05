@@ -10,6 +10,7 @@ import {
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
   requiredInverterFlags,
+  solutionSupportsMicrogrid,
   standardGridTopologyMap,
   totalDailyKwh,
   totalNominalW,
@@ -21,6 +22,12 @@ import {
   type EssCompatibilityRule,
   type ResidentialOptions,
 } from './logic.ts';
+
+interface InverterCapabilities {
+  model: string;
+  flags: string[] | null;
+  max_power_per_phase_w: number | null;
+}
 
 // Every response — success or error — must carry this header: the browser
 // enforces CORS on the actual response, not just the OPTIONS preflight, so
@@ -169,7 +176,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    const requiredFlags = requiredInverterFlags(desiredFeatures);
+    const microgridSelected = desiredFeatures.includes('microgrid');
+    const microgridConfig = microgridSelected ? options.microgrid : null;
+    const microgridIsFundamental = microgridConfig?.isFundamentalRequirement ?? false;
+
+    // When microgrid is selected but not a hard requirement, the baseline
+    // ("economic") recommendation below is computed without it — the
+    // dedicated microgrid block further down decides whether to also offer
+    // a microgrid-compatible alternative on top of this baseline.
+    const hardFilterFeatures =
+      microgridSelected && !microgridIsFundamental
+        ? desiredFeatures.filter((feature) => feature !== 'microgrid')
+        : desiredFeatures;
+
+    const requiredFlags = requiredInverterFlags(hardFilterFeatures);
 
     if (requiredFlags.length > 0) {
       const candidateInverterModels = Array.from(
@@ -178,7 +198,7 @@ Deno.serve(async (req) => {
 
       const { data: candidateInverters, error: inverterErr } = await supabase
         .from('inverters')
-        .select('model, flags')
+        .select('model, flags, max_power_per_phase_w')
         .in('model', candidateInverterModels);
 
       if (inverterErr) {
@@ -187,7 +207,7 @@ Deno.serve(async (req) => {
       }
 
       const matchingModels = new Set(
-        ((candidateInverters ?? []) as { model: string; flags: string[] | null }[])
+        ((candidateInverters ?? []) as InverterCapabilities[])
           .filter((inverter) => inverterSatisfiesRequiredFlags(inverter.flags, requiredFlags))
           .map((inverter) => inverter.model)
       );
@@ -244,6 +264,51 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'no_compatible_ess_rule' }, { status: 422 });
     }
 
+    // Microgrid compatibility is checked last, against whatever already
+    // satisfies every other requirement — it needs the inverter's own
+    // max_power_per_phase_w, which the generic flag-filter above may not have
+    // fetched (e.g. when microgrid was excluded from hardFilterFeatures, or
+    // when it's the only flag-based feature selected).
+    let microgridAlternativeSolution: ApprovedSolution | null = null;
+
+    if (microgridConfig) {
+      const candidateModels = Array.from(new Set(compatibleSolutions.map((solution) => solution.inverter_model)));
+
+      const { data: microgridInverters, error: microgridInverterErr } = await supabase
+        .from('inverters')
+        .select('model, flags, max_power_per_phase_w')
+        .in('model', candidateModels);
+
+      if (microgridInverterErr) {
+        console.error(microgridInverterErr);
+        return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
+      }
+
+      const inverterByModel = new Map(
+        ((microgridInverters ?? []) as InverterCapabilities[]).map((inverter) => [inverter.model, inverter])
+      );
+
+      const microgridCompatibleSolutions = compatibleSolutions.filter((candidate) => {
+        const inverter = inverterByModel.get(candidate.inverter_model);
+        if (!inverter) return false;
+        if (!inverterSatisfiesRequiredFlags(inverter.flags, ['microgrid'])) return false;
+        return solutionSupportsMicrogrid(candidate, inverter.max_power_per_phase_w, microgridConfig);
+      });
+
+      if (microgridIsFundamental) {
+        if (!microgridCompatibleSolutions.length) {
+          return jsonResponse({ error: 'no_solution_matches_desired_features' }, { status: 422 });
+        }
+        compatibleSolutions = microgridCompatibleSolutions;
+      } else {
+        const economicTop = compatibleSolutions[0];
+        const microgridTop = microgridCompatibleSolutions[0] ?? null;
+        if (microgridTop && microgridTop.id !== economicTop.id) {
+          microgridAlternativeSolution = microgridTop;
+        }
+      }
+    }
+
     const solution = compatibleSolutions[0] as ApprovedSolution;
 
     // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average); null when
@@ -284,6 +349,16 @@ Deno.serve(async (req) => {
       accessoryRules,
       standardGridTopology,
     });
+
+    if (microgridAlternativeSolution) {
+      const microgridAlternative = buildSolutionPayload(microgridAlternativeSolution, {
+        usefulEnergyWhPerBattery,
+        pvPowerKw,
+        accessoryRules,
+        standardGridTopology,
+      });
+      return jsonResponse({ ...payload, microgridAlternative });
+    }
 
     return jsonResponse(payload);
   } catch (err) {
