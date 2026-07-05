@@ -4,7 +4,7 @@ Este documento lista melhorias identificadas no projeto, em formato acionavel pa
 
 ## Status
 
-6 de 14 itens concluidos: #1, #2, #3, #10, #11, #13. Os demais (#4-#9, #12, #14) seguem pendentes.
+7 de 14 itens concluidos: #1, #2, #3, #4, #10, #11, #13. Os demais (#5-#9, #12, #14) seguem pendentes.
 
 ## Prioridade 1 - Seguranca
 
@@ -70,7 +70,7 @@ Criterio de aceite:
 
 Resolvido em: `fetchProjects`, `fetchClients`, `fetchUserLoadCatalog` e `saveManualLoadToCatalog` agora lancam excecao em erro (`if (error) throw error`), no mesmo padrao ja usado por `addClient`/`updateClient`/`removeClient`/`removeProject`. No `SinglePageApp.tsx`, o carregamento inicial (`fetchClients`/`fetchProjects`/`fetchUserLoadCatalog`) ganhou try/catch com banner de erro + botao "Tentar novamente" visivel em qualquer aba. `ClientsTab` e `UserLoadCatalogSection` (Minhas Cargas) ganharam estado de erro proprio, exibido no formulario, com o formulario permanecendo aberto e os dados digitados preservados quando o salvamento falha — esse mesmo gap (write que falha silenciosamente) ja existia hoje para clientes, mesmo essas funcoes ja lancando excecao, porque a UI nao capturava o erro. O salvamento automatico de carga manual no catalogo pessoal (`LoadSelector.tsx`, best-effort, nao bloqueia o calculo) ganhou um aviso nao bloqueante quando falha. Verificado no browser com `page.setRequestInterception` simulando falha de rede: banner aparece, formulario preserva o texto digitado, e o botao "Tentar novamente" recupera o estado quando a rede volta.
 
-### 4. Criar fila/retry para metricas de dimensionamento
+### 4. [CONCLUIDO] Criar fila/retry para metricas de dimensionamento
 
 Arquivo de referencia: `components/app/SinglePageApp.tsx`
 
@@ -87,6 +87,8 @@ Criterio de aceite:
 - Se o insert falhar, a metrica fica pendente localmente.
 - Ao recuperar conexao, metricas pendentes sao reenviadas.
 - O dimensionamento nao fica bloqueado por falha na metrica.
+
+Resolvido em: novo modulo `lib/metrics-queue.ts` com fila em `localStorage` (`enqueuePendingSimulation`, `flushPendingSimulations`, capada em 50 entradas, descartando as mais antigas). `SinglePageApp.tsx` enfileira a métrica quando o insert falha, e tenta reenviar tudo no carregamento inicial do app e no evento `online` do browser. Um guard de concorrência (`flushInFlight`) evita reenvio duplicado quando duas flushes se sobrepõem (ex.: mount + online quase juntos). Esse guard revelou um bug real durante os testes: `try/finally` dentro de uma função async sem nenhum `await` interno (o caminho de fila vazia) roda de forma totalmente sincrona, entao `flushInFlight = null` no finally era sobrescrito pela propria atribuicao `flushInFlight = (...)()` logo em seguida — a fila ficava "travada" permanentemente apos a primeira checagem com fila vazia. Corrigido usando `.finally()` encadeado na promise (callback sempre roda em microtask, nunca sincrono). 9 testes em `lib/metrics-queue.test.ts`, incluindo um especifico para o caso de concorrencia. Verificado no browser com `page.setRequestInterception` (falha vira entrada na fila) e com fila semeada manualmente + reload (flush unico, sem duplicar insercao — confirmado via contagem de POST e limpeza da linha de teste no banco).
 
 ### 5. Melhorar mensagens de erro do calculo
 

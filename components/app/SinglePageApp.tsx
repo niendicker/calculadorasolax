@@ -38,6 +38,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { createClient } from '@/lib/supabase/client';
+import { enqueuePendingSimulation, flushPendingSimulations } from '@/lib/metrics-queue';
 import { useWizardStore, totalDailyKwh, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import type {
   BatteryTopology,
@@ -268,6 +269,8 @@ export function SinglePageApp() {
         } catch {
           setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');
         }
+
+        flushPendingSimulations(supabase).catch((err) => console.error(err));
       }
 
       if (catalogData) {
@@ -341,6 +344,14 @@ export function SinglePageApp() {
 
     loadInitialData();
   }, [setLoadCatalog, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog]);
+
+  useEffect(() => {
+    function handleOnline() {
+      flushPendingSimulations(supabase).catch((err) => console.error(err));
+    }
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [supabase]);
 
   async function retryUserData() {
     try {
@@ -461,7 +472,7 @@ export function SinglePageApp() {
       setSolution(nextSolution);
 
       const { data: userData } = await supabase.auth.getUser();
-      const { error: simulationError } = await supabase.from('app_simulations').insert({
+      const simulationPayload = {
         user_id: userData.user?.id ?? null,
         project_name: projectInfo.name || null,
         topology: residentialOptions.topology,
@@ -473,9 +484,13 @@ export function SinglePageApp() {
         battery_model: nextSolution.batteryModel,
         accessories: nextSolution.accessories,
         solution_code: nextSolution.solutionCode ?? null,
-      });
+      };
+      const { error: simulationError } = await supabase.from('app_simulations').insert(simulationPayload);
 
-      if (simulationError) console.error(simulationError);
+      if (simulationError) {
+        console.error(simulationError);
+        enqueuePendingSimulation(simulationPayload);
+      }
     } catch (err) {
       console.error(err);
       setSolution(null);
