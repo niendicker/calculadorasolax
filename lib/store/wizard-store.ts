@@ -230,6 +230,7 @@ export const useWizardStore = create<WizardStore>()(
               notes: project.notes,
             },
             residentialOptions: {
+              ...defaultResidential,
               ...project.residentialOptions,
               loads: project.residentialOptions.loads.map((load) => ({ ...load })),
             },
@@ -571,6 +572,19 @@ export const useWizardStore = create<WizardStore>()(
         solution: state.solution,
         loadCatalog: state.loadCatalog,
       }),
+      // Zustand's default merge only shallow-merges top-level keys, so a
+      // browser with residentialOptions/industrialOptions persisted before a
+      // field was added (e.g. desiredFeatures/whiteTariff) would end up with
+      // that field missing entirely instead of falling back to its default.
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<WizardStore>;
+        return {
+          ...currentState,
+          ...persisted,
+          residentialOptions: { ...currentState.residentialOptions, ...persisted.residentialOptions },
+          industrialOptions: { ...currentState.industrialOptions, ...persisted.industrialOptions },
+        };
+      },
     }
   )
 );
