@@ -13,6 +13,35 @@ export interface SingleLoad {
 
 export type PeakCalcMode = 'sum' | 'largest-surge';
 
+/** Mirrors lib/types.ts InverterFlag — kept in sync manually since this file
+ * runs on Deno and can't import from the Next.js app. */
+export type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats' | 'external_generator';
+
+/** Mirrors lib/types.ts DesiredFeatureId. */
+export type DesiredFeatureId = 'external_ats' | 'microgrid' | 'external_generator' | 'no_pv' | 'white_tariff';
+
+/** Mirrors lib/desired-features.ts DESIRED_FEATURE_DEFINITIONS — add a new
+ * flag-based requirement by adding one entry here (and the matching entry in
+ * the app-side registry); the solution-filtering code loops over this
+ * generically and needs no changes for a new flag-based feature. */
+export const DESIRED_FEATURE_DEFINITIONS: { id: DesiredFeatureId; requiresInverterFlag?: InverterFlag }[] = [
+  { id: 'external_ats', requiresInverterFlag: 'external_ats' },
+  { id: 'microgrid', requiresInverterFlag: 'microgrid' },
+  { id: 'external_generator', requiresInverterFlag: 'external_generator' },
+  { id: 'no_pv' },
+  { id: 'white_tariff' },
+];
+
+export const VALID_DESIRED_FEATURES: DesiredFeatureId[] = DESIRED_FEATURE_DEFINITIONS.map((f) => f.id);
+
+/** Mirrors lib/types.ts WhiteTariffConfig. */
+export interface WhiteTariffConfig {
+  requiredPowerW: number;
+  requiredEnergyWh: number;
+  includeBackupReserve: boolean;
+  tariffSpreadPerKwh: number;
+}
+
 export interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
   batteryModel: string | null;
@@ -20,7 +49,8 @@ export interface ResidentialOptions {
   gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
   loads: SingleLoad[];
   peakCalcMode?: PeakCalcMode;
-  microGrid: 'Gerador' | 'Microinversor' | 'Desabilitada' | null;
+  desiredFeatures: DesiredFeatureId[];
+  whiteTariff: WhiteTariffConfig | null;
 }
 
 export interface ApprovedSolution {
@@ -197,11 +227,6 @@ export const VALID_GRID_TYPES: ResidentialOptions['gridType'][] = [
   'threePhase_380',
 ];
 export const VALID_PEAK_CALC_MODES: PeakCalcMode[] = ['sum', 'largest-surge'];
-export const VALID_MICRO_GRID: NonNullable<ResidentialOptions['microGrid']>[] = [
-  'Gerador',
-  'Microinversor',
-  'Desabilitada',
-];
 
 /** Validates the untrusted JSON body before it is treated as ResidentialOptions.
  * Returns a list of human-readable issues; an empty list means the payload is valid. */
@@ -237,12 +262,34 @@ export function validateResidentialOptions(raw: unknown): string[] {
     errors.push('peakCalcMode must be one of: ' + VALID_PEAK_CALC_MODES.join(', '));
   }
 
-  if (
-    options.microGrid !== undefined &&
-    options.microGrid !== null &&
-    !VALID_MICRO_GRID.includes(options.microGrid as NonNullable<ResidentialOptions['microGrid']>)
-  ) {
-    errors.push('microGrid must be one of: ' + VALID_MICRO_GRID.join(', ') + ', or null');
+  if (options.desiredFeatures !== undefined) {
+    if (!Array.isArray(options.desiredFeatures)) {
+      errors.push('desiredFeatures must be an array');
+    } else if (options.desiredFeatures.some((f) => !VALID_DESIRED_FEATURES.includes(f as DesiredFeatureId))) {
+      errors.push('desiredFeatures must only contain: ' + VALID_DESIRED_FEATURES.join(', '));
+    }
+  }
+
+  const desiredFeatures = Array.isArray(options.desiredFeatures) ? (options.desiredFeatures as unknown[]) : [];
+
+  if (desiredFeatures.includes('white_tariff')) {
+    const whiteTariff = options.whiteTariff as Record<string, unknown> | null | undefined;
+    if (!whiteTariff || typeof whiteTariff !== 'object') {
+      errors.push('whiteTariff is required when desiredFeatures includes white_tariff');
+    } else {
+      if (typeof whiteTariff.requiredPowerW !== 'number' || whiteTariff.requiredPowerW < 0) {
+        errors.push('whiteTariff.requiredPowerW must be a number >= 0');
+      }
+      if (typeof whiteTariff.requiredEnergyWh !== 'number' || whiteTariff.requiredEnergyWh < 0) {
+        errors.push('whiteTariff.requiredEnergyWh must be a number >= 0');
+      }
+      if (typeof whiteTariff.includeBackupReserve !== 'boolean') {
+        errors.push('whiteTariff.includeBackupReserve must be a boolean');
+      }
+      if (typeof whiteTariff.tariffSpreadPerKwh !== 'number' || whiteTariff.tariffSpreadPerKwh < 0) {
+        errors.push('whiteTariff.tariffSpreadPerKwh must be a number >= 0');
+      }
+    }
   }
 
   if (!Array.isArray(options.loads) || options.loads.length === 0) {

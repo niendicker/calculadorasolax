@@ -564,13 +564,15 @@ function ResultSummary({
         <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
-      <div className="rounded-lg border bg-background p-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Sun className="h-4 w-4 text-primary" />
-          FV recomendado
+      {solution.pvPowerKw !== null && (
+        <div className="rounded-lg border bg-background p-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Sun className="h-4 w-4 text-primary" />
+            FV recomendado
+          </div>
+          <p className="mt-1 text-lg font-semibold">{solution.pvPowerKw.toFixed(2)} kWp</p>
         </div>
-        <p className="mt-1 text-lg font-semibold">{solution.pvPowerKw.toFixed(2)} kWp</p>
-      </div>
+      )}
 
       {solution.accessories.length > 0 && (
         <div className="rounded-lg border bg-background p-3">

@@ -7,9 +7,9 @@ import type {
   BatteryTopology,
   CatalogItem,
   Client,
+  DesiredFeatureId,
   IndustrialOptions,
   LoadPhase,
-  MicroGridOptions,
   PeakCalcMode,
   ProjectInfo,
   ResidentialGridType,
@@ -18,6 +18,7 @@ import type {
   SingleLoad,
   Solution,
   UserLoadCatalogItem,
+  WhiteTariffConfig,
 } from '@/lib/types';
 
 interface WizardStore {
@@ -54,7 +55,8 @@ interface WizardStore {
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setMaxPowerPerPhaseW: (maxPowerPerPhaseW: number | null) => void;
-  setMicroGrid: (microGrid: MicroGridOptions) => void;
+  setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
+  setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
   addLoad: (load: SingleLoad) => void;
   removeLoad: (id: string) => void;
@@ -83,7 +85,8 @@ const defaultResidential: ResidentialOptions = {
   gridType: null,
   loads: [],
   peakCalcMode: 'sum',
-  microGrid: null,
+  desiredFeatures: [],
+  whiteTariff: null,
   maxPowerPerPhaseW: null,
 };
 
@@ -419,9 +422,18 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, maxPowerPerPhaseW },
         })),
 
-      setMicroGrid: (microGrid) =>
+      setDesiredFeatures: (desiredFeatures) =>
         set((s) => ({
-          residentialOptions: { ...s.residentialOptions, microGrid },
+          residentialOptions: {
+            ...s.residentialOptions,
+            desiredFeatures,
+            whiteTariff: desiredFeatures.includes('white_tariff') ? s.residentialOptions.whiteTariff : null,
+          },
+        })),
+
+      setWhiteTariffConfig: (whiteTariff) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, whiteTariff },
         })),
 
       setPeakCalcMode: (peakCalcMode) =>

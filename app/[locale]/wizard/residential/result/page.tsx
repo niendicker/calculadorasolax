@@ -68,17 +68,19 @@ export default function ResultPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <Sun className="h-4 w-4 text-yellow-500" />
-              <CardTitle className="text-base">{t('pv_power')}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{solution.pvPowerKw.toFixed(2)} kWp</p>
-          </CardContent>
-        </Card>
+        {solution.pvPowerKw !== null && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Sun className="h-4 w-4 text-yellow-500" />
+                <CardTitle className="text-base">{t('pv_power')}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{solution.pvPowerKw.toFixed(2)} kWp</p>
+            </CardContent>
+          </Card>
+        )}
 
         {solution.accessories.length > 0 && (
           <Card>

@@ -9,14 +9,14 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import type { ProductDocument } from '@/lib/types';
+import type { BatteryFlag, InverterFlag, ProductDocument } from '@/lib/types';
+
+export type { BatteryFlag, InverterFlag };
 
 export type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'loads' | 'logs';
 
 export type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 export type GridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
-export type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats';
-export type BatteryFlag = 'ip65' | 'ip66';
 export type BatteryTopology = 'HV' | 'LV';
 export type Inclusion = 'required' | 'optional';
 export type TriggerMetric = 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
@@ -49,6 +49,7 @@ export const inverterFlagOptions: { value: InverterFlag; label: string }[] = [
   { value: 'super_backup', label: 'Super-Backup' },
   { value: 'dual_voltage', label: 'Dual Voltage' },
   { value: 'external_ats', label: 'ATS Externo' },
+  { value: 'external_generator', label: 'Gerador Externo' },
 ];
 
 export const inverterFlagLabels = new Map(

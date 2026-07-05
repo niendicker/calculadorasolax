@@ -114,12 +114,14 @@ export function PrintableReport({
                 {solution.availableEnergyWh ? `${(solution.availableEnergyWh / 1000).toFixed(2)} kWh disponíveis` : '-'}
               </td>
             </tr>
-            <tr>
-              <td className="border px-3 py-2">Potência FV recomendada</td>
-              <td className="border px-3 py-2">Arranjo fotovoltaico</td>
-              <td className="border px-3 py-2">-</td>
-              <td className="border px-3 py-2">{solution.pvPowerKw.toFixed(2)} kWp</td>
-            </tr>
+            {solution.pvPowerKw !== null && (
+              <tr>
+                <td className="border px-3 py-2">Potência FV recomendada</td>
+                <td className="border px-3 py-2">Arranjo fotovoltaico</td>
+                <td className="border px-3 py-2">-</td>
+                <td className="border px-3 py-2">{solution.pvPowerKw.toFixed(2)} kWp</td>
+              </tr>
+            )}
             {solution.accessories.map((accessory) => (
               <tr key={accessory}>
                 <td className="border px-3 py-2">Acessório</td>

@@ -220,7 +220,8 @@ describe('validateResidentialOptions', () => {
       inverterModel: null,
       gridType: 'singlePhase_220',
       loads: [{ powerW: 100, hoursPerDay: 2, qty: 1 }],
-      microGrid: null,
+      desiredFeatures: [],
+      whiteTariff: null,
     };
   }
 
@@ -297,11 +298,38 @@ describe('validateResidentialOptions', () => {
     expect(errors.some((e) => e.includes('peakCalcMode'))).toBe(true);
   });
 
-  it('accepts a null or omitted microGrid, and rejects an unknown one', () => {
-    expect(validateResidentialOptions({ ...validPayload(), microGrid: null })).toEqual([]);
-    const { microGrid: _drop, ...withoutMicroGrid } = validPayload();
-    expect(validateResidentialOptions(withoutMicroGrid)).toEqual([]);
-    const errors = validateResidentialOptions({ ...validPayload(), microGrid: 'Nuclear plant' });
-    expect(errors.some((e) => e.includes('microGrid'))).toBe(true);
+  it('accepts an empty or omitted desiredFeatures, and rejects an unknown one', () => {
+    expect(validateResidentialOptions({ ...validPayload(), desiredFeatures: [] })).toEqual([]);
+    const { desiredFeatures: _drop, ...withoutDesiredFeatures } = validPayload();
+    expect(validateResidentialOptions(withoutDesiredFeatures)).toEqual([]);
+    const errors = validateResidentialOptions({ ...validPayload(), desiredFeatures: ['nuclear_plant'] });
+    expect(errors.some((e) => e.includes('desiredFeatures'))).toBe(true);
+  });
+
+  it('requires a well-formed whiteTariff config when white_tariff is a desired feature', () => {
+    const missing = validateResidentialOptions({ ...validPayload(), desiredFeatures: ['white_tariff'] });
+    expect(missing.some((e) => e.includes('whiteTariff'))).toBe(true);
+
+    const valid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['white_tariff'],
+      whiteTariff: {
+        requiredPowerW: 2000,
+        requiredEnergyWh: 4000,
+        includeBackupReserve: true,
+        tariffSpreadPerKwh: 0.4,
+      },
+    });
+    expect(valid).toEqual([]);
+
+    const invalid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['white_tariff'],
+      whiteTariff: { requiredPowerW: -1, requiredEnergyWh: 'lots', includeBackupReserve: 'yes', tariffSpreadPerKwh: -0.4 },
+    });
+    expect(invalid.some((e) => e.includes('requiredPowerW'))).toBe(true);
+    expect(invalid.some((e) => e.includes('requiredEnergyWh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('includeBackupReserve'))).toBe(true);
+    expect(invalid.some((e) => e.includes('tariffSpreadPerKwh'))).toBe(true);
   });
 });

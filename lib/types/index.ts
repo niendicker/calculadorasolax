@@ -6,9 +6,36 @@ export type ResidentialGridType =
   | 'threePhase_220'
   | 'threePhase_380';
 
-export type MicroGridOptions = 'Gerador' | 'Microinversor' | 'Desabilitada';
-
 export type InstallationType = 'residential' | 'industrial';
+
+/** Flags describing a product's technical capabilities, set by admins on the
+ * catalog and matched against a customer's desired features when sizing. */
+export type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats' | 'external_generator';
+
+export type BatteryFlag = 'ip65' | 'ip66';
+
+/** Functional requirements the customer can opt into during sizing. Some map
+ * 1:1 to an InverterFlag (see DESIRED_FEATURE_DEFINITIONS in lib/desired-features.ts)
+ * and are enforced as a hard filter on the recommended inverter; others
+ * ('no_pv', 'white_tariff') change sizing/report behavior directly. */
+export type DesiredFeatureId =
+  | 'external_ats'
+  | 'microgrid'
+  | 'external_generator'
+  | 'no_pv'
+  | 'white_tariff';
+
+/** Extra sizing/report inputs only used when 'white_tariff' is a desired feature. */
+export interface WhiteTariffConfig {
+  /** Power the system must sustain during the white-tariff peak window (W). */
+  requiredPowerW: number;
+  /** Energy the battery must supply during the peak window (Wh). */
+  requiredEnergyWh: number;
+  /** When true, add the standard backup-energy reserve on top of requiredEnergyWh. */
+  includeBackupReserve: boolean;
+  /** Price difference between peak and off-peak tariff (R$/kWh), used only for the report's savings estimate. */
+  tariffSpreadPerKwh: number;
+}
 
 // How multiple loads' IP/IN ratios combine into the system's peak apparent power:
 // - 'sum': every load surges at once (nominal x IP/IN for all loads, conservative).
@@ -78,7 +105,9 @@ export interface ResidentialOptions {
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];
   peakCalcMode: PeakCalcMode;
-  microGrid: MicroGridOptions | null;
+  desiredFeatures: DesiredFeatureId[];
+  /** Only meaningful when 'white_tariff' is in desiredFeatures. */
+  whiteTariff: WhiteTariffConfig | null;
   /** Max power allowed per phase (W); null uses the suggested default (inverter power / phase count). */
   maxPowerPerPhaseW: number | null;
 }
@@ -120,7 +149,8 @@ export interface Solution {
   batteryQty: number;
   batteryPowerW?: number;
   availableEnergyWh?: number;
-  pvPowerKw: number;
+  /** null when the customer opted out of PV sizing ('no_pv' desired feature). */
+  pvPowerKw: number | null;
   accessories: string[];
   solutionId?: string;
   solutionCode?: string;
