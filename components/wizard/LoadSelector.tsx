@@ -932,7 +932,14 @@ function LoadCard({
   const voltageV = load.voltageV ?? 220;
   // A trifásica load draws from all three phases at once, so it can only be
   // rated at the network's phase-to-phase voltage, not the phase-neutral one.
-  const voltageOptions = phaseType === 'trifasica' && phaseToPhaseVoltages.length > 0 ? phaseToPhaseVoltages : validVoltages;
+  // A mono load on a 380V three-phase network is always phase-neutral (220V) here;
+  // 380V mono would need a phase-to-phase hookup, which this network doesn't offer as an option.
+  const voltageOptions =
+    phaseType === 'trifasica' && phaseToPhaseVoltages.length > 0
+      ? phaseToPhaseVoltages
+      : gridType === 'threePhase_380' && phaseType === 'mono'
+        ? validVoltages.filter((v) => v !== 380)
+        : validVoltages;
   const voltageValid = voltageOptions.includes(voltageV);
   const needsTwoPhases = phaseType === 'mono' && phaseCount > 1 && phaseToPhaseVoltages.includes(voltageV);
   const phase = load.phase ?? 'L1';
