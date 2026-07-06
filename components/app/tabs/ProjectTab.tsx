@@ -15,6 +15,7 @@ import { gridLabels, topologyLabels } from '../types';
 
 export function ProjectTab({
   projectInfo,
+  projectDetailsVisible,
   savedProjects,
   clients,
   initialLoading,
@@ -35,6 +36,7 @@ export function ProjectTab({
   onManageClients,
 }: {
   projectInfo: ProjectInfo;
+  projectDetailsVisible: boolean;
   savedProjects: SavedProject[];
   clients: Client[];
   initialLoading: boolean;
@@ -102,65 +104,67 @@ export function ProjectTab({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Dados do projeto</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <ProjectField label="Nome do projeto" id="projectName">
-                <Input
-                  id="projectName"
-                  value={projectInfo.name}
-                  onChange={(event) => setProjectInfo({ name: event.target.value })}
-                  placeholder="Ex: Residência Silva"
-                />
-              </ProjectField>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="clientId">Cliente</Label>
-                  <button
-                    type="button"
-                    onClick={onManageClients}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    Gerenciar clientes
-                  </button>
-                </div>
-                <select
-                  id="clientId"
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm"
-                  value={projectInfo.clientId ?? ''}
-                  onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
-                >
-                  <option value="">Sem cliente selecionado</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <ProjectField label="Endereço" id="clientAddress">
-                <Input
-                  id="clientAddress"
-                  value={projectInfo.address}
-                  onChange={(event) => setProjectInfo({ address: event.target.value })}
-                  placeholder="Endereço da instalação"
-                />
-              </ProjectField>
-              <div className="md:col-span-2">
-                <ProjectField label="Observações" id="projectNotes">
-                  <textarea
-                    id="projectNotes"
-                    className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm"
-                    value={projectInfo.notes}
-                    onChange={(event) => setProjectInfo({ notes: event.target.value })}
-                    placeholder="Informações comerciais, restrições da instalação ou preferências do cliente."
+          {projectDetailsVisible && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Dados do projeto</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <ProjectField label="Nome do projeto" id="projectName">
+                  <Input
+                    id="projectName"
+                    value={projectInfo.name}
+                    onChange={(event) => setProjectInfo({ name: event.target.value })}
+                    placeholder="Ex: Residência Silva"
                   />
                 </ProjectField>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="clientId">Cliente</Label>
+                    <button
+                      type="button"
+                      onClick={onManageClients}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Gerenciar clientes
+                    </button>
+                  </div>
+                  <select
+                    id="clientId"
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm"
+                    value={projectInfo.clientId ?? ''}
+                    onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
+                  >
+                    <option value="">Sem cliente selecionado</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <ProjectField label="Endereço" id="clientAddress">
+                  <Input
+                    id="clientAddress"
+                    value={projectInfo.address}
+                    onChange={(event) => setProjectInfo({ address: event.target.value })}
+                    placeholder="Endereço da instalação"
+                  />
+                </ProjectField>
+                <div className="md:col-span-2">
+                  <ProjectField label="Observações" id="projectNotes">
+                    <textarea
+                      id="projectNotes"
+                      className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm"
+                      value={projectInfo.notes}
+                      onChange={(event) => setProjectInfo({ notes: event.target.value })}
+                      placeholder="Informações comerciais, restrições da instalação ou preferências do cliente."
+                    />
+                  </ProjectField>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

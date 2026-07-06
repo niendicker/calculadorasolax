@@ -29,6 +29,9 @@ import type {
 interface WizardStore {
   projectInfo: ProjectInfo;
   currentProjectId: string | null;
+  /** Whether the "Dados do projeto" card should be shown on the Projeto tab: only after
+   *  starting a new draft or opening a saved project, not just from landing on the page. */
+  projectDetailsVisible: boolean;
   savedProjects: SavedProject[];
   clients: Client[];
   userLoadCatalog: UserLoadCatalogItem[];
@@ -168,6 +171,7 @@ export const useWizardStore = create<WizardStore>()(
     (set, get) => ({
       projectInfo: defaultProjectInfo,
       currentProjectId: null,
+      projectDetailsVisible: false,
       savedProjects: [],
       clients: [],
       userLoadCatalog: [],
@@ -186,6 +190,7 @@ export const useWizardStore = create<WizardStore>()(
         set({
           projectInfo: defaultProjectInfo,
           currentProjectId: null,
+          projectDetailsVisible: true,
           residentialOptions: defaultResidential,
           solution: null,
         }),
@@ -237,6 +242,7 @@ export const useWizardStore = create<WizardStore>()(
 
           return {
             currentProjectId: project.id,
+            projectDetailsVisible: true,
             projectInfo: {
               name: project.name,
               clientId: project.clientId,
@@ -268,6 +274,7 @@ export const useWizardStore = create<WizardStore>()(
             ...(wasCurrent
               ? {
                   currentProjectId: null,
+                  projectDetailsVisible: false,
                   projectInfo: defaultProjectInfo,
                   residentialOptions: defaultResidential,
                   solution: null,
@@ -513,6 +520,7 @@ export const useWizardStore = create<WizardStore>()(
           userLoadCatalog: [],
           userStockItems: [],
           currentProjectId: null,
+          projectDetailsVisible: false,
         }),
 
       setTopology: (topology) =>
@@ -631,6 +639,7 @@ export const useWizardStore = create<WizardStore>()(
       partialize: (state) => ({
         projectInfo: state.projectInfo,
         currentProjectId: state.currentProjectId,
+        projectDetailsVisible: state.projectDetailsVisible,
         residentialOptions: state.residentialOptions,
         industrialOptions: state.industrialOptions,
         solution: state.solution,

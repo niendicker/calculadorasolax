@@ -46,6 +46,7 @@ export function SinglePageApp() {
   const supabase = useMemo(() => createClient(), []);
   const {
     projectInfo,
+    projectDetailsVisible,
     savedProjects,
     clients,
     userStockItems,
@@ -391,6 +392,7 @@ export function SinglePageApp() {
           {activeTab === 'project' ? (
             <ProjectTab
               projectInfo={projectInfo}
+              projectDetailsVisible={projectDetailsVisible}
               savedProjects={savedProjects}
               clients={clients}
               initialLoading={initialLoading}
