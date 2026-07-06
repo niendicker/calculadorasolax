@@ -108,6 +108,7 @@ export interface MicrogridConfig {
   onGridPhases: 1 | 2 | 3;
   onGridApparentPowerVA: number;
   isFundamentalRequirement: boolean;
+  photoUrl?: string | null;
 }
 
 /** Mirrors lib/types.ts GeneratorConfig. Informational only — not validated
@@ -116,6 +117,7 @@ export interface GeneratorConfig {
   voltageV: number;
   phases: 1 | 2 | 3;
   apparentPowerVA: number;
+  photoUrl?: string | null;
 }
 
 export interface ResidentialOptions {
@@ -129,6 +131,7 @@ export interface ResidentialOptions {
   whiteTariff: WhiteTariffConfig | null;
   microgrid: MicrogridConfig | null;
   generator: GeneratorConfig | null;
+  atsPhotoUrl?: string | null;
 }
 
 export interface ApprovedSolution {

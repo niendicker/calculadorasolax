@@ -49,6 +49,8 @@ export interface MicrogridConfig {
    * system; when false, the app offers a choice between the smallest solution
    * and the smallest one that also supports microgrid (see Solution.microgridAlternative). */
   isFundamentalRequirement: boolean;
+  /** Optional reference photo of the existing on-grid installation, uploaded by the user. */
+  photoUrl: string | null;
 }
 
 /** Extra report inputs only used when 'external_generator' is a desired feature.
@@ -57,6 +59,8 @@ export interface GeneratorConfig {
   voltageV: number;
   phases: 1 | 2 | 3;
   apparentPowerVA: number;
+  /** Optional reference photo of the generator, uploaded by the user. */
+  photoUrl: string | null;
 }
 
 // How multiple loads' IP/IN ratios combine into the system's peak apparent power:
@@ -147,6 +151,8 @@ export interface ResidentialOptions {
   microgrid: MicrogridConfig | null;
   /** Only meaningful when 'external_generator' is in desiredFeatures. */
   generator: GeneratorConfig | null;
+  /** Optional reference photo of the ATS panel, uploaded by the user. Only meaningful when 'external_ats' is in desiredFeatures. */
+  atsPhotoUrl: string | null;
   /** Max power allowed per phase (W); null uses the suggested default (inverter power / phase count). */
   maxPowerPerPhaseW: number | null;
 }

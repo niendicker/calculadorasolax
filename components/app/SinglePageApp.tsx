@@ -80,6 +80,7 @@ export function SinglePageApp() {
     setWhiteTariffConfig,
     setMicrogridConfig,
     setGeneratorConfig,
+    setAtsPhotoUrl,
     setSolution,
     setLoadCatalog,
     resetResidential,
@@ -211,6 +212,21 @@ export function SinglePageApp() {
     } else {
       setSolution({ ...solution.microgridAlternative, microgridAlternative: undefined });
     }
+  }
+
+  async function uploadFeaturePhoto(file: File, slot: 'ats' | 'microgrid' | 'generator') {
+    if (!profile) throw new Error('Não foi possível identificar o usuário.');
+
+    const extension = file.name.split('.').pop();
+    const path = `${profile.id}/feature-photos/${slot}/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
+    const { error: uploadError } = await supabase.storage
+      .from('profile-assets')
+      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('profile-assets').getPublicUrl(path);
+    return data.publicUrl;
   }
 
   function openMobileTab(tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients') {
@@ -448,6 +464,8 @@ export function SinglePageApp() {
               setWhiteTariffConfig={setWhiteTariffConfig}
               setMicrogridConfig={setMicrogridConfig}
               setGeneratorConfig={setGeneratorConfig}
+              setAtsPhotoUrl={setAtsPhotoUrl}
+              onUploadFeaturePhoto={uploadFeaturePhoto}
               resetResidential={resetResidential}
               calculate={calculate}
               exportPdf={exportPdf}

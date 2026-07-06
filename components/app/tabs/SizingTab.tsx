@@ -12,6 +12,7 @@ import {
   Save,
   Settings,
   Sun,
+  Trash2,
   Zap,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -70,6 +71,8 @@ export function SizingTab({
   setWhiteTariffConfig,
   setMicrogridConfig,
   setGeneratorConfig,
+  setAtsPhotoUrl,
+  onUploadFeaturePhoto,
   resetResidential,
   calculate,
   exportPdf,
@@ -92,6 +95,7 @@ export function SizingTab({
     whiteTariff: WhiteTariffConfig | null;
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
+    atsPhotoUrl: string | null;
     maxPowerPerPhaseW: number | null;
   };
   batteryCatalog: BatteryCatalogOption[];
@@ -112,6 +116,8 @@ export function SizingTab({
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
   setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
+  setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
+  onUploadFeaturePhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
@@ -231,6 +237,9 @@ export function SizingTab({
                 onMicrogridChange={setMicrogridConfig}
                 generator={residentialOptions.generator}
                 onGeneratorChange={setGeneratorConfig}
+                atsPhotoUrl={residentialOptions.atsPhotoUrl}
+                onAtsPhotoUrlChange={setAtsPhotoUrl}
+                onUploadPhoto={onUploadFeaturePhoto}
               />
             </CardContent>
           </Card>
@@ -311,13 +320,111 @@ const emptyMicrogridConfig: MicrogridConfig = {
   onGridPhases: 1,
   onGridApparentPowerVA: 0,
   isFundamentalRequirement: false,
+  photoUrl: null,
 };
 
 const emptyGeneratorConfig: GeneratorConfig = {
   voltageV: 220,
   phases: 1,
   apparentPowerVA: 0,
+  photoUrl: null,
 };
+
+const phaseOptions: { value: 1 | 2 | 3; label: string }[] = [
+  { value: 1, label: 'Monofásico' },
+  { value: 2, label: 'Bifásico' },
+  { value: 3, label: 'Trifásico' },
+];
+
+function PhasePicker({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: 1 | 2 | 3;
+  onChange: (value: 1 | 2 | 3) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
+      {phaseOptions.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              'h-9 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              active
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PhotoUploadField({
+  label,
+  photoUrl,
+  slot,
+  onUploadPhoto,
+  onChange,
+}: {
+  label: string;
+  photoUrl: string | null;
+  slot: 'ats' | 'microgrid' | 'generator';
+  onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
+  onChange: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const url = await onUploadPhoto(file, slot);
+      onChange(url);
+    } catch {
+      setError('Não foi possível enviar a imagem. Tente novamente.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input
+        type="file"
+        accept="image/*"
+        disabled={uploading}
+        onChange={(event) => handleFile(event.target.files?.[0])}
+      />
+      {uploading && <p className="text-xs text-muted-foreground">Enviando imagem...</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {photoUrl && (
+        <div className="flex items-center gap-3 rounded-lg border bg-background p-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photoUrl} alt={label} className="h-16 w-16 rounded-md object-cover" />
+          <Button type="button" variant="outline" size="sm" onClick={() => onChange(null)}>
+            <Trash2 className="h-3.5 w-3.5" />
+            Remover
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DesiredFeaturesPicker({
   value,
@@ -328,6 +435,9 @@ function DesiredFeaturesPicker({
   onMicrogridChange,
   generator,
   onGeneratorChange,
+  atsPhotoUrl,
+  onAtsPhotoUrlChange,
+  onUploadPhoto,
 }: {
   value: DesiredFeatureId[];
   onChange: (value: DesiredFeatureId[]) => void;
@@ -337,6 +447,9 @@ function DesiredFeaturesPicker({
   onMicrogridChange: (microgrid: MicrogridConfig | null) => void;
   generator: GeneratorConfig | null;
   onGeneratorChange: (generator: GeneratorConfig | null) => void;
+  atsPhotoUrl: string | null;
+  onAtsPhotoUrlChange: (atsPhotoUrl: string | null) => void;
+  onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
 }) {
   function toggle(id: DesiredFeatureId) {
     if (value.includes(id)) {
@@ -377,17 +490,31 @@ function DesiredFeaturesPicker({
         })}
       </div>
 
+      {value.includes('external_ats') && (
+        <div className="space-y-3 rounded-lg border bg-background p-3">
+          <p className="text-sm font-semibold">ATS Externo</p>
+          <PhotoUploadField
+            label="Foto do painel ATS"
+            photoUrl={atsPhotoUrl}
+            slot="ats"
+            onUploadPhoto={onUploadPhoto}
+            onChange={onAtsPhotoUrlChange}
+          />
+        </div>
+      )}
+
       {value.includes('white_tariff') && (
         <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-medium">Configuração da Tarifa Branca</p>
-          <div className="grid grid-cols-2 gap-3">
+          <p className="text-sm font-semibold">Tarifa Branca</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffPower">Potência necessária no período (W)</Label>
+              <Label htmlFor="whiteTariffPower">Potência (W)</Label>
               <Input
                 id="whiteTariffPower"
                 type="number"
                 min={0}
-                value={whiteTariff?.requiredPowerW ?? 0}
+                placeholder="Ex.: 3000"
+                value={whiteTariff?.requiredPowerW || ''}
                 onChange={(event) =>
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
@@ -397,12 +524,13 @@ function DesiredFeaturesPicker({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffEnergy">Energia necessária no período (Wh)</Label>
+              <Label htmlFor="whiteTariffEnergy">Energia (Wh)</Label>
               <Input
                 id="whiteTariffEnergy"
                 type="number"
                 min={0}
-                value={whiteTariff?.requiredEnergyWh ?? 0}
+                placeholder="Ex.: 5000"
+                value={whiteTariff?.requiredEnergyWh || ''}
                 onChange={(event) =>
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
@@ -412,13 +540,14 @@ function DesiredFeaturesPicker({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffSpread">Spread tarifário (R$/kWh)</Label>
+              <Label htmlFor="whiteTariffSpread">Spread (R$/kWh)</Label>
               <Input
                 id="whiteTariffSpread"
                 type="number"
                 min={0}
                 step={0.01}
-                value={whiteTariff?.tariffSpreadPerKwh ?? 0}
+                placeholder="Ex.: 0.35"
+                value={whiteTariff?.tariffSpreadPerKwh || ''}
                 onChange={(event) =>
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
@@ -439,43 +568,37 @@ function DesiredFeaturesPicker({
                 })
               }
             />
-            Considerar reserva para backup das minhas cargas
+            Reservar para backup das cargas
           </label>
         </div>
       )}
 
       {value.includes('microgrid') && (
         <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-medium">Configuração da Microrrede</p>
-          <p className="text-xs text-muted-foreground">
-            Dados do sistema ongrid existente que será conectado junto ao novo sistema híbrido.
-          </p>
+          <p className="text-sm font-semibold">Microrrede</p>
+          <p className="text-xs text-muted-foreground">Dados do sistema ongrid existente a ser conectado.</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="microgridPhases">Fases do sistema ongrid</Label>
-              <select
-                id="microgridPhases"
-                className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              <Label>Fases</Label>
+              <PhasePicker
                 value={microgrid?.onGridPhases ?? 1}
-                onChange={(event) =>
+                ariaLabel="Fases do sistema ongrid"
+                onChange={(phases) =>
                   onMicrogridChange({
                     ...(microgrid ?? emptyMicrogridConfig),
-                    onGridPhases: Number(event.target.value) as 1 | 2 | 3,
+                    onGridPhases: phases,
                   })
                 }
-              >
-                <option value={1}>Monofásico</option>
-                <option value={2}>Bifásico</option>
-                <option value={3}>Trifásico</option>
-              </select>
+              />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="microgridPower">Potência aparente do sistema ongrid (VA)</Label>
+              <Label htmlFor="microgridPower">Potência (VA)</Label>
               <Input
                 id="microgridPower"
                 type="number"
                 min={0}
-                value={microgrid?.onGridApparentPowerVA ?? 0}
+                placeholder="Ex.: 3000"
+                value={microgrid?.onGridApparentPowerVA || ''}
                 onChange={(event) =>
                   onMicrogridChange({
                     ...(microgrid ?? emptyMicrogridConfig),
@@ -496,26 +619,33 @@ function DesiredFeaturesPicker({
                 })
               }
             />
-            Microrrede é um requisito fundamental
+            Requisito fundamental
           </label>
           <p className="text-xs text-muted-foreground">
-            Se não for fundamental e a exigência deixar o sistema maior que o necessário para as outras
-            funcionalidades, você poderá escolher entre uma versão econômica e uma versão com microrrede.
+            Se não for fundamental, você poderá escolher entre a versão econômica e a versão com microrrede.
           </p>
+          <PhotoUploadField
+            label="Foto do sistema ongrid"
+            photoUrl={microgrid?.photoUrl ?? null}
+            slot="microgrid"
+            onUploadPhoto={onUploadPhoto}
+            onChange={(photoUrl) => onMicrogridChange({ ...(microgrid ?? emptyMicrogridConfig), photoUrl })}
+          />
         </div>
       )}
 
       {value.includes('external_generator') && (
         <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-medium">Configuração do Gerador Externo</p>
-          <div className="grid grid-cols-3 gap-3">
+          <p className="text-sm font-semibold">Gerador Externo</p>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="generatorVoltage">Tensão (V)</Label>
               <Input
                 id="generatorVoltage"
                 type="number"
                 min={0}
-                value={generator?.voltageV ?? 220}
+                placeholder="Ex.: 220"
+                value={generator?.voltageV || ''}
                 onChange={(event) =>
                   onGeneratorChange({
                     ...(generator ?? emptyGeneratorConfig),
@@ -525,30 +655,13 @@ function DesiredFeaturesPicker({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="generatorPhases">Fases</Label>
-              <select
-                id="generatorPhases"
-                className="flex h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                value={generator?.phases ?? 1}
-                onChange={(event) =>
-                  onGeneratorChange({
-                    ...(generator ?? emptyGeneratorConfig),
-                    phases: Number(event.target.value) as 1 | 2 | 3,
-                  })
-                }
-              >
-                <option value={1}>Monofásico</option>
-                <option value={2}>Bifásico</option>
-                <option value={3}>Trifásico</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="generatorPower">Potência aparente (VA)</Label>
+              <Label htmlFor="generatorPower">Potência (VA)</Label>
               <Input
                 id="generatorPower"
                 type="number"
                 min={0}
-                value={generator?.apparentPowerVA ?? 0}
+                placeholder="Ex.: 5000"
+                value={generator?.apparentPowerVA || ''}
                 onChange={(event) =>
                   onGeneratorChange({
                     ...(generator ?? emptyGeneratorConfig),
@@ -558,12 +671,32 @@ function DesiredFeaturesPicker({
               />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label>Fases</Label>
+            <PhasePicker
+              value={generator?.phases ?? 1}
+              ariaLabel="Fases do gerador"
+              onChange={(phases) =>
+                onGeneratorChange({
+                  ...(generator ?? emptyGeneratorConfig),
+                  phases,
+                })
+              }
+            />
+          </div>
           {!value.includes('external_ats') && (
             <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Gerador Externo normalmente exige ATS Externo — considere selecionar essa funcionalidade também.
             </p>
           )}
+          <PhotoUploadField
+            label="Foto do gerador"
+            photoUrl={generator?.photoUrl ?? null}
+            slot="generator"
+            onUploadPhoto={onUploadPhoto}
+            onChange={(photoUrl) => onGeneratorChange({ ...(generator ?? emptyGeneratorConfig), photoUrl })}
+          />
         </div>
       )}
     </div>

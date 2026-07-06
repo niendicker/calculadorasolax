@@ -68,6 +68,7 @@ interface WizardStore {
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
   setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
+  setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
   addLoad: (load: SingleLoad) => void;
   removeLoad: (id: string) => void;
@@ -100,6 +101,7 @@ const defaultResidential: ResidentialOptions = {
   whiteTariff: null,
   microgrid: null,
   generator: null,
+  atsPhotoUrl: null,
   maxPowerPerPhaseW: null,
 };
 
@@ -516,6 +518,7 @@ export const useWizardStore = create<WizardStore>()(
             whiteTariff: desiredFeatures.includes('white_tariff') ? s.residentialOptions.whiteTariff : null,
             microgrid: desiredFeatures.includes('microgrid') ? s.residentialOptions.microgrid : null,
             generator: desiredFeatures.includes('external_generator') ? s.residentialOptions.generator : null,
+            atsPhotoUrl: desiredFeatures.includes('external_ats') ? s.residentialOptions.atsPhotoUrl : null,
           },
         })),
 
@@ -532,6 +535,11 @@ export const useWizardStore = create<WizardStore>()(
       setGeneratorConfig: (generator) =>
         set((s) => ({
           residentialOptions: { ...s.residentialOptions, generator },
+        })),
+
+      setAtsPhotoUrl: (atsPhotoUrl) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, atsPhotoUrl },
         })),
 
       setPeakCalcMode: (peakCalcMode) =>
