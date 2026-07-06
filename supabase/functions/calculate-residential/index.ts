@@ -84,9 +84,16 @@ Deno.serve(async (req) => {
     const desiredFeatures = options.desiredFeatures ?? [];
 
     // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
-    // When Tarifa Branca is active, this (and targetPowerW below) is combined
-    // with the customer's tariff-window requirements instead of used as-is.
+    // When Tarifa Branca is active, this (and minRatedPowerW/targetPowerW below)
+    // is combined with the customer's tariff-window requirements instead of
+    // used as-is.
     const targetEnergyWh = effectiveTargetEnergyWh(desiredFeatures, options.whiteTariff, dailyKwh * 0.5 * 1000);
+    // The white-tariff window's required power must be *sustained*, so it has
+    // to raise the inverter's continuous rating (rated_power_w), not just its
+    // brief-surge rating (peak_power_w) — otherwise an inverter that can only
+    // deliver that power for a few seconds could get approved for a multi-hour
+    // tariff window.
+    const minRatedPowerW = effectiveTargetPowerW(desiredFeatures, options.whiteTariff, nominalW);
     const targetPowerW = effectiveTargetPowerW(desiredFeatures, options.whiteTariff, peakW);
     let usefulEnergyWhPerBattery: number | null = null;
 
@@ -134,12 +141,17 @@ Deno.serve(async (req) => {
       .eq('active', true)
       .eq('grid_topology', gridTopology)
       .eq('battery_topology', batteryTopology)
-      .gte('rated_power_w', nominalW)
+      .gte('rated_power_w', minRatedPowerW)
       .gte('peak_power_w', targetPowerW)
       .order('rated_power_w', { ascending: true })
       .order('available_energy_wh', { ascending: true })
       .order('battery_quantity', { ascending: true })
-      .limit(50);
+      // Generous safety cap, not a real page size: every filter that can
+      // reject a row here (feature flags, ESS rules, microgrid) runs in JS
+      // *after* this fetch, so a tight limit can silently truncate away the
+      // only rows that would've passed those filters. 500 is ~10x the
+      // largest single topology/battery-topology bucket in the catalog today.
+      .limit(500);
 
     if (usefulEnergyWhPerBattery === null) {
       solutionQuery = solutionQuery.gte('available_energy_wh', targetEnergyWh * 0.8);

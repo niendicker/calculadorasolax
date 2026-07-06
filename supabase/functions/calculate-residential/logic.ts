@@ -71,15 +71,18 @@ export function solutionSupportsMicrogrid(
   return true;
 }
 
-/** Minimum power the recommended inverter must sustain: the household's normal
- * peak, or the white-tariff window's required power if that's higher. */
+/** Raises a power floor (continuous/rated or surge/peak) to also cover the
+ * white-tariff window's required power when that's higher. Used for both:
+ * the inverter's rated_power_w must sustain requiredPowerW for the whole
+ * window (not just survive it as a brief surge), so callers pass nominalW
+ * as baseW for that check, and peakW as baseW for the peak_power_w check. */
 export function effectiveTargetPowerW(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
-  peakW: number
+  baseW: number
 ): number {
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return peakW;
-  return Math.max(peakW, whiteTariff.requiredPowerW);
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseW;
+  return Math.max(baseW, whiteTariff.requiredPowerW);
 }
 
 /** Minimum battery energy the recommended solution must provide. When Tarifa

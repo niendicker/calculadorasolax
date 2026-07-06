@@ -402,6 +402,11 @@ describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
     expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 5000 }), 3000)).toBe(5000);
   });
 
+  it('also raises a continuous/nominal power floor, not just the peak one, so the white-tariff requirement is sustainable rather than just survivable as a brief surge', () => {
+    // Same call shape index.ts uses for minRatedPowerW: baseW = nominalW instead of peakW.
+    expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 6000 }), 1200)).toBe(6000);
+  });
+
   it('uses only the white-tariff energy when backup reserve is not requested', () => {
     const energy = effectiveTargetEnergyWh(
       ['white_tariff'],
