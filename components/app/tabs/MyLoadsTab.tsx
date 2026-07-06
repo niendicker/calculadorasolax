@@ -185,25 +185,34 @@ function UserLoadCatalogSection({
             editingId === item.id ? (
               <div key={item.id}>{formCard}</div>
             ) : (
-              <div key={item.id} className="rounded-lg border bg-card p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.powerW} VA nominal · IP/IN {item.ipInRatio}</p>
+              <div key={item.id} className="space-y-3 rounded-lg border bg-card p-3">
+                <p className="min-w-0 truncate text-sm font-semibold leading-snug">{item.name}</p>
+                <div className="flex flex-wrap gap-6">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nominal</p>
+                    <p className="text-sm font-medium">{item.powerW} VA</p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEdit(item)} disabled={removingIds.has(item.id)}>
-                      Editar
-                    </Button>
-                    <ConfirmDeleteButton
-                      ariaLabel={`Remover carga ${item.name}`}
-                      title="Remover carga?"
-                      description="Essa carga sai do seu catálogo pessoal. Não afeta projetos que já a usam."
-                      confirmLabel="Remover"
-                      disabled={removingIds.has(item.id)}
-                      onConfirm={() => handleRemove(item.id)}
-                    />
+                  <div>
+                    <p className="text-xs text-muted-foreground">IP/IN</p>
+                    <p className="text-sm font-medium">{item.ipInRatio}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Pico calculado</p>
+                    <p className="text-sm font-medium">{(item.powerW * item.ipInRatio).toFixed(0)} VA</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 border-t pt-2">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(item)} disabled={removingIds.has(item.id)}>
+                    Editar
+                  </Button>
+                  <ConfirmDeleteButton
+                    ariaLabel={`Remover carga ${item.name}`}
+                    title="Remover carga?"
+                    description="Essa carga sai do seu catálogo pessoal. Não afeta projetos que já a usam."
+                    confirmLabel="Remover"
+                    disabled={removingIds.has(item.id)}
+                    onConfirm={() => handleRemove(item.id)}
+                  />
                 </div>
               </div>
             )
