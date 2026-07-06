@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Calculator, FolderOpen, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, SavedProject } from '@/lib/types';
-import { Metric, ProjectListSkeleton, Requirement } from '../shared-ui';
+import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
 import { gridLabels, topologyLabels } from '../types';
 
 export function ProjectTab({
@@ -55,6 +56,16 @@ export function ProjectTab({
   onGoSizing: () => void;
   onManageClients: () => void;
 }) {
+  const [search, setSearch] = useState('');
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredProjects = savedProjects.filter((project) => {
+    const clientName = clients.find((client) => client.id === project.clientId)?.name ?? '';
+    return (
+      project.name.toLowerCase().includes(normalizedSearch) || clientName.toLowerCase().includes(normalizedSearch)
+    );
+  });
+
   return (
     <div className="space-y-4">
       <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
@@ -152,7 +163,7 @@ export function ProjectTab({
             <CardHeader>
               <CardTitle>Projetos salvos</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               {initialLoading ? (
                 <ProjectListSkeleton />
               ) : savedProjects.length === 0 ? (
@@ -160,60 +171,71 @@ export function ProjectTab({
                   Nenhum projeto salvo ainda. Preencha os dados, configure o dimensionamento e clique em salvar.
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {savedProjects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="flex flex-col gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium">{project.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {clients.find((client) => client.id === project.clientId)?.name || 'Cliente não informado'} · Atualizado em{' '}
-                          {new Intl.DateTimeFormat('pt-BR', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          }).format(new Date(project.updatedAt))}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Badge variant="outline">
-                            {project.residentialOptions.topology
-                              ? topologyLabels[project.residentialOptions.topology]
-                              : 'Sem topologia'}
-                          </Badge>
-                          <Badge variant="outline">
-                            {project.residentialOptions.batteryModel || 'Sem bateria'}
-                          </Badge>
-                          <Badge variant="outline">
-                            {project.residentialOptions.gridType
-                              ? gridLabels[project.residentialOptions.gridType]
-                              : 'Sem rede'}
-                          </Badge>
-                          <Badge variant="outline">
-                            {project.residentialOptions.loads.length} carga(s)
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => onOpen(project.id)}>
-                          <FolderOpen className="h-4 w-4" />
-                          Abrir
-                        </Button>
-                        <Button variant="outline" onClick={() => onOpenSizing(project.id)}>
-                          <Calculator className="h-4 w-4" />
-                          Dimensionamento
-                        </Button>
-                        <ConfirmDeleteButton
-                          ariaLabel={`Remover projeto ${project.name}`}
-                          title="Remover projeto?"
-                          description="O projeto salvo e sua configuração serão removidos deste navegador."
-                          confirmLabel="Remover"
-                          onConfirm={() => onRemove(project.id)}
-                        />
-                      </div>
+                <>
+                  <div className="max-w-xs">
+                    <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
+                  </div>
+                  {filteredProjects.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      Nenhum projeto encontrado para essa pesquisa.
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredProjects.map((project) => (
+                        <div
+                          key={project.id}
+                          className="flex flex-col gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium">{project.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {clients.find((client) => client.id === project.clientId)?.name ||
+                                'Cliente não informado'}{' '}
+                              · Atualizado em{' '}
+                              {new Intl.DateTimeFormat('pt-BR', {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              }).format(new Date(project.updatedAt))}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Badge variant="outline">
+                                {project.residentialOptions.topology
+                                  ? topologyLabels[project.residentialOptions.topology]
+                                  : 'Sem topologia'}
+                              </Badge>
+                              <Badge variant="outline">
+                                {project.residentialOptions.batteryModel || 'Sem bateria'}
+                              </Badge>
+                              <Badge variant="outline">
+                                {project.residentialOptions.gridType
+                                  ? gridLabels[project.residentialOptions.gridType]
+                                  : 'Sem rede'}
+                              </Badge>
+                              <Badge variant="outline">{project.residentialOptions.loads.length} carga(s)</Badge>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => onOpen(project.id)}>
+                              <FolderOpen className="h-4 w-4" />
+                              Abrir
+                            </Button>
+                            <Button variant="outline" onClick={() => onOpenSizing(project.id)}>
+                              <Calculator className="h-4 w-4" />
+                              Dimensionamento
+                            </Button>
+                            <ConfirmDeleteButton
+                              ariaLabel={`Remover projeto ${project.name}`}
+                              title="Remover projeto?"
+                              description="O projeto salvo e sua configuração serão removidos deste navegador."
+                              confirmLabel="Remover"
+                              onConfirm={() => onRemove(project.id)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

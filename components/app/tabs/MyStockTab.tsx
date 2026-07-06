@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Battery, Boxes, Zap } from 'lucide-react';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
-import { CatalogEmptyState, CatalogProductCard, DocPreviewModal, ImagePreviewModal } from '../shared-ui';
+import { CatalogEmptyState, CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
 const sectionDefinitions: { type: StockProductType; label: string; fallbackIcon: React.ReactNode }[] = [
@@ -30,6 +30,12 @@ export function MyStockTab({
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const [search, setSearch] = useState('');
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredStockItems = userStockItems.filter((item) =>
+    item.productModel.toLowerCase().includes(normalizedSearch)
+  );
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
@@ -44,8 +50,16 @@ export function MyStockTab({
         <CatalogEmptyState label="Nenhum item no seu estoque ainda. Adicione produtos a partir do Catálogo." />
       ) : (
         <div className="space-y-4">
+          <div className="max-w-xs">
+            <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
+          </div>
+
+          {filteredStockItems.length === 0 && (
+            <CatalogEmptyState label="Nenhum item encontrado para essa pesquisa." />
+          )}
+
           {sectionDefinitions.map((section) => {
-            const items = userStockItems.filter((item) => item.productType === section.type);
+            const items = filteredStockItems.filter((item) => item.productType === section.type);
             if (items.length === 0) return null;
             return (
               <div key={section.type} className="space-y-2">

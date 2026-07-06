@@ -12,6 +12,7 @@ import {
   CatalogProductCard,
   DocPreviewModal,
   ImagePreviewModal,
+  SearchInput,
 } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
@@ -33,12 +34,18 @@ export function CatalogTab({
   const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories'>('inverters');
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const [search, setSearch] = useState('');
 
   const sectionOptions = [
     { value: 'inverters' as const, label: 'Inversores', count: inverterCatalog.length },
     { value: 'batteries' as const, label: 'Baterias', count: batteryCatalog.length },
     { value: 'accessories' as const, label: 'Acessórios', count: accessoryCatalog.length },
   ];
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredInverters = inverterCatalog.filter((item) => item.model.toLowerCase().includes(normalizedSearch));
+  const filteredBatteries = batteryCatalog.filter((item) => item.model.toLowerCase().includes(normalizedSearch));
+  const filteredAccessories = accessoryCatalog.filter((item) => item.model.toLowerCase().includes(normalizedSearch));
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
@@ -79,14 +86,22 @@ export function CatalogTab({
         })}
       </div>
 
+      {!initialLoading && (
+        <div className="max-w-xs">
+          <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
+        </div>
+      )}
+
       {initialLoading ? (
         <BatteryCardsSkeleton />
       ) : section === 'inverters' ? (
         inverterCatalog.length === 0 ? (
           <CatalogEmptyState label="Nenhum inversor cadastrado." />
+        ) : filteredInverters.length === 0 ? (
+          <CatalogEmptyState label="Nenhum inversor encontrado para essa pesquisa." />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {inverterCatalog.map((inverter) => (
+            {filteredInverters.map((inverter) => (
               <CatalogProductCard
                 key={inverter.id}
                 fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
@@ -114,9 +129,11 @@ export function CatalogTab({
       ) : section === 'batteries' ? (
         batteryCatalog.length === 0 ? (
           <CatalogEmptyState label="Nenhuma bateria cadastrada." />
+        ) : filteredBatteries.length === 0 ? (
+          <CatalogEmptyState label="Nenhuma bateria encontrada para essa pesquisa." />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {batteryCatalog.map((battery) => {
+            {filteredBatteries.map((battery) => {
               const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
               return (
                 <CatalogProductCard
@@ -148,9 +165,11 @@ export function CatalogTab({
       ) : section === 'accessories' ? (
         accessoryCatalog.length === 0 ? (
           <CatalogEmptyState label="Nenhum acessório cadastrado." />
+        ) : filteredAccessories.length === 0 ? (
+          <CatalogEmptyState label="Nenhum acessório encontrado para essa pesquisa." />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {accessoryCatalog.map((accessory) => (
+            {filteredAccessories.map((accessory) => (
               <CatalogProductCard
                 key={accessory.id}
                 fallbackIcon={<Boxes className="h-8 w-8 text-muted-foreground" />}

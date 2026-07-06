@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Client } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { SearchInput } from '../shared-ui';
 
 function emptyClientForm() {
   return { name: '', email: '', phone: '', document: '', notes: '' };
@@ -34,6 +35,14 @@ export function ClientsTab({
   const [saving, setSaving] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredClients = clients.filter((client) =>
+    [client.name, client.email, client.phone, client.document].some((field) =>
+      field.toLowerCase().includes(normalizedSearch)
+    )
+  );
 
   function openNew() {
     setEditingId(null);
@@ -117,36 +126,53 @@ export function ClientsTab({
                 Nenhum cliente cadastrado ainda.
               </div>
             ) : (
-              <div className="space-y-2">
-                {clients.map((client) => (
-                  <div
-                    key={client.id}
-                    className={cn(
-                      'flex flex-col gap-2 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between',
-                      removingIds.has(client.id) && 'opacity-60'
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium">{client.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {[client.email, client.phone, client.document].filter(Boolean).join(' · ') || 'Sem dados de contato'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(client)} disabled={removingIds.has(client.id)}>
-                        Editar
-                      </Button>
-                      <ConfirmDeleteButton
-                        ariaLabel={`Remover cliente ${client.name}`}
-                        title="Remover cliente?"
-                        description="Os projetos que usam esse cliente ficarão sem cliente associado."
-                        confirmLabel="Remover"
-                        disabled={removingIds.has(client.id)}
-                        onConfirm={() => handleRemove(client.id)}
-                      />
-                    </div>
+              <div className="space-y-3">
+                <div className="max-w-xs">
+                  <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar cliente..." />
+                </div>
+                {filteredClients.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    Nenhum cliente encontrado para essa pesquisa.
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-2">
+                    {filteredClients.map((client) => (
+                      <div
+                        key={client.id}
+                        className={cn(
+                          'flex flex-col gap-2 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between',
+                          removingIds.has(client.id) && 'opacity-60'
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium">{client.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {[client.email, client.phone, client.document].filter(Boolean).join(' · ') ||
+                              'Sem dados de contato'}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEdit(client)}
+                            disabled={removingIds.has(client.id)}
+                          >
+                            Editar
+                          </Button>
+                          <ConfirmDeleteButton
+                            ariaLabel={`Remover cliente ${client.name}`}
+                            title="Remover cliente?"
+                            description="Os projetos que usam esse cliente ficarão sem cliente associado."
+                            confirmLabel="Remover"
+                            disabled={removingIds.has(client.id)}
+                            onConfirm={() => handleRemove(client.id)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           ) : (

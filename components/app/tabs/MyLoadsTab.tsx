@@ -7,7 +7,7 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { UserLoadCatalogItem } from '@/lib/types';
-import { CatalogEmptyState } from '../shared-ui';
+import { CatalogEmptyState, SearchInput } from '../shared-ui';
 
 export function MyLoadsTab({
   userLoadCatalog,
@@ -52,6 +52,11 @@ function UserLoadCatalogSection({
   const [saving, setSaving] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filteredItems = items.filter(
+    (item) => item.id === editingId || item.name.toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   function openAdd() {
     setEditingId(null);
@@ -166,7 +171,12 @@ function UserLoadCatalogSection({
           {actionError}
         </div>
       )}
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {items.length > 0 && (
+          <div className="w-full sm:max-w-xs">
+            <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar carga..." />
+          </div>
+        )}
         {!addOpen && !editingId && (
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4" />
@@ -179,9 +189,11 @@ function UserLoadCatalogSection({
 
       {items.length === 0 && !addOpen ? (
         <CatalogEmptyState label="Nenhuma carga cadastrada ainda. Clique em “Adicionar carga” ou crie uma na aba Manual do Dimensionamento." />
+      ) : filteredItems.length === 0 && !addOpen ? (
+        <CatalogEmptyState label="Nenhuma carga encontrada para essa pesquisa." />
       ) : (
         <div className="space-y-2">
-          {items.map((item) =>
+          {filteredItems.map((item) =>
             editingId === item.id ? (
               <div key={item.id}>{formCard}</div>
             ) : (
