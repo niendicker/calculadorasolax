@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, FolderOpen, Save } from 'lucide-react';
+import { Calculator, FilePlus2, FolderOpen, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +32,6 @@ export function ProjectTab({
   onOpen,
   onOpenSizing,
   onRemove,
-  onGoSizing,
   onManageClients,
 }: {
   projectInfo: ProjectInfo;
@@ -53,7 +52,6 @@ export function ProjectTab({
   onOpen: (id: string) => void;
   onOpenSizing: (id: string) => void;
   onRemove: (id: string) => void;
-  onGoSizing: () => void;
   onManageClients: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -76,14 +74,6 @@ export function ProjectTab({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={onNew}>
-            <FolderOpen className="h-4 w-4" />
-            Novo projeto
-          </Button>
-          <Button variant="outline" onClick={onGoSizing}>
-            <Calculator className="h-4 w-4" />
-            Dimensionar
-          </Button>
           <Button onClick={onSave}>
             <Save className="h-4 w-4" />
             Salvar projeto
@@ -99,6 +89,19 @@ export function ProjectTab({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
+          <Card>
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium">Novo projeto</p>
+                <p className="text-sm text-muted-foreground">Comece um projeto do zero, limpando os dados atuais.</p>
+              </div>
+              <Button variant="outline" onClick={onNew}>
+                <FilePlus2 className="h-4 w-4" />
+                Novo projeto
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Dados do projeto</CardTitle>

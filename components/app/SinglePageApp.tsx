@@ -408,7 +408,6 @@ export function SinglePageApp() {
               onOpen={openProject}
               onOpenSizing={openProjectSizing}
               onRemove={deleteProject}
-              onGoSizing={() => setActiveTab('sizing')}
               onManageClients={openClientsManager}
             />
           ) : activeTab === 'catalog' ? (
