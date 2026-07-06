@@ -1,16 +1,43 @@
 'use client';
 
-import { useState } from 'react';
-import { Battery, Boxes, Zap } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Battery, Boxes, Loader2, Plus, Zap } from 'lucide-react';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
-import { CatalogEmptyState, CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
+import { CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
-const sectionDefinitions: { type: StockProductType; label: string; fallbackIcon: React.ReactNode }[] = [
-  { type: 'inverter', label: 'Inversores', fallbackIcon: <Zap className="h-8 w-8 text-muted-foreground" /> },
-  { type: 'battery', label: 'Baterias', fallbackIcon: <Battery className="h-8 w-8 text-muted-foreground" /> },
-  { type: 'accessory', label: 'Acessórios', fallbackIcon: <Boxes className="h-8 w-8 text-muted-foreground" /> },
+interface CatalogEntry {
+  id: string;
+  model: string;
+  imageUrl: string | null;
+}
+
+const sectionDefinitions: {
+  type: StockProductType;
+  label: string;
+  fallbackIcon: React.ReactNode;
+  smallIcon: React.ReactNode;
+}[] = [
+  {
+    type: 'inverter',
+    label: 'Inversores',
+    fallbackIcon: <Zap className="h-8 w-8 text-muted-foreground" />,
+    smallIcon: <Zap className="h-4 w-4 text-muted-foreground" />,
+  },
+  {
+    type: 'battery',
+    label: 'Baterias',
+    fallbackIcon: <Battery className="h-8 w-8 text-muted-foreground" />,
+    smallIcon: <Battery className="h-4 w-4 text-muted-foreground" />,
+  },
+  {
+    type: 'accessory',
+    label: 'Acessórios',
+    fallbackIcon: <Boxes className="h-8 w-8 text-muted-foreground" />,
+    smallIcon: <Boxes className="h-4 w-4 text-muted-foreground" />,
+  },
 ];
 
 export function MyStockTab({
@@ -18,6 +45,7 @@ export function MyStockTab({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
+  onAddToStock,
   onUpdateValue,
   onRemove,
 }: {
@@ -25,6 +53,7 @@ export function MyStockTab({
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
+  onAddToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
@@ -37,6 +66,12 @@ export function MyStockTab({
     item.productModel.toLowerCase().includes(normalizedSearch)
   );
 
+  const catalogByType: Record<StockProductType, CatalogEntry[]> = {
+    inverter: inverterCatalog,
+    battery: batteryCatalog,
+    accessory: accessoryCatalog,
+  };
+
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
       <div>
@@ -46,49 +81,193 @@ export function MyStockTab({
         </p>
       </div>
 
-      {userStockItems.length === 0 ? (
-        <CatalogEmptyState label="Nenhum item no seu estoque ainda. Adicione produtos a partir do Catálogo." />
-      ) : (
-        <div className="space-y-4">
-          <div className="max-w-xs">
-            <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
-          </div>
-
-          {filteredStockItems.length === 0 && (
-            <CatalogEmptyState label="Nenhum item encontrado para essa pesquisa." />
-          )}
-
-          {sectionDefinitions.map((section) => {
-            const items = filteredStockItems.filter((item) => item.productType === section.type);
-            if (items.length === 0) return null;
-            return (
-              <div key={section.type} className="space-y-2">
-                <p className="text-sm font-medium">{section.label}</p>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {items.map((item) => (
-                    <StockProductCard
-                      key={item.id}
-                      item={item}
-                      fallbackIcon={section.fallbackIcon}
-                      inverterCatalog={inverterCatalog}
-                      batteryCatalog={batteryCatalog}
-                      accessoryCatalog={accessoryCatalog}
-                      onPreviewImage={setPreviewImage}
-                      onPreviewDoc={setPreviewDoc}
-                      onUpdateValue={onUpdateValue}
-                      onRemove={onRemove}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+      {userStockItems.length > 0 && (
+        <div className="max-w-xs">
+          <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
         </div>
       )}
+
+      <div className="space-y-4">
+        {sectionDefinitions.map((section) => {
+          const items = filteredStockItems.filter((item) => item.productType === section.type);
+          const availableToAdd = catalogByType[section.type].filter(
+            (product) =>
+              !userStockItems.some(
+                (item) => item.productType === section.type && item.productModel === product.model
+              )
+          );
+          return (
+            <div key={section.type} className="space-y-2">
+              <p className="text-sm font-medium">{section.label}</p>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {items.map((item) => (
+                  <StockProductCard
+                    key={item.id}
+                    item={item}
+                    fallbackIcon={section.fallbackIcon}
+                    inverterCatalog={inverterCatalog}
+                    batteryCatalog={batteryCatalog}
+                    accessoryCatalog={accessoryCatalog}
+                    onPreviewImage={setPreviewImage}
+                    onPreviewDoc={setPreviewDoc}
+                    onUpdateValue={onUpdateValue}
+                    onRemove={onRemove}
+                  />
+                ))}
+                <AddProductCard
+                  productType={section.type}
+                  availableProducts={availableToAdd}
+                  smallIcon={section.smallIcon}
+                  onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
+  );
+}
+
+function AddProductCard({
+  productType,
+  availableProducts,
+  smallIcon,
+  onAdd,
+}: {
+  productType: StockProductType;
+  availableProducts: CatalogEntry[];
+  smallIcon: React.ReactNode;
+  onAdd: (model: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [addingModel, setAddingModel] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = triggerRef.current?.getBoundingClientRect();
+    const popRect = popoverRef.current?.getBoundingClientRect();
+    if (!rect || !popRect) return;
+
+    const gap = 8;
+    const margin = 12;
+
+    let left = rect.left;
+    left = Math.min(Math.max(margin, left), window.innerWidth - popRect.width - margin);
+
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    let top =
+      spaceBelow >= popRect.height || spaceBelow >= spaceAbove ? rect.bottom + gap : rect.top - gap - popRect.height;
+    top = Math.min(Math.max(margin, top), window.innerHeight - popRect.height - margin);
+
+    setPosition({ top, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  async function handleAdd(model: string) {
+    setAddingModel(model);
+    try {
+      await onAdd(model);
+      setOpen(false);
+    } finally {
+      setAddingModel(null);
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={open}
+        aria-label={`Adicionar ${productType === 'inverter' ? 'inversor' : productType === 'battery' ? 'bateria' : 'acessório'} ao estoque`}
+        onClick={() => setOpen((current) => !current)}
+        className="grid min-h-[104px] cursor-pointer place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
+      >
+        <Plus className="h-6 w-6" />
+        <span className="text-sm font-medium">Adicionar</span>
+      </button>
+
+      {open &&
+        mounted &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Escolha um produto do catálogo"
+            className="fixed z-[1000] max-h-96 w-80 overflow-y-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg"
+            style={{
+              top: position.top,
+              left: position.left,
+              visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible',
+            }}
+          >
+            {availableProducts.length === 0 ? (
+              <p className="p-2 text-xs text-muted-foreground">
+                Todos os produtos desse grupo já estão no seu estoque.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {availableProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    disabled={addingModel !== null}
+                    onClick={() => handleAdd(product.model)}
+                    className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm transition hover:bg-muted disabled:opacity-60"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                      {product.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={product.imageUrl} alt={product.model} className="h-full w-full object-contain p-1" />
+                      ) : (
+                        smallIcon
+                      )}
+                    </div>
+                    <span className="min-w-0 flex-1 truncate font-medium">{product.model}</span>
+                    {addingModel === product.model ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 

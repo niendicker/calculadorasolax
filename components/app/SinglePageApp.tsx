@@ -445,6 +445,7 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
+              onAddToStock={addToStock}
               onUpdateValue={updateStockItemValue}
               onRemove={removeFromStock}
             />
