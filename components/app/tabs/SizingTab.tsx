@@ -76,6 +76,7 @@ export function SizingTab({
   saveProject,
   productMedia,
   userStockItems,
+  onChooseMicrogridVariant,
 }: {
   title: string;
   subtitle: string;
@@ -117,6 +118,7 @@ export function SizingTab({
   saveProject: () => void;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
+  onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
   return (
     <>
@@ -287,6 +289,7 @@ export function SizingTab({
                   productMedia={productMedia}
                   userStockItems={userStockItems}
                   whiteTariff={residentialOptions.whiteTariff}
+                  onChooseMicrogridVariant={onChooseMicrogridVariant}
                 />
               )}
             </CardContent>
@@ -870,12 +873,14 @@ function ResultSummary({
   productMedia,
   userStockItems,
   whiteTariff,
+  onChooseMicrogridVariant,
 }: {
   solution: Solution;
   onExport: () => void;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
   whiteTariff: WhiteTariffConfig | null;
+  onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -883,6 +888,16 @@ function ResultSummary({
   const batteryMedia = productMedia[solution.batteryModel];
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff);
+
+  if (solution.microgridAlternative) {
+    return (
+      <MicrogridVariantChoice
+        economic={solution}
+        withMicrogrid={solution.microgridAlternative}
+        onChoose={onChooseMicrogridVariant}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -979,6 +994,71 @@ function ResultSummary({
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+function MicrogridVariantChoice({
+  economic,
+  withMicrogrid,
+  onChoose,
+}: {
+  economic: Solution;
+  withMicrogrid: Solution;
+  onChoose: (variant: 'economic' | 'microgrid') => void;
+}) {
+  const options: { variant: 'economic' | 'microgrid'; label: string; description: string; solution: Solution }[] = [
+    {
+      variant: 'economic',
+      label: 'Versão Econômica',
+      description: 'Menor sistema que atende às cargas e demais funcionalidades, sem garantir a microrrede.',
+      solution: economic,
+    },
+    {
+      variant: 'microgrid',
+      label: 'Versão c/ Microrrede',
+      description: 'Sistema dimensionado para suportar o sistema ongrid junto com a microrrede.',
+      solution: withMicrogrid,
+    },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <p className="text-sm font-medium">Escolha uma versão do sistema</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          A Microrrede não é um requisito fundamental e exigi-la deixaria o sistema maior que o necessário. Compare
+          as duas opções abaixo e escolha qual usar.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {options.map((option) => (
+          <div key={option.variant} className="flex flex-col gap-3 rounded-lg border bg-background p-3">
+            <div>
+              <p className="text-sm font-semibold">{option.label}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Inversor</p>
+                <p className="font-medium">
+                  {option.solution.inverterModel} · x{option.solution.inverterQty ?? 1}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Bateria</p>
+                <p className="font-medium">
+                  {option.solution.batteryModel} · x{option.solution.batteryQty}
+                </p>
+              </div>
+            </div>
+            <Button size="sm" onClick={() => onChoose(option.variant)}>
+              Usar esta versão
+            </Button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

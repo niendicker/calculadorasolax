@@ -204,6 +204,15 @@ export function SinglePageApp() {
     window.print();
   }
 
+  function chooseMicrogridVariant(variant: 'economic' | 'microgrid') {
+    if (!solution?.microgridAlternative) return;
+    if (variant === 'economic') {
+      setSolution({ ...solution, microgridAlternative: undefined });
+    } else {
+      setSolution({ ...solution.microgridAlternative, microgridAlternative: undefined });
+    }
+  }
+
   function openMobileTab(tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -445,6 +454,7 @@ export function SinglePageApp() {
               saveProject={saveProject}
               productMedia={productMedia}
               userStockItems={userStockItems}
+              onChooseMicrogridVariant={chooseMicrogridVariant}
             />
           )}
         </section>
