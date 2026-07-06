@@ -289,19 +289,6 @@ export function SinglePageApp() {
             </button>
             <button
               type="button"
-              aria-current={activeTab === 'myLoads' ? 'page' : undefined}
-              onClick={() => setActiveTab('myLoads')}
-              className={cn(
-                'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                activeTab === 'myLoads' &&
-                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
-              )}
-            >
-              <Plug className="h-3.5 w-3.5" />
-              Minhas Cargas
-            </button>
-            <button
-              type="button"
               aria-current={activeTab === 'catalog' ? 'page' : undefined}
               onClick={() => setActiveTab('catalog')}
               className={cn(
@@ -325,6 +312,19 @@ export function SinglePageApp() {
             >
               <Wallet className="h-3.5 w-3.5" />
               Meu Estoque
+            </button>
+            <button
+              type="button"
+              aria-current={activeTab === 'myLoads' ? 'page' : undefined}
+              onClick={() => setActiveTab('myLoads')}
+              className={cn(
+                'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                activeTab === 'myLoads' &&
+                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
+              )}
+            >
+              <Plug className="h-3.5 w-3.5" />
+              Minhas Cargas
             </button>
             <button
               type="button"
@@ -564,18 +564,6 @@ export function SinglePageApp() {
               </button>
               <button
                 type="button"
-                aria-current={activeTab === 'myLoads' ? 'page' : undefined}
-                onClick={() => openMobileTab('myLoads')}
-                className={cn(
-                  'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'myLoads' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <Plug className="h-3.5 w-3.5" />
-                Minhas Cargas
-              </button>
-              <button
-                type="button"
                 aria-current={activeTab === 'catalog' ? 'page' : undefined}
                 onClick={() => openMobileTab('catalog')}
                 className={cn(
@@ -597,6 +585,18 @@ export function SinglePageApp() {
               >
                 <Wallet className="h-3.5 w-3.5" />
                 Meu Estoque
+              </button>
+              <button
+                type="button"
+                aria-current={activeTab === 'myLoads' ? 'page' : undefined}
+                onClick={() => openMobileTab('myLoads')}
+                className={cn(
+                  'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'myLoads' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <Plug className="h-3.5 w-3.5" />
+                Minhas Cargas
               </button>
               <button
                 type="button"
