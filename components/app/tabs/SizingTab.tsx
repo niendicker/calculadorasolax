@@ -346,7 +346,7 @@ function PhasePicker({
   ariaLabel: string;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
+    <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
       {phaseOptions.map((option) => {
         const active = value === option.value;
         return (
@@ -357,7 +357,7 @@ function PhasePicker({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              'h-9 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              'h-9 min-w-[88px] flex-1 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
               active
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                 : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -577,36 +577,34 @@ function DesiredFeaturesPicker({
         <div className="space-y-3 rounded-lg border bg-background p-3">
           <p className="text-sm font-semibold">Microrrede</p>
           <p className="text-xs text-muted-foreground">Dados do sistema ongrid existente a ser conectado.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Fases</Label>
-              <PhasePicker
-                value={microgrid?.onGridPhases ?? 1}
-                ariaLabel="Fases do sistema ongrid"
-                onChange={(phases) =>
-                  onMicrogridChange({
-                    ...(microgrid ?? emptyMicrogridConfig),
-                    onGridPhases: phases,
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="microgridPower">Potência (VA)</Label>
-              <Input
-                id="microgridPower"
-                type="number"
-                min={0}
-                placeholder="Ex.: 3000"
-                value={microgrid?.onGridApparentPowerVA || ''}
-                onChange={(event) =>
-                  onMicrogridChange({
-                    ...(microgrid ?? emptyMicrogridConfig),
-                    onGridApparentPowerVA: Number(event.target.value) || 0,
-                  })
-                }
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="microgridPower">Potência (VA)</Label>
+            <Input
+              id="microgridPower"
+              type="number"
+              min={0}
+              placeholder="Ex.: 3000"
+              value={microgrid?.onGridApparentPowerVA || ''}
+              onChange={(event) =>
+                onMicrogridChange({
+                  ...(microgrid ?? emptyMicrogridConfig),
+                  onGridApparentPowerVA: Number(event.target.value) || 0,
+                })
+              }
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Fases</Label>
+            <PhasePicker
+              value={microgrid?.onGridPhases ?? 1}
+              ariaLabel="Fases do sistema ongrid"
+              onChange={(phases) =>
+                onMicrogridChange({
+                  ...(microgrid ?? emptyMicrogridConfig),
+                  onGridPhases: phases,
+                })
+              }
+            />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input
