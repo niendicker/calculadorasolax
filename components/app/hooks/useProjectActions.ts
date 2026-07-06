@@ -32,8 +32,12 @@ export function useProjectActions({
     try {
       const project = await saveCurrentProject();
       setProjectStatus(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
-    } catch {
-      setProjectStatus('Não foi possível salvar o projeto. Tente novamente.');
+    } catch (error) {
+      setProjectStatus(
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Não foi possível salvar o projeto. Tente novamente.'
+      );
     }
   }
 

@@ -185,6 +185,7 @@ function AddProductCard({
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [addingModel, setAddingModel] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState(groupTabs?.[0]?.value ?? null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -239,9 +240,16 @@ function AddProductCard({
 
   async function handleAdd(model: string) {
     setAddingModel(model);
+    setAddError(null);
     try {
       await onAdd(model);
       setOpen(false);
+    } catch (error) {
+      setAddError(
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Não foi possível adicionar ao estoque. Tente novamente.'
+      );
     } finally {
       setAddingModel(null);
     }
@@ -275,6 +283,7 @@ function AddProductCard({
               visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible',
             }}
           >
+            {addError && <p className="mb-2 text-xs text-destructive">{addError}</p>}
             {groupTabs && (
               <div
                 className="mb-2 grid gap-1 rounded-lg bg-muted p-1"

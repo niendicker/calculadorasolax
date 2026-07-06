@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { totalDailyKwh, totalPeakW, totalPowerByPhase } from './wizard-store';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { ACCOUNT_LIMITS } from '@/lib/limits';
+import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
 import type { SingleLoad } from '@/lib/types';
 
 function makeLoad(partial: Partial<SingleLoad> & Pick<SingleLoad, 'powerW' | 'hoursPerDay' | 'qty'>): SingleLoad {
@@ -110,5 +111,30 @@ describe('totalPowerByPhase', () => {
       makeLoad({ powerW: 300, hoursPerDay: 1, qty: 1, phaseType: 'mono', phase: 'L1' }),
     ];
     expect(totalPowerByPhase(loads).L1).toBe(800);
+  });
+});
+
+describe('addLoad limit enforcement', () => {
+  beforeEach(() => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: { ...s.residentialOptions, loads: [] },
+    }));
+  });
+
+  it('adds a load and returns true while under the per-project limit', () => {
+    const added = useWizardStore.getState().addLoad(makeLoad({ powerW: 100, hoursPerDay: 1, qty: 1 }));
+    expect(added).toBe(true);
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
+  });
+
+  it('returns false and does not add once the project already has ACCOUNT_LIMITS.loadsPerProject loads', () => {
+    for (let i = 0; i < ACCOUNT_LIMITS.loadsPerProject; i++) {
+      expect(useWizardStore.getState().addLoad(makeLoad({ powerW: 100, hoursPerDay: 1, qty: 1 }))).toBe(true);
+    }
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(ACCOUNT_LIMITS.loadsPerProject);
+
+    const added = useWizardStore.getState().addLoad(makeLoad({ powerW: 100, hoursPerDay: 1, qty: 1 }));
+    expect(added).toBe(false);
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(ACCOUNT_LIMITS.loadsPerProject);
   });
 });

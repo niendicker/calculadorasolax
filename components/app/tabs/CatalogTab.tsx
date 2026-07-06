@@ -231,6 +231,7 @@ function StockControl({
   onAdd: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inStock = userStockItems.some(
     (item) => item.productType === productType && item.productModel === productModel
   );
@@ -247,22 +248,32 @@ function StockControl({
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={saving}
-      onClick={async () => {
-        setSaving(true);
-        try {
-          await onAdd({ productType, productModel, unitValue: 0 });
-        } finally {
-          setSaving(false);
-        }
-      }}
-    >
-      <Plus className="h-3.5 w-3.5" />
-      Adicionar ao meu estoque
-    </Button>
+    <div className="space-y-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={saving}
+        onClick={async () => {
+          setSaving(true);
+          setError(null);
+          try {
+            await onAdd({ productType, productModel, unitValue: 0 });
+          } catch (err) {
+            setError(
+              err instanceof Error && err.message.startsWith('Limite de')
+                ? err.message
+                : 'Não foi possível adicionar ao estoque. Tente novamente.'
+            );
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Adicionar ao meu estoque
+      </Button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   );
 }

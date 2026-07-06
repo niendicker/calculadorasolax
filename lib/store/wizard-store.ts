@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import type {
   BatteryTopology,
@@ -70,7 +71,8 @@ interface WizardStore {
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
   setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
-  addLoad: (load: SingleLoad) => void;
+  /** Returns false (no-op) instead of adding when the project is already at ACCOUNT_LIMITS.loadsPerProject. */
+  addLoad: (load: SingleLoad) => boolean;
   removeLoad: (id: string) => void;
   updateLoad: (id: string, partial: Partial<SingleLoad>) => void;
   setIndustrialOption: <K extends keyof IndustrialOptions>(
@@ -194,6 +196,10 @@ export const useWizardStore = create<WizardStore>()(
         if (!userData.user) throw new Error('not_authenticated');
 
         const s = get();
+        if (!s.currentProjectId && s.savedProjects.length >= ACCOUNT_LIMITS.projects) {
+          throw new Error(limitReachedMessage('projetos salvos', ACCOUNT_LIMITS.projects));
+        }
+
         const name = s.projectInfo.name.trim() || `Projeto ${new Date().toLocaleDateString('pt-BR')}`;
         const payload = {
           user_id: userData.user.id,
@@ -289,6 +295,10 @@ export const useWizardStore = create<WizardStore>()(
       },
 
       addClient: async (input) => {
+        if (get().clients.length >= ACCOUNT_LIMITS.clients) {
+          throw new Error(limitReachedMessage('clientes cadastrados', ACCOUNT_LIMITS.clients));
+        }
+
         const supabase = createClient();
         const { data: userData } = await supabase.auth.getUser();
         if (!userData.user) throw new Error('not_authenticated');
@@ -381,6 +391,10 @@ export const useWizardStore = create<WizardStore>()(
           return;
         }
 
+        if (get().userLoadCatalog.length >= ACCOUNT_LIMITS.userLoadCatalog) {
+          throw new Error(limitReachedMessage('cargas personalizadas', ACCOUNT_LIMITS.userLoadCatalog));
+        }
+
         const { data, error } = await supabase
           .from('user_load_catalog')
           .insert({
@@ -434,6 +448,13 @@ export const useWizardStore = create<WizardStore>()(
       },
 
       addToStock: async (input) => {
+        const alreadyInStock = get().userStockItems.some(
+          (item) => item.productType === input.productType && item.productModel === input.productModel
+        );
+        if (!alreadyInStock && get().userStockItems.length >= ACCOUNT_LIMITS.userStockItems) {
+          throw new Error(limitReachedMessage('itens no estoque', ACCOUNT_LIMITS.userStockItems));
+        }
+
         const supabase = createClient();
         const { data: userData } = await supabase.auth.getUser();
         if (!userData.user) throw new Error('not_authenticated');
@@ -561,13 +582,16 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, peakCalcMode },
         })),
 
-      addLoad: (load) =>
+      addLoad: (load) => {
+        if (get().residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject) return false;
         set((s) => ({
           residentialOptions: {
             ...s.residentialOptions,
             loads: [...s.residentialOptions.loads, load],
           },
-        })),
+        }));
+        return true;
+      },
 
       removeLoad: (id) =>
         set((s) => ({

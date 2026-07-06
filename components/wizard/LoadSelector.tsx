@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, Layers, MoreVertical, Pencil, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
+import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPhase, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -164,6 +165,7 @@ export function LoadSelector() {
   const [manualQty, setManualQty] = useState('1');
   const [manualIpIn, setManualIpIn] = useState('1');
   const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
+  const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
 
   const nameKey = locale === 'zh' ? 'nameZh' : locale === 'en' ? 'nameEn' : 'namePt';
 
@@ -179,7 +181,7 @@ export function LoadSelector() {
   );
 
   function handleAddFromCatalog(item: CatalogItem) {
-    addLoad(
+    const added = addLoad(
       newLoad({
         name: item[nameKey as keyof CatalogItem] as string,
         powerW: item.powerW,
@@ -188,10 +190,11 @@ export function LoadSelector() {
         ipInRatio: item.ipInRatio ?? 1,
       })
     );
+    setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
   }
 
   function handleAddFromUserCatalog(item: (typeof userLoadCatalog)[number]) {
-    addLoad(
+    const added = addLoad(
       newLoad({
         name: item.name,
         powerW: item.powerW,
@@ -200,13 +203,14 @@ export function LoadSelector() {
         ipInRatio: item.ipInRatio,
       })
     );
+    setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
   }
 
   function handleAddManual() {
     if (!manualName || !manualPower) return;
     const powerW = Number(manualPower);
     const ipInRatio = Number(manualIpIn) || 1;
-    addLoad(
+    const added = addLoad(
       newLoad({
         name: manualName,
         powerW,
@@ -215,9 +219,18 @@ export function LoadSelector() {
         ipInRatio,
       })
     );
+    if (!added) {
+      setLoadLimitMessage(limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
+      return;
+    }
+    setLoadLimitMessage(null);
     setCatalogSaveWarning(null);
-    saveManualLoadToCatalog({ name: manualName, powerW, ipInRatio }).catch(() => {
-      setCatalogSaveWarning('Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.');
+    saveManualLoadToCatalog({ name: manualName, powerW, ipInRatio }).catch((error) => {
+      const message =
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.';
+      setCatalogSaveWarning(message);
     });
     setManualName('');
     setManualPower('');
@@ -227,6 +240,16 @@ export function LoadSelector() {
   }
 
   function handleAddPreset(preset: (typeof loadPresets)[number]) {
+    const remaining = ACCOUNT_LIMITS.loadsPerProject - residentialOptions.loads.length;
+    if (preset.loads.length > remaining) {
+      setLoadLimitMessage(
+        remaining > 0
+          ? `Este preset tem ${preset.loads.length} cargas, mas só cabem mais ${remaining} neste projeto (limite de ${ACCOUNT_LIMITS.loadsPerProject}).`
+          : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject)
+      );
+      return;
+    }
+    setLoadLimitMessage(null);
     preset.loads.forEach((load) => addLoad(newLoad(load)));
     setTab('catalog');
   }
@@ -255,6 +278,12 @@ export function LoadSelector() {
           {t('catalog')}
         </Button>
       </div>
+
+      {loadLimitMessage && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {loadLimitMessage}
+        </p>
+      )}
 
       {tab === 'presets' && (
         <div className="grid gap-2 md:grid-cols-3">
@@ -463,7 +492,16 @@ export function LoadSelector() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {residentialOptions.loads.map((load) => (
-              <LoadCard key={load.id} load={load} gridType={residentialOptions.gridType} onUpdate={updateLoad} onRemove={removeLoad} />
+              <LoadCard
+                key={load.id}
+                load={load}
+                gridType={residentialOptions.gridType}
+                onUpdate={updateLoad}
+                onRemove={(id) => {
+                  removeLoad(id);
+                  setLoadLimitMessage(null);
+                }}
+              />
             ))}
           </div>
         </div>

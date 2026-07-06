@@ -75,8 +75,12 @@ export function ClientsTab({
         await onAdd(form);
       }
       setFormOpen(false);
-    } catch {
-      setActionError('Não foi possível salvar o cliente. Verifique sua conexão e tente novamente.');
+    } catch (error) {
+      setActionError(
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Não foi possível salvar o cliente. Verifique sua conexão e tente novamente.'
+      );
     } finally {
       setSaving(false);
     }
