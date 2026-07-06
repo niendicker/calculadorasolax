@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Plug,
   Save,
   ShieldUser,
   Sun,
@@ -34,7 +33,6 @@ import { useProjectActions } from './hooks/useProjectActions';
 import { PrintableReport } from './PrintableReport';
 import { CatalogTab } from './tabs/CatalogTab';
 import { ClientsTab } from './tabs/ClientsTab';
-import { MyLoadsTab } from './tabs/MyLoadsTab';
 import { MyStockTab } from './tabs/MyStockTab';
 import { ProjectTab } from './tabs/ProjectTab';
 import { SizingTab } from './tabs/SizingTab';
@@ -50,7 +48,6 @@ export function SinglePageApp() {
     projectInfo,
     savedProjects,
     clients,
-    userLoadCatalog,
     userStockItems,
     residentialOptions,
     solution,
@@ -66,9 +63,6 @@ export function SinglePageApp() {
     addClient,
     updateClient,
     removeClient,
-    saveManualLoadToCatalog,
-    updateUserLoadCatalogItem,
-    removeUserLoadCatalogItem,
     addToStock,
     updateStockItemValue,
     removeFromStock,
@@ -89,7 +83,7 @@ export function SinglePageApp() {
   } = useWizardStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'myLoads' | 'catalog' | 'myStock' | 'clients'>('project');
+  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'myStock' | 'clients'>('project');
 
   const {
     userEmail,
@@ -231,7 +225,7 @@ export function SinglePageApp() {
     return data.publicUrl;
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'myStock' | 'clients') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'myStock' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }
@@ -312,19 +306,6 @@ export function SinglePageApp() {
             >
               <Wallet className="h-3.5 w-3.5" />
               Meu Estoque
-            </button>
-            <button
-              type="button"
-              aria-current={activeTab === 'myLoads' ? 'page' : undefined}
-              onClick={() => setActiveTab('myLoads')}
-              className={cn(
-                'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                activeTab === 'myLoads' &&
-                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
-              )}
-            >
-              <Plug className="h-3.5 w-3.5" />
-              Minhas Cargas
             </button>
             <button
               type="button"
@@ -456,13 +437,6 @@ export function SinglePageApp() {
               onUpdate={updateClient}
               onRemove={removeClient}
             />
-          ) : activeTab === 'myLoads' ? (
-            <MyLoadsTab
-              userLoadCatalog={userLoadCatalog}
-              onAdd={saveManualLoadToCatalog}
-              onUpdate={updateUserLoadCatalogItem}
-              onRemove={removeUserLoadCatalogItem}
-            />
           ) : (
             <SizingTab
               title={t('title')}
@@ -585,18 +559,6 @@ export function SinglePageApp() {
               >
                 <Wallet className="h-3.5 w-3.5" />
                 Meu Estoque
-              </button>
-              <button
-                type="button"
-                aria-current={activeTab === 'myLoads' ? 'page' : undefined}
-                onClick={() => openMobileTab('myLoads')}
-                className={cn(
-                  'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'myLoads' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <Plug className="h-3.5 w-3.5" />
-                Minhas Cargas
               </button>
               <button
                 type="button"

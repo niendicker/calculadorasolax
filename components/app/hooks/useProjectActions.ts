@@ -20,7 +20,7 @@ export function useProjectActions({
   newProjectDraft: () => void;
   loadProject: (id: string) => void;
   removeProject: (id: string) => Promise<void>;
-  setActiveTab: (tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients') => void;
+  setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
