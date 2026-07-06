@@ -441,6 +441,9 @@ export function SinglePageApp() {
           ) : activeTab === 'myStock' ? (
             <MyStockTab
               userStockItems={userStockItems}
+              inverterCatalog={inverterCatalog}
+              batteryCatalog={batteryCatalog}
+              accessoryCatalog={accessoryCatalog}
               onUpdateValue={updateStockItemValue}
               onRemove={removeFromStock}
             />
