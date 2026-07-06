@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Battery, Boxes, Plus, Trash2, Zap } from 'lucide-react';
+import { Battery, Boxes, Check, Plus, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -21,8 +22,6 @@ export function CatalogTab({
   accessoryCatalog,
   userStockItems,
   onAddToStock,
-  onUpdateStockValue,
-  onRemoveFromStock,
 }: {
   initialLoading: boolean;
   inverterCatalog: InverterCatalogOption[];
@@ -30,8 +29,6 @@ export function CatalogTab({
   accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
   onAddToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
-  onUpdateStockValue: (id: string, unitValue: number) => Promise<void>;
-  onRemoveFromStock: (id: string) => Promise<void>;
 }) {
   const [section, setSection] = useState<'inverters' | 'batteries' | 'accessories'>('inverters');
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
@@ -108,8 +105,6 @@ export function CatalogTab({
                     productModel={inverter.model}
                     userStockItems={userStockItems}
                     onAdd={onAddToStock}
-                    onUpdateValue={onUpdateStockValue}
-                    onRemove={onRemoveFromStock}
                   />
                 }
               />
@@ -143,8 +138,6 @@ export function CatalogTab({
                       productModel={battery.model}
                       userStockItems={userStockItems}
                       onAdd={onAddToStock}
-                      onUpdateValue={onUpdateStockValue}
-                      onRemove={onRemoveFromStock}
                     />
                   }
                 />
@@ -173,8 +166,6 @@ export function CatalogTab({
                     productModel={accessory.model}
                     userStockItems={userStockItems}
                     onAdd={onAddToStock}
-                    onUpdateValue={onUpdateStockValue}
-                    onRemove={onRemoveFromStock}
                   />
                 }
               />
@@ -194,71 +185,45 @@ function StockControl({
   productModel,
   userStockItems,
   onAdd,
-  onUpdateValue,
-  onRemove,
 }: {
   productType: StockProductType;
   productModel: string;
   userStockItems: UserStockItem[];
   onAdd: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
-  onUpdateValue: (id: string, unitValue: number) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
-  const stockItem = userStockItems.find(
+  const inStock = userStockItems.some(
     (item) => item.productType === productType && item.productModel === productModel
   );
 
-  if (!stockItem) {
+  if (inStock) {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onAdd({ productType, productModel, unitValue: 0 });
-          } finally {
-            setSaving(false);
-          }
-        }}
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Adicionar ao meu estoque
-      </Button>
+      <div className="border-t pt-2">
+        <Badge variant="secondary" className="w-fit gap-1">
+          <Check className="h-3 w-3" />
+          No estoque
+        </Badge>
+      </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 border-t pt-2">
-      <span className="text-xs text-muted-foreground">Meu preço</span>
-      <div className="flex items-center gap-1">
-        <span className="text-xs text-muted-foreground">R$</span>
-        <input
-          key={stockItem.id}
-          type="number"
-          min={0}
-          step={0.01}
-          defaultValue={stockItem.unitValue}
-          onBlur={(event) => {
-            const parsed = Number(event.target.value);
-            const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-            if (nextValue !== stockItem.unitValue) onUpdateValue(stockItem.id, nextValue);
-          }}
-          className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        />
-      </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Remover ${productModel} do meu estoque`}
-        onClick={() => onRemove(stockItem.id)}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
-    </div>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={saving}
+      onClick={async () => {
+        setSaving(true);
+        try {
+          await onAdd({ productType, productModel, unitValue: 0 });
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Adicionar ao meu estoque
+    </Button>
   );
 }

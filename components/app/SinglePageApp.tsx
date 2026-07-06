@@ -17,6 +17,7 @@ import {
   Trash2,
   UserRound,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ import { PrintableReport } from './PrintableReport';
 import { CatalogTab } from './tabs/CatalogTab';
 import { ClientsTab } from './tabs/ClientsTab';
 import { MyLoadsTab } from './tabs/MyLoadsTab';
+import { MyStockTab } from './tabs/MyStockTab';
 import { ProjectTab } from './tabs/ProjectTab';
 import { SizingTab } from './tabs/SizingTab';
 import { gridTypeToApprovedTopology } from './types';
@@ -87,7 +89,7 @@ export function SinglePageApp() {
   } = useWizardStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients'>('project');
+  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'myLoads' | 'catalog' | 'myStock' | 'clients'>('project');
 
   const {
     userEmail,
@@ -229,7 +231,7 @@ export function SinglePageApp() {
     return data.publicUrl;
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'clients') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'myLoads' | 'catalog' | 'myStock' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }
@@ -310,6 +312,19 @@ export function SinglePageApp() {
             >
               <Boxes className="h-4 w-4" />
               Catálogo
+            </button>
+            <button
+              type="button"
+              aria-current={activeTab === 'myStock' ? 'page' : undefined}
+              onClick={() => setActiveTab('myStock')}
+              className={cn(
+                'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                activeTab === 'myStock' &&
+                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
+              )}
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              Meu Estoque
             </button>
             <button
               type="button"
@@ -422,8 +437,12 @@ export function SinglePageApp() {
               accessoryCatalog={accessoryCatalog}
               userStockItems={userStockItems}
               onAddToStock={addToStock}
-              onUpdateStockValue={updateStockItemValue}
-              onRemoveFromStock={removeFromStock}
+            />
+          ) : activeTab === 'myStock' ? (
+            <MyStockTab
+              userStockItems={userStockItems}
+              onUpdateValue={updateStockItemValue}
+              onRemove={removeFromStock}
             />
           ) : activeTab === 'clients' ? (
             <ClientsTab
@@ -560,6 +579,18 @@ export function SinglePageApp() {
               >
                 <Boxes className="h-4 w-4" />
                 Catálogo
+              </button>
+              <button
+                type="button"
+                aria-current={activeTab === 'myStock' ? 'page' : undefined}
+                onClick={() => openMobileTab('myStock')}
+                className={cn(
+                  'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'myStock' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Meu Estoque
               </button>
               <button
                 type="button"
