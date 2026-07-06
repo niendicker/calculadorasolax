@@ -315,7 +315,7 @@ export function SinglePageApp() {
               )}
             >
               <Wallet className="h-3.5 w-3.5" />
-              Meu Estoque
+              Meu Catálogo
             </button>
             <button
               type="button"
@@ -568,7 +568,7 @@ export function SinglePageApp() {
                 )}
               >
                 <Wallet className="h-3.5 w-3.5" />
-                Meu Estoque
+                Meu Catálogo
               </button>
               <button
                 type="button"

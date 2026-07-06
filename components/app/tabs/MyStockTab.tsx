@@ -110,7 +110,7 @@ export function MyStockTab({
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Meu Estoque</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Meu Catálogo</h1>
         <p className="text-sm text-muted-foreground">
           Produtos que você adicionou do Catálogo, com o preço que você define para seus orçamentos.
         </p>
