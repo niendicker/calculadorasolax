@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Search, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toNumber } from '../helpers';
-import { Actions, CatalogLayout, DetailItem, Field, NumberWithUnitField } from '../shared-ui';
+import { Actions, CatalogLayout, Field, NumberWithUnitField } from '../shared-ui';
 import { emptyPreset, type LoadCatalogRow, type PresetLoad, type PresetRow } from '../types';
 
 export function PresetsEditor(props: {
@@ -91,8 +91,13 @@ export function PresetsEditor(props: {
               <div className="space-y-2">
                 {loads.map((load, index) => (
                   <div key={`${load.name}-${index}`} className="rounded-lg border bg-card p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-medium">{load.name}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{load.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {load.powerW} VA · IP/IN {load.ipInRatio}×
+                        </p>
+                      </div>
                       <button
                         type="button"
                         aria-label={`Remover ${load.name}`}
@@ -102,8 +107,7 @@ export function PresetsEditor(props: {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <DetailItem label="Potência" value={`${load.powerW} VA`} />
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <NumberWithUnitField
                         label="Horas/dia"
                         tip="Horas de uso por dia, usado para estimar o consumo diário."
@@ -120,7 +124,6 @@ export function PresetsEditor(props: {
                         value={load.qty}
                         onChange={(event) => updateLoad(index, { qty: toNumber(event.target.value, 1) })}
                       />
-                      <DetailItem label="IP/IN" value={`${load.ipInRatio}×`} />
                     </div>
                   </div>
                 ))}
