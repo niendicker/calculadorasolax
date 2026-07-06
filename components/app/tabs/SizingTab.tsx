@@ -407,7 +407,6 @@ function PhotoUploadField({
 
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
       <div className="rounded-lg border bg-card p-3">
         {photoUrl ? (
           <div className="flex items-center gap-3">
@@ -418,7 +417,7 @@ function PhotoUploadField({
               className="h-20 w-20 shrink-0 rounded-md border bg-background object-cover"
             />
             <div className="min-w-0 space-y-2">
-              <p className="text-xs text-muted-foreground">Foto anexada</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
               <div className="flex flex-wrap gap-2">
                 <label htmlFor={inputId} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'cursor-pointer')}>
                   Trocar foto
@@ -433,10 +432,11 @@ function PhotoUploadField({
         ) : (
           <label
             htmlFor={inputId}
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-input py-6 text-center text-sm text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
+            className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input py-6 text-center text-sm text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
           >
             {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
-            {uploading ? 'Enviando...' : 'Clique para anexar uma foto'}
+            <span className="font-medium text-foreground">{uploading ? 'Enviando...' : 'Anexar foto'}</span>
+            {!uploading && <span className="text-xs">{label}</span>}
           </label>
         )}
         <input
