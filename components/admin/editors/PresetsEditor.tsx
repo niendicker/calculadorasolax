@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Search, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toNumber } from '../helpers';
-import { Actions, CatalogLayout, Field, NumberWithUnitField } from '../shared-ui';
+import { Actions, CatalogLayout, DetailItem, Field, NumberWithUnitField } from '../shared-ui';
 import { emptyPreset, type LoadCatalogRow, type PresetLoad, type PresetRow } from '../types';
 
 export function PresetsEditor(props: {
@@ -103,13 +103,7 @@ export function PresetsEditor(props: {
                       </button>
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <NumberWithUnitField
-                        label="Potência"
-                        tip="Potência aparente nominal."
-                        unit="VA"
-                        value={load.powerW}
-                        onChange={(event) => updateLoad(index, { powerW: toNumber(event.target.value) })}
-                      />
+                      <DetailItem label="Potência" value={`${load.powerW} VA`} />
                       <NumberWithUnitField
                         label="Horas/dia"
                         tip="Horas de uso por dia, usado para estimar o consumo diário."
@@ -126,15 +120,7 @@ export function PresetsEditor(props: {
                         value={load.qty}
                         onChange={(event) => updateLoad(index, { qty: toNumber(event.target.value, 1) })}
                       />
-                      <NumberWithUnitField
-                        label="IP/IN"
-                        tip="Relação entre a potência de partida (pico) e a nominal."
-                        unit="×"
-                        min={1}
-                        step={0.1}
-                        value={load.ipInRatio}
-                        onChange={(event) => updateLoad(index, { ipInRatio: toNumber(event.target.value, 1) })}
-                      />
+                      <DetailItem label="IP/IN" value={`${load.ipInRatio}×`} />
                     </div>
                   </div>
                 ))}
