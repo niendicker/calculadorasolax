@@ -1187,10 +1187,22 @@ function LoadCard({
         )}
         {phaseCount === 2 && phaseType === 'mono' && needsTwoPhases && (
           <div>
-            <Label className="text-xs font-normal text-muted-foreground">Fases</Label>
-            <p className="mt-1 flex h-7 items-center rounded-lg bg-muted px-2 text-xs text-muted-foreground">
-              Ligada entre as duas fases da rede (L1-L2)
-            </p>
+            <Label className="text-xs font-normal text-muted-foreground">
+              <InfoLabel
+                label="Fases"
+                tip="Essa tensão é obtida ligando a carga entre duas fases (não fase-neutro), então a potência soma nas duas fases da rede."
+              />
+            </Label>
+            <div className="mt-1 flex gap-1 rounded-lg bg-muted p-1">
+              <button
+                type="button"
+                aria-pressed="true"
+                disabled
+                className="h-7 flex-1 rounded-md bg-background text-xs font-medium text-foreground shadow-sm ring-1 ring-border"
+              >
+                L1-L2
+              </button>
+            </div>
           </div>
         )}
         {phaseCount > 1 && phaseType === 'mono' && !needsTwoPhases && (
