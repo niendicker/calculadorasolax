@@ -29,6 +29,7 @@ export function ProjectTab({
   onSave,
   onNew,
   onOpen,
+  onOpenSizing,
   onRemove,
   onGoSizing,
   onManageClients,
@@ -49,6 +50,7 @@ export function ProjectTab({
   onSave: () => void;
   onNew: () => void;
   onOpen: (id: string) => void;
+  onOpenSizing: (id: string) => void;
   onRemove: (id: string) => void;
   onGoSizing: () => void;
   onManageClients: () => void;
@@ -196,6 +198,10 @@ export function ProjectTab({
                         <Button variant="outline" onClick={() => onOpen(project.id)}>
                           <FolderOpen className="h-4 w-4" />
                           Abrir
+                        </Button>
+                        <Button variant="outline" onClick={() => onOpenSizing(project.id)}>
+                          <Calculator className="h-4 w-4" />
+                          Dimensionamento
                         </Button>
                         <ConfirmDeleteButton
                           ariaLabel={`Remover projeto ${project.name}`}

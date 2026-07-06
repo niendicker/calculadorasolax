@@ -7,6 +7,7 @@ import {
   Calculator,
   Check,
   FileText,
+  FolderOpen,
   Gauge,
   Home,
   ImagePlus,
@@ -53,6 +54,7 @@ import { gridOptions, type BatteryCatalogOption, type InverterCatalogOption, typ
 export function SizingTab({
   title,
   subtitle,
+  projectName,
   loadingLabel,
   calculateLabel,
   residentialOptions,
@@ -86,6 +88,7 @@ export function SizingTab({
 }: {
   title: string;
   subtitle: string;
+  projectName: string;
   loadingLabel: string;
   calculateLabel: string;
   residentialOptions: {
@@ -135,7 +138,15 @@ export function SizingTab({
         <div className="space-y-4">
           <div className="sticky top-0 z-20 flex flex-col gap-3 border-b bg-background/95 py-3 backdrop-blur lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+                {projectName && (
+                  <Badge variant="secondary" className="gap-1">
+                    <FolderOpen className="h-3 w-3" />
+                    {projectName}
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
             <div className="flex flex-wrap gap-2">

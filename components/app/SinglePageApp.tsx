@@ -124,7 +124,7 @@ export function SinglePageApp() {
     deleteAccount,
   } = useProfileActions({ supabase, profile, setProfile, router, locale, clearUserData });
 
-  const { projectStatus, saveProject, startNewProject, openProject, deleteProject } = useProjectActions({
+  const { projectStatus, saveProject, startNewProject, openProject, openProjectSizing, deleteProject } = useProjectActions({
     profile,
     router,
     locale,
@@ -425,6 +425,7 @@ export function SinglePageApp() {
               onSave={saveProject}
               onNew={startNewProject}
               onOpen={openProject}
+              onOpenSizing={openProjectSizing}
               onRemove={deleteProject}
               onGoSizing={() => setActiveTab('sizing')}
               onManageClients={openClientsManager}
@@ -465,6 +466,7 @@ export function SinglePageApp() {
             <SizingTab
               title={t('title')}
               subtitle={t('subtitle')}
+              projectName={projectInfo.name}
               loadingLabel={tc('loading')}
               calculateLabel={tc('calculate')}
               residentialOptions={residentialOptions}

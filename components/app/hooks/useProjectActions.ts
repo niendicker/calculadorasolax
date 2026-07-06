@@ -44,6 +44,11 @@ export function useProjectActions({
 
   function openProject(id: string) {
     loadProject(id);
+    setProjectStatus('Projeto carregado.');
+  }
+
+  function openProjectSizing(id: string) {
+    loadProject(id);
     setActiveTab('sizing');
     setProjectStatus('Projeto carregado.');
   }
@@ -57,5 +62,5 @@ export function useProjectActions({
     }
   }
 
-  return { projectStatus, saveProject, startNewProject, openProject, deleteProject };
+  return { projectStatus, saveProject, startNewProject, openProject, openProjectSizing, deleteProject };
 }
