@@ -494,7 +494,7 @@ function DesiredFeaturesPicker({
         <div className="space-y-3 rounded-lg border bg-background p-3">
           <p className="text-sm font-semibold">ATS Externo</p>
           <PhotoUploadField
-            label="Foto do painel ATS"
+            label="Foto do disjuntor geral"
             photoUrl={atsPhotoUrl}
             slot="ats"
             onUploadPhoto={onUploadPhoto}
@@ -625,7 +625,7 @@ function DesiredFeaturesPicker({
             Se não for fundamental, você poderá escolher entre a versão econômica e a versão com microrrede.
           </p>
           <PhotoUploadField
-            label="Foto do sistema ongrid"
+            label="Foto da etiqueta do inversor ongrid"
             photoUrl={microgrid?.photoUrl ?? null}
             slot="microgrid"
             onUploadPhoto={onUploadPhoto}
@@ -691,7 +691,7 @@ function DesiredFeaturesPicker({
             </p>
           )}
           <PhotoUploadField
-            label="Foto do gerador"
+            label="Foto da etiqueta do gerador"
             photoUrl={generator?.photoUrl ?? null}
             slot="generator"
             onUploadPhoto={onUploadPhoto}
