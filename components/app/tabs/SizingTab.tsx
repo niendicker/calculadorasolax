@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Battery,
   Calculator,
+  Check,
   FileText,
   Gauge,
   Home,
@@ -217,6 +218,7 @@ export function SizingTab({
                   selectedModel={residentialOptions.inverterModel}
                   loading={initialLoading}
                   setInverterModel={setInverterModel}
+                  userStockItems={userStockItems}
                 />
               </div>
             </CardContent>
@@ -900,12 +902,14 @@ function InverterModelPicker({
   selectedModel,
   loading,
   setInverterModel,
+  userStockItems,
 }: {
   inverters: InverterCatalogOption[];
   availableModels: Set<string> | null;
   selectedModel: string | null;
   loading: boolean;
   setInverterModel: (inverterModel: string | null) => void;
+  userStockItems: UserStockItem[];
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -951,6 +955,9 @@ function InverterModelPicker({
 
           {visibleInverters.map((inverter) => {
             const selected = selectedModel === inverter.model;
+            const inStock = userStockItems.some(
+              (item) => item.productType === 'inverter' && item.productModel === inverter.model
+            );
             return (
               <div
                 key={inverter.id}
@@ -989,7 +996,15 @@ function InverterModelPicker({
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
-                    <Badge variant="secondary">{inverter.topology}</Badge>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {inStock && (
+                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu estoque">
+                          <Check className="h-3 w-3" />
+                          No estoque
+                        </Badge>
+                      )}
+                      <Badge variant="secondary">{inverter.topology}</Badge>
+                    </div>
                   </div>
                   <div className="grid gap-1 text-xs text-muted-foreground">
                     <span>Fases: {inverter.phases}</span>
