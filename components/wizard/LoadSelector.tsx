@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, Layers, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
@@ -154,7 +154,7 @@ export function LoadSelector() {
   const maxPowerPerPhaseW = residentialOptions.maxPowerPerPhaseW;
   const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
-  const [tab, setTab] = useState<'presets' | 'catalog' | 'manual'>('presets');
+  const [tab, setTab] = useState<'presets' | 'catalog'>('presets');
   const [search, setSearch] = useState('');
   const [manualName, setManualName] = useState('');
   const [manualPower, setManualPower] = useState('');
@@ -252,16 +252,6 @@ export function LoadSelector() {
         >
           {t('catalog')}
         </Button>
-        <Button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'manual'}
-          variant={tab === 'manual' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setTab('manual')}
-        >
-          {t('manual')}
-        </Button>
       </div>
 
       {tab === 'presets' && (
@@ -303,16 +293,41 @@ export function LoadSelector() {
 
       {tab === 'catalog' && (
         <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label={t('search_placeholder')}
-              placeholder={t('search_placeholder')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 md:pl-8"
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label={t('search_placeholder')}
+                placeholder={t('search_placeholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 md:pl-8"
+              />
+            </div>
+            <AddCustomLoadPopover
+              name={manualName}
+              power={manualPower}
+              hours={manualHours}
+              qty={manualQty}
+              ipIn={manualIpIn}
+              nameLabel={t('name')}
+              powerLabel={t('power')}
+              hoursLabel={t('hours')}
+              qtyLabel={t('qty')}
+              addLabel={t('add_load')}
+              onNameChange={setManualName}
+              onPowerChange={setManualPower}
+              onHoursChange={setManualHours}
+              onQtyChange={setManualQty}
+              onIpInChange={setManualIpIn}
+              onAdd={handleAddManual}
             />
           </div>
+          {catalogSaveWarning && (
+            <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {catalogSaveWarning}
+            </p>
+          )}
           {filteredUserItems.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Minhas Cargas</p>
@@ -348,90 +363,6 @@ export function LoadSelector() {
             </div>
           </div>
         </div>
-      )}
-
-      {tab === 'manual' && (
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            <div>
-              <Label htmlFor="manual-name">{t('name')}</Label>
-              <Input
-                id="manual-name"
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
-              <div>
-                <Label htmlFor="manual-power">
-                  <InfoLabel label={t('power')} tip="Potência aparente nominal do equipamento, informada na etiqueta ou manual (em VA)." />
-                </Label>
-                <Input
-                  id="manual-power"
-                  type="number"
-                  min={1}
-                  value={manualPower}
-                  onChange={(e) => setManualPower(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="manual-hours">
-                  <InfoLabel label={t('hours')} tip="Tempo médio de uso diário desse equipamento. Usado para calcular o consumo em kWh/dia." />
-                </Label>
-                <Input
-                  id="manual-hours"
-                  type="number"
-                  min={0.5}
-                  max={24}
-                  step={0.5}
-                  value={manualHours}
-                  onChange={(e) => setManualHours(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="manual-qty">
-                  <InfoLabel label={t('qty')} tip="Número de unidades desse equipamento na instalação." />
-                </Label>
-                <Input
-                  id="manual-qty"
-                  type="number"
-                  min={1}
-                  value={manualQty}
-                  onChange={(e) => setManualQty(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="manual-ip-in">
-                  <InfoLabel
-                    label="IP/IN"
-                    tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
-                  />
-                </Label>
-                <Input
-                  id="manual-ip-in"
-                  type="number"
-                  min={1}
-                  step={0.1}
-                  value={manualIpIn}
-                  onChange={(e) => setManualIpIn(e.target.value)}
-                />
-              </div>
-            </div>
-            <Button
-              className="w-full"
-              onClick={handleAddManual}
-              disabled={!manualName || !manualPower}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              {t('add_load')}
-            </Button>
-            {catalogSaveWarning && (
-              <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                {catalogSaveWarning}
-              </p>
-            )}
-          </CardContent>
-        </Card>
       )}
 
       {residentialOptions.loads.length > 0 && (
@@ -521,6 +452,186 @@ export function LoadSelector() {
         </div>
       )}
     </div>
+  );
+}
+
+function AddCustomLoadPopover({
+  name,
+  power,
+  hours,
+  qty,
+  ipIn,
+  nameLabel,
+  powerLabel,
+  hoursLabel,
+  qtyLabel,
+  addLabel,
+  onNameChange,
+  onPowerChange,
+  onHoursChange,
+  onQtyChange,
+  onIpInChange,
+  onAdd,
+}: {
+  name: string;
+  power: string;
+  hours: string;
+  qty: string;
+  ipIn: string;
+  nameLabel: string;
+  powerLabel: string;
+  hoursLabel: string;
+  qtyLabel: string;
+  addLabel: string;
+  onNameChange: (value: string) => void;
+  onPowerChange: (value: string) => void;
+  onHoursChange: (value: string) => void;
+  onQtyChange: (value: string) => void;
+  onIpInChange: (value: string) => void;
+  onAdd: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = triggerRef.current?.getBoundingClientRect();
+    const popRect = popoverRef.current?.getBoundingClientRect();
+    if (!rect || !popRect) return;
+
+    const gap = 8;
+    const margin = 12;
+
+    let left = rect.right - popRect.width;
+    left = Math.min(Math.max(margin, left), window.innerWidth - popRect.width - margin);
+
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    let top =
+      spaceBelow >= popRect.height || spaceBelow >= spaceAbove ? rect.bottom + gap : rect.top - gap - popRect.height;
+    top = Math.min(Math.max(margin, top), window.innerHeight - popRect.height - margin);
+
+    setPosition({ top, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  function handleAdd() {
+    if (!name || !power) return;
+    onAdd();
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button ref={triggerRef} type="button" variant="outline" onClick={() => setOpen((current) => !current)}>
+        <Plus className="h-4 w-4" />
+        Adicionar
+      </Button>
+
+      {open &&
+        mounted &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Adicionar nova carga"
+            className="fixed z-[1000] w-80 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
+            style={{
+              top: position.top,
+              left: position.left,
+              visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible',
+            }}
+          >
+            <p className="text-sm font-medium">Nova carga</p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <Label htmlFor="popover-load-name">{nameLabel}</Label>
+                <Input
+                  id="popover-load-name"
+                  value={name}
+                  onChange={(event) => onNameChange(event.target.value)}
+                  placeholder="Nome do equipamento"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="popover-load-power">{powerLabel}</Label>
+                  <Input
+                    id="popover-load-power"
+                    type="number"
+                    min={1}
+                    value={power}
+                    onChange={(event) => onPowerChange(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="popover-load-hours">{hoursLabel}</Label>
+                  <Input
+                    id="popover-load-hours"
+                    type="number"
+                    min={0.5}
+                    max={24}
+                    step={0.5}
+                    value={hours}
+                    onChange={(event) => onHoursChange(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="popover-load-qty">{qtyLabel}</Label>
+                  <Input
+                    id="popover-load-qty"
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={(event) => onQtyChange(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="popover-load-ipin">IP/IN</Label>
+                  <Input
+                    id="popover-load-ipin"
+                    type="number"
+                    min={1}
+                    step={0.1}
+                    value={ipIn}
+                    onChange={(event) => onIpInChange(event.target.value)}
+                  />
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleAdd} disabled={!name || !power}>
+                <Plus className="h-4 w-4" />
+                {addLabel}
+              </Button>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 
