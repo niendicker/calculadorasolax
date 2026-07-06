@@ -43,7 +43,7 @@ function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void 
       role={isSuccess ? 'status' : 'alert'}
       aria-live="polite"
       className={cn(
-        'fixed bottom-5 right-5 z-[9999] flex w-80 max-w-[calc(100vw-2.5rem)] items-start gap-3 rounded-lg border p-4 shadow-xl transition-all duration-300 ease-out',
+        'fixed top-5 right-5 z-[9999] flex w-80 max-w-[calc(100vw-2.5rem)] items-start gap-3 rounded-lg border p-4 shadow-xl transition-all duration-300 ease-out',
         visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0',
         isSuccess
           ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-100'
