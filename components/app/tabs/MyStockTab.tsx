@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Battery, Boxes, Loader2, Plus, Zap } from 'lucide-react';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
@@ -12,25 +13,45 @@ interface CatalogEntry {
   id: string;
   model: string;
   imageUrl: string | null;
+  groupKey?: string;
 }
+
+interface GroupTab {
+  value: string;
+  label: string;
+}
+
+const inverterPhaseTabs: GroupTab[] = [
+  { value: '1', label: 'Monofásico' },
+  { value: '2', label: 'Bifásico' },
+  { value: '3', label: 'Trifásico' },
+];
+
+const batteryTopologyTabs: GroupTab[] = [
+  { value: 'HV', label: 'HV' },
+  { value: 'LV', label: 'LV' },
+];
 
 const sectionDefinitions: {
   type: StockProductType;
   label: string;
   fallbackIcon: React.ReactNode;
   smallIcon: React.ReactNode;
+  groupTabs?: GroupTab[];
 }[] = [
   {
     type: 'inverter',
     label: 'Inversores',
     fallbackIcon: <Zap className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <Zap className="h-4 w-4 text-muted-foreground" />,
+    groupTabs: inverterPhaseTabs,
   },
   {
     type: 'battery',
     label: 'Baterias',
     fallbackIcon: <Battery className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <Battery className="h-4 w-4 text-muted-foreground" />,
+    groupTabs: batteryTopologyTabs,
   },
   {
     type: 'accessory',
@@ -67,9 +88,23 @@ export function MyStockTab({
   );
 
   const catalogByType: Record<StockProductType, CatalogEntry[]> = {
-    inverter: inverterCatalog,
-    battery: batteryCatalog,
-    accessory: accessoryCatalog,
+    inverter: inverterCatalog.map((inverter) => ({
+      id: inverter.id,
+      model: inverter.model,
+      imageUrl: inverter.imageUrl,
+      groupKey: String(inverter.phases),
+    })),
+    battery: batteryCatalog.map((battery) => ({
+      id: battery.id,
+      model: battery.model,
+      imageUrl: battery.imageUrl,
+      groupKey: battery.topology,
+    })),
+    accessory: accessoryCatalog.map((accessory) => ({
+      id: accessory.id,
+      model: accessory.model,
+      imageUrl: accessory.imageUrl,
+    })),
   };
 
   return (
@@ -117,6 +152,7 @@ export function MyStockTab({
                 <AddProductCard
                   productType={section.type}
                   availableProducts={availableToAdd}
+                  groupTabs={section.groupTabs}
                   smallIcon={section.smallIcon}
                   onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
                 />
@@ -135,11 +171,13 @@ export function MyStockTab({
 function AddProductCard({
   productType,
   availableProducts,
+  groupTabs,
   smallIcon,
   onAdd,
 }: {
   productType: StockProductType;
   availableProducts: CatalogEntry[];
+  groupTabs?: GroupTab[];
   smallIcon: React.ReactNode;
   onAdd: (model: string) => Promise<void>;
 }) {
@@ -147,6 +185,7 @@ function AddProductCard({
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [addingModel, setAddingModel] = useState<string | null>(null);
+  const [activeGroup, setActiveGroup] = useState(groupTabs?.[0]?.value ?? null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
@@ -171,7 +210,11 @@ function AddProductCard({
     top = Math.min(Math.max(margin, top), window.innerHeight - popRect.height - margin);
 
     setPosition({ top, left });
-  }, [open]);
+  }, [open, activeGroup]);
+
+  const visibleProducts = groupTabs
+    ? availableProducts.filter((product) => product.groupKey === activeGroup)
+    : availableProducts;
 
   useEffect(() => {
     if (!open) return;
@@ -232,13 +275,43 @@ function AddProductCard({
               visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible',
             }}
           >
-            {availableProducts.length === 0 ? (
+            {groupTabs && (
+              <div
+                className="mb-2 grid gap-1 rounded-lg bg-muted p-1"
+                style={{ gridTemplateColumns: `repeat(${groupTabs.length}, minmax(0, 1fr))` }}
+                role="tablist"
+              >
+                {groupTabs.map((tab) => {
+                  const active = activeGroup === tab.value;
+                  return (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setActiveGroup(tab.value)}
+                      className={cn(
+                        'h-8 rounded-md text-xs font-medium transition',
+                        active
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {visibleProducts.length === 0 ? (
               <p className="p-2 text-xs text-muted-foreground">
-                Todos os produtos desse grupo já estão no seu estoque.
+                {groupTabs
+                  ? 'Todos os produtos desse filtro já estão no seu estoque.'
+                  : 'Todos os produtos desse grupo já estão no seu estoque.'}
               </p>
             ) : (
               <div className="space-y-1">
-                {availableProducts.map((product) => (
+                {visibleProducts.map((product) => (
                   <button
                     key={product.id}
                     type="button"
