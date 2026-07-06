@@ -251,10 +251,24 @@ export const useWizardStore = create<WizardStore>()(
         const { error } = await supabase.from('projects').delete().eq('id', id);
         if (error) throw error;
 
-        set((s) => ({
-          savedProjects: s.savedProjects.filter((project) => project.id !== id),
-          currentProjectId: s.currentProjectId === id ? null : s.currentProjectId,
-        }));
+        set((s) => {
+          const wasCurrent = s.currentProjectId === id;
+          return {
+            savedProjects: s.savedProjects.filter((project) => project.id !== id),
+            // Deleting the project currently loaded on screen must clear it the
+            // same way starting a new project draft does — otherwise its name
+            // (e.g. the badge on the Dimensionamento page) and configuration
+            // keep showing after the project itself no longer exists.
+            ...(wasCurrent
+              ? {
+                  currentProjectId: null,
+                  projectInfo: defaultProjectInfo,
+                  residentialOptions: defaultResidential,
+                  solution: null,
+                }
+              : {}),
+          };
+        });
       },
 
       fetchProjects: async () => {
