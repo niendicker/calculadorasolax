@@ -134,41 +134,41 @@ export function SizingTab({
 }) {
   return (
     <>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-4">
-          <div className="sticky top-0 z-20 flex flex-col gap-3 border-b bg-background/95 py-3 backdrop-blur lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-                {projectName && (
-                  <Badge variant="secondary" className="gap-1">
-                    <FolderOpen className="h-3 w-3" />
-                    {projectName}
-                  </Badge>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={saveProject}>
-                <Save className="h-4 w-4" />
-                Salvar projeto
-              </Button>
-              <Button variant="outline" onClick={() => resetResidential()}>
-                Limpar
-              </Button>
-              {solution && (
-                <Button variant="outline" onClick={exportPdf}>
-                  <FileText className="h-4 w-4" />
-                  Exportar PDF
-                </Button>
-              )}
-              <Button onClick={calculate} disabled={!canCalculate || loading}>
-                <Calculator className="h-4 w-4" />
-                {loading ? loadingLabel : calculateLabel}
-              </Button>
-            </div>
+      <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            {projectName && (
+              <Badge variant="secondary" className="gap-1">
+                <FolderOpen className="h-3 w-3" />
+                {projectName}
+              </Badge>
+            )}
           </div>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={saveProject}>
+            <Save className="h-4 w-4" />
+            Salvar projeto
+          </Button>
+          <Button variant="outline" onClick={() => resetResidential()}>
+            Limpar
+          </Button>
+          {solution && (
+            <Button variant="outline" onClick={exportPdf}>
+              <FileText className="h-4 w-4" />
+              Exportar PDF
+            </Button>
+          )}
+          <Button onClick={calculate} disabled={!canCalculate || loading}>
+            <Calculator className="h-4 w-4" />
+            {loading ? loadingLabel : calculateLabel}
+          </Button>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
