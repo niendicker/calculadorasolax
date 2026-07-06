@@ -958,6 +958,12 @@ function LoadCard({
   }, [phaseType, phaseToPhaseVoltages, voltageV, load.id, onUpdate]);
 
   useEffect(() => {
+    if (gridType === 'threePhase_380' && phaseType === 'mono' && voltageV === 380) {
+      onUpdate(load.id, { voltageV: 220 });
+    }
+  }, [gridType, phaseType, voltageV, load.id, onUpdate]);
+
+  useEffect(() => {
     if (needsTwoPhases && !load.phase2) {
       onUpdate(load.id, { phase: 'L1', phase2: 'L2' });
     } else if (!needsTwoPhases && load.phase2) {
