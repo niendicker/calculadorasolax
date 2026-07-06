@@ -173,6 +173,7 @@ export function SizingTab({
                 loading={initialLoading}
                 setTopology={setTopology}
                 setBatteryModel={setBatteryModel}
+                userStockItems={userStockItems}
               />
 
               <div className="space-y-3 rounded-lg border bg-background p-3">
@@ -743,6 +744,7 @@ function BatteryModelPicker({
   loading,
   setTopology,
   setBatteryModel,
+  userStockItems,
 }: {
   batteries: BatteryCatalogOption[];
   topology: BatteryTopology | null;
@@ -750,6 +752,7 @@ function BatteryModelPicker({
   loading: boolean;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
+  userStockItems: UserStockItem[];
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -819,6 +822,9 @@ function BatteryModelPicker({
           {visibleBatteries.map((battery) => {
             const selected = selectedModel === battery.model;
             const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
+            const inStock = userStockItems.some(
+              (item) => item.productType === 'battery' && item.productModel === battery.model
+            );
             return (
               <div
                 key={battery.id}
@@ -857,7 +863,15 @@ function BatteryModelPicker({
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
-                    <Badge variant="secondary">{battery.topology}</Badge>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {inStock && (
+                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu estoque">
+                          <Check className="h-3 w-3" />
+                          No estoque
+                        </Badge>
+                      )}
+                      <Badge variant="secondary">{battery.topology}</Badge>
+                    </div>
                   </div>
                   <div className="grid gap-1 text-xs text-muted-foreground">
                     <span>Capacidade: {battery.capacityKwh} kWh</span>
