@@ -16,6 +16,12 @@ import {
 } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
+const inverterPhaseGroups = [
+  { phases: 1, label: 'Monofásico' },
+  { phases: 2, label: 'Bifásico' },
+  { phases: 3, label: 'Trifásico' },
+];
+
 export function CatalogTab({
   initialLoading,
   inverterCatalog,
@@ -100,30 +106,44 @@ export function CatalogTab({
         ) : filteredInverters.length === 0 ? (
           <CatalogEmptyState label="Nenhum inversor encontrado para essa pesquisa." />
         ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {filteredInverters.map((inverter) => (
-              <CatalogProductCard
-                key={inverter.id}
-                fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
-                model={inverter.model}
-                imageUrl={inverter.imageUrl}
-                documents={inverter.documents}
-                badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
-                specs={[
-                  ['Potência', `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`],
-                ]}
-                onPreviewImage={setPreviewImage}
-                onPreviewDoc={setPreviewDoc}
-                stockControl={
-                  <StockControl
-                    productType="inverter"
-                    productModel={inverter.model}
-                    userStockItems={userStockItems}
-                    onAdd={onAddToStock}
-                  />
-                }
-              />
-            ))}
+          <div className="space-y-4">
+            {inverterPhaseGroups.map((group) => {
+              const inverters = filteredInverters.filter((inverter) => inverter.phases === group.phases);
+              if (inverters.length === 0) return null;
+              return (
+                <div key={group.phases} className="space-y-2">
+                  <p className="text-sm font-medium">{group.label}</p>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {inverters.map((inverter) => (
+                      <CatalogProductCard
+                        key={inverter.id}
+                        fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
+                        model={inverter.model}
+                        imageUrl={inverter.imageUrl}
+                        documents={inverter.documents}
+                        badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
+                        specs={[
+                          [
+                            'Potência',
+                            `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`,
+                          ],
+                        ]}
+                        onPreviewImage={setPreviewImage}
+                        onPreviewDoc={setPreviewDoc}
+                        stockControl={
+                          <StockControl
+                            productType="inverter"
+                            productModel={inverter.model}
+                            userStockItems={userStockItems}
+                            onAdd={onAddToStock}
+                          />
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )
       ) : section === 'batteries' ? (
