@@ -11,6 +11,7 @@ import { AccessoriesEditor } from './editors/AccessoriesEditor';
 import { BatteriesEditor } from './editors/BatteriesEditor';
 import { InvertersEditor } from './editors/InvertersEditor';
 import { LoadCatalogEditor } from './editors/LoadCatalogEditor';
+import { PresetsEditor } from './editors/PresetsEditor';
 import { SolutionsEditor } from './editors/SolutionsEditor';
 import {
   ACCESSORY_COLUMNS,
@@ -20,6 +21,7 @@ import {
   ESS_RULE_COLUMNS,
   INVERTER_COLUMNS,
   LOAD_CATALOG_COLUMNS,
+  PRESET_COLUMNS,
   SIMULATION_COLUMNS,
   accessoryRuleInverterModels,
   clampNumber,
@@ -41,6 +43,7 @@ import {
   emptyEssRule,
   emptyInverter,
   emptyLoadCatalogItem,
+  emptyPreset,
   emptyRule,
   emptySolution,
   tabs,
@@ -54,6 +57,7 @@ import {
   type GeneratedSolutionPayload,
   type InverterRow,
   type LoadCatalogRow,
+  type PresetRow,
   type SimulationRow,
   type SolutionRow,
   type TabKey,
@@ -65,6 +69,7 @@ type ResourceKey =
   | 'batteries'
   | 'accessories'
   | 'loadCatalog'
+  | 'presets'
   | 'rules'
   | 'essRules'
   | 'solutions'
@@ -80,6 +85,7 @@ const TAB_RESOURCES: Record<TabKey, ResourceKey[]> = {
   batteries: ['batteries'],
   accessories: ['accessories', 'rules', 'inverters', 'batteries'],
   loads: ['loadCatalog'],
+  presets: ['presets', 'loadCatalog'],
   logs: ['activityLogs'],
 };
 
@@ -88,6 +94,7 @@ const TABLE_TO_RESOURCE: Record<string, ResourceKey> = {
   batteries: 'batteries',
   accessories: 'accessories',
   load_catalog: 'loadCatalog',
+  load_presets: 'presets',
   approved_solutions: 'solutions',
   ess_compatibility_rules: 'essRules',
   accessory_rules: 'rules',
@@ -111,6 +118,7 @@ export function AdminPanel() {
   const [batteries, setBatteries] = useState<BatteryRow[]>([]);
   const [accessories, setAccessories] = useState<AccessoryRow[]>([]);
   const [loadCatalogItems, setLoadCatalogItems] = useState<LoadCatalogRow[]>([]);
+  const [presets, setPresets] = useState<PresetRow[]>([]);
   const [rules, setRules] = useState<AccessoryRuleRow[]>([]);
   const [essRules, setEssRules] = useState<EssCompatibilityRuleRow[]>([]);
   const [solutions, setSolutions] = useState<SolutionRow[]>([]);
@@ -122,6 +130,7 @@ export function AdminPanel() {
   const [batteryForm, setBatteryForm] = useState<Partial<BatteryRow>>(emptyBattery);
   const [accessoryForm, setAccessoryForm] = useState<Partial<AccessoryRow>>(emptyAccessory);
   const [loadCatalogForm, setLoadCatalogForm] = useState<Partial<LoadCatalogRow>>(emptyLoadCatalogItem);
+  const [presetForm, setPresetForm] = useState<Partial<PresetRow>>(emptyPreset);
   const [ruleForm, setRuleForm] = useState<Partial<AccessoryRuleRow>>(emptyRule);
   const [essRuleForm, setEssRuleForm] = useState<Partial<EssCompatibilityRuleRow>>(emptyEssRule);
   const [solutionForm, setSolutionForm] = useState<Partial<SolutionRow>>(emptySolution);
@@ -200,6 +209,14 @@ export function AdminPanel() {
             .order('category')
             .order('name_pt');
           if (!fetchError) setLoadCatalogItems((data ?? []) as LoadCatalogRow[]);
+          return { error: fetchError };
+        }
+        case 'presets': {
+          const { data, error: fetchError } = await supabase
+            .from('load_presets')
+            .select(PRESET_COLUMNS)
+            .order('display_order');
+          if (!fetchError) setPresets((data ?? []) as PresetRow[]);
           return { error: fetchError };
         }
         case 'rules': {
@@ -544,6 +561,41 @@ export function AdminPanel() {
     await loadResource('loadCatalog');
   }
 
+  async function savePreset(afterPersist?: () => void) {
+    setSaving(true);
+    setStatus(presetForm.id ? 'Atualizando preset...' : 'Salvando preset...');
+    setError(null);
+    const action: AdminLogAction = presetForm.id ? 'update' : 'create';
+    const beforeData = presetForm.id ? presets.find((row) => row.id === presetForm.id) : null;
+    const payload = {
+      name: presetForm.name?.trim() || 'Preset sem nome',
+      description: presetForm.description?.trim() ?? '',
+      loads: presetForm.loads ?? [],
+      display_order: presetForm.display_order ?? presets.length,
+    };
+
+    const request = presetForm.id
+      ? supabase.from('load_presets').update(payload).eq('id', presetForm.id)
+      : supabase.from('load_presets').insert(payload);
+    const { error: saveError } = await request;
+
+    setSaving(false);
+    if (saveError) return setFailure(saveError.message);
+    afterPersist?.();
+    await recordActivityLog({
+      entityType: 'load_preset',
+      action,
+      targetId: presetForm.id ?? null,
+      targetLabel: payload.name,
+      summary: `${action === 'create' ? 'Criou' : 'Atualizou'} o preset ${payload.name}.`,
+      beforeData,
+      afterData: payload,
+    });
+    setPresetForm(emptyPreset);
+    setSuccess('Preset salvo.');
+    await loadResource('presets');
+  }
+
   async function saveRule(afterPersist?: () => void) {
     setSaving(true);
     setStatus(ruleForm.id ? 'Atualizando regra...' : 'Salvando regra...');
@@ -796,6 +848,10 @@ export function AdminPanel() {
       const row = loadCatalogItems.find((item) => item.id === id);
       return { entityType: 'load_catalog_item' as const, label: row?.name_pt ?? 'Carga removida', beforeData: row };
     }
+    if (table === 'load_presets') {
+      const row = presets.find((item) => item.id === id);
+      return { entityType: 'load_preset' as const, label: row?.name ?? 'Preset removido', beforeData: row };
+    }
     if (table === 'approved_solutions') {
       const row = solutions.find((item) => item.id === id);
       return { entityType: 'solution' as const, label: row?.solution_code ?? 'Combinação removida', beforeData: row };
@@ -1046,6 +1102,19 @@ export function AdminPanel() {
                     onSave={saveLoadCatalogItem}
                     onRemove={(id) => removeRow('load_catalog', id)}
                     onDeactivate={(id) => removeRow('load_catalog', id, true)}
+                    removingIds={removingIds}
+                    saving={saving}
+                  />
+                )}
+
+                {activeTab === 'presets' && (
+                  <PresetsEditor
+                    rows={presets}
+                    loadCatalogItems={loadCatalogItems}
+                    form={presetForm}
+                    setForm={setPresetForm}
+                    onSave={savePreset}
+                    onRemove={(id) => removeRow('load_presets', id)}
                     removingIds={removingIds}
                     saving={saving}
                   />

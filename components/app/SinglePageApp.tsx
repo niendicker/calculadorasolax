@@ -80,6 +80,7 @@ export function SinglePageApp() {
     setAtsPhotoUrl,
     setSolution,
     setLoadCatalog,
+    setLoadPresets,
     resetResidential,
   } = useWizardStore();
 
@@ -98,7 +99,15 @@ export function SinglePageApp() {
     initialLoading,
     userDataError,
     retryUserData,
-  } = useInitialData({ supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, fetchUserStockItems, setLoadCatalog });
+  } = useInitialData({
+    supabase,
+    fetchClients,
+    fetchProjects,
+    fetchUserLoadCatalog,
+    fetchUserStockItems,
+    setLoadCatalog,
+    setLoadPresets,
+  });
 
   const {
     profileOpen,

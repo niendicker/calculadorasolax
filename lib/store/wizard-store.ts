@@ -12,6 +12,7 @@ import type {
   GeneratorConfig,
   IndustrialOptions,
   LoadPhase,
+  LoadPresetItem,
   MicrogridConfig,
   PeakCalcMode,
   ProjectInfo,
@@ -40,6 +41,7 @@ interface WizardStore {
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
   loadCatalog: CatalogItem[];
+  loadPresets: LoadPresetItem[];
 
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   newProjectDraft: () => void;
@@ -84,6 +86,7 @@ interface WizardStore {
   ) => void;
   setSolution: (solution: Solution | null) => void;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
+  setLoadPresets: (presets: LoadPresetItem[]) => void;
   resetResidential: () => void;
   resetIndustrial: () => void;
 }
@@ -180,6 +183,7 @@ export const useWizardStore = create<WizardStore>()(
       industrialOptions: defaultIndustrial,
       solution: null,
       loadCatalog: [],
+      loadPresets: [],
 
       setProjectInfo: (partial) =>
         set((s) => ({
@@ -628,6 +632,8 @@ export const useWizardStore = create<WizardStore>()(
 
       setLoadCatalog: (loadCatalog) => set({ loadCatalog }),
 
+      setLoadPresets: (loadPresets) => set({ loadPresets }),
+
       resetResidential: () =>
         set({ residentialOptions: defaultResidential, solution: null }),
 
@@ -644,6 +650,7 @@ export const useWizardStore = create<WizardStore>()(
         industrialOptions: state.industrialOptions,
         solution: state.solution,
         loadCatalog: state.loadCatalog,
+        loadPresets: state.loadPresets,
       }),
       // Zustand's default merge only shallow-merges top-level keys, so a
       // browser with residentialOptions/industrialOptions persisted before a

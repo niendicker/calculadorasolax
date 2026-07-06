@@ -113,6 +113,23 @@ export interface ProductDocument {
   url: string;
 }
 
+/** A load bundled inside a LoadPresetItem, applied all at once. */
+export interface LoadPresetLoad {
+  name: string;
+  powerW: number;
+  hoursPerDay: number;
+  qty: number;
+  ipInRatio: number;
+}
+
+/** A one-click bundle of loads, admin-managed in the `load_presets` table. */
+export interface LoadPresetItem {
+  id: string;
+  name: string;
+  description: string;
+  loads: LoadPresetLoad[];
+}
+
 /** A load a user added manually, saved for reuse — kept separate from the
  * admin-managed global CatalogItem list. */
 export interface UserLoadCatalogItem {

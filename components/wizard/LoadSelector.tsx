@@ -89,60 +89,13 @@ function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: n
   return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
 }
 
-const loadPresets: {
-  id: string;
-  name: string;
-  description: string;
-  loads: (Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number })[];
-}[] = [
-  {
-    id: 'residential-essential',
-    name: 'Residencial essencial',
-    description: 'Cargas básicas para simulação rápida de uma residência pequena.',
-    loads: [
-      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1, ipInRatio: 3 },
-      { name: 'Iluminação LED', powerW: 12, hoursPerDay: 5, qty: 8 },
-      { name: 'Televisão', powerW: 120, hoursPerDay: 4, qty: 1 },
-      { name: 'Roteador', powerW: 15, hoursPerDay: 24, qty: 1 },
-      { name: 'Ventilador', powerW: 80, hoursPerDay: 6, qty: 2 },
-    ],
-  },
-  {
-    id: 'residential-standard',
-    name: 'Residencial médio',
-    description: 'Perfil comum com cozinha, lavanderia, iluminação e eletrônicos.',
-    loads: [
-      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1, ipInRatio: 3 },
-      { name: 'Freezer', powerW: 220, hoursPerDay: 10, qty: 1, ipInRatio: 3 },
-      { name: 'Iluminação LED', powerW: 12, hoursPerDay: 5, qty: 12 },
-      { name: 'Televisão', powerW: 120, hoursPerDay: 5, qty: 2 },
-      { name: 'Roteador', powerW: 15, hoursPerDay: 24, qty: 1 },
-      { name: 'Máquina de lavar', powerW: 600, hoursPerDay: 1, qty: 1, ipInRatio: 2 },
-      { name: 'Micro-ondas', powerW: 1200, hoursPerDay: 0.5, qty: 1 },
-    ],
-  },
-  {
-    id: 'home-office-comfort',
-    name: 'Home office + conforto',
-    description: 'Inclui estação de trabalho, ar-condicionado e cargas de uso prolongado.',
-    loads: [
-      { name: 'Geladeira', powerW: 180, hoursPerDay: 12, qty: 1, ipInRatio: 3 },
-      { name: 'Iluminação LED', powerW: 12, hoursPerDay: 6, qty: 10 },
-      { name: 'Roteador', powerW: 15, hoursPerDay: 24, qty: 1 },
-      { name: 'Notebook', powerW: 90, hoursPerDay: 8, qty: 2 },
-      { name: 'Monitor', powerW: 45, hoursPerDay: 8, qty: 2 },
-      { name: 'Ar-condicionado 9.000 BTU', powerW: 900, hoursPerDay: 6, qty: 1, ipInRatio: 3 },
-      { name: 'Televisão', powerW: 120, hoursPerDay: 4, qty: 1 },
-    ],
-  },
-];
-
 export function LoadSelector() {
   const t = useTranslations('loads');
   const locale = useLocale();
   const {
     residentialOptions,
     loadCatalog,
+    loadPresets,
     userLoadCatalog,
     addLoad,
     removeLoad,

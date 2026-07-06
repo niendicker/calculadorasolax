@@ -29,6 +29,8 @@ export const ACCESSORY_COLUMNS = 'id, model, description, active, image_url, doc
 
 export const LOAD_CATALOG_COLUMNS = 'id, name_pt, name_en, name_zh, power_w, category, ip_in_ratio, active';
 
+export const PRESET_COLUMNS = 'id, name, description, loads, display_order';
+
 export const ACCESSORY_RULE_COLUMNS =
   'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, comment, active, accessories (model)';
 

@@ -5,6 +5,7 @@ import {
   Cable,
   Database,
   FileClock,
+  Layers,
   Plug,
   Users,
   Zap,
@@ -13,7 +14,16 @@ import type { BatteryFlag, InverterFlag, ProductDocument } from '@/lib/types';
 
 export type { BatteryFlag, InverterFlag };
 
-export type TabKey = 'metrics' | 'users' | 'solutions' | 'inverters' | 'batteries' | 'accessories' | 'loads' | 'logs';
+export type TabKey =
+  | 'metrics'
+  | 'users'
+  | 'solutions'
+  | 'inverters'
+  | 'batteries'
+  | 'accessories'
+  | 'loads'
+  | 'presets'
+  | 'logs';
 
 export type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 export type GridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
@@ -130,6 +140,22 @@ export interface LoadCatalogRow {
   active: boolean;
 }
 
+export interface PresetLoad {
+  name: string;
+  powerW: number;
+  hoursPerDay: number;
+  qty: number;
+  ipInRatio: number;
+}
+
+export interface PresetRow {
+  id: string;
+  name: string;
+  description: string;
+  loads: PresetLoad[];
+  display_order: number;
+}
+
 export interface AccessoryRuleRow {
   id: string;
   accessory_id: string;
@@ -224,7 +250,14 @@ export interface SimulationRow {
   created_at: string;
 }
 
-export type AdminLogEntity = 'inverter' | 'battery' | 'accessory' | 'solution' | 'rule' | 'load_catalog_item';
+export type AdminLogEntity =
+  | 'inverter'
+  | 'battery'
+  | 'accessory'
+  | 'solution'
+  | 'rule'
+  | 'load_catalog_item'
+  | 'load_preset';
 export type AdminLogAction = 'create' | 'update' | 'delete' | 'deactivate';
 
 export interface AdminActivityLogRow {
@@ -247,6 +280,7 @@ export const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'inverters', label: 'Inversores', icon: Zap },
   { key: 'accessories', label: 'Acessórios', icon: Cable },
   { key: 'loads', label: 'Cargas', icon: Plug },
+  { key: 'presets', label: 'Presets', icon: Layers },
   { key: 'solutions', label: 'Combinações', icon: Boxes },
   { key: 'users', label: 'Usuários', icon: Users },
   { key: 'logs', label: 'Logs', icon: FileClock },
@@ -306,6 +340,13 @@ export const emptyLoadCatalogItem: Partial<LoadCatalogRow> = {
   category: '',
   ip_in_ratio: 1,
   active: true,
+};
+
+export const emptyPreset: Partial<PresetRow> = {
+  name: '',
+  description: '',
+  loads: [],
+  display_order: 0,
 };
 
 export const emptyRule: Partial<AccessoryRuleRow> = {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { flushPendingSimulations } from '@/lib/metrics-queue';
-import type { CatalogItem, ProductDocument } from '@/lib/types';
+import type { CatalogItem, LoadPresetItem, ProductDocument } from '@/lib/types';
 import type {
   AccessoryCatalogOption,
   ApprovedInverterCombo,
@@ -17,6 +17,7 @@ export function useInitialData({
   fetchUserLoadCatalog,
   fetchUserStockItems,
   setLoadCatalog,
+  setLoadPresets,
 }: {
   supabase: ReturnType<typeof createClient>;
   fetchClients: () => Promise<void>;
@@ -24,6 +25,7 @@ export function useInitialData({
   fetchUserLoadCatalog: () => Promise<void>;
   fetchUserStockItems: () => Promise<void>;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
+  setLoadPresets: (presets: LoadPresetItem[]) => void;
 }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<InlineProfile | null>(null);
@@ -44,6 +46,7 @@ export function useInitialData({
         { data: inverterData },
         { data: accessoryData },
         { data: approvedSolutionsData },
+        { data: presetsData },
       ] = await Promise.all([
         supabase.auth.getUser(),
         supabase
@@ -68,6 +71,7 @@ export function useInitialData({
           .from('approved_solutions')
           .select('grid_topology, battery_topology, inverter_model')
           .eq('active', true),
+        supabase.from('load_presets').select('id, name, description, loads').order('display_order'),
       ]);
 
       setUserEmail(userData.user?.email ?? null);
@@ -112,6 +116,17 @@ export function useInitialData({
           ipInRatio: row.ip_in_ratio ?? 1,
         }));
         setLoadCatalog(catalog);
+      }
+
+      if (presetsData) {
+        setLoadPresets(
+          presetsData.map((row) => ({
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            loads: (row.loads ?? []) as LoadPresetItem['loads'],
+          }))
+        );
       }
 
       if (batteryData) {
@@ -171,7 +186,7 @@ export function useInitialData({
     }
 
     loadInitialData();
-  }, [setLoadCatalog, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, fetchUserStockItems]);
+  }, [setLoadCatalog, setLoadPresets, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, fetchUserStockItems]);
 
   useEffect(() => {
     function handleOnline() {
