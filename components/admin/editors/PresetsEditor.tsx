@@ -90,7 +90,7 @@ export function PresetsEditor(props: {
             ) : (
               <div className="space-y-2">
                 {loads.map((load, index) => (
-                  <div key={`${load.name}-${index}`} className="rounded-lg border bg-card p-2.5">
+                  <div key={`${load.name}-${index}`} className="rounded-lg border bg-card p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-medium">{load.name}</p>
                       <button
