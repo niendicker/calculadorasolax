@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, FilePlus2, FolderOpen, Save } from 'lucide-react';
+import { Calculator, FilePlus2, FolderOpen, Save, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -119,29 +119,26 @@ export function ProjectTab({
                   />
                 </ProjectField>
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="clientId">Cliente</Label>
-                    <button
-                      type="button"
-                      onClick={onManageClients}
-                      className="text-xs font-medium text-primary hover:underline"
+                  <Label htmlFor="clientId">Cliente</Label>
+                  <div className="flex gap-2">
+                    <select
+                      id="clientId"
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm"
+                      value={projectInfo.clientId ?? ''}
+                      onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
                     >
+                      <option value="">Sem cliente selecionado</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="button" variant="outline" onClick={onManageClients}>
+                      <Users className="h-4 w-4" />
                       Gerenciar clientes
-                    </button>
+                    </Button>
                   </div>
-                  <select
-                    id="clientId"
-                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm"
-                    value={projectInfo.clientId ?? ''}
-                    onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
-                  >
-                    <option value="">Sem cliente selecionado</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
                 <ProjectField label="Endereço" id="clientAddress">
                   <Input
