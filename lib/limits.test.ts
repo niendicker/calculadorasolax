@@ -15,6 +15,7 @@ describe('ACCOUNT_LIMITS', () => {
       userStockItems: 10,
       loadsPerProject: 20,
       clients: 50,
+      userPresets: 3,
     });
   });
 });

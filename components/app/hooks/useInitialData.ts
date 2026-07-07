@@ -16,6 +16,7 @@ export function useInitialData({
   fetchProjects,
   fetchUserLoadCatalog,
   fetchUserStockItems,
+  fetchUserLoadPresets,
   setLoadCatalog,
   setLoadPresets,
 }: {
@@ -24,6 +25,7 @@ export function useInitialData({
   fetchProjects: () => Promise<void>;
   fetchUserLoadCatalog: () => Promise<void>;
   fetchUserStockItems: () => Promise<void>;
+  fetchUserLoadPresets: () => Promise<void>;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
   setLoadPresets: (presets: LoadPresetItem[]) => void;
 }) {
@@ -96,7 +98,13 @@ export function useInitialData({
         });
 
         try {
-          await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog(), fetchUserStockItems()]);
+          await Promise.all([
+            fetchClients(),
+            fetchProjects(),
+            fetchUserLoadCatalog(),
+            fetchUserStockItems(),
+            fetchUserLoadPresets(),
+          ]);
           setUserDataError(null);
         } catch {
           setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');
@@ -186,7 +194,16 @@ export function useInitialData({
     }
 
     loadInitialData();
-  }, [setLoadCatalog, setLoadPresets, supabase, fetchClients, fetchProjects, fetchUserLoadCatalog, fetchUserStockItems]);
+  }, [
+    setLoadCatalog,
+    setLoadPresets,
+    supabase,
+    fetchClients,
+    fetchProjects,
+    fetchUserLoadCatalog,
+    fetchUserStockItems,
+    fetchUserLoadPresets,
+  ]);
 
   useEffect(() => {
     function handleOnline() {

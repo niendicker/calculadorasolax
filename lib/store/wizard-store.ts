@@ -13,6 +13,7 @@ import type {
   IndustrialOptions,
   LoadPhase,
   LoadPresetItem,
+  LoadPresetLoad,
   MicrogridConfig,
   PeakCalcMode,
   ProjectInfo,
@@ -23,6 +24,7 @@ import type {
   Solution,
   StockProductType,
   UserLoadCatalogItem,
+  UserLoadPresetItem,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
@@ -37,6 +39,7 @@ interface WizardStore {
   clients: Client[];
   userLoadCatalog: UserLoadCatalogItem[];
   userStockItems: UserStockItem[];
+  userLoadPresets: UserLoadPresetItem[];
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
@@ -60,6 +63,9 @@ interface WizardStore {
     partial: Partial<{ name: string; powerW: number; ipInRatio: number }>
   ) => Promise<void>;
   removeUserLoadCatalogItem: (id: string) => Promise<void>;
+  fetchUserLoadPresets: () => Promise<void>;
+  saveLoadsAsPreset: (input: { name: string; description: string; loads: LoadPresetLoad[] }) => Promise<void>;
+  removeUserLoadPreset: (id: string) => Promise<void>;
   fetchUserStockItems: () => Promise<void>;
   addToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
   updateStockItemValue: (id: string, unitValue: number) => Promise<void>;
@@ -145,6 +151,15 @@ function userLoadFromRow(row: Record<string, unknown>): UserLoadCatalogItem {
   };
 }
 
+function userLoadPresetFromRow(row: Record<string, unknown>): UserLoadPresetItem {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? '',
+    description: (row.description as string) ?? '',
+    loads: (row.loads as LoadPresetLoad[] | null) ?? [],
+  };
+}
+
 function userStockItemFromRow(row: Record<string, unknown>): UserStockItem {
   return {
     id: row.id as string,
@@ -179,6 +194,7 @@ export const useWizardStore = create<WizardStore>()(
       clients: [],
       userLoadCatalog: [],
       userStockItems: [],
+      userLoadPresets: [],
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
@@ -451,6 +467,51 @@ export const useWizardStore = create<WizardStore>()(
         }));
       },
 
+      fetchUserLoadPresets: async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('user_load_presets')
+          .select('id, name, description, loads')
+          .order('created_at');
+        if (error) throw error;
+        set({ userLoadPresets: (data ?? []).map(userLoadPresetFromRow) });
+      },
+
+      saveLoadsAsPreset: async (input) => {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error('not_authenticated');
+
+        if (get().userLoadPresets.length >= ACCOUNT_LIMITS.userPresets) {
+          throw new Error(limitReachedMessage('presets pessoais', ACCOUNT_LIMITS.userPresets));
+        }
+
+        const { data, error } = await supabase
+          .from('user_load_presets')
+          .insert({
+            user_id: userData.user.id,
+            name: input.name.trim(),
+            description: input.description.trim(),
+            loads: input.loads,
+          })
+          .select('id, name, description, loads')
+          .single();
+        if (error) throw error;
+
+        const item = userLoadPresetFromRow(data);
+        set((s) => ({ userLoadPresets: [...s.userLoadPresets, item] }));
+      },
+
+      removeUserLoadPreset: async (id) => {
+        const supabase = createClient();
+        const { error } = await supabase.from('user_load_presets').delete().eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userLoadPresets: s.userLoadPresets.filter((item) => item.id !== id),
+        }));
+      },
+
       fetchUserStockItems: async () => {
         const supabase = createClient();
         const { data, error } = await supabase.from('user_stock_items').select('*').order('product_model');
@@ -523,6 +584,7 @@ export const useWizardStore = create<WizardStore>()(
           savedProjects: [],
           userLoadCatalog: [],
           userStockItems: [],
+          userLoadPresets: [],
           currentProjectId: null,
           projectDetailsVisible: false,
         }),

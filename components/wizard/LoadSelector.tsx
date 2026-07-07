@@ -4,13 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, Layers, MoreVertical, Pencil, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
-import type { CatalogItem, LoadPhase, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
+import type { CatalogItem, LoadPhase, LoadPresetLoad, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function InfoLabel({ label, tip }: { label: string; tip: string }) {
@@ -89,6 +90,41 @@ function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: n
   return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
 }
 
+function PresetCard({
+  preset,
+  onAdd,
+  withDeleteSpacing,
+}: {
+  preset: { name: string; description: string; loads: LoadPresetLoad[] };
+  onAdd: () => void;
+  withDeleteSpacing?: boolean;
+}) {
+  const peakW = preset.loads.reduce((acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty, 0);
+  const dailyKwh = preset.loads.reduce((acc, load) => acc + (load.powerW * load.hoursPerDay * load.qty) / 1000, 0);
+
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className={cn(
+        'w-full rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        withDeleteSpacing && 'pr-9'
+      )}
+    >
+      <div className="flex items-center gap-2 font-medium">
+        <Layers className="h-4 w-4 shrink-0 text-primary" />
+        <span className="truncate">{preset.name}</span>
+      </div>
+      <p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">{preset.description}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge variant="secondary">{preset.loads.length} cargas</Badge>
+        <Badge variant="outline">{(peakW / 1000).toFixed(2)} kVA pico</Badge>
+        <Badge variant="outline">{dailyKwh.toFixed(1)} kWh/dia</Badge>
+      </div>
+    </button>
+  );
+}
+
 export function LoadSelector() {
   const t = useTranslations('loads');
   const locale = useLocale();
@@ -96,6 +132,7 @@ export function LoadSelector() {
     residentialOptions,
     loadCatalog,
     loadPresets,
+    userLoadPresets,
     userLoadCatalog,
     addLoad,
     removeLoad,
@@ -104,6 +141,8 @@ export function LoadSelector() {
     saveManualLoadToCatalog,
     updateUserLoadCatalogItem,
     removeUserLoadCatalogItem,
+    saveLoadsAsPreset,
+    removeUserLoadPreset,
   } = useWizardStore();
 
   const gridType = residentialOptions.gridType;
@@ -119,6 +158,11 @@ export function LoadSelector() {
   const [manualIpIn, setManualIpIn] = useState('1');
   const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
   const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
+  const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [presetDescription, setPresetDescription] = useState('');
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [presetSaveError, setPresetSaveError] = useState<string | null>(null);
 
   const nameKey = locale === 'zh' ? 'nameZh' : locale === 'en' ? 'nameEn' : 'namePt';
 
@@ -192,7 +236,7 @@ export function LoadSelector() {
     setManualIpIn('1');
   }
 
-  function handleAddPreset(preset: (typeof loadPresets)[number]) {
+  function handleAddPreset(preset: { loads: LoadPresetLoad[] }) {
     const remaining = ACCOUNT_LIMITS.loadsPerProject - residentialOptions.loads.length;
     if (preset.loads.length > remaining) {
       setLoadLimitMessage(
@@ -205,6 +249,36 @@ export function LoadSelector() {
     setLoadLimitMessage(null);
     preset.loads.forEach((load) => addLoad(newLoad(load)));
     setTab('catalog');
+  }
+
+  async function handleSaveCurrentAsPreset() {
+    if (!presetName.trim() || residentialOptions.loads.length === 0) return;
+    setSavingPreset(true);
+    setPresetSaveError(null);
+    try {
+      await saveLoadsAsPreset({
+        name: presetName.trim(),
+        description: presetDescription.trim(),
+        loads: residentialOptions.loads.map((load) => ({
+          name: load.name,
+          powerW: load.powerW,
+          hoursPerDay: load.hoursPerDay,
+          qty: load.qty,
+          ipInRatio: load.ipInRatio,
+        })),
+      });
+      setSavePresetOpen(false);
+      setPresetName('');
+      setPresetDescription('');
+    } catch (error) {
+      setPresetSaveError(
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Não foi possível salvar o preset. Tente novamente.'
+      );
+    } finally {
+      setSavingPreset(false);
+    }
   }
 
   return (
@@ -239,39 +313,97 @@ export function LoadSelector() {
       )}
 
       {tab === 'presets' && (
-        <div className="grid gap-2 md:grid-cols-3">
-          {loadPresets.map((preset) => {
-            const peakW = preset.loads.reduce(
-              (acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty,
-              0
-            );
-            const dailyKwh = preset.loads.reduce(
-              (acc, load) => acc + (load.powerW * load.hoursPerDay * load.qty) / 1000,
-              0
-            );
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
+            <div className="grid gap-2 md:grid-cols-3">
+              {loadPresets.map((preset) => (
+                <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
+              ))}
+            </div>
+          </div>
 
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handleAddPreset(preset)}
-                className="rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <div className="flex items-center gap-2 font-medium">
-                  <Layers className="h-4 w-4 text-primary" />
-                  {preset.name}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
+              </p>
+              {!savePresetOpen && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
+                  onClick={() => setSavePresetOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Salvar cargas atuais como preset
+                </Button>
+              )}
+            </div>
+
+            {savePresetOpen && (
+              <div className="space-y-2 rounded-lg border bg-card p-3">
+                <Input
+                  aria-label="Nome do preset"
+                  placeholder="Nome do preset"
+                  value={presetName}
+                  onChange={(event) => setPresetName(event.target.value)}
+                />
+                <Input
+                  aria-label="Descrição do preset"
+                  placeholder="Descrição (opcional)"
+                  value={presetDescription}
+                  onChange={(event) => setPresetDescription(event.target.value)}
+                />
+                {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!presetName.trim() || savingPreset}
+                    onClick={handleSaveCurrentAsPreset}
+                  >
+                    {savingPreset ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSavePresetOpen(false);
+                      setPresetSaveError(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
                 </div>
-                <p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">
-                  {preset.description}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Badge variant="secondary">{preset.loads.length} cargas</Badge>
-                  <Badge variant="outline">{(peakW / 1000).toFixed(2)} kVA pico</Badge>
-                  <Badge variant="outline">{dailyKwh.toFixed(1)} kWh/dia</Badge>
-                </div>
-              </button>
-            );
-          })}
+              </div>
+            )}
+
+            {userLoadPresets.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
+              </p>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-3">
+                {userLoadPresets.map((preset) => (
+                  <div key={preset.id} className="relative">
+                    <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
+                    <div className="absolute right-2 top-2">
+                      <ConfirmDeleteButton
+                        ariaLabel={`Remover preset ${preset.name}`}
+                        title="Remover preset?"
+                        description={`O preset "${preset.name}" será removido definitivamente.`}
+                        confirmLabel="Remover"
+                        onConfirm={() => removeUserLoadPreset(preset.id)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

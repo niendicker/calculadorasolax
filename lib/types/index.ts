@@ -130,6 +130,15 @@ export interface LoadPresetItem {
   loads: LoadPresetLoad[];
 }
 
+/** A user's own one-click load bundle — kept separate from the admin-managed
+ * global LoadPresetItem list, capped at ACCOUNT_LIMITS.userPresets. */
+export interface UserLoadPresetItem {
+  id: string;
+  name: string;
+  description: string;
+  loads: LoadPresetLoad[];
+}
+
 /** A load a user added manually, saved for reuse — kept separate from the
  * admin-managed global CatalogItem list. */
 export interface UserLoadCatalogItem {

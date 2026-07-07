@@ -57,6 +57,7 @@ export function SinglePageApp() {
     fetchClients,
     fetchUserLoadCatalog,
     fetchUserStockItems,
+    fetchUserLoadPresets,
     addClient,
     updateClient,
     removeClient,
@@ -103,6 +104,7 @@ export function SinglePageApp() {
     fetchProjects,
     fetchUserLoadCatalog,
     fetchUserStockItems,
+    fetchUserLoadPresets,
     setLoadCatalog,
     setLoadPresets,
   });
