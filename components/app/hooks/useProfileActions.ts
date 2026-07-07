@@ -10,6 +10,7 @@ export function useProfileActions({
   router,
   locale,
   clearUserData,
+  setActiveTab,
 }: {
   supabase: ReturnType<typeof createClient>;
   profile: InlineProfile | null;
@@ -17,8 +18,8 @@ export function useProfileActions({
   router: ReturnType<typeof useRouter>;
   locale: string;
   clearUserData: () => void;
+  setActiveTab: (tab: 'profile') => void;
 }) {
-  const [profileOpen, setProfileOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export function useProfileActions({
       return;
     }
 
-    setProfileOpen(true);
+    setActiveTab('profile');
   }
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -122,8 +123,6 @@ export function useProfileActions({
   }
 
   return {
-    profileOpen,
-    setProfileOpen,
     profileSaving,
     profileMessage,
     profileError,
