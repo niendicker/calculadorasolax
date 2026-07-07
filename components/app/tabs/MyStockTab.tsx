@@ -248,7 +248,7 @@ function AddProductCard({
       setAddError(
         error instanceof Error && error.message.startsWith('Limite de')
           ? error.message
-          : 'Não foi possível adicionar ao estoque. Tente novamente.'
+          : 'Não foi possível adicionar ao catálogo. Tente novamente.'
       );
     } finally {
       setAddingModel(null);
@@ -261,7 +261,7 @@ function AddProductCard({
         ref={triggerRef}
         type="button"
         aria-expanded={open}
-        aria-label={`Adicionar ${productType === 'inverter' ? 'inversor' : productType === 'battery' ? 'bateria' : 'acessório'} ao estoque`}
+        aria-label={`Adicionar ${productType === 'inverter' ? 'inversor' : productType === 'battery' ? 'bateria' : 'acessório'} ao catálogo`}
         onClick={() => setOpen((current) => !current)}
         className="grid min-h-[104px] cursor-pointer place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
       >
@@ -315,8 +315,8 @@ function AddProductCard({
             {visibleProducts.length === 0 ? (
               <p className="p-2 text-xs text-muted-foreground">
                 {groupTabs
-                  ? 'Todos os produtos desse filtro já estão no seu estoque.'
-                  : 'Todos os produtos desse grupo já estão no seu estoque.'}
+                  ? 'Todos os produtos desse filtro já estão no seu catálogo.'
+                  : 'Todos os produtos desse grupo já estão no seu catálogo.'}
               </p>
             ) : (
               <div className="space-y-1">
@@ -441,9 +441,9 @@ function StockProductCard({
             />
           </div>
           <ConfirmDeleteButton
-            ariaLabel={`Remover ${item.productModel} do meu estoque`}
-            title="Remover do estoque?"
-            description="Esse item sai do seu estoque pessoal. Você pode adicioná-lo novamente pelo Catálogo quando quiser."
+            ariaLabel={`Remover ${item.productModel} do meu catálogo`}
+            title="Remover do catálogo?"
+            description="Esse item sai do seu catálogo pessoal. Você pode adicioná-lo novamente pela aba Catálogo quando quiser."
             confirmLabel="Remover"
             onConfirm={() => onRemove(item.id)}
           />

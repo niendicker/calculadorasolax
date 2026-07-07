@@ -876,9 +876,9 @@ function BatteryModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
-                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu estoque">
+                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu catálogo">
                           <Check className="h-3 w-3" />
-                          No estoque
+                          No catálogo
                         </Badge>
                       )}
                       <Badge variant="secondary">{battery.topology}</Badge>
@@ -1023,9 +1023,9 @@ function InverterModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
-                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu estoque">
+                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu catálogo">
                           <Check className="h-3 w-3" />
-                          No estoque
+                          No catálogo
                         </Badge>
                       )}
                       <Badge variant="secondary">{inverter.topology}</Badge>
@@ -1172,7 +1172,7 @@ function ResultSummary({
                 {!systemCost.isComplete && (
                   <p className="text-xs text-muted-foreground">
                     Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
-                    seu estoque.
+                    seu catálogo.
                   </p>
                 )}
               </div>

@@ -463,7 +463,7 @@ export const useWizardStore = create<WizardStore>()(
           (item) => item.productType === input.productType && item.productModel === input.productModel
         );
         if (!alreadyInStock && get().userStockItems.length >= ACCOUNT_LIMITS.userStockItems) {
-          throw new Error(limitReachedMessage('itens no estoque', ACCOUNT_LIMITS.userStockItems));
+          throw new Error(limitReachedMessage('itens no catálogo', ACCOUNT_LIMITS.userStockItems));
         }
 
         const supabase = createClient();

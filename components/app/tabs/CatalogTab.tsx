@@ -241,7 +241,7 @@ function StockControl({
       <div className="border-t pt-2">
         <Badge variant="secondary" className="w-fit gap-1">
           <Check className="h-3 w-3" />
-          No estoque
+          No catálogo
         </Badge>
       </div>
     );
@@ -263,7 +263,7 @@ function StockControl({
             setError(
               err instanceof Error && err.message.startsWith('Limite de')
                 ? err.message
-                : 'Não foi possível adicionar ao estoque. Tente novamente.'
+                : 'Não foi possível adicionar ao catálogo. Tente novamente.'
             );
           } finally {
             setSaving(false);
@@ -271,7 +271,7 @@ function StockControl({
         }}
       >
         <Plus className="h-3.5 w-3.5" />
-        Adicionar ao meu estoque
+        Adicionar ao meu catálogo
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
