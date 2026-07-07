@@ -551,7 +551,7 @@ export function LoadSelector() {
                   {
                     value: 'largest-surge' as const,
                     label: 'Só a maior carga',
-                    tip: 'Pico = soma nominal de todas as cargas + o excedente de partida apenas da carga com maior IP/IN, assumindo que só um motor/compressor parte por vez.',
+                    tip: 'Pico = soma nominal de todas as cargas + o maior excedente de partida (potência × (IP/IN − 1)) entre elas, assumindo que só um motor/compressor parte por vez. Uma carga pequena com IP/IN alto pesa menos que uma carga grande com IP/IN baixo.',
                   },
                 ]
               ).map((option) => {
