@@ -24,20 +24,31 @@ function makeQueryBuilder(result: QueryResult) {
   return builder;
 }
 
-/** Builds a fake Supabase client for store tests. `tableResults` maps table name
- *  to the `{ data, error }` its query builder should resolve with — set only the
- *  tables the action under test actually touches. */
+/** Builds a fake Supabase client for store/component tests. `tableResults` maps
+ *  table name to the `{ data, error }` its query builder should resolve with —
+ *  set only the tables the action under test actually touches. `auth` lets
+ *  callers override/add auth methods beyond the default `getUser` (e.g.
+ *  `signInWithPassword`, `signUp`, `resetPasswordForEmail`, `signOut`), each
+ *  defaulting to a `vi.fn()` that resolves `{ error: null }` if not given. */
 export function createSupabaseMock({
   user = { id: 'user-1' },
   tableResults = {},
+  auth = {},
 }: {
   user?: { id: string } | null;
   tableResults?: Record<string, QueryResult>;
+  auth?: Record<string, ReturnType<typeof vi.fn>>;
 } = {}) {
   const from = vi.fn((table: string) => makeQueryBuilder(tableResults[table] ?? { data: null, error: null }));
   return {
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user } }),
+      signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
+      signUp: vi.fn().mockResolvedValue({ data: { user: null, session: null }, error: null }),
+      resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+      updateUser: vi.fn().mockResolvedValue({ error: null }),
+      ...auth,
     },
     from,
   };
