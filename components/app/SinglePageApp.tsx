@@ -569,7 +569,11 @@ export function SinglePageApp() {
         <Button
           type="button"
           size="icon-lg"
-          className="fixed bottom-4 left-4 z-30 shadow-lg lg:hidden"
+          className="fixed z-30 shadow-lg lg:hidden"
+          style={{
+            bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+            left: 'calc(1rem + env(safe-area-inset-left))',
+          }}
           aria-label="Abrir menu"
           onClick={() => setMobileMenuOpen(true)}
         >
@@ -601,7 +605,7 @@ export function SinglePageApp() {
               </Button>
             </div>
 
-            <nav className="mt-8 space-y-1">
+            <nav className="my-auto space-y-1">
               <button
                 type="button"
                 aria-current={activeTab === 'project' ? 'page' : undefined}
@@ -686,7 +690,7 @@ export function SinglePageApp() {
               )}
             </nav>
 
-            <div className="mt-auto space-y-2">
+            <div className="space-y-2" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
               <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
                 {userEmail ? (
                   <>
