@@ -143,20 +143,30 @@ export function ProjectTab({
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {projectDetailsVisible && (
+                  {projectDetailsVisible && !currentProjectId && (
                     <ProjectDraftCard
                       projectInfo={projectInfo}
                       clients={clients}
-                      isNew={!currentProjectId}
+                      isNew
                       setProjectInfo={setProjectInfo}
                       onManageClients={onManageClients}
                       onSave={onSave}
                       onCancel={onCancelNew}
                     />
                   )}
-                  {filteredProjects
-                    .filter((project) => project.id !== currentProjectId)
-                    .map((project) => (
+                  {filteredProjects.map((project) =>
+                    projectDetailsVisible && project.id === currentProjectId ? (
+                      <ProjectDraftCard
+                        key={project.id}
+                        projectInfo={projectInfo}
+                        clients={clients}
+                        isNew={false}
+                        setProjectInfo={setProjectInfo}
+                        onManageClients={onManageClients}
+                        onSave={onSave}
+                        onCancel={onCancelNew}
+                      />
+                    ) : (
                       <ProjectCard
                         key={project.id}
                         project={project}
@@ -165,7 +175,8 @@ export function ProjectTab({
                         onOpenSizing={() => onOpenSizing(project.id)}
                         onRemove={() => onRemove(project.id)}
                       />
-                    ))}
+                    )
+                  )}
                 </div>
               )}
             </>
