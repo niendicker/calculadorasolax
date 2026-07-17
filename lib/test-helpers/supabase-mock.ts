@@ -3,9 +3,9 @@ import { vi } from 'vitest';
 type QueryResult<T = unknown> = { data: T; error: null } | { data: null; error: { message: string } };
 
 /** A fake Supabase query builder: every chain method (`select`, `order`, `insert`,
- *  `update`, `delete`, `upsert`, `eq`) returns itself, `single()` resolves the
- *  configured result, and the builder is itself thenable so `await` works even
- *  without a trailing `.single()` — matching how the real supabase-js client behaves. */
+ *  `update`, `delete`, `upsert`, `eq`, `in`) returns itself, `single()`/`maybeSingle()`
+ *  resolve the configured result, and the builder is itself thenable so `await` works
+ *  even without a trailing `.single()` — matching how the real supabase-js client behaves. */
 function makeQueryBuilder(result: QueryResult) {
   const builder: Record<string, unknown> = {
     select: () => builder,
@@ -15,7 +15,9 @@ function makeQueryBuilder(result: QueryResult) {
     delete: () => builder,
     upsert: () => builder,
     eq: () => builder,
+    in: () => builder,
     single: () => Promise.resolve(result),
+    maybeSingle: () => Promise.resolve(result),
     then: (resolve: (value: QueryResult) => void, reject: (reason: unknown) => void) =>
       Promise.resolve(result).then(resolve, reject),
   };

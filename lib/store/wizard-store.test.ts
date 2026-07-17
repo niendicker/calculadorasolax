@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
-import { createSupabaseMock } from './test-helpers/supabase-mock';
+import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import type { SavedProject, SingleLoad } from '@/lib/types';
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
@@ -589,7 +589,7 @@ describe('clearUserData', () => {
 
 // --- Supabase-backed actions -------------------------------------------------
 // These mock the client returned by createClient() per test via createClientMock;
-// see lib/store/test-helpers/supabase-mock.ts for the fake query builder.
+// see lib/test-helpers/supabase-mock.ts for the fake query builder.
 
 const projectRow = {
   id: 'row-p1',
