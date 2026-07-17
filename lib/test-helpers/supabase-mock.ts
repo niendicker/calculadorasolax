@@ -16,6 +16,7 @@ function makeQueryBuilder(result: QueryResult) {
     upsert: () => builder,
     eq: () => builder,
     in: () => builder,
+    range: () => builder,
     single: () => Promise.resolve(result),
     maybeSingle: () => Promise.resolve(result),
     then: (resolve: (value: QueryResult) => void, reject: (reason: unknown) => void) =>
