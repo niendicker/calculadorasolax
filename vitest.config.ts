@@ -9,6 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Needed for @testing-library/react's automatic cleanup(): it only
+    // registers when `afterEach` exists as a true global.
+    globals: true,
     setupFiles: ['./vitest.setup.ts'],
     include: ['**/*.test.ts', '**/*.test.tsx'],
     exclude: ['node_modules', '.next', '.claude'],
