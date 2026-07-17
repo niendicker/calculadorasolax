@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
-import type { SingleLoad } from '@/lib/types';
+import type { SavedProject, SingleLoad } from '@/lib/types';
 
 function makeLoad(partial: Partial<SingleLoad> & Pick<SingleLoad, 'powerW' | 'hoursPerDay' | 'qty'>): SingleLoad {
   return {
@@ -136,5 +136,115 @@ describe('addLoad limit enforcement', () => {
     const added = useWizardStore.getState().addLoad(makeLoad({ powerW: 100, hoursPerDay: 1, qty: 1 }));
     expect(added).toBe(false);
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(ACCOUNT_LIMITS.loadsPerProject);
+  });
+});
+
+function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
+  return {
+    name: 'Projeto salvo',
+    clientId: null,
+    address: 'Rua salva, 1',
+    notes: 'Notas salvas',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    residentialOptions: {
+      topology: 'HighVoltage',
+      batteryModel: 'T-BAT-SYS-HV-5.8',
+      inverterModel: 'X1-Hybrid-5.0kW-G4',
+      gridType: 'singlePhase_220',
+      loads: [makeLoad({ powerW: 1000, hoursPerDay: 2, qty: 1 })],
+      peakCalcMode: 'sum',
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: null,
+      generator: null,
+      atsPhotoUrl: null,
+      maxPowerPerPhaseW: null,
+    },
+    solution: null,
+    ...partial,
+  };
+}
+
+describe('cancelProjectDraft', () => {
+  beforeEach(() => {
+    useWizardStore.setState({
+      projectInfo: { name: '', clientId: null, address: '', notes: '' },
+      currentProjectId: null,
+      projectDetailsVisible: false,
+      savedProjects: [],
+      residentialOptions: {
+        topology: null,
+        batteryModel: null,
+        inverterModel: null,
+        gridType: null,
+        loads: [],
+        peakCalcMode: 'sum',
+        desiredFeatures: [],
+        whiteTariff: null,
+        microgrid: null,
+        generator: null,
+        atsPhotoUrl: null,
+        maxPowerPerPhaseW: null,
+      },
+      solution: null,
+    });
+  });
+
+  it('clears a brand-new draft (no currentProjectId) back to blank and hides the details card', () => {
+    useWizardStore.setState((s) => ({
+      projectInfo: { ...s.projectInfo, name: 'Rascunho não salvo' },
+      currentProjectId: null,
+      projectDetailsVisible: true,
+    }));
+
+    useWizardStore.getState().cancelProjectDraft();
+
+    const s = useWizardStore.getState();
+    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: '', notes: '' });
+    expect(s.currentProjectId).toBeNull();
+    expect(s.projectDetailsVisible).toBe(false);
+    expect(s.residentialOptions.loads).toHaveLength(0);
+    expect(s.solution).toBeNull();
+  });
+
+  it('reverts unsaved edits on an existing project back to its last saved values', () => {
+    const saved = makeSavedProject({ id: 'p1', name: 'Nome salvo', address: 'Endereço salvo' });
+    useWizardStore.setState({
+      savedProjects: [saved],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Edição não salva', clientId: null, address: 'Endereço editado', notes: '' },
+      residentialOptions: { ...saved.residentialOptions, batteryModel: 'outro-modelo-editado' },
+    });
+
+    useWizardStore.getState().cancelProjectDraft();
+
+    const s = useWizardStore.getState();
+    expect(s.projectDetailsVisible).toBe(false);
+    expect(s.currentProjectId).toBe('p1');
+    expect(s.projectInfo).toEqual({
+      name: 'Nome salvo',
+      clientId: null,
+      address: 'Endereço salvo',
+      notes: 'Notas salvas',
+    });
+    expect(s.residentialOptions.batteryModel).toBe('T-BAT-SYS-HV-5.8');
+    expect(s.residentialOptions.loads).toEqual(saved.residentialOptions.loads);
+  });
+
+  it('falls back to a blank draft when currentProjectId points at a project that no longer exists', () => {
+    useWizardStore.setState({
+      savedProjects: [],
+      currentProjectId: 'ghost-id',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Editando algo removido', clientId: null, address: '', notes: '' },
+    });
+
+    useWizardStore.getState().cancelProjectDraft();
+
+    const s = useWizardStore.getState();
+    expect(s.currentProjectId).toBeNull();
+    expect(s.projectDetailsVisible).toBe(false);
+    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: '', notes: '' });
   });
 });

@@ -30,3 +30,6 @@ npm-debug.log*
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Test coverage reports
+coverage/
