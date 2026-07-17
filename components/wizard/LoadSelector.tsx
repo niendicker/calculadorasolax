@@ -125,6 +125,35 @@ function PresetCard({
   );
 }
 
+function CollapsibleSectionHeader({
+  title,
+  summary,
+  open,
+  onToggle,
+}: {
+  title: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="flex w-full items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span className="flex items-center gap-2 text-sm font-semibold">
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', !open && '-rotate-90')}
+        />
+        {title}
+      </span>
+      {!open && <span className="text-xs text-muted-foreground">{summary}</span>}
+    </button>
+  );
+}
+
 export function LoadSelector() {
   const t = useTranslations('loads');
   const locale = useLocale();
@@ -149,7 +178,7 @@ export function LoadSelector() {
   const maxPowerPerPhaseW = residentialOptions.maxPowerPerPhaseW;
   const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
-  const [tab, setTab] = useState<'presets' | 'catalog'>('presets');
+  const [tab, setTab] = useState<'presets' | 'catalog' | null>('presets');
   const [search, setSearch] = useState('');
   const [manualName, setManualName] = useState('');
   const [manualPower, setManualPower] = useState('');
@@ -281,39 +310,26 @@ export function LoadSelector() {
     }
   }
 
+  const presetsSummary = `${loadPresets.length} do sistema · ${userLoadPresets.length} seu(s)`;
+  const catalogSummary = `${loadCatalog.length + userLoadCatalog.length} itens`;
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Modo de seleção de cargas">
-        <Button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'presets'}
-          variant={tab === 'presets' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setTab('presets')}
-        >
-          Presets
-        </Button>
-        <Button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'catalog'}
-          variant={tab === 'catalog' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setTab('catalog')}
-        >
-          {t('catalog')}
-        </Button>
-      </div>
-
       {loadLimitMessage && (
         <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {loadLimitMessage}
         </p>
       )}
 
-      {tab === 'presets' && (
-        <div className="space-y-4">
+      <div className="space-y-2">
+        <CollapsibleSectionHeader
+          title="Presets"
+          summary={presetsSummary}
+          open={tab === 'presets'}
+          onToggle={() => setTab(tab === 'presets' ? null : 'presets')}
+        />
+        {tab === 'presets' && (
+        <div className="space-y-4 rounded-lg border bg-background p-3">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
             <div className="grid gap-2 md:grid-cols-3">
@@ -405,10 +421,18 @@ export function LoadSelector() {
             )}
           </div>
         </div>
-      )}
+        )}
+      </div>
 
-      {tab === 'catalog' && (
-        <div className="space-y-2">
+      <div className="space-y-2">
+        <CollapsibleSectionHeader
+          title={t('catalog')}
+          summary={catalogSummary}
+          open={tab === 'catalog'}
+          onToggle={() => setTab(tab === 'catalog' ? null : 'catalog')}
+        />
+        {tab === 'catalog' && (
+        <div className="space-y-2 rounded-lg border bg-background p-3">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -494,7 +518,8 @@ export function LoadSelector() {
             </div>
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       {residentialOptions.loads.length > 0 && (
         <div className="space-y-3">

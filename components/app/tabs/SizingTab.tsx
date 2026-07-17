@@ -177,16 +177,6 @@ export function SizingTab({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <BatteryModelPicker
-                batteries={batteryCatalog}
-                topology={residentialOptions.topology}
-                selectedModel={residentialOptions.batteryModel}
-                loading={initialLoading}
-                setTopology={setTopology}
-                setBatteryModel={setBatteryModel}
-                userStockItems={userStockItems}
-              />
-
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-medium">Tipo de rede</p>
                 <div
@@ -233,6 +223,16 @@ export function SizingTab({
                   userStockItems={userStockItems}
                 />
               </div>
+
+              <BatteryModelPicker
+                batteries={batteryCatalog}
+                topology={residentialOptions.topology}
+                selectedModel={residentialOptions.batteryModel}
+                loading={initialLoading}
+                setTopology={setTopology}
+                setBatteryModel={setBatteryModel}
+                userStockItems={userStockItems}
+              />
             </CardContent>
           </Card>
 

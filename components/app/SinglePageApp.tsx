@@ -43,6 +43,7 @@ export function SinglePageApp() {
   const {
     projectInfo,
     projectDetailsVisible,
+    currentProjectId,
     savedProjects,
     clients,
     userStockItems,
@@ -50,6 +51,7 @@ export function SinglePageApp() {
     solution,
     setProjectInfo,
     newProjectDraft,
+    cancelProjectDraft,
     saveCurrentProject,
     loadProject,
     removeProject,
@@ -126,16 +128,18 @@ export function SinglePageApp() {
     deleteAccount,
   } = useProfileActions({ supabase, profile, setProfile, router, locale, clearUserData, setActiveTab });
 
-  const { projectStatus, saveProject, startNewProject, openProject, openProjectSizing, deleteProject } = useProjectActions({
-    profile,
-    router,
-    locale,
-    saveCurrentProject,
-    newProjectDraft,
-    loadProject,
-    removeProject,
-    setActiveTab,
-  });
+  const { projectStatus, saveProject, startNewProject, cancelNewProject, openProject, openProjectSizing, deleteProject } =
+    useProjectActions({
+      profile,
+      router,
+      locale,
+      saveCurrentProject,
+      newProjectDraft,
+      cancelProjectDraft,
+      loadProject,
+      removeProject,
+      setActiveTab,
+    });
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
@@ -403,6 +407,7 @@ export function SinglePageApp() {
             <ProjectTab
               projectInfo={projectInfo}
               projectDetailsVisible={projectDetailsVisible}
+              currentProjectId={currentProjectId}
               savedProjects={savedProjects}
               clients={clients}
               initialLoading={initialLoading}
@@ -417,6 +422,7 @@ export function SinglePageApp() {
               setProjectInfo={setProjectInfo}
               onSave={saveProject}
               onNew={startNewProject}
+              onCancelNew={cancelNewProject}
               onOpen={openProject}
               onOpenSizing={openProjectSizing}
               onRemove={deleteProject}

@@ -9,6 +9,7 @@ export function useProjectActions({
   locale,
   saveCurrentProject,
   newProjectDraft,
+  cancelProjectDraft,
   loadProject,
   removeProject,
   setActiveTab,
@@ -18,6 +19,7 @@ export function useProjectActions({
   locale: string;
   saveCurrentProject: () => Promise<SavedProject>;
   newProjectDraft: () => void;
+  cancelProjectDraft: () => void;
   loadProject: (id: string) => void;
   removeProject: (id: string) => Promise<void>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
@@ -43,7 +45,12 @@ export function useProjectActions({
 
   function startNewProject() {
     newProjectDraft();
-    setProjectStatus('Novo projeto iniciado.');
+    setProjectStatus(null);
+  }
+
+  function cancelNewProject() {
+    cancelProjectDraft();
+    setProjectStatus(null);
   }
 
   function openProject(id: string) {
@@ -66,5 +73,5 @@ export function useProjectActions({
     }
   }
 
-  return { projectStatus, saveProject, startNewProject, openProject, openProjectSizing, deleteProject };
+  return { projectStatus, saveProject, startNewProject, cancelNewProject, openProject, openProjectSizing, deleteProject };
 }

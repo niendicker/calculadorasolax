@@ -48,6 +48,7 @@ interface WizardStore {
 
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   newProjectDraft: () => void;
+  cancelProjectDraft: () => void;
   saveCurrentProject: () => Promise<SavedProject>;
   loadProject: (id: string) => void;
   removeProject: (id: string) => Promise<void>;
@@ -213,6 +214,43 @@ export const useWizardStore = create<WizardStore>()(
           projectDetailsVisible: true,
           residentialOptions: defaultResidential,
           solution: null,
+        }),
+
+      // Discards an in-progress "Dados do projeto" card without saving. For a
+      // brand-new draft this just clears it back to blank; for a project that
+      // was opened for editing, it reverts any unsaved edits back to the last
+      // saved values so the card behind it doesn't show stale changes.
+      cancelProjectDraft: () =>
+        set((s) => {
+          const project = s.currentProjectId
+            ? s.savedProjects.find((item) => item.id === s.currentProjectId)
+            : undefined;
+
+          if (!project) {
+            return {
+              projectInfo: defaultProjectInfo,
+              currentProjectId: null,
+              projectDetailsVisible: false,
+              residentialOptions: defaultResidential,
+              solution: null,
+            };
+          }
+
+          return {
+            projectDetailsVisible: false,
+            projectInfo: {
+              name: project.name,
+              clientId: project.clientId,
+              address: project.address,
+              notes: project.notes,
+            },
+            residentialOptions: {
+              ...defaultResidential,
+              ...project.residentialOptions,
+              loads: project.residentialOptions.loads.map((load) => ({ ...load })),
+            },
+            solution: project.solution,
+          };
         }),
 
       saveCurrentProject: async () => {
