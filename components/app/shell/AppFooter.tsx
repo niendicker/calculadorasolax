@@ -6,15 +6,7 @@ export function AppFooter() {
       {commitSha && (
         <>
           {' · '}
-          <a
-            href={`https://github.com/niendicker/calculadorasolax/commit/${commitSha}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground hover:underline"
-            title={commitSha}
-          >
-            {commitSha.slice(0, 7)}
-          </a>
+          <span title={commitSha}>{commitSha.slice(0, 7)}</span>
         </>
       )}
     </footer>

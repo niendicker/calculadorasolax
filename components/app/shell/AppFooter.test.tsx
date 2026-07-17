@@ -16,16 +16,17 @@ describe('AppFooter', () => {
     expect(footer).toHaveTextContent(String(new Date().getFullYear()));
   });
 
-  it('renders no commit link when NEXT_PUBLIC_COMMIT_SHA is unset', () => {
+  it('shows nothing extra when NEXT_PUBLIC_COMMIT_SHA is unset', () => {
     vi.stubEnv('NEXT_PUBLIC_COMMIT_SHA', '');
     render(<AppFooter />);
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByRole('contentinfo').textContent?.trim()).toBe(
+      `SolaX Calculator · ${new Date().getFullYear()} · Dimensionamento de sistemas híbridos solar + bateria`
+    );
   });
 
-  it('links to the deployed commit when NEXT_PUBLIC_COMMIT_SHA is set', () => {
+  it('shows the short commit hash when NEXT_PUBLIC_COMMIT_SHA is set', () => {
     vi.stubEnv('NEXT_PUBLIC_COMMIT_SHA', 'abc1234def5678');
     render(<AppFooter />);
-    const link = screen.getByRole('link', { name: 'abc1234' });
-    expect(link).toHaveAttribute('href', 'https://github.com/niendicker/calculadorasolax/commit/abc1234def5678');
+    expect(screen.getByText('abc1234')).toHaveAttribute('title', 'abc1234def5678');
   });
 });
