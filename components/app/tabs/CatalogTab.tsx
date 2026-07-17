@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
   CatalogEmptyState,
@@ -55,12 +56,14 @@ export function CatalogTab({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Catálogo</h1>
-        <p className="text-sm text-muted-foreground">
-          Produtos cadastrados disponíveis para dimensionamento.
-        </p>
-      </div>
+      <PageHeader>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Catálogo</h1>
+          <p className="text-sm text-muted-foreground">
+            Produtos cadastrados disponíveis para dimensionamento.
+          </p>
+        </div>
+      </PageHeader>
 
       <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit sm:grid-cols-3">
         {sectionOptions.map((tab) => {

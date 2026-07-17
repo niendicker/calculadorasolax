@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -26,6 +26,8 @@ import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
 import { PrintableReport } from './PrintableReport';
+import { AppFooter } from './shell/AppFooter';
+import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { CatalogTab } from './tabs/CatalogTab';
 import { ClientsTab } from './tabs/ClientsTab';
 import { MyStockTab } from './tabs/MyStockTab';
@@ -87,6 +89,29 @@ export function SinglePageApp() {
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
+
+  // App shell: title bar and summary panel are persistent chrome around the
+  // scrollable content; tabs portal their header/summary into these targets
+  // (see components/app/shell/slots.tsx) instead of rendering their own.
+  const [titleBarEl, setTitleBarEl] = useState<HTMLDivElement | null>(null);
+  const [summaryEl, setSummaryEl] = useState<HTMLDivElement | null>(null);
+  const [summaryActive, setSummaryActive] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const scrollRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onScroll() {
+      setScrolled((el as HTMLElement).scrollTop > 8);
+    }
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
 
   const {
     userEmail,
@@ -253,7 +278,7 @@ export function SinglePageApp() {
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-background">
-      <div className="mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]">
+      <div className="mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr] xl:grid-cols-[240px_minmax(0,1fr)_320px]">
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -394,16 +419,28 @@ export function SinglePageApp() {
           </div>
         </header>
 
-        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-4 lg:px-6 lg:pb-5">
-          {userDataError && (
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              <span>{userDataError}</span>
-              <Button variant="outline" size="sm" onClick={retryUserData}>
-                Tentar novamente
-              </Button>
-            </div>
-          )}
-          {activeTab === 'project' ? (
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <div
+            ref={setTitleBarEl}
+            className={cn(
+              'z-20 flex shrink-0 flex-col gap-3 border-b bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200 lg:flex-row lg:items-end lg:justify-between',
+              scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
+            )}
+          />
+
+          <section ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-4 lg:px-6 lg:pb-5">
+            <TitleBarPortalProvider value={titleBarEl}>
+              <SummaryPortalProvider value={summaryEl}>
+                <SetSummaryActiveProvider value={setSummaryActive}>
+                  {userDataError && (
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                      <span>{userDataError}</span>
+                      <Button variant="outline" size="sm" onClick={retryUserData}>
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  )}
+                  {activeTab === 'project' ? (
             <ProjectTab
               projectInfo={projectInfo}
               projectDetailsVisible={projectDetailsVisible}
@@ -512,7 +549,22 @@ export function SinglePageApp() {
               onChooseMicrogridVariant={chooseMicrogridVariant}
             />
           )}
-        </section>
+                </SetSummaryActiveProvider>
+              </SummaryPortalProvider>
+            </TitleBarPortalProvider>
+          </section>
+
+          <AppFooter />
+        </div>
+
+        <aside className="hidden xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:px-4 xl:py-5">
+          <div ref={setSummaryEl} className="space-y-4" />
+          {!summaryActive && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-sm text-muted-foreground">
+              <p>Nenhum resumo disponível para esta seção.</p>
+            </div>
+          )}
+        </aside>
 
         <Button
           type="button"

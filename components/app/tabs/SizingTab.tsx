@@ -8,7 +8,6 @@ import {
   Check,
   FileText,
   FolderOpen,
-  Gauge,
   Home,
   ImagePlus,
   ListChecks,
@@ -40,6 +39,7 @@ import type {
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAccessoryLabel } from '../helpers';
+import { PageHeader, PageSummary } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
   DocPreviewModal,
@@ -134,7 +134,7 @@ export function SizingTab({
 }) {
   return (
     <>
-      <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
+      <PageHeader>
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
@@ -166,9 +166,44 @@ export function SizingTab({
             {loading ? loadingLabel : calculateLabel}
           </Button>
         </div>
-      </div>
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-4">
+      </PageHeader>
+
+      <PageSummary>
+        <div className="grid grid-cols-2 gap-3">
+          <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
+          <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
+        </div>
+        <Separator />
+        {error && (
+          <p role="alert" className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {loading ? (
+          <SolutionSkeleton />
+        ) : !solution ? (
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            <p>Configure os dados para ver a solução recomendada.</p>
+            <ul className="mt-3 space-y-1">
+              <Requirement done={Boolean(residentialOptions.topology)} label="Topologia da bateria" />
+              <Requirement done={Boolean(residentialOptions.batteryModel)} label="Modelo da bateria" />
+              <Requirement done={Boolean(residentialOptions.gridType)} label="Tipo de rede" />
+              <Requirement done={residentialOptions.loads.length > 0} label="Cargas da instalação" />
+            </ul>
+          </div>
+        ) : (
+          <ResultSummary
+            solution={solution}
+            onExport={exportPdf}
+            productMedia={productMedia}
+            userStockItems={userStockItems}
+            whiteTariff={residentialOptions.whiteTariff}
+            onChooseMicrogridVariant={onChooseMicrogridVariant}
+          />
+        )}
+      </PageSummary>
+
+      <div className="mt-4 space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -260,66 +295,17 @@ export function SizingTab({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Home className="h-4 w-4" />
-                Cargas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LoadSelector />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="xl:sticky xl:top-0 xl:h-[calc(100vh_-_1.25rem)]">
-          <Card className="xl:flex xl:h-full xl:flex-col">
-            <CardHeader className="pb-3 xl:shrink-0">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Gauge className="h-4 w-4" />
-                Resumo
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3">
-                <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
-                <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
-              </div>
-              <Separator />
-              {error && (
-                <p
-                  role="alert"
-                  className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive"
-                >
-                  {error}
-                </p>
-              )}
-              {loading ? (
-                <SolutionSkeleton />
-              ) : !solution ? (
-                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  <p>Configure os dados para ver a solução recomendada.</p>
-                  <ul className="mt-3 space-y-1">
-                    <Requirement done={Boolean(residentialOptions.topology)} label="Topologia da bateria" />
-                    <Requirement done={Boolean(residentialOptions.batteryModel)} label="Modelo da bateria" />
-                    <Requirement done={Boolean(residentialOptions.gridType)} label="Tipo de rede" />
-                    <Requirement done={residentialOptions.loads.length > 0} label="Cargas da instalação" />
-                  </ul>
-                </div>
-              ) : (
-                <ResultSummary
-                  solution={solution}
-                  onExport={exportPdf}
-                  productMedia={productMedia}
-                  userStockItems={userStockItems}
-                  whiteTariff={residentialOptions.whiteTariff}
-                  onChooseMicrogridVariant={onChooseMicrogridVariant}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Home className="h-4 w-4" />
+              Cargas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LoadSelector />
+          </CardContent>
+        </Card>
       </div>
     </>
   );

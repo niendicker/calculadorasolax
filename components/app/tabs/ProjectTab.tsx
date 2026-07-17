@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, SavedProject } from '@/lib/types';
+import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
 import { gridLabels, topologyLabels } from '../types';
 
@@ -72,7 +73,7 @@ export function ProjectTab({
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:flex-row lg:items-end lg:justify-between lg:px-6">
+      <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projeto</h1>
           <p className="text-sm text-muted-foreground">
@@ -85,7 +86,25 @@ export function ProjectTab({
             Salvar projeto
           </Button>
         </div>
-      </div>
+      </PageHeader>
+
+      <PageSummary>
+        <div>
+          <h2 className="text-sm font-semibold">Configuração salva junto</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
+          <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
+        </div>
+        <Separator />
+        <ul className="space-y-2 text-sm">
+          <Requirement done={Boolean(topology)} label={topology ? topologyLabels[topology] : 'Topologia da bateria'} />
+          <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
+          <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
+          <Requirement done={loadsCount > 0} label={`${loadsCount} carga(s) cadastrada(s)`} />
+          <Requirement done={hasSolution} label={hasSolution ? 'Solução calculada' : 'Solução ainda não calculada'} />
+        </ul>
+      </PageSummary>
 
       {projectStatus && (
         <p role="status" className="rounded-lg border border-primary/30 px-3 py-2 text-sm text-primary">
@@ -93,90 +112,66 @@ export function ProjectTab({
         </p>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Projetos salvos</CardTitle>
-              {!projectDetailsVisible && (
-                <Button variant="outline" size="sm" onClick={onNew}>
-                  <Plus className="h-4 w-4" />
-                  Novo projeto
-                </Button>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle>Projetos salvos</CardTitle>
+          {!projectDetailsVisible && (
+            <Button variant="outline" size="sm" onClick={onNew}>
+              <Plus className="h-4 w-4" />
+              Novo projeto
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {initialLoading ? (
+            <ProjectListSkeleton />
+          ) : (
+            <>
+              {savedProjects.length > 0 && (
+                <div className="max-w-xs">
+                  <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
+                </div>
               )}
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {initialLoading ? (
-                <ProjectListSkeleton />
+
+              {!projectDetailsVisible && savedProjects.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Nenhum projeto salvo ainda. Clique em &quot;Novo projeto&quot; para começar.
+                </div>
+              ) : !projectDetailsVisible && filteredProjects.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Nenhum projeto encontrado para essa pesquisa.
+                </div>
               ) : (
-                <>
-                  {savedProjects.length > 0 && (
-                    <div className="max-w-xs">
-                      <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
-                    </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {projectDetailsVisible && (
+                    <ProjectDraftCard
+                      projectInfo={projectInfo}
+                      clients={clients}
+                      isNew={!currentProjectId}
+                      setProjectInfo={setProjectInfo}
+                      onManageClients={onManageClients}
+                      onSave={onSave}
+                      onCancel={onCancelNew}
+                    />
                   )}
-
-                  {!projectDetailsVisible && savedProjects.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                      Nenhum projeto salvo ainda. Clique em &quot;Novo projeto&quot; para começar.
-                    </div>
-                  ) : !projectDetailsVisible && filteredProjects.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                      Nenhum projeto encontrado para essa pesquisa.
-                    </div>
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {projectDetailsVisible && (
-                        <ProjectDraftCard
-                          projectInfo={projectInfo}
-                          clients={clients}
-                          isNew={!currentProjectId}
-                          setProjectInfo={setProjectInfo}
-                          onManageClients={onManageClients}
-                          onSave={onSave}
-                          onCancel={onCancelNew}
-                        />
-                      )}
-                      {filteredProjects
-                        .filter((project) => project.id !== currentProjectId)
-                        .map((project) => (
-                          <ProjectCard
-                            key={project.id}
-                            project={project}
-                            clientName={clients.find((client) => client.id === project.clientId)?.name}
-                            onOpen={() => onOpen(project.id)}
-                            onOpenSizing={() => onOpenSizing(project.id)}
-                            onRemove={() => onRemove(project.id)}
-                          />
-                        ))}
-                    </div>
-                  )}
-                </>
+                  {filteredProjects
+                    .filter((project) => project.id !== currentProjectId)
+                    .map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        clientName={clients.find((client) => client.id === project.clientId)?.name}
+                        onOpen={() => onOpen(project.id)}
+                        onOpenSizing={() => onOpenSizing(project.id)}
+                        onRemove={() => onRemove(project.id)}
+                      />
+                    ))}
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="xl:sticky xl:top-5 xl:self-start">
-          <CardHeader>
-            <CardTitle>Configuração salva junto</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
-              <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
-            </div>
-            <Separator />
-            <ul className="space-y-2 text-sm">
-              <Requirement done={Boolean(topology)} label={topology ? topologyLabels[topology] : 'Topologia da bateria'} />
-              <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
-              <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
-              <Requirement done={loadsCount > 0} label={`${loadsCount} carga(s) cadastrada(s)`} />
-              <Requirement done={hasSolution} label={hasSolution ? 'Solução calculada' : 'Solução ainda não calculada'} />
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

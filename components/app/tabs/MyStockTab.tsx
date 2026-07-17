@@ -6,6 +6,7 @@ import { Battery, Boxes, Loader2, Plus, Zap } from 'lucide-react';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '../shell/slots';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
@@ -109,12 +110,14 @@ export function MyStockTab({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Meu Catálogo</h1>
-        <p className="text-sm text-muted-foreground">
-          Produtos que você adicionou do Catálogo, com o preço que você define para seus orçamentos.
-        </p>
-      </div>
+      <PageHeader>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Meu Catálogo</h1>
+          <p className="text-sm text-muted-foreground">
+            Produtos que você adicionou do Catálogo, com o preço que você define para seus orçamentos.
+          </p>
+        </div>
+      </PageHeader>
 
       {userStockItems.length > 0 && (
         <div className="max-w-xs">

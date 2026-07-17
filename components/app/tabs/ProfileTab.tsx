@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { PageHeader } from '../shell/slots';
 import type { InlineProfile } from '../types';
 
 export function ProfileTab({
@@ -45,10 +46,12 @@ export function ProfileTab({
 }) {
   return (
     <div className="mx-auto max-w-xl space-y-4 py-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Perfil</h1>
-        <p className="text-sm text-muted-foreground">Edite seus dados de cadastro.</p>
-      </div>
+      <PageHeader>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Perfil</h1>
+          <p className="text-sm text-muted-foreground">Edite seus dados de cadastro.</p>
+        </div>
+      </PageHeader>
 
       <Card>
         <CardHeader>

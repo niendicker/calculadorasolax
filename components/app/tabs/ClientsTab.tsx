@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Client } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '../shell/slots';
 import { SearchInput } from '../shared-ui';
 
 function emptyClientForm() {
@@ -104,7 +105,7 @@ export function ClientsTab({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground">Cadastre e gerencie os clientes usados nos projetos.</p>
@@ -115,7 +116,7 @@ export function ClientsTab({
             Novo cliente
           </Button>
         )}
-      </div>
+      </PageHeader>
 
       <Card>
         <CardContent className="pt-4">
