@@ -327,7 +327,6 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 | `app/api/account/delete/route.ts` | Exclusão de conta via service role |
 | `supabase/functions/calculate-residential/index.ts` | Motor de recomendação |
 | `supabase/migrations/*.sql` | Schema, seeds e policies |
-| `solutions/*.json` | Fonte das combinações aprovadas |
 | `proxy.ts` | Middleware/Proxy de locale |
 
 ## Tema e UX

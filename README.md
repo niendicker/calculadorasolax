@@ -140,7 +140,7 @@ Migrações Supabase:
 | Arquivo | Função |
 |---|---|
 | `0001_initial.sql` | Catálogo inicial de cargas, inversores e baterias |
-| `0002_approved_solutions.sql` | Tabela `approved_solutions` com 605 combinações aprovadas importadas de `solutions/*.json` |
+| `0002_approved_solutions.sql` | Tabela `approved_solutions` com 605 combinações aprovadas importadas de `solutions/*.json` (arquivos removidos após a importação; dados já embutidos na migração) |
 | `0003_admin_catalog_rules.sql` | Tabelas `accessories` e `accessory_rules` |
 | `0004_profiles_auth.sql` | Tabela `profiles`, trigger de criação de perfil e policies iniciais |
 | `0005_profile_roles_password_auth.sql` | Campo `role`, função `is_admin()` e policies de escrita admin |
@@ -189,7 +189,7 @@ npx supabase db push --linked --yes
 
 ## Catálogo e geração de soluções
 
-Os arquivos em `solutions/` foram a fonte inicial de importação das combinações aprovadas. O fluxo atual permite gerar combinações a partir dos cadastros e regras administrativas, materializando o resultado em `approved_solutions`.
+Os arquivos `solutions/*.json` (removidos do repositório) foram a fonte inicial de importação das combinações aprovadas, já incorporada aos `INSERT`s de `0002_approved_solutions.sql`. O fluxo atual permite gerar combinações a partir dos cadastros e regras administrativas, materializando o resultado em `approved_solutions`.
 
 Cada solução descreve:
 
