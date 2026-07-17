@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
+import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { SavedProject, SingleLoad } from '@/lib/types';
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
@@ -44,40 +45,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
 
 /** Resets the store to its factory-default state so tests don't leak into each other. */
 function resetStore() {
-  useWizardStore.setState({
-    projectInfo: { name: '', clientId: null, address: '', notes: '' },
-    currentProjectId: null,
-    projectDetailsVisible: false,
-    savedProjects: [],
-    clients: [],
-    userLoadCatalog: [],
-    userStockItems: [],
-    userLoadPresets: [],
-    residentialOptions: {
-      topology: null,
-      batteryModel: null,
-      inverterModel: null,
-      gridType: null,
-      loads: [],
-      peakCalcMode: 'sum',
-      desiredFeatures: [],
-      whiteTariff: null,
-      microgrid: null,
-      generator: null,
-      atsPhotoUrl: null,
-      maxPowerPerPhaseW: null,
-    },
-    industrialOptions: {
-      gridPowerKw: null,
-      pvPowerKwp: null,
-      backupPowerKw: null,
-      backupHours: null,
-      demandCharge: false,
-    },
-    solution: null,
-    loadCatalog: [],
-    loadPresets: [],
-  });
+  resetWizardStore();
   createClientMock.mockReset();
 }
 
