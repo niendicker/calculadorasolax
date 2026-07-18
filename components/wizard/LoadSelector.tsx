@@ -757,6 +757,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   removeLoad(id);
                   setLoadLimitMessage(null);
                 }}
+                saveManualLoadToCatalog={saveManualLoadToCatalog}
+                onCatalogSaveWarning={setCatalogSaveWarning}
               />
             ))}
           </div>
@@ -1183,6 +1185,8 @@ function LoadCard({
   nameKey,
   onUpdate,
   onRemove,
+  saveManualLoadToCatalog,
+  onCatalogSaveWarning,
 }: {
   load: SingleLoad;
   gridType: ResidentialGridType | null;
@@ -1191,6 +1195,8 @@ function LoadCard({
   nameKey: string;
   onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
   onRemove: (id: string) => void;
+  saveManualLoadToCatalog: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
+  onCatalogSaveWarning: (message: string | null) => void;
 }) {
   const [hours, setHours] = useState(String(load.hoursPerDay));
   const [qty, setQty] = useState(String(load.qty));
@@ -1223,7 +1229,18 @@ function LoadCard({
   function confirmDraft() {
     const parsedPower = Number(draftPower);
     if (!draftName.trim() || !(parsedPower > 0)) return;
-    onUpdate(load.id, { name: draftName.trim(), powerW: parsedPower });
+    const name = draftName.trim();
+    onUpdate(load.id, { name, powerW: parsedPower });
+    // A freely typed name/power (as opposed to picking a "Minhas"/"Sistema"
+    // suggestion) is a genuinely new load, so save it for reuse next time.
+    onCatalogSaveWarning(null);
+    saveManualLoadToCatalog({ name, powerW: parsedPower, ipInRatio: 1 }).catch((error) => {
+      const message =
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.';
+      onCatalogSaveWarning(message);
+    });
   }
 
   const phaseCount = gridType ? gridTypePhaseCount[gridType] : 3;

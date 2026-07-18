@@ -474,6 +474,42 @@ describe('LoadSelector: blank load card', () => {
     expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
   });
 
+  it('saves a manually confirmed load to "Minhas Cargas" for reuse next time', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: {
+          user_load_catalog: {
+            data: { id: 'new-u', name: 'Ventilador de teto', power_w: 150, ip_in_ratio: 1, created_at: '', updated_at: '' },
+            error: null,
+          },
+        },
+      })
+    );
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ventilador de teto' } });
+    fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    await waitFor(() =>
+      expect(useWizardStore.getState().userLoadCatalog).toContainEqual(
+        expect.objectContaining({ name: 'Ventilador de teto', powerW: 150 })
+      )
+    );
+  });
+
+  it('does not re-save to "Minhas Cargas" when a suggestion is picked instead of typed freely', () => {
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Bomba' } });
+    fireEvent.click(screen.getByText('Bomba dágua'));
+
+    expect(useWizardStore.getState().userLoadCatalog).toHaveLength(1);
+  });
+
   it('disables the "Adicionar carga" tile once the per-project load limit is reached', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
