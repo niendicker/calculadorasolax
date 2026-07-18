@@ -205,7 +205,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   const maxPowerPerPhaseW = residentialOptions.maxPowerPerPhaseW;
   const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
-  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState<'presets' | 'catalog'>('presets');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(() =>
     defaultToMine && userLoadCatalog.length > 0 ? MINE_FILTER : null
@@ -316,7 +317,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     }
     setLoadLimitMessage(null);
     preset.loads.forEach((load) => addLoad(newLoad(load)));
-    setPresetsOpen(false);
+    setActiveSubTab('catalog');
   }
 
   async function handleSaveCurrentAsPreset() {
@@ -350,6 +351,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   }
 
   const presetsSummary = `${loadPresets.length} do sistema · ${userLoadPresets.length} seu(s)`;
+  const catalogSummary = `${loadCatalog.length + userLoadCatalog.length} itens`;
+  const sectionSummary = `${presetsSummary} · ${catalogSummary}`;
 
   return (
     <div className="space-y-4">
@@ -361,227 +364,264 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
       <div className="space-y-2">
         <CollapsibleSectionHeader
-          title="Presets"
-          summary={presetsSummary}
-          open={presetsOpen}
-          onToggle={() => setPresetsOpen((current) => !current)}
+          title="Cargas"
+          summary={sectionSummary}
+          open={sectionOpen}
+          onToggle={() => setSectionOpen((current) => !current)}
         />
-        {presetsOpen && (
-        <div className="space-y-4 rounded-lg border bg-background p-3">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
-            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {loadPresets.map((preset) => (
-                <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
-              ))}
-            </div>
+        {sectionOpen && (
+        <div className="space-y-3 rounded-lg border bg-background p-3">
+          <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Cargas">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeSubTab === 'presets'}
+              onClick={() => setActiveSubTab('presets')}
+              className={cn(
+                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                activeSubTab === 'presets'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              Presets
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeSubTab === 'catalog'}
+              onClick={() => setActiveSubTab('catalog')}
+              className={cn(
+                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                activeSubTab === 'catalog'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              {t('catalog')}
+            </button>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
-              </p>
-              {!savePresetOpen && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
-                  onClick={() => setSavePresetOpen(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Salvar cargas atuais como preset
-                </Button>
-              )}
+          {activeSubTab === 'presets' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {loadPresets.map((preset) => (
+                  <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
+                ))}
+              </div>
             </div>
 
-            {savePresetOpen && (
-              <div className="space-y-2 rounded-lg border bg-card p-3">
-                <Input
-                  aria-label="Nome do preset"
-                  placeholder="Nome do preset"
-                  value={presetName}
-                  onChange={(event) => setPresetName(event.target.value)}
-                />
-                <Input
-                  aria-label="Descrição do preset"
-                  placeholder="Descrição (opcional)"
-                  value={presetDescription}
-                  onChange={(event) => setPresetDescription(event.target.value)}
-                />
-                {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
-                <div className="flex gap-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
+                </p>
+                {!savePresetOpen && (
                   <Button
                     type="button"
+                    variant="outline"
                     size="sm"
-                    disabled={!presetName.trim() || savingPreset}
-                    onClick={handleSaveCurrentAsPreset}
+                    disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
+                    onClick={() => setSavePresetOpen(true)}
                   >
-                    {savingPreset ? 'Salvando...' : 'Salvar'}
+                    <Plus className="h-3.5 w-3.5" />
+                    Salvar cargas atuais como preset
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSavePresetOpen(false);
-                      setPresetSaveError(null);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
+                )}
               </div>
-            )}
 
-            {userLoadPresets.length === 0 ? (
-              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
-              </p>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {userLoadPresets.map((preset) => (
-                  <div key={preset.id} className="relative">
-                    <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
-                    <div className="absolute right-2 top-2">
-                      <ConfirmDeleteButton
-                        ariaLabel={`Remover preset ${preset.name}`}
-                        title="Remover preset?"
-                        description={`O preset "${preset.name}" será removido definitivamente.`}
-                        confirmLabel="Remover"
-                        onConfirm={() => removeUserLoadPreset(preset.id)}
-                      />
-                    </div>
+              {savePresetOpen && (
+                <div className="space-y-2 rounded-lg border bg-card p-3">
+                  <Input
+                    aria-label="Nome do preset"
+                    placeholder="Nome do preset"
+                    value={presetName}
+                    onChange={(event) => setPresetName(event.target.value)}
+                  />
+                  <Input
+                    aria-label="Descrição do preset"
+                    placeholder="Descrição (opcional)"
+                    value={presetDescription}
+                    onChange={(event) => setPresetDescription(event.target.value)}
+                  />
+                  {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!presetName.trim() || savingPreset}
+                      onClick={handleSaveCurrentAsPreset}
+                    >
+                      {savingPreset ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSavePresetOpen(false);
+                        setPresetSaveError(null);
+                      }}
+                    >
+                      Cancelar
+                    </Button>
                   </div>
+                </div>
+              )}
+
+              {userLoadPresets.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {userLoadPresets.map((preset) => (
+                    <div key={preset.id} className="relative">
+                      <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
+                      <div className="absolute right-2 top-2">
+                        <ConfirmDeleteButton
+                          ariaLabel={`Remover preset ${preset.name}`}
+                          title="Remover preset?"
+                          description={`O preset "${preset.name}" será removido definitivamente.`}
+                          confirmLabel="Remover"
+                          onConfirm={() => removeUserLoadPreset(preset.id)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          )}
+
+          {activeSubTab === 'catalog' && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  autoFocus
+                  aria-label={t('search_placeholder')}
+                  placeholder={t('search_placeholder')}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 md:pl-8"
+                />
+              </div>
+              <AddCustomLoadPopover
+                name={manualName}
+                power={manualPower}
+                hours={manualHours}
+                qty={manualQty}
+                ipIn={manualIpIn}
+                nameLabel={t('name')}
+                powerLabel={t('power')}
+                hoursLabel={t('hours')}
+                qtyLabel={t('qty')}
+                addLabel={t('add_load')}
+                onNameChange={setManualName}
+                onPowerChange={setManualPower}
+                onHoursChange={setManualHours}
+                onQtyChange={setManualQty}
+                onIpInChange={setManualIpIn}
+                onAdd={handleAddManual}
+              />
+            </div>
+
+            {categories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {userLoadCatalog.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategory((current) => (current === MINE_FILTER ? null : MINE_FILTER))}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                      selectedCategory === MINE_FILTER
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    Minhas
+                  </button>
+                )}
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                      selectedCategory === category
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {category}
+                  </button>
                 ))}
               </div>
             )}
-          </div>
-        </div>
-        )}
-      </div>
 
-      <div className="space-y-2 rounded-lg border bg-background p-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              autoFocus
-              aria-label={t('search_placeholder')}
-              placeholder={t('search_placeholder')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 md:pl-8"
-            />
-          </div>
-          <AddCustomLoadPopover
-            name={manualName}
-            power={manualPower}
-            hours={manualHours}
-            qty={manualQty}
-            ipIn={manualIpIn}
-            nameLabel={t('name')}
-            powerLabel={t('power')}
-            hoursLabel={t('hours')}
-            qtyLabel={t('qty')}
-            addLabel={t('add_load')}
-            onNameChange={setManualName}
-            onPowerChange={setManualPower}
-            onHoursChange={setManualHours}
-            onQtyChange={setManualQty}
-            onIpInChange={setManualIpIn}
-            onAdd={handleAddManual}
-          />
-        </div>
-
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {userLoadCatalog.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedCategory((current) => (current === MINE_FILTER ? null : MINE_FILTER))}
-                className={cn(
-                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                  selectedCategory === MINE_FILTER
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted'
-                )}
-              >
-                Minhas
-              </button>
+            {catalogSaveWarning && (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {catalogSaveWarning}
+              </p>
             )}
-            {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
-                className={cn(
-                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                  selectedCategory === category
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted'
-                )}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        )}
 
-        {catalogSaveWarning && (
-          <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {catalogSaveWarning}
-          </p>
-        )}
-
-        <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-          {filteredUserItems.map((item) => (
-            <div
-              key={`user-${item.id}`}
-              className="flex items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-1 transition-colors hover:border-primary/50 hover:bg-primary/10"
-            >
-              <button
-                type="button"
-                onClick={() => handleAddFromUserCatalog(item)}
-                className="flex min-w-0 flex-1 items-center justify-between gap-2 py-0.5 text-left text-sm focus-visible:outline-none"
-              >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[0.65rem]">
-                    Meu
-                  </Badge>
-                  <span className="truncate">{item.name}</span>
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
-                </span>
-              </button>
-              <UserLoadCatalogItemMenu
-                item={item}
-                onUpdate={updateUserLoadCatalogItem}
-                onRemove={removeUserLoadCatalogItem}
-              />
+            <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+              {filteredUserItems.map((item) => (
+                <div
+                  key={`user-${item.id}`}
+                  className="flex items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-1 transition-colors hover:border-primary/50 hover:bg-primary/10"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleAddFromUserCatalog(item)}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 py-0.5 text-left text-sm focus-visible:outline-none"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[0.65rem]">
+                        Meu
+                      </Badge>
+                      <span className="truncate">{item.name}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
+                    </span>
+                  </button>
+                  <UserLoadCatalogItemMenu
+                    item={item}
+                    onUpdate={updateUserLoadCatalogItem}
+                    onRemove={removeUserLoadCatalogItem}
+                  />
+                </div>
+              ))}
+              {filtered.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleAddFromCatalog(item)}
+                  className="flex items-center justify-between gap-2 rounded-md border bg-card py-1.5 px-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
+                  </span>
+                </button>
+              ))}
+              {filteredUserItems.length === 0 && filtered.length === 0 && (
+                <p className="col-span-full rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+                  Nenhuma carga encontrada.
+                </p>
+              )}
             </div>
-          ))}
-          {filtered.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleAddFromCatalog(item)}
-              className="flex items-center justify-between gap-2 rounded-md border bg-card py-1.5 px-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
-              </span>
-            </button>
-          ))}
-          {filteredUserItems.length === 0 && filtered.length === 0 && (
-            <p className="col-span-full rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-              Nenhuma carga encontrada.
-            </p>
+          </div>
           )}
         </div>
+        )}
       </div>
 
       {residentialOptions.loads.length > 0 && (

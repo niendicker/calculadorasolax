@@ -304,6 +304,7 @@ describe('SizingTab: cargas', () => {
     setup();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 
     expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');
   });
