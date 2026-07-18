@@ -42,6 +42,7 @@ import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAc
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
+  CollapsibleSection,
   DocPreviewModal,
   ImagePreviewModal,
   Metric,
@@ -49,7 +50,14 @@ import {
   Requirement,
   SolutionSkeleton,
 } from '../shared-ui';
-import { gridOptions, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
+import {
+  gridLabels,
+  gridOptions,
+  topologyLabels,
+  type BatteryCatalogOption,
+  type InverterCatalogOption,
+  type ProductMedia,
+} from '../types';
 
 export function SizingTab({
   title,
@@ -132,6 +140,14 @@ export function SizingTab({
   userStockItems: UserStockItem[];
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
+  const [gridTypeOpen, setGridTypeOpen] = useState(() => !residentialOptions.gridType);
+
+  const gridTypeSummary = residentialOptions.gridType
+    ? `${gridLabels[residentialOptions.gridType]}${
+        residentialOptions.inverterModel ? ` · ${residentialOptions.inverterModel}` : ' · inversor pendente'
+      }`
+    : 'Nenhuma seleção';
+
   return (
     <>
       <PageHeader>
@@ -212,8 +228,12 @@ export function SizingTab({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-3 rounded-lg border bg-background p-3">
-                <p className="text-sm font-medium">Tipo de rede</p>
+              <CollapsibleSection
+                title="Tipo de rede"
+                summary={gridTypeSummary}
+                open={gridTypeOpen}
+                onToggle={() => setGridTypeOpen((current) => !current)}
+              >
                 <div
                   className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
                   role="radiogroup"
@@ -257,7 +277,7 @@ export function SizingTab({
                   setInverterModel={setInverterModel}
                   userStockItems={userStockItems}
                 />
-              </div>
+              </CollapsibleSection>
 
               <BatteryModelPicker
                 batteries={batteryCatalog}
@@ -267,6 +287,7 @@ export function SizingTab({
                 setTopology={setTopology}
                 setBatteryModel={setBatteryModel}
                 userStockItems={userStockItems}
+                solution={solution}
               />
             </CardContent>
           </Card>
@@ -742,6 +763,7 @@ function BatteryModelPicker({
   setTopology,
   setBatteryModel,
   userStockItems,
+  solution,
 }: {
   batteries: BatteryCatalogOption[];
   topology: BatteryTopology | null;
@@ -750,7 +772,9 @@ function BatteryModelPicker({
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
   userStockItems: UserStockItem[];
+  solution: Solution | null;
 }) {
+  const [open, setOpen] = useState(() => !selectedModel);
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
@@ -759,6 +783,15 @@ function BatteryModelPicker({
     HV: batteries.filter((battery) => battery.topology === 'HV').length,
     LV: batteries.filter((battery) => battery.topology === 'LV').length,
   };
+
+  const selectedBattery = batteries.find((battery) => battery.model === selectedModel);
+  const summary = selectedBattery
+    ? `${selectedBattery.model} · ${selectedBattery.capacityKwh} kWh${
+        solution?.batteryModel === selectedBattery.model ? ` · x${solution.batteryQty}` : ''
+      }`
+    : topology
+      ? `${topologyLabels[topology]} · modelo pendente`
+      : 'Nenhuma seleção';
 
   function selectTab(nextTopology: 'HV' | 'LV') {
     setTopology(nextTopology === 'HV' ? 'HighVoltage' : 'LowVoltage');
@@ -774,14 +807,9 @@ function BatteryModelPicker({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border bg-background p-3">
+    <CollapsibleSection title="Modelo da bateria" summary={summary} open={open} onToggle={() => setOpen((current) => !current)}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium">Modelo da bateria</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Selecione um modelo cadastrado pelo admin.
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">Selecione um modelo cadastrado pelo admin.</p>
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
           {(['HV', 'LV'] as const).map((tab) => {
             const active = activeTopology === tab;
@@ -903,7 +931,7 @@ function BatteryModelPicker({
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
-    </div>
+    </CollapsibleSection>
   );
 }
 
