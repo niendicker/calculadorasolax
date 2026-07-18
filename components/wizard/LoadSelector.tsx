@@ -601,7 +601,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               </p>
             )}
 
-            <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
               {filteredUserItems.map((item) => (
                 <div
                   key={`user-${item.id}`}
