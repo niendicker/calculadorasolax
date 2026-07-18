@@ -281,36 +281,42 @@ describe('SizingTab: funcionalidades desejadas', () => {
 });
 
 describe('SizingTab: cargas', () => {
-  it('renders the LoadSelector under the Backup tab, which is active by default', () => {
+  it('collapses the Backup tab like any other feature tab until it is enabled', () => {
     setup();
-    expect(screen.getByText('Presets')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
+    // Backup is the default active tab but starts disabled, so — same as
+    // every other feature tab — its content (the loads UI) stays collapsed.
+    expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
     expect(screen.queryByText('Presets')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
-    expect(screen.getByText('Presets')).toBeInTheDocument();
   });
 
-  it('shows a real Habilitar/Habilitado toggle for Backup, and the loads UI works regardless of the toggle state', () => {
-    const { props } = setup();
-
-    expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
-    // Cargas UI is available even before Backup is enabled — loads feed the
-    // general system sizing, not just the backup requirement.
-    expect(screen.getByText('Presets')).toBeInTheDocument();
+  it('reveals the LoadSelector under the Backup tab once enabled, and hides it again when disabled', () => {
+    const { rerender, props } = setup();
 
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith(['backup']);
-  });
 
-  it('turns off the Backup requirement without hiding the cargas UI', () => {
-    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] } });
+    rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <SizingTab
+          {...(props as Parameters<typeof SizingTab>[0])}
+          residentialOptions={{ ...emptyResidentialOptions, desiredFeatures: ['backup'] }}
+        />
+      </NextIntlClientProvider>
+    );
+    // rerender remounts (no Shell wrapper), so activeTab resets to its
+    // 'backup' default and we land straight on the now-enabled panel.
+    expect(screen.getByText('Presets')).toBeInTheDocument();
 
-    expect(screen.getByRole('button', { name: 'Habilitado' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
-    expect(screen.getByText('Presets')).toBeInTheDocument();
+
+    rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <SizingTab {...(props as Parameters<typeof SizingTab>[0])} residentialOptions={emptyResidentialOptions} />
+      </NextIntlClientProvider>
+    );
+    expect(screen.queryByText('Presets')).not.toBeInTheDocument();
   });
 
   it('defaults the Backup tab catalog to the "Minhas" filter when the user has personal items', () => {
@@ -322,9 +328,8 @@ describe('SizingTab: cargas', () => {
         { id: 'u1', name: 'Item pessoal', powerW: 100, ipInRatio: 1, createdAt: '', updatedAt: '' },
       ],
     });
-    setup();
+    setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] } });
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 
     expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');

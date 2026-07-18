@@ -645,7 +645,7 @@ function DesiredFeaturesPicker({
           </div>
         </div>
 
-        {isBackupTab && <LoadSelector defaultToMine />}
+        {isBackupTab && isActiveEnabled && <LoadSelector defaultToMine />}
 
         {isActiveEnabled && activeTab === 'external_ats' && (
           <PhotoUploadField
