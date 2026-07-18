@@ -8,7 +8,6 @@ import {
   Check,
   FileText,
   FolderOpen,
-  Home,
   ImagePlus,
   ListChecks,
   Loader2,
@@ -312,21 +311,10 @@ export function SizingTab({
                 atsPhotoUrl={residentialOptions.atsPhotoUrl}
                 onAtsPhotoUrlChange={setAtsPhotoUrl}
                 onUploadPhoto={onUploadFeaturePhoto}
+                loadsCount={residentialOptions.loads.length}
               />
             </CardContent>
           </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Home className="h-4 w-4" />
-              Cargas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LoadSelector />
-          </CardContent>
-        </Card>
       </div>
     </>
   );
@@ -474,6 +462,9 @@ function PhotoUploadField({
   );
 }
 
+const BACKUP_TAB_ID = 'backup' as const;
+type FeatureTabId = DesiredFeatureId | typeof BACKUP_TAB_ID;
+
 function DesiredFeaturesPicker({
   value,
   onChange,
@@ -486,6 +477,7 @@ function DesiredFeaturesPicker({
   atsPhotoUrl,
   onAtsPhotoUrlChange,
   onUploadPhoto,
+  loadsCount,
 }: {
   value: DesiredFeatureId[];
   onChange: (value: DesiredFeatureId[]) => void;
@@ -498,10 +490,16 @@ function DesiredFeaturesPicker({
   atsPhotoUrl: string | null;
   onAtsPhotoUrlChange: (atsPhotoUrl: string | null) => void;
   onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
+  loadsCount: number;
 }) {
-  const [activeTab, setActiveTab] = useState<DesiredFeatureId>(DESIRED_FEATURE_DEFINITIONS[0].id);
-  const activeFeature = DESIRED_FEATURE_DEFINITIONS.find((feature) => feature.id === activeTab) ?? DESIRED_FEATURE_DEFINITIONS[0];
-  const isActiveEnabled = value.includes(activeTab);
+  const tabs: { id: FeatureTabId; label: string; description: string }[] = [
+    ...DESIRED_FEATURE_DEFINITIONS,
+    { id: BACKUP_TAB_ID, label: 'Backup', description: 'Equipamentos que serão alimentados pelo sistema durante o backup.' },
+  ];
+  const [activeTab, setActiveTab] = useState<FeatureTabId>(DESIRED_FEATURE_DEFINITIONS[0].id);
+  const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  const isBackupTab = activeTab === BACKUP_TAB_ID;
+  const isActiveEnabled = isBackupTab ? loadsCount > 0 : value.includes(activeTab);
 
   function toggle(id: DesiredFeatureId) {
     if (value.includes(id)) {
@@ -520,17 +518,17 @@ function DesiredFeaturesPicker({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Funcionalidades desejadas">
-        {DESIRED_FEATURE_DEFINITIONS.map((feature) => {
-          const enabled = value.includes(feature.id);
-          const isActiveTab = activeTab === feature.id;
+        {tabs.map((tab) => {
+          const enabled = tab.id === BACKUP_TAB_ID ? loadsCount > 0 : value.includes(tab.id);
+          const isActiveTab = activeTab === tab.id;
           return (
             <button
-              key={feature.id}
+              key={tab.id}
               type="button"
               role="tab"
               aria-selected={isActiveTab}
-              title={feature.description}
-              onClick={() => setActiveTab(feature.id)}
+              title={tab.description}
+              onClick={() => setActiveTab(tab.id)}
               className={cn(
                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 isActiveTab
@@ -542,7 +540,7 @@ function DesiredFeaturesPicker({
                 aria-hidden="true"
                 className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
               />
-              {feature.label}
+              {tab.label}
             </button>
           );
         })}
@@ -554,22 +552,30 @@ function DesiredFeaturesPicker({
             <p className="text-sm font-semibold">{activeFeature.label}</p>
             <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
           </div>
-          <Button
-            type="button"
-            variant={isActiveEnabled ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => toggle(activeTab)}
-          >
-            {isActiveEnabled ? (
-              <>
-                <Check className="h-3.5 w-3.5" />
-                Habilitado
-              </>
-            ) : (
-              'Habilitar'
-            )}
-          </Button>
+          {isBackupTab ? (
+            <Badge variant="secondary">
+              {loadsCount} {loadsCount === 1 ? 'carga' : 'cargas'}
+            </Badge>
+          ) : (
+            <Button
+              type="button"
+              variant={isActiveEnabled ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => toggle(activeTab)}
+            >
+              {isActiveEnabled ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Habilitado
+                </>
+              ) : (
+                'Habilitar'
+              )}
+            </Button>
+          )}
         </div>
+
+        {isBackupTab && <LoadSelector />}
 
         {isActiveEnabled && activeTab === 'external_ats' && (
           <PhotoUploadField

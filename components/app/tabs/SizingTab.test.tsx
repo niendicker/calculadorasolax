@@ -257,8 +257,12 @@ describe('SizingTab: funcionalidades desejadas', () => {
 });
 
 describe('SizingTab: cargas', () => {
-  it('renders the LoadSelector for adding loads', () => {
+  it('renders the LoadSelector under the Backup tab', () => {
     setup();
+    expect(screen.queryByText('Presets')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+
     expect(screen.getByText('Presets')).toBeInTheDocument();
   });
 });
