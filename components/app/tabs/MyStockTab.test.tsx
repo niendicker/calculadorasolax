@@ -17,6 +17,7 @@ const inverter: InverterCatalogOption = {
   maxPowerPerPhaseW: null,
   imageUrl: null,
   documents: [],
+  flags: [],
 };
 
 const battery: BatteryCatalogOption = {

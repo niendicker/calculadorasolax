@@ -1,4 +1,4 @@
-import type { BatteryTopology, ProductDocument, ResidentialGridType } from '@/lib/types';
+import type { BatteryTopology, InverterFlag, ProductDocument, ResidentialGridType } from '@/lib/types';
 
 export interface InlineProfile {
   id: string;
@@ -39,6 +39,7 @@ export interface InverterCatalogOption {
   maxPowerPerPhaseW: number | null;
   imageUrl: string | null;
   documents: ProductDocument[];
+  flags: InverterFlag[];
 }
 
 export interface AccessoryCatalogOption {

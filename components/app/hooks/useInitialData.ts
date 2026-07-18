@@ -62,7 +62,7 @@ export function useInitialData({
           .order('model'),
         supabase
           .from('inverters')
-          .select('id, model, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, image_url, documents')
+          .select('id, model, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, image_url, documents, flags')
           .order('model'),
         supabase
           .from('accessories')
@@ -165,6 +165,7 @@ export function useInitialData({
             maxPowerPerPhaseW: row.max_power_per_phase_w === null ? null : Number(row.max_power_per_phase_w),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
+            flags: (row.flags ?? []) as InverterCatalogOption['flags'],
           }))
         );
       }

@@ -240,6 +240,7 @@ export function SizingTab({
                 onAtsPhotoUrlChange={setAtsPhotoUrl}
                 onUploadPhoto={onUploadFeaturePhoto}
                 loadsCount={residentialOptions.loads.length}
+                inverterCatalog={inverterCatalog}
               />
             </CardContent>
           </Card>
@@ -478,6 +479,7 @@ function DesiredFeaturesPicker({
   onAtsPhotoUrlChange,
   onUploadPhoto,
   loadsCount,
+  inverterCatalog,
 }: {
   value: DesiredFeatureId[];
   onChange: (value: DesiredFeatureId[]) => void;
@@ -491,7 +493,9 @@ function DesiredFeaturesPicker({
   onAtsPhotoUrlChange: (atsPhotoUrl: string | null) => void;
   onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
   loadsCount: number;
+  inverterCatalog: InverterCatalogOption[];
 }) {
+  const microgridInverterCount = inverterCatalog.filter((inverter) => inverter.flags.includes('microgrid')).length;
   const tabs: { id: FeatureTabId; label: string; description: string }[] = [
     ...DESIRED_FEATURE_DEFINITIONS,
     { id: BACKUP_TAB_ID, label: 'Backup', description: 'Equipamentos que serão alimentados pelo sistema durante o backup.' },
@@ -659,6 +663,9 @@ function DesiredFeaturesPicker({
         {isActiveEnabled && activeTab === 'microgrid' && (
           <div className="space-y-3">
           <p className="text-xs text-muted-foreground">Dados do sistema ongrid existente a ser conectado.</p>
+          <Badge variant="secondary">
+            {microgridInverterCount} de {inverterCatalog.length} inversores cadastrados com suporte a microrrede
+          </Badge>
           <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             A microrrede só é compatível se a potência aparente do sistema ongrid for menor que a potência do

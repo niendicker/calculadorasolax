@@ -39,6 +39,7 @@ const inverter: InverterCatalogOption = {
   maxPowerPerPhaseW: null,
   imageUrl: null,
   documents: [],
+  flags: [],
 };
 
 const fakeSolution: Solution = {
@@ -254,6 +255,18 @@ describe('SizingTab: funcionalidades desejadas', () => {
     // The Tarifa Branca tab isn't enabled, so its panel shows the "Habilitar" prompt, not its fields.
     expect(screen.queryByLabelText('Potência (W)')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
+  });
+
+  it('shows how many registered inverters support microrrede when the tab is enabled', () => {
+    const microgridInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X1-Hybrid-7.5-MG', flags: ['microgrid'] };
+    setup({
+      inverterCatalog: [inverter, microgridInverter],
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['microgrid'] },
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Microrrede' }));
+
+    expect(screen.getByText('1 de 2 inversores cadastrados com suporte a microrrede')).toBeInTheDocument();
   });
 });
 
