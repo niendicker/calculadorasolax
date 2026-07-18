@@ -102,7 +102,7 @@ export function NumberFieldWithClear({
 const MINE_FILTER = '__mine__';
 
 function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
-  return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
+  return { ipInRatio: 1, usageFactor: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
 }
 
 function PresetCard({
@@ -1195,6 +1195,7 @@ function LoadCard({
   const [hours, setHours] = useState(String(load.hoursPerDay));
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
+  const [usageFactor, setUsageFactor] = useState(String(load.usageFactor ?? 1));
   const [expanded, setExpanded] = useState(false);
   const [draftName, setDraftName] = useState(load.name);
   const [draftPower, setDraftPower] = useState(load.powerW ? String(load.powerW) : '');
@@ -1275,7 +1276,7 @@ function LoadCard({
   }, [needsTwoPhases, load.phase2, load.id, onUpdate]);
 
   function handleChange(
-    field: 'hoursPerDay' | 'qty' | 'ipInRatio',
+    field: 'hoursPerDay' | 'qty' | 'ipInRatio' | 'usageFactor',
     raw: string,
     setLocal: (value: string) => void
   ) {
@@ -1293,7 +1294,7 @@ function LoadCard({
     }
   }
 
-  const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
+  const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * (load.usageFactor ?? 1) * load.qty;
   const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
 
   if (isDraft) {
@@ -1476,7 +1477,7 @@ function LoadCard({
         </div>
       </div>
       {expanded && (
-      <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 border-t p-3">
         <div>
           <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel
@@ -1526,6 +1527,25 @@ function LoadCard({
             onChange={(value) => handleChange('ipInRatio', value, setIpIn)}
             onBlur={() => revertIfInvalid(ipIn, load.ipInRatio ?? 1, setIpIn)}
             onClear={() => setIpIn('')}
+          />
+        </div>
+        <div>
+          <Label htmlFor={`usage-factor-${load.id}`} className="text-xs font-normal text-muted-foreground">
+            <InfoLabel
+              label="Fator de uso"
+              tip="Fração da potência nominal realmente exigida durante o backup (0 a 1). Reduz o impacto dessa carga no pico calculado, sem afetar o consumo em kWh/dia."
+            />
+          </Label>
+          <NumberFieldWithClear
+            id={`usage-factor-${load.id}`}
+            value={usageFactor}
+            placeholder="Ex.: 1"
+            min={0.1}
+            max={1}
+            step={0.05}
+            onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
+            onBlur={() => revertIfInvalid(usageFactor, load.usageFactor ?? 1, setUsageFactor)}
+            onClear={() => setUsageFactor('')}
           />
         </div>
       </div>

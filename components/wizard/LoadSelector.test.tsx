@@ -296,6 +296,7 @@ describe('LoadSelector: catalog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+    expect(screen.queryByText(/Fator de uso/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '900' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
@@ -485,6 +486,45 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.change(hoursInput, { target: { value: '3' } });
 
     expect(useWizardStore.getState().residentialOptions.loads[0].hoursPerDay).toBe(3);
+  });
+
+  it('shows an editable "Fator de uso" field on backup load cards, reducing the displayed peak', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    const summary = screen.getByText('Chuveiro').closest('[role="button"]') as HTMLElement;
+    fireEvent.click(summary);
+    expect(summary).toHaveTextContent('5500 VA');
+
+    const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
+    fireEvent.change(usageFactorInput, { target: { value: '0.5' } });
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(0.5);
+    expect(summary).toHaveTextContent('2750 VA');
+  });
+
+  it('does not add a "Fator de uso" field to the catalog registration forms', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: {
+          user_load_catalog: {
+            data: { id: 'new-u', name: 'Ventilador', power_w: 120, ip_in_ratio: 1, created_at: '', updated_at: '' },
+            error: null,
+          },
+        },
+      })
+    );
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar nova carga' });
+    expect(within(dialog).queryByText(/Fator de uso/)).not.toBeInTheDocument();
   });
 
   it('removes a load from the list', () => {

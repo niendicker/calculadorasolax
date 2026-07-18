@@ -86,6 +86,11 @@ export interface SingleLoad {
   qty: number;
   /** IP/IN: starting (peak) apparent power divided by nominal apparent power. */
   ipInRatio: number;
+  /** Fraction (0-1) of this load's nominal power actually drawn during a backup
+   * event; only meaningful for loads added to a project's backup list, not for
+   * catalog entries. Defaults to 1 (full power) for loads saved before this
+   * field existed. */
+  usageFactor?: number;
   /** Operating voltage; defaults to 220V for loads saved before this field existed. */
   voltageV?: LoadVoltage;
   /** Single- or three-phase; defaults to 'mono' for loads saved before this field existed. */
