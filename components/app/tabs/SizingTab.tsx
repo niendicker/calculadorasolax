@@ -222,6 +222,31 @@ export function SizingTab({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
+                <ListChecks className="h-4 w-4" />
+                Funcionalidades desejadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DesiredFeaturesPicker
+                value={residentialOptions.desiredFeatures}
+                onChange={setDesiredFeatures}
+                whiteTariff={residentialOptions.whiteTariff}
+                onWhiteTariffChange={setWhiteTariffConfig}
+                microgrid={residentialOptions.microgrid}
+                onMicrogridChange={setMicrogridConfig}
+                generator={residentialOptions.generator}
+                onGeneratorChange={setGeneratorConfig}
+                atsPhotoUrl={residentialOptions.atsPhotoUrl}
+                onAtsPhotoUrlChange={setAtsPhotoUrl}
+                onUploadPhoto={onUploadFeaturePhoto}
+                loadsCount={residentialOptions.loads.length}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Settings className="h-4 w-4" />
                 Configuração
               </CardTitle>
@@ -287,31 +312,6 @@ export function SizingTab({
                 setBatteryModel={setBatteryModel}
                 userStockItems={userStockItems}
                 solution={solution}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListChecks className="h-4 w-4" />
-                Funcionalidades desejadas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DesiredFeaturesPicker
-                value={residentialOptions.desiredFeatures}
-                onChange={setDesiredFeatures}
-                whiteTariff={residentialOptions.whiteTariff}
-                onWhiteTariffChange={setWhiteTariffConfig}
-                microgrid={residentialOptions.microgrid}
-                onMicrogridChange={setMicrogridConfig}
-                generator={residentialOptions.generator}
-                onGeneratorChange={setGeneratorConfig}
-                atsPhotoUrl={residentialOptions.atsPhotoUrl}
-                onAtsPhotoUrlChange={setAtsPhotoUrl}
-                onUploadPhoto={onUploadFeaturePhoto}
-                loadsCount={residentialOptions.loads.length}
               />
             </CardContent>
           </Card>
