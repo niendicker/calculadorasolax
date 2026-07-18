@@ -275,16 +275,16 @@ export function SizingTab({
 
               {mainTab === 'config' && (
                 <>
-                  <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Seções de configuração">
+                  <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções de configuração">
                     <button
                       type="button"
                       role="tab"
                       aria-selected={configTab === 'gridType'}
                       onClick={() => setConfigTab('gridType')}
                       className={cn(
-                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         configTab === 'gridType'
-                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                       )}
                     >
@@ -303,9 +303,9 @@ export function SizingTab({
                       aria-selected={configTab === 'battery'}
                       onClick={() => setConfigTab('battery')}
                       className={cn(
-                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         configTab === 'battery'
-                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                       )}
                     >
@@ -590,7 +590,7 @@ function DesiredFeaturesPicker({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Funcionalidades desejadas">
+      <div className="flex flex-wrap gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Funcionalidades desejadas">
         {tabs.map((tab) => {
           const enabled = tab.id === BACKUP_TAB_ID ? loadsCount > 0 : value.includes(tab.id);
           const isActiveTab = activeTab === tab.id;
@@ -603,9 +603,9 @@ function DesiredFeaturesPicker({
               title={tab.description || undefined}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 isActiveTab
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >

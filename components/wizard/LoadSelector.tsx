@@ -377,16 +377,16 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         />
         {sectionOpen && (
         <div className="space-y-3 rounded-lg border bg-background p-3">
-          <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Cargas">
+          <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Cargas">
             <button
               type="button"
               role="tab"
               aria-selected={activeSubTab === 'presets'}
               onClick={() => setActiveSubTab('presets')}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 activeSubTab === 'presets'
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
@@ -398,9 +398,9 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               aria-selected={activeSubTab === 'catalog'}
               onClick={() => setActiveSubTab('catalog')}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 activeSubTab === 'catalog'
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
@@ -410,17 +410,17 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
           {activeSubTab === 'presets' && (
           <div className="space-y-3">
-            <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Presets">
+            <div className="flex gap-4 border-b" role="tablist" aria-label="Presets">
               <button
                 type="button"
                 role="tab"
                 aria-selected={presetsSubTab === 'system'}
                 onClick={() => setPresetsSubTab('system')}
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  '-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   presetsSubTab === 'system'
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
                 Presets do sistema
@@ -431,10 +431,10 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 aria-selected={presetsSubTab === 'mine'}
                 onClick={() => setPresetsSubTab('mine')}
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  '-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   presetsSubTab === 'mine'
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
                 Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
