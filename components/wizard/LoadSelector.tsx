@@ -247,6 +247,11 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     return item.name.toLowerCase().includes(search.toLowerCase());
   });
 
+  function handleAddBlank() {
+    const added = addLoad(newLoad({ name: '', powerW: 0, hoursPerDay: 4, qty: 1, ipInRatio: 1 }));
+    setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
+  }
+
   function handleAddFromCatalog(item: CatalogItem) {
     const added = addLoad(
       newLoad({
@@ -654,9 +659,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         )}
       </div>
 
-      {residentialOptions.loads.length > 0 && (
-        <div className="space-y-3">
-          {gridType && gridTypePhaseCount[gridType] > 1 && (
+      <div className="space-y-3">
+          {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
             <div className="rounded-md border bg-card p-3">
               <p className="text-xs font-medium">
                 <InfoLabel
@@ -691,6 +695,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               )}
             </div>
           )}
+          {residentialOptions.loads.length > 0 && (
           <div className="rounded-md border bg-card p-3">
             <p className="text-xs font-medium">
               <InfoLabel
@@ -733,12 +738,20 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               })}
             </div>
           </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <AddLoadTile
+              onAdd={handleAddBlank}
+              disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+            />
             {residentialOptions.loads.map((load) => (
               <LoadCard
                 key={load.id}
                 load={load}
                 gridType={residentialOptions.gridType}
+                loadCatalog={loadCatalog}
+                userLoadCatalog={userLoadCatalog}
+                nameKey={nameKey}
                 onUpdate={updateLoad}
                 onRemove={(id) => {
                   removeLoad(id);
@@ -748,8 +761,21 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             ))}
           </div>
         </div>
-      )}
     </div>
+  );
+}
+
+function AddLoadTile({ onAdd, disabled }: { onAdd: () => void; disabled: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      disabled={disabled}
+      className="flex min-h-[88px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Plus className="h-5 w-5" />
+      Adicionar carga
+    </button>
   );
 }
 
@@ -1152,11 +1178,17 @@ function UserLoadCatalogItemMenu({
 function LoadCard({
   load,
   gridType,
+  loadCatalog,
+  userLoadCatalog,
+  nameKey,
   onUpdate,
   onRemove,
 }: {
   load: SingleLoad;
   gridType: ResidentialGridType | null;
+  loadCatalog: CatalogItem[];
+  userLoadCatalog: UserLoadCatalogItem[];
+  nameKey: string;
   onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
   onRemove: (id: string) => void;
 }) {
@@ -1164,6 +1196,34 @@ function LoadCard({
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
   const [expanded, setExpanded] = useState(false);
+  const [draftName, setDraftName] = useState(load.name);
+  const [draftPower, setDraftPower] = useState(load.powerW ? String(load.powerW) : '');
+  const [draftDropdownOpen, setDraftDropdownOpen] = useState(false);
+  const isDraft = load.powerW === 0;
+
+  const draftMatches = useMemo(() => {
+    const query = draftName.trim().toLowerCase();
+    if (!query) return { mine: [], system: [] };
+    return {
+      mine: userLoadCatalog.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 5),
+      system: loadCatalog
+        .filter((item) => (item[nameKey as keyof CatalogItem] as string).toLowerCase().includes(query))
+        .slice(0, 5),
+    };
+  }, [draftName, userLoadCatalog, loadCatalog, nameKey]);
+
+  function selectDraftSuggestion(name: string, powerW: number, ipInRatio: number) {
+    setDraftName(name);
+    setDraftPower(String(powerW));
+    setDraftDropdownOpen(false);
+    onUpdate(load.id, { name, powerW, ipInRatio });
+  }
+
+  function confirmDraft() {
+    const parsedPower = Number(draftPower);
+    if (!draftName.trim() || !(parsedPower > 0)) return;
+    onUpdate(load.id, { name: draftName.trim(), powerW: parsedPower });
+  }
 
   const phaseCount = gridType ? gridTypePhaseCount[gridType] : 3;
   const validVoltages = gridType ? gridTypeVoltages[gridType] : [110, 220, 380];
@@ -1235,6 +1295,128 @@ function LoadCard({
 
   const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
   const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
+
+  if (isDraft) {
+    const hasSuggestions = draftMatches.mine.length > 0 || draftMatches.system.length > 0;
+    return (
+      <div className="rounded-lg border border-dashed bg-card p-3 text-sm">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="relative">
+              <Label htmlFor={`draft-name-${load.id}`} className="text-xs font-normal text-muted-foreground">
+                Nome
+              </Label>
+              <Input
+                id={`draft-name-${load.id}`}
+                autoFocus
+                value={draftName}
+                placeholder="Nome do equipamento"
+                onChange={(event) => {
+                  setDraftName(event.target.value);
+                  setDraftDropdownOpen(true);
+                }}
+                onFocus={() => setDraftDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setDraftDropdownOpen(false), 150)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    confirmDraft();
+                  }
+                }}
+                className="mt-1"
+              />
+              {draftDropdownOpen && draftName.trim() !== '' && hasSuggestions && (
+                <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+                  {draftMatches.mine.length > 0 && (
+                    <div>
+                      <p className="px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Minhas
+                      </p>
+                      {draftMatches.mine.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => selectDraftSuggestion(item.name, item.powerW, item.ipInRatio)}
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                        >
+                          <span className="truncate">{item.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{item.powerW}VA</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {draftMatches.system.length > 0 && (
+                    <div>
+                      <p className="px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Sistema
+                      </p>
+                      {draftMatches.system.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() =>
+                            selectDraftSuggestion(
+                              item[nameKey as keyof CatalogItem] as string,
+                              item.powerW,
+                              item.ipInRatio ?? 1
+                            )
+                          }
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                        >
+                          <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{item.powerW}VA</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div>
+              <Label htmlFor={`draft-power-${load.id}`} className="text-xs font-normal text-muted-foreground">
+                Potência (VA)
+              </Label>
+              <Input
+                id={`draft-power-${load.id}`}
+                type="number"
+                min={1}
+                value={draftPower}
+                placeholder="Ex.: 1200"
+                onChange={(event) => setDraftPower(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    confirmDraft();
+                  }
+                }}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 md:h-7 md:w-7"
+            onClick={() => onRemove(load.id)}
+            aria-label="Remover carga em branco"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          className="mt-3 w-full"
+          disabled={!draftName.trim() || !(Number(draftPower) > 0)}
+          onClick={confirmDraft}
+        >
+          Adicionar
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border bg-card text-sm">

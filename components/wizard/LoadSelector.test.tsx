@@ -388,6 +388,87 @@ describe('LoadSelector: manual add popover', () => {
   });
 });
 
+describe('LoadSelector: blank load card', () => {
+  it('shows the "Adicionar carga" tile even with no loads yet, and adds a blank draft card on click', () => {
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+
+    expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+    expect(screen.getByLabelText('Potência (VA)')).toBeInTheDocument();
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
+  });
+
+  it('shows suggestions grouped as "Minhas" and "Sistema" while typing, and picking one fills the load', () => {
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Bomba' } });
+
+    expect(screen.getByText('Minhas')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Bomba dágua'));
+
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({
+      name: 'Bomba dágua',
+      powerW: 750,
+      ipInRatio: 3,
+    });
+    // Once powerW is set, the card leaves draft mode and no longer shows the Nome/Potência inputs.
+    expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
+  });
+
+  it('picks a "Sistema" suggestion from the global catalog', () => {
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ar-cond' } });
+
+    expect(screen.getByText('Sistema')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Ar-condicionado 9000 BTU'));
+
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({
+      name: 'Ar-condicionado 9000 BTU',
+      powerW: 900,
+      ipInRatio: 3,
+    });
+  });
+
+  it('confirms a manually typed name and power without picking a suggestion', () => {
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ventilador de teto' } });
+    fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({
+      name: 'Ventilador de teto',
+      powerW: 150,
+    });
+    expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
+  });
+
+  it('disables the "Adicionar carga" tile once the per-project load limit is reached', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: Array.from({ length: ACCOUNT_LIMITS.loadsPerProject }, (_, i) => ({
+          id: `l${i}`,
+          name: `Carga ${i}`,
+          powerW: 100,
+          hoursPerDay: 1,
+          qty: 1,
+          ipInRatio: 1,
+        })),
+      },
+    }));
+    renderLoadSelector();
+
+    expect(screen.getByRole('button', { name: 'Adicionar carga' })).toBeDisabled();
+  });
+});
+
 describe('LoadSelector: added loads list', () => {
   it('expands a load card to show editable fields, and edits update the store', () => {
     useWizardStore.setState((s) => ({
