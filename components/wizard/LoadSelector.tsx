@@ -15,6 +15,7 @@ import {
   ListChecks,
   MoreVertical,
   Pencil,
+  Plug,
   Plus,
   Trash2,
   Search,
@@ -1469,15 +1470,18 @@ function LoadCard({
       >
         <div className="min-w-0">
           <p className="font-medium truncate">{load.name}</p>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            <span>
-              <span className="font-medium text-foreground">{load.powerW} VA</span> nominal
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1" title="Potência nominal">
+              <Plug className="h-3.5 w-3.5" />
+              <span className="font-medium text-foreground">{load.powerW} VA</span>
             </span>
-            <span>
-              <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span> pico
+            <span className="flex items-center gap-1" title="Potência de pico (nominal × IP/IN × quantidade)">
+              <Zap className="h-3.5 w-3.5" />
+              <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span>
             </span>
-            <span>
-              <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>/dia
+            <span className="flex items-center gap-1" title="Consumo diário estimado">
+              <BatteryCharging className="h-3.5 w-3.5" />
+              <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>
             </span>
             <span className={cn(!voltageValid && 'font-medium text-destructive')}>
               {voltageV}V ·{' '}
