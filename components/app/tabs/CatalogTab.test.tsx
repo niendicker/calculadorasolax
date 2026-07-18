@@ -78,6 +78,7 @@ describe('CatalogTab: sections', () => {
   it('filters the active section by search', () => {
     setup({ inverterCatalog: [inverter, { ...inverter, id: 'i2', model: 'X3-Hybrid-10.0kW-G4' }] });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'X1' } });
 
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
@@ -86,6 +87,7 @@ describe('CatalogTab: sections', () => {
 
   it('shows a search-specific empty state when nothing matches', () => {
     setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'inexistente' } });
     expect(screen.getByText('Nenhum inversor encontrado para essa pesquisa.')).toBeInTheDocument();
   });

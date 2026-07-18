@@ -65,16 +65,47 @@ export function SearchInput({
   placeholder?: string;
   ariaLabel?: string;
 }) {
+  const [open, setOpen] = useState(value.length > 0);
+
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" size="icon" aria-label={ariaLabel ?? placeholder} onClick={() => setOpen(true)}>
+        <Search className="h-4 w-4" />
+      </Button>
+    );
+  }
+
   return (
     <div className="relative">
       <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
+        autoFocus
         aria-label={ariaLabel ?? placeholder}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="pl-8 md:pl-8"
+        onBlur={() => {
+          if (!value) setOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            onChange('');
+            setOpen(false);
+          }
+        }}
+        className="pl-8 pr-8"
       />
+      {value && (
+        <button
+          type="button"
+          aria-label="Limpar pesquisa"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onChange('')}
+          className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

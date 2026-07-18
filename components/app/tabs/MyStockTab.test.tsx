@@ -80,6 +80,7 @@ describe('MyStockTab: listing', () => {
     const secondItem: UserStockItem = { ...stockItem, id: 's2', productType: 'battery', productModel: 'TP-HS3.6' };
     setup({ userStockItems: [stockItem, secondItem] });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'TP-HS3.6' } });
 
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();

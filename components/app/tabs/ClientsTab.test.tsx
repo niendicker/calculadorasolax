@@ -44,6 +44,7 @@ describe('ClientsTab: empty and list states', () => {
     expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('Beto')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar cliente...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar cliente...'), { target: { value: 'ana' } });
 
     expect(screen.getByText('Ana')).toBeInTheDocument();

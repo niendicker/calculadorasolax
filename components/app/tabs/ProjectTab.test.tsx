@@ -84,6 +84,7 @@ describe('ProjectTab: empty and list states', () => {
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' }), makeProject({ id: 'p2', name: 'Escritório' })],
     });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar projeto...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar projeto...'), { target: { value: 'praia' } });
 
     expect(screen.getByText('Casa de praia')).toBeInTheDocument();
