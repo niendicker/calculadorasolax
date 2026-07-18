@@ -37,7 +37,7 @@ function InfoLabel({ label, tip }: { label: string; tip: string }) {
           tabIndex={0}
           aria-label={tip}
         />
-        <span className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 w-56 max-w-[calc(100vw-2rem)] rounded-md border bg-popover px-2 py-1.5 text-xs font-normal leading-snug text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <span className="pointer-events-none absolute left-0 top-full z-50 mt-2.5 w-56 max-w-[calc(100vw-2rem)] rounded-xl border bg-popover px-2 py-1.5 text-xs font-normal leading-snug text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           {tip}
         </span>
       </span>
