@@ -93,7 +93,7 @@ export function SearchInput({
             setOpen(false);
           }
         }}
-        className="pl-8 pr-8"
+        className="pl-8 pr-8 md:pl-8 md:pr-8"
       />
       {value && (
         <button
