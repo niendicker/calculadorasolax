@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -139,6 +139,7 @@ export function SizingTab({
   userStockItems: UserStockItem[];
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
+  const [mainTab, setMainTab] = useState<'features' | 'config'>('features');
   const [gridTypeOpen, setGridTypeOpen] = useState(() => !residentialOptions.gridType);
 
   const gridTypeSummary = residentialOptions.gridType
@@ -221,99 +222,123 @@ export function SizingTab({
       <div className="mt-4 space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListChecks className="h-4 w-4" />
-                Funcionalidades desejadas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DesiredFeaturesPicker
-                value={residentialOptions.desiredFeatures}
-                onChange={setDesiredFeatures}
-                whiteTariff={residentialOptions.whiteTariff}
-                onWhiteTariffChange={setWhiteTariffConfig}
-                microgrid={residentialOptions.microgrid}
-                onMicrogridChange={setMicrogridConfig}
-                generator={residentialOptions.generator}
-                onGeneratorChange={setGeneratorConfig}
-                atsPhotoUrl={residentialOptions.atsPhotoUrl}
-                onAtsPhotoUrlChange={setAtsPhotoUrl}
-                onUploadPhoto={onUploadFeaturePhoto}
-                loadsCount={residentialOptions.loads.length}
-                inverterCatalog={inverterCatalog}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Settings className="h-4 w-4" />
-                Configuração
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <CollapsibleSection
-                title="Tipo de rede"
-                summary={gridTypeSummary}
-                open={gridTypeOpen}
-                onToggle={() => setGridTypeOpen((current) => !current)}
-              >
-                <div
-                  className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
-                  role="radiogroup"
-                  aria-label="Tipo de rede"
+              <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Seções de dimensionamento">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mainTab === 'features'}
+                  onClick={() => setMainTab('features')}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    mainTab === 'features'
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                  )}
                 >
-                  {gridOptions.map((option) => {
-                    const active = residentialOptions.gridType === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        onClick={() => setGridType(option.value)}
-                        className={cn(
-                          'flex h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                          active
-                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                            : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                        )}
-                      >
-                        {option.label}
-                        <span
-                          className={cn(
-                            'rounded-full px-1.5 py-0.5 text-[0.7rem]',
-                            active ? 'bg-primary/10 text-primary' : 'bg-background'
-                          )}
-                        >
-                          {option.detail}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <InverterModelPicker
-                  inverters={inverterCatalog}
-                  availableModels={availableInverterModels}
-                  selectedModel={residentialOptions.inverterModel}
-                  loading={initialLoading}
-                  setInverterModel={setInverterModel}
-                  userStockItems={userStockItems}
+                  <ListChecks className="h-4 w-4" />
+                  Funcionalidades
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mainTab === 'config'}
+                  onClick={() => setMainTab('config')}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    mainTab === 'config'
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                  )}
+                >
+                  <Settings className="h-4 w-4" />
+                  Configurações
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className={mainTab === 'config' ? 'space-y-4' : undefined}>
+              {mainTab === 'features' && (
+                <DesiredFeaturesPicker
+                  value={residentialOptions.desiredFeatures}
+                  onChange={setDesiredFeatures}
+                  whiteTariff={residentialOptions.whiteTariff}
+                  onWhiteTariffChange={setWhiteTariffConfig}
+                  microgrid={residentialOptions.microgrid}
+                  onMicrogridChange={setMicrogridConfig}
+                  generator={residentialOptions.generator}
+                  onGeneratorChange={setGeneratorConfig}
+                  atsPhotoUrl={residentialOptions.atsPhotoUrl}
+                  onAtsPhotoUrlChange={setAtsPhotoUrl}
+                  onUploadPhoto={onUploadFeaturePhoto}
+                  loadsCount={residentialOptions.loads.length}
+                  inverterCatalog={inverterCatalog}
                 />
-              </CollapsibleSection>
+              )}
 
-              <BatteryModelPicker
-                batteries={batteryCatalog}
-                topology={residentialOptions.topology}
-                selectedModel={residentialOptions.batteryModel}
-                loading={initialLoading}
-                setTopology={setTopology}
-                setBatteryModel={setBatteryModel}
-                userStockItems={userStockItems}
-                solution={solution}
-              />
+              {mainTab === 'config' && (
+                <>
+                  <CollapsibleSection
+                    title="Tipo de rede"
+                    summary={gridTypeSummary}
+                    open={gridTypeOpen}
+                    onToggle={() => setGridTypeOpen((current) => !current)}
+                  >
+                    <div
+                      className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
+                      role="radiogroup"
+                      aria-label="Tipo de rede"
+                    >
+                      {gridOptions.map((option) => {
+                        const active = residentialOptions.gridType === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => setGridType(option.value)}
+                            className={cn(
+                              'flex h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                              active
+                                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                            )}
+                          >
+                            {option.label}
+                            <span
+                              className={cn(
+                                'rounded-full px-1.5 py-0.5 text-[0.7rem]',
+                                active ? 'bg-primary/10 text-primary' : 'bg-background'
+                              )}
+                            >
+                              {option.detail}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <InverterModelPicker
+                      inverters={inverterCatalog}
+                      availableModels={availableInverterModels}
+                      selectedModel={residentialOptions.inverterModel}
+                      loading={initialLoading}
+                      setInverterModel={setInverterModel}
+                      userStockItems={userStockItems}
+                    />
+                  </CollapsibleSection>
+
+                  <BatteryModelPicker
+                    batteries={batteryCatalog}
+                    topology={residentialOptions.topology}
+                    selectedModel={residentialOptions.batteryModel}
+                    loading={initialLoading}
+                    setTopology={setTopology}
+                    setBatteryModel={setBatteryModel}
+                    userStockItems={userStockItems}
+                    solution={solution}
+                  />
+                </>
+              )}
             </CardContent>
           </Card>
       </div>

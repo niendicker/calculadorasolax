@@ -186,6 +186,7 @@ describe('SizingTab: summary panel', () => {
 describe('SizingTab: rede e configuração', () => {
   it('selects a grid type', () => {
     const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
     const radiogroup = screen.getByRole('radiogroup', { name: 'Tipo de rede' });
     fireEvent.click(within(radiogroup).getByRole('radio', { name: 'Monofásico220V' }));
     expect(props.setGridType).toHaveBeenCalledWith('singlePhase_220');
@@ -193,12 +194,14 @@ describe('SizingTab: rede e configuração', () => {
 
   it('clicking the LV tab requests a topology switch (battery visibility follows the topology prop from the parent)', () => {
     const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
     fireEvent.click(screen.getByRole('button', { name: /^LV/ }));
     expect(props.setTopology).toHaveBeenCalledWith('LowVoltage');
   });
 
   it('selects a battery already matching the active topology without re-requesting it', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, topology: 'LowVoltage' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
 
     fireEvent.click(screen.getByText('TP-LD53'));
 
@@ -208,6 +211,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('selects an inverter model, and falls back to "Todos"', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: 'X1-Hybrid-5.0kW-G4' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
 
     fireEvent.click(screen.getByText('Todos'));
     expect(props.setInverterModel).toHaveBeenCalledWith(null);
@@ -215,6 +219,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('restricts inverter choices to availableInverterModels when given', () => {
     setup({ availableInverterModels: new Set(['some-other-model']) });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
     expect(screen.getByText('Nenhum inversor com solução aprovada para este tipo de rede.')).toBeInTheDocument();
   });
