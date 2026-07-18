@@ -359,6 +359,109 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         </p>
       )}
 
+      <div className="space-y-2">
+        <CollapsibleSectionHeader
+          title="Presets"
+          summary={presetsSummary}
+          open={presetsOpen}
+          onToggle={() => setPresetsOpen((current) => !current)}
+        />
+        {presetsOpen && (
+        <div className="space-y-4 rounded-lg border bg-background p-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {loadPresets.map((preset) => (
+                <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
+              </p>
+              {!savePresetOpen && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
+                  onClick={() => setSavePresetOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Salvar cargas atuais como preset
+                </Button>
+              )}
+            </div>
+
+            {savePresetOpen && (
+              <div className="space-y-2 rounded-lg border bg-card p-3">
+                <Input
+                  aria-label="Nome do preset"
+                  placeholder="Nome do preset"
+                  value={presetName}
+                  onChange={(event) => setPresetName(event.target.value)}
+                />
+                <Input
+                  aria-label="Descrição do preset"
+                  placeholder="Descrição (opcional)"
+                  value={presetDescription}
+                  onChange={(event) => setPresetDescription(event.target.value)}
+                />
+                {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!presetName.trim() || savingPreset}
+                    onClick={handleSaveCurrentAsPreset}
+                  >
+                    {savingPreset ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSavePresetOpen(false);
+                      setPresetSaveError(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {userLoadPresets.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {userLoadPresets.map((preset) => (
+                  <div key={preset.id} className="relative">
+                    <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
+                    <div className="absolute right-2 top-2">
+                      <ConfirmDeleteButton
+                        ariaLabel={`Remover preset ${preset.name}`}
+                        title="Remover preset?"
+                        description={`O preset "${preset.name}" será removido definitivamente.`}
+                        confirmLabel="Remover"
+                        onConfirm={() => removeUserLoadPreset(preset.id)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+      </div>
+
       <div className="space-y-2 rounded-lg border bg-background p-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -479,109 +582,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             </p>
           )}
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <CollapsibleSectionHeader
-          title="Presets"
-          summary={presetsSummary}
-          open={presetsOpen}
-          onToggle={() => setPresetsOpen((current) => !current)}
-        />
-        {presetsOpen && (
-        <div className="space-y-4 rounded-lg border bg-background p-3">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
-            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {loadPresets.map((preset) => (
-                <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
-              </p>
-              {!savePresetOpen && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
-                  onClick={() => setSavePresetOpen(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Salvar cargas atuais como preset
-                </Button>
-              )}
-            </div>
-
-            {savePresetOpen && (
-              <div className="space-y-2 rounded-lg border bg-card p-3">
-                <Input
-                  aria-label="Nome do preset"
-                  placeholder="Nome do preset"
-                  value={presetName}
-                  onChange={(event) => setPresetName(event.target.value)}
-                />
-                <Input
-                  aria-label="Descrição do preset"
-                  placeholder="Descrição (opcional)"
-                  value={presetDescription}
-                  onChange={(event) => setPresetDescription(event.target.value)}
-                />
-                {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!presetName.trim() || savingPreset}
-                    onClick={handleSaveCurrentAsPreset}
-                  >
-                    {savingPreset ? 'Salvando...' : 'Salvar'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSavePresetOpen(false);
-                      setPresetSaveError(null);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {userLoadPresets.length === 0 ? (
-              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
-              </p>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {userLoadPresets.map((preset) => (
-                  <div key={preset.id} className="relative">
-                    <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
-                    <div className="absolute right-2 top-2">
-                      <ConfirmDeleteButton
-                        ariaLabel={`Remover preset ${preset.name}`}
-                        title="Remover preset?"
-                        description={`O preset "${preset.name}" será removido definitivamente.`}
-                        confirmLabel="Remover"
-                        onConfirm={() => removeUserLoadPreset(preset.id)}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        )}
       </div>
 
       {residentialOptions.loads.length > 0 && (
