@@ -41,7 +41,6 @@ import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAc
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
-  CollapsibleSection,
   DocPreviewModal,
   ImagePreviewModal,
   Metric,
@@ -140,7 +139,7 @@ export function SizingTab({
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
   const [mainTab, setMainTab] = useState<'features' | 'config'>('features');
-  const [gridTypeOpen, setGridTypeOpen] = useState(() => !residentialOptions.gridType);
+  const [configTab, setConfigTab] = useState<'gridType' | 'battery'>('gridType');
 
   const gridTypeSummary = residentialOptions.gridType
     ? `${gridLabels[residentialOptions.gridType]}${
@@ -276,67 +275,112 @@ export function SizingTab({
 
               {mainTab === 'config' && (
                 <>
-                  <CollapsibleSection
-                    title="Tipo de rede"
-                    summary={gridTypeSummary}
-                    open={gridTypeOpen}
-                    onToggle={() => setGridTypeOpen((current) => !current)}
-                  >
-                    <div
-                      className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
-                      role="radiogroup"
-                      aria-label="Tipo de rede"
+                  <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Seções de configuração">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={configTab === 'gridType'}
+                      onClick={() => setConfigTab('gridType')}
+                      className={cn(
+                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        configTab === 'gridType'
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                      )}
                     >
-                      {gridOptions.map((option) => {
-                        const active = residentialOptions.gridType === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            role="radio"
-                            aria-checked={active}
-                            onClick={() => setGridType(option.value)}
-                            className={cn(
-                              'flex h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                              active
-                                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                            )}
-                          >
-                            {option.label}
-                            <span
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'h-1.5 w-1.5 shrink-0 rounded-full',
+                          residentialOptions.gridType ? 'bg-primary' : 'bg-transparent'
+                        )}
+                      />
+                      Tipo de rede
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={configTab === 'battery'}
+                      onClick={() => setConfigTab('battery')}
+                      className={cn(
+                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        configTab === 'battery'
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'h-1.5 w-1.5 shrink-0 rounded-full',
+                          residentialOptions.batteryModel ? 'bg-primary' : 'bg-transparent'
+                        )}
+                      />
+                      Modelo bateria
+                    </button>
+                  </div>
+
+                  {configTab === 'gridType' && (
+                    <div className="space-y-3 rounded-lg border bg-background p-3">
+                      <p className="text-xs text-muted-foreground">{gridTypeSummary}</p>
+                      <div
+                        className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
+                        role="radiogroup"
+                        aria-label="Tipo de rede"
+                      >
+                        {gridOptions.map((option) => {
+                          const active = residentialOptions.gridType === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              onClick={() => setGridType(option.value)}
                               className={cn(
-                                'rounded-full px-1.5 py-0.5 text-[0.7rem]',
-                                active ? 'bg-primary/10 text-primary' : 'bg-background'
+                                'flex h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                                active
+                                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                               )}
                             >
-                              {option.detail}
-                            </span>
-                          </button>
-                        );
-                      })}
+                              {option.label}
+                              <span
+                                className={cn(
+                                  'rounded-full px-1.5 py-0.5 text-[0.7rem]',
+                                  active ? 'bg-primary/10 text-primary' : 'bg-background'
+                                )}
+                              >
+                                {option.detail}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <InverterModelPicker
+                        inverters={inverterCatalog}
+                        availableModels={availableInverterModels}
+                        selectedModel={residentialOptions.inverterModel}
+                        loading={initialLoading}
+                        setInverterModel={setInverterModel}
+                        userStockItems={userStockItems}
+                      />
                     </div>
+                  )}
 
-                    <InverterModelPicker
-                      inverters={inverterCatalog}
-                      availableModels={availableInverterModels}
-                      selectedModel={residentialOptions.inverterModel}
+                  {configTab === 'battery' && (
+                    <BatteryModelPicker
+                      batteries={batteryCatalog}
+                      topology={residentialOptions.topology}
+                      selectedModel={residentialOptions.batteryModel}
                       loading={initialLoading}
-                      setInverterModel={setInverterModel}
+                      setTopology={setTopology}
+                      setBatteryModel={setBatteryModel}
                       userStockItems={userStockItems}
+                      solution={solution}
                     />
-                  </CollapsibleSection>
-
-                  <BatteryModelPicker
-                    batteries={batteryCatalog}
-                    topology={residentialOptions.topology}
-                    selectedModel={residentialOptions.batteryModel}
-                    loading={initialLoading}
-                    setTopology={setTopology}
-                    setBatteryModel={setBatteryModel}
-                    userStockItems={userStockItems}
-                    solution={solution}
-                  />
+                  )}
                 </>
               )}
             </CardContent>
@@ -846,7 +890,6 @@ function BatteryModelPicker({
   userStockItems: UserStockItem[];
   solution: Solution | null;
 }) {
-  const [open, setOpen] = useState(() => !selectedModel);
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
@@ -879,7 +922,8 @@ function BatteryModelPicker({
   }
 
   return (
-    <CollapsibleSection title="Modelo da bateria" summary={summary} open={open} onToggle={() => setOpen((current) => !current)}>
+    <div className="space-y-3 rounded-lg border bg-background p-3">
+      <p className="text-xs text-muted-foreground">{summary}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">Selecione um modelo cadastrado pelo admin.</p>
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
@@ -1003,7 +1047,7 @@ function BatteryModelPicker({
       )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
-    </CollapsibleSection>
+    </div>
   );
 }
 

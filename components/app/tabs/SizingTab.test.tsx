@@ -195,6 +195,7 @@ describe('SizingTab: rede e configuração', () => {
   it('clicking the LV tab requests a topology switch (battery visibility follows the topology prop from the parent)', () => {
     const { props } = setup();
     fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
     fireEvent.click(screen.getByRole('button', { name: /^LV/ }));
     expect(props.setTopology).toHaveBeenCalledWith('LowVoltage');
   });
@@ -202,6 +203,7 @@ describe('SizingTab: rede e configuração', () => {
   it('selects a battery already matching the active topology without re-requesting it', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, topology: 'LowVoltage' } });
     fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByText('TP-LD53'));
 
