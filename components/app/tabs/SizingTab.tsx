@@ -295,7 +295,7 @@ export function SizingTab({
                           residentialOptions.gridType ? 'bg-primary' : 'bg-transparent'
                         )}
                       />
-                      Tipo de rede
+                      Inversores Híbridos
                     </button>
                     <button
                       type="button"
