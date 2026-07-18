@@ -531,7 +531,7 @@ function DesiredFeaturesPicker({
               type="button"
               role="tab"
               aria-selected={isActiveTab}
-              title={tab.description}
+              title={tab.description || undefined}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
@@ -554,7 +554,9 @@ function DesiredFeaturesPicker({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">{activeFeature.label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
+            {activeFeature.description && (
+              <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
+            )}
           </div>
           {isBackupTab ? (
             <Badge variant="secondary">

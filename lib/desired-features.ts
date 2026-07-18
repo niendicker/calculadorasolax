@@ -23,7 +23,7 @@ export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
   {
     id: 'microgrid',
     label: 'Microrrede',
-    description: 'Exige um inversor com suporte a operação em microrrede.',
+    description: '',
     requiresInverterFlag: 'microgrid',
   },
   {
