@@ -178,8 +178,9 @@ export function LoadSelector() {
   const maxPowerPerPhaseW = residentialOptions.maxPowerPerPhaseW;
   const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
-  const [tab, setTab] = useState<'presets' | 'catalog' | null>('presets');
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [manualName, setManualName] = useState('');
   const [manualPower, setManualPower] = useState('');
   const [manualHours, setManualHours] = useState('');
@@ -195,12 +196,19 @@ export function LoadSelector() {
 
   const nameKey = locale === 'zh' ? 'nameZh' : locale === 'en' ? 'nameEn' : 'namePt';
 
-  const filtered = loadCatalog.filter((item) =>
-    item[nameKey as keyof CatalogItem]
+  const categories = useMemo(
+    () => Array.from(new Set(loadCatalog.map((item) => item.category))).sort(),
+    [loadCatalog]
+  );
+
+  const filtered = loadCatalog.filter((item) => {
+    const matchesSearch = item[nameKey as keyof CatalogItem]
       ?.toString()
       .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+      .includes(search.toLowerCase());
+    const matchesCategory = !selectedCategory || item.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const filteredUserItems = userLoadCatalog.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
@@ -277,7 +285,7 @@ export function LoadSelector() {
     }
     setLoadLimitMessage(null);
     preset.loads.forEach((load) => addLoad(newLoad(load)));
-    setTab('catalog');
+    setPresetsOpen(false);
   }
 
   async function handleSaveCurrentAsPreset() {
@@ -311,7 +319,6 @@ export function LoadSelector() {
   }
 
   const presetsSummary = `${loadPresets.length} do sistema · ${userLoadPresets.length} seu(s)`;
-  const catalogSummary = `${loadCatalog.length + userLoadCatalog.length} itens`;
 
   return (
     <div className="space-y-4">
@@ -321,14 +328,134 @@ export function LoadSelector() {
         </p>
       )}
 
+      <div className="space-y-2 rounded-lg border bg-background p-3">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              aria-label={t('search_placeholder')}
+              placeholder={t('search_placeholder')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 md:pl-8"
+            />
+          </div>
+          <AddCustomLoadPopover
+            name={manualName}
+            power={manualPower}
+            hours={manualHours}
+            qty={manualQty}
+            ipIn={manualIpIn}
+            nameLabel={t('name')}
+            powerLabel={t('power')}
+            hoursLabel={t('hours')}
+            qtyLabel={t('qty')}
+            addLabel={t('add_load')}
+            onNameChange={setManualName}
+            onPowerChange={setManualPower}
+            onHoursChange={setManualHours}
+            onQtyChange={setManualQty}
+            onIpInChange={setManualIpIn}
+            onAdd={handleAddManual}
+          />
+        </div>
+
+        {categories.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className={cn(
+                'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                selectedCategory === null
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              Todas
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                  selectedCategory === category
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {catalogSaveWarning && (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {catalogSaveWarning}
+          </p>
+        )}
+
+        <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+          {filteredUserItems.map((item) => (
+            <div
+              key={`user-${item.id}`}
+              className="flex items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-1 transition-colors hover:border-primary/50 hover:bg-primary/10"
+            >
+              <button
+                type="button"
+                onClick={() => handleAddFromUserCatalog(item)}
+                className="flex min-w-0 flex-1 items-center justify-between gap-2 py-0.5 text-left text-sm focus-visible:outline-none"
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[0.65rem]">
+                    Meu
+                  </Badge>
+                  <span className="truncate">{item.name}</span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
+                </span>
+              </button>
+              <UserLoadCatalogItemMenu
+                item={item}
+                onUpdate={updateUserLoadCatalogItem}
+                onRemove={removeUserLoadCatalogItem}
+              />
+            </div>
+          ))}
+          {filtered.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleAddFromCatalog(item)}
+              className="flex items-center justify-between gap-2 rounded-md border bg-card py-1.5 px-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
+              </span>
+            </button>
+          ))}
+          {filteredUserItems.length === 0 && filtered.length === 0 && (
+            <p className="col-span-full rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+              Nenhuma carga encontrada.
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-2">
         <CollapsibleSectionHeader
           title="Presets"
           summary={presetsSummary}
-          open={tab === 'presets'}
-          onToggle={() => setTab(tab === 'presets' ? null : 'presets')}
+          open={presetsOpen}
+          onToggle={() => setPresetsOpen((current) => !current)}
         />
-        {tab === 'presets' && (
+        {presetsOpen && (
         <div className="space-y-4 rounded-lg border bg-background p-3">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
@@ -419,103 +546,6 @@ export function LoadSelector() {
                 ))}
               </div>
             )}
-          </div>
-        </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <CollapsibleSectionHeader
-          title={t('catalog')}
-          summary={catalogSummary}
-          open={tab === 'catalog'}
-          onToggle={() => setTab(tab === 'catalog' ? null : 'catalog')}
-        />
-        {tab === 'catalog' && (
-        <div className="space-y-2 rounded-lg border bg-background p-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label={t('search_placeholder')}
-                placeholder={t('search_placeholder')}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 md:pl-8"
-              />
-            </div>
-            <AddCustomLoadPopover
-              name={manualName}
-              power={manualPower}
-              hours={manualHours}
-              qty={manualQty}
-              ipIn={manualIpIn}
-              nameLabel={t('name')}
-              powerLabel={t('power')}
-              hoursLabel={t('hours')}
-              qtyLabel={t('qty')}
-              addLabel={t('add_load')}
-              onNameChange={setManualName}
-              onPowerChange={setManualPower}
-              onHoursChange={setManualHours}
-              onQtyChange={setManualQty}
-              onIpInChange={setManualIpIn}
-              onAdd={handleAddManual}
-            />
-          </div>
-          {catalogSaveWarning && (
-            <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              {catalogSaveWarning}
-            </p>
-          )}
-          {filteredUserItems.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Minhas Cargas</p>
-              <div className="grid max-h-40 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
-                {filteredUserItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-1 rounded-md border bg-card py-1 pl-2 pr-1 transition-colors hover:border-primary/50 hover:bg-primary/10"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleAddFromUserCatalog(item)}
-                      className="flex min-w-0 flex-1 items-center justify-between gap-2 py-0.5 text-left text-sm focus-visible:outline-none"
-                    >
-                      <span className="truncate">{item.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
-                      </span>
-                    </button>
-                    <UserLoadCatalogItemMenu
-                      item={item}
-                      onUpdate={updateUserLoadCatalogItem}
-                      onRemove={removeUserLoadCatalogItem}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="space-y-1.5">
-            {filteredUserItems.length > 0 && (
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Catálogo geral</p>
-            )}
-            <div className="grid max-h-52 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
-              {filtered.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleAddFromCatalog(item)}
-                  className="flex items-center justify-between gap-2 rounded-md border bg-card py-1.5 px-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.powerW}VA{item.ipInRatio !== 1 ? ` · IP/IN ${item.ipInRatio}` : ''}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
         )}
