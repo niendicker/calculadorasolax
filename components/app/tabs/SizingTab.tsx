@@ -566,10 +566,10 @@ function DesiredFeaturesPicker({
 }) {
   const microgridInverterCount = inverterCatalog.filter((inverter) => inverter.flags.includes('microgrid')).length;
   const tabs: { id: FeatureTabId; label: string; description: string }[] = [
-    ...DESIRED_FEATURE_DEFINITIONS,
     { id: BACKUP_TAB_ID, label: 'Backup', description: 'Equipamentos que serão alimentados pelo sistema durante o backup.' },
+    ...DESIRED_FEATURE_DEFINITIONS,
   ];
-  const [activeTab, setActiveTab] = useState<FeatureTabId>(DESIRED_FEATURE_DEFINITIONS[0].id);
+  const [activeTab, setActiveTab] = useState<FeatureTabId>(BACKUP_TAB_ID);
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const isBackupTab = activeTab === BACKUP_TAB_ID;
   const isActiveEnabled = isBackupTab ? loadsCount > 0 : value.includes(activeTab);

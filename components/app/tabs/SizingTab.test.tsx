@@ -244,13 +244,16 @@ describe('SizingTab: funcionalidades desejadas', () => {
       </NextIntlClientProvider>
     );
 
+    // rerender() here swaps in a tree without the Shell wrapper used by
+    // renderWithShell, so React remounts SizingTab and its tab state resets.
+    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
   });
 
   it('switches tabs without changing the enabled features, and shows only the active tab panel', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
 
-    // "ATS Externo" is enabled and active by default; its panel is visible.
+    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Tarifa Branca' }));
@@ -278,12 +281,14 @@ describe('SizingTab: funcionalidades desejadas', () => {
 });
 
 describe('SizingTab: cargas', () => {
-  it('renders the LoadSelector under the Backup tab', () => {
+  it('renders the LoadSelector under the Backup tab, which is active by default', () => {
     setup();
+    expect(screen.getByText('Presets')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
     expect(screen.queryByText('Presets')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
-
     expect(screen.getByText('Presets')).toBeInTheDocument();
   });
 
