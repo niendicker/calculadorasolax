@@ -567,16 +567,16 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             </div>
 
             {categories.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 border-b">
                 {userLoadCatalog.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setSelectedCategory((current) => (current === MINE_FILTER ? null : MINE_FILTER))}
                     className={cn(
-                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                      '-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                       selectedCategory === MINE_FILTER
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-muted'
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                     )}
                   >
                     Minhas
@@ -588,10 +588,10 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     type="button"
                     onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
                     className={cn(
-                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                      '-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                       selectedCategory === category
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-muted'
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                     )}
                   >
                     {category}
