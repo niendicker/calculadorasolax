@@ -47,10 +47,10 @@ const userCatalogItem: UserLoadCatalogItem = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
-function renderLoadSelector() {
+function renderLoadSelector(props: { defaultToMine?: boolean } = {}) {
   return render(
     <NextIntlClientProvider locale="pt" messages={ptMessages}>
-      <LoadSelector />
+      <LoadSelector {...props} />
     </NextIntlClientProvider>
   );
 }
@@ -246,6 +246,21 @@ describe('LoadSelector: catalog', () => {
     expect(screen.queryByText('Ar-condicionado 9000 BTU')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
+    expect(screen.getByText('Ar-condicionado 9000 BTU')).toBeInTheDocument();
+  });
+
+  it('defaults the "Minhas" filter to active when defaultToMine is set and the user has personal items', () => {
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector({ defaultToMine: true });
+
+    expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');
+    expect(screen.getByText('Bomba dágua')).toBeInTheDocument();
+    expect(screen.queryByText('Ar-condicionado 9000 BTU')).not.toBeInTheDocument();
+  });
+
+  it('ignores defaultToMine when the user has no personal catalog items', () => {
+    renderLoadSelector({ defaultToMine: true });
+
     expect(screen.getByText('Ar-condicionado 9000 BTU')).toBeInTheDocument();
   });
 

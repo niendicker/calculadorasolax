@@ -5,6 +5,7 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
+import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { Solution, UserStockItem } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
@@ -264,5 +265,21 @@ describe('SizingTab: cargas', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
     expect(screen.getByText('Presets')).toBeInTheDocument();
+  });
+
+  it('defaults the Backup tab catalog to the "Minhas" filter when the user has personal items', () => {
+    useWizardStore.setState({
+      loadCatalog: [
+        { id: 'c1', namePt: 'Chuveiro', nameEn: 'Shower', nameZh: '', powerW: 5500, category: 'Aquecimento', ipInRatio: 1 },
+      ],
+      userLoadCatalog: [
+        { id: 'u1', name: 'Item pessoal', powerW: 100, ipInRatio: 1, createdAt: '', updatedAt: '' },
+      ],
+    });
+    setup();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+
+    expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');
   });
 });

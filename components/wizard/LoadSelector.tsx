@@ -181,7 +181,7 @@ function CollapsibleSectionHeader({
   );
 }
 
-export function LoadSelector() {
+export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolean } = {}) {
   const t = useTranslations('loads');
   const locale = useLocale();
   const {
@@ -207,7 +207,9 @@ export function LoadSelector() {
 
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(() =>
+    defaultToMine && userLoadCatalog.length > 0 ? MINE_FILTER : null
+  );
   const [manualName, setManualName] = useState('');
   const [manualPower, setManualPower] = useState('');
   const [manualHours, setManualHours] = useState('');
