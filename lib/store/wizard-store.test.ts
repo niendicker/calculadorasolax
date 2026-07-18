@@ -172,6 +172,14 @@ describe('addLoad limit enforcement', () => {
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
   });
 
+  it('prepends new loads to the top of the list', () => {
+    useWizardStore.getState().addLoad(makeLoad({ id: 'first', powerW: 100, hoursPerDay: 1, qty: 1 }));
+    useWizardStore.getState().addLoad(makeLoad({ id: 'second', powerW: 200, hoursPerDay: 1, qty: 1 }));
+
+    const ids = useWizardStore.getState().residentialOptions.loads.map((l) => l.id);
+    expect(ids).toEqual(['second', 'first']);
+  });
+
   it('returns false and does not add once the project already has ACCOUNT_LIMITS.loadsPerProject loads', () => {
     for (let i = 0; i < ACCOUNT_LIMITS.loadsPerProject; i++) {
       expect(useWizardStore.getState().addLoad(makeLoad({ powerW: 100, hoursPerDay: 1, qty: 1 }))).toBe(true);

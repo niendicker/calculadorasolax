@@ -1282,7 +1282,11 @@ function LoadCard({
   ) {
     setLocal(raw);
     const parsed = Number(raw);
-    if (raw.trim() !== '' && Number.isFinite(parsed) && parsed > 0) {
+    const isValid =
+      raw.trim() !== '' &&
+      Number.isFinite(parsed) &&
+      (field === 'usageFactor' ? parsed >= 0 && parsed <= 1 : parsed > 0);
+    if (isValid) {
       onUpdate(load.id, { [field]: parsed } as Partial<SingleLoad>);
     }
   }
@@ -1291,6 +1295,18 @@ function LoadCard({
     const parsed = Number(raw);
     if (raw.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
       setLocal(String(fallback));
+    }
+  }
+
+  function revertUsageFactorIfInvalid() {
+    const parsed = Number(usageFactor);
+    if (usageFactor.trim() === '' || !Number.isFinite(parsed) || parsed < 0) {
+      setUsageFactor(String(load.usageFactor ?? 1));
+      return;
+    }
+    if (parsed > 1) {
+      setUsageFactor('1');
+      onUpdate(load.id, { usageFactor: 1 });
     }
   }
 
@@ -1540,11 +1556,11 @@ function LoadCard({
             id={`usage-factor-${load.id}`}
             value={usageFactor}
             placeholder="Ex.: 1"
-            min={0.1}
+            min={0}
             max={1}
             step={0.05}
             onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
-            onBlur={() => revertIfInvalid(usageFactor, load.usageFactor ?? 1, setUsageFactor)}
+            onBlur={revertUsageFactorIfInvalid}
             onClear={() => setUsageFactor('')}
           />
         </div>

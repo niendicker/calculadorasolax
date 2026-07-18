@@ -400,6 +400,30 @@ describe('LoadSelector: blank load card', () => {
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
   });
 
+  it('inserts the new blank card, and the resulting load, at the top of the existing list', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'existing', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+
+    // The draft card (with the "Nome" input) is inserted before the existing "Chuveiro" card.
+    const cards = screen.getAllByText(/Nome|Chuveiro/);
+    expect(cards[0]).toHaveTextContent('Nome');
+
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ventilador' } });
+    fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '80' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    const ids = useWizardStore.getState().residentialOptions.loads.map((l) => l.name);
+    expect(ids[0]).toBe('Ventilador');
+    expect(ids[1]).toBe('Chuveiro');
+  });
+
   it('shows suggestions grouped as "Minhas" and "Sistema" while typing, and picking one fills the load', () => {
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
@@ -509,6 +533,41 @@ describe('LoadSelector: added loads list', () => {
     // Peak power is unaffected; only the daily energy consumption scales down.
     expect(summary).toHaveTextContent('5500 VA');
     expect(summary).toHaveTextContent('2.75 kWh');
+  });
+
+  it('accepts 0 as a valid "Fator de uso" (load never effectively draws power)', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByText('Chuveiro'));
+    const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
+    fireEvent.change(usageFactorInput, { target: { value: '0' } });
+    fireEvent.blur(usageFactorInput);
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(0);
+  });
+
+  it('clamps a "Fator de uso" typed above 1 back down to 1 on blur', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByText('Chuveiro'));
+    const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
+    fireEvent.change(usageFactorInput, { target: { value: '2' } });
+    fireEvent.blur(usageFactorInput);
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(1);
+    expect(usageFactorInput).toHaveValue(1);
   });
 
   it('does not add a "Fator de uso" field to the catalog registration forms', async () => {

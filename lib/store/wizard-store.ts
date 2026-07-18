@@ -699,7 +699,7 @@ export const useWizardStore = create<WizardStore>()(
         set((s) => ({
           residentialOptions: {
             ...s.residentialOptions,
-            loads: [...s.residentialOptions.loads, load],
+            loads: [load, ...s.residentialOptions.loads],
           },
         }));
         return true;
