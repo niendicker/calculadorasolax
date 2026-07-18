@@ -488,7 +488,7 @@ describe('LoadSelector: added loads list', () => {
     expect(useWizardStore.getState().residentialOptions.loads[0].hoursPerDay).toBe(3);
   });
 
-  it('shows an editable "Fator de uso" field on backup load cards, reducing the displayed peak', () => {
+  it('shows an editable "Fator de uso" field on backup load cards, reducing the daily energy but not the peak', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -500,12 +500,15 @@ describe('LoadSelector: added loads list', () => {
     const summary = screen.getByText('Chuveiro').closest('[role="button"]') as HTMLElement;
     fireEvent.click(summary);
     expect(summary).toHaveTextContent('5500 VA');
+    expect(summary).toHaveTextContent('5.50 kWh');
 
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
     fireEvent.change(usageFactorInput, { target: { value: '0.5' } });
 
     expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(0.5);
-    expect(summary).toHaveTextContent('2750 VA');
+    // Peak power is unaffected; only the daily energy consumption scales down.
+    expect(summary).toHaveTextContent('5500 VA');
+    expect(summary).toHaveTextContent('2.75 kWh');
   });
 
   it('does not add a "Fator de uso" field to the catalog registration forms', async () => {

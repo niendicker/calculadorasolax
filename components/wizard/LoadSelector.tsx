@@ -1294,8 +1294,8 @@ function LoadCard({
     }
   }
 
-  const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * (load.usageFactor ?? 1) * load.qty;
-  const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty) / 1000;
+  const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
+  const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty * (load.usageFactor ?? 1)) / 1000;
 
   if (isDraft) {
     const hasSuggestions = draftMatches.mine.length > 0 || draftMatches.system.length > 0;
@@ -1533,7 +1533,7 @@ function LoadCard({
           <Label htmlFor={`usage-factor-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel
               label="Fator de uso"
-              tip="Fração da potência nominal realmente exigida durante o backup (0 a 1). Reduz o impacto dessa carga no pico calculado, sem afetar o consumo em kWh/dia."
+              tip="Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta o pico de potência."
             />
           </Label>
           <NumberFieldWithClear
