@@ -8,7 +8,20 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, Layers, MoreVertical, Pencil, Plus, Trash2, Search, CircleHelp, X } from 'lucide-react';
+import {
+  BatteryCharging,
+  ChevronDown,
+  Layers,
+  ListChecks,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+  Search,
+  CircleHelp,
+  X,
+  Zap,
+} from 'lucide-react';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPhase, LoadPresetLoad, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
@@ -99,27 +112,39 @@ function PresetCard({
   onAdd: () => void;
   withDeleteSpacing?: boolean;
 }) {
-  const peakW = preset.loads.reduce((acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty, 0);
+  const peakKva = preset.loads.reduce((acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty, 0) / 1000;
   const dailyKwh = preset.loads.reduce((acc, load) => acc + (load.powerW * load.hoursPerDay * load.qty) / 1000, 0);
 
   return (
     <button
       type="button"
       onClick={onAdd}
+      title={preset.description}
       className={cn(
-        'w-full rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'w-full space-y-1 rounded-lg border bg-card p-2.5 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
         withDeleteSpacing && 'pr-9'
       )}
     >
-      <div className="flex items-center gap-2 font-medium">
-        <Layers className="h-4 w-4 shrink-0 text-primary" />
+      <div className="flex items-center gap-1.5 font-medium">
+        <Layers className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="truncate">{preset.name}</span>
       </div>
-      <p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">{preset.description}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant="secondary">{preset.loads.length} cargas</Badge>
-        <Badge variant="outline">{(peakW / 1000).toFixed(2)} kVA pico</Badge>
-        <Badge variant="outline">{dailyKwh.toFixed(1)} kWh/dia</Badge>
+      {preset.description && <p className="truncate text-xs text-muted-foreground">{preset.description}</p>}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1" title="Cargas">
+          <ListChecks className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{preset.loads.length}</span>
+        </span>
+        <span className="flex items-center gap-1" title="Pico">
+          <Zap className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{peakKva.toFixed(1)}</span>
+          kVA
+        </span>
+        <span className="flex items-center gap-1" title="Consumo diário">
+          <BatteryCharging className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{dailyKwh.toFixed(1)}</span>
+          kWh
+        </span>
       </div>
     </button>
   );
@@ -459,7 +484,7 @@ export function LoadSelector() {
         <div className="space-y-4 rounded-lg border bg-background p-3">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
-            <div className="grid gap-2 md:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {loadPresets.map((preset) => (
                 <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
               ))}
@@ -529,7 +554,7 @@ export function LoadSelector() {
                 Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
               </p>
             ) : (
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {userLoadPresets.map((preset) => (
                   <div key={preset.id} className="relative">
                     <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
