@@ -207,6 +207,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
   const [sectionOpen, setSectionOpen] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<'presets' | 'catalog'>('presets');
+  const [presetsSubTab, setPresetsSubTab] = useState<'system' | 'mine'>('system');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(() =>
     defaultToMine && userLoadCatalog.length > 0 ? MINE_FILTER : null
@@ -403,21 +404,49 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           </div>
 
           {activeSubTab === 'presets' && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
+          <div className="space-y-3">
+            <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Presets">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={presetsSubTab === 'system'}
+                onClick={() => setPresetsSubTab('system')}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  presetsSubTab === 'system'
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+              >
+                Presets do sistema
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={presetsSubTab === 'mine'}
+                onClick={() => setPresetsSubTab('mine')}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  presetsSubTab === 'mine'
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+              >
+                Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
+              </button>
+            </div>
+
+            {presetsSubTab === 'system' && (
               <div className="grid gap-2 grid-cols-1">
                 {loadPresets.map((preset) => (
                   <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
                 ))}
               </div>
-            </div>
+            )}
 
+            {presetsSubTab === 'mine' && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
-                </p>
+              <div className="flex justify-end">
                 {!savePresetOpen && (
                   <Button
                     type="button"
@@ -494,6 +523,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 </div>
               )}
             </div>
+            )}
           </div>
           )}
 

@@ -136,6 +136,7 @@ describe('LoadSelector: adding from a system preset', () => {
 describe('LoadSelector: user presets', () => {
   it('shows the empty state and disables "Salvar cargas atuais" with no loads yet', () => {
     renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
     expect(screen.getByText('Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ })).toBeDisabled();
   });
@@ -143,6 +144,7 @@ describe('LoadSelector: user presets', () => {
   it('lists a saved user preset and removes it via the confirm popover', async () => {
     useWizardStore.setState({ userLoadPresets: [userPreset] });
     renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
 
     expect(screen.getByText('Meu preset')).toBeInTheDocument();
     expect(screen.getByText('1/3', { exact: false })).toBeInTheDocument();
@@ -169,6 +171,7 @@ describe('LoadSelector: user presets', () => {
       },
     }));
     renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
 
     fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ }));
     fireEvent.change(screen.getByLabelText('Nome do preset'), { target: { value: 'Meu novo preset' } });
@@ -189,6 +192,7 @@ describe('LoadSelector: user presets', () => {
       })),
     }));
     renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
 
     // At the limit, the "Salvar cargas atuais" trigger itself is disabled...
     expect(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ })).toBeDisabled();
