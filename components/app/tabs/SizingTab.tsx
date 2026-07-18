@@ -499,6 +499,10 @@ function DesiredFeaturesPicker({
   onAtsPhotoUrlChange: (atsPhotoUrl: string | null) => void;
   onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
 }) {
+  const [activeTab, setActiveTab] = useState<DesiredFeatureId>(DESIRED_FEATURE_DEFINITIONS[0].id);
+  const activeFeature = DESIRED_FEATURE_DEFINITIONS.find((feature) => feature.id === activeTab) ?? DESIRED_FEATURE_DEFINITIONS[0];
+  const isActiveEnabled = value.includes(activeTab);
+
   function toggle(id: DesiredFeatureId) {
     if (value.includes(id)) {
       onChange(value.filter((item) => item !== id));
@@ -515,32 +519,59 @@ function DesiredFeaturesPicker({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Funcionalidades desejadas">
         {DESIRED_FEATURE_DEFINITIONS.map((feature) => {
-          const active = value.includes(feature.id);
+          const enabled = value.includes(feature.id);
+          const isActiveTab = activeTab === feature.id;
           return (
             <button
               key={feature.id}
               type="button"
-              aria-pressed={active}
+              role="tab"
+              aria-selected={isActiveTab}
               title={feature.description}
-              onClick={() => toggle(feature.id)}
+              onClick={() => setActiveTab(feature.id)}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                active
-                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                isActiveTab
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
+              <span
+                aria-hidden="true"
+                className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
+              />
               {feature.label}
             </button>
           );
         })}
       </div>
 
-      {value.includes('external_ats') && (
-        <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-semibold">ATS Externo</p>
+      <div className="space-y-3 rounded-lg border bg-background p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">{activeFeature.label}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
+          </div>
+          <Button
+            type="button"
+            variant={isActiveEnabled ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => toggle(activeTab)}
+          >
+            {isActiveEnabled ? (
+              <>
+                <Check className="h-3.5 w-3.5" />
+                Habilitado
+              </>
+            ) : (
+              'Habilitar'
+            )}
+          </Button>
+        </div>
+
+        {isActiveEnabled && activeTab === 'external_ats' && (
           <PhotoUploadField
             label="Foto do disjuntor geral"
             photoUrl={atsPhotoUrl}
@@ -548,12 +579,10 @@ function DesiredFeaturesPicker({
             onUploadPhoto={onUploadPhoto}
             onChange={onAtsPhotoUrlChange}
           />
-        </div>
-      )}
+        )}
 
-      {value.includes('white_tariff') && (
-        <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-semibold">Tarifa Branca</p>
+        {isActiveEnabled && activeTab === 'white_tariff' && (
+          <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="whiteTariffPower">Potência (W)</Label>
@@ -618,12 +647,11 @@ function DesiredFeaturesPicker({
             />
             Reservar para backup das cargas
           </label>
-        </div>
-      )}
+          </div>
+        )}
 
-      {value.includes('microgrid') && (
-        <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-semibold">Microrrede</p>
+        {isActiveEnabled && activeTab === 'microgrid' && (
+          <div className="space-y-3">
           <p className="text-xs text-muted-foreground">Dados do sistema ongrid existente a ser conectado.</p>
           <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -683,12 +711,11 @@ function DesiredFeaturesPicker({
             onUploadPhoto={onUploadPhoto}
             onChange={(photoUrl) => onMicrogridChange({ ...(microgrid ?? emptyMicrogridConfig), photoUrl })}
           />
-        </div>
-      )}
+          </div>
+        )}
 
-      {value.includes('external_generator') && (
-        <div className="space-y-3 rounded-lg border bg-background p-3">
-          <p className="text-sm font-semibold">Gerador Externo</p>
+        {isActiveEnabled && activeTab === 'external_generator' && (
+          <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="generatorVoltage">Tensão (V)</Label>
@@ -749,8 +776,15 @@ function DesiredFeaturesPicker({
             onUploadPhoto={onUploadPhoto}
             onChange={(photoUrl) => onGeneratorChange({ ...(generator ?? emptyGeneratorConfig), photoUrl })}
           />
-        </div>
-      )}
+          </div>
+        )}
+
+        {isActiveEnabled && activeTab === 'no_pv' && (
+          <p className="text-xs text-muted-foreground">
+            Nenhuma configuração adicional — o dimensionamento não incluirá um arranjo fotovoltaico.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
