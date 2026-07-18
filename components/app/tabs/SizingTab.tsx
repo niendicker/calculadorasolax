@@ -532,9 +532,6 @@ function PhotoUploadField({
   );
 }
 
-const BACKUP_TAB_ID = 'backup' as const;
-type FeatureTabId = DesiredFeatureId | typeof BACKUP_TAB_ID;
-
 function DesiredFeaturesPicker({
   value,
   onChange,
@@ -565,14 +562,11 @@ function DesiredFeaturesPicker({
   inverterCatalog: InverterCatalogOption[];
 }) {
   const microgridInverterCount = inverterCatalog.filter((inverter) => inverter.flags.includes('microgrid')).length;
-  const tabs: { id: FeatureTabId; label: string; description: string }[] = [
-    { id: BACKUP_TAB_ID, label: 'Backup', description: 'Equipamentos que serão alimentados pelo sistema durante o backup.' },
-    ...DESIRED_FEATURE_DEFINITIONS,
-  ];
-  const [activeTab, setActiveTab] = useState<FeatureTabId>(BACKUP_TAB_ID);
+  const tabs = DESIRED_FEATURE_DEFINITIONS;
+  const [activeTab, setActiveTab] = useState<DesiredFeatureId>('backup');
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
-  const isBackupTab = activeTab === BACKUP_TAB_ID;
-  const isActiveEnabled = isBackupTab ? loadsCount > 0 : value.includes(activeTab);
+  const isBackupTab = activeTab === 'backup';
+  const isActiveEnabled = value.includes(activeTab);
 
   function toggle(id: DesiredFeatureId) {
     if (value.includes(id)) {
@@ -592,7 +586,7 @@ function DesiredFeaturesPicker({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Funcionalidades desejadas">
         {tabs.map((tab) => {
-          const enabled = tab.id === BACKUP_TAB_ID ? loadsCount > 0 : value.includes(tab.id);
+          const enabled = value.includes(tab.id);
           const isActiveTab = activeTab === tab.id;
           return (
             <button
@@ -627,11 +621,12 @@ function DesiredFeaturesPicker({
               <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
             )}
           </div>
-          {isBackupTab ? (
-            <Badge variant="secondary">
-              {loadsCount} {loadsCount === 1 ? 'carga' : 'cargas'}
-            </Badge>
-          ) : (
+          <div className="flex shrink-0 items-center gap-2">
+            {isBackupTab && (
+              <Badge variant="secondary">
+                {loadsCount} {loadsCount === 1 ? 'carga' : 'cargas'}
+              </Badge>
+            )}
             <Button
               type="button"
               variant={isActiveEnabled ? 'default' : 'outline'}
@@ -647,7 +642,7 @@ function DesiredFeaturesPicker({
                 'Habilitar'
               )}
             </Button>
-          )}
+          </div>
         </div>
 
         {isBackupTab && <LoadSelector defaultToMine />}

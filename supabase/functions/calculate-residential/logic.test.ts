@@ -339,6 +339,10 @@ describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
     );
   });
 
+  it('requires the super_backup flag when "backup" is a desired feature', () => {
+    expect(requiredInverterFlags(['backup'])).toEqual(['super_backup']);
+  });
+
   it('is satisfied with no required flags regardless of the inverter', () => {
     expect(inverterSatisfiesRequiredFlags(null, [])).toBe(true);
     expect(inverterSatisfiesRequiredFlags(undefined, [])).toBe(true);

@@ -21,13 +21,14 @@ export type PeakCalcMode = 'sum' | 'largest-surge';
 export type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats' | 'external_generator';
 
 /** Mirrors lib/types.ts DesiredFeatureId. */
-export type DesiredFeatureId = 'external_ats' | 'microgrid' | 'external_generator' | 'no_pv' | 'white_tariff';
+export type DesiredFeatureId = 'backup' | 'external_ats' | 'microgrid' | 'external_generator' | 'no_pv' | 'white_tariff';
 
 /** Mirrors lib/desired-features.ts DESIRED_FEATURE_DEFINITIONS — add a new
  * flag-based requirement by adding one entry here (and the matching entry in
  * the app-side registry); the solution-filtering code loops over this
  * generically and needs no changes for a new flag-based feature. */
 export const DESIRED_FEATURE_DEFINITIONS: { id: DesiredFeatureId; requiresInverterFlag?: InverterFlag }[] = [
+  { id: 'backup', requiresInverterFlag: 'super_backup' },
   { id: 'external_ats', requiresInverterFlag: 'external_ats' },
   { id: 'microgrid', requiresInverterFlag: 'microgrid' },
   { id: 'external_generator', requiresInverterFlag: 'external_generator' },

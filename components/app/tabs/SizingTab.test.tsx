@@ -292,6 +292,27 @@ describe('SizingTab: cargas', () => {
     expect(screen.getByText('Presets')).toBeInTheDocument();
   });
 
+  it('shows a real Habilitar/Habilitado toggle for Backup, and the loads UI works regardless of the toggle state', () => {
+    const { props } = setup();
+
+    expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
+    // Cargas UI is available even before Backup is enabled — loads feed the
+    // general system sizing, not just the backup requirement.
+    expect(screen.getByText('Presets')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setDesiredFeatures).toHaveBeenCalledWith(['backup']);
+  });
+
+  it('turns off the Backup requirement without hiding the cargas UI', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] } });
+
+    expect(screen.getByRole('button', { name: 'Habilitado' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+    expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
+    expect(screen.getByText('Presets')).toBeInTheDocument();
+  });
+
   it('defaults the Backup tab catalog to the "Minhas" filter when the user has personal items', () => {
     useWizardStore.setState({
       loadCatalog: [

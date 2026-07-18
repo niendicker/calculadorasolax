@@ -19,6 +19,7 @@ export type BatteryFlag = 'ip65' | 'ip66';
  * and are enforced as a hard filter on the recommended inverter; others
  * ('no_pv', 'white_tariff') change sizing/report behavior directly. */
 export type DesiredFeatureId =
+  | 'backup'
   | 'external_ats'
   | 'microgrid'
   | 'external_generator'

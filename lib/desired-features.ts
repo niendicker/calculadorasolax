@@ -15,6 +15,12 @@ export interface DesiredFeatureDefinition {
  * other filtering code needs to change. */
 export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
   {
+    id: 'backup',
+    label: 'Backup',
+    description: 'Exige um inversor com suporte a backup completo (Super-Backup).',
+    requiresInverterFlag: 'super_backup',
+  },
+  {
     id: 'external_ats',
     label: 'ATS Externo',
     description: 'Exige um inversor compatível com chave de transferência automática externa.',
