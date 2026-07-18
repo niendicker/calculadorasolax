@@ -228,7 +228,24 @@ describe('LoadSelector: catalog', () => {
     expect(screen.getByText('Chuveiro elétrico')).toBeInTheDocument();
     expect(screen.queryByText('Ar-condicionado 9000 BTU')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Todas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'heating' }));
+    expect(screen.getByText('Ar-condicionado 9000 BTU')).toBeInTheDocument();
+  });
+
+  it('hides the "Minhas" filter chip when the user has no personal catalog items', () => {
+    renderLoadSelector();
+    expect(screen.queryByRole('button', { name: 'Minhas' })).not.toBeInTheDocument();
+  });
+
+  it('isolates personal catalog items when the "Minhas" filter chip is active', () => {
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
+    expect(screen.getByText('Bomba dágua')).toBeInTheDocument();
+    expect(screen.queryByText('Ar-condicionado 9000 BTU')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
     expect(screen.getByText('Ar-condicionado 9000 BTU')).toBeInTheDocument();
   });
 

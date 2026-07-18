@@ -11,6 +11,7 @@ interface WizardLayoutProps {
   currentStep: number;
   totalSteps: number;
   onBack?: () => void;
+  maxWidthClassName?: string;
 }
 
 export function WizardLayout({
@@ -18,6 +19,7 @@ export function WizardLayout({
   currentStep,
   totalSteps,
   onBack,
+  maxWidthClassName = 'max-w-2xl',
 }: WizardLayoutProps) {
   const t = useTranslations('common');
   const router = useRouter();
@@ -46,7 +48,7 @@ export function WizardLayout({
         </span>
       </header>
 
-      <main className="flex-1 px-4 py-6 max-w-2xl mx-auto w-full">
+      <main className={`flex-1 px-4 py-6 mx-auto w-full ${maxWidthClassName}`}>
         {children}
       </main>
     </div>

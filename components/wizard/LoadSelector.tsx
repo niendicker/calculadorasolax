@@ -99,6 +99,8 @@ export function NumberFieldWithClear({
   );
 }
 
+const MINE_FILTER = '__mine__';
+
 function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
   return { ipInRatio: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
 }
@@ -227,6 +229,7 @@ export function LoadSelector() {
   );
 
   const filtered = loadCatalog.filter((item) => {
+    if (selectedCategory === MINE_FILTER) return false;
     const matchesSearch = item[nameKey as keyof CatalogItem]
       ?.toString()
       .toLowerCase()
@@ -235,9 +238,10 @@ export function LoadSelector() {
     return matchesSearch && matchesCategory;
   });
 
-  const filteredUserItems = userLoadCatalog.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUserItems = userLoadCatalog.filter((item) => {
+    if (selectedCategory && selectedCategory !== MINE_FILTER) return false;
+    return item.name.toLowerCase().includes(search.toLowerCase());
+  });
 
   function handleAddFromCatalog(item: CatalogItem) {
     const added = addLoad(
@@ -388,18 +392,20 @@ export function LoadSelector() {
 
         {categories.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSelectedCategory(null)}
-              className={cn(
-                'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                selectedCategory === null
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-muted'
-              )}
-            >
-              Todas
-            </button>
+            {userLoadCatalog.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedCategory((current) => (current === MINE_FILTER ? null : MINE_FILTER))}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                  selectedCategory === MINE_FILTER
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+              >
+                Minhas
+              </button>
+            )}
             {categories.map((category) => (
               <button
                 key={category}
@@ -424,7 +430,7 @@ export function LoadSelector() {
           </p>
         )}
 
-        <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+        <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
           {filteredUserItems.map((item) => (
             <div
               key={`user-${item.id}`}
@@ -655,7 +661,7 @@ export function LoadSelector() {
               })}
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {residentialOptions.loads.map((load) => (
               <LoadCard
                 key={load.id}
