@@ -66,6 +66,11 @@ describe('totalDailyKwh', () => {
     const loads = [makeLoad({ powerW: 100, hoursPerDay: 2, qty: 1, ipInRatio: 5 })];
     expect(totalDailyKwh(loads)).toBeCloseTo(0.2);
   });
+
+  it('scales energy by usageFactor, defaulting to 1 when absent', () => {
+    const loads = [makeLoad({ powerW: 1000, hoursPerDay: 2, qty: 1, usageFactor: 0.5 })];
+    expect(totalDailyKwh(loads)).toBeCloseTo(1.0);
+  });
 });
 
 describe('totalPeakW', () => {
@@ -79,6 +84,11 @@ describe('totalPeakW', () => {
       makeLoad({ powerW: 200, hoursPerDay: 1, qty: 2, ipInRatio: 1 }), // 400
     ];
     expect(totalPeakW(loads, 'sum')).toBe(3400);
+  });
+
+  it('ignores usageFactor (energy-only factor does not affect peak power)', () => {
+    const loads = [makeLoad({ powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 2, usageFactor: 0.5 })];
+    expect(totalPeakW(loads)).toBe(2000);
   });
 
   it('sum mode is the default when no mode is given', () => {

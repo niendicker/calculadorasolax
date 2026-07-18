@@ -86,6 +86,16 @@ describe('totalNominalW / totalPeakW / totalDailyKwh', () => {
     expect(totalDailyKwh(loads)).toBeCloseTo((1000 * 2 * 1 + 100 * 5 * 4) / 1000);
   });
 
+  it('totalDailyKwh scales by usageFactor, defaulting to 1 when absent', () => {
+    const withUsageFactor: SingleLoad[] = [{ powerW: 1000, hoursPerDay: 2, qty: 1, usageFactor: 0.5 }];
+    expect(totalDailyKwh(withUsageFactor)).toBeCloseTo(1.0);
+  });
+
+  it('totalPeakW ignores usageFactor (energy-only factor does not affect peak power)', () => {
+    const withUsageFactor: SingleLoad[] = [{ powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 2, usageFactor: 0.5 }];
+    expect(totalPeakW(withUsageFactor)).toBe(2000);
+  });
+
   it('totalPeakW sum mode multiplies by ipInRatio per load', () => {
     expect(totalPeakW(loads, 'sum')).toBe(1000 * 3 * 1 + 100 * 1 * 4);
   });

@@ -771,7 +771,7 @@ export const useWizardStore = create<WizardStore>()(
 
 export function totalDailyKwh(loads: SingleLoad[]): number {
   return loads.reduce(
-    (acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty) / 1000,
+    (acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty * (l.usageFactor ?? 1)) / 1000,
     0
   );
 }

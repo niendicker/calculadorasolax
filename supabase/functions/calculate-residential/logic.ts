@@ -9,6 +9,9 @@ export interface SingleLoad {
   hoursPerDay: number;
   qty: number;
   ipInRatio?: number;
+  /** Fraction (0-1) of hoursPerDay this load is actually drawing power; scales
+   * energy (kWh/day), not peak power. Mirrors lib/types.ts SingleLoad. */
+  usageFactor?: number;
 }
 
 export type PeakCalcMode = 'sum' | 'largest-surge';
@@ -256,7 +259,7 @@ export function totalNominalW(loads: SingleLoad[]): number {
 }
 
 export function totalDailyKwh(loads: SingleLoad[]): number {
-  return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty) / 1000, 0);
+  return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty * (l.usageFactor ?? 1)) / 1000, 0);
 }
 
 export function matchingEssBatteryConfig(rule: EssCompatibilityRule, batteryModel: string) {
