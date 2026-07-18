@@ -406,7 +406,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           <div className="space-y-4">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Presets do sistema</p>
-              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              <div className="grid gap-2 grid-cols-1">
                 {loadPresets.map((preset) => (
                   <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
                 ))}
@@ -476,7 +476,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
                 </p>
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                <div className="grid gap-2 grid-cols-1">
                   {userLoadPresets.map((preset) => (
                     <div key={preset.id} className="relative">
                       <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
