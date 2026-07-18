@@ -603,7 +603,7 @@ function DesiredFeaturesPicker({
               title={tab.description || undefined}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 isActiveTab
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
