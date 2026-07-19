@@ -9,18 +9,18 @@ afterEach(() => {
 });
 
 describe('AppFooter', () => {
-  it('renders the app name and current year', () => {
+  it('renders the current year and description', () => {
     render(<AppFooter />);
     const footer = screen.getByRole('contentinfo');
-    expect(footer).toHaveTextContent('SolaX Calculator');
     expect(footer).toHaveTextContent(String(new Date().getFullYear()));
+    expect(footer).toHaveTextContent('Dimensionamento de sistemas híbridos solar + bateria');
   });
 
   it('shows nothing extra when NEXT_PUBLIC_COMMIT_SHA is unset', () => {
     vi.stubEnv('NEXT_PUBLIC_COMMIT_SHA', '');
     render(<AppFooter />);
     expect(screen.getByRole('contentinfo').textContent?.trim()).toBe(
-      `SolaX Calculator · ${new Date().getFullYear()} · Dimensionamento de sistemas híbridos solar + bateria`
+      `${new Date().getFullYear()} · Dimensionamento de sistemas híbridos solar + bateria`
     );
   });
 

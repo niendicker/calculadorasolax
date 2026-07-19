@@ -4,7 +4,7 @@ import { SinglePageApp } from '@/components/app/SinglePageApp';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
-  title: 'Dimensionamento | Calculadora SolaX',
+  title: 'Dimensionamento',
   description: 'Simulação residencial para dimensionamento de sistemas híbridos SolaX.',
 };
 
