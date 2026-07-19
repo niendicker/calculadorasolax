@@ -1,5 +1,4 @@
-import { TOOLTIP_BUBBLE_CLASSES } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/ui/tooltip';
 
 export function AppFooter() {
   const commitSha = process.env.NEXT_PUBLIC_COMMIT_SHA ?? '';
@@ -9,17 +8,9 @@ export function AppFooter() {
       {commitSha && (
         <>
           {' · '}
-          <span className="group relative">
+          <Tooltip content={commitSha} contentClassName="left-auto right-0 w-max max-w-[calc(100vw-2rem)] whitespace-nowrap">
             {commitSha.slice(0, 7)}
-            <span
-              className={cn(
-                TOOLTIP_BUBBLE_CLASSES,
-                'left-auto right-0 top-auto bottom-full mt-0 mb-2 w-max max-w-[calc(100vw-2rem)] whitespace-nowrap'
-              )}
-            >
-              {commitSha}
-            </span>
-          </span>
+          </Tooltip>
         </>
       )}
     </footer>

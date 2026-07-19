@@ -37,7 +37,7 @@ import type {
   WhiteTariffConfig,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { TOOLTIP_BUBBLE_CLASSES } from '@/components/ui/tooltip';
+import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAccessoryLabel } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
@@ -533,6 +533,73 @@ function PhotoUploadField({
   );
 }
 
+function InStockBadge() {
+  const { ref, openUp, visible, onMouseEnter, onMouseLeave, onFocus, onBlur } = useTooltipFlip<HTMLSpanElement>();
+  return (
+    <Badge
+      ref={ref}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      variant="secondary"
+      className="relative gap-1"
+    >
+      <Check className="h-3 w-3" />
+      No catálogo
+      <TooltipBubble openUp={openUp} visible={visible}>
+        Você tem esse modelo no seu catálogo
+      </TooltipBubble>
+    </Badge>
+  );
+}
+
+function FeatureTabButton({
+  label,
+  description,
+  enabled,
+  isActiveTab,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  enabled: boolean;
+  isActiveTab: boolean;
+  onClick: () => void;
+}) {
+  const { ref, openUp, visible, onMouseEnter, onMouseLeave, onFocus, onBlur } = useTooltipFlip<HTMLButtonElement>();
+  return (
+    <button
+      ref={ref}
+      type="button"
+      role="tab"
+      aria-selected={isActiveTab}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      className={cn(
+        'relative flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+        isActiveTab
+          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
+      />
+      {label}
+      {description && (
+        <TooltipBubble openUp={openUp} visible={visible}>
+          {description}
+        </TooltipBubble>
+      )}
+    </button>
+  );
+}
+
 function DesiredFeaturesPicker({
   value,
   onChange,
@@ -586,32 +653,16 @@ function DesiredFeaturesPicker({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Funcionalidades desejadas">
-        {tabs.map((tab) => {
-          const enabled = value.includes(tab.id);
-          const isActiveTab = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={isActiveTab}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'group relative flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
-                isActiveTab
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-              )}
-            >
-              <span
-                aria-hidden="true"
-                className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
-              />
-              {tab.label}
-              {tab.description && <span className={TOOLTIP_BUBBLE_CLASSES}>{tab.description}</span>}
-            </button>
-          );
-        })}
+        {tabs.map((tab) => (
+          <FeatureTabButton
+            key={tab.id}
+            label={tab.label}
+            description={tab.description}
+            enabled={value.includes(tab.id)}
+            isActiveTab={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+          />
+        ))}
       </div>
 
       <div className="space-y-3 rounded-lg border bg-background p-3">
@@ -1002,11 +1053,7 @@ function BatteryModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
-                        <Badge variant="secondary" className="group relative gap-1">
-                          <Check className="h-3 w-3" />
-                          No catálogo
-                          <span className={TOOLTIP_BUBBLE_CLASSES}>Você tem esse modelo no seu catálogo</span>
-                        </Badge>
+                        <InStockBadge />
                       )}
                       <Badge variant="secondary">{battery.topology}</Badge>
                     </div>
@@ -1150,11 +1197,7 @@ function InverterModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
-                        <Badge variant="secondary" className="group relative gap-1">
-                          <Check className="h-3 w-3" />
-                          No catálogo
-                          <span className={TOOLTIP_BUBBLE_CLASSES}>Você tem esse modelo no seu catálogo</span>
-                        </Badge>
+                        <InStockBadge />
                       )}
                       <Badge variant="secondary">{inverter.topology}</Badge>
                     </div>
