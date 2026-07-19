@@ -104,6 +104,14 @@ describe('totalNominalW / totalPeakW / totalDailyKwh', () => {
     // nominal = 1000 + 400 = 1400; largest extra = 1000 x (3-1) = 2000
     expect(totalPeakW(loads, 'largest-surge')).toBe(1400 + 2000);
   });
+
+  it('totalPeakW select mode only sums loads flagged includedInPeak', () => {
+    const selectLoads: SingleLoad[] = [
+      { powerW: 1000, hoursPerDay: 1, qty: 3, ipInRatio: 1, includedInPeak: true },
+      { powerW: 100, hoursPerDay: 1, qty: 4, ipInRatio: 1, includedInPeak: false },
+    ];
+    expect(totalPeakW(selectLoads, 'select')).toBe(1000 * 3);
+  });
 });
 
 describe('normalizeStandardGridTopology', () => {

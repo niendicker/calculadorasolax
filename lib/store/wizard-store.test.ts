@@ -118,6 +118,19 @@ describe('totalPeakW', () => {
     // whereas sum mode assumes every unit surges together: 300 x 2 x 2 = 1200
     expect(totalPeakW(loads, 'sum')).toBe(1200);
   });
+
+  it('select mode: only sums loads flagged includedInPeak', () => {
+    const loads = [
+      makeLoad({ powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 2, includedInPeak: true }), // 2000
+      makeLoad({ powerW: 500, hoursPerDay: 1, qty: 1, ipInRatio: 2, includedInPeak: false }), // excluded
+    ];
+    expect(totalPeakW(loads, 'select')).toBe(2000);
+  });
+
+  it('select mode: treats undefined includedInPeak as included (back-compat)', () => {
+    const loads = [makeLoad({ powerW: 400, hoursPerDay: 1, qty: 1, ipInRatio: 1 })];
+    expect(totalPeakW(loads, 'select')).toBe(400);
+  });
 });
 
 describe('totalPowerByPhase', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentProps, ReactNode } from 'react';
-import { CircleHelp, EyeOff, FileText, ImageIcon, Pencil, Plus, Save, X } from 'lucide-react';
+import { EyeOff, FileText, ImageIcon, Pencil, Plus, Save, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +9,11 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { InfoLabel } from '@/components/ui/tooltip';
 import type { ProductDocument } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+export { InfoLabel };
 
 export function Field({
   label,
@@ -35,24 +38,6 @@ export function Field({
       <span>{label}</span>
       {children}
     </label>
-  );
-}
-
-export function InfoLabel({ label, tip }: { label: string; tip: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span>{label}</span>
-      <span className="group relative inline-flex">
-        <CircleHelp
-          className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary group-focus-visible:text-primary"
-          tabIndex={0}
-          aria-label={tip}
-        />
-        <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2.5 w-56 -translate-x-1/2 rounded-xl border bg-popover px-2 py-1.5 text-xs font-normal leading-snug text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          {tip}
-        </span>
-      </span>
-    </span>
   );
 }
 

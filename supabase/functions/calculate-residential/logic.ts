@@ -12,9 +12,12 @@ export interface SingleLoad {
   /** Fraction (0-1) of hoursPerDay this load is actually drawing power; scales
    * energy (kWh/day), not peak power. Mirrors lib/types.ts SingleLoad. */
   usageFactor?: number;
+  /** Whether this load counts toward peak power when peakCalcMode is
+   * 'select'. Mirrors lib/types.ts SingleLoad. */
+  includedInPeak?: boolean;
 }
 
-export type PeakCalcMode = 'sum' | 'largest-surge';
+export type PeakCalcMode = 'sum' | 'largest-surge' | 'select';
 
 /** Mirrors lib/types.ts InverterFlag — kept in sync manually since this file
  * runs on Deno and can't import from the Next.js app. */
@@ -245,6 +248,12 @@ export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): num
     return loads.reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
   }
 
+  if (mode === 'select') {
+    return loads
+      .filter((l) => l.includedInPeak ?? true)
+      .reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
+  }
+
   // 'largest-surge': only the single highest-surge load unit starts at a time;
   // everything else runs at nominal power.
   const nominalSum = loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
@@ -397,7 +406,7 @@ export const VALID_GRID_TYPES: ResidentialOptions['gridType'][] = [
   'threePhase_220',
   'threePhase_380',
 ];
-export const VALID_PEAK_CALC_MODES: PeakCalcMode[] = ['sum', 'largest-surge'];
+export const VALID_PEAK_CALC_MODES: PeakCalcMode[] = ['sum', 'largest-surge', 'select'];
 
 /** Validates the untrusted JSON body before it is treated as ResidentialOptions.
  * Returns a list of human-readable issues; an empty list means the payload is valid. */

@@ -19,32 +19,14 @@ import {
   Plus,
   Trash2,
   Search,
-  CircleHelp,
   X,
   Zap,
 } from 'lucide-react';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
-import type { CatalogItem, LoadPhase, LoadPresetLoad, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
+import type { CatalogItem, LoadPhase, LoadPresetLoad, PeakCalcMode, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
-
-function InfoLabel({ label, tip }: { label: string; tip: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span>{label}</span>
-      <span className="group relative inline-flex">
-        <CircleHelp
-          className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary group-focus-visible:text-primary"
-          tabIndex={0}
-          aria-label={tip}
-        />
-        <span className="pointer-events-none absolute left-0 top-full z-50 mt-2.5 w-56 max-w-[calc(100vw-2rem)] rounded-xl border bg-popover px-2 py-1.5 text-xs font-normal leading-snug text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          {tip}
-        </span>
-      </span>
-    </span>
-  );
-}
+import { InfoLabel, Tooltip, TOOLTIP_BUBBLE_CLASSES } from '@/components/ui/tooltip';
 
 export function NumberFieldWithClear({
   id,
@@ -101,6 +83,13 @@ export function NumberFieldWithClear({
 }
 
 const MINE_FILTER = '__mine__';
+
+/** A trifásica load draws from all three phases, so it's always "related" to
+ * every phase; a mono load is related only to the phase(s) it's wired to. */
+function loadMatchesPhase(load: SingleLoad, phase: LoadPhase): boolean {
+  if ((load.phaseType ?? 'mono') === 'trifasica') return true;
+  return (load.phase ?? 'L1') === phase || load.phase2 === phase;
+}
 
 function newLoad(partial: Omit<SingleLoad, 'id' | 'ipInRatio'> & { ipInRatio?: number }): SingleLoad {
   return { ipInRatio: 1, usageFactor: 1, voltageV: 220, phaseType: 'mono', phase: 'L1', ...partial, id: crypto.randomUUID() };
@@ -222,6 +211,16 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
+  const [dragOverPhase, setDragOverPhase] = useState<LoadPhase | null>(null);
+  const [phaseFilter, setPhaseFilter] = useState<LoadPhase | 'all'>('all');
+
+  const visiblePhases = gridType ? loadPhases.slice(0, gridTypePhaseCount[gridType]) : [];
+  const effectivePhaseFilter: LoadPhase | 'all' =
+    phaseFilter !== 'all' && visiblePhases.includes(phaseFilter) ? phaseFilter : 'all';
+  const visibleLoads =
+    effectivePhaseFilter === 'all'
+      ? residentialOptions.loads
+      : residentialOptions.loads.filter((load) => loadMatchesPhase(load, effectivePhaseFilter));
   const [presetDescription, setPresetDescription] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetSaveError, setPresetSaveError] = useState<string | null>(null);
@@ -385,7 +384,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               aria-selected={activeSubTab === 'presets'}
               onClick={() => setActiveSubTab('presets')}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 activeSubTab === 'presets'
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -399,7 +398,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               aria-selected={activeSubTab === 'catalog'}
               onClick={() => setActiveSubTab('catalog')}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 activeSubTab === 'catalog'
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -661,41 +660,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       </div>
 
       <div className="space-y-3">
-          {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
-            <div className="rounded-md border bg-card p-3">
-              <p className="text-xs font-medium">
-                <InfoLabel
-                  label="Potência por fase"
-                  tip="Soma da potência nominal das cargas em cada fase. Cargas trifásicas dividem a potência igualmente entre as três fases."
-                />
-              </p>
-              <div className="mt-2 grid gap-2" style={{ gridTemplateColumns: `repeat(${gridTypePhaseCount[gridType]}, minmax(0, 1fr))` }}>
-                {loadPhases.slice(0, gridTypePhaseCount[gridType]).map((phase) => {
-                  const phaseW = phaseTotals[phase];
-                  const overLimit = Boolean(maxPowerPerPhaseW) && phaseW > (maxPowerPerPhaseW as number);
-                  return (
-                    <div
-                      key={phase}
-                      className={cn(
-                        'rounded-lg border p-2 text-center',
-                        overLimit ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/40'
-                      )}
-                    >
-                      <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Fase {phase}</p>
-                      <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
-                        {phaseW.toFixed(0)} VA
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-              {maxPowerPerPhaseW && Object.values(phaseTotals).some((value) => value > maxPowerPerPhaseW) && (
-                <p className="mt-2 text-xs text-destructive">
-                  Uma ou mais fases ultrapassam o máximo configurado ({maxPowerPerPhaseW.toFixed(0)} VA). Redistribua as cargas entre as fases.
-                </p>
-              )}
-            </div>
-          )}
           {residentialOptions.loads.length > 0 && (
           <div className="rounded-md border bg-card p-3">
             <p className="text-xs font-medium">
@@ -704,7 +668,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 tip="Define como as cargas com maior corrente de partida somam no pico de potência aparente do sistema, usado para escolher o inversor."
               />
             </p>
-            <div className="mt-2 grid grid-cols-1 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-3">
               {(
                 [
                   {
@@ -717,6 +681,11 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     label: 'Só a maior carga',
                     tip: 'Pico = soma nominal de todas as cargas + o maior excedente de partida (potência × (IP/IN − 1)) entre elas, assumindo que só um motor/compressor parte por vez. Uma carga pequena com IP/IN alto pesa menos que uma carga grande com IP/IN baixo.',
                   },
+                  {
+                    value: 'select' as const,
+                    label: 'Selecionar cargas',
+                    tip: 'Pico = soma de (potência × IP/IN) apenas das cargas marcadas abaixo. Use para simular só um subconjunto das cargas partindo ao mesmo tempo.',
+                  },
                 ]
               ).map((option) => {
                 const active = (residentialOptions.peakCalcMode ?? 'sum') === option.value;
@@ -725,27 +694,114 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     key={option.value}
                     type="button"
                     aria-pressed={active}
-                    title={option.tip}
                     onClick={() => setPeakCalcMode(option.value)}
-                    className={`h-10 rounded-md px-2 text-sm font-medium transition md:h-8 md:text-xs ${
+                    className={cn(
+                      'group relative h-10 rounded-md px-2 text-sm font-medium transition md:h-8 md:text-xs',
                       active
                         ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                         : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                    }`}
+                    )}
                   >
                     {option.label}
+                    <span className={TOOLTIP_BUBBLE_CLASSES}>{option.tip}</span>
                   </button>
                 );
               })}
             </div>
+            {(residentialOptions.peakCalcMode ?? 'sum') === 'select' && (
+              <p className="mt-2 text-[0.7rem] text-muted-foreground">
+                Marque, em cada carga, se ela deve contar na potência de pico (ícone de raio no cabeçalho da carga).
+              </p>
+            )}
           </div>
           )}
+          {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
+            <div className="rounded-md border bg-card p-3">
+              <p className="text-xs font-medium">
+                <InfoLabel
+                  label="Potência por fase"
+                  tip="Soma da potência nominal das cargas em cada fase. Cargas trifásicas dividem a potência igualmente entre as três fases. Arraste uma carga monofásica para uma fase para conectá-la a ela. Selecione uma fase para filtrar as cargas exibidas abaixo."
+                />
+              </p>
+              <div
+                className="mt-2 grid gap-2"
+                style={{ gridTemplateColumns: `repeat(${visiblePhases.length + 1}, minmax(0, 1fr))` }}
+              >
+                <button
+                  type="button"
+                  aria-pressed={effectivePhaseFilter === 'all'}
+                  onClick={() => setPhaseFilter('all')}
+                  className={cn(
+                    'rounded-lg border p-2 text-center transition-colors',
+                    effectivePhaseFilter === 'all' ? 'border-primary bg-primary/10' : 'bg-muted/40 hover:bg-muted/70'
+                  )}
+                >
+                  <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Todas</p>
+                  <p className="text-sm font-semibold">{residentialOptions.loads.length}</p>
+                </button>
+                {visiblePhases.map((phase) => {
+                  const phaseW = phaseTotals[phase];
+                  const overLimit = Boolean(maxPowerPerPhaseW) && phaseW > (maxPowerPerPhaseW as number);
+                  const active = effectivePhaseFilter === phase;
+                  return (
+                    <button
+                      key={phase}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setPhaseFilter((current) => (current === phase ? 'all' : phase))}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragOverPhase(phase);
+                      }}
+                      onDragLeave={() => setDragOverPhase((current) => (current === phase ? null : current))}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setDragOverPhase(null);
+                        const loadId = event.dataTransfer.getData('text/plain');
+                        const dragged = residentialOptions.loads.find((item) => item.id === loadId);
+                        if (!dragged) return;
+                        if (dragged.phase2) {
+                          const otherPhase = loadPhases.find((candidate) => candidate !== phase) ?? phase;
+                          updateLoad(loadId, { phase, phase2: otherPhase });
+                        } else {
+                          updateLoad(loadId, { phase });
+                        }
+                      }}
+                      className={cn(
+                        'rounded-lg border p-2 text-center transition-colors',
+                        overLimit ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/40 hover:bg-muted/70',
+                        active && 'border-primary bg-primary/10',
+                        dragOverPhase === phase && 'border-primary bg-primary/10 ring-2 ring-primary/40'
+                      )}
+                    >
+                      <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Fase {phase}</p>
+                      <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
+                        {phaseW.toFixed(0)} VA
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+              {maxPowerPerPhaseW && Object.values(phaseTotals).some((value) => value > maxPowerPerPhaseW) && (
+                <p className="mt-2 text-xs text-destructive">
+                  Uma ou mais fases ultrapassam o máximo configurado ({maxPowerPerPhaseW.toFixed(0)} VA). Redistribua as cargas entre as fases.
+                </p>
+              )}
+            </div>
+          )}
+          {effectivePhaseFilter !== 'all' && visibleLoads.length === 0 && (
+            <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+              Nenhuma carga conectada à fase {effectivePhaseFilter}.
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <AddLoadTile
-              onAdd={handleAddBlank}
-              disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-            />
-            {residentialOptions.loads.map((load) => (
+            {effectivePhaseFilter === 'all' && (
+              <AddLoadTile
+                onAdd={handleAddBlank}
+                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+              />
+            )}
+            {visibleLoads.map((load) => (
               <LoadCard
                 key={load.id}
                 load={load}
@@ -753,6 +809,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 loadCatalog={loadCatalog}
                 userLoadCatalog={userLoadCatalog}
                 nameKey={nameKey}
+                peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
                 onUpdate={updateLoad}
                 onRemove={(id) => {
                   removeLoad(id);
@@ -1184,6 +1241,7 @@ function LoadCard({
   loadCatalog,
   userLoadCatalog,
   nameKey,
+  peakCalcMode,
   onUpdate,
   onRemove,
   saveManualLoadToCatalog,
@@ -1194,6 +1252,7 @@ function LoadCard({
   loadCatalog: CatalogItem[];
   userLoadCatalog: UserLoadCatalogItem[];
   nameKey: string;
+  peakCalcMode: PeakCalcMode;
   onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
   onRemove: (id: string) => void;
   saveManualLoadToCatalog: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
@@ -1266,6 +1325,7 @@ function LoadCard({
   const needsTwoPhases = phaseType === 'mono' && phaseCount > 1 && phaseToPhaseVoltages.includes(voltageV);
   const phase = load.phase ?? 'L1';
   const phasePairs: [LoadPhase, LoadPhase][] = [['L1', 'L2'], ['L2', 'L3'], ['L1', 'L3']];
+  const canDragToPhase = phaseType === 'mono' && phaseCount > 1;
 
   useEffect(() => {
     if (phaseCount < 3 && phaseType === 'trifasica') {
@@ -1330,6 +1390,7 @@ function LoadCard({
 
   const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
   const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty * (load.usageFactor ?? 1)) / 1000;
+  const includedInPeak = load.includedInPeak ?? true;
 
   if (isDraft) {
     const hasSuggestions = draftMatches.mine.length > 0 || draftMatches.system.length > 0;
@@ -1454,7 +1515,19 @@ function LoadCard({
   }
 
   return (
-    <div className="rounded-lg border bg-card text-sm">
+    <div
+      className={cn('rounded-lg border bg-card text-sm', canDragToPhase && 'cursor-grab active:cursor-grabbing')}
+      draggable={canDragToPhase}
+      onDragStart={
+        canDragToPhase
+          ? (event) => {
+              event.dataTransfer.setData('text/plain', load.id);
+              event.dataTransfer.effectAllowed = 'move';
+            }
+          : undefined
+      }
+      title={canDragToPhase ? 'Arraste para uma fase em "Potência por fase" para reconectar' : undefined}
+    >
       <div
         role="button"
         tabIndex={0}
@@ -1471,17 +1544,29 @@ function LoadCard({
         <div className="min-w-0">
           <p className="font-medium truncate">{load.name}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1" title="Potência nominal">
+            <span className="group relative flex items-center gap-1">
               <Plug className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{load.powerW} VA</span>
+              <span className={TOOLTIP_BUBBLE_CLASSES}>Potência nominal</span>
             </span>
-            <span className="flex items-center gap-1" title="Potência de pico (nominal × IP/IN × quantidade)">
+            <span
+              className={cn(
+                'group relative flex items-center gap-1',
+                peakCalcMode === 'select' && !includedInPeak && 'opacity-50'
+              )}
+            >
               <Zap className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span>
+              <span className={TOOLTIP_BUBBLE_CLASSES}>
+                {peakCalcMode === 'select' && !includedInPeak
+                  ? 'Potência de pico (não contabilizada — carga desmarcada)'
+                  : 'Potência de pico (nominal × IP/IN × quantidade)'}
+              </span>
             </span>
-            <span className="flex items-center gap-1" title="Consumo diário estimado">
+            <span className="group relative flex items-center gap-1">
               <BatteryCharging className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>
+              <span className={TOOLTIP_BUBBLE_CLASSES}>Consumo diário estimado</span>
             </span>
             <span className={cn(!voltageValid && 'font-medium text-destructive')}>
               {voltageV}V ·{' '}
@@ -1495,6 +1580,30 @@ function LoadCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {peakCalcMode === 'select' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="group relative shrink-0 md:h-7 md:w-7"
+              onClick={(event) => {
+                event.stopPropagation();
+                onUpdate(load.id, { includedInPeak: !includedInPeak });
+              }}
+              aria-pressed={includedInPeak}
+              aria-label={
+                includedInPeak
+                  ? `Não contar ${load.name} na potência de pico`
+                  : `Contar ${load.name} na potência de pico`
+              }
+            >
+              <Zap className={cn('h-3.5 w-3.5', includedInPeak ? 'text-primary' : 'text-muted-foreground')} />
+              <span className={cn(TOOLTIP_BUBBLE_CLASSES, 'left-auto right-0')}>
+                {includedInPeak
+                  ? 'Conta na potência de pico — clique para excluir'
+                  : 'Não conta na potência de pico — clique para incluir'}
+              </span>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"

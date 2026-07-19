@@ -112,7 +112,7 @@ const defaultResidential: ResidentialOptions = {
   gridType: null,
   loads: [],
   peakCalcMode: 'sum',
-  desiredFeatures: [],
+  desiredFeatures: ['backup'],
   whiteTariff: null,
   microgrid: null,
   generator: null,
@@ -781,6 +781,12 @@ export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): num
 
   if (mode === 'sum') {
     return loads.reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
+  }
+
+  if (mode === 'select') {
+    return loads
+      .filter((l) => l.includedInPeak ?? true)
+      .reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
   }
 
   // 'largest-surge': assume only one unit of the highest-surge load starts at a

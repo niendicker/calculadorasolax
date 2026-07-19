@@ -685,7 +685,8 @@ describe('LoadSelector: added loads list', () => {
     }));
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Só a maior carga' }));
+    // The button's accessible name includes its tooltip copy too, so match loosely.
+    fireEvent.click(screen.getByRole('button', { name: /Só a maior carga/ }));
 
     expect(useWizardStore.getState().residentialOptions.peakCalcMode).toBe('largest-surge');
   });

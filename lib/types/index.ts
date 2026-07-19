@@ -68,7 +68,9 @@ export interface GeneratorConfig {
 // - 'sum': every load surges at once (nominal x IP/IN for all loads, conservative).
 // - 'largest-surge': only the single highest-surge load unit starts at a time,
 //   everything else runs at nominal power (common generator/inverter sizing rule).
-export type PeakCalcMode = 'sum' | 'largest-surge';
+// - 'select': only loads the user flags via `includedInPeak` are summed (like
+//   'sum', but restricted to a user-chosen subset of loads).
+export type PeakCalcMode = 'sum' | 'largest-surge' | 'select';
 
 /** Operating voltage of a single load, in volts. */
 export type LoadVoltage = 110 | 220 | 380;
@@ -102,6 +104,11 @@ export interface SingleLoad {
   /** Second phase, set when a mono load is wired phase-to-phase (e.g. a 220V
    * load on a three-phase 220V network) instead of phase-to-neutral. */
   phase2?: LoadPhase | null;
+  /** Whether this load counts toward the system's peak apparent power when
+   * peakCalcMode is 'select'. Defaults to true for loads saved before this
+   * field existed. Irrelevant for 'sum' and 'largest-surge', which always
+   * consider every load. */
+  includedInPeak?: boolean;
 }
 
 export interface CatalogItem {
