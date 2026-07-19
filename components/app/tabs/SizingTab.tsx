@@ -339,19 +339,14 @@ export function SizingTab({
                               aria-checked={active}
                               onClick={() => setGridType(option.value)}
                               className={cn(
-                                'flex h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:text-xs',
                                 active
                                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                               )}
                             >
                               {option.label}
-                              <span
-                                className={cn(
-                                  'rounded-full px-1.5 py-0.5 text-[0.7rem]',
-                                  active ? 'bg-primary/10 text-primary' : 'bg-background'
-                                )}
-                              >
+                              <span className={cn('text-[0.7rem]', active ? 'text-primary' : 'text-muted-foreground/70')}>
                                 {option.detail}
                               </span>
                             </button>
