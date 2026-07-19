@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,6 @@ import {
   Plug,
   Plus,
   Trash2,
-  Search,
   X,
   Zap,
 } from 'lucide-react';
@@ -27,6 +26,7 @@ import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loa
 import type { CatalogItem, LoadPhase, LoadPresetLoad, PeakCalcMode, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { InfoLabel, Tooltip, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
+import { SearchInput } from '@/components/app/shared-ui';
 
 export function NumberFieldWithClear({
   id,
@@ -83,6 +83,41 @@ export function NumberFieldWithClear({
 }
 
 const MINE_FILTER = '__mine__';
+
+/** Native HTML5 drag renders a full screenshot of the dragged element by
+ * default, which is a lot of visual noise for a small drag-to-reconnect
+ * gesture. This swaps it for a small pill (move icon + load name) instead —
+ * built as a plain DOM node since `setDragImage` needs a rendered element at
+ * the moment `dragstart` fires, not a React node. */
+function setDragPreview(event: DragEvent, label: string) {
+  const preview = document.createElement('div');
+  preview.style.cssText = [
+    'position:fixed',
+    'top:-1000px',
+    'left:-1000px',
+    'display:flex',
+    'align-items:center',
+    'gap:6px',
+    'padding:6px 10px',
+    'border-radius:var(--radius-lg)',
+    'border:1px solid var(--border)',
+    'background:var(--popover)',
+    'color:var(--popover-foreground)',
+    'box-shadow:0 1px 3px rgb(0 0 0 / 0.2)',
+    'font-family:var(--font-geist, sans-serif)',
+    'font-size:12px',
+    'font-weight:600',
+    'white-space:nowrap',
+  ].join(';');
+  preview.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/></svg>';
+  const labelEl = document.createElement('span');
+  labelEl.textContent = label;
+  preview.appendChild(labelEl);
+  document.body.appendChild(preview);
+  event.dataTransfer.setDragImage(preview, 12, 12);
+  requestAnimationFrame(() => preview.remove());
+}
 
 /** A trifásica load draws from all three phases, so it's always "related" to
  * every phase; a mono load is related only to the phase(s) it's wired to. */
@@ -604,16 +639,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           {activeSubTab === 'catalog' && (
           <div className="space-y-2">
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  autoFocus
-                  aria-label={t('search_placeholder')}
-                  placeholder={t('search_placeholder')}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 md:pl-8"
-                />
+              <div className="flex-1">
+                <SearchInput value={search} onChange={setSearch} placeholder={t('search_placeholder')} />
               </div>
               <AddCustomLoadPopover
                 name={manualName}
@@ -1591,6 +1618,7 @@ function LoadCard({
           ? (event) => {
               event.dataTransfer.setData('text/plain', load.id);
               event.dataTransfer.effectAllowed = 'move';
+              setDragPreview(event, load.name || 'Carga');
             }
           : undefined
       }

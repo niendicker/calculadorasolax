@@ -90,6 +90,9 @@ describe('LoadSelector: collapsible sections', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 
+    // The search field starts collapsed into an icon button, matching the
+    // same SearchInput pattern used by the other app tabs.
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar equipamento...' }));
     expect(screen.getByPlaceholderText('Buscar equipamento...')).toBeInTheDocument();
     expect(screen.queryByText('Residencial essencial')).not.toBeInTheDocument();
   });
@@ -217,6 +220,7 @@ describe('LoadSelector: catalog', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar equipamento...' }));
     fireEvent.change(screen.getByPlaceholderText('Buscar equipamento...'), { target: { value: 'chuveiro' } });
 
     expect(screen.getByText('Chuveiro elétrico')).toBeInTheDocument();
