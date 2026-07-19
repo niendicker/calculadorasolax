@@ -228,7 +228,7 @@ export function SizingTab({
                   aria-selected={mainTab === 'features'}
                   onClick={() => setMainTab('features')}
                   className={cn(
-                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                     mainTab === 'features'
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -243,7 +243,7 @@ export function SizingTab({
                   aria-selected={mainTab === 'config'}
                   onClick={() => setMainTab('config')}
                   className={cn(
-                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                     mainTab === 'config'
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -282,7 +282,7 @@ export function SizingTab({
                       aria-selected={configTab === 'gridType'}
                       onClick={() => setConfigTab('gridType')}
                       className={cn(
-                        'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                         configTab === 'gridType'
                           ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -303,7 +303,7 @@ export function SizingTab({
                       aria-selected={configTab === 'battery'}
                       onClick={() => setConfigTab('battery')}
                       className={cn(
-                        'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                         configTab === 'battery'
                           ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -597,7 +597,7 @@ function DesiredFeaturesPicker({
               title={tab.description || undefined}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 isActiveTab
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
