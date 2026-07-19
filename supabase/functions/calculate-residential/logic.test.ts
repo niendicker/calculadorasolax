@@ -339,8 +339,8 @@ describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
     );
   });
 
-  it('requires the super_backup flag when "backup" is a desired feature', () => {
-    expect(requiredInverterFlags(['backup'])).toEqual(['super_backup']);
+  it('requires no inverter flag for "backup" (every hybrid inverter supports it)', () => {
+    expect(requiredInverterFlags(['backup'])).toEqual([]);
   });
 
   it('is satisfied with no required flags regardless of the inverter', () => {

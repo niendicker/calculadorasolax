@@ -28,7 +28,7 @@ export type DesiredFeatureId = 'backup' | 'external_ats' | 'microgrid' | 'extern
  * the app-side registry); the solution-filtering code loops over this
  * generically and needs no changes for a new flag-based feature. */
 export const DESIRED_FEATURE_DEFINITIONS: { id: DesiredFeatureId; requiresInverterFlag?: InverterFlag }[] = [
-  { id: 'backup', requiresInverterFlag: 'super_backup' },
+  { id: 'backup' },
   { id: 'external_ats', requiresInverterFlag: 'external_ats' },
   { id: 'microgrid', requiresInverterFlag: 'microgrid' },
   { id: 'external_generator', requiresInverterFlag: 'external_generator' },

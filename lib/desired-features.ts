@@ -17,8 +17,7 @@ export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
   {
     id: 'backup',
     label: 'Backup',
-    description: 'Exige um inversor com suporte a backup completo (Super-Backup).',
-    requiresInverterFlag: 'super_backup',
+    description: 'Todos os inversores híbridos suportam a funcionalidade de backup.',
   },
   {
     id: 'external_ats',
