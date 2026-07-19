@@ -58,7 +58,7 @@ export function TooltipBubble({
   return (
     <span
       className={cn(
-        'pointer-events-none absolute left-0 z-50 w-56 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover px-3 py-2 text-xs font-normal leading-snug text-popover-foreground shadow-md transition-opacity',
+        'pointer-events-none absolute left-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover px-3 py-2 text-xs font-normal leading-snug text-popover-foreground shadow-md transition-opacity',
         openUp ? 'bottom-full mb-2.5' : 'top-full mt-2.5',
         visible ? 'opacity-100' : 'opacity-0',
         className
