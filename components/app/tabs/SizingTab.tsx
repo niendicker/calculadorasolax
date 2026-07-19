@@ -37,6 +37,7 @@ import type {
   WhiteTariffConfig,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { TOOLTIP_BUBBLE_CLASSES } from '@/components/ui/tooltip';
 import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAccessoryLabel } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
@@ -594,10 +595,9 @@ function DesiredFeaturesPicker({
               type="button"
               role="tab"
               aria-selected={isActiveTab}
-              title={tab.description || undefined}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                'group relative flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 isActiveTab
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -608,6 +608,7 @@ function DesiredFeaturesPicker({
                 className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
               />
               {tab.label}
+              {tab.description && <span className={TOOLTIP_BUBBLE_CLASSES}>{tab.description}</span>}
             </button>
           );
         })}
@@ -1001,9 +1002,10 @@ function BatteryModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
-                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu catálogo">
+                        <Badge variant="secondary" className="group relative gap-1">
                           <Check className="h-3 w-3" />
                           No catálogo
+                          <span className={TOOLTIP_BUBBLE_CLASSES}>Você tem esse modelo no seu catálogo</span>
                         </Badge>
                       )}
                       <Badge variant="secondary">{battery.topology}</Badge>
@@ -1148,9 +1150,10 @@ function InverterModelPicker({
                     <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
-                        <Badge variant="secondary" className="gap-1" title="Você tem esse modelo no seu catálogo">
+                        <Badge variant="secondary" className="group relative gap-1">
                           <Check className="h-3 w-3" />
                           No catálogo
+                          <span className={TOOLTIP_BUBBLE_CLASSES}>Você tem esse modelo no seu catálogo</span>
                         </Badge>
                       )}
                       <Badge variant="secondary">{inverter.topology}</Badge>

@@ -24,9 +24,10 @@ describe('AppFooter', () => {
     );
   });
 
-  it('shows the short commit hash when NEXT_PUBLIC_COMMIT_SHA is set', () => {
+  it('shows the short commit hash, with the full hash available in a tooltip', () => {
     vi.stubEnv('NEXT_PUBLIC_COMMIT_SHA', 'abc1234def5678');
     render(<AppFooter />);
-    expect(screen.getByText('abc1234')).toHaveAttribute('title', 'abc1234def5678');
+    expect(screen.getByRole('contentinfo')).toHaveTextContent('abc1234');
+    expect(screen.getByText('abc1234def5678')).toBeInTheDocument();
   });
 });

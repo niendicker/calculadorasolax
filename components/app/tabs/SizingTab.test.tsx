@@ -231,7 +231,8 @@ describe('SizingTab: funcionalidades desejadas', () => {
   it('toggling ATS Externo reveals its photo upload field once the parent reflects the new selection', () => {
     const { rerender, props } = setup();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
+    // The tab's accessible name includes its tooltip copy too, so match loosely.
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith(['external_ats']);
 
@@ -246,22 +247,24 @@ describe('SizingTab: funcionalidades desejadas', () => {
 
     // rerender() here swaps in a tree without the Shell wrapper used by
     // renderWithShell, so React remounts SizingTab and its tab state resets.
-    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
+    // The tab's accessible name includes its tooltip copy too, so match loosely.
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
   });
 
   it('switches tabs without changing the enabled features, and shows only the active tab panel', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
 
-    fireEvent.click(screen.getByRole('tab', { name: 'ATS Externo' }));
+    // The tab's accessible name includes its tooltip copy too, so match loosely.
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Tarifa Branca' }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Tarifa Branca/ }));
 
     // Switching tabs is just navigation: it must not toggle any feature.
     expect(screen.queryByText('Foto do disjuntor geral')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Tarifa Branca' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'ATS Externo' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: /^Tarifa Branca/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ })).toHaveAttribute('aria-selected', 'false');
     // The Tarifa Branca tab isn't enabled, so its panel shows the "Habilitar" prompt, not its fields.
     expect(screen.queryByLabelText('Potência (W)')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();

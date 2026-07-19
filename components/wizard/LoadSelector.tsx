@@ -111,7 +111,6 @@ function PresetCard({
     <button
       type="button"
       onClick={onAdd}
-      title={preset.description}
       className={cn(
         'w-full space-y-1 rounded-lg border bg-card p-2.5 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
         withDeleteSpacing && 'pr-9'
@@ -123,19 +122,22 @@ function PresetCard({
       </div>
       {preset.description && <p className="truncate text-xs text-muted-foreground">{preset.description}</p>}
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1" title="Cargas">
+        <span className="group relative flex items-center gap-1">
           <ListChecks className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{preset.loads.length}</span>
+          <span className={TOOLTIP_BUBBLE_CLASSES}>Cargas</span>
         </span>
-        <span className="flex items-center gap-1" title="Pico">
+        <span className="group relative flex items-center gap-1">
           <Zap className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{peakKva.toFixed(1)}</span>
           kVA
+          <span className={TOOLTIP_BUBBLE_CLASSES}>Pico</span>
         </span>
-        <span className="flex items-center gap-1" title="Consumo diário">
+        <span className="group relative flex items-center gap-1">
           <BatteryCharging className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{dailyKwh.toFixed(1)}</span>
           kWh
+          <span className={TOOLTIP_BUBBLE_CLASSES}>Consumo diário</span>
         </span>
       </div>
     </button>
@@ -1516,7 +1518,10 @@ function LoadCard({
 
   return (
     <div
-      className={cn('rounded-lg border bg-card text-sm', canDragToPhase && 'cursor-grab active:cursor-grabbing')}
+      className={cn(
+        'relative rounded-lg border bg-card text-sm',
+        canDragToPhase && 'group cursor-grab active:cursor-grabbing'
+      )}
       draggable={canDragToPhase}
       onDragStart={
         canDragToPhase
@@ -1526,8 +1531,12 @@ function LoadCard({
             }
           : undefined
       }
-      title={canDragToPhase ? 'Arraste para uma fase em "Potência por fase" para reconectar' : undefined}
     >
+      {canDragToPhase && (
+        <span className={cn(TOOLTIP_BUBBLE_CLASSES, 'top-auto bottom-full mt-0 mb-2')}>
+          Arraste para uma fase em &quot;Potência por fase&quot; para reconectar
+        </span>
+      )}
       <div
         role="button"
         tabIndex={0}
