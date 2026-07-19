@@ -159,8 +159,8 @@ describe('SizingTab: title bar', () => {
 describe('SizingTab: summary panel', () => {
   it('shows the requirement checklist with no solution yet', () => {
     setup();
-    expect(screen.getByText('Configure os dados para ver a solução recomendada.')).toBeInTheDocument();
-    expect(screen.getByText('Topologia da bateria')).toBeInTheDocument();
+    expect(screen.getByText('Configure os dados acima para ver a solução recomendada.')).toBeInTheDocument();
+    expect(screen.getByText('Topologia')).toBeInTheDocument();
   });
 
   it('shows the error alert when present', () => {

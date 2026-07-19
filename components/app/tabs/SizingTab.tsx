@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Battery,
   Calculator,
   Check,
+  ChevronRight,
   FileText,
   FolderOpen,
   ImagePlus,
@@ -46,7 +47,6 @@ import {
   ImagePreviewModal,
   Metric,
   ProductAttachments,
-  Requirement,
   SolutionSkeleton,
 } from '../shared-ui';
 import {
@@ -141,6 +141,22 @@ export function SizingTab({
 }) {
   const [mainTab, setMainTab] = useState<'features' | 'config'>('features');
   const [configTab, setConfigTab] = useState<'gridType' | 'battery'>('gridType');
+  const [activeFeatureTab, setActiveFeatureTab] = useState<DesiredFeatureId>('backup');
+
+  function jumpToGridType() {
+    setMainTab('config');
+    setConfigTab('gridType');
+  }
+
+  function jumpToBattery() {
+    setMainTab('config');
+    setConfigTab('battery');
+  }
+
+  function jumpToFeature(id: DesiredFeatureId) {
+    setMainTab('features');
+    setActiveFeatureTab(id);
+  }
 
   const gridTypeSummary = residentialOptions.gridType
     ? `${gridLabels[residentialOptions.gridType]}${
@@ -190,6 +206,14 @@ export function SizingTab({
           <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
         </div>
         <Separator />
+        <ConfigurationSummary
+          residentialOptions={residentialOptions}
+          loadsCount={residentialOptions.loads.length}
+          onJumpToGridType={jumpToGridType}
+          onJumpToBattery={jumpToBattery}
+          onJumpToFeature={jumpToFeature}
+        />
+        <Separator />
         {error && (
           <p role="alert" className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
             {error}
@@ -198,15 +222,9 @@ export function SizingTab({
         {loading ? (
           <SolutionSkeleton />
         ) : !solution ? (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            <p>Configure os dados para ver a solução recomendada.</p>
-            <ul className="mt-3 space-y-1">
-              <Requirement done={Boolean(residentialOptions.topology)} label="Topologia da bateria" />
-              <Requirement done={Boolean(residentialOptions.batteryModel)} label="Modelo da bateria" />
-              <Requirement done={Boolean(residentialOptions.gridType)} label="Tipo de rede" />
-              <Requirement done={residentialOptions.loads.length > 0} label="Cargas da instalação" />
-            </ul>
-          </div>
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            Configure os dados acima para ver a solução recomendada.
+          </p>
         ) : (
           <ResultSummary
             solution={solution}
@@ -258,6 +276,8 @@ export function SizingTab({
             <CardContent className={mainTab === 'config' ? 'space-y-4' : undefined}>
               {mainTab === 'features' && (
                 <DesiredFeaturesPicker
+                  activeTab={activeFeatureTab}
+                  onActiveTabChange={setActiveFeatureTab}
                   value={residentialOptions.desiredFeatures}
                   onChange={setDesiredFeatures}
                   whiteTariff={residentialOptions.whiteTariff}
@@ -528,6 +548,142 @@ function PhotoUploadField({
   );
 }
 
+function SummaryGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="px-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="mt-1 space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  done,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  done: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span className="flex shrink-0 items-center gap-2">
+        <span
+          aria-hidden="true"
+          className={cn('h-1.5 w-1.5 shrink-0 rounded-full', done ? 'bg-primary' : 'bg-muted-foreground/40')}
+        />
+        <span className="text-muted-foreground">{label}</span>
+      </span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-1 font-medium text-foreground">
+        <span className="min-w-0 truncate">{value}</span>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </button>
+  );
+}
+
+/** Always-visible, grouped snapshot of every selection made across the
+ * Funcionalidades and Configurações tabs, each row jumping straight back to
+ * the control that set it — so the user doesn't have to hunt for where a
+ * given setting lives. */
+function ConfigurationSummary({
+  residentialOptions,
+  loadsCount,
+  onJumpToGridType,
+  onJumpToBattery,
+  onJumpToFeature,
+}: {
+  residentialOptions: {
+    topology: BatteryTopology | null;
+    batteryModel: string | null;
+    inverterModel: string | null;
+    gridType: ResidentialGridType | null;
+    desiredFeatures: DesiredFeatureId[];
+    whiteTariff: WhiteTariffConfig | null;
+    microgrid: MicrogridConfig | null;
+    generator: GeneratorConfig | null;
+    atsPhotoUrl: string | null;
+  };
+  loadsCount: number;
+  onJumpToGridType: () => void;
+  onJumpToBattery: () => void;
+  onJumpToFeature: (id: DesiredFeatureId) => void;
+}) {
+  const { topology, batteryModel, gridType, inverterModel, desiredFeatures, whiteTariff, microgrid, generator, atsPhotoUrl } =
+    residentialOptions;
+
+  function featureValue(id: DesiredFeatureId): string {
+    if (!desiredFeatures.includes(id)) return 'Desativado';
+    switch (id) {
+      case 'backup':
+        return `${loadsCount} ${loadsCount === 1 ? 'carga' : 'cargas'}`;
+      case 'external_ats':
+        return atsPhotoUrl ? 'Ativado · foto anexada' : 'Ativado · sem foto';
+      case 'microgrid':
+        return microgrid?.onGridApparentPowerVA ? `Ativado · ${microgrid.onGridApparentPowerVA} VA` : 'Ativado';
+      case 'external_generator':
+        return generator?.apparentPowerVA ? `Ativado · ${generator.apparentPowerVA} VA` : 'Ativado';
+      case 'white_tariff':
+        return whiteTariff?.tariffSpreadPerKwh
+          ? `Ativado · R$ ${whiteTariff.tariffSpreadPerKwh}/kWh`
+          : 'Ativado';
+      default:
+        return 'Ativado';
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <SummaryGroup title="Rede & inversor">
+        <SummaryRow
+          label="Tipo de rede"
+          value={gridType ? gridLabels[gridType] : 'Não selecionado'}
+          done={Boolean(gridType)}
+          onClick={onJumpToGridType}
+        />
+        <SummaryRow
+          label="Modelo do inversor"
+          value={inverterModel ?? 'Automático'}
+          done={Boolean(inverterModel)}
+          onClick={onJumpToGridType}
+        />
+      </SummaryGroup>
+      <SummaryGroup title="Modelo de bateria">
+        <SummaryRow
+          label="Topologia"
+          value={topology ? topologyLabels[topology] : 'Não selecionada'}
+          done={Boolean(topology)}
+          onClick={onJumpToBattery}
+        />
+        <SummaryRow
+          label="Modelo da bateria"
+          value={batteryModel ?? 'Não selecionado'}
+          done={Boolean(batteryModel)}
+          onClick={onJumpToBattery}
+        />
+      </SummaryGroup>
+      <SummaryGroup title="Funcionalidades">
+        {DESIRED_FEATURE_DEFINITIONS.map((feature) => (
+          <SummaryRow
+            key={feature.id}
+            label={feature.label}
+            value={featureValue(feature.id)}
+            done={desiredFeatures.includes(feature.id)}
+            onClick={() => onJumpToFeature(feature.id)}
+          />
+        ))}
+      </SummaryGroup>
+    </div>
+  );
+}
+
 function InStockBadge() {
   const { ref, openUp, visible, onMouseEnter, onMouseLeave, onFocus, onBlur } = useTooltipFlip<HTMLSpanElement>();
   return (
@@ -596,6 +752,8 @@ function FeatureTabButton({
 }
 
 function DesiredFeaturesPicker({
+  activeTab,
+  onActiveTabChange,
   value,
   onChange,
   whiteTariff,
@@ -610,6 +768,8 @@ function DesiredFeaturesPicker({
   loadsCount,
   inverterCatalog,
 }: {
+  activeTab: DesiredFeatureId;
+  onActiveTabChange: (id: DesiredFeatureId) => void;
   value: DesiredFeatureId[];
   onChange: (value: DesiredFeatureId[]) => void;
   whiteTariff: WhiteTariffConfig | null;
@@ -626,7 +786,6 @@ function DesiredFeaturesPicker({
 }) {
   const microgridInverterCount = inverterCatalog.filter((inverter) => inverter.flags.includes('microgrid')).length;
   const tabs = DESIRED_FEATURE_DEFINITIONS;
-  const [activeTab, setActiveTab] = useState<DesiredFeatureId>('backup');
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const isBackupTab = activeTab === 'backup';
   const isActiveEnabled = value.includes(activeTab);
@@ -655,7 +814,7 @@ function DesiredFeaturesPicker({
             description={tab.description}
             enabled={value.includes(tab.id)}
             isActiveTab={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => onActiveTabChange(tab.id)}
           />
         ))}
       </div>
