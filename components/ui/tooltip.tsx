@@ -1,12 +1,17 @@
 'use client';
 
-import { useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { CircleHelp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** Minimum room (px) a tooltip needs above its trigger to open upward;
  * below this, it flips to open downward instead. */
 const MIN_SPACE_ABOVE = 90;
+
+/** Delay (ms) before a tooltip opens, so sweeping the mouse across the
+ * screen doesn't spam a tooltip for every element passed over — mirrors the
+ * delay ConfirmDeleteButton already uses for its own hover popover. */
+const SHOW_DELAY_MS = 300;
 
 /** Tracks a tooltip's visibility and vertical placement. Visibility is
  * driven from React state rather than CSS `group-hover` — with many
@@ -26,16 +31,30 @@ export function useTooltipFlip<T extends HTMLElement = HTMLElement>(): {
   const ref = useRef<T>(null);
   const [openUp, setOpenUp] = useState(true);
   const [visible, setVisible] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearPending() {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }
 
   function show() {
-    const top = ref.current?.getBoundingClientRect().top;
-    if (top !== undefined) setOpenUp(top > MIN_SPACE_ABOVE);
-    setVisible(true);
+    clearPending();
+    timeoutRef.current = setTimeout(() => {
+      const top = ref.current?.getBoundingClientRect().top;
+      if (top !== undefined) setOpenUp(top > MIN_SPACE_ABOVE);
+      setVisible(true);
+    }, SHOW_DELAY_MS);
   }
 
   function hide() {
+    clearPending();
     setVisible(false);
   }
+
+  useEffect(() => clearPending, []);
 
   return { ref, openUp, visible, onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide };
 }
