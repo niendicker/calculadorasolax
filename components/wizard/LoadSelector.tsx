@@ -511,7 +511,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             </div>
 
             {presetsSubTab === 'system' && (
-              <div className="grid gap-2 grid-cols-1">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {loadPresets.map((preset) => (
                   <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
                 ))}
@@ -579,7 +579,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
                 </p>
               ) : (
-                <div className="grid gap-2 grid-cols-1">
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {userLoadPresets.map((preset) => (
                     <div key={preset.id} className="relative">
                       <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
