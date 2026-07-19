@@ -393,6 +393,7 @@ export function AdminPanel() {
     const gridTypes = normalizeInverterGridTypes(inverterForm.grid_types);
     const payload = {
       model: inverterForm.model?.trim(),
+      nickname: inverterForm.nickname?.trim() || null,
       power_kw: toNumber(inverterForm.power_kw),
       standard_power_kva: toNumber(inverterForm.standard_power_kva),
       peak_power_kva: toNumber(inverterForm.peak_power_kva),
@@ -441,6 +442,7 @@ export function AdminPanel() {
     const beforeData = batteryForm.id ? batteries.find((row) => row.id === batteryForm.id) : null;
     const payload = {
       model: batteryForm.model?.trim(),
+      nickname: batteryForm.nickname?.trim() || null,
       capacity_kwh: toNumber(batteryForm.capacity_kwh),
       topology: batteryForm.topology,
       standard_power_kw:
@@ -493,6 +495,7 @@ export function AdminPanel() {
     const beforeData = accessoryForm.id ? accessories.find((row) => row.id === accessoryForm.id) : null;
     const payload = {
       model: accessoryForm.model?.trim(),
+      nickname: accessoryForm.nickname?.trim() || null,
       description: accessoryForm.description?.trim() || null,
       active: accessoryForm.active ?? true,
       image_url: accessoryForm.image_url?.trim() || null,

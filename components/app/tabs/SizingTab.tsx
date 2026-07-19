@@ -1204,7 +1204,16 @@ function BatteryModelPicker({
                 </div>
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
+                    <div className="min-w-0">
+                      {battery.nickname ? (
+                        <>
+                          <p className="min-w-0 break-words text-base font-bold leading-snug">{battery.nickname}</p>
+                          <p className="min-w-0 break-words text-xs text-muted-foreground">{battery.model}</p>
+                        </>
+                      ) : (
+                        <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
+                      )}
+                    </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
                         <InStockBadge />
@@ -1348,7 +1357,16 @@ function InverterModelPicker({
                 </div>
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
+                    <div className="min-w-0">
+                      {inverter.nickname ? (
+                        <>
+                          <p className="min-w-0 break-words text-base font-bold leading-snug">{inverter.nickname}</p>
+                          <p className="min-w-0 break-words text-xs text-muted-foreground">{inverter.model}</p>
+                        </>
+                      ) : (
+                        <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
+                      )}
+                    </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {inStock && (
                         <InStockBadge />

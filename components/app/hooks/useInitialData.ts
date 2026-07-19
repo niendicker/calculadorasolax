@@ -58,15 +58,15 @@ export function useInitialData({
           .order('category'),
         supabase
           .from('batteries')
-          .select('id, model, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, image_url, documents')
+          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, image_url, documents')
           .order('model'),
         supabase
           .from('inverters')
-          .select('id, model, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, image_url, documents, flags')
+          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, image_url, documents, flags')
           .order('model'),
         supabase
           .from('accessories')
-          .select('id, model, description, image_url, documents')
+          .select('id, model, nickname, description, image_url, documents')
           .eq('active', true)
           .order('model'),
         supabase
@@ -142,6 +142,7 @@ export function useInitialData({
           batteryData.map((row) => ({
             id: row.id,
             model: row.model,
+            nickname: row.nickname ?? null,
             capacityKwh: Number(row.capacity_kwh),
             topology: row.topology as 'HV' | 'LV',
             standardPowerKw: row.standard_power_kw === null ? null : Number(row.standard_power_kw),
@@ -158,6 +159,7 @@ export function useInitialData({
           inverterData.map((row) => ({
             id: row.id,
             model: row.model,
+            nickname: row.nickname ?? null,
             topology: row.topology as 'HV' | 'LV' | 'BOTH',
             phases: Number(row.phases),
             standardPowerKva: row.standard_power_kva === null ? null : Number(row.standard_power_kva),
@@ -175,6 +177,7 @@ export function useInitialData({
           accessoryData.map((row) => ({
             id: row.id,
             model: row.model,
+            nickname: row.nickname ?? null,
             description: row.description,
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],

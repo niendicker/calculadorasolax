@@ -108,6 +108,7 @@ describe('useInitialData: logged-out visitor', () => {
       {
         id: 'b1',
         model: 'TP-HS3.6',
+        nickname: null,
         capacityKwh: 3.6,
         topology: 'HV',
         standardPowerKw: 1.8,

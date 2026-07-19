@@ -107,6 +107,20 @@ export function BatteriesEditor(props: {
           <Field label="Modelo">
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
           </Field>
+          <Field
+            label={
+              <InfoLabel
+                label="Apelido"
+                tip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico nos cards de bateria."
+              />
+            }
+          >
+            <Input
+              value={form.nickname ?? ''}
+              onChange={(event) => setForm({ ...form, nickname: event.target.value })}
+              placeholder="Ex.: Bateria Compacta"
+            />
+          </Field>
           <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (
             <>

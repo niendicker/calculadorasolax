@@ -83,6 +83,8 @@ export const productEditorTabOptions: { value: ProductEditorTab; label: string }
 export interface InverterRow {
   id: string;
   model: string;
+  /** Optional friendly name, shown to end users more prominently than `model` when set. */
+  nickname?: string | null;
   power_kw: number;
   standard_power_kva: number | null;
   peak_power_kva: number | null;
@@ -104,6 +106,8 @@ export interface InverterRow {
 export interface BatteryRow {
   id: string;
   model: string;
+  /** Optional friendly name, shown to end users more prominently than `model` when set. */
+  nickname?: string | null;
   capacity_kwh: number;
   topology: BatteryTopology;
   standard_power_kw: number | null;
@@ -123,6 +127,8 @@ export interface BatteryRow {
 export interface AccessoryRow {
   id: string;
   model: string;
+  /** Optional friendly name, shown to end users more prominently than `model` when set. */
+  nickname?: string | null;
   description: string | null;
   active: boolean;
   image_url: string | null;
@@ -288,6 +294,7 @@ export const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
 
 export const emptyInverter: Partial<InverterRow> = {
   model: '',
+  nickname: '',
   power_kw: 0,
   standard_power_kva: 0,
   peak_power_kva: 0,
@@ -308,6 +315,7 @@ export const emptyInverter: Partial<InverterRow> = {
 
 export const emptyBattery: Partial<BatteryRow> = {
   model: '',
+  nickname: '',
   capacity_kwh: 0,
   topology: 'HV',
   standard_power_kw: null,
@@ -326,6 +334,7 @@ export const emptyBattery: Partial<BatteryRow> = {
 
 export const emptyAccessory: Partial<AccessoryRow> = {
   model: '',
+  nickname: '',
   description: '',
   active: true,
   image_url: '',

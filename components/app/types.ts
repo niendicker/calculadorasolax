@@ -20,6 +20,8 @@ export interface ProductMedia {
 export interface BatteryCatalogOption {
   id: string;
   model: string;
+  /** Optional friendly name set by the admin; shown to users more prominently than `model` when set. */
+  nickname?: string | null;
   capacityKwh: number;
   topology: 'HV' | 'LV';
   standardPowerKw: number | null;
@@ -32,6 +34,8 @@ export interface BatteryCatalogOption {
 export interface InverterCatalogOption {
   id: string;
   model: string;
+  /** Optional friendly name set by the admin; shown to users more prominently than `model` when set. */
+  nickname?: string | null;
   topology: 'HV' | 'LV' | 'BOTH';
   phases: number;
   standardPowerKva: number | null;
@@ -45,6 +49,8 @@ export interface InverterCatalogOption {
 export interface AccessoryCatalogOption {
   id: string;
   model: string;
+  /** Optional friendly name set by the admin; shown to users more prominently than `model` when set. */
+  nickname?: string | null;
   description: string | null;
   imageUrl: string | null;
   documents: ProductDocument[];

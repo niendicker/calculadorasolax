@@ -12,6 +12,7 @@ import {
   CatalogLayout,
   EditorModal,
   Field,
+  InfoLabel,
   InlineOptionTabs,
   MediaSummary,
   NumberWithUnitField,
@@ -184,6 +185,20 @@ export function AccessoriesEditor(props: {
         <>
           <Field label="Modelo">
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
+          </Field>
+          <Field
+            label={
+              <InfoLabel
+                label="Apelido"
+                tip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico."
+              />
+            }
+          >
+            <Input
+              value={form.nickname ?? ''}
+              onChange={(event) => setForm({ ...form, nickname: event.target.value })}
+              placeholder="Ex.: Kit de Fixação"
+            />
           </Field>
           <InlineOptionTabs options={accessoryEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (

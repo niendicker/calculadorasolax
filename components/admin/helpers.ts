@@ -20,12 +20,12 @@ import {
 } from './types';
 
 export const INVERTER_COLUMNS =
-  'id, model, power_kw, standard_power_kva, peak_power_kva, phases, topology, grid_types, max_battery_qty, battery_ports, battery_voltage_min_v, battery_voltage_max_v, battery_current_max_a, max_power_per_phase_w, flags, pv_oversizing_percent, image_url, documents';
+  'id, model, nickname, power_kw, standard_power_kva, peak_power_kva, phases, topology, grid_types, max_battery_qty, battery_ports, battery_voltage_min_v, battery_voltage_max_v, battery_current_max_a, max_power_per_phase_w, flags, pv_oversizing_percent, image_url, documents';
 
 export const BATTERY_COLUMNS =
-  'id, model, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, nominal_voltage_v, voltage_min_v, voltage_max_v, recommended_current_a, max_current_a, flags, max_association_qty, image_url, documents';
+  'id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, nominal_voltage_v, voltage_min_v, voltage_max_v, recommended_current_a, max_current_a, flags, max_association_qty, image_url, documents';
 
-export const ACCESSORY_COLUMNS = 'id, model, description, active, image_url, documents';
+export const ACCESSORY_COLUMNS = 'id, model, nickname, description, active, image_url, documents';
 
 export const LOAD_CATALOG_COLUMNS = 'id, name_pt, name_en, name_zh, power_w, category, ip_in_ratio, active';
 

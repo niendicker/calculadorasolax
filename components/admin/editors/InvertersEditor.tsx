@@ -24,6 +24,7 @@ import {
   CatalogLayout,
   EditorModal,
   Field,
+  InfoLabel,
   InlineOptionTabs,
   MediaSummary,
   NumberWithUnitField,
@@ -180,6 +181,20 @@ export function InvertersEditor(props: {
         <>
           <Field label="Modelo">
             <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
+          </Field>
+          <Field
+            label={
+              <InfoLabel
+                label="Apelido"
+                tip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico nos cards de inversor."
+              />
+            }
+          >
+            <Input
+              value={form.nickname ?? ''}
+              onChange={(event) => setForm({ ...form, nickname: event.target.value })}
+              placeholder="Ex.: Inversor Compacto"
+            />
           </Field>
           <InlineOptionTabs options={inverterEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (
