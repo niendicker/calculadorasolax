@@ -1545,14 +1545,16 @@ function ResultSummary({
           label="Nominal"
           value={metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'}
           unit="kVA"
+          accent
         />
         <Metric
           icon={Zap}
           label="Pico"
           value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
           unit="kVA"
+          accent
         />
-        <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" />
+        <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" accent />
       </div>
       <Separator />
       <div className="rounded-lg border bg-background p-3">

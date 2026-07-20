@@ -715,7 +715,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   {
                     value: 'largest-surge' as const,
                     label: 'Só a maior carga',
-                    tip: 'Pico = soma nominal de todas as cargas + o maior excedente de partida (potência × (IP/IN − 1)) entre elas, assumindo que só um motor/compressor parte por vez. Uma carga pequena com IP/IN alto pesa menos que uma carga grande com IP/IN baixo.',
+                    tip: 'Pico = soma nominal de todas as cargas + o maior excedente de partida entre elas, assumindo que só uma carga parte por vez.',
                   },
                   {
                     value: 'select' as const,
@@ -1113,7 +1113,6 @@ function LoadCard({
   const [draftDropdownOpen, setDraftDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const isDraft = load.powerW === 0;
-  const dragHintTip = useTooltipFlip<HTMLDivElement>();
   const powerTip = useTooltipFlip<HTMLSpanElement>();
   const peakTip = useTooltipFlip<HTMLSpanElement>();
   const dailyTip = useTooltipFlip<HTMLSpanElement>();
@@ -1422,11 +1421,6 @@ function LoadCard({
 
   return (
     <div
-      ref={canDragToPhase ? dragHintTip.ref : undefined}
-      onMouseEnter={canDragToPhase ? dragHintTip.onMouseEnter : undefined}
-      onMouseLeave={canDragToPhase ? dragHintTip.onMouseLeave : undefined}
-      onFocus={canDragToPhase ? dragHintTip.onFocus : undefined}
-      onBlur={canDragToPhase ? dragHintTip.onBlur : undefined}
       className={cn('relative rounded-lg border bg-card text-sm', canDragToPhase && 'cursor-grab active:cursor-grabbing')}
       draggable={canDragToPhase}
       onDragStart={
@@ -1439,14 +1433,6 @@ function LoadCard({
           : undefined
       }
     >
-      {canDragToPhase && (
-        <TooltipBubble
-          openUp={dragHintTip.openUp}
-          visible={dragHintTip.visible && !powerTip.visible && !peakTip.visible && !dailyTip.visible}
-        >
-          Arraste para uma fase em &quot;Potência por fase&quot; para reconectar
-        </TooltipBubble>
-      )}
       <div
         role="button"
         tabIndex={0}

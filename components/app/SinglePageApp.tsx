@@ -279,7 +279,7 @@ export function SinglePageApp() {
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-background">
-      <div className="mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr] xl:grid-cols-[240px_minmax(0,1fr)_320px]">
+      <div className="mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr] xl:grid-cols-[240px_minmax(0,1fr)_384px]">
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">

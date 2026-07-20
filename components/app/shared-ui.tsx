@@ -28,15 +28,30 @@ export function Metric({
   value,
   unit,
   icon: Icon,
+  accent,
 }: {
   label: string;
   value: string;
   unit?: string;
   icon?: LucideIcon;
+  /** Tints the card toward the primary color — used to visually set the
+   * calculated Solução metrics apart from the Resumo tab's target values,
+   * since both render the same Nominal/Pico/Energia layout otherwise. */
+  accent?: boolean;
 }) {
   return (
-    <div className="rounded-lg border bg-background px-2 py-2.5">
-      <div className="flex items-center gap-1 text-[0.7rem] whitespace-nowrap text-muted-foreground">
+    <div
+      className={cn(
+        'rounded-lg border px-2 py-2.5',
+        accent ? 'border-primary/30 bg-primary/5' : 'bg-background'
+      )}
+    >
+      <div
+        className={cn(
+          'flex items-center gap-1 text-[0.7rem] whitespace-nowrap',
+          accent ? 'text-primary' : 'text-muted-foreground'
+        )}
+      >
         {Icon && <Icon className="h-3 w-3 shrink-0" />}
         <span>{label}</span>
       </div>
