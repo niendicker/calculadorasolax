@@ -27,15 +27,10 @@ export default function proxy(request: NextRequest): NextResponse {
     return intlMiddleware(request);
   }
 
-  const acceptLanguage = request.headers.get('accept-language') ?? '';
-  const preferred = acceptLanguage
-    .split(',')
-    .map((part) => part.split(';')[0].trim().split('-')[0].toLowerCase())
-    .find((lang) => LOCALES.includes(lang));
-
-  const locale = preferred ?? DEFAULT_LOCALE;
+  // Routing intentionally disables Accept-Language detection (see i18n/routing.ts) —
+  // an unprefixed URL always redirects to the default locale, never the browser's.
   const url = request.nextUrl.clone();
-  url.pathname = `/${locale}${pathname === '/' ? '' : pathname}`;
+  url.pathname = `/${DEFAULT_LOCALE}${pathname === '/' ? '' : pathname}`;
   return NextResponse.redirect(url);
 }
 
