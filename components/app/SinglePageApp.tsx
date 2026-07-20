@@ -559,10 +559,14 @@ export function SinglePageApp() {
           <AppFooter />
         </div>
 
-        <aside className="hidden xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:px-4 xl:py-5">
-          <div ref={setSummaryEl} className="space-y-4" />
+        {/* No padding here on purpose: this is the scrolling ancestor sticky
+         * children (see SizingTab's summary header) measure `top` against —
+         * padding on the scroller itself creates a gap those children can't
+         * cleanly cancel. Padding instead lives on each child below. */}
+        <aside className="hidden xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card">
+          <div ref={setSummaryEl} className="space-y-4 px-4 py-5" />
           {!summaryActive && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-sm text-muted-foreground">
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
               <p>Nenhum resumo disponível para esta seção.</p>
             </div>
           )}
