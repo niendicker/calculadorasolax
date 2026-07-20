@@ -306,11 +306,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   const [selectedCategory, setSelectedCategory] = useState<string | null>(() =>
     defaultToMine && userLoadCatalog.length > 0 ? MINE_FILTER : null
   );
-  const [manualName, setManualName] = useState('');
-  const [manualPower, setManualPower] = useState('');
-  const [manualHours, setManualHours] = useState('');
-  const [manualQty, setManualQty] = useState('1');
-  const [manualIpIn, setManualIpIn] = useState('1');
   const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
   const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
@@ -380,39 +375,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       })
     );
     setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
-  }
-
-  function handleAddManual() {
-    if (!manualName || !manualPower) return;
-    const powerW = Number(manualPower);
-    const ipInRatio = Number(manualIpIn) || 1;
-    const added = addLoad(
-      newLoad({
-        name: manualName,
-        powerW,
-        hoursPerDay: Number(manualHours) || 4,
-        qty: Number(manualQty) || 1,
-        ipInRatio,
-      })
-    );
-    if (!added) {
-      setLoadLimitMessage(limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
-      return;
-    }
-    setLoadLimitMessage(null);
-    setCatalogSaveWarning(null);
-    saveManualLoadToCatalog({ name: manualName, powerW, ipInRatio }).catch((error) => {
-      const message =
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.';
-      setCatalogSaveWarning(message);
-    });
-    setManualName('');
-    setManualPower('');
-    setManualHours('');
-    setManualQty('1');
-    setManualIpIn('1');
   }
 
   function handleAddPreset(preset: { loads: LoadPresetLoad[] }) {
@@ -638,29 +600,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
           {activeSubTab === 'catalog' && (
           <div className="space-y-2">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <SearchInput value={search} onChange={setSearch} placeholder={t('search_placeholder')} />
-              </div>
-              <AddCustomLoadPopover
-                name={manualName}
-                power={manualPower}
-                hours={manualHours}
-                qty={manualQty}
-                ipIn={manualIpIn}
-                nameLabel={t('name')}
-                powerLabel={t('power')}
-                hoursLabel={t('hours')}
-                qtyLabel={t('qty')}
-                addLabel={t('add_load')}
-                onNameChange={setManualName}
-                onPowerChange={setManualPower}
-                onHoursChange={setManualHours}
-                onQtyChange={setManualQty}
-                onIpInChange={setManualIpIn}
-                onAdd={handleAddManual}
-              />
-            </div>
+            <SearchInput value={search} onChange={setSearch} placeholder={t('search_placeholder')} />
 
             {categories.length > 0 && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 border-b">
@@ -757,7 +697,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
       <div className="space-y-3">
           {residentialOptions.loads.length > 0 && (
-          <div className="rounded-md border bg-card p-3">
+          <div>
             <p className="text-xs font-medium">
               <InfoLabel
                 label="Modo de cálculo do pico (IP/IN)"
@@ -921,186 +861,6 @@ function AddLoadTile({ onAdd, disabled }: { onAdd: () => void; disabled: boolean
       <Plus className="h-5 w-5" />
       Adicionar carga
     </button>
-  );
-}
-
-function AddCustomLoadPopover({
-  name,
-  power,
-  hours,
-  qty,
-  ipIn,
-  nameLabel,
-  powerLabel,
-  hoursLabel,
-  qtyLabel,
-  addLabel,
-  onNameChange,
-  onPowerChange,
-  onHoursChange,
-  onQtyChange,
-  onIpInChange,
-  onAdd,
-}: {
-  name: string;
-  power: string;
-  hours: string;
-  qty: string;
-  ipIn: string;
-  nameLabel: string;
-  powerLabel: string;
-  hoursLabel: string;
-  qtyLabel: string;
-  addLabel: string;
-  onNameChange: (value: string) => void;
-  onPowerChange: (value: string) => void;
-  onHoursChange: (value: string) => void;
-  onQtyChange: (value: string) => void;
-  onIpInChange: (value: string) => void;
-  onAdd: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => setMounted(true), []);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const rect = triggerRef.current?.getBoundingClientRect();
-    const popRect = popoverRef.current?.getBoundingClientRect();
-    if (!rect || !popRect) return;
-
-    const gap = 8;
-    const margin = 12;
-
-    let left = rect.right - popRect.width;
-    left = Math.min(Math.max(margin, left), window.innerWidth - popRect.width - margin);
-
-    const spaceBelow = window.innerHeight - rect.bottom - gap;
-    const spaceAbove = rect.top - gap;
-    let top =
-      spaceBelow >= popRect.height || spaceBelow >= spaceAbove ? rect.bottom + gap : rect.top - gap - popRect.height;
-    top = Math.min(Math.max(margin, top), window.innerHeight - popRect.height - margin);
-
-    setPosition({ top, left });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [open]);
-
-  function handleAdd() {
-    if (!name || !power) return;
-    onAdd();
-    setOpen(false);
-  }
-
-  return (
-    <>
-      <Button ref={triggerRef} type="button" variant="outline" onClick={() => setOpen((current) => !current)}>
-        <Plus className="h-4 w-4" />
-        Adicionar
-      </Button>
-
-      {open &&
-        mounted &&
-        createPortal(
-          <div
-            ref={popoverRef}
-            role="dialog"
-            aria-label="Adicionar nova carga"
-            className="fixed z-[1000] w-80 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg"
-            style={{
-              top: position.top,
-              left: position.left,
-              visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible',
-            }}
-          >
-            <p className="text-sm font-medium">Nova carga</p>
-            <div className="mt-3 space-y-3">
-              <div>
-                <Label htmlFor="popover-load-name">{nameLabel}</Label>
-                <Input
-                  id="popover-load-name"
-                  value={name}
-                  onChange={(event) => onNameChange(event.target.value)}
-                  placeholder="Nome do equipamento"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="popover-load-power">{powerLabel}</Label>
-                  <Input
-                    id="popover-load-power"
-                    type="number"
-                    min={1}
-                    value={power}
-                    onChange={(event) => onPowerChange(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="popover-load-hours">{hoursLabel}</Label>
-                  <Input
-                    id="popover-load-hours"
-                    type="number"
-                    min={0.5}
-                    max={24}
-                    step={0.5}
-                    value={hours}
-                    onChange={(event) => onHoursChange(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="popover-load-qty">{qtyLabel}</Label>
-                  <Input
-                    id="popover-load-qty"
-                    type="number"
-                    min={1}
-                    value={qty}
-                    onChange={(event) => onQtyChange(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="popover-load-ipin">IP/IN</Label>
-                  <Input
-                    id="popover-load-ipin"
-                    type="number"
-                    min={1}
-                    step={0.1}
-                    value={ipIn}
-                    onChange={(event) => onIpInChange(event.target.value)}
-                  />
-                </div>
-              </div>
-              <Button className="w-full" onClick={handleAdd} disabled={!name || !power}>
-                <Plus className="h-4 w-4" />
-                {addLabel}
-              </Button>
-            </div>
-          </div>,
-          document.body
-        )}
-    </>
   );
 }
 

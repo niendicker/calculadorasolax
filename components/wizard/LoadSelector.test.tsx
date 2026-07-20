@@ -323,76 +323,6 @@ describe('LoadSelector: catalog', () => {
   });
 });
 
-describe('LoadSelector: manual add popover', () => {
-  it('adds a manually entered load and resets the form', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({
-        tableResults: {
-          user_load_catalog: {
-            data: { id: 'new-u', name: 'Ventilador', power_w: 120, ip_in_ratio: 1, created_at: '', updated_at: '' },
-            error: null,
-          },
-        },
-      })
-    );
-    renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Adicionar nova carga' });
-    fireEvent.change(within(dialog).getByLabelText('Nome'), { target: { value: 'Ventilador' } });
-    fireEvent.change(within(dialog).getByLabelText('Potência (VA)'), { target: { value: '120' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Adicionar carga/ }));
-
-    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ name: 'Ventilador', powerW: 120 });
-    await waitFor(() => expect(useWizardStore.getState().userLoadCatalog).toHaveLength(1));
-  });
-
-  it('keeps the load in the calculation but warns with the limit message when the personal catalog is full', async () => {
-    createClientMock.mockReturnValue(createSupabaseMock());
-    useWizardStore.setState({
-      userLoadCatalog: Array.from({ length: ACCOUNT_LIMITS.userLoadCatalog }, (_, i) => ({
-        id: `u${i}`,
-        name: `Carga ${i}`,
-        powerW: 100,
-        ipInRatio: 1,
-        createdAt: '',
-        updatedAt: '',
-      })),
-    });
-    renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Adicionar nova carga' });
-    fireEvent.change(within(dialog).getByLabelText('Nome'), { target: { value: 'Carga nova' } });
-    fireEvent.change(within(dialog).getByLabelText('Potência (VA)'), { target: { value: '100' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Adicionar carga/ }));
-
-    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
-    await waitFor(() => expect(screen.getByText(/Limite de/)).toBeInTheDocument());
-  });
-
-  it('keeps the load in the calculation but shows a generic warning on any other save failure', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'db down' } } } })
-    );
-    renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Adicionar nova carga' });
-    fireEvent.change(within(dialog).getByLabelText('Nome'), { target: { value: 'Carga nova' } });
-    fireEvent.change(within(dialog).getByLabelText('Potência (VA)'), { target: { value: '100' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Adicionar carga/ }));
-
-    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
-    await waitFor(() =>
-      expect(screen.getByText(/não foi possível salvá-la em "Minhas Cargas"/)).toBeInTheDocument()
-    );
-  });
-});
-
 describe('LoadSelector: blank load card', () => {
   it('shows the "Adicionar carga" tile even with no loads yet, and adds a blank draft card on click', () => {
     renderLoadSelector();
@@ -608,25 +538,6 @@ describe('LoadSelector: added loads list', () => {
 
     expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(1);
     expect(usageFactorInput).toHaveValue(1);
-  });
-
-  it('does not add a "Fator de uso" field to the catalog registration forms', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({
-        tableResults: {
-          user_load_catalog: {
-            data: { id: 'new-u', name: 'Ventilador', power_w: 120, ip_in_ratio: 1, created_at: '', updated_at: '' },
-            error: null,
-          },
-        },
-      })
-    );
-    renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Adicionar nova carga' });
-    expect(within(dialog).queryByText(/Fator de uso/)).not.toBeInTheDocument();
   });
 
   it('removes a load from the list', () => {

@@ -456,8 +456,17 @@ export const useWizardStore = create<WizardStore>()(
           return;
         }
 
+        // FIFO instead of blocking: once at the limit, saving a new custom load
+        // silently evicts the oldest one to make room, rather than erroring out.
         if (get().userLoadCatalog.length >= ACCOUNT_LIMITS.userLoadCatalog) {
-          throw new Error(limitReachedMessage('cargas personalizadas', ACCOUNT_LIMITS.userLoadCatalog));
+          const oldest = [...get().userLoadCatalog].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          )[0];
+          if (oldest) {
+            const { error: deleteError } = await supabase.from('user_load_catalog').delete().eq('id', oldest.id);
+            if (deleteError) throw deleteError;
+            set((s) => ({ userLoadCatalog: s.userLoadCatalog.filter((item) => item.id !== oldest.id) }));
+          }
         }
 
         const { data, error } = await supabase

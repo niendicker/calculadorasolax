@@ -930,22 +930,28 @@ describe('saveManualLoadToCatalog', () => {
     expect(s.userLoadCatalog[0]).toMatchObject({ id: 'u1', powerW: 5500, ipInRatio: 2 });
   });
 
-  it('throws a limit-reached error at ACCOUNT_LIMITS.userLoadCatalog for a genuinely new item', async () => {
-    createClientMock.mockReturnValue(createSupabaseMock());
-    useWizardStore.setState({
-      userLoadCatalog: Array.from({ length: ACCOUNT_LIMITS.userLoadCatalog }, (_, i) => ({
-        id: `u${i}`,
-        name: `Carga ${i}`,
-        powerW: 100,
-        ipInRatio: 1,
-        createdAt: '',
-        updatedAt: '',
-      })),
-    });
+  it('evicts the oldest item (by createdAt) instead of throwing once at ACCOUNT_LIMITS.userLoadCatalog', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: userLoadRow, error: null } } })
+    );
+    const existing = Array.from({ length: ACCOUNT_LIMITS.userLoadCatalog }, (_, i) => ({
+      id: `u${i}`,
+      name: `Carga ${i}`,
+      powerW: 100,
+      ipInRatio: 1,
+      createdAt: new Date(2026, 0, i + 1).toISOString(),
+      updatedAt: '',
+    }));
+    useWizardStore.setState({ userLoadCatalog: existing });
 
-    await expect(
-      useWizardStore.getState().saveManualLoadToCatalog({ name: 'Nova carga', powerW: 100, ipInRatio: 1 })
-    ).rejects.toThrow(/Limite de/);
+    await useWizardStore.getState().saveManualLoadToCatalog({ name: 'Nova carga', powerW: 100, ipInRatio: 1 });
+
+    const s = useWizardStore.getState();
+    // The oldest entry (u0, earliest createdAt) is gone, the newly saved item took its place,
+    // and the total count stays at the limit instead of growing past it.
+    expect(s.userLoadCatalog).toHaveLength(ACCOUNT_LIMITS.userLoadCatalog);
+    expect(s.userLoadCatalog.some((item) => item.id === 'u0')).toBe(false);
+    expect(s.userLoadCatalog.some((item) => item.id === 'row-u1')).toBe(true);
   });
 
   it('inserts a new item and appends it, sorted by name', async () => {
