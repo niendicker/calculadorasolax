@@ -81,6 +81,8 @@ export function InvertersEditor(props: {
   const [activeFormTab, setActiveFormTab] = useState<InverterFormTab>('general');
   const [essFormOpen, setEssFormOpen] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<'all' | '1' | '2' | '3'>('all');
+  const [selectedVoltage, setSelectedVoltage] = useState<'all' | '220V' | '380V'>('all');
+  const [selectedBatteryTopology, setSelectedBatteryTopology] = useState<'all' | 'HV' | 'LV'>('all');
   const [query, setQuery] = useState('');
 
   const inverterEssRows = useMemo(
@@ -118,13 +120,63 @@ export function InvertersEditor(props: {
     ];
   }, [props.rows]);
 
+  const rowsByPhase = useMemo(
+    () => (selectedPhase === 'all' ? props.rows : props.rows.filter((row) => String(row.phases) === selectedPhase)),
+    [props.rows, selectedPhase]
+  );
+
+  // Only three-phase inverters carry a 220V/380V distinction — 220V and 380V
+  // aren't mutually exclusive on a row, since one model's grid_types can list both.
+  const voltageOptions = useMemo(() => {
+    if (selectedPhase !== '3') return [];
+    let count220 = 0;
+    let count380 = 0;
+    for (const row of rowsByPhase) {
+      const grids = normalizeInverterGridTypes(row.grid_types);
+      if (grids.includes('3P_220V')) count220++;
+      if (grids.includes('3P_380V')) count380++;
+    }
+    return [
+      { value: 'all', label: 'Todas', count: rowsByPhase.length },
+      ...(count220 > 0 ? [{ value: '220V', label: '220V', count: count220 }] : []),
+      ...(count380 > 0 ? [{ value: '380V', label: '380V', count: count380 }] : []),
+    ];
+  }, [rowsByPhase, selectedPhase]);
+
+  const rowsByVoltage = useMemo(() => {
+    if (selectedPhase !== '3' || selectedVoltage === 'all') return rowsByPhase;
+    const target = selectedVoltage === '220V' ? '3P_220V' : '3P_380V';
+    return rowsByPhase.filter((row) => normalizeInverterGridTypes(row.grid_types).includes(target));
+  }, [rowsByPhase, selectedPhase, selectedVoltage]);
+
+  // Mono/bifásico inverters carry the HV/LV distinction instead — a row whose
+  // topology is 'BOTH' supports either, so it counts toward (and stays
+  // visible under) both groups rather than being excluded from either.
+  const batteryTopologyOptions = useMemo(() => {
+    if (selectedPhase !== '1' && selectedPhase !== '2') return [];
+    let countHv = 0;
+    let countLv = 0;
+    for (const row of rowsByVoltage) {
+      if (row.topology === 'HV' || row.topology === 'BOTH') countHv++;
+      if (row.topology === 'LV' || row.topology === 'BOTH') countLv++;
+    }
+    return [
+      { value: 'all', label: 'Todas', count: rowsByVoltage.length },
+      ...(countHv > 0 ? [{ value: 'HV', label: 'HV', count: countHv }] : []),
+      ...(countLv > 0 ? [{ value: 'LV', label: 'LV', count: countLv }] : []),
+    ];
+  }, [rowsByVoltage, selectedPhase]);
+
+  const rowsByBatteryTopology = useMemo(() => {
+    if ((selectedPhase !== '1' && selectedPhase !== '2') || selectedBatteryTopology === 'all') return rowsByVoltage;
+    return rowsByVoltage.filter((row) => row.topology === selectedBatteryTopology || row.topology === 'BOTH');
+  }, [rowsByVoltage, selectedPhase, selectedBatteryTopology]);
+
   const visibleRows = useMemo(() => {
-    const byPhase =
-      selectedPhase === 'all' ? props.rows : props.rows.filter((row) => String(row.phases) === selectedPhase);
     const q = query.trim().toLowerCase();
-    if (!q) return byPhase;
-    return byPhase.filter((row) => row.model.toLowerCase().includes(q));
-  }, [props.rows, selectedPhase, query]);
+    if (!q) return rowsByBatteryTopology;
+    return rowsByBatteryTopology.filter((row) => row.model.toLowerCase().includes(q));
+  }, [rowsByBatteryTopology, query]);
 
   function openNew() {
     setForm(emptyInverter);
@@ -167,13 +219,33 @@ export function InvertersEditor(props: {
       }
       filter={
         phaseOptions.length > 2 ? (
-          <div className="rounded-lg border bg-card p-3">
+          <div className="space-y-3 rounded-lg border bg-card p-3">
             <SegmentedTabs
               label="Padrão de rede"
               value={selectedPhase}
               options={phaseOptions}
-              onChange={(value) => setSelectedPhase(value as typeof selectedPhase)}
+              onChange={(value) => {
+                setSelectedPhase(value as typeof selectedPhase);
+                setSelectedVoltage('all');
+                setSelectedBatteryTopology('all');
+              }}
             />
+            {voltageOptions.length > 2 && (
+              <SegmentedTabs
+                label="Tensão"
+                value={selectedVoltage}
+                options={voltageOptions}
+                onChange={(value) => setSelectedVoltage(value as typeof selectedVoltage)}
+              />
+            )}
+            {batteryTopologyOptions.length > 2 && (
+              <SegmentedTabs
+                label="Tipo de bateria"
+                value={selectedBatteryTopology}
+                options={batteryTopologyOptions}
+                onChange={(value) => setSelectedBatteryTopology(value as typeof selectedBatteryTopology)}
+              />
+            )}
           </div>
         ) : undefined
       }

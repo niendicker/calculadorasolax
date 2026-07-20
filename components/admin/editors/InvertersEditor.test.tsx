@@ -122,6 +122,63 @@ describe('InvertersEditor: listing', () => {
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
     expect(screen.queryByText('X3-Hybrid-10.0kW-G4')).not.toBeInTheDocument();
   });
+
+  it('sub-groups Trifásico by grid voltage (220V/380V), and resets the voltage filter when switching phases', () => {
+    render(
+      <ControlledEditor
+        rows={[
+          makeInverter({ id: 'i1', model: 'Tri-220', phases: 3, grid_types: ['3P_220V'] }),
+          makeInverter({ id: 'i2', model: 'Tri-380', phases: 3, grid_types: ['3P_380V'] }),
+          makeInverter({ id: 'i3', model: 'Mono-220', phases: 1, grid_types: ['1P_220V'] }),
+        ]}
+      />
+    );
+
+    // The voltage sub-tabs only appear once "Trifásico" is selected.
+    expect(screen.queryByRole('button', { name: /^220V/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Trifásico/ }));
+    expect(screen.getByText('Tri-220')).toBeInTheDocument();
+    expect(screen.getByText('Tri-380')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^220V/ }));
+    expect(screen.getByText('Tri-220')).toBeInTheDocument();
+    expect(screen.queryByText('Tri-380')).not.toBeInTheDocument();
+
+    // Switching back to phase "Todos" resets the voltage filter and hides its tabs again.
+    fireEvent.click(screen.getByRole('button', { name: /Todos/ }));
+    expect(screen.queryByRole('button', { name: /^220V/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Tri-380')).toBeInTheDocument();
+  });
+
+  it('sub-groups Monofásico/Bifásico by battery topology (HV/LV), keeping BOTH-topology rows visible in either group', () => {
+    render(
+      <ControlledEditor
+        rows={[
+          makeInverter({ id: 'i1', model: 'Mono-HV', phases: 1, topology: 'HV', grid_types: ['1P_220V'] }),
+          makeInverter({ id: 'i2', model: 'Mono-LV', phases: 1, topology: 'LV', grid_types: ['1P_220V'] }),
+          makeInverter({ id: 'i3', model: 'Mono-Both', phases: 1, topology: 'BOTH', grid_types: ['1P_220V'] }),
+          makeInverter({ id: 'i4', model: 'Tri-HV', phases: 3, topology: 'HV', grid_types: ['3P_380V'] }),
+        ]}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /^HV/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Monofásico/ }));
+    expect(screen.getByText('Mono-HV')).toBeInTheDocument();
+    expect(screen.getByText('Mono-LV')).toBeInTheDocument();
+    expect(screen.getByText('Mono-Both')).toBeInTheDocument();
+    expect(screen.queryByText('Tri-HV')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^HV/ }));
+    expect(screen.getByText('Mono-HV')).toBeInTheDocument();
+    expect(screen.getByText('Mono-Both')).toBeInTheDocument();
+    expect(screen.queryByText('Mono-LV')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Todos/ }));
+    expect(screen.queryByRole('button', { name: /^HV/ })).not.toBeInTheDocument();
+  });
 });
 
 describe('InvertersEditor: general form', () => {
