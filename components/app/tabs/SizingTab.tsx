@@ -1519,7 +1519,6 @@ function ResultSummary({
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
-  const batteryMedia = productMedia[solution.batteryModel];
   const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog);
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff);
@@ -1573,27 +1572,27 @@ function ResultSummary({
         <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
-      <div className="rounded-lg border bg-background p-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Battery className="h-4 w-4 text-primary" />
-          Bateria
-        </div>
-        {batteryMedia?.nickname ? (
-          <>
-            <p className="mt-1 text-lg font-bold">{batteryMedia.nickname}</p>
-            <p className="text-xs text-muted-foreground">{solution.batteryModel}</p>
-          </>
-        ) : (
-          <p className="mt-1 text-lg font-semibold">{solution.batteryModel}</p>
-        )}
-        <p className="text-sm text-muted-foreground">
-          Quantidade:{' '}
-          {batteryParts.length > 1
-            ? batteryParts.map((part) => `${part.qty}× ${productMedia[part.model]?.nickname || part.model}`).join(' + ')
-            : `x${solution.batteryQty}`}
-        </p>
-        <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
-      </div>
+      {batteryParts.map((part, index) => {
+        const partMedia = productMedia[part.model];
+        return (
+          <div key={part.model} className="rounded-lg border bg-background p-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Battery className="h-4 w-4 text-primary" />
+              {index === 0 ? 'Bateria' : 'Bateria (expansão)'}
+            </div>
+            {partMedia?.nickname ? (
+              <>
+                <p className="mt-1 text-lg font-bold">{partMedia.nickname}</p>
+                <p className="text-xs text-muted-foreground">{part.model}</p>
+              </>
+            ) : (
+              <p className="mt-1 text-lg font-semibold">{part.model}</p>
+            )}
+            <p className="text-sm text-muted-foreground">Quantidade: x{part.qty}</p>
+            <ProductAttachments media={partMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
+          </div>
+        );
+      })}
 
       {solution.pvPowerKw !== null && (
         <div className="rounded-lg border bg-background p-3">

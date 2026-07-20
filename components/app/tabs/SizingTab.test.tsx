@@ -184,6 +184,22 @@ describe('SizingTab: summary panel', () => {
     expect(screen.getByText('Bateria', { selector: 'div' }).parentElement).toHaveTextContent('TP-HS3.6');
   });
 
+  it('gives the expansion/Slave battery its own card when the Master has an expansionModel and qty > 1', () => {
+    const masterBattery: BatteryCatalogOption = { ...battery, model: 'T58 V2 Master', expansionModel: 'T58 Slave' };
+    setup({
+      batteryCatalog: [masterBattery, lvBattery],
+      solution: { ...fakeSolution, batteryModel: 'T58 V2 Master', batteryQty: 3 },
+    });
+
+    const masterCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
+    expect(masterCard).toHaveTextContent('T58 V2 Master');
+    expect(masterCard).toHaveTextContent('Quantidade: x1');
+
+    const expansionCard = screen.getByText('Bateria (expansão)', { selector: 'div' }).parentElement;
+    expect(expansionCard).toHaveTextContent('T58 Slave');
+    expect(expansionCard).toHaveTextContent('Quantidade: x2');
+  });
+
   it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh on the Resumo tab', () => {
     setup({ nominalW: 3000, peakW: 5500, dailyKwh: 12.34 });
     expect(screen.getByText('3.00')).toBeInTheDocument();

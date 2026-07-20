@@ -1111,6 +1111,7 @@ function LoadCard({
   const [draftName, setDraftName] = useState(load.name);
   const [draftPower, setDraftPower] = useState(load.powerW ? String(load.powerW) : '');
   const [draftDropdownOpen, setDraftDropdownOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const isDraft = load.powerW === 0;
   const dragHintTip = useTooltipFlip<HTMLDivElement>();
   const powerTip = useTooltipFlip<HTMLSpanElement>();
@@ -1128,6 +1129,24 @@ function LoadCard({
         .slice(0, 5),
     };
   }, [draftName, userLoadCatalog, loadCatalog, nameKey]);
+
+  // Flattened in the same "Minhas" then "Sistema" order they're rendered in,
+  // so arrow-key navigation can walk both groups as a single list.
+  const draftSuggestionsFlat = useMemo(
+    () => [
+      ...draftMatches.mine.map((item) => ({ name: item.name, powerW: item.powerW, ipInRatio: item.ipInRatio })),
+      ...draftMatches.system.map((item) => ({
+        name: item[nameKey as keyof CatalogItem] as string,
+        powerW: item.powerW,
+        ipInRatio: item.ipInRatio ?? 1,
+      })),
+    ],
+    [draftMatches, nameKey]
+  );
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [draftName]);
 
   function selectDraftSuggestion(name: string, powerW: number, ipInRatio: number) {
     setDraftName(name);
@@ -1264,9 +1283,29 @@ function LoadCard({
                 onFocus={() => setDraftDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setDraftDropdownOpen(false), 150)}
                 onKeyDown={(event) => {
+                  if (draftDropdownOpen && draftSuggestionsFlat.length > 0 && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                    event.preventDefault();
+                    setHighlightedIndex((current) => {
+                      const next = event.key === 'ArrowDown' ? current + 1 : current - 1;
+                      if (next < 0) return draftSuggestionsFlat.length - 1;
+                      if (next >= draftSuggestionsFlat.length) return 0;
+                      return next;
+                    });
+                    return;
+                  }
                   if (event.key === 'Enter') {
                     event.preventDefault();
-                    confirmDraft();
+                    const picked =
+                      draftDropdownOpen && highlightedIndex >= 0 ? draftSuggestionsFlat[highlightedIndex] : undefined;
+                    if (picked) {
+                      selectDraftSuggestion(picked.name, picked.powerW, picked.ipInRatio);
+                    } else {
+                      confirmDraft();
+                    }
+                    return;
+                  }
+                  if (event.key === 'Escape' && draftDropdownOpen) {
+                    setDraftDropdownOpen(false);
                   }
                 }}
                 className="mt-1"
@@ -1278,13 +1317,20 @@ function LoadCard({
                       <p className="px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
                         Minhas
                       </p>
-                      {draftMatches.mine.map((item) => (
+                      {draftMatches.mine.map((item, index) => (
                         <button
                           key={item.id}
                           type="button"
+                          ref={(el) => {
+                            if (index === highlightedIndex) el?.scrollIntoView?.({ block: 'nearest' });
+                          }}
                           onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setHighlightedIndex(index)}
                           onClick={() => selectDraftSuggestion(item.name, item.powerW, item.ipInRatio)}
-                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                          className={cn(
+                            'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
+                            index === highlightedIndex && 'bg-muted'
+                          )}
                         >
                           <span className="truncate">{item.name}</span>
                           <span className="shrink-0 text-xs text-muted-foreground">{item.powerW}VA</span>
@@ -1297,11 +1343,17 @@ function LoadCard({
                       <p className="px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
                         Sistema
                       </p>
-                      {draftMatches.system.map((item) => (
+                      {draftMatches.system.map((item, index) => {
+                        const flatIndex = draftMatches.mine.length + index;
+                        return (
                         <button
                           key={item.id}
                           type="button"
+                          ref={(el) => {
+                            if (flatIndex === highlightedIndex) el?.scrollIntoView?.({ block: 'nearest' });
+                          }}
                           onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setHighlightedIndex(flatIndex)}
                           onClick={() =>
                             selectDraftSuggestion(
                               item[nameKey as keyof CatalogItem] as string,
@@ -1309,12 +1361,16 @@ function LoadCard({
                               item.ipInRatio ?? 1
                             )
                           }
-                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                          className={cn(
+                            'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted',
+                            flatIndex === highlightedIndex && 'bg-muted'
+                          )}
                         >
                           <span className="truncate">{item[nameKey as keyof CatalogItem] as string}</span>
                           <span className="shrink-0 text-xs text-muted-foreground">{item.powerW}VA</span>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

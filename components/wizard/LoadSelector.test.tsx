@@ -377,6 +377,55 @@ describe('LoadSelector: blank load card', () => {
     expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
   });
 
+  it('lets arrow keys move the highlight across suggestions, and Enter picks the highlighted one', () => {
+    useWizardStore.setState({
+      userLoadCatalog: [
+        userCatalogItem,
+        { id: 'u2', name: 'Bomba grande', powerW: 1500, ipInRatio: 2, createdAt: '', updatedAt: '' },
+      ],
+    });
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    const nameInput = screen.getByLabelText('Nome');
+    fireEvent.change(nameInput, { target: { value: 'Bomba' } });
+
+    expect(screen.getByText('Bomba dágua')).toBeInTheDocument();
+    expect(screen.getByText('Bomba grande')).toBeInTheDocument();
+
+    fireEvent.keyDown(nameInput, { key: 'ArrowDown' });
+    fireEvent.keyDown(nameInput, { key: 'ArrowDown' });
+    fireEvent.keyDown(nameInput, { key: 'Enter' });
+
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({
+      name: 'Bomba grande',
+      powerW: 1500,
+      ipInRatio: 2,
+    });
+  });
+
+  it('wraps the highlight from the first suggestion back to the last on ArrowUp', () => {
+    useWizardStore.setState({
+      userLoadCatalog: [
+        userCatalogItem,
+        { id: 'u2', name: 'Bomba grande', powerW: 1500, ipInRatio: 2, createdAt: '', updatedAt: '' },
+      ],
+    });
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    const nameInput = screen.getByLabelText('Nome');
+    fireEvent.change(nameInput, { target: { value: 'Bomba' } });
+
+    fireEvent.keyDown(nameInput, { key: 'ArrowUp' });
+    fireEvent.keyDown(nameInput, { key: 'Enter' });
+
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({
+      name: 'Bomba grande',
+      powerW: 1500,
+    });
+  });
+
   it('picks a "Sistema" suggestion from the global catalog', () => {
     renderLoadSelector();
 
