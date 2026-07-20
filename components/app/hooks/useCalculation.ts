@@ -47,12 +47,17 @@ export function useCalculation({
       function resolveFromCatalog(
         model: string | undefined,
         table: 'inverters' | 'batteries' | 'accessories',
-        catalog: { model: string; imageUrl: string | null; documents: ProductMedia['documents'] }[]
+        catalog: {
+          model: string;
+          nickname?: string | null;
+          imageUrl: string | null;
+          documents: ProductMedia['documents'];
+        }[]
       ) {
         if (!model) return;
         const match = catalog.find((item) => item.model === model);
         if (match) {
-          media[model] = { model, imageUrl: match.imageUrl, documents: match.documents };
+          media[model] = { model, nickname: match.nickname ?? null, imageUrl: match.imageUrl, documents: match.documents };
         } else {
           missing.push({ table, model });
         }
@@ -71,13 +76,13 @@ export function useCalculation({
 
         const [inverterResult, batteryResult, accessoryResult] = await Promise.all([
           missingByTable.inverters.length > 0
-            ? supabase.from('inverters').select('model, image_url, documents').in('model', missingByTable.inverters)
+            ? supabase.from('inverters').select('model, nickname, image_url, documents').in('model', missingByTable.inverters)
             : Promise.resolve({ data: [] }),
           missingByTable.batteries.length > 0
-            ? supabase.from('batteries').select('model, image_url, documents').in('model', missingByTable.batteries)
+            ? supabase.from('batteries').select('model, nickname, image_url, documents').in('model', missingByTable.batteries)
             : Promise.resolve({ data: [] }),
           missingByTable.accessories.length > 0
-            ? supabase.from('accessories').select('model, image_url, documents').in('model', missingByTable.accessories)
+            ? supabase.from('accessories').select('model, nickname, image_url, documents').in('model', missingByTable.accessories)
             : Promise.resolve({ data: [] }),
         ]);
 
@@ -85,10 +90,15 @@ export function useCalculation({
           ...(inverterResult.data ?? []),
           ...(batteryResult.data ?? []),
           ...(accessoryResult.data ?? []),
-        ] as { model: string; image_url: string | null; documents: ProductMedia['documents'] | null }[];
+        ] as { model: string; nickname: string | null; image_url: string | null; documents: ProductMedia['documents'] | null }[];
 
         for (const row of rows) {
-          media[row.model] = { model: row.model, imageUrl: row.image_url, documents: row.documents ?? [] };
+          media[row.model] = {
+            model: row.model,
+            nickname: row.nickname ?? null,
+            imageUrl: row.image_url,
+            documents: row.documents ?? [],
+          };
         }
       }
 

@@ -83,11 +83,12 @@ Deno.serve(async (req) => {
     const batteryTopology = batteryTopologyMap[options.topology];
     const desiredFeatures = options.desiredFeatures ?? [];
 
-    // Target storage: daily consumption x 0.5 (50% coverage), stored in Wh.
-    // When Tarifa Branca is active, this (and minRatedPowerW/targetPowerW below)
-    // is combined with the customer's tariff-window requirements instead of
-    // used as-is.
-    const targetEnergyWh = effectiveTargetEnergyWh(desiredFeatures, options.whiteTariff, dailyKwh * 0.5 * 1000);
+    // Target storage: the full daily consumption, stored in Wh, with no
+    // operational margin for now — the proposed solution's available energy
+    // must cover at least what's consumed in a day. When Tarifa Branca is
+    // active, this (and minRatedPowerW/targetPowerW below) is combined with
+    // the customer's tariff-window requirements instead of used as-is.
+    const targetEnergyWh = effectiveTargetEnergyWh(desiredFeatures, options.whiteTariff, dailyKwh * 1000);
     // The white-tariff window's required power must be *sustained*, so it has
     // to raise the inverter's continuous rating (rated_power_w), not just its
     // brief-surge rating (peak_power_w) — otherwise an inverter that can only
@@ -154,7 +155,7 @@ Deno.serve(async (req) => {
       .limit(500);
 
     if (usefulEnergyWhPerBattery === null) {
-      solutionQuery = solutionQuery.gte('available_energy_wh', targetEnergyWh * 0.8);
+      solutionQuery = solutionQuery.gte('available_energy_wh', targetEnergyWh);
     }
 
     if (options.batteryModel) {
@@ -180,7 +181,7 @@ Deno.serve(async (req) => {
 
     if (usefulEnergyWhPerBattery !== null) {
       compatibleSolutions = compatibleSolutions.filter(
-        (solution) => usefulEnergyWhPerBattery! * solution.battery_quantity >= targetEnergyWh * 0.8
+        (solution) => usefulEnergyWhPerBattery! * solution.battery_quantity >= targetEnergyWh
       );
 
       if (!compatibleSolutions.length) {

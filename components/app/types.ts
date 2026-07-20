@@ -13,6 +13,8 @@ export interface InlineProfile {
 
 export interface ProductMedia {
   model: string;
+  /** Optional friendly name set by the admin; shown more prominently than `model` when set. */
+  nickname?: string | null;
   imageUrl: string | null;
   documents: ProductDocument[];
 }

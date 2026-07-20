@@ -1442,6 +1442,7 @@ function ResultSummary({
         economic={solution}
         withMicrogrid={solution.microgridAlternative}
         onChoose={onChooseMicrogridVariant}
+        productMedia={productMedia}
       />
     );
   }
@@ -1453,7 +1454,14 @@ function ResultSummary({
           <Zap className="h-4 w-4 text-accent" />
           Inversor
         </div>
-        <p className="mt-1 text-lg font-semibold">{solution.inverterModel}</p>
+        {inverterMedia?.nickname ? (
+          <>
+            <p className="mt-1 text-lg font-bold">{inverterMedia.nickname}</p>
+            <p className="text-xs text-muted-foreground">{solution.inverterModel}</p>
+          </>
+        ) : (
+          <p className="mt-1 text-lg font-semibold">{solution.inverterModel}</p>
+        )}
         <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty ?? 1}</p>
         <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
@@ -1463,7 +1471,14 @@ function ResultSummary({
           <Battery className="h-4 w-4 text-primary" />
           Bateria
         </div>
-        <p className="mt-1 text-lg font-semibold">{solution.batteryModel}</p>
+        {batteryMedia?.nickname ? (
+          <>
+            <p className="mt-1 text-lg font-bold">{batteryMedia.nickname}</p>
+            <p className="text-xs text-muted-foreground">{solution.batteryModel}</p>
+          </>
+        ) : (
+          <p className="mt-1 text-lg font-semibold">{solution.batteryModel}</p>
+        )}
         <p className="text-sm text-muted-foreground">Quantidade: x{solution.batteryQty}</p>
         <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
@@ -1487,7 +1502,7 @@ function ResultSummary({
               return (
                 <div key={accessory}>
                   <Badge variant="secondary">
-                    {model}
+                    {productMedia[model]?.nickname || model}
                     {optional ? ' (opcional)' : ''}
                   </Badge>
                   <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
@@ -1549,10 +1564,12 @@ function MicrogridVariantChoice({
   economic,
   withMicrogrid,
   onChoose,
+  productMedia,
 }: {
   economic: Solution;
   withMicrogrid: Solution;
   onChoose: (variant: 'economic' | 'microgrid') => void;
+  productMedia: Record<string, ProductMedia>;
 }) {
   const options: { variant: 'economic' | 'microgrid'; label: string; description: string; solution: Solution }[] = [
     {
@@ -1590,13 +1607,15 @@ function MicrogridVariantChoice({
               <div>
                 <p className="text-xs text-muted-foreground">Inversor</p>
                 <p className="font-medium">
-                  {option.solution.inverterModel} · x{option.solution.inverterQty ?? 1}
+                  {productMedia[option.solution.inverterModel]?.nickname || option.solution.inverterModel} · x
+                  {option.solution.inverterQty ?? 1}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Bateria</p>
                 <p className="font-medium">
-                  {option.solution.batteryModel} · x{option.solution.batteryQty}
+                  {productMedia[option.solution.batteryModel]?.nickname || option.solution.batteryModel} · x
+                  {option.solution.batteryQty}
                 </p>
               </div>
             </div>
