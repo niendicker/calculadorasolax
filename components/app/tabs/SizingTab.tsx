@@ -4,11 +4,13 @@ import { useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Battery,
+  BatteryCharging,
   Calculator,
   Check,
   ChevronRight,
   FileText,
   FolderOpen,
+  Gauge,
   ImagePlus,
   ListChecks,
   Loader2,
@@ -69,6 +71,7 @@ export function SizingTab({
   inverterCatalog,
   availableInverterModels,
   solution,
+  nominalW,
   peakW,
   dailyKwh,
   canCalculate,
@@ -115,6 +118,7 @@ export function SizingTab({
   inverterCatalog: InverterCatalogOption[];
   availableInverterModels: Set<string> | null;
   solution: Solution | null;
+  nominalW: number;
   peakW: number;
   dailyKwh: number;
   canCalculate: boolean;
@@ -201,9 +205,10 @@ export function SizingTab({
       </PageHeader>
 
       <PageSummary>
-        <div className="grid grid-cols-2 gap-3">
-          <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
-          <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
+        <div className="grid grid-cols-3 gap-2">
+          <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
+          <Metric icon={Zap} label="Pico" value={(peakW / 1000).toFixed(2)} unit="kVA" />
+          <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
         </div>
         <Separator />
         <ConfigurationSummary
@@ -649,7 +654,7 @@ function ConfigurationSummary({
           onClick={onJumpToGridType}
         />
         <SummaryRow
-          label="Modelo do inversor"
+          label="Inversor"
           value={inverterModel ?? 'Automático'}
           done={Boolean(inverterModel)}
           onClick={onJumpToGridType}
@@ -663,7 +668,7 @@ function ConfigurationSummary({
           onClick={onJumpToBattery}
         />
         <SummaryRow
-          label="Modelo da bateria"
+          label="Bateria"
           value={batteryModel ?? 'Não selecionado'}
           done={Boolean(batteryModel)}
           onClick={onJumpToBattery}

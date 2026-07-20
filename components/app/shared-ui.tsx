@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, Search, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,27 @@ import type { ProductDocument } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { ProductMedia } from './types';
 
-export function Metric({ label, value }: { label: string; value: string }) {
+export function Metric({
+  label,
+  value,
+  unit,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  icon?: LucideIcon;
+}) {
   return (
-    <div className="rounded-lg border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
+    <div className="rounded-lg border bg-background px-2 py-2.5">
+      <div className="flex items-center gap-1 text-[0.7rem] whitespace-nowrap text-muted-foreground">
+        {Icon && <Icon className="h-3 w-3 shrink-0" />}
+        <span>{label}</span>
+      </div>
+      <div className="mt-1">
+        <p className="text-xl font-bold leading-none tabular-nums">{value}</p>
+        {unit && <p className="text-xs font-normal whitespace-nowrap text-muted-foreground">{unit}</p>}
+      </div>
     </div>
   );
 }

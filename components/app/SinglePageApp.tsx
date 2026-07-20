@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
-import { useWizardStore, totalDailyKwh, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
+import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
@@ -168,6 +168,7 @@ export function SinglePageApp() {
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
+  const nominalW = totalNominalW(residentialOptions.loads);
 
   const { loading, error, canCalculate, calculate, productMedia } = useCalculation({
     supabase,
@@ -524,6 +525,7 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
               solution={solution}
+              nominalW={nominalW}
               peakW={peakW}
               dailyKwh={dailyKwh}
               canCalculate={Boolean(canCalculate)}

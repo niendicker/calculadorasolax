@@ -769,6 +769,12 @@ export const useWizardStore = create<WizardStore>()(
   )
 );
 
+/** Sum of nominal (steady-state) power, ignoring each load's IP/IN surge
+ * factor — as opposed to totalPeakW, which accounts for startup surges. */
+export function totalNominalW(loads: SingleLoad[]): number {
+  return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
+}
+
 export function totalDailyKwh(loads: SingleLoad[]): number {
   return loads.reduce(
     (acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty * (l.usageFactor ?? 1)) / 1000,

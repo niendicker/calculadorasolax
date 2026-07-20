@@ -78,6 +78,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     inverterCatalog: [inverter],
     availableInverterModels: null,
     solution: null,
+    nominalW: 0,
     peakW: 0,
     dailyKwh: 0,
     canCalculate: false,
@@ -170,16 +171,19 @@ describe('SizingTab: summary panel', () => {
 
   it('shows the resolved solution once calculated', () => {
     setup({ solution: fakeSolution });
-    // The same model names also appear in the picker cards below, so scope
-    // to the "Inversor"/"Bateria" result blocks specifically.
-    expect(screen.getByText('Inversor').closest('div')?.parentElement).toHaveTextContent('X1-Hybrid-5.0kW-G4');
-    expect(screen.getByText('Bateria').closest('div')?.parentElement).toHaveTextContent('TP-HS3.6');
+    // "Inversor"/"Bateria" also label rows in the summary panel above, so
+    // scope to the <div> icon+label header of the result blocks specifically
+    // (the summary panel uses a <span> for its row label).
+    expect(screen.getByText('Inversor', { selector: 'div' }).parentElement).toHaveTextContent('X1-Hybrid-5.0kW-G4');
+    expect(screen.getByText('Bateria', { selector: 'div' }).parentElement).toHaveTextContent('TP-HS3.6');
   });
 
-  it('shows Pico/Consumo metrics from peakW/dailyKwh', () => {
-    setup({ peakW: 5500, dailyKwh: 12.34 });
-    expect(screen.getByText('5.50 kVA')).toBeInTheDocument();
-    expect(screen.getByText('12.34 kWh/dia')).toBeInTheDocument();
+  it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh', () => {
+    setup({ nominalW: 3000, peakW: 5500, dailyKwh: 12.34 });
+    expect(screen.getByText('3.00')).toBeInTheDocument();
+    expect(screen.getByText('5.50')).toBeInTheDocument();
+    expect(screen.getByText('12.34')).toBeInTheDocument();
+    expect(screen.getByText('kWh/dia')).toBeInTheDocument();
   });
 });
 
