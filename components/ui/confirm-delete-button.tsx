@@ -11,6 +11,8 @@ interface ConfirmDeleteButtonProps {
   description?: string;
   confirmLabel?: string;
   icon?: React.ReactNode;
+  /** When set, the trigger renders as a labeled button instead of an icon-only one. */
+  label?: string;
   disabled?: boolean;
   onConfirm: () => void;
 }
@@ -21,6 +23,7 @@ export function ConfirmDeleteButton({
   description = 'Essa ação não pode ser desfeita.',
   confirmLabel = 'Excluir',
   icon,
+  label,
   disabled,
   onConfirm,
 }: ConfirmDeleteButtonProps) {
@@ -98,7 +101,7 @@ export function ConfirmDeleteButton({
         ref={triggerRef}
         type="button"
         variant="destructive"
-        size="icon-sm"
+        size={label ? 'sm' : 'icon-sm'}
         aria-label={ariaLabel}
         aria-expanded={open}
         disabled={disabled}
@@ -109,6 +112,7 @@ export function ConfirmDeleteButton({
         onClick={openWithDelay}
       >
         {icon ?? <Trash2 className="h-4 w-4" />}
+        {label}
       </Button>
 
       {open && mounted && createPortal(

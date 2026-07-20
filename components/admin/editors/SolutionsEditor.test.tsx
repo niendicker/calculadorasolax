@@ -105,6 +105,7 @@ function ControlledEditor(overrides: {
   onApplyGenerated?: (generated: GeneratedSolutionPayload[], afterApply?: () => void, cleanupStale?: boolean) => void;
   onRemove?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onDeleteMany?: (ids: string[]) => void;
   removingIds?: Set<string>;
   saving?: boolean;
 }) {
@@ -137,6 +138,7 @@ function ControlledEditor(overrides: {
       onApplyGenerated={overrides.onApplyGenerated ?? vi.fn()}
       onRemove={overrides.onRemove ?? vi.fn()}
       onDelete={overrides.onDelete ?? vi.fn()}
+      onDeleteMany={overrides.onDeleteMany ?? vi.fn()}
       removingIds={overrides.removingIds ?? new Set()}
       saving={overrides.saving ?? false}
     />
@@ -282,6 +284,39 @@ describe('SolutionsEditor: inactivate/delete', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Excluir combinação code-1' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }, { timeout: 1000 }));
     expect(onDelete).toHaveBeenCalledWith('s1');
+  });
+
+  it('"Limpar todas" deletes only the currently filtered/visible solutions', async () => {
+    const onDeleteMany = vi.fn();
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' }), makeInverter({ id: 'i2', model: 'X3-Hybrid-10.0kW-G4' })]}
+        batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' })]}
+        solutions={[
+          makeSolution({ id: 's1', solution_code: 'code-1', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS3.6' }),
+          makeSolution({ id: 's2', solution_code: 'code-2', inverter_model: 'X3-Hybrid-10.0kW-G4', battery_model: 'TP-HS3.6' }),
+        ]}
+        onDeleteMany={onDeleteMany}
+      />
+    );
+
+    // Filter down to just the X1 inverter's combinations before clearing.
+    fireEvent.click(screen.getByRole('button', { name: /X1-Hybrid-5.0kW-G4/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar todas as combinações filtradas' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Excluir todas' }, { timeout: 1000 }));
+    expect(onDeleteMany).toHaveBeenCalledWith(['s1']);
+  });
+
+  it('hides "Limpar todas" when the filtered list is empty', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
+        batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' })]}
+        solutions={[]}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Limpar todas as combinações filtradas' })).not.toBeInTheDocument();
   });
 });
 

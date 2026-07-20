@@ -51,6 +51,7 @@ export function SolutionsEditor(props: {
   onApplyGenerated: (generatedSolutions: GeneratedSolutionPayload[], afterApply?: () => void, cleanupStale?: boolean) => void;
   onRemove: (id: string) => void;
   onDelete: (id: string) => void;
+  onDeleteMany: (ids: string[]) => void;
   removingIds: Set<string>;
   saving: boolean;
 }) {
@@ -267,6 +268,17 @@ export function SolutionsEditor(props: {
                   <Plus className="h-4 w-4" />
                   Nova combinação
                 </Button>
+                {visibleSolutions.length > 0 && (
+                  <ConfirmDeleteButton
+                    ariaLabel="Limpar todas as combinações filtradas"
+                    title="Excluir combinações filtradas?"
+                    description={`${visibleSolutions.length} combinação${visibleSolutions.length > 1 ? 'ões' : ''} correspondente${visibleSolutions.length > 1 ? 's' : ''} ao filtro atual será${visibleSolutions.length > 1 ? 'ão' : ''} removida${visibleSolutions.length > 1 ? 's' : ''} permanentemente.`}
+                    confirmLabel="Excluir todas"
+                    label="Limpar todas"
+                    disabled={props.saving}
+                    onConfirm={() => props.onDeleteMany(visibleSolutions.map((s) => s.id))}
+                  />
+                )}
               </>
             )}
             {mainTab === 'generated' && (

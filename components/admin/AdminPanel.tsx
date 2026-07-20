@@ -913,6 +913,41 @@ export function AdminPanel() {
     });
   }
 
+  async function removeManySolutions(ids: string[]) {
+    if (ids.length === 0) return;
+    setSaving(true);
+    setRemovingIds((current) => new Set([...current, ...ids]));
+    setStatus(`Removendo ${ids.length} combinações...`);
+    setError(null);
+    const { error: removeError } = await supabase.from('approved_solutions').delete().in('id', ids);
+    setSaving(false);
+
+    if (removeError) {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      return setFailure(removeError.message);
+    }
+    await recordActivityLog({
+      entityType: 'solution',
+      action: 'delete',
+      targetId: null,
+      targetLabel: `${ids.length} combinações`,
+      summary: `Removeu ${ids.length} combinações filtradas em massa.`,
+      beforeData: { ids },
+      afterData: null,
+    });
+    setSuccess(`${ids.length} combinações removidas com sucesso.`);
+    await loadResource('solutions');
+    setRemovingIds((current) => {
+      const next = new Set(current);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+  }
+
   async function sendPasswordReset(email: string) {
     if (!email) return;
     setSaving(true);
@@ -1040,6 +1075,7 @@ export function AdminPanel() {
                     onApplyGenerated={applyGeneratedSolutions}
                     onRemove={(id) => removeRow('approved_solutions', id, true)}
                     onDelete={(id) => removeRow('approved_solutions', id)}
+                    onDeleteMany={removeManySolutions}
                     removingIds={removingIds}
                     saving={saving}
                   />

@@ -1,7 +1,7 @@
 'use client';
 
-import type { ComponentProps, ReactNode } from 'react';
-import { EyeOff, FileText, ImageIcon, Pencil, Plus, Save, X } from 'lucide-react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
+import { EyeOff, FileText, ImageIcon, Loader2, Pencil, Plus, Save, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,8 @@ import type { ProductDocument } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export { InfoLabel };
+
+const MAX_PRODUCT_ASSET_BYTES = 20 * 1024 * 1024;
 
 export function Field({
   label,
@@ -186,17 +188,63 @@ export function ProductMediaFields({
   ) => Promise<string>;
 }) {
   const currentDocuments = documents ?? [];
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+
+  function uploadErrorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : '';
+    if (/exceeded the maximum allowed size|payload too large|too large/i.test(message)) {
+      return 'Arquivo muito grande. O limite é de 20MB.';
+    }
+    if (/mime type|not supported|invalid.*type/i.test(message)) {
+      return 'Tipo de arquivo não suportado.';
+    }
+    return message || 'Não foi possível enviar o arquivo. Tente novamente.';
+  }
+
+  // Matches the 'product-assets' bucket's file_size_limit (see migration
+  // 0048) — checking client-side gives instant feedback instead of waiting
+  // on a round trip just to get the same rejection back from Storage.
+  function oversized(file: File): boolean {
+    return file.size > MAX_PRODUCT_ASSET_BYTES;
+  }
 
   async function uploadImage(file: File | undefined) {
     if (!file) return;
-    const url = await uploadAsset(table, model, 'image', file);
-    setImageUrl(url);
+    setImageError(null);
+    if (oversized(file)) {
+      setImageError('Arquivo muito grande. O limite é de 20MB.');
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const url = await uploadAsset(table, model, 'image', file);
+      setImageUrl(url);
+    } catch (error) {
+      setImageError(uploadErrorMessage(error));
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
   async function uploadDocument(file: File | undefined) {
     if (!file) return;
-    const url = await uploadAsset(table, model, 'documents', file);
-    setDocuments([...currentDocuments, { name: file.name, url }]);
+    setDocumentError(null);
+    if (oversized(file)) {
+      setDocumentError('Arquivo muito grande. O limite é de 20MB.');
+      return;
+    }
+    setUploadingDocument(true);
+    try {
+      const url = await uploadAsset(table, model, 'documents', file);
+      setDocuments([...currentDocuments, { name: file.name, url }]);
+    } catch (error) {
+      setDocumentError(uploadErrorMessage(error));
+    } finally {
+      setUploadingDocument(false);
+    }
   }
 
   return (
@@ -235,14 +283,25 @@ export function ProductMediaFields({
             />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <label className={`${buttonVariants({ variant: 'outline' })} cursor-pointer`}>
-                <ImageIcon className="h-4 w-4" />
-                Enviar imagem
+            <label
+              className={cn(
+                buttonVariants({ variant: 'outline' }),
+                'cursor-pointer',
+                uploadingImage && 'pointer-events-none opacity-60'
+              )}
+            >
+                {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                {uploadingImage ? 'Enviando...' : 'Enviar imagem'}
                 <input
                   className="sr-only"
                   type="file"
                   accept="image/*"
-                  onChange={(event) => uploadImage(event.target.files?.[0])}
+                  disabled={uploadingImage}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    uploadImage(file);
+                  }}
                 />
             </label>
             {imageUrl && (
@@ -252,6 +311,7 @@ export function ProductMediaFields({
               </Button>
             )}
           </div>
+          {imageError && <p className="text-xs text-destructive">{imageError}</p>}
         </div>
       </div>
 
@@ -269,14 +329,25 @@ export function ProductMediaFields({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <label className={`${buttonVariants({ variant: 'outline' })} cursor-pointer`}>
-                <FileText className="h-4 w-4" />
-                Enviar arquivo
+            <label
+              className={cn(
+                buttonVariants({ variant: 'outline' }),
+                'cursor-pointer',
+                uploadingDocument && 'pointer-events-none opacity-60'
+              )}
+            >
+                {uploadingDocument ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                {uploadingDocument ? 'Enviando...' : 'Enviar arquivo'}
                 <input
                   className="sr-only"
                   type="file"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-                  onChange={(event) => uploadDocument(event.target.files?.[0])}
+                  disabled={uploadingDocument}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    uploadDocument(file);
+                  }}
                 />
             </label>
             <Button
@@ -288,6 +359,7 @@ export function ProductMediaFields({
               Adicionar link
             </Button>
           </div>
+          {documentError && <p className="text-xs text-destructive">{documentError}</p>}
         </div>
 
         <div className="grid gap-2">

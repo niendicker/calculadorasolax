@@ -45,9 +45,12 @@ const inverter: InverterCatalogOption = {
 const fakeSolution: Solution = {
   inverterId: 'i1',
   inverterModel: 'X1-Hybrid-5.0kW-G4',
+  inverterRatedPowerW: 5000,
+  inverterPeakPowerW: 7000,
   batteryId: 'b1',
   batteryModel: 'TP-HS3.6',
   batteryQty: 1,
+  availableEnergyWh: 3240,
   pvPowerKw: 5,
   accessories: [],
 };
@@ -158,10 +161,13 @@ describe('SizingTab: title bar', () => {
 });
 
 describe('SizingTab: summary panel', () => {
-  it('shows the requirement checklist with no solution yet', () => {
+  it('shows the requirement checklist with no solution yet, and the placeholder in Solução', () => {
     setup();
-    expect(screen.getByText('Configure os dados acima para ver a solução recomendada.')).toBeInTheDocument();
+    // Defaults to the "Resumo" tab.
     expect(screen.getByText('Topologia')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    expect(screen.getByText('Configure os dados na aba Resumo e calcule para ver a solução recomendada.')).toBeInTheDocument();
   });
 
   it('shows the error alert when present', () => {
@@ -178,12 +184,22 @@ describe('SizingTab: summary panel', () => {
     expect(screen.getByText('Bateria', { selector: 'div' }).parentElement).toHaveTextContent('TP-HS3.6');
   });
 
-  it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh', () => {
+  it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh on the Resumo tab', () => {
     setup({ nominalW: 3000, peakW: 5500, dailyKwh: 12.34 });
     expect(screen.getByText('3.00')).toBeInTheDocument();
     expect(screen.getByText('5.50')).toBeInTheDocument();
     expect(screen.getByText('12.34')).toBeInTheDocument();
     expect(screen.getByText('kWh/dia')).toBeInTheDocument();
+  });
+
+  it('shows solution Nominal/Pico/Energia on the Solução tab, capped by the weaker of battery vs inverter', () => {
+    setup({ solution: fakeSolution });
+    // Battery: 1.8kW/2.5kW peak x1; Inverter: 5000W rated/7000W peak — battery is the bottleneck for both.
+    expect(screen.getByText('1.80')).toBeInTheDocument();
+    expect(screen.getByText('2.50')).toBeInTheDocument();
+    // availableEnergyWh: 3240 -> 3.24 kWh
+    expect(screen.getByText('3.24')).toBeInTheDocument();
+    expect(screen.getByText('kWh', { selector: 'p' })).toBeInTheDocument();
   });
 });
 

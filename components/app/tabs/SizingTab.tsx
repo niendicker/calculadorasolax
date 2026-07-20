@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Battery,
@@ -146,6 +146,14 @@ export function SizingTab({
   const [mainTab, setMainTab] = useState<'features' | 'config'>('features');
   const [configTab, setConfigTab] = useState<'gridType' | 'battery'>('gridType');
   const [activeFeatureTab, setActiveFeatureTab] = useState<DesiredFeatureId>('backup');
+  const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
+
+  // Jump straight to the Solução tab whenever a fresh calculation finishes
+  // (success or failure) — that's where the feedback the user just asked
+  // for lives, so they shouldn't have to switch tabs manually to see it.
+  useEffect(() => {
+    if (solution || error) setSummaryTab('solucao');
+  }, [solution, error]);
 
   function jumpToGridType() {
     setMainTab('config');
@@ -205,40 +213,81 @@ export function SizingTab({
       </PageHeader>
 
       <PageSummary>
-        <div className="grid grid-cols-3 gap-2">
-          <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
-          <Metric icon={Zap} label="Pico" value={(peakW / 1000).toFixed(2)} unit="kVA" />
-          <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
+        <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções do resumo">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={summaryTab === 'resumo'}
+            onClick={() => setSummaryTab('resumo')}
+            className={cn(
+              'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+              summaryTab === 'resumo'
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            )}
+          >
+            Resumo
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={summaryTab === 'solucao'}
+            onClick={() => setSummaryTab('solucao')}
+            className={cn(
+              'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+              summaryTab === 'solucao'
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn('h-1.5 w-1.5 shrink-0 rounded-full', solution ? 'bg-primary' : 'bg-transparent')}
+            />
+            Solução
+          </button>
         </div>
-        <Separator />
-        <ConfigurationSummary
-          residentialOptions={residentialOptions}
-          loadsCount={residentialOptions.loads.length}
-          onJumpToGridType={jumpToGridType}
-          onJumpToBattery={jumpToBattery}
-          onJumpToFeature={jumpToFeature}
-        />
-        <Separator />
-        {error && (
-          <p role="alert" className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {loading ? (
-          <SolutionSkeleton />
-        ) : !solution ? (
-          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Configure os dados acima para ver a solução recomendada.
-          </p>
+        {summaryTab === 'resumo' ? (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
+              <Metric icon={Zap} label="Pico" value={(peakW / 1000).toFixed(2)} unit="kVA" />
+              <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
+            </div>
+            <Separator />
+            <ConfigurationSummary
+              residentialOptions={residentialOptions}
+              loadsCount={residentialOptions.loads.length}
+              onJumpToGridType={jumpToGridType}
+              onJumpToBattery={jumpToBattery}
+              onJumpToFeature={jumpToFeature}
+            />
+          </>
         ) : (
-          <ResultSummary
-            solution={solution}
-            onExport={exportPdf}
-            productMedia={productMedia}
-            userStockItems={userStockItems}
-            whiteTariff={residentialOptions.whiteTariff}
-            onChooseMicrogridVariant={onChooseMicrogridVariant}
-          />
+          <>
+            {error && (
+              <p role="alert" className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            {loading ? (
+              <SolutionSkeleton />
+            ) : !solution ? (
+              <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Configure os dados na aba Resumo e calcule para ver a solução recomendada.
+              </p>
+            ) : (
+              <ResultSummary
+                solution={solution}
+                batteryCatalog={batteryCatalog}
+                onExport={exportPdf}
+                productMedia={productMedia}
+                userStockItems={userStockItems}
+                whiteTariff={residentialOptions.whiteTariff}
+                onChooseMicrogridVariant={onChooseMicrogridVariant}
+              />
+            )}
+          </>
         )}
       </PageSummary>
 
@@ -1419,8 +1468,34 @@ function InverterModelPicker({
   );
 }
 
+/** Nominal/Pico for the proposed solution are capped by whichever side of the
+ * pair (battery or inverter) is weaker — the system can't exceed either. The
+ * inverter's rated/peak power already comes as solution-level totals from
+ * the API; the battery's only comes as per-unit catalog specs, so it's
+ * multiplied by batteryQty here to compare on the same basis. */
+function solutionMetrics(solution: Solution, batteryCatalog: BatteryCatalogOption[]) {
+  const batteryCat = batteryCatalog.find((battery) => battery.model === solution.batteryModel);
+  const batteryNominalW = batteryCat?.standardPowerKw != null ? batteryCat.standardPowerKw * 1000 * solution.batteryQty : null;
+  const batteryPeakW = batteryCat?.peakPowerKw != null ? batteryCat.peakPowerKw * 1000 * solution.batteryQty : null;
+  const inverterNominalW = solution.inverterRatedPowerW ?? null;
+  const inverterPeakW = solution.inverterPeakPowerW ?? null;
+
+  function minOf(a: number | null, b: number | null): number | null {
+    if (a == null) return b;
+    if (b == null) return a;
+    return Math.min(a, b);
+  }
+
+  return {
+    nominalW: minOf(batteryNominalW, inverterNominalW),
+    peakW: minOf(batteryPeakW, inverterPeakW),
+    energyKwh: (solution.availableEnergyWh ?? 0) / 1000,
+  };
+}
+
 function ResultSummary({
   solution,
+  batteryCatalog,
   onExport,
   productMedia,
   userStockItems,
@@ -1428,6 +1503,7 @@ function ResultSummary({
   onChooseMicrogridVariant,
 }: {
   solution: Solution;
+  batteryCatalog: BatteryCatalogOption[];
   onExport: () => void;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
@@ -1452,8 +1528,26 @@ function ResultSummary({
     );
   }
 
+  const metrics = solutionMetrics(solution, batteryCatalog);
+
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <Metric
+          icon={Gauge}
+          label="Nominal"
+          value={metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'}
+          unit="kVA"
+        />
+        <Metric
+          icon={Zap}
+          label="Pico"
+          value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
+          unit="kVA"
+        />
+        <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" />
+      </div>
+      <Separator />
       <div className="rounded-lg border bg-background p-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Zap className="h-4 w-4 text-accent" />

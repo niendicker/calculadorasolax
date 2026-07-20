@@ -290,6 +290,27 @@ describe('ProductMediaFields', () => {
     fireEvent.click(confirmButton);
     expect(props.setDocuments).toHaveBeenCalledWith([]);
   });
+
+  it('rejects an oversized image client-side without calling uploadAsset, and shows the size error', async () => {
+    const props = setup();
+    const bigFile = new File([new Uint8Array(21 * 1024 * 1024)], 'huge.png', { type: 'image/png' });
+
+    fireEvent.change(screen.getByLabelText(/Enviar imagem/), { target: { files: [bigFile] } });
+
+    expect(await screen.findByText('Arquivo muito grande. O limite é de 20MB.')).toBeInTheDocument();
+    expect(props.uploadAsset).not.toHaveBeenCalled();
+    expect(props.setImageUrl).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the upload error instead of failing silently when uploadAsset rejects', async () => {
+    const props = setup({ uploadAsset: vi.fn().mockRejectedValue(new Error('The object exceeded the maximum allowed size')) });
+    const file = new File(['x'], 'datasheet.pdf', { type: 'application/pdf' });
+
+    fireEvent.change(screen.getByLabelText(/Enviar arquivo/), { target: { files: [file] } });
+
+    expect(await screen.findByText('Arquivo muito grande. O limite é de 20MB.')).toBeInTheDocument();
+    expect(props.setDocuments).not.toHaveBeenCalled();
+  });
 });
 
 describe('RecordCardGrid', () => {

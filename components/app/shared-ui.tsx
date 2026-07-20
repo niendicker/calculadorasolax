@@ -11,6 +11,18 @@ import type { ProductDocument } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { ProductMedia } from './types';
 
+/** These cards are narrow (three per row in a sidebar), so a value with more
+ * digits than the common case ("0.00") can overflow the fixed text-xl size.
+ * Since it's plain digits/dot (no wrapping opportunity), shrink by length
+ * instead of measuring — cheaper than a resize observer and good enough for
+ * the range of lengths a formatted number normally takes. */
+function valueTextSizeClass(value: string) {
+  if (value.length >= 10) return 'text-xs';
+  if (value.length >= 8) return 'text-sm';
+  if (value.length >= 6) return 'text-base';
+  return 'text-xl';
+}
+
 export function Metric({
   label,
   value,
@@ -29,7 +41,7 @@ export function Metric({
         <span>{label}</span>
       </div>
       <div className="mt-1">
-        <p className="text-xl font-bold leading-none tabular-nums">{value}</p>
+        <p className={cn('break-all font-bold leading-tight tabular-nums', valueTextSizeClass(value))}>{value}</p>
         {unit && <p className="text-xs font-normal whitespace-nowrap text-muted-foreground">{unit}</p>}
       </div>
     </div>
