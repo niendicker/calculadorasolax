@@ -330,6 +330,16 @@ describe('SolutionsEditor: Geradas tab', () => {
     expect(screen.getByText('Nenhuma combinação pendente.')).toBeInTheDocument();
   });
 
+  it('excludes expansion/Slave batteries from the generation filter chips', () => {
+    const master = makeBattery({ id: 'b-master', model: 'T58 V2 Master', expansion_model: 'T58 Slave' });
+    const slave = makeBattery({ id: 'b-slave', model: 'T58 Slave' });
+    render(<ControlledEditor inverters={inverters} batteries={[master, slave]} essRules={[essRule]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));
+
+    expect(screen.getByRole('button', { name: 'T58 V2 Master' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'T58 Slave' })).not.toBeInTheDocument();
+  });
+
   it('shows a warning when no ESS rules match', () => {
     render(<ControlledEditor inverters={inverters} batteries={batteries} essRules={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));

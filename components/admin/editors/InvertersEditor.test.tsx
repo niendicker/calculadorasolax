@@ -255,6 +255,24 @@ describe('InvertersEditor: ESS compatibility tab', () => {
     expect(onSaveEss).toHaveBeenCalled();
   });
 
+  it('excludes expansion/Slave batteries from the compatible-battery toggle list', () => {
+    const master: BatteryRow = { ...battery, id: 'b-master', model: 'T58 V2 Master', expansion_model: 'T58 Slave' };
+    const slave: BatteryRow = { ...battery, id: 'b-slave', model: 'T58 Slave' };
+    render(
+      <ControlledEditor
+        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
+        batteries={[master, slave]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+
+    const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+    expect(within(essDialog).getByRole('button', { name: /T58 V2 Master/ })).toBeInTheDocument();
+    expect(within(essDialog).queryByRole('button', { name: /T58 Slave/ })).not.toBeInTheDocument();
+  });
+
   it('shows a message when the inverter topology has no compatible batteries', () => {
     render(
       <ControlledEditor

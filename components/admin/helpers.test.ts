@@ -8,6 +8,7 @@ import {
   batteryAssociationMax,
   buildRuleGeneratedSolutions,
   clampNumber,
+  expansionModelSet,
   fetchApprovedSolutions,
   formatInverterGridType,
   formatTriggerMetric,
@@ -427,6 +428,49 @@ describe('buildRuleGeneratedSolutions', () => {
     });
     const quantities = solutions.map((s) => s.battery_quantity);
     expect(quantities).toEqual([...quantities].sort((a, b) => a - b));
+  });
+});
+
+describe('expansionModelSet', () => {
+  it('collects every expansion_model referenced by any battery, ignoring null/undefined', () => {
+    const set = expansionModelSet([
+      makeBattery({ model: 'T58 V2 Master', topology: 'HV', expansion_model: 'T58 Slave' }),
+      makeBattery({ model: 'TP-HS3.6', topology: 'HV' }),
+    ]);
+    expect(set).toEqual(new Set(['T58 Slave']));
+  });
+});
+
+describe('buildRuleGeneratedSolutions: expansion/Slave battery exclusion', () => {
+  const inverter = makeInverter({ model: 'X1-Hybrid-5.0kW-G4', grid_types: ['1P_220V'], battery_ports: 1 });
+
+  it('never generates a combination whose battery_model is another battery\'s expansion_model', () => {
+    const master = makeBattery({ model: 'T58 V2 Master', topology: 'HV', expansion_model: 'T58 Slave' });
+    const slave = makeBattery({ model: 'T58 Slave', topology: 'HV' });
+    const ruleTargetingSlaveDirectly: EssCompatibilityRuleRow = {
+      id: 'rule-slave',
+      name: 'Regra com Slave direto',
+      inverter_model: 'X1-Hybrid-5.0kW-G4',
+      battery_model: 'T58 Slave',
+      battery_topology: 'HV',
+      grid_topology: null,
+      max_parallel_inverters: 1,
+      min_battery_qty: 1,
+      max_battery_qty: 2,
+      battery_configs: [],
+      comment: null,
+      active: true,
+      created_at: '',
+    };
+
+    const solutions = buildRuleGeneratedSolutions({
+      inverters: [inverter],
+      batteries: [master, slave],
+      accessoryRules: [],
+      essRules: [ruleTargetingSlaveDirectly],
+    });
+
+    expect(solutions).toEqual([]);
   });
 });
 

@@ -106,6 +106,8 @@ export function MetricsPanel({
   loadingMoreSimulations?: boolean;
   onLoadMoreSimulations?: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'trends' | 'distributions'>('overview');
+
   const gridTypeCounts = countBy(simulations, (simulation) => simulation.grid_type || 'Não informado');
   const topologyCounts = countBy(simulations, (simulation) => simulation.topology || 'Não informado');
   const inverterCounts = countBy(simulations, (simulation) => simulation.inverter_model || 'Não informado');
@@ -117,25 +119,60 @@ export function MetricsPanel({
   const totalDailyKwh = simulations.reduce((acc, simulation) => acc + Number(simulation.daily_kwh || 0), 0);
   const totalPeakW = simulations.reduce((acc, simulation) => acc + Number(simulation.peak_w || 0), 0);
 
+  const tabs: { value: typeof activeTab; label: string }[] = [
+    { value: 'overview', label: 'Visão geral' },
+    { value: 'trends', label: 'Tendências' },
+    { value: 'distributions', label: 'Distribuições' },
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Usuários" value={String(users.length)} />
-        <MetricCard label="Simulações" value={String(simulations.length)} />
-        <MetricCard label="Pico médio" value={simulations.length ? `${(totalPeakW / simulations.length / 1000).toFixed(2)} kVA` : '0 kVA'} />
-        <MetricCard label="Consumo médio" value={simulations.length ? `${(totalDailyKwh / simulations.length).toFixed(2)} kWh/dia` : '0 kWh/dia'} />
+      <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções de indicadores">
+        {tabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={cn(
+              'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+              activeTab === tab.value
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <TemporalHeatmapCard title="Dimensionamentos por dia da semana" rows={weekdayCounts} columns="grid-cols-7" />
-        <TemporalHeatmapCard title="Dimensionamentos por horário" rows={hourCounts} columns="grid-cols-4 sm:grid-cols-6" />
-        <ChartCard title="Tipos de rede mais usados" rows={gridTypeCounts} />
-        <ChartCard title="Topologias mais usadas" rows={topologyCounts} />
-        <ChartCard title="Cargas mais usadas" rows={loadCounts} />
-        <ChartCard title="Inversores mais recomendados" rows={inverterCounts} />
-        <ChartCard title="Baterias mais recomendadas" rows={batteryCounts} />
-        <ChartCard title="Acessórios mais recomendados" rows={accessoryCounts} />
-      </div>
+      {activeTab === 'overview' && (
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard label="Usuários" value={String(users.length)} />
+          <MetricCard label="Simulações" value={String(simulations.length)} />
+          <MetricCard label="Pico médio" value={simulations.length ? `${(totalPeakW / simulations.length / 1000).toFixed(2)} kVA` : '0 kVA'} />
+          <MetricCard label="Consumo médio" value={simulations.length ? `${(totalDailyKwh / simulations.length).toFixed(2)} kWh/dia` : '0 kWh/dia'} />
+        </div>
+      )}
+
+      {activeTab === 'trends' && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <TemporalHeatmapCard title="Dimensionamentos por dia da semana" rows={weekdayCounts} columns="grid-cols-7" />
+          <TemporalHeatmapCard title="Dimensionamentos por horário" rows={hourCounts} columns="grid-cols-4 sm:grid-cols-6" />
+        </div>
+      )}
+
+      {activeTab === 'distributions' && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ChartCard title="Tipos de rede mais usados" rows={gridTypeCounts} />
+          <ChartCard title="Topologias mais usadas" rows={topologyCounts} />
+          <ChartCard title="Cargas mais usadas" rows={loadCounts} />
+          <ChartCard title="Inversores mais recomendados" rows={inverterCounts} />
+          <ChartCard title="Baterias mais recomendadas" rows={batteryCounts} />
+          <ChartCard title="Acessórios mais recomendados" rows={accessoryCounts} />
+        </div>
+      )}
 
       {hasMoreSimulations && onLoadMoreSimulations && (
         <div className="flex justify-center">

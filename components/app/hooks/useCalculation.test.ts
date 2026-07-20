@@ -209,4 +209,23 @@ describe('useCalculation: product media effect', () => {
     await waitFor(() => expect(result.current.productMedia['X1-Hybrid-5.0kW-G4']).toBeDefined());
     expect(supabase.from).toHaveBeenCalledWith('inverters');
   });
+
+  it('also resolves media for the battery Master\'s expansionModel, so its card gets a nickname/image/attachments too', async () => {
+    const { supabase } = makeSupabase();
+    const { result } = renderCalculation(
+      baseProps({
+        supabase,
+        solution: { ...fakeSolution, batteryModel: 'T58 V2 Master', batteryQty: 3 },
+        inverterCatalog: [{ model: 'X1-Hybrid-5.0kW-G4', imageUrl: null, documents: [] }],
+        batteryCatalog: [
+          { model: 'T58 V2 Master', nickname: 'Master', expansionModel: 'T58 Slave', imageUrl: null, documents: [] },
+          { model: 'T58 Slave', nickname: 'Slave', imageUrl: 'slave.png', documents: [] },
+        ],
+      })
+    );
+
+    await waitFor(() => expect(result.current.productMedia['T58 Slave']).toBeDefined());
+    expect(result.current.productMedia['T58 Slave']).toMatchObject({ nickname: 'Slave', imageUrl: 'slave.png' });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
 });

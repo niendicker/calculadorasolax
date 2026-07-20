@@ -45,6 +45,7 @@ import {
   batteryQuantityBreakdown,
   calculateSystemCost,
   calculateTariffSavings,
+  expansionModelSet,
   formatCurrencyBRL,
   parseAccessoryLabel,
 } from '../helpers';
@@ -1154,10 +1155,12 @@ function BatteryModelPicker({
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
-  const visibleBatteries = batteries.filter((battery) => battery.topology === activeTopology);
+  const slaveModels = expansionModelSet(batteries);
+  const selectableBatteries = batteries.filter((battery) => !slaveModels.has(battery.model));
+  const visibleBatteries = selectableBatteries.filter((battery) => battery.topology === activeTopology);
   const counts = {
-    HV: batteries.filter((battery) => battery.topology === 'HV').length,
-    LV: batteries.filter((battery) => battery.topology === 'LV').length,
+    HV: selectableBatteries.filter((battery) => battery.topology === 'HV').length,
+    LV: selectableBatteries.filter((battery) => battery.topology === 'LV').length,
   };
 
   const selectedBattery = batteries.find((battery) => battery.model === selectedModel);

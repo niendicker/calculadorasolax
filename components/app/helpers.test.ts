@@ -4,6 +4,7 @@ import {
   batteryQuantityBreakdown,
   calculateSystemCost,
   calculateTariffSavings,
+  expansionModelSet,
   parseAccessoryLabel,
 } from './helpers';
 import type { Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
@@ -57,6 +58,17 @@ describe('batteryQuantityBreakdown', () => {
 
   it('does not split when the model is not in the catalog', () => {
     expect(batteryQuantityBreakdown('unknown-model', 3, catalog)).toEqual([{ model: 'unknown-model', qty: 3 }]);
+  });
+});
+
+describe('expansionModelSet', () => {
+  it('collects every expansionModel referenced by any battery, ignoring null/undefined', () => {
+    const set = expansionModelSet([
+      { expansionModel: 'T58 Slave' },
+      { expansionModel: null },
+      { expansionModel: undefined },
+    ]);
+    expect(set).toEqual(new Set(['T58 Slave']));
   });
 });
 

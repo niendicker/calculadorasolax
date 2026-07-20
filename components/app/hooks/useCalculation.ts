@@ -65,6 +65,11 @@ export function useCalculation({
 
       resolveFromCatalog(solution.inverterModel, 'inverters', inverterCatalog);
       resolveFromCatalog(solution.batteryModel, 'batteries', batteryCatalog);
+      // The expansion/Slave model (e.g. "T58 Slave") never appears directly on
+      // the Solution — it's only known via the Master battery's catalog row —
+      // so it needs its own resolve call to get its card the same media.
+      const expansionModel = batteryCatalog.find((battery) => battery.model === solution.batteryModel)?.expansionModel;
+      if (expansionModel) resolveFromCatalog(expansionModel, 'batteries', batteryCatalog);
       for (const model of accessoryModels) resolveFromCatalog(model, 'accessories', accessoryCatalog);
 
       if (missing.length > 0) {

@@ -122,10 +122,29 @@ describe('MetricsPanel', () => {
         ]}
       />
     );
+    fireEvent.click(screen.getByRole('tab', { name: 'Distribuições' }));
     const chartTitle = screen.getByText('Inversores mais recomendados');
     const card = chartTitle.closest('[data-slot="card"]') as HTMLElement;
     const rows = Array.from(card.querySelectorAll('.truncate')).map((el) => el.textContent);
     expect(rows[0]).toBe('X1-Hybrid-5.0kW-G4');
+  });
+
+  it('organizes indicators into Visão geral/Tendências/Distribuições tabs, showing only the active one', () => {
+    render(<MetricsPanel users={[]} simulations={[]} />);
+
+    // Defaults to "Visão geral".
+    expect(screen.getByText('Usuários')).toBeInTheDocument();
+    expect(screen.queryByText('Dimensionamentos por dia da semana')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tipos de rede mais usados')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Tendências' }));
+    expect(screen.getByText('Dimensionamentos por dia da semana')).toBeInTheDocument();
+    expect(screen.queryByText('Usuários')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tipos de rede mais usados')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Distribuições' }));
+    expect(screen.getByText('Tipos de rede mais usados')).toBeInTheDocument();
+    expect(screen.queryByText('Dimensionamentos por dia da semana')).not.toBeInTheDocument();
   });
 
   it('shows a "load more" button only when hasMoreSimulations is set', () => {

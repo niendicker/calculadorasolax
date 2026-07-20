@@ -83,6 +83,15 @@ export function batteryQuantityBreakdown(
   return [{ model, qty: quantity }];
 }
 
+/** Expansion/Slave models only ever exist as units 2..N of some other
+ * "Master" battery's bank — they aren't a real standalone base model, so
+ * they must never be offered directly in the battery picker. */
+export function expansionModelSet(batteryCatalog: { expansionModel?: string | null }[]): Set<string> {
+  return new Set(
+    batteryCatalog.map((battery) => battery.expansionModel).filter((model): model is string => Boolean(model))
+  );
+}
+
 export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }

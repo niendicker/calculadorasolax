@@ -82,6 +82,16 @@ export function batteryQuantityBreakdown(
   return [{ model, qty: quantity }];
 }
 
+/** Expansion/Slave models (e.g. "T58 Slave") only ever exist as units 2..N of
+ * some other "Master" battery's bank — they aren't a real standalone base
+ * model, so they must never be offered directly wherever an admin or user
+ * picks a battery to build/configure a solution around. */
+export function expansionModelSet(batteries: Pick<BatteryRow, 'expansion_model'>[]): Set<string> {
+  return new Set(
+    batteries.map((battery) => battery.expansion_model).filter((model): model is string => Boolean(model))
+  );
+}
+
 export function normalizeInverterGridType(value: string): InverterGridType | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -282,6 +292,7 @@ export function buildRuleGeneratedSolutions({
 }) {
   const inverterByModel = new Map(inverters.map((inv) => [inv.model, inv]));
   const batteryByModel = new Map(batteries.map((bat) => [bat.model, bat]));
+  const slaveModels = expansionModelSet(batteries);
   const generated: GeneratedSolutionPayload[] = [];
   const seen = new Set<string>();
 
@@ -304,6 +315,7 @@ export function buildRuleGeneratedSolutions({
     for (const batteryConfig of batteryConfigs) {
       const battery = batteryByModel.get(batteryConfig.battery_model);
       if (!battery) continue;
+      if (slaveModels.has(battery.model)) continue;
       if (batteryConfig.battery_topology !== battery.topology) continue;
       if (filterBatteryModels && !filterBatteryModels.has(battery.model)) continue;
 

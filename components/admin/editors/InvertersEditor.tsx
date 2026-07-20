@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import {
   batteryAssociationMax,
   clampNumber,
+  expansionModelSet,
   formatInverterGridType,
   inverterSupportedBatteryTopologies,
   normalizeEssBatteryConfigs,
@@ -573,7 +574,10 @@ function EssBatteryConfigsInput({
 }) {
   const configs = normalizeEssBatteryConfigs(value, batteries);
   const configByModel = new Map(configs.map((config) => [config.battery_model, config]));
-  const availableBatteries = batteries.filter((battery) => supportedTopologies.includes(battery.topology));
+  const slaveModels = expansionModelSet(batteries);
+  const availableBatteries = batteries.filter(
+    (battery) => supportedTopologies.includes(battery.topology) && !slaveModels.has(battery.model)
+  );
 
   function toggleBattery(battery: BatteryRow) {
     const existing = configByModel.get(battery.model);

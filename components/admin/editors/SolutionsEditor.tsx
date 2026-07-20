@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { batteryQuantityBreakdown, buildRuleGeneratedSolutions, selectClasses, toNumber } from '../helpers';
+import { batteryQuantityBreakdown, buildRuleGeneratedSolutions, expansionModelSet, selectClasses, toNumber } from '../helpers';
 import {
   Actions,
   DetailItem,
@@ -126,6 +126,12 @@ export function SolutionsEditor(props: {
     () => new Set(props.batteries.map((battery) => battery.model)),
     [props.batteries]
   );
+  // Expansion/Slave models only exist as units 2..N of a Master's bank — they
+  // can't be picked as the base model for a generated or manual combination.
+  const selectableBatteries = useMemo(() => {
+    const slaveModels = expansionModelSet(props.batteries);
+    return props.batteries.filter((battery) => !slaveModels.has(battery.model));
+  }, [props.batteries]);
   const catalogSolutions = useMemo(
     () =>
       props.solutions.filter(
@@ -480,7 +486,7 @@ export function SolutionsEditor(props: {
                       >
                         Todas
                       </button>
-                      {props.batteries.map((bat) => (
+                      {selectableBatteries.map((bat) => (
                         <button
                           key={bat.model}
                           onClick={() => setFilterBatteryModels((prev) =>
@@ -858,7 +864,7 @@ export function SolutionsEditor(props: {
         ))}
       </datalist>
       <datalist id="admin-batteries">
-        {props.batteries.map((battery) => (
+        {selectableBatteries.map((battery) => (
           <option key={battery.id} value={battery.model} />
         ))}
       </datalist>

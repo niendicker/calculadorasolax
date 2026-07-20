@@ -247,6 +247,19 @@ describe('SizingTab: rede e configuração', () => {
     expect(props.setTopology).not.toHaveBeenCalled();
   });
 
+  it('excludes an expansion/Slave battery from the picker and its HV/LV count badge', () => {
+    const master: BatteryCatalogOption = { ...battery, model: 'T58 V2 Master', expansionModel: 'T58 Slave' };
+    const slave: BatteryCatalogOption = { ...battery, id: 'b-slave', model: 'T58 Slave' };
+    setup({ batteryCatalog: [master, slave, lvBattery] });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    expect(screen.getByText('T58 V2 Master')).toBeInTheDocument();
+    expect(screen.queryByText('T58 Slave')).not.toBeInTheDocument();
+    // Only the Master counts toward HV — the Slave doesn't inflate the badge.
+    expect(screen.getByRole('button', { name: /^HV/ })).toHaveTextContent('1');
+  });
+
   it('selects an inverter model, and falls back to "Todos"', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: 'X1-Hybrid-5.0kW-G4' } });
     fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
