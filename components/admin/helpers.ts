@@ -23,7 +23,7 @@ export const INVERTER_COLUMNS =
   'id, model, nickname, power_kw, standard_power_kva, peak_power_kva, phases, topology, grid_types, max_battery_qty, battery_ports, battery_voltage_min_v, battery_voltage_max_v, battery_current_max_a, max_power_per_phase_w, flags, pv_oversizing_percent, image_url, documents';
 
 export const BATTERY_COLUMNS =
-  'id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, nominal_voltage_v, voltage_min_v, voltage_max_v, recommended_current_a, max_current_a, flags, max_association_qty, image_url, documents';
+  'id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, nominal_voltage_v, voltage_min_v, voltage_max_v, recommended_current_a, max_current_a, flags, max_association_qty, expansion_model, image_url, documents';
 
 export const ACCESSORY_COLUMNS = 'id, model, nickname, description, active, image_url, documents';
 
@@ -60,6 +60,26 @@ export function toNullableNumber(value: unknown): number | null {
 export function clampNumber(value: unknown, min: number, max: number, fallback = min) {
   const parsed = toNumber(value, fallback);
   return Math.min(max, Math.max(min, parsed));
+}
+
+/** Some battery lines scale via a "Master" unit plus electrically-identical
+ * "Slave"/expansion units instead of more of the same model (e.g. "T58 V2
+ * Master" + "T58 Slave"). Energy/power math already treats battery_quantity
+ * as N identical units, which holds true either way — this only changes what's
+ * displayed for units 2..N, using the Master row's expansion_model. */
+export function batteryQuantityBreakdown(
+  model: string,
+  quantity: number,
+  batteries: Pick<BatteryRow, 'model' | 'expansion_model'>[]
+): { model: string; qty: number }[] {
+  const expansionModel = batteries.find((battery) => battery.model === model)?.expansion_model;
+  if (expansionModel && quantity > 1) {
+    return [
+      { model, qty: 1 },
+      { model: expansionModel, qty: quantity - 1 },
+    ];
+  }
+  return [{ model, qty: quantity }];
 }
 
 export function normalizeInverterGridType(value: string): InverterGridType | null {

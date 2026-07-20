@@ -58,7 +58,7 @@ export function useInitialData({
           .order('category'),
         supabase
           .from('batteries')
-          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, image_url, documents')
+          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, expansion_model, image_url, documents')
           .order('model'),
         supabase
           .from('inverters')
@@ -148,6 +148,7 @@ export function useInitialData({
             standardPowerKw: row.standard_power_kw === null ? null : Number(row.standard_power_kw),
             peakPowerKw: row.peak_power_kw === null ? null : Number(row.peak_power_kw),
             minSocPercent: Number(row.min_soc_percent ?? 10),
+            expansionModel: row.expansion_model ?? null,
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
           }))

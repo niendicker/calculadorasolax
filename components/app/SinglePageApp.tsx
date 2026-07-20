@@ -731,6 +731,7 @@ export function SinglePageApp() {
           dailyKwh={dailyKwh}
           userStockItems={userStockItems}
           whiteTariff={residentialOptions.whiteTariff}
+          batteryCatalog={batteryCatalog}
         />
       )}
     </main>

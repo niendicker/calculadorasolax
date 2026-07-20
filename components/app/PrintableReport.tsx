@@ -1,9 +1,9 @@
 'use client';
 
 import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
-import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL } from './helpers';
+import { batteryQuantityBreakdown, calculateSystemCost, calculateTariffSavings, formatCurrencyBRL } from './helpers';
 import { ReportInfoRow, ReportMetric } from './shared-ui';
-import { gridLabels, topologyLabels, type InlineProfile } from './types';
+import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfile } from './types';
 
 export function PrintableReport({
   projectInfo,
@@ -18,6 +18,7 @@ export function PrintableReport({
   dailyKwh,
   userStockItems,
   whiteTariff,
+  batteryCatalog,
 }: {
   projectInfo: ProjectInfo;
   client: Client | null;
@@ -31,6 +32,7 @@ export function PrintableReport({
   dailyKwh: number;
   userStockItems: UserStockItem[];
   whiteTariff: WhiteTariffConfig | null;
+  batteryCatalog: BatteryCatalogOption[];
 }) {
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -42,6 +44,7 @@ export function PrintableReport({
 
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff);
+  const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog);
 
   return (
     <div className="print-report">
@@ -116,7 +119,11 @@ export function PrintableReport({
             </tr>
             <tr>
               <td className="border px-3 py-2">Bateria</td>
-              <td className="border px-3 py-2">{solution.batteryModel}</td>
+              <td className="border px-3 py-2">
+                {batteryParts.length > 1
+                  ? batteryParts.map((part) => `${part.qty}× ${part.model}`).join(' + ')
+                  : solution.batteryModel}
+              </td>
               <td className="border px-3 py-2">{solution.batteryQty}</td>
               <td className="border px-3 py-2">
                 {solution.availableEnergyWh ? `${(solution.availableEnergyWh / 1000).toFixed(2)} kWh disponíveis` : '-'}

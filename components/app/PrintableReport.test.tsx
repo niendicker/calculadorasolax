@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Client, ProjectInfo, Solution, UserStockItem } from '@/lib/types';
-import type { InlineProfile } from './types';
+import type { BatteryCatalogOption, InlineProfile } from './types';
 import { PrintableReport } from './PrintableReport';
 
 const projectInfo: ProjectInfo = { name: 'Casa de praia', clientId: 'c1', address: 'Rua X, 1', notes: '' };
@@ -49,6 +49,7 @@ function baseProps(overrides: Partial<Parameters<typeof PrintableReport>[0]> = {
     dailyKwh: 5.5,
     userStockItems: [] as UserStockItem[],
     whiteTariff: null,
+    batteryCatalog: [] as BatteryCatalogOption[],
     ...overrides,
   };
 }
@@ -123,6 +124,33 @@ describe('PrintableReport: recommended products', () => {
     render(<PrintableReport {...baseProps({ solution: { ...solution, accessories: ['Smart Meter', 'X1-Matebox'] } })} />);
     expect(screen.getByText('Smart Meter')).toBeInTheDocument();
     expect(screen.getByText('X1-Matebox')).toBeInTheDocument();
+  });
+
+  it('breaks down the battery model into Master + expansion units when the catalog defines one', () => {
+    const batteryCatalog: BatteryCatalogOption[] = [
+      {
+        id: 'b1',
+        model: 'T58 V2 Master',
+        capacityKwh: 5.8,
+        topology: 'HV',
+        standardPowerKw: 2.88,
+        peakPowerKw: 4.032,
+        minSocPercent: 10,
+        expansionModel: 'T58 Slave',
+        imageUrl: null,
+        documents: [],
+      },
+    ];
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: { ...solution, batteryModel: 'T58 V2 Master', batteryQty: 3 },
+          batteryCatalog,
+        })}
+      />
+    );
+    expect(screen.getByText('1× T58 V2 Master + 2× T58 Slave')).toBeInTheDocument();
+    expect(screen.queryByText('T58 V2 Master', { selector: 'td' })).not.toBeInTheDocument();
   });
 });
 

@@ -72,6 +72,7 @@ export function BatteriesEditor(props: {
   }
 
   return (
+    <>
     <CatalogLayout
       title="Baterias"
       count={visibleRows.length}
@@ -162,7 +163,7 @@ export function BatteriesEditor(props: {
                     />
                   </Field>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Field asDiv label="Topologia">
                     <InlineOptionTabs
                       options={[
@@ -185,6 +186,22 @@ export function BatteriesEditor(props: {
                         </option>
                       ))}
                     </select>
+                  </Field>
+                  <Field
+                    label={
+                      <InfoLabel
+                        label="Modelo de expansão"
+                        tip="Preencha quando este for o modelo Master de uma linha combinada: as unidades 2+ do banco serão exibidas com este modelo (ex.: Slave) em vez de repetir o Master. Deixe vazio quando todas as unidades usam o mesmo modelo."
+                      />
+                    }
+                  >
+                    <input
+                      className={selectClasses()}
+                      list="admin-battery-expansion-models"
+                      value={form.expansion_model ?? ''}
+                      onChange={(event) => setForm({ ...form, expansion_model: event.target.value })}
+                      placeholder="Ex.: T58 Slave"
+                    />
                   </Field>
                 </div>
               </div>
@@ -277,5 +294,11 @@ export function BatteriesEditor(props: {
         removeDescription: `A bateria ${row.model} e todos os seus dados serão removidos do cadastro.`,
       }))}
     />
+    <datalist id="admin-battery-expansion-models">
+      {props.rows.filter((row) => row.model !== form.model).map((row) => (
+        <option key={row.id} value={row.model} />
+      ))}
+    </datalist>
+    </>
   );
 }

@@ -58,6 +58,31 @@ export function calculateSystemCost(solution: Solution, userStockItems: UserStoc
   };
 }
 
+export interface BatteryQuantityPart {
+  model: string;
+  qty: number;
+}
+
+/** Some battery lines scale via a "Master" unit plus electrically-identical
+ * "Slave"/expansion units instead of more of the same model (e.g. "T58 V2
+ * Master" + "T58 Slave"). Energy/power math already treats batteryQty as N
+ * identical units, which holds true either way — this only changes what's
+ * displayed for units 2..N, using the Master row's expansionModel. */
+export function batteryQuantityBreakdown(
+  model: string,
+  quantity: number,
+  batteryCatalog: { model: string; expansionModel?: string | null }[]
+): BatteryQuantityPart[] {
+  const expansionModel = batteryCatalog.find((battery) => battery.model === model)?.expansionModel;
+  if (expansionModel && quantity > 1) {
+    return [
+      { model, qty: 1 },
+      { model: expansionModel, qty: quantity - 1 },
+    ];
+  }
+  return [{ model, qty: quantity }];
+}
+
 export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }

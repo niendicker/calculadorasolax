@@ -104,6 +104,27 @@ describe('BatteriesEditor: form', () => {
     rerender(<ControlledEditor rows={[makeBattery({ id: 'b1', model: 'TP-HS3.6', topology: 'HV' })]} />);
   });
 
+  it('edits the expansion model field, offering other registered batteries via the datalist', () => {
+    render(
+      <ControlledEditor
+        rows={[
+          makeBattery({ id: 'b1', model: 'T58 V2 Master', topology: 'HV' }),
+          makeBattery({ id: 'b2', model: 'T58 Slave', topology: 'HV' }),
+        ]}
+      />
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+
+    const input = screen.getByPlaceholderText('Ex.: T58 Slave');
+    fireEvent.change(input, { target: { value: 'T58 Slave' } });
+    expect(input).toHaveValue('T58 Slave');
+
+    // Offers the other registered model, but not the one currently being edited.
+    const datalist = document.getElementById('admin-battery-expansion-models') as HTMLDataListElement;
+    expect(within(datalist).getByText((_, el) => el?.getAttribute('value') === 'T58 Slave')).toBeInTheDocument();
+    expect(within(datalist).queryByText((_, el) => el?.getAttribute('value') === 'T58 V2 Master')).not.toBeInTheDocument();
+  });
+
   it('switches to the media tab and edits the image URL', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Nova bateria/ }));

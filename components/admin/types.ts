@@ -120,6 +120,9 @@ export interface BatteryRow {
   max_current_a: number | null;
   flags: BatteryFlag[];
   max_association_qty: number;
+  /** Model shown for units 2..N when this is a "Master" battery that scales via
+   * electrically-identical expansion/"Slave" units instead of more of itself. */
+  expansion_model?: string | null;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -328,6 +331,7 @@ export const emptyBattery: Partial<BatteryRow> = {
   max_current_a: null,
   flags: [],
   max_association_qty: 15,
+  expansion_model: '',
   image_url: '',
   documents: [],
 };

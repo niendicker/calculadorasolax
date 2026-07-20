@@ -29,6 +29,9 @@ export interface BatteryCatalogOption {
   standardPowerKw: number | null;
   peakPowerKw: number | null;
   minSocPercent: number;
+  /** Model shown for units 2..N when this is a "Master" battery that scales via
+   * electrically-identical expansion/"Slave" units instead of more of itself. */
+  expansionModel?: string | null;
   imageUrl: string | null;
   documents: ProductDocument[];
 }

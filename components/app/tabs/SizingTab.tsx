@@ -41,7 +41,13 @@ import type {
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
-import { calculateSystemCost, calculateTariffSavings, formatCurrencyBRL, parseAccessoryLabel } from '../helpers';
+import {
+  batteryQuantityBreakdown,
+  calculateSystemCost,
+  calculateTariffSavings,
+  formatCurrencyBRL,
+  parseAccessoryLabel,
+} from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
@@ -1514,6 +1520,7 @@ function ResultSummary({
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
   const batteryMedia = productMedia[solution.batteryModel];
+  const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog);
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff);
 
@@ -1524,6 +1531,7 @@ function ResultSummary({
         withMicrogrid={solution.microgridAlternative}
         onChoose={onChooseMicrogridVariant}
         productMedia={productMedia}
+        batteryCatalog={batteryCatalog}
       />
     );
   }
@@ -1578,7 +1586,12 @@ function ResultSummary({
         ) : (
           <p className="mt-1 text-lg font-semibold">{solution.batteryModel}</p>
         )}
-        <p className="text-sm text-muted-foreground">Quantidade: x{solution.batteryQty}</p>
+        <p className="text-sm text-muted-foreground">
+          Quantidade:{' '}
+          {batteryParts.length > 1
+            ? batteryParts.map((part) => `${part.qty}× ${productMedia[part.model]?.nickname || part.model}`).join(' + ')
+            : `x${solution.batteryQty}`}
+        </p>
         <ProductAttachments media={batteryMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
@@ -1664,11 +1677,13 @@ function MicrogridVariantChoice({
   withMicrogrid,
   onChoose,
   productMedia,
+  batteryCatalog,
 }: {
   economic: Solution;
   withMicrogrid: Solution;
   onChoose: (variant: 'economic' | 'microgrid') => void;
   productMedia: Record<string, ProductMedia>;
+  batteryCatalog: BatteryCatalogOption[];
 }) {
   const options: { variant: 'economic' | 'microgrid'; label: string; description: string; solution: Solution }[] = [
     {
@@ -1696,33 +1711,37 @@ function MicrogridVariantChoice({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {options.map((option) => (
-          <div key={option.variant} className="flex flex-col gap-3 rounded-lg border bg-background p-3">
-            <div>
-              <p className="text-sm font-semibold">{option.label}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-            </div>
-            <div className="space-y-2 text-sm">
+        {options.map((option) => {
+          const batteryParts = batteryQuantityBreakdown(option.solution.batteryModel, option.solution.batteryQty, batteryCatalog);
+          return (
+            <div key={option.variant} className="flex flex-col gap-3 rounded-lg border bg-background p-3">
               <div>
-                <p className="text-xs text-muted-foreground">Inversor</p>
-                <p className="font-medium">
-                  {productMedia[option.solution.inverterModel]?.nickname || option.solution.inverterModel} · x
-                  {option.solution.inverterQty ?? 1}
-                </p>
+                <p className="text-sm font-semibold">{option.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Bateria</p>
-                <p className="font-medium">
-                  {productMedia[option.solution.batteryModel]?.nickname || option.solution.batteryModel} · x
-                  {option.solution.batteryQty}
-                </p>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Inversor</p>
+                  <p className="font-medium">
+                    {productMedia[option.solution.inverterModel]?.nickname || option.solution.inverterModel} · x
+                    {option.solution.inverterQty ?? 1}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Bateria</p>
+                  <p className="font-medium">
+                    {batteryParts.length > 1
+                      ? batteryParts.map((part) => `${part.qty}× ${productMedia[part.model]?.nickname || part.model}`).join(' + ')
+                      : `${productMedia[option.solution.batteryModel]?.nickname || option.solution.batteryModel} · x${option.solution.batteryQty}`}
+                  </p>
+                </div>
               </div>
+              <Button size="sm" onClick={() => onChoose(option.variant)}>
+                Usar esta versão
+              </Button>
             </div>
-            <Button size="sm" onClick={() => onChoose(option.variant)}>
-              Usar esta versão
-            </Button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

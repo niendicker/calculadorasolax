@@ -646,10 +646,14 @@ export function ProductQtyDetail({
   label,
   model,
   quantity,
+  breakdown,
 }: {
   label: string;
   model: string;
   quantity: number;
+  /** When the model scales via a Master + expansion units, describes what
+   * units 2..N actually are instead of just repeating the Master's model. */
+  breakdown?: { model: string; qty: number }[];
 }) {
   return (
     <div className="min-w-0">
@@ -660,6 +664,11 @@ export function ProductQtyDetail({
         </Badge>
       </div>
       <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+      {breakdown && breakdown.length > 1 && (
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {breakdown.map((part) => `${part.qty}× ${part.model}`).join(' + ')}
+        </p>
+      )}
     </div>
   );
 }

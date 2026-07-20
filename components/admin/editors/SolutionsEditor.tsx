@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { buildRuleGeneratedSolutions, selectClasses, toNumber } from '../helpers';
+import { batteryQuantityBreakdown, buildRuleGeneratedSolutions, selectClasses, toNumber } from '../helpers';
 import {
   Actions,
   DetailItem,
@@ -383,6 +383,7 @@ export function SolutionsEditor(props: {
                             label="Bateria"
                             model={solution.battery_model}
                             quantity={solution.battery_quantity}
+                            breakdown={batteryQuantityBreakdown(solution.battery_model, solution.battery_quantity, props.batteries)}
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-3">

@@ -461,6 +461,7 @@ export function AdminPanel() {
       max_current_a: toNullableNumber(batteryForm.max_current_a),
       flags: normalizeBatteryFlags(batteryForm.flags),
       max_association_qty: clampNumber(batteryForm.max_association_qty, 1, 15, 15),
+      expansion_model: batteryForm.expansion_model?.trim() || null,
       image_url: batteryForm.image_url?.trim() || null,
       documents: batteryForm.documents ?? [],
     };

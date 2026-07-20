@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TARIFF_BUSINESS_DAYS_PER_MONTH,
+  batteryQuantityBreakdown,
   calculateSystemCost,
   calculateTariffSavings,
   parseAccessoryLabel,
@@ -32,6 +33,32 @@ function makeStockItem(partial: Partial<UserStockItem> = {}): UserStockItem {
     ...partial,
   };
 }
+
+describe('batteryQuantityBreakdown', () => {
+  const catalog = [
+    { model: 'T58 V2 Master', expansionModel: 'T58 Slave' },
+    { model: 'TP-HS3.6' },
+  ];
+
+  it('splits into 1x Master + (qty-1)x expansion when the model has an expansionModel and qty > 1', () => {
+    expect(batteryQuantityBreakdown('T58 V2 Master', 3, catalog)).toEqual([
+      { model: 'T58 V2 Master', qty: 1 },
+      { model: 'T58 Slave', qty: 2 },
+    ]);
+  });
+
+  it('does not split when qty is 1, even if an expansionModel is configured', () => {
+    expect(batteryQuantityBreakdown('T58 V2 Master', 1, catalog)).toEqual([{ model: 'T58 V2 Master', qty: 1 }]);
+  });
+
+  it('does not split when the model has no expansionModel', () => {
+    expect(batteryQuantityBreakdown('TP-HS3.6', 3, catalog)).toEqual([{ model: 'TP-HS3.6', qty: 3 }]);
+  });
+
+  it('does not split when the model is not in the catalog', () => {
+    expect(batteryQuantityBreakdown('unknown-model', 3, catalog)).toEqual([{ model: 'unknown-model', qty: 3 }]);
+  });
+});
 
 describe('calculateSystemCost', () => {
   it('returns zero cost and incomplete when nothing is priced', () => {

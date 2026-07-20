@@ -114,6 +114,7 @@ describe('useInitialData: logged-out visitor', () => {
         standardPowerKw: 1.8,
         peakPowerKw: 2.5,
         minSocPercent: 10,
+        expansionModel: null,
         imageUrl: null,
         documents: [],
       },
