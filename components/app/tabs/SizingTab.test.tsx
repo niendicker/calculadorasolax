@@ -217,6 +217,31 @@ describe('SizingTab: summary panel', () => {
     expect(screen.getByText('3.24')).toBeInTheDocument();
     expect(screen.getByText('kWh', { selector: 'p' })).toBeInTheDocument();
   });
+
+  it('shows a margin summary that highlights the tightest constraint as the decisive factor', () => {
+    // nominal margin: (5000-3000)/3000 = +67%; peak margin: (7000-6000)/6000 = +17%;
+    // energy margin: (3240-3000)/3000 = +8% — energy is the tightest, so it's decisive.
+    setup({ solution: fakeSolution, nominalW: 3000, peakW: 6000, dailyKwh: 3 });
+
+    const marginCard = screen.getByText('Margem sobre a necessidade do cliente').closest('.rounded-lg') as HTMLElement;
+    const energyRow = within(marginCard).getByText('Energia', { selector: 'span' }).closest('.px-2');
+    expect(energyRow).toHaveTextContent('Fator decisivo');
+    expect(energyRow).toHaveTextContent('+8%');
+
+    const peakRow = within(marginCard).getByText('Potência de pico').closest('.px-2');
+    expect(peakRow).not.toHaveTextContent('Fator decisivo');
+    expect(peakRow).toHaveTextContent('+17%');
+  });
+
+  it('flags a margin as "Insuficiente" instead of "Fator decisivo" when the solution falls short', () => {
+    // A peak target the solution can't meet (8000 > the 7000 the inverter provides) forces a negative margin.
+    setup({ solution: fakeSolution, nominalW: 3000, peakW: 8000, dailyKwh: 3 });
+
+    const marginCard = screen.getByText('Margem sobre a necessidade do cliente').closest('.rounded-lg') as HTMLElement;
+    const peakRow = within(marginCard).getByText('Potência de pico').closest('.px-2');
+    expect(peakRow).toHaveTextContent('Insuficiente');
+    expect(peakRow).not.toHaveTextContent('Fator decisivo');
+  });
 });
 
 describe('SizingTab: rede e configuração', () => {

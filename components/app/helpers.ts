@@ -1,6 +1,13 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
-import type { Solution, StockProductType, UserStockItem, WhiteTariffConfig } from '@/lib/types';
+import type {
+  DesiredFeatureId,
+  MicrogridConfig,
+  Solution,
+  StockProductType,
+  UserStockItem,
+  WhiteTariffConfig,
+} from '@/lib/types';
 
 export function parseAccessoryLabel(raw: string) {
   const optional = /\s*\(opcional\)\s*$/.test(raw);
@@ -90,6 +97,108 @@ export function expansionModelSet(batteryCatalog: { expansionModel?: string | nu
   return new Set(
     batteryCatalog.map((battery) => battery.expansionModel).filter((model): model is string => Boolean(model))
   );
+}
+
+/** Mirrors supabase/functions/calculate-residential/logic.ts's effectiveTargetPowerW:
+ * when Tarifa Branca is active, the inverter's rated/peak power floor must
+ * also cover the tariff window's required power, not just the loads'. Kept
+ * in sync manually since the Edge Function runs on Deno and can't be
+ * imported here — this is what the server actually gated the solution on. */
+export function effectiveTargetPowerW(
+  desiredFeatures: DesiredFeatureId[],
+  whiteTariff: WhiteTariffConfig | null,
+  baseW: number
+): number {
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseW;
+  return Math.max(baseW, whiteTariff.requiredPowerW);
+}
+
+/** Mirrors effectiveTargetEnergyWh from the same Edge Function file. */
+export function effectiveTargetEnergyWh(
+  desiredFeatures: DesiredFeatureId[],
+  whiteTariff: WhiteTariffConfig | null,
+  baseTargetEnergyWh: number
+): number {
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
+  return whiteTariff.requiredEnergyWh + (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0);
+}
+
+export interface MarginRow {
+  key: string;
+  label: string;
+  requiredValue: number;
+  providedValue: number;
+  unit: 'W' | 'Wh';
+}
+
+/** Builds the "how much slack does the chosen solution have over what the
+ * customer actually needs" rows, using the exact same gating formulas the
+ * Edge Function used to pick this solution — so the margins shown here
+ * match why this solution (and not a smaller one) was recommended. */
+export function buildMarginSummary({
+  desiredFeatures,
+  whiteTariff,
+  microgrid,
+  nominalW,
+  peakW,
+  dailyKwh,
+  solution,
+}: {
+  desiredFeatures: DesiredFeatureId[];
+  whiteTariff: WhiteTariffConfig | null;
+  microgrid: MicrogridConfig | null;
+  nominalW: number;
+  peakW: number;
+  dailyKwh: number;
+  solution: Solution;
+}): MarginRow[] {
+  const rows: MarginRow[] = [
+    {
+      key: 'nominal',
+      label: 'Potência padrão',
+      requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+      providedValue: solution.inverterRatedPowerW ?? 0,
+      unit: 'W',
+    },
+    {
+      key: 'peak',
+      label: 'Potência de pico',
+      requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
+      providedValue: solution.inverterPeakPowerW ?? 0,
+      unit: 'W',
+    },
+    {
+      key: 'energy',
+      label: 'Energia',
+      requiredValue: effectiveTargetEnergyWh(desiredFeatures, whiteTariff, dailyKwh * 1000),
+      providedValue: solution.availableEnergyWh ?? 0,
+      unit: 'Wh',
+    },
+  ];
+
+  // Microgrid's on-grid power must stay under both the inverter's and the
+  // battery bank's power (see solutionSupportsMicrogrid in the Edge
+  // Function) — only relevant when that feature is actually active.
+  if (desiredFeatures.includes('microgrid') && microgrid && microgrid.onGridApparentPowerVA > 0) {
+    rows.push({
+      key: 'microgrid_inverter',
+      label: 'Microrrede (inversor)',
+      requiredValue: microgrid.onGridApparentPowerVA,
+      providedValue: solution.inverterRatedPowerW ?? 0,
+      unit: 'W',
+    });
+    if (solution.batteryPowerW != null) {
+      rows.push({
+        key: 'microgrid_battery',
+        label: 'Microrrede (bateria)',
+        requiredValue: microgrid.onGridApparentPowerVA,
+        providedValue: solution.batteryPowerW,
+        unit: 'W',
+      });
+    }
+  }
+
+  return rows;
 }
 
 export function formatCurrencyBRL(value: number): string {

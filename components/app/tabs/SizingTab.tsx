@@ -43,11 +43,13 @@ import { cn } from '@/lib/utils';
 import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import {
   batteryQuantityBreakdown,
+  buildMarginSummary,
   calculateSystemCost,
   calculateTariffSavings,
   expansionModelSet,
   formatCurrencyBRL,
   parseAccessoryLabel,
+  type MarginRow,
 } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
@@ -220,56 +222,71 @@ export function SizingTab({
       </PageHeader>
 
       <PageSummary>
-        <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções do resumo">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={summaryTab === 'resumo'}
-            onClick={() => setSummaryTab('resumo')}
-            className={cn(
-              'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
-              summaryTab === 'resumo'
-                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-            )}
-          >
-            Resumo
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={summaryTab === 'solucao'}
-            onClick={() => setSummaryTab('solucao')}
-            className={cn(
-              'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
-              summaryTab === 'solucao'
-                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-            )}
-          >
-            <span
-              aria-hidden="true"
-              className={cn('h-1.5 w-1.5 shrink-0 rounded-full', solution ? 'bg-primary' : 'bg-transparent')}
-            />
-            Solução
-          </button>
-        </div>
-        {summaryTab === 'resumo' ? (
-          <>
+        {/* Sticky within the summary aside (the only place this ever renders —
+         * see PageSummary): the tab switcher plus whichever tab's top metric
+         * cards are active stay pinned while everything below scrolls
+         * underneath. Negative margins cancel the aside's own px-4/py-5
+         * padding so the sticky background spans full width and touches the
+         * top edge, then re-applies that padding inside. */}
+        <div className="sticky top-0 z-10 -mx-4 -mt-5 space-y-3 bg-card px-4 pt-5 pb-3">
+          <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções do resumo">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={summaryTab === 'resumo'}
+              onClick={() => setSummaryTab('resumo')}
+              className={cn(
+                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                summaryTab === 'resumo'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              Resumo
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={summaryTab === 'solucao'}
+              onClick={() => setSummaryTab('solucao')}
+              className={cn(
+                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                summaryTab === 'solucao'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn('h-1.5 w-1.5 shrink-0 rounded-full', solution ? 'bg-primary' : 'bg-transparent')}
+              />
+              Solução
+            </button>
+          </div>
+          {summaryTab === 'resumo' ? (
             <div className="grid grid-cols-3 gap-2">
               <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
               <Metric icon={Zap} label="Pico" value={(peakW / 1000).toFixed(2)} unit="kVA" />
               <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
             </div>
-            <Separator />
-            <ConfigurationSummary
-              residentialOptions={residentialOptions}
-              loadsCount={residentialOptions.loads.length}
-              onJumpToGridType={jumpToGridType}
-              onJumpToBattery={jumpToBattery}
-              onJumpToFeature={jumpToFeature}
-            />
-          </>
+          ) : (
+            !loading &&
+            !error &&
+            solution &&
+            !solution.microgridAlternative && (
+              <SolutionMetricCards solution={solution} batteryCatalog={batteryCatalog} />
+            )
+          )}
+          <Separator />
+        </div>
+        {summaryTab === 'resumo' ? (
+          <ConfigurationSummary
+            residentialOptions={residentialOptions}
+            loadsCount={residentialOptions.loads.length}
+            onJumpToGridType={jumpToGridType}
+            onJumpToBattery={jumpToBattery}
+            onJumpToFeature={jumpToFeature}
+          />
         ) : (
           <>
             {error && (
@@ -292,6 +309,11 @@ export function SizingTab({
                 userStockItems={userStockItems}
                 whiteTariff={residentialOptions.whiteTariff}
                 onChooseMicrogridVariant={onChooseMicrogridVariant}
+                desiredFeatures={residentialOptions.desiredFeatures}
+                microgrid={residentialOptions.microgrid}
+                nominalW={nominalW}
+                peakW={peakW}
+                dailyKwh={dailyKwh}
               />
             )}
           </>
@@ -1502,6 +1524,105 @@ function solutionMetrics(solution: Solution, batteryCatalog: BatteryCatalogOptio
   };
 }
 
+/** The Solução tab's top metric cards — pulled out of ResultSummary so they
+ * can be rendered in the sticky header above it, alongside the Resumo tab's
+ * own cards, keeping both tabs' top metrics pinned while their tab-specific
+ * content scrolls underneath. */
+function SolutionMetricCards({
+  solution,
+  batteryCatalog,
+}: {
+  solution: Solution;
+  batteryCatalog: BatteryCatalogOption[];
+}) {
+  const metrics = solutionMetrics(solution, batteryCatalog);
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <Metric
+        icon={Gauge}
+        label="Nominal"
+        value={metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'}
+        unit="kVA"
+        accent
+      />
+      <Metric
+        icon={Zap}
+        label="Pico"
+        value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
+        unit="kVA"
+        accent
+      />
+      <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" accent />
+    </div>
+  );
+}
+
+function formatMarginValue(value: number, unit: 'W' | 'Wh') {
+  const kiloValue = value / 1000;
+  return unit === 'W' ? `${kiloValue.toFixed(2)} kVA` : `${kiloValue.toFixed(2)} kWh`;
+}
+
+/** Shows how much slack the recommended solution has over what the customer
+ * actually needs on each gating dimension, highlighting whichever one has
+ * the least slack — the real reason a bigger/smaller solution wasn't picked
+ * instead. A negative margin would mean the solution doesn't actually meet
+ * that requirement; the Edge Function shouldn't ever return one, but it's
+ * called out distinctly (destructive styling) rather than silently mislabeled
+ * "decisive" if it ever happens. */
+function MarginSummary({ rows }: { rows: MarginRow[] }) {
+  if (rows.length === 0) return null;
+
+  const withMargin = rows.map((row) => ({
+    ...row,
+    marginPct: row.requiredValue > 0 ? ((row.providedValue - row.requiredValue) / row.requiredValue) * 100 : null,
+  }));
+
+  const decisiveKey = withMargin.reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
+    if (row.marginPct === null) return tightest;
+    if (!tightest || row.marginPct < tightest.marginPct) return { key: row.key, marginPct: row.marginPct };
+    return tightest;
+  }, null)?.key;
+
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Gauge className="h-4 w-4 text-primary" />
+        Margem sobre a necessidade do cliente
+      </div>
+      <div className="mt-2 space-y-2">
+        {withMargin.map((row) => {
+          const isDecisive = row.key === decisiveKey;
+          const insufficient = row.marginPct !== null && row.marginPct < 0;
+          return (
+            <div
+              key={row.key}
+              className={cn('rounded-md px-2 py-1.5', isDecisive && 'bg-primary/5 ring-1 ring-primary/20')}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                  {row.label}
+                  {isDecisive && (
+                    <Badge variant={insufficient ? 'destructive' : 'secondary'} className="text-[0.65rem]">
+                      {insufficient ? 'Insuficiente' : 'Fator decisivo'}
+                    </Badge>
+                  )}
+                </span>
+                <span className={cn('text-sm font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
+                  {row.marginPct !== null ? `${row.marginPct >= 0 ? '+' : ''}${row.marginPct.toFixed(0)}%` : '—'}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Necessário {formatMarginValue(row.requiredValue, row.unit)} · Solução oferece{' '}
+                {formatMarginValue(row.providedValue, row.unit)}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ResultSummary({
   solution,
   batteryCatalog,
@@ -1510,6 +1631,11 @@ function ResultSummary({
   userStockItems,
   whiteTariff,
   onChooseMicrogridVariant,
+  desiredFeatures,
+  microgrid,
+  nominalW,
+  peakW,
+  dailyKwh,
 }: {
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
@@ -1518,6 +1644,11 @@ function ResultSummary({
   userStockItems: UserStockItem[];
   whiteTariff: WhiteTariffConfig | null;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
+  desiredFeatures: DesiredFeatureId[];
+  microgrid: MicrogridConfig | null;
+  nominalW: number;
+  peakW: number;
+  dailyKwh: number;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -1538,28 +1669,11 @@ function ResultSummary({
     );
   }
 
-  const metrics = solutionMetrics(solution, batteryCatalog);
+  const marginRows = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, nominalW, peakW, dailyKwh, solution });
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        <Metric
-          icon={Gauge}
-          label="Nominal"
-          value={metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'}
-          unit="kVA"
-          accent
-        />
-        <Metric
-          icon={Zap}
-          label="Pico"
-          value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
-          unit="kVA"
-          accent
-        />
-        <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" accent />
-      </div>
-      <Separator />
+      <MarginSummary rows={marginRows} />
       <div className="rounded-lg border bg-background p-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Zap className="h-4 w-4 text-accent" />

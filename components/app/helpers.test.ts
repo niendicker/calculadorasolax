@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   TARIFF_BUSINESS_DAYS_PER_MONTH,
   batteryQuantityBreakdown,
+  buildMarginSummary,
   calculateSystemCost,
   calculateTariffSavings,
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
   expansionModelSet,
   parseAccessoryLabel,
 } from './helpers';
@@ -69,6 +72,103 @@ describe('expansionModelSet', () => {
       { expansionModel: undefined },
     ]);
     expect(set).toEqual(new Set(['T58 Slave']));
+  });
+});
+
+describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
+  const whiteTariff: WhiteTariffConfig = {
+    requiredPowerW: 4000,
+    requiredEnergyWh: 6000,
+    includeBackupReserve: false,
+    tariffSpreadPerKwh: 0.5,
+  };
+
+  it('ignores white_tariff\'s power floor when the feature is not selected, even with a config present', () => {
+    expect(effectiveTargetPowerW([], whiteTariff, 2000)).toBe(2000);
+  });
+
+  it('raises the power floor to whiteTariff.requiredPowerW when that is higher than the base', () => {
+    expect(effectiveTargetPowerW(['white_tariff'], whiteTariff, 2000)).toBe(4000);
+  });
+
+  it('keeps the base power floor when it already exceeds whiteTariff.requiredPowerW', () => {
+    expect(effectiveTargetPowerW(['white_tariff'], whiteTariff, 5000)).toBe(5000);
+  });
+
+  it('replaces the base energy target with whiteTariff.requiredEnergyWh when includeBackupReserve is off', () => {
+    expect(effectiveTargetEnergyWh(['white_tariff'], whiteTariff, 3000)).toBe(6000);
+  });
+
+  it('adds the base energy target on top when includeBackupReserve is on', () => {
+    expect(effectiveTargetEnergyWh(['white_tariff'], { ...whiteTariff, includeBackupReserve: true }, 3000)).toBe(9000);
+  });
+
+  it('ignores whiteTariff entirely when the feature is not selected', () => {
+    expect(effectiveTargetEnergyWh([], whiteTariff, 3000)).toBe(3000);
+  });
+});
+
+describe('buildMarginSummary', () => {
+  const baseSolution = makeSolution({
+    inverterRatedPowerW: 5000,
+    inverterPeakPowerW: 7000,
+    availableEnergyWh: 3240,
+  });
+
+  it('computes Potência padrão/Pico/Energia rows from the load-derived targets vs the solution', () => {
+    const rows = buildMarginSummary({
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: null,
+      nominalW: 3000,
+      peakW: 6000,
+      dailyKwh: 3,
+      solution: baseSolution,
+    });
+    expect(rows).toEqual([
+      { key: 'nominal', label: 'Potência padrão', requiredValue: 3000, providedValue: 5000, unit: 'W' },
+      { key: 'peak', label: 'Potência de pico', requiredValue: 6000, providedValue: 7000, unit: 'W' },
+      { key: 'energy', label: 'Energia', requiredValue: 3000, providedValue: 3240, unit: 'Wh' },
+    ]);
+  });
+
+  it('adds microgrid rows only when the feature is active with a positive on-grid power', () => {
+    const rows = buildMarginSummary({
+      desiredFeatures: ['microgrid'],
+      whiteTariff: null,
+      microgrid: { onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null },
+      nominalW: 3000,
+      peakW: 6000,
+      dailyKwh: 3,
+      solution: { ...baseSolution, batteryPowerW: 1800 },
+    });
+    expect(rows).toContainEqual({
+      key: 'microgrid_inverter',
+      label: 'Microrrede (inversor)',
+      requiredValue: 2000,
+      providedValue: 5000,
+      unit: 'W',
+    });
+    expect(rows).toContainEqual({
+      key: 'microgrid_battery',
+      label: 'Microrrede (bateria)',
+      requiredValue: 2000,
+      providedValue: 1800,
+      unit: 'W',
+    });
+  });
+
+  it('omits microgrid rows when the feature is not active, even if a microgrid config is present', () => {
+    const rows = buildMarginSummary({
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: { onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null },
+      nominalW: 3000,
+      peakW: 6000,
+      dailyKwh: 3,
+      solution: baseSolution,
+    });
+    expect(rows.some((row) => row.key.startsWith('microgrid'))).toBe(false);
   });
 });
 
