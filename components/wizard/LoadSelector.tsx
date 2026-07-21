@@ -170,7 +170,7 @@ function PresetCard({
         >
           <ListChecks className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{preset.loads.length}</span>
-          <TooltipBubble openUp={loadsTip.openUp} visible={loadsTip.visible}>
+          <TooltipBubble triggerRef={loadsTip.ref} openUp={loadsTip.openUp} visible={loadsTip.visible}>
             Cargas
           </TooltipBubble>
         </span>
@@ -185,7 +185,7 @@ function PresetCard({
           <Zap className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{peakKva.toFixed(1)}</span>
           kVA
-          <TooltipBubble openUp={peakTip.openUp} visible={peakTip.visible}>
+          <TooltipBubble triggerRef={peakTip.ref} openUp={peakTip.openUp} visible={peakTip.visible}>
             Pico
           </TooltipBubble>
         </span>
@@ -200,7 +200,7 @@ function PresetCard({
           <BatteryCharging className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{dailyKwh.toFixed(1)}</span>
           kWh
-          <TooltipBubble openUp={dailyTip.openUp} visible={dailyTip.visible}>
+          <TooltipBubble triggerRef={dailyTip.ref} openUp={dailyTip.openUp} visible={dailyTip.visible}>
             Consumo diário
           </TooltipBubble>
         </span>
@@ -239,7 +239,7 @@ function PeakModeButton({
       )}
     >
       {label}
-      <TooltipBubble openUp={openUp} visible={visible}>
+      <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible}>
         {tip}
       </TooltipBubble>
     </button>
@@ -347,7 +347,13 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   });
 
   function handleAddBlank() {
-    const added = addLoad(newLoad({ name: '', powerW: 0, hoursPerDay: 4, qty: 1, ipInRatio: 1 }));
+    // When adding from a phase-filtered tab (L1/L2/L3), connect the new
+    // blank load to that phase — otherwise it'd default to L1 and vanish
+    // from the current filter the moment it's created.
+    const phase = effectivePhaseFilter !== 'all' ? effectivePhaseFilter : undefined;
+    const added = addLoad(
+      newLoad({ name: '', powerW: 0, hoursPerDay: 4, qty: 1, ipInRatio: 1, ...(phase ? { phase } : {}) })
+    );
     setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
   }
 
@@ -820,12 +826,10 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            {effectivePhaseFilter === 'all' && (
-              <AddLoadTile
-                onAdd={handleAddBlank}
-                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-              />
-            )}
+            <AddLoadTile
+              onAdd={handleAddBlank}
+              disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+            />
             {visibleLoads.map((load) => (
               <LoadCard
                 key={load.id}
@@ -856,7 +860,7 @@ function AddLoadTile({ onAdd, disabled }: { onAdd: () => void; disabled: boolean
       type="button"
       onClick={onAdd}
       disabled={disabled}
-      className="flex min-h-[88px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex min-h-[88px] flex-col items-center justify-center gap-1 self-start rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Plus className="h-5 w-5" />
       Adicionar carga
@@ -1459,7 +1463,7 @@ function LoadCard({
             >
               <Plug className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{load.powerW} VA</span>
-              <TooltipBubble openUp={powerTip.openUp} visible={powerTip.visible}>
+              <TooltipBubble triggerRef={powerTip.ref} openUp={powerTip.openUp} visible={powerTip.visible}>
                 Potência nominal
               </TooltipBubble>
             </span>
@@ -1476,7 +1480,7 @@ function LoadCard({
             >
               <Zap className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span>
-              <TooltipBubble openUp={peakTip.openUp} visible={peakTip.visible}>
+              <TooltipBubble triggerRef={peakTip.ref} openUp={peakTip.openUp} visible={peakTip.visible}>
                 {peakCalcMode === 'select' && !includedInPeak
                   ? 'Potência de pico (não contabilizada — carga desmarcada)'
                   : 'Potência de pico (nominal × IP/IN × quantidade)'}
@@ -1492,7 +1496,7 @@ function LoadCard({
             >
               <BatteryCharging className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>
-              <TooltipBubble openUp={dailyTip.openUp} visible={dailyTip.visible}>
+              <TooltipBubble triggerRef={dailyTip.ref} openUp={dailyTip.openUp} visible={dailyTip.visible}>
                 Consumo diário estimado
               </TooltipBubble>
             </span>
@@ -1530,7 +1534,7 @@ function LoadCard({
               }
             >
               <Zap className={cn('h-3.5 w-3.5', includedInPeak ? 'text-primary' : 'text-muted-foreground')} />
-              <TooltipBubble openUp={includedToggleTip.openUp} visible={includedToggleTip.visible} className="left-auto right-0">
+              <TooltipBubble triggerRef={includedToggleTip.ref} openUp={includedToggleTip.openUp} visible={includedToggleTip.visible} align="end">
                 {includedInPeak
                   ? 'Conta na potência de pico — clique para excluir'
                   : 'Não conta na potência de pico — clique para incluir'}

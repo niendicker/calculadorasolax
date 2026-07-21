@@ -58,6 +58,7 @@ import {
   ImagePreviewModal,
   Metric,
   ProductAttachments,
+  ProductImage,
   SolutionSkeleton,
 } from '../shared-ui';
 import {
@@ -781,7 +782,7 @@ function InStockBadge() {
     >
       <Check className="h-3 w-3" />
       No catálogo
-      <TooltipBubble openUp={openUp} visible={visible}>
+      <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible}>
         Você tem esse modelo no seu catálogo
       </TooltipBubble>
     </Badge>
@@ -826,7 +827,7 @@ function FeatureTabButton({
       />
       {label}
       {description && (
-        <TooltipBubble openUp={openUp} visible={visible}>
+        <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible}>
           {description}
         </TooltipBubble>
       )}
@@ -1266,11 +1267,11 @@ function BatteryModelPicker({
                   }
                 }}
                 className={cn(
-                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[72px_1fr]',
+                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
                   selected ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
                 )}
               >
-                <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
+                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background">
                   {battery.imageUrl ? (
                     <button
                       type="button"
@@ -1419,11 +1420,11 @@ function InverterModelPicker({
                   }
                 }}
                 className={cn(
-                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[72px_1fr]',
+                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
                   selected ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
                 )}
               >
-                <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
+                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background">
                   {inverter.imageUrl ? (
                     <button
                       type="button"
@@ -1675,40 +1676,50 @@ function ResultSummary({
     <div className="space-y-3">
       <MarginSummary rows={marginRows} />
       <div className="rounded-lg border bg-background p-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Zap className="h-4 w-4 text-accent" />
-          Inversor
+        <div className="grid gap-3 sm:grid-cols-[1fr_88px]">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Zap className="h-4 w-4 text-accent" />
+              Inversor
+            </div>
+            {inverterMedia?.nickname ? (
+              <>
+                <p className="mt-1 text-lg font-bold">{inverterMedia.nickname}</p>
+                <p className="text-xs text-muted-foreground">{solution.inverterModel}</p>
+              </>
+            ) : (
+              <p className="mt-1 text-lg font-semibold">{solution.inverterModel}</p>
+            )}
+            <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty ?? 1}</p>
+            <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} />
+          </div>
+          <ProductImage media={inverterMedia} onPreviewImage={setPreviewImage} />
         </div>
-        {inverterMedia?.nickname ? (
-          <>
-            <p className="mt-1 text-lg font-bold">{inverterMedia.nickname}</p>
-            <p className="text-xs text-muted-foreground">{solution.inverterModel}</p>
-          </>
-        ) : (
-          <p className="mt-1 text-lg font-semibold">{solution.inverterModel}</p>
-        )}
-        <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty ?? 1}</p>
-        <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
       </div>
 
       {batteryParts.map((part, index) => {
         const partMedia = productMedia[part.model];
         return (
           <div key={part.model} className="rounded-lg border bg-background p-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Battery className="h-4 w-4 text-primary" />
-              {index === 0 ? 'Bateria' : 'Bateria (expansão)'}
+            <div className="grid gap-3 sm:grid-cols-[1fr_88px]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Battery className="h-4 w-4 text-primary" />
+                  {index === 0 ? 'Bateria' : 'Bateria (expansão)'}
+                </div>
+                {partMedia?.nickname ? (
+                  <>
+                    <p className="mt-1 text-lg font-bold">{partMedia.nickname}</p>
+                    <p className="text-xs text-muted-foreground">{part.model}</p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-lg font-semibold">{part.model}</p>
+                )}
+                <p className="text-sm text-muted-foreground">Quantidade: x{part.qty}</p>
+                <ProductAttachments media={partMedia} onPreview={setPreviewDoc} />
+              </div>
+              <ProductImage media={partMedia} onPreviewImage={setPreviewImage} />
             </div>
-            {partMedia?.nickname ? (
-              <>
-                <p className="mt-1 text-lg font-bold">{partMedia.nickname}</p>
-                <p className="text-xs text-muted-foreground">{part.model}</p>
-              </>
-            ) : (
-              <p className="mt-1 text-lg font-semibold">{part.model}</p>
-            )}
-            <p className="text-sm text-muted-foreground">Quantidade: x{part.qty}</p>
-            <ProductAttachments media={partMedia} onPreview={setPreviewDoc} onPreviewImage={setPreviewImage} />
           </div>
         );
       })}
@@ -1730,18 +1741,16 @@ function ResultSummary({
             {solution.accessories.map((accessory) => {
               const { model, qty, optional } = parseAccessoryLabel(accessory);
               return (
-                <div key={accessory}>
-                  <Badge variant="secondary">
-                    {productMedia[model]?.nickname || model}
-                    {optional ? ' (opcional)' : ''}
-                  </Badge>
-                  <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
-                  <ProductAttachments
-                    media={productMedia[model]}
-                    onPreview={setPreviewDoc}
-                    onPreviewImage={setPreviewImage}
-                    inline
-                  />
+                <div key={accessory} className="grid gap-3 sm:grid-cols-[1fr_88px]">
+                  <div className="min-w-0">
+                    <Badge variant="secondary">
+                      {productMedia[model]?.nickname || model}
+                      {optional ? ' (opcional)' : ''}
+                    </Badge>
+                    <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
+                    <ProductAttachments media={productMedia[model]} onPreview={setPreviewDoc} inline />
+                  </div>
+                  <ProductImage media={productMedia[model]} onPreviewImage={setPreviewImage} />
                 </div>
               );
             })}

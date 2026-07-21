@@ -640,6 +640,32 @@ describe('LoadSelector: added loads list', () => {
     expect(screen.getByText('Fase L3')).toBeInTheDocument();
   });
 
+  it('shows "Adicionar carga" on a phase-filtered tab too, connecting the new load to that phase', () => {
+    // threePhase_380: a default mono load (220V) doesn't need a phase pair
+    // (that only kicks in at 220V phase-to-phase on split/threePhase_220),
+    // so the new load's single phase isn't overridden by that separate rule.
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_380',
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1' }],
+      },
+    }));
+    renderLoadSelector();
+
+    const phaseL2Button = screen.getByRole('button', { name: /Fase L2/ });
+    fireEvent.click(phaseL2Button);
+    expect(phaseL2Button).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Adicionar carga' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+
+    const newLoad = useWizardStore
+      .getState()
+      .residentialOptions.loads.find((load) => load.id !== 'l1');
+    expect(newLoad).toMatchObject({ phase: 'L2' });
+  });
+
   it('switches the peak calculation mode', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {

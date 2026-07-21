@@ -184,6 +184,30 @@ describe('SizingTab: summary panel', () => {
     expect(screen.getByText('Bateria', { selector: 'div' }).parentElement).toHaveTextContent('TP-HS3.6');
   });
 
+  it('lays the Inversor card out with the image as a sibling column next to the text/attachments column', () => {
+    setup({
+      solution: fakeSolution,
+      productMedia: {
+        'X1-Hybrid-5.0kW-G4': {
+          model: 'X1-Hybrid-5.0kW-G4',
+          nickname: null,
+          imageUrl: 'https://cdn.example.com/inverter.png',
+          documents: [{ name: 'Datasheet', url: 'https://cdn.example.com/datasheet.pdf' }],
+        },
+      },
+    });
+
+    const inverterCard = screen.getByText('Inversor', { selector: 'div' }).closest('.rounded-lg') as HTMLElement;
+    const grid = inverterCard.querySelector('.sm\\:grid-cols-\\[1fr_88px\\]') as HTMLElement;
+    expect(grid.children).toHaveLength(2);
+
+    const [textColumn, imageColumn] = Array.from(grid.children);
+    expect(textColumn).toHaveTextContent('X1-Hybrid-5.0kW-G4');
+    expect(textColumn).toHaveTextContent('Datasheet');
+    expect(imageColumn.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/inverter.png');
+    expect(within(textColumn as HTMLElement).queryByRole('img')).not.toBeInTheDocument();
+  });
+
   it('gives the expansion/Slave battery its own card when the Master has an expansionModel and qty > 1', () => {
     const masterBattery: BatteryCatalogOption = { ...battery, model: 'T58 V2 Master', expansionModel: 'T58 Slave' };
     setup({

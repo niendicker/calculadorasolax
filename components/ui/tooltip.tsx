@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { CircleHelp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +13,13 @@ const MIN_SPACE_ABOVE = 90;
  * screen doesn't spam a tooltip for every element passed over — mirrors the
  * delay ConfirmDeleteButton already uses for its own hover popover. */
 const SHOW_DELAY_MS = 300;
+
+/** Gap (px) between the trigger and the tooltip bubble — matches the old
+ * mb-2.5/mt-2.5 CSS spacing. */
+const GAP_PX = 10;
+
+/** Minimum distance (px) from the viewport edge the bubble is clamped to. */
+const VIEWPORT_MARGIN_PX = 12;
 
 /** Tracks a tooltip's visibility and vertical placement. Visibility is
  * driven from React state rather than CSS `group-hover` — with many
@@ -62,35 +70,73 @@ export function useTooltipFlip<T extends HTMLElement = HTMLElement>(): {
 /** The floating bubble itself: slightly rounded corners and generous text
  * padding, shared by every tooltip in the app. Opens above its trigger by
  * default, flipping below near the top of the viewport — pass the `openUp`
- * and `visible` flags from `useTooltipFlip`. */
+ * and `visible` flags from `useTooltipFlip`, along with the same `ref` used
+ * on the trigger.
+ *
+ * Portals to `document.body` and positions itself with fixed pixel
+ * coordinates (rather than CSS `absolute` relative to the trigger) so it
+ * can't be clipped by a scrolling/overflow-hidden ancestor — e.g. the
+ * summary sidebar's `overflow-y-auto` used to cut tooltips off. */
 export function TooltipBubble({
+  triggerRef,
   openUp,
   visible,
   children,
   className,
+  align = 'start',
 }: {
+  triggerRef: RefObject<HTMLElement | null>;
   openUp: boolean;
   visible: boolean;
   children: ReactNode;
   className?: string;
+  /** 'end' right-aligns the bubble to the trigger's right edge instead of its left. */
+  align?: 'start' | 'end';
 }) {
-  return (
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const bubbleRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const trigger = triggerRef.current;
+    const bubble = bubbleRef.current;
+    if (!trigger || !bubble) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const bubbleRect = bubble.getBoundingClientRect();
+
+    let left = align === 'end' ? triggerRect.right - bubbleRect.width : triggerRect.left;
+    left = Math.min(Math.max(VIEWPORT_MARGIN_PX, left), window.innerWidth - bubbleRect.width - VIEWPORT_MARGIN_PX);
+
+    const top = openUp ? triggerRect.top - GAP_PX - bubbleRect.height : triggerRect.bottom + GAP_PX;
+
+    setPosition({ top, left });
+  }, [visible, openUp, align, triggerRef]);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <span
+      ref={bubbleRef}
       className={cn(
-        'pointer-events-none absolute left-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover px-3 py-2 text-xs font-normal leading-snug text-popover-foreground shadow-md transition-opacity',
-        openUp ? 'bottom-full mb-2.5' : 'top-full mt-2.5',
+        'pointer-events-none fixed z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover px-3 py-2 text-xs font-normal leading-snug text-popover-foreground shadow-md transition-opacity',
         visible ? 'opacity-100' : 'opacity-0',
         className
       )}
+      style={{ top: position.top, left: position.left }}
     >
       {children}
-    </span>
+    </span>,
+    document.body
   );
 }
 
 /** Wraps any trigger element with a floating hover/focus tooltip. The trigger
- * is rendered as-is (plus `relative`); the bubble opens above it by default,
- * flipping below near the top of the viewport. */
+ * is rendered as-is; the bubble opens above it by default, flipping below
+ * near the top of the viewport. */
 export function Tooltip({
   content,
   children,
@@ -110,10 +156,10 @@ export function Tooltip({
       onMouseLeave={onMouseLeave}
       onFocus={onFocus}
       onBlur={onBlur}
-      className={cn('relative inline-flex', className)}
+      className={cn('inline-flex', className)}
     >
       {children}
-      <TooltipBubble openUp={openUp} visible={visible} className={contentClassName}>
+      <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible} className={contentClassName}>
         {content}
       </TooltipBubble>
     </span>

@@ -354,35 +354,48 @@ export function ImagePreviewModal({
   );
 }
 
+/** The product's photo alone — kept separate from ProductAttachments so
+ * callers can lay the image out apart from the name/quantity/documents
+ * (e.g. a right-hand image column next to a left-hand text column). */
+export function ProductImage({
+  media,
+  onPreviewImage,
+  className,
+}: {
+  media: ProductMedia | undefined;
+  onPreviewImage: (image: { url: string; alt: string }) => void;
+  className?: string;
+}) {
+  if (!media?.imageUrl) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPreviewImage({ url: media.imageUrl as string, alt: media.model })}
+      className={cn(
+        'flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background transition sm:h-full',
+        className
+      )}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={media.imageUrl} alt={media.model} className="h-full w-full object-contain p-2" />
+    </button>
+  );
+}
+
 export function ProductAttachments({
   media,
   onPreview,
-  onPreviewImage,
   inline = false,
 }: {
   media: ProductMedia | undefined;
   onPreview: (doc: ProductDocument) => void;
-  onPreviewImage: (image: { url: string; alt: string }) => void;
   inline?: boolean;
 }) {
-  if (!media || (!media.imageUrl && media.documents.length === 0)) return null;
+  if (!media || media.documents.length === 0) return null;
 
   return (
     <div className={cn('flex flex-wrap items-center gap-2', inline ? '' : 'mt-2')}>
-      {media.imageUrl && (
-        <button
-          type="button"
-          onClick={() => onPreviewImage({ url: media.imageUrl as string, alt: media.model })}
-          className="shrink-0 rounded border bg-background transition hover:border-primary/50"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={media.imageUrl}
-            alt={media.model}
-            className="h-14 w-20 object-contain p-1"
-          />
-        </button>
-      )}
       {media.documents.map((document) => (
         <button
           key={`${media.model}-${document.url}`}
