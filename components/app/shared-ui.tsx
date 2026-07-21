@@ -251,6 +251,10 @@ export function SolutionSkeleton() {
 
 export function DocPreviewModal({ doc, onClose }: { doc: ProductDocument | null; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
+  // Gates the createPortal call below until after client mount — document
+  // doesn't exist during SSR, so this can't be a lazy useState initializer
+  // without causing a hydration mismatch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
@@ -306,6 +310,10 @@ export function ImagePreviewModal({
   onClose: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  // Gates the createPortal call below until after client mount — document
+  // doesn't exist during SSR, so this can't be a lazy useState initializer
+  // without causing a hydration mismatch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {

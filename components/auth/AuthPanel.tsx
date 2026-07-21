@@ -20,6 +20,10 @@ function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void 
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // Gates the createPortal call below until after client mount — document
+    // doesn't exist during SSR, so this can't be a lazy useState initializer
+    // without causing a hydration mismatch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const showTimer = setTimeout(() => setVisible(true), 10);
     const hideTimer = setTimeout(() => {

@@ -25,7 +25,7 @@ import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPhase, LoadPresetLoad, PeakCalcMode, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { InfoLabel, Tooltip, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
+import { InfoLabel, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import { SearchInput } from '@/components/app/shared-ui';
 
 export function NumberFieldWithClear({
@@ -141,9 +141,33 @@ function PresetCard({
 }) {
   const peakKva = preset.loads.reduce((acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty, 0) / 1000;
   const dailyKwh = preset.loads.reduce((acc, load) => acc + (load.powerW * load.hoursPerDay * load.qty) / 1000, 0);
-  const loadsTip = useTooltipFlip<HTMLSpanElement>();
-  const peakTip = useTooltipFlip<HTMLSpanElement>();
-  const dailyTip = useTooltipFlip<HTMLSpanElement>();
+  const {
+    ref: loadsTipRef,
+    openUp: loadsTipOpenUp,
+    visible: loadsTipVisible,
+    onMouseEnter: loadsTipOnMouseEnter,
+    onMouseLeave: loadsTipOnMouseLeave,
+    onFocus: loadsTipOnFocus,
+    onBlur: loadsTipOnBlur,
+  } = useTooltipFlip<HTMLSpanElement>();
+  const {
+    ref: peakTipRef,
+    openUp: peakTipOpenUp,
+    visible: peakTipVisible,
+    onMouseEnter: peakTipOnMouseEnter,
+    onMouseLeave: peakTipOnMouseLeave,
+    onFocus: peakTipOnFocus,
+    onBlur: peakTipOnBlur,
+  } = useTooltipFlip<HTMLSpanElement>();
+  const {
+    ref: dailyTipRef,
+    openUp: dailyTipOpenUp,
+    visible: dailyTipVisible,
+    onMouseEnter: dailyTipOnMouseEnter,
+    onMouseLeave: dailyTipOnMouseLeave,
+    onFocus: dailyTipOnFocus,
+    onBlur: dailyTipOnBlur,
+  } = useTooltipFlip<HTMLSpanElement>();
 
   return (
     <button
@@ -161,46 +185,46 @@ function PresetCard({
       {preset.description && <p className="truncate text-xs text-muted-foreground">{preset.description}</p>}
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span
-          ref={loadsTip.ref}
-          onMouseEnter={loadsTip.onMouseEnter}
-          onMouseLeave={loadsTip.onMouseLeave}
-          onFocus={loadsTip.onFocus}
-          onBlur={loadsTip.onBlur}
+          ref={loadsTipRef}
+          onMouseEnter={loadsTipOnMouseEnter}
+          onMouseLeave={loadsTipOnMouseLeave}
+          onFocus={loadsTipOnFocus}
+          onBlur={loadsTipOnBlur}
           className="relative flex items-center gap-1"
         >
           <ListChecks className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{preset.loads.length}</span>
-          <TooltipBubble triggerRef={loadsTip.ref} openUp={loadsTip.openUp} visible={loadsTip.visible}>
+          <TooltipBubble triggerRef={loadsTipRef} openUp={loadsTipOpenUp} visible={loadsTipVisible}>
             Cargas
           </TooltipBubble>
         </span>
         <span
-          ref={peakTip.ref}
-          onMouseEnter={peakTip.onMouseEnter}
-          onMouseLeave={peakTip.onMouseLeave}
-          onFocus={peakTip.onFocus}
-          onBlur={peakTip.onBlur}
+          ref={peakTipRef}
+          onMouseEnter={peakTipOnMouseEnter}
+          onMouseLeave={peakTipOnMouseLeave}
+          onFocus={peakTipOnFocus}
+          onBlur={peakTipOnBlur}
           className="relative flex items-center gap-1"
         >
           <Zap className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{peakKva.toFixed(1)}</span>
           kVA
-          <TooltipBubble triggerRef={peakTip.ref} openUp={peakTip.openUp} visible={peakTip.visible}>
+          <TooltipBubble triggerRef={peakTipRef} openUp={peakTipOpenUp} visible={peakTipVisible}>
             Pico
           </TooltipBubble>
         </span>
         <span
-          ref={dailyTip.ref}
-          onMouseEnter={dailyTip.onMouseEnter}
-          onMouseLeave={dailyTip.onMouseLeave}
-          onFocus={dailyTip.onFocus}
-          onBlur={dailyTip.onBlur}
+          ref={dailyTipRef}
+          onMouseEnter={dailyTipOnMouseEnter}
+          onMouseLeave={dailyTipOnMouseLeave}
+          onFocus={dailyTipOnFocus}
+          onBlur={dailyTipOnBlur}
           className="relative flex items-center gap-1"
         >
           <BatteryCharging className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{dailyKwh.toFixed(1)}</span>
           kWh
-          <TooltipBubble triggerRef={dailyTip.ref} openUp={dailyTip.openUp} visible={dailyTip.visible}>
+          <TooltipBubble triggerRef={dailyTipRef} openUp={dailyTipOpenUp} visible={dailyTipVisible}>
             Consumo diário
           </TooltipBubble>
         </span>
@@ -893,6 +917,10 @@ function UserLoadCatalogItemMenu({
     setView('menu');
   }
 
+  // Gates the createPortal call below until after client mount — document
+  // doesn't exist during SSR, so this can't be a lazy useState initializer
+  // without causing a hydration mismatch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   useLayoutEffect(() => {
@@ -1117,10 +1145,42 @@ function LoadCard({
   const [draftDropdownOpen, setDraftDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const isDraft = load.powerW === 0;
-  const powerTip = useTooltipFlip<HTMLSpanElement>();
-  const peakTip = useTooltipFlip<HTMLSpanElement>();
-  const dailyTip = useTooltipFlip<HTMLSpanElement>();
-  const includedToggleTip = useTooltipFlip<HTMLButtonElement>();
+  const {
+    ref: powerTipRef,
+    openUp: powerTipOpenUp,
+    visible: powerTipVisible,
+    onMouseEnter: powerTipOnMouseEnter,
+    onMouseLeave: powerTipOnMouseLeave,
+    onFocus: powerTipOnFocus,
+    onBlur: powerTipOnBlur,
+  } = useTooltipFlip<HTMLSpanElement>();
+  const {
+    ref: peakTipRef,
+    openUp: peakTipOpenUp,
+    visible: peakTipVisible,
+    onMouseEnter: peakTipOnMouseEnter,
+    onMouseLeave: peakTipOnMouseLeave,
+    onFocus: peakTipOnFocus,
+    onBlur: peakTipOnBlur,
+  } = useTooltipFlip<HTMLSpanElement>();
+  const {
+    ref: dailyTipRef,
+    openUp: dailyTipOpenUp,
+    visible: dailyTipVisible,
+    onMouseEnter: dailyTipOnMouseEnter,
+    onMouseLeave: dailyTipOnMouseLeave,
+    onFocus: dailyTipOnFocus,
+    onBlur: dailyTipOnBlur,
+  } = useTooltipFlip<HTMLSpanElement>();
+  const {
+    ref: includedToggleTipRef,
+    openUp: includedToggleTipOpenUp,
+    visible: includedToggleTipVisible,
+    onMouseEnter: includedToggleTipOnMouseEnter,
+    onMouseLeave: includedToggleTipOnMouseLeave,
+    onFocus: includedToggleTipOnFocus,
+    onBlur: includedToggleTipOnBlur,
+  } = useTooltipFlip<HTMLButtonElement>();
 
   const draftMatches = useMemo(() => {
     const query = draftName.trim().toLowerCase();
@@ -1147,14 +1207,11 @@ function LoadCard({
     [draftMatches, nameKey]
   );
 
-  useEffect(() => {
-    setHighlightedIndex(-1);
-  }, [draftName]);
-
   function selectDraftSuggestion(name: string, powerW: number, ipInRatio: number) {
     setDraftName(name);
     setDraftPower(String(powerW));
     setDraftDropdownOpen(false);
+    setHighlightedIndex(-1);
     onUpdate(load.id, { name, powerW, ipInRatio });
   }
 
@@ -1282,6 +1339,7 @@ function LoadCard({
                 onChange={(event) => {
                   setDraftName(event.target.value);
                   setDraftDropdownOpen(true);
+                  setHighlightedIndex(-1);
                 }}
                 onFocus={() => setDraftDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setDraftDropdownOpen(false), 150)}
@@ -1454,25 +1512,25 @@ function LoadCard({
           <p className="font-medium truncate">{load.name}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span
-              ref={powerTip.ref}
-              onMouseEnter={powerTip.onMouseEnter}
-              onMouseLeave={powerTip.onMouseLeave}
-              onFocus={powerTip.onFocus}
-              onBlur={powerTip.onBlur}
+              ref={powerTipRef}
+              onMouseEnter={powerTipOnMouseEnter}
+              onMouseLeave={powerTipOnMouseLeave}
+              onFocus={powerTipOnFocus}
+              onBlur={powerTipOnBlur}
               className="relative flex items-center gap-1"
             >
               <Plug className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{load.powerW} VA</span>
-              <TooltipBubble triggerRef={powerTip.ref} openUp={powerTip.openUp} visible={powerTip.visible}>
+              <TooltipBubble triggerRef={powerTipRef} openUp={powerTipOpenUp} visible={powerTipVisible}>
                 Potência nominal
               </TooltipBubble>
             </span>
             <span
-              ref={peakTip.ref}
-              onMouseEnter={peakTip.onMouseEnter}
-              onMouseLeave={peakTip.onMouseLeave}
-              onFocus={peakTip.onFocus}
-              onBlur={peakTip.onBlur}
+              ref={peakTipRef}
+              onMouseEnter={peakTipOnMouseEnter}
+              onMouseLeave={peakTipOnMouseLeave}
+              onFocus={peakTipOnFocus}
+              onBlur={peakTipOnBlur}
               className={cn(
                 'relative flex items-center gap-1',
                 peakCalcMode === 'select' && !includedInPeak && 'opacity-50'
@@ -1480,23 +1538,23 @@ function LoadCard({
             >
               <Zap className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span>
-              <TooltipBubble triggerRef={peakTip.ref} openUp={peakTip.openUp} visible={peakTip.visible}>
+              <TooltipBubble triggerRef={peakTipRef} openUp={peakTipOpenUp} visible={peakTipVisible}>
                 {peakCalcMode === 'select' && !includedInPeak
                   ? 'Potência de pico (não contabilizada — carga desmarcada)'
                   : 'Potência de pico (nominal × IP/IN × quantidade)'}
               </TooltipBubble>
             </span>
             <span
-              ref={dailyTip.ref}
-              onMouseEnter={dailyTip.onMouseEnter}
-              onMouseLeave={dailyTip.onMouseLeave}
-              onFocus={dailyTip.onFocus}
-              onBlur={dailyTip.onBlur}
+              ref={dailyTipRef}
+              onMouseEnter={dailyTipOnMouseEnter}
+              onMouseLeave={dailyTipOnMouseLeave}
+              onFocus={dailyTipOnFocus}
+              onBlur={dailyTipOnBlur}
               className="relative flex items-center gap-1"
             >
               <BatteryCharging className="h-3.5 w-3.5" />
               <span className="font-medium text-foreground">{loadEnergyKwh.toFixed(2)} kWh</span>
-              <TooltipBubble triggerRef={dailyTip.ref} openUp={dailyTip.openUp} visible={dailyTip.visible}>
+              <TooltipBubble triggerRef={dailyTipRef} openUp={dailyTipOpenUp} visible={dailyTipVisible}>
                 Consumo diário estimado
               </TooltipBubble>
             </span>
@@ -1514,7 +1572,7 @@ function LoadCard({
         <div className="flex shrink-0 items-center gap-1">
           {peakCalcMode === 'select' && (
             <Button
-              ref={includedToggleTip.ref}
+              ref={includedToggleTipRef}
               variant="ghost"
               size="icon"
               className="relative shrink-0 md:h-7 md:w-7"
@@ -1522,10 +1580,10 @@ function LoadCard({
                 event.stopPropagation();
                 onUpdate(load.id, { includedInPeak: !includedInPeak });
               }}
-              onMouseEnter={includedToggleTip.onMouseEnter}
-              onMouseLeave={includedToggleTip.onMouseLeave}
-              onFocus={includedToggleTip.onFocus}
-              onBlur={includedToggleTip.onBlur}
+              onMouseEnter={includedToggleTipOnMouseEnter}
+              onMouseLeave={includedToggleTipOnMouseLeave}
+              onFocus={includedToggleTipOnFocus}
+              onBlur={includedToggleTipOnBlur}
               aria-pressed={includedInPeak}
               aria-label={
                 includedInPeak
@@ -1534,7 +1592,7 @@ function LoadCard({
               }
             >
               <Zap className={cn('h-3.5 w-3.5', includedInPeak ? 'text-primary' : 'text-muted-foreground')} />
-              <TooltipBubble triggerRef={includedToggleTip.ref} openUp={includedToggleTip.openUp} visible={includedToggleTip.visible} align="end">
+              <TooltipBubble triggerRef={includedToggleTipRef} openUp={includedToggleTipOpenUp} visible={includedToggleTipVisible} align="end">
                 {includedInPeak
                   ? 'Conta na potência de pico — clique para excluir'
                   : 'Não conta na potência de pico — clique para incluir'}

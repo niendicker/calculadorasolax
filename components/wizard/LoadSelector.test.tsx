@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { NextIntlClientProvider } from 'next-intl';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import { ACCOUNT_LIMITS } from '@/lib/limits';

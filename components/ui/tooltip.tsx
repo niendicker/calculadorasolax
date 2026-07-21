@@ -97,6 +97,10 @@ export function TooltipBubble({
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const bubbleRef = useRef<HTMLSpanElement | null>(null);
 
+  // Gates the createPortal call below until after client mount — document
+  // doesn't exist during SSR, so this can't be a lazy useState initializer
+  // without causing a hydration mismatch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   useLayoutEffect(() => {

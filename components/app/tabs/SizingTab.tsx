@@ -161,7 +161,10 @@ export function SizingTab({
   // Jump straight to the Solução tab whenever a fresh calculation finishes
   // (success or failure) — that's where the feedback the user just asked
   // for lives, so they shouldn't have to switch tabs manually to see it.
+  // This can't move into the Calcular button's click handler: `solution`
+  // also changes when a saved project is loaded, which this must catch too.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (solution || error) setSummaryTab('solucao');
   }, [solution, error]);
 
