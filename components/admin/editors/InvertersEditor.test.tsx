@@ -203,11 +203,60 @@ describe('InvertersEditor: general form', () => {
     expect(screen.getByRole('button', { name: 'Trifásica 380V' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('switches to the media tab', () => {
+  it('switches to the media tab, sets the image URL and adds a document', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Novo inversor/ }));
+    fireEvent.change(screen.getByLabelText('Modelo'), { target: { value: 'X1-Hybrid-5.0kW-G4' } });
+
     fireEvent.click(screen.getByRole('button', { name: 'Mídias' }));
-    expect(screen.getByPlaceholderText('URL da imagem')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('URL da imagem'), { target: { value: 'https://cdn.example.com/x.png' } });
+    expect(screen.getByPlaceholderText('URL da imagem')).toHaveValue('https://cdn.example.com/x.png');
+
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar link/ }));
+    expect(screen.getByPlaceholderText('Nome do documento')).toHaveValue('Datasheet');
+  });
+
+  it('closes the form via the close button, resetting the ESS sub-form too', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Novo inversor/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Novo inversor' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('edits nickname and every general-tab field (potência, tipo de rede quantities, topologia, portas, tensão/corrente de bateria, flags)', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Novo inversor/ }));
+
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Inversor Compacto'), { target: { value: 'Compacto' } });
+    expect(screen.getByPlaceholderText('Ex.: Inversor Compacto')).toHaveValue('Compacto');
+
+    const [standardPower, peakPower, maxPowerPerPhase] = screen.getAllByRole('spinbutton').filter((el) => {
+      const placeholder = el.getAttribute('placeholder');
+      return placeholder === null || placeholder === '—';
+    });
+    fireEvent.change(standardPower, { target: { value: '6' } });
+    fireEvent.change(peakPower, { target: { value: '8' } });
+    fireEvent.change(maxPowerPerPhase, { target: { value: '2000' } });
+    expect(maxPowerPerPhase).toHaveValue(2000);
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar campo' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+    fireEvent.click(screen.getByRole('button', { name: 'LV' }));
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+
+    for (const input of screen.getAllByPlaceholderText('—')) {
+      fireEvent.change(input, { target: { value: '48' } });
+      expect(input).toHaveValue(48);
+    }
+    for (const clearButton of screen.getAllByRole('button', { name: 'Limpar campo' })) {
+      fireEvent.click(clearButton);
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Microrrede' }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('removes via the confirm popover', async () => {
@@ -286,6 +335,65 @@ describe('InvertersEditor: ESS compatibility tab', () => {
 
     const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
     expect(within(essDialog).getByText('Nenhuma bateria compatível com a topologia do inversor.')).toBeInTheDocument();
+  });
+
+  it('opens an existing ESS rule for editing, edits its fields, and closes the sub-modal via the close button', () => {
+    render(
+      <ControlledEditor
+        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
+        essRows={[makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat padrão' })]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
+
+    const essCard = screen.getByText('Compat padrão').closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(essCard).getByRole('button', { name: 'Editar' }));
+
+    const essDialog = screen.getByRole('dialog', { name: /Editar compatibilidade ESS/ });
+    fireEvent.change(within(essDialog).getByLabelText('Nome da regra'), { target: { value: 'Compat renomeada' } });
+    expect(within(essDialog).getByLabelText('Nome da regra')).toHaveValue('Compat renomeada');
+
+    fireEvent.change(within(essDialog).getByLabelText('Máximo paralelo'), { target: { value: '2' } });
+    fireEvent.change(within(essDialog).getByLabelText('Comentário'), { target: { value: 'Observação' } });
+    expect(within(essDialog).getByLabelText('Comentário')).toHaveValue('Observação');
+
+    fireEvent.click(within(essDialog).getByRole('checkbox', { name: 'Ativa' }));
+
+    // Toggling the already-selected battery off removes its config card too.
+    fireEvent.click(within(essDialog).getByRole('button', { name: /^TP-HS3.6/ }));
+    expect(within(essDialog).queryAllByText('TP-HS3.6')).toHaveLength(1);
+
+    fireEvent.click(within(essDialog).getByRole('button', { name: /Fechar Editar compatibilidade ESS/ }));
+    expect(screen.queryByRole('dialog', { name: /Editar compatibilidade ESS/ })).not.toBeInTheDocument();
+  });
+
+  it('adjusts a compatible battery\'s min/max quantity per port, leaving other selected batteries\' configs untouched', () => {
+    const otherBattery: BatteryRow = { ...battery, id: 'b2', model: 'TP-HS7.2' };
+    render(
+      <ControlledEditor
+        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
+        batteries={[battery, otherBattery]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+
+    const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+    fireEvent.click(within(essDialog).getByRole('button', { name: /^TP-HS3.6/ }));
+    fireEvent.click(within(essDialog).getByRole('button', { name: /^TP-HS7.2/ }));
+
+    const [minSelect, maxSelect] = within(essDialog).getAllByRole('combobox').slice(-2);
+    fireEvent.change(minSelect, { target: { value: '2' } });
+    expect(minSelect).toHaveValue('2');
+    fireEvent.change(maxSelect, { target: { value: '3' } });
+    expect(maxSelect).toHaveValue('3');
+
+    // The other battery's own config selects (min/max, right after "Máximo
+    // paralelo") are untouched by editing this one.
+    const [, otherMinSelect] = within(essDialog).getAllByRole('combobox');
+    expect(otherMinSelect).toHaveValue('1');
   });
 
   it('removes an ESS rule via the confirm popover', async () => {

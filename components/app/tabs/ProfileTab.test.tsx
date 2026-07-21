@@ -86,6 +86,60 @@ describe('ProfileTab: fields', () => {
     fireEvent.click(screen.getByRole('button', { name: /Salvar perfil/ }));
     expect(saveProfile).toHaveBeenCalled();
   });
+
+  it('edits name, phone, company name/address/logo URL, and shows the logo preview once a URL is set', () => {
+    renderWithShell(<ControlledProfileTab />);
+
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Fulano de Tal' } });
+    expect(screen.getByLabelText('Nome')).toHaveValue('Fulano de Tal');
+
+    fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '11888888888' } });
+    expect(screen.getByLabelText('Telefone')).toHaveValue('11888888888');
+
+    fireEvent.change(screen.getByLabelText('Nome da empresa'), { target: { value: 'Solax Ltda' } });
+    expect(screen.getByLabelText('Nome da empresa')).toHaveValue('Solax Ltda');
+
+    fireEvent.change(screen.getByLabelText('Endereço da empresa'), { target: { value: 'Rua X, 123' } });
+    expect(screen.getByLabelText('Endereço da empresa')).toHaveValue('Rua X, 123');
+
+    expect(screen.queryByAltText('Logomarca da empresa')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Logomarca'), { target: { value: 'https://cdn.example.com/logo.png' } });
+    expect(screen.getByAltText('Logomarca da empresa')).toHaveAttribute('src', 'https://cdn.example.com/logo.png');
+  });
+
+  it('uploads a company logo file', () => {
+    const uploadCompanyLogo = vi.fn();
+    function Wrapper() {
+      const [profile, setProfile] = useState(baseProfile);
+      return (
+        <ProfileTab
+          profile={profile}
+          setProfile={setProfile}
+          profileSaving={false}
+          profileMessage={null}
+          profileError={null}
+          saveProfile={vi.fn()}
+          uploadCompanyLogo={uploadCompanyLogo}
+          signOut={vi.fn()}
+          deleteAccountOpen={false}
+          setDeleteAccountOpen={vi.fn()}
+          deleteConfirmText=""
+          setDeleteConfirmText={vi.fn()}
+          deletingAccount={false}
+          deleteAccountError={null}
+          setDeleteAccountError={vi.fn()}
+          deleteAccount={vi.fn()}
+        />
+      );
+    }
+    renderWithShell(<Wrapper />);
+
+    const file = new File(['x'], 'logo.png', { type: 'image/png' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(uploadCompanyLogo).toHaveBeenCalledWith(file);
+  });
 });
 
 describe('ProfileTab: delete account flow', () => {

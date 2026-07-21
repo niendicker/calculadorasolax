@@ -125,13 +125,55 @@ describe('BatteriesEditor: form', () => {
     expect(within(datalist).queryByText((_, el) => el?.getAttribute('value') === 'T58 V2 Master')).not.toBeInTheDocument();
   });
 
-  it('switches to the media tab and edits the image URL', () => {
+  it('edits the model, switches to the media tab, edits the image URL, and adds a document link', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Nova bateria/ }));
 
+    fireEvent.change(screen.getByLabelText('Modelo'), { target: { value: 'TP-HS3.6' } });
+    expect(screen.getByLabelText('Modelo')).toHaveValue('TP-HS3.6');
+
     fireEvent.click(screen.getByRole('button', { name: 'Mídias' }));
 
-    expect(screen.getByPlaceholderText('URL da imagem')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('URL da imagem'), { target: { value: 'https://cdn.example.com/x.png' } });
+    expect(screen.getByPlaceholderText('URL da imagem')).toHaveValue('https://cdn.example.com/x.png');
+
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar link/ }));
+    expect(screen.getByPlaceholderText('Nome do documento')).toHaveValue('Datasheet');
+  });
+
+  it('closes the form via the close button', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova bateria/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Nova bateria' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('edits nickname, SOC mínimo tab, associação máxima and every electrical field (set + clear)', () => {
+    render(<ControlledEditor rows={[makeBattery({ id: 'b1', model: 'TP-HS3.6', topology: 'HV' })]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Bateria Compacta'), { target: { value: 'Compacta' } });
+    expect(screen.getByPlaceholderText('Ex.: Bateria Compacta')).toHaveValue('Compacta');
+
+    fireEvent.click(screen.getByRole('button', { name: '5%' }));
+
+    fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '10' } });
+
+    // Tensão nominal/mín./máx. and Corrente rec./máx., in that order, all
+    // share the "—" placeholder — index into them positionally.
+    for (const input of screen.getAllByPlaceholderText('—')) {
+      fireEvent.change(input, { target: { value: '48' } });
+      expect(input).toHaveValue(48);
+    }
+
+    // Every field's clear ("x") button — appears once each field has a value.
+    for (const clearButton of screen.getAllByRole('button', { name: 'Limpar campo' })) {
+      fireEvent.click(clearButton);
+    }
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('saves and closes the form', () => {

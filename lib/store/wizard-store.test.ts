@@ -853,12 +853,14 @@ describe('updateClient', () => {
     useWizardStore.setState({
       clients: [
         { id: 'c1', name: 'Ana', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' },
+        { id: 'c2', name: 'Bruno', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' },
       ],
     });
 
+    // Renaming "Ana" to "Zeta" must actually move it after "Bruno" once re-sorted.
     await useWizardStore.getState().updateClient('c1', { name: 'Zeta' });
 
-    expect(useWizardStore.getState().clients[0].name).toBe('Zeta');
+    expect(useWizardStore.getState().clients.map((c) => c.name)).toEqual(['Bruno', 'Zeta']);
   });
 });
 
@@ -975,12 +977,18 @@ describe('updateUserLoadCatalogItem', () => {
       createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: null } } })
     );
     useWizardStore.setState({
-      userLoadCatalog: [{ id: 'u1', name: 'Chuveiro', powerW: 4000, ipInRatio: 1, createdAt: '', updatedAt: '' }],
+      userLoadCatalog: [
+        { id: 'u1', name: 'Chuveiro', powerW: 4000, ipInRatio: 1, createdAt: '', updatedAt: '' },
+        { id: 'u2', name: 'Ventilador', powerW: 80, ipInRatio: 1, createdAt: '', updatedAt: '' },
+      ],
     });
 
-    await useWizardStore.getState().updateUserLoadCatalogItem('u1', { powerW: 6000 });
+    await useWizardStore.getState().updateUserLoadCatalogItem('u1', { powerW: 6000, name: 'Zorra' });
 
-    expect(useWizardStore.getState().userLoadCatalog[0].powerW).toBe(6000);
+    // Renaming "Chuveiro" to "Zorra" must actually move it after "Ventilador" once re-sorted.
+    const s = useWizardStore.getState();
+    expect(s.userLoadCatalog.map((item) => item.name)).toEqual(['Ventilador', 'Zorra']);
+    expect(s.userLoadCatalog[1].powerW).toBe(6000);
   });
 });
 

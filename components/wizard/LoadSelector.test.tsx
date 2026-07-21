@@ -159,6 +159,17 @@ describe('LoadSelector: user presets', () => {
     await waitFor(() => expect(useWizardStore.getState().userLoadPresets).toEqual([]));
   });
 
+  it('adds every load from a user preset', () => {
+    useWizardStore.setState({ userLoadPresets: [userPreset] });
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
+
+    fireEvent.click(screen.getByText('Meu preset').closest('button') as HTMLElement);
+
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ name: 'Bomba', powerW: 750 });
+  });
+
   it('saves the current loads as a new preset', async () => {
     createClientMock.mockReturnValue(
       createSupabaseMock({
@@ -200,6 +211,36 @@ describe('LoadSelector: user presets', () => {
     // At the limit, the "Salvar cargas atuais" trigger itself is disabled...
     expect(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ })).toBeDisabled();
   });
+
+  it('shows a generic error, edits the description, and cancels out of the save-preset form', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: { user_load_presets: { data: null, error: { message: 'network down' } } },
+      })
+    );
+    useWizardStore.setState((s) => ({
+      residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ }));
+
+    fireEvent.change(screen.getByLabelText('Nome do preset'), { target: { value: 'Meu preset' } });
+    fireEvent.change(screen.getByLabelText('Descrição do preset'), { target: { value: 'Uso diário' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByText('Não foi possível salvar o preset. Tente novamente.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByLabelText('Nome do preset')).not.toBeInTheDocument();
+  });
+
+  it('re-clicking the already-active Presets and Presets do sistema tabs is a no-op', () => {
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: 'Presets' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Presets do sistema' }));
+    expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
+  });
 });
 
 describe('LoadSelector: catalog', () => {
@@ -227,9 +268,10 @@ describe('LoadSelector: catalog', () => {
     expect(screen.queryByText('Ar-condicionado 9000 BTU')).not.toBeInTheDocument();
   });
 
-  it('filters the catalog by category', () => {
+  it('filters the catalog by category, also hiding personal items while a specific category chip is active', () => {
     useWizardStore.setState({
       loadCatalog: [catalogItem, { ...catalogItem, id: 'c2', namePt: 'Chuveiro elétrico', category: 'heating' }],
+      userLoadCatalog: [userCatalogItem],
     });
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
@@ -238,6 +280,8 @@ describe('LoadSelector: catalog', () => {
 
     expect(screen.getByText('Chuveiro elétrico')).toBeInTheDocument();
     expect(screen.queryByText('Ar-condicionado 9000 BTU')).not.toBeInTheDocument();
+    // A specific (non-"Minhas") category chip hides personal items too.
+    expect(screen.queryByText('Bomba dágua')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'heating' }));
     expect(screen.getByText('Ar-condicionado 9000 BTU')).toBeInTheDocument();
@@ -320,6 +364,59 @@ describe('LoadSelector: catalog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
 
     await waitFor(() => expect(useWizardStore.getState().userLoadCatalog).toEqual([]));
+  });
+
+  it('edits the name and IP/IN of a user catalog item, and cancels out of the edit view', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: null } } })
+    );
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Bomba renomeada' } });
+    fireEvent.change(screen.getByLabelText('IP/IN'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(useWizardStore.getState().userLoadCatalog[0]).toMatchObject({ name: 'Bomba renomeada', ipInRatio: 2 }));
+
+    // Re-open, switch to edit, then cancel — no further change is made.
+    fireEvent.click(screen.getByRole('button', { name: /Opções de Bomba/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
+  });
+
+  it('cancels out of the delete-confirmation view without removing the item', async () => {
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByText('Remover carga?')).not.toBeInTheDocument();
+    expect(useWizardStore.getState().userLoadCatalog).toHaveLength(1);
+  });
+
+  it('closes the menu on Escape and on an outside click', async () => {
+    useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
+    expect(await screen.findByRole('dialog', { name: 'Opções de Bomba dágua' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Opções de Bomba dágua' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
+    expect(await screen.findByRole('dialog', { name: 'Opções de Bomba dágua' })).toBeInTheDocument();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('dialog', { name: 'Opções de Bomba dágua' })).not.toBeInTheDocument();
   });
 });
 
@@ -625,6 +722,20 @@ describe('LoadSelector: added loads list', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/Limite de/);
   });
 
+  it('filtering by a phase also shows loads only wired via phase2', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_220',
+        loads: [{ id: 'l1', name: 'Forno', powerW: 2200, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Fase L2/ }));
+    expect(screen.getByText('Forno')).toBeInTheDocument();
+  });
+
   it('shows per-phase totals only for multi-phase grids', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
@@ -664,6 +775,235 @@ describe('LoadSelector: added loads list', () => {
       .getState()
       .residentialOptions.loads.find((load) => load.id !== 'l1');
     expect(newLoad).toMatchObject({ phase: 'L2' });
+  });
+
+  it('edits voltage, mono/trifásica, phase pair, individual phase and includedInPeak on a three-phase load, plus the remaining numeric fields', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_220',
+        peakCalcMode: 'select',
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByText('Chuveiro'));
+
+    // Default voltage (220V) on a threePhase_220 grid needs two phases — the
+    // "L1-L2" style pair buttons render; picking one updates phase/phase2.
+    fireEvent.click(screen.getByRole('button', { name: 'L2-L3' }));
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ phase: 'L2', phase2: 'L3' });
+
+    // Switching to 110V no longer needs two phases — individual L1/L2/L3 buttons render instead.
+    fireEvent.click(screen.getByRole('button', { name: '110V' }));
+    expect(useWizardStore.getState().residentialOptions.loads[0].voltageV).toBe(110);
+    fireEvent.click(screen.getByRole('button', { name: 'L3' }));
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ phase: 'L3', phase2: null });
+
+    // Back to 220V, then to Trifásica — voltage gets forced to the phase-to-phase value and phase2 clears again.
+    fireEvent.click(screen.getByRole('button', { name: '220V' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Trifásica' }));
+    expect(useWizardStore.getState().residentialOptions.loads[0].phaseType).toBe('trifasica');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mono' }));
+    expect(useWizardStore.getState().residentialOptions.loads[0].phaseType).toBe('mono');
+
+    // Toggle "incluída no pico".
+    const includedButton = screen.getByLabelText(/Contar Chuveiro na potência de pico|Não contar Chuveiro na potência de pico/);
+    const wasIncluded = includedButton.getAttribute('aria-pressed') === 'true';
+    fireEvent.click(includedButton);
+    expect(useWizardStore.getState().residentialOptions.loads[0].includedInPeak).toBe(!wasIncluded);
+
+    // Quantidade and IP/IN fields, plus their clear/revert behavior.
+    const qtyInput = screen.getByLabelText('Quantidade', { exact: false });
+    fireEvent.change(qtyInput, { target: { value: '2' } });
+    expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(2);
+    fireEvent.change(qtyInput, { target: { value: '' } });
+    fireEvent.blur(qtyInput);
+    expect(qtyInput).toHaveValue(2);
+
+    const ipInInput = screen.getByLabelText('IP/IN', { exact: false });
+    fireEvent.change(ipInInput, { target: { value: '2.5' } });
+    expect(useWizardStore.getState().residentialOptions.loads[0].ipInRatio).toBe(2.5);
+  });
+
+  it('drags a mono load onto a phase tile to connect it, splitting a two-phase load across the dropped phase and the other one', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_220',
+        loads: [
+          // 110V doesn't need a phase-to-phase (two-phase) hookup on this grid,
+          // so this load stays single-phase instead of the phase2-pairing
+          // effect auto-assigning it a second phase.
+          { id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1', voltageV: 110 },
+          { id: 'l2', name: 'Forno', powerW: 2200, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' },
+        ],
+      },
+    }));
+    renderLoadSelector();
+
+    const phaseL3 = screen.getByRole('button', { name: /Fase L3/ });
+    const dataTransfer = { getData: () => 'l1', setData: vi.fn(), effectAllowed: '' };
+    fireEvent.dragOver(phaseL3, { dataTransfer });
+    fireEvent.dragLeave(phaseL3, { dataTransfer });
+    fireEvent.dragOver(phaseL3, { dataTransfer });
+    fireEvent.drop(phaseL3, { dataTransfer });
+
+    expect(useWizardStore.getState().residentialOptions.loads.find((l) => l.id === 'l1')).toMatchObject({ phase: 'L3' });
+
+    // A two-phase load (phase2 set) dropped onto a tile is rewired to that
+    // phase plus whichever other phase isn't the drop target.
+    const dataTransfer2 = { getData: () => 'l2', setData: vi.fn(), effectAllowed: '' };
+    fireEvent.drop(phaseL3, { dataTransfer: dataTransfer2 });
+    const forno = useWizardStore.getState().residentialOptions.loads.find((l) => l.id === 'l2');
+    expect(forno?.phase).toBe('L3');
+    expect(forno?.phase2).not.toBe('L3');
+
+    // Dropping an unknown/missing load id is a no-op.
+    const dataTransfer3 = { getData: () => 'ghost-id', setData: vi.fn(), effectAllowed: '' };
+    fireEvent.drop(phaseL3, { dataTransfer: dataTransfer3 });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Todas/ }));
+  });
+
+  it('clears and blur-reverts hours, qty, IP/IN and Fator de uso', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 3, qty: 2, ipInRatio: 1.5, usageFactor: 1 }],
+      },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByText('Chuveiro'));
+
+    const hoursInput = screen.getByLabelText('Horas/dia', { exact: false });
+    fireEvent.change(hoursInput, { target: { value: 'abc' } });
+    fireEvent.blur(hoursInput);
+    expect(hoursInput).toHaveValue(3);
+
+    const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
+    fireEvent.change(usageFactorInput, { target: { value: '' } });
+    fireEvent.blur(usageFactorInput);
+    expect(usageFactorInput).toHaveValue(1);
+
+    const ipInInput = screen.getByLabelText('IP/IN', { exact: false });
+    fireEvent.change(ipInInput, { target: { value: 'nope' } });
+    fireEvent.blur(ipInInput);
+    expect(ipInInput).toHaveValue(1.5);
+
+    // Every clear ("x") button appears once each of these fields has a value;
+    // a real mousedown always precedes the click that fires it.
+    for (const clearButton of screen.getAllByRole('button', { name: 'Limpar campo' })) {
+      fireEvent.mouseDown(clearButton);
+      fireEvent.click(clearButton);
+    }
+    expect(hoursInput).toHaveValue(null);
+  });
+
+  it('expands/collapses a load card via keyboard, and drag-starts it when eligible for phase drag', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_220',
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, voltageV: 110 }],
+      },
+    }));
+    renderLoadSelector();
+
+    const summary = screen.getByText('Chuveiro').closest('[role="button"]') as HTMLElement;
+    fireEvent.keyDown(summary, { key: 'Enter' });
+    expect(summary).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(summary, { key: ' ' });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.keyDown(summary, { key: 'Tab' });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+
+    const card = summary.closest('.cursor-grab') as HTMLElement;
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: '' };
+    fireEvent.dragStart(card, { dataTransfer });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'l1');
+  });
+
+  it('pressing Enter in the draft power field with no name typed does nothing, but confirms once a name is present', () => {
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+
+    const powerInput = screen.getByLabelText('Potência (VA)');
+    fireEvent.keyDown(powerInput, { key: 'Enter' });
+    expect(useWizardStore.getState().residentialOptions.loads[0].powerW).toBe(0);
+
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ventilador' } });
+    fireEvent.change(powerInput, { target: { value: '150' } });
+    fireEvent.keyDown(powerInput, { key: 'Enter' });
+
+    expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ name: 'Ventilador', powerW: 150 });
+  });
+
+  it('self-corrects invalid phase/voltage combinations on mount for loads loaded from a saved project', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'singlePhase_220',
+        // Data that could only have arrived from an import/edit outside this UI:
+        // trifásica on a 1-phase grid, and a mono 380V load left over from a
+        // grid-type change away from threePhase_380.
+        loads: [{ id: 'l1', name: 'Trifásica órfã', powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 1, phaseType: 'trifasica' }],
+      },
+    }));
+    renderLoadSelector();
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].phaseType).toBe('mono');
+  });
+
+  it('resets voltage to the phase-to-phase value when a trifásica load is loaded with an incompatible voltage', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_220',
+        loads: [{ id: 'l1', name: 'Trifásica 110V', powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 1, phaseType: 'trifasica', voltageV: 110 }],
+      },
+    }));
+    renderLoadSelector();
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].voltageV).toBe(220);
+  });
+
+  it('resets a 380V mono load down to 220V when loaded on a threePhase_380 grid', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'threePhase_380',
+        loads: [{ id: 'l1', name: 'Mono 380V', powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 1, phaseType: 'mono', voltageV: 380 }],
+      },
+    }));
+    renderLoadSelector();
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].voltageV).toBe(220);
+  });
+
+  it('searches within the "Minhas" catalog filter', () => {
+    useWizardStore.setState({
+      userLoadCatalog: [userCatalogItem, { ...userCatalogItem, id: 'u2', name: 'Ventilador de mesa' }],
+    });
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar equipamento...' }));
+    fireEvent.change(screen.getByPlaceholderText('Buscar equipamento...'), { target: { value: 'ventilador' } });
+
+    expect(screen.getByText('Ventilador de mesa')).toBeInTheDocument();
+    expect(screen.queryByText('Bomba dágua')).not.toBeInTheDocument();
+  });
+
+  it('removes a blank draft card via its own trash button', () => {
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover carga em branco' }));
+    expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(0);
   });
 
   it('switches the peak calculation mode', () => {

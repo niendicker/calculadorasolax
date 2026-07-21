@@ -111,9 +111,30 @@ describe('PresetsEditor: building the load list', () => {
     fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
     fireEvent.click(screen.getByText('Chuveiro'));
 
+    fireEvent.change(screen.getByLabelText('Horas/dia', { exact: false }), { target: { value: '6' } });
     fireEvent.change(screen.getByLabelText('Qtd', { exact: false }), { target: { value: '3' } });
 
     expect(screen.getByText('5500 VA · IP/IN 1×')).toBeInTheDocument(); // unaffected field stays
+  });
+
+  it('edits the preset name and description', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Residencial' } });
+    expect(screen.getByLabelText('Nome')).toHaveValue('Residencial');
+
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Uso geral' } });
+    expect(screen.getByLabelText('Descrição')).toHaveValue('Uso geral');
+  });
+
+  it('closes the form via the close button', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Novo preset' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 

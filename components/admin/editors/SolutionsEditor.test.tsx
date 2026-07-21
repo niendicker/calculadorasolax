@@ -149,6 +149,31 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
+describe('SolutionsEditor: pending-generated localStorage bootstrap', () => {
+  it('restores a previously-stored pending list on mount', () => {
+    const fullSolution = makeSolution({
+      id: 'unused',
+      solution_code: 'GEN-1',
+      inverter_model: 'X1-Hybrid-5.0kW-G4',
+      battery_model: 'TP-HS3.6',
+    });
+    // GeneratedSolutionPayload is `Omit<SolutionRow, 'id'>` — assigning the
+    // variable (not an object literal) skips TS's excess-property check.
+    const stored: GeneratedSolutionPayload[] = [fullSolution];
+    window.localStorage.setItem('solax-admin-pending-generated', JSON.stringify(stored));
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));
+    expect(screen.getByText('GEN-1')).toBeInTheDocument();
+  });
+
+  it('treats corrupted localStorage content as an empty pending list', () => {
+    window.localStorage.setItem('solax-admin-pending-generated', '{not valid json');
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));
+    expect(screen.getByText('Nenhuma combinação pendente.')).toBeInTheDocument();
+  });
+});
+
 describe('SolutionsEditor: Aprovadas listing', () => {
   it('only counts/shows solutions whose inverter and battery are still registered', () => {
     render(
@@ -156,7 +181,7 @@ describe('SolutionsEditor: Aprovadas listing', () => {
         inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
         batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' })]}
         solutions={[
-          makeSolution({ id: 's1', solution_code: 'code-1', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS3.6' }),
+          makeSolution({ id: 's1', solution_code: 'code-1', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS3.6', source_file: 'generated-rules' }),
           makeSolution({ id: 's2', solution_code: 'code-2', inverter_model: 'ghost-inverter', battery_model: 'TP-HS3.6' }),
         ]}
       />
@@ -180,6 +205,63 @@ describe('SolutionsEditor: Aprovadas listing', () => {
     fireEvent.click(screen.getByRole('button', { name: /X1-Hybrid-5.0kW-G4/ }));
     expect(screen.getByText('code-1')).toBeInTheDocument();
     expect(screen.queryByText('code-2')).not.toBeInTheDocument();
+  });
+
+  it('filters by battery and by status once an inverter is selected', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
+        batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' }), makeBattery({ id: 'b2', model: 'TP-HS7.2' })]}
+        solutions={[
+          makeSolution({ id: 's1', solution_code: 'code-1', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS3.6', active: true }),
+          makeSolution({ id: 's2', solution_code: 'code-2', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS7.2', active: false }),
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^TP-HS3.6/ }));
+    expect(screen.getByText('code-1')).toBeInTheDocument();
+    expect(screen.queryByText('code-2')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Todas/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Ativas/ }));
+    expect(screen.getByText('code-1')).toBeInTheDocument();
+    expect(screen.queryByText('code-2')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Inativas/ }));
+    expect(screen.getByText('code-2')).toBeInTheDocument();
+    expect(screen.queryByText('code-1')).not.toBeInTheDocument();
+  });
+
+  it('shows non-blank comments on a card', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
+        batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' })]}
+        solutions={[
+          makeSolution({
+            id: 's1',
+            solution_code: 'code-1',
+            inverter_model: 'X1-Hybrid-5.0kW-G4',
+            battery_model: 'TP-HS3.6',
+            comments: ['  ', 'Observação importante'],
+          }),
+        ]}
+      />
+    );
+    expect(screen.getByText('Observação importante')).toBeInTheDocument();
+  });
+
+  it('re-clicking the already-active Aprovadas tab is a no-op', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
+        batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' })]}
+        solutions={[makeSolution({ id: 's1', solution_code: 'code-1', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS3.6' })]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^Aprovadas/ }));
+    expect(screen.getByText('code-1')).toBeInTheDocument();
   });
 
   it('shows an empty state message when nothing matches', () => {
@@ -221,19 +303,43 @@ describe('SolutionsEditor: form', () => {
     expect(screen.getByRole('dialog', { name: 'Editar combinação' })).toBeInTheDocument();
   });
 
-  it('adds and removes an accessory row', () => {
-    render(<ControlledEditor />);
+  it('adds and removes an accessory row, and edits its model and quantity', () => {
+    const accessoryRule: AccessoryRuleRow = {
+      id: 'ar1',
+      accessory_id: 'a1',
+      name: 'Regra',
+      inclusion: 'required',
+      trigger_metric: 'per_solution',
+      min_quantity: 1,
+      inverter_model: null,
+      inverter_models: null,
+      battery_model: null,
+      grid_topology: null,
+      battery_topology: null,
+      quantity_per_match: 1,
+      comment: null,
+      active: true,
+      accessories: { model: 'Smart Meter' },
+    };
+    render(<ControlledEditor accessoryRules={[accessoryRule]} />);
     fireEvent.click(screen.getByRole('button', { name: /Nova combinação/ }));
 
     expect(screen.getByText('Nenhum acessório')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: /Adicionar/ })[0]);
     expect(screen.queryByText('Nenhum acessório')).not.toBeInTheDocument();
 
+    fireEvent.change(screen.getByPlaceholderText('Modelo do acessório'), { target: { value: 'Smart Meter' } });
+    expect(screen.getByPlaceholderText('Modelo do acessório')).toHaveValue('Smart Meter');
+
+    const qtyInput = screen.getByPlaceholderText('Modelo do acessório').closest('div')!.querySelector('input[type="number"]') as HTMLInputElement;
+    fireEvent.change(qtyInput, { target: { value: '3' } });
+    expect(qtyInput).toHaveValue(3);
+
     fireEvent.click(screen.getByRole('button', { name: 'Remover acessório' }));
     expect(screen.getByText('Nenhum acessório')).toBeInTheDocument();
   });
 
-  it('adds and removes a comment row', () => {
+  it('adds and removes a comment row, and edits its text', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Nova combinação/ }));
 
@@ -241,8 +347,67 @@ describe('SolutionsEditor: form', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Adicionar/ })[1]);
     expect(screen.queryByText('Nenhum comentário')).not.toBeInTheDocument();
 
+    fireEvent.change(screen.getByPlaceholderText('Texto do comentário'), { target: { value: 'Nota da combinação' } });
+    expect(screen.getByPlaceholderText('Texto do comentário')).toHaveValue('Nota da combinação');
+
     fireEvent.click(screen.getByRole('button', { name: 'Remover comentário' }));
     expect(screen.getByText('Nenhum comentário')).toBeInTheDocument();
+  });
+
+  it('edits every combination form field', () => {
+    // Several NumberWithUnitField tips start with the same words as their own
+    // label (e.g. "Potência nominal total..."), so getByLabelText's regex can
+    // match both the input and the tooltip icon — pick the actual <input>.
+    function fieldInput(label: RegExp) {
+      return screen.getAllByLabelText(label).find((el) => el.tagName === 'INPUT') as HTMLInputElement;
+    }
+
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova combinação/ }));
+
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'X1-HV-1BAT' } });
+    expect(screen.getByLabelText('Código')).toHaveValue('X1-HV-1BAT');
+
+    fireEvent.change(screen.getByLabelText('Origem'), { target: { value: 'manual' } });
+    expect(screen.getByLabelText('Origem')).toHaveValue('manual');
+
+    fireEvent.change(screen.getByLabelText('Modelo do inversor'), { target: { value: 'X1-Hybrid-5.0kW-G4' } });
+    expect(screen.getByLabelText('Modelo do inversor')).toHaveValue('X1-Hybrid-5.0kW-G4');
+
+    fireEvent.change(fieldInput(/^Qtd\. inversores/), { target: { value: '2' } });
+    expect(fieldInput(/^Qtd\. inversores/)).toHaveValue(2);
+
+    fireEvent.change(fieldInput(/^Portas/), { target: { value: '2' } });
+    expect(fieldInput(/^Portas/)).toHaveValue(2);
+
+    fireEvent.change(fieldInput(/^Potência nominal/), { target: { value: '6000' } });
+    expect(fieldInput(/^Potência nominal/)).toHaveValue(6000);
+
+    fireEvent.change(fieldInput(/^Potência pico/), { target: { value: '8000' } });
+    expect(fieldInput(/^Potência pico/)).toHaveValue(8000);
+
+    fireEvent.change(fieldInput(/^Tensão/), { target: { value: '380' } });
+    expect(fieldInput(/^Tensão/)).toHaveValue(380);
+
+    fireEvent.change(screen.getByLabelText('Rede'), { target: { value: '3p_380V' } });
+    expect(screen.getByLabelText('Rede')).toHaveValue('3p_380V');
+
+    fireEvent.change(screen.getByLabelText('Modelo da bateria'), { target: { value: 'TP-HS3.6' } });
+    expect(screen.getByLabelText('Modelo da bateria')).toHaveValue('TP-HS3.6');
+
+    fireEvent.change(screen.getByLabelText('Topologia bateria'), { target: { value: 'LV' } });
+    expect(screen.getByLabelText('Topologia bateria')).toHaveValue('LV');
+
+    fireEvent.change(fieldInput(/^Qtd\. baterias/), { target: { value: '2' } });
+    expect(fieldInput(/^Qtd\. baterias/)).toHaveValue(2);
+
+    fireEvent.change(fieldInput(/^Potência bateria/), { target: { value: '3600' } });
+    expect(fieldInput(/^Potência bateria/)).toHaveValue(3600);
+
+    fireEvent.change(fieldInput(/^Energia disponível/), { target: { value: '6400' } });
+    expect(fieldInput(/^Energia disponível/)).toHaveValue(6400);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ativa para recomendação' }));
   });
 
   it('saves and closes the form', () => {
@@ -251,6 +416,15 @@ describe('SolutionsEditor: form', () => {
     fireEvent.click(screen.getByRole('button', { name: /Nova combinação/ }));
     fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
     expect(onSave).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('closes the form via the close button', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova combinação/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Nova combinação' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
@@ -371,14 +545,15 @@ describe('SolutionsEditor: Geradas tab', () => {
     expect(onApplyGenerated).toHaveBeenCalled();
   });
 
-  it('approves all pending combinations at once', () => {
-    const onApplyGenerated = vi.fn();
+  it('approves all pending combinations at once, clearing the pending list', () => {
+    const onApplyGenerated = vi.fn((_gen, afterApply?: () => void) => afterApply?.());
     render(<ControlledEditor inverters={inverters} batteries={batteries} essRules={[essRule]} onApplyGenerated={onApplyGenerated} />);
     fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));
     fireEvent.click(screen.getByRole('button', { name: /Gerar combinações/ }));
 
     fireEvent.click(screen.getByRole('button', { name: /Aprovar todas/ }));
     expect(onApplyGenerated).toHaveBeenCalledWith(expect.any(Array), expect.any(Function), true);
+    expect(screen.getByText('Nenhuma combinação pendente.')).toBeInTheDocument();
   });
 
   it('discards a single pending combination', () => {
@@ -390,6 +565,50 @@ describe('SolutionsEditor: Geradas tab', () => {
     fireEvent.click(discardButton);
 
     expect(screen.getByText('Nenhuma combinação pendente.')).toBeInTheDocument();
+  });
+
+  it('filters generation by a specific inverter/battery chip, keeping unrelated pending items when regenerating', () => {
+    const inverters2 = [
+      makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', battery_ports: 1 }),
+      makeInverter({ id: 'i2', model: 'X3-Hybrid-10.0kW-G4', battery_ports: 1, phases: 3, grid_types: ['3P_380V'] }),
+    ];
+    const batteries2 = [
+      makeBattery({ id: 'b1', model: 'TP-HS3.6', max_association_qty: 1 }),
+      makeBattery({ id: 'b2', model: 'TP-HS7.2', max_association_qty: 1 }),
+      makeBattery({ id: 'b3', model: 'TP-HS10', max_association_qty: 1 }),
+    ];
+    const essRule2: EssCompatibilityRuleRow = { ...essRule, id: 'rule-2', inverter_model: 'X3-Hybrid-10.0kW-G4', battery_model: 'TP-HS7.2' };
+    // Same inverter+grid as `essRule` (1p_220V), but a different battery — this
+    // makes the "Monofásico 220V" group have two battery sub-groups, so the
+    // byBattery sort comparator actually runs (a single group never invokes it).
+    const essRule3: EssCompatibilityRuleRow = { ...essRule, id: 'rule-3', battery_model: 'TP-HS10' };
+    render(<ControlledEditor inverters={inverters2} batteries={batteries2} essRules={[essRule, essRule2, essRule3]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));
+
+    // Generate everything first.
+    fireEvent.click(screen.getByRole('button', { name: /Gerar combinações/ }));
+    expect(screen.getByText('Monofásico 220V')).toBeInTheDocument();
+    expect(screen.getByText('Trifásico 380V')).toBeInTheDocument();
+    expect(screen.getByText('TP-HS10', { selector: 'span.text-sm.font-medium' })).toBeInTheDocument();
+
+    // Narrow to just the X1/TP-HS3.6 combination and regenerate — the X3
+    // pending combination falls outside this filter and must be preserved.
+    fireEvent.click(screen.getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
+    fireEvent.click(screen.getByRole('button', { name: 'TP-HS3.6' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gerar novamente/ }));
+
+    expect(screen.getByText('Monofásico 220V')).toBeInTheDocument();
+    expect(screen.getByText('Trifásico 380V')).toBeInTheDocument();
+
+    // Toggling the same chip on then off exercises both branches of the
+    // per-chip toggle, distinct from the reset-all "Todos"/"Todas" buttons.
+    fireEvent.click(screen.getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
+    fireEvent.click(screen.getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
+    fireEvent.click(screen.getByRole('button', { name: 'TP-HS3.6' }));
+    fireEvent.click(screen.getByRole('button', { name: 'TP-HS3.6' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Todos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Todas' }));
   });
 
   it('filters the generated catalog by search, without discarding the underlying pending list', () => {

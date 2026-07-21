@@ -144,13 +144,25 @@ describe('AccessoriesEditor: listing', () => {
   it('filters by category when a rule targets an inverter or battery', () => {
     render(
       <ControlledEditor
-        rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' }), makeAccessory({ id: 'a2', model: 'Matebox' })]}
-        rules={[makeRule({ id: 'r1', accessory_id: 'a2', inverter_models: ['X1'] })]}
+        rows={[
+          makeAccessory({ id: 'a1', model: 'Smart Meter' }),
+          makeAccessory({ id: 'a2', model: 'Matebox' }),
+          makeAccessory({ id: 'a3', model: 'Kit CFTV' }),
+        ]}
+        rules={[
+          makeRule({ id: 'r1', accessory_id: 'a2', inverter_models: ['X1'] }),
+          makeRule({ id: 'r2', accessory_id: 'a3', battery_model: 'TP-HS3.6' }),
+        ]}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: /Por inversor/ }));
     expect(screen.getByText('Matebox')).toBeInTheDocument();
     expect(screen.queryByText('Smart Meter')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Todos/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Por bateria/ }));
+    expect(screen.getByText('Kit CFTV')).toBeInTheDocument();
+    expect(screen.queryByText('Matebox')).not.toBeInTheDocument();
   });
 });
 
@@ -166,11 +178,36 @@ describe('AccessoriesEditor: general form', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('switches to the media tab', () => {
+  it('edits model, nickname, description and the active checkbox, then switches to the media tab and edits it', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Novo acessório/ }));
+
+    fireEvent.change(screen.getByLabelText('Modelo'), { target: { value: 'Smart Meter' } });
+    expect(screen.getByLabelText('Modelo')).toHaveValue('Smart Meter');
+
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Kit de Fixação'), { target: { value: 'Medidor' } });
+    expect(screen.getByPlaceholderText('Ex.: Kit de Fixação')).toHaveValue('Medidor');
+
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Mede o consumo.' } });
+    expect(screen.getByLabelText('Descrição')).toHaveValue('Mede o consumo.');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ativo' }));
+
     fireEvent.click(screen.getByRole('button', { name: 'Mídias' }));
-    expect(screen.getByPlaceholderText('URL da imagem')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('URL da imagem'), { target: { value: 'https://cdn.example.com/x.png' } });
+    expect(screen.getByPlaceholderText('URL da imagem')).toHaveValue('https://cdn.example.com/x.png');
+
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar link/ }));
+    expect(screen.getByPlaceholderText('Nome do documento')).toHaveValue('Datasheet');
+  });
+
+  it('closes the form via the close button', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Novo acessório/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Novo acessório' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('removes via the confirm popover', async () => {
@@ -218,6 +255,51 @@ describe('AccessoriesEditor: rules tab', () => {
 
     fireEvent.click(within(ruleDialog).getByRole('button', { name: /Salvar/ }));
     expect(onSaveRule).toHaveBeenCalled();
+  });
+
+  it('opens an existing rule for editing, edits every field, deselects an inverter, and closes via the close button', () => {
+    render(
+      <ControlledEditor
+        rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]}
+        rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra do Smart Meter', inverter_models: ['X1-Hybrid-5.0kW-G4'] })]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
+
+    const ruleCard = screen.getByText('Regra do Smart Meter').closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(ruleCard).getByRole('button', { name: 'Editar' }));
+
+    const ruleDialog = screen.getByRole('dialog', { name: /Editar regra/ });
+    fireEvent.change(within(ruleDialog).getByLabelText('Nome da regra'), { target: { value: 'Regra renomeada' } });
+    expect(within(ruleDialog).getByLabelText('Nome da regra')).toHaveValue('Regra renomeada');
+
+    fireEvent.change(within(ruleDialog).getByLabelText('Inclusão'), { target: { value: 'optional' } });
+    expect(within(ruleDialog).getByLabelText('Inclusão')).toHaveValue('optional');
+
+    fireEvent.change(within(ruleDialog).getByLabelText(/^Quantidade do acessório/), { target: { value: '3' } });
+    expect(within(ruleDialog).getByLabelText(/^Quantidade do acessório/)).toHaveValue(3);
+
+    fireEvent.change(within(ruleDialog).getByLabelText('Limiar baseado em'), { target: { value: 'inverter_quantity' } });
+    expect(within(ruleDialog).getByLabelText('Limiar baseado em')).toHaveValue('inverter_quantity');
+
+    fireEvent.change(within(ruleDialog).getByLabelText(/^Quantidade mínima/), { target: { value: '2' } });
+    expect(within(ruleDialog).getByLabelText(/^Quantidade mínima/)).toHaveValue(2);
+
+    fireEvent.change(within(ruleDialog).getByLabelText('Bateria'), { target: { value: 'TP-HS3.6' } });
+    expect(within(ruleDialog).getByLabelText('Bateria')).toHaveValue('TP-HS3.6');
+
+    fireEvent.change(within(ruleDialog).getByLabelText('Comentário automático'), { target: { value: 'Aplica-se sempre.' } });
+    expect(within(ruleDialog).getByLabelText('Comentário automático')).toHaveValue('Aplica-se sempre.');
+
+    fireEvent.click(within(ruleDialog).getByRole('checkbox', { name: 'Ativa' }));
+
+    // Started pre-selected (via inverter_models) — clicking again deselects it.
+    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
+    expect(within(ruleDialog).getByText('Qualquer inversor.')).toBeInTheDocument();
+
+    fireEvent.click(within(ruleDialog).getByRole('button', { name: /Fechar Editar regra/ }));
+    expect(screen.queryByRole('dialog', { name: /Editar regra/ })).not.toBeInTheDocument();
   });
 
   it('disables "Quantidade mínima" when the trigger is "Por solução"', () => {

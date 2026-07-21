@@ -103,6 +103,46 @@ describe('LoadCatalogEditor: form', () => {
     expect(onSave).toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('edits every field of the form', () => {
+    // "Potência"/"IP/IN"'s tooltip text also starts with the label itself, so
+    // getByLabelText's regex can match both the input and the tooltip icon.
+    function fieldInput(label: RegExp) {
+      return screen.getAllByLabelText(label).find((el) => el.tagName === 'INPUT') as HTMLInputElement;
+    }
+
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova carga/ }));
+
+    fireEvent.change(screen.getByLabelText('Nome (PT)'), { target: { value: 'Chuveiro' } });
+    expect(screen.getByLabelText('Nome (PT)')).toHaveValue('Chuveiro');
+
+    fireEvent.change(screen.getByLabelText(/^Nome \(EN\)/), { target: { value: 'Shower' } });
+    expect(screen.getByLabelText(/^Nome \(EN\)/)).toHaveValue('Shower');
+
+    fireEvent.change(screen.getByLabelText(/^Nome \(ZH\)/), { target: { value: '淋浴' } });
+    expect(screen.getByLabelText(/^Nome \(ZH\)/)).toHaveValue('淋浴');
+
+    fireEvent.change(fieldInput(/^Potência/), { target: { value: '5500' } });
+    expect(fieldInput(/^Potência/)).toHaveValue(5500);
+
+    fireEvent.change(fieldInput(/^IP\/IN/), { target: { value: '2' } });
+    expect(fieldInput(/^IP\/IN/)).toHaveValue(2);
+
+    fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: 'Aquecimento' } });
+    expect(screen.getByLabelText('Categoria')).toHaveValue('Aquecimento');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ativa' }));
+  });
+
+  it('closes the form via the close button', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova carga/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Nova carga' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });
 
 describe('LoadCatalogEditor: remove/deactivate', () => {
@@ -114,6 +154,16 @@ describe('LoadCatalogEditor: remove/deactivate', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
 
     expect(onRemove).toHaveBeenCalledWith('l1');
+  });
+
+  it('deactivates via the confirm popover', async () => {
+    const onDeactivate = vi.fn();
+    render(<ControlledEditor rows={[makeRow({ id: 'l1', name_pt: 'Chuveiro', category: 'X' })]} onDeactivate={onDeactivate} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Desativar/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Desativar' }, { timeout: 1000 }));
+
+    expect(onDeactivate).toHaveBeenCalledWith('l1');
   });
 
   it('only offers Desativar for active rows', async () => {

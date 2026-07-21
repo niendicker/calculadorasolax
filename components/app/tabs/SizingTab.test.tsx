@@ -206,6 +206,16 @@ describe('SizingTab: summary panel', () => {
     expect(textColumn).toHaveTextContent('Datasheet');
     expect(imageColumn.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/inverter.png');
     expect(within(textColumn as HTMLElement).queryByRole('img')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('img', { name: 'X1-Hybrid-5.0kW-G4' }));
+    expect(screen.getByRole('dialog', { name: 'X1-Hybrid-5.0kW-G4' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Datasheet' }));
+    expect(screen.getByRole('dialog', { name: 'Datasheet' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('gives the expansion/Slave battery its own card when the Master has an expansionModel and qty > 1', () => {
@@ -378,6 +388,402 @@ describe('SizingTab: funcionalidades desejadas', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Microrrede' }));
 
     expect(screen.getByText('1 de 2 inversores cadastrados com suporte a microrrede')).toBeInTheDocument();
+  });
+
+  it('enabling Tarifa Branca from scratch seeds its default config', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: /^Tarifa Branca/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ requiredPowerW: 0, requiredEnergyWh: 0 })
+    );
+  });
+
+  it('enabling Microrrede from scratch seeds its default config', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridPhases: 1 }));
+  });
+
+  it('enabling Gerador Externo from scratch seeds its default config', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 1 }));
+  });
+});
+
+describe('SizingTab: configuration summary row jumps', () => {
+  it('jumps to Configurações → Tipo de rede when the "Tipo de rede" row is clicked', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: /Tipo de rede/ }));
+    expect(screen.getByRole('radiogroup', { name: 'Tipo de rede' })).toBeInTheDocument();
+  });
+
+  it('jumps to Configurações → Modelo bateria when the "Bateria" row is clicked', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: /^Bateria/ }));
+    expect(screen.getByRole('tab', { name: 'Modelo bateria' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('jumps to Funcionalidades with the clicked feature as the active tab', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: /^Backup/ }));
+    expect(screen.getByRole('tab', { name: 'Funcionalidades' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^Backup/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('re-clicking an already-active tab (Resumo, Funcionalidades, Tipo de rede) is a no-op', () => {
+    setup();
+    fireEvent.click(screen.getByRole('tab', { name: /^Resumo/ }));
+    expect(screen.getByRole('tab', { name: /^Resumo/ })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Funcionalidades' }));
+    expect(screen.getByRole('tab', { name: 'Funcionalidades' })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+    expect(screen.getByRole('tab', { name: 'Inversores Híbridos' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('shows the external_generator, white_tariff and no_pv summary values', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_generator', 'white_tariff', 'no_pv'],
+        generator: { voltageV: 220, apparentPowerVA: 5000, phases: 1, photoUrl: null },
+        whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 0, tariffSpreadPerKwh: 0.35, includeBackupReserve: false },
+      },
+    });
+    expect(screen.getByText('Ativado · 5000 VA')).toBeInTheDocument();
+    expect(screen.getByText('Ativado · R$ 0.35/kWh')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sem FV/ })).toHaveTextContent('Ativado');
+  });
+});
+
+describe('SizingTab: white tariff / microgrid / generator fields', () => {
+  function enable(featureName: RegExp, feature: 'white_tariff' | 'microgrid' | 'external_generator' | 'external_ats', extraOptions: Record<string, unknown> = {}) {
+    const { props } = setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: [feature], ...extraOptions },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: featureName }));
+    return props;
+  }
+
+  it('updates white tariff power, energy, spread and the backup-reserve checkbox', () => {
+    const props = enable(/^Tarifa Branca/, 'white_tariff');
+    fireEvent.change(screen.getByLabelText('Potência (W)'), { target: { value: '3000' } });
+    fireEvent.change(screen.getByLabelText('Energia (Wh)'), { target: { value: '5000' } });
+    fireEvent.change(screen.getByLabelText('Spread (R$/kWh)'), { target: { value: '0.35' } });
+    fireEvent.click(screen.getByLabelText('Reservar para backup das cargas'));
+
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredEnergyWh: 5000 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ tariffSpreadPerKwh: 0.35 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
+  });
+
+  it('updates microgrid power, phases and the fundamental-requirement checkbox', () => {
+    const props = enable(/^Microrrede/, 'microgrid');
+    fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '4000' } });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Fases do sistema ongrid' })).getByRole('radio', { name: 'Trifásico' }));
+    fireEvent.click(screen.getByLabelText('Requisito fundamental'));
+
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridApparentPowerVA: 4000 }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridPhases: 3 }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ isFundamentalRequirement: true }));
+  });
+
+  it('updates generator voltage, power and phases', () => {
+    const props = enable(/^Gerador Externo/, 'external_generator');
+    fireEvent.change(screen.getByLabelText('Tensão (V)'), { target: { value: '220' } });
+    fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '5000' } });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Fases do gerador' })).getByRole('radio', { name: 'Bifásico' }));
+
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ voltageV: 220 }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ apparentPowerVA: 5000 }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 2 }));
+  });
+
+  it('shows the ATS reminder for Gerador Externo when ATS Externo is not also selected', () => {
+    enable(/^Gerador Externo/, 'external_generator');
+    expect(screen.getByText(/Gerador Externo normalmente exige ATS Externo/)).toBeInTheDocument();
+  });
+
+  it('uploads a photo for a feature and surfaces an upload error', async () => {
+    const onUploadPhoto = vi.fn().mockRejectedValueOnce(new Error('boom'));
+    setup({
+      onUploadFeaturePhoto: onUploadPhoto,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+
+    const file = new File(['x'], 'foto.png', { type: 'image/png' });
+    const input = document.getElementById('photo-upload-ats') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText('Não foi possível enviar a imagem. Tente novamente.')).toBeInTheDocument();
+    expect(onUploadPhoto).toHaveBeenCalledWith(file, 'ats');
+  });
+
+  it('uploads a microgrid photo and stores its URL on the microgrid config', async () => {
+    const onUploadPhoto = vi.fn().mockResolvedValueOnce('https://cdn.example.com/mg.png');
+    const { props } = setup({
+      onUploadFeaturePhoto: onUploadPhoto,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['microgrid'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
+
+    const file = new File(['x'], 'foto.png', { type: 'image/png' });
+    fireEvent.change(document.getElementById('photo-upload-microgrid') as HTMLInputElement, { target: { files: [file] } });
+
+    await vi.waitFor(() =>
+      expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ photoUrl: 'https://cdn.example.com/mg.png' }))
+    );
+  });
+
+  it('uploads a generator photo and stores its URL on the generator config', async () => {
+    const onUploadPhoto = vi.fn().mockResolvedValueOnce('https://cdn.example.com/gen.png');
+    const { props } = setup({
+      onUploadFeaturePhoto: onUploadPhoto,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_generator'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+
+    const file = new File(['x'], 'foto.png', { type: 'image/png' });
+    fireEvent.change(document.getElementById('photo-upload-generator') as HTMLInputElement, { target: { files: [file] } });
+
+    await vi.waitFor(() =>
+      expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ photoUrl: 'https://cdn.example.com/gen.png' }))
+    );
+  });
+
+  it('uploads a photo successfully and lets the user replace or remove it', async () => {
+    const onUploadPhoto = vi.fn().mockResolvedValueOnce('https://cdn.example.com/uploaded.png');
+    const { props } = setup({
+      onUploadFeaturePhoto: onUploadPhoto,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+
+    const file = new File(['x'], 'foto.png', { type: 'image/png' });
+    const input = document.getElementById('photo-upload-ats') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await vi.waitFor(() => expect(props.setAtsPhotoUrl).toHaveBeenCalledWith('https://cdn.example.com/uploaded.png'));
+  });
+
+  it('does nothing when the file input changes with no file selected', () => {
+    const onUploadPhoto = vi.fn();
+    setup({
+      onUploadFeaturePhoto: onUploadPhoto,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+
+    const input = document.getElementById('photo-upload-ats') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [] } });
+
+    expect(onUploadPhoto).not.toHaveBeenCalled();
+  });
+
+  it('shows Trocar foto/Remover for an already-attached photo, and clears it via Remover', () => {
+    const { props } = setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'], atsPhotoUrl: 'https://cdn.example.com/x.png' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+
+    expect(screen.getByText('Trocar foto')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Remover/ }));
+    expect(props.setAtsPhotoUrl).toHaveBeenCalledWith(null);
+  });
+
+  it('disabling an already-enabled white tariff feature clears its config', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['white_tariff'] } });
+    fireEvent.click(screen.getByRole('tab', { name: /^Tarifa Branca/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+    expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(null);
+  });
+
+  it('disabling an already-enabled microgrid feature clears its config', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['microgrid'] } });
+    fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(null);
+  });
+
+  it('disabling an already-enabled generator feature clears its config', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_generator'] } });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('SizingTab: battery/inverter picker image and document previews', () => {
+  it('opens an image preview modal when the battery thumbnail is clicked, and shows the in-stock badge', () => {
+    const batteryWithImage: BatteryCatalogOption = { ...battery, imageUrl: 'https://cdn.example.com/battery.png' };
+    setup({
+      batteryCatalog: [batteryWithImage, lvBattery],
+      userStockItems: [{ id: 's1', productType: 'battery', productModel: batteryWithImage.model } as UserStockItem],
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    expect(screen.getByText('No catálogo')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('img', { name: batteryWithImage.model }));
+    expect(screen.getByRole('dialog', { name: batteryWithImage.model })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens a document preview modal when a battery attachment is clicked', () => {
+    const batteryWithDoc: BatteryCatalogOption = {
+      ...battery,
+      documents: [{ name: 'Datasheet', url: 'https://cdn.example.com/doc.pdf' }],
+    };
+    setup({ batteryCatalog: [batteryWithDoc, lvBattery] });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Datasheet' }));
+    expect(screen.getByRole('dialog', { name: 'Datasheet' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('selects a battery when no topology has been chosen yet', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    fireEvent.click(screen.getByText(battery.model));
+    expect(props.setTopology).toHaveBeenCalledWith('HighVoltage');
+    expect(props.setBatteryModel).toHaveBeenCalledWith(battery.model);
+  });
+
+  it('selects a battery via keyboard (Enter/Space) same as a click', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    const card = screen.getByText(battery.model).closest('[role="button"]') as HTMLElement;
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(props.setBatteryModel).toHaveBeenCalledWith(battery.model);
+
+    fireEvent.keyDown(card, { key: 'Tab' });
+    expect(props.setBatteryModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens an image preview modal when the inverter thumbnail is clicked, and shows the in-stock badge', () => {
+    const inverterWithImage: InverterCatalogOption = { ...inverter, imageUrl: 'https://cdn.example.com/inverter.png' };
+    setup({
+      inverterCatalog: [inverterWithImage],
+      userStockItems: [{ id: 's2', productType: 'inverter', productModel: inverterWithImage.model } as UserStockItem],
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+
+    expect(screen.getByText('No catálogo')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('img', { name: inverterWithImage.model }));
+    expect(screen.getByRole('dialog', { name: inverterWithImage.model })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens a document preview modal when an inverter attachment is clicked', () => {
+    const inverterWithDoc: InverterCatalogOption = {
+      ...inverter,
+      documents: [{ name: 'Manual', url: 'https://cdn.example.com/manual.pdf' }],
+    };
+    setup({ inverterCatalog: [inverterWithDoc] });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manual' }));
+    expect(screen.getByRole('dialog', { name: 'Manual' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('selects "Todos" and an inverter via keyboard (Enter/Space), and via a plain click', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: inverter.model } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+
+    const allCard = screen.getByText('Todos').closest('[role="button"]') as HTMLElement;
+    fireEvent.keyDown(allCard, { key: ' ' });
+    expect(props.setInverterModel).toHaveBeenCalledWith(null);
+
+    const inverterCard = screen.getAllByText(inverter.model)
+      .map((el) => el.closest('[role="button"]'))
+      .find((el): el is HTMLElement => el !== null) as HTMLElement;
+    fireEvent.keyDown(inverterCard, { key: 'Enter' });
+    fireEvent.click(inverterCard);
+    expect(props.setInverterModel).toHaveBeenCalledWith(inverter.model);
+  });
+});
+
+describe('SizingTab: Solução tab accessories and microgrid variant choice', () => {
+  it('renders accessories with their quantity, optional flag and attachments', () => {
+    setup({
+      solution: { ...fakeSolution, accessories: ['Smart Meter x2', 'Kit CFTV x1 (opcional)'] },
+      productMedia: {
+        'Smart Meter': { model: 'Smart Meter', nickname: 'Medidor', imageUrl: null, documents: [] },
+      },
+    });
+    expect(screen.getByText('Medidor')).toBeInTheDocument();
+    expect(screen.getByText('Quantidade: x2')).toBeInTheDocument();
+    expect(screen.getByText('Kit CFTV (opcional)')).toBeInTheDocument();
+  });
+
+  it('lets the user choose between the economic and microgrid variants', () => {
+    const microgridSolution: Solution = { ...fakeSolution, inverterModel: 'X1-MG', batteryQty: 2 };
+    const economicSolution: Solution = { ...fakeSolution, microgridAlternative: microgridSolution };
+    const { props } = setup({ solution: economicSolution });
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    expect(screen.getByText('Versão Econômica')).toBeInTheDocument();
+    expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument();
+
+    const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
+    fireEvent.click(within(microgridCard).getByRole('button', { name: 'Usar esta versão' }));
+    expect(props.onChooseMicrogridVariant).toHaveBeenCalledWith('microgrid');
+  });
+
+  it('shows a joined "qty x model" list for the microgrid variant when it needs a battery expansion', () => {
+    const masterBattery: BatteryCatalogOption = { ...battery, model: 'T58 Master', expansionModel: 'T58 Slave' };
+    const microgridSolution: Solution = { ...fakeSolution, batteryModel: 'T58 Master', batteryQty: 3 };
+    const economicSolution: Solution = { ...fakeSolution, batteryModel: 'T58 Master', batteryQty: 1, microgridAlternative: microgridSolution };
+    setup({ solution: economicSolution, batteryCatalog: [masterBattery, lvBattery] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
+    expect(within(microgridCard).getByText('1× T58 Master + 2× T58 Slave')).toBeInTheDocument();
+  });
+
+  it('falls back to the inverter value alone when the battery is missing from the catalog', () => {
+    setup({ solution: { ...fakeSolution, batteryModel: 'unknown-model' }, batteryCatalog: [battery, lvBattery] });
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    // Battery not found -> both nominal/peak fall back to the inverter's own 5000W/7000W.
+    expect(screen.getByText('5.00')).toBeInTheDocument();
+    expect(screen.getByText('7.00')).toBeInTheDocument();
+  });
+
+  it('falls back to the battery value alone when the inverter has no rated/peak power', () => {
+    setup({
+      solution: { ...fakeSolution, inverterRatedPowerW: null, inverterPeakPowerW: null },
+      batteryCatalog: [battery, lvBattery],
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    // Inverter has no rated/peak power -> both fall back to the battery's own 1.8kW/2.5kW.
+    expect(screen.getByText('1.80')).toBeInTheDocument();
+    expect(screen.getByText('2.50')).toBeInTheDocument();
   });
 });
 

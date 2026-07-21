@@ -77,6 +77,20 @@ describe('enqueuePendingSimulation / pendingSimulationCount', () => {
     }
     expect(pendingSimulationCount()).toBe(50);
   });
+
+  it('treats corrupted localStorage content as an empty queue instead of throwing', () => {
+    memoryStorage.setItem('solax-pending-simulations', '{not valid json');
+    expect(pendingSimulationCount()).toBe(0);
+
+    // Recovers cleanly — the next enqueue overwrites the corrupted value.
+    enqueuePendingSimulation(makePayload());
+    expect(pendingSimulationCount()).toBe(1);
+  });
+
+  it('treats a non-array parsed value as an empty queue', () => {
+    memoryStorage.setItem('solax-pending-simulations', JSON.stringify({ not: 'an array' }));
+    expect(pendingSimulationCount()).toBe(0);
+  });
 });
 
 describe('flushPendingSimulations', () => {

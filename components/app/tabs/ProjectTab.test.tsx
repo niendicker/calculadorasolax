@@ -79,6 +79,14 @@ describe('ProjectTab: empty and list states', () => {
     expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
   });
 
+  it('shows the linked client\'s name on a project card', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c1' })],
+      clients: [{ id: 'c1', name: 'Ana Souza' } as Client],
+    });
+    expect(screen.getByText(/Ana Souza/)).toBeInTheDocument();
+  });
+
   it('filters the saved-project list by search', () => {
     setup({
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' }), makeProject({ id: 'p2', name: 'Escritório' })],
@@ -114,6 +122,26 @@ describe('ProjectTab: new project draft', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Cancelar/ }));
     expect(props.onCancelNew).toHaveBeenCalled();
+  });
+
+  it('edits the client, address and notes fields, and delegates "Gerenciar clientes"', () => {
+    const { props } = setup({
+      projectDetailsVisible: true,
+      currentProjectId: null,
+      clients: [{ id: 'c1', name: 'Ana Souza' } as Client],
+    });
+
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
+    expect(props.setProjectInfo).toHaveBeenCalledWith({ clientId: 'c1' });
+
+    fireEvent.change(screen.getByLabelText('Endereço'), { target: { value: 'Rua das Flores, 10' } });
+    expect(props.setProjectInfo).toHaveBeenCalledWith({ address: 'Rua das Flores, 10' });
+
+    fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'Instalação em telhado inclinado.' } });
+    expect(props.setProjectInfo).toHaveBeenCalledWith({ notes: 'Instalação em telhado inclinado.' });
+
+    fireEvent.click(screen.getByRole('button', { name: /Gerenciar clientes/ }));
+    expect(props.onManageClients).toHaveBeenCalled();
   });
 
   it('Salvar projeto in the draft card delegates to onSave', () => {
