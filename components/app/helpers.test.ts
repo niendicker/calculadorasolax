@@ -8,9 +8,32 @@ import {
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   expansionModelSet,
-  parseAccessoryLabel,
+  isGeneratorAtsUnacknowledged,
+  isGeneratorPowerInsufficient,
+  isMicrogridPowerNoticeUnacknowledged,
+  normalizeAccessoryLine,
 } from './helpers';
-import type { Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
+import type { AccessoryLine, GeneratorConfig, MicrogridConfig, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
+
+function makeGenerator(partial: Partial<GeneratorConfig> = {}): GeneratorConfig {
+  return { voltageV: 220, phases: 1, apparentPowerVA: 5000, photoUrl: null, ownAtsAcknowledged: false, ...partial };
+}
+
+function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig {
+  return {
+    voltageV: 220,
+    onGridPhases: 1,
+    onGridApparentPowerVA: 1000,
+    isFundamentalRequirement: true,
+    photoUrl: null,
+    powerNoticeAcknowledged: false,
+    ...partial,
+  };
+}
+
+function makeAccessory(partial: Partial<AccessoryLine> & { model: string }): AccessoryLine {
+  return { qty: 1, optional: false, appliesTo: 'system', comment: null, ...partial };
+}
 
 function makeSolution(partial: Partial<Solution> = {}): Solution {
   return {
@@ -136,7 +159,7 @@ describe('buildMarginSummary', () => {
     const rows = buildMarginSummary({
       desiredFeatures: ['microgrid'],
       whiteTariff: null,
-      microgrid: { onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
       nominalW: 3000,
       peakW: 6000,
       dailyKwh: 3,
@@ -162,7 +185,7 @@ describe('buildMarginSummary', () => {
     const rows = buildMarginSummary({
       desiredFeatures: [],
       whiteTariff: null,
-      microgrid: { onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
       nominalW: 3000,
       peakW: 6000,
       dailyKwh: 3,
@@ -191,14 +214,19 @@ describe('calculateSystemCost', () => {
     expect(result.isComplete).toBe(true);
   });
 
-  it('includes accessories parsed from the solution.accessories labels', () => {
+  it('includes accessories from the solution.accessories lines', () => {
     const stock = [
       makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
       makeStockItem({ id: '2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 8000 }),
       makeStockItem({ id: '3', productType: 'accessory', productModel: 'Smart Meter - M1-40', unitValue: 300 }),
     ];
     const result = calculateSystemCost(
-      makeSolution({ accessories: ['Smart Meter - M1-40 x2', 'X1-Matebox Advanced (opcional)'] }),
+      makeSolution({
+        accessories: [
+          makeAccessory({ model: 'Smart Meter - M1-40', qty: 2 }),
+          makeAccessory({ model: 'X1-Matebox Advanced', optional: true }),
+        ],
+      }),
       stock
     );
     // inverter (5000x1) + battery (8000x1) + Smart Meter (300x2) priced; Matebox unpriced
@@ -206,6 +234,18 @@ describe('calculateSystemCost', () => {
     expect(result.pricedItemsCount).toBe(3);
     expect(result.totalItemsCount).toBe(4);
     expect(result.isComplete).toBe(false);
+  });
+
+  it('still prices accessories persisted in the legacy string format', () => {
+    const stock = [
+      makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
+      makeStockItem({ id: '2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 8000 }),
+      makeStockItem({ id: '3', productType: 'accessory', productModel: 'Smart Meter - M1-40', unitValue: 300 }),
+    ];
+    const legacyAccessories = ['Smart Meter - M1-40 x2', 'X1-Matebox Advanced (opcional)'] as unknown as Solution['accessories'];
+    const result = calculateSystemCost(makeSolution({ accessories: legacyAccessories }), stock);
+    expect(result.totalCost).toBe(5000 + 8000 + 300 * 2);
+    expect(result.pricedItemsCount).toBe(3);
   });
 
   it('does not match a stock item of the wrong product type even with the same model name', () => {
@@ -247,22 +287,102 @@ describe('calculateTariffSavings', () => {
   });
 });
 
-describe('parseAccessoryLabel (regression coverage for calculateSystemCost)', () => {
-  it('parses plain, quantity-suffixed, and optional labels', () => {
-    expect(parseAccessoryLabel('Smart Meter - M1-40')).toEqual({
+describe('normalizeAccessoryLine', () => {
+  it('parses plain, quantity-suffixed, and optional legacy string labels', () => {
+    expect(normalizeAccessoryLine('Smart Meter - M1-40')).toEqual({
       model: 'Smart Meter - M1-40',
       qty: 1,
       optional: false,
+      appliesTo: 'system',
+      comment: null,
     });
-    expect(parseAccessoryLabel('Smart Meter - M1-40 x3')).toEqual({
+    expect(normalizeAccessoryLine('Smart Meter - M1-40 x3')).toEqual({
       model: 'Smart Meter - M1-40',
       qty: 3,
       optional: false,
+      appliesTo: 'system',
+      comment: null,
     });
-    expect(parseAccessoryLabel('X1-Matebox Advanced (opcional)')).toEqual({
+    expect(normalizeAccessoryLine('X1-Matebox Advanced (opcional)')).toEqual({
       model: 'X1-Matebox Advanced',
       qty: 1,
       optional: true,
+      appliesTo: 'system',
+      comment: null,
     });
+  });
+
+  it('passes through already-structured accessory lines unchanged', () => {
+    const line = makeAccessory({ model: 'Smart Meter - M1-40', qty: 2, appliesTo: 'inverter', comment: 'Requer CT.' });
+    expect(normalizeAccessoryLine(line)).toBe(line);
+  });
+});
+
+describe('isGeneratorPowerInsufficient', () => {
+  it('is false when external_generator is not selected, regardless of power', () => {
+    expect(isGeneratorPowerInsufficient([], makeGenerator({ apparentPowerVA: 100 }), 5000)).toBe(false);
+  });
+
+  it('is false when external_generator is selected but no generator config exists yet', () => {
+    expect(isGeneratorPowerInsufficient(['external_generator'], null, 5000)).toBe(false);
+  });
+
+  it('is true when the generator power is below the loads peak power', () => {
+    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 2000 }), 5000)).toBe(
+      true
+    );
+  });
+
+  it('is false when the generator power meets or exceeds the loads peak power', () => {
+    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 5000 }), 5000)).toBe(
+      false
+    );
+    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 6000 }), 5000)).toBe(
+      false
+    );
+  });
+});
+
+describe('isGeneratorAtsUnacknowledged', () => {
+  it('is false when external_generator is not selected', () => {
+    expect(isGeneratorAtsUnacknowledged([], makeGenerator({ ownAtsAcknowledged: false }))).toBe(false);
+  });
+
+  it('is true when external_generator is selected but no generator config exists yet', () => {
+    expect(isGeneratorAtsUnacknowledged(['external_generator'], null)).toBe(true);
+  });
+
+  it('is true when the acknowledgement checkbox has not been checked', () => {
+    expect(isGeneratorAtsUnacknowledged(['external_generator'], makeGenerator({ ownAtsAcknowledged: false }))).toBe(
+      true
+    );
+  });
+
+  it('is false once the acknowledgement checkbox is checked', () => {
+    expect(isGeneratorAtsUnacknowledged(['external_generator'], makeGenerator({ ownAtsAcknowledged: true }))).toBe(
+      false
+    );
+  });
+});
+
+describe('isMicrogridPowerNoticeUnacknowledged', () => {
+  it('is false when microgrid is not selected', () => {
+    expect(isMicrogridPowerNoticeUnacknowledged([], makeMicrogrid({ powerNoticeAcknowledged: false }))).toBe(false);
+  });
+
+  it('is true when microgrid is selected but no config exists yet', () => {
+    expect(isMicrogridPowerNoticeUnacknowledged(['microgrid'], null)).toBe(true);
+  });
+
+  it('is true when the acknowledgement checkbox has not been checked', () => {
+    expect(
+      isMicrogridPowerNoticeUnacknowledged(['microgrid'], makeMicrogrid({ powerNoticeAcknowledged: false }))
+    ).toBe(true);
+  });
+
+  it('is false once the acknowledgement checkbox is checked', () => {
+    expect(
+      isMicrogridPowerNoticeUnacknowledged(['microgrid'], makeMicrogrid({ powerNoticeAcknowledged: true }))
+    ).toBe(false);
   });
 });

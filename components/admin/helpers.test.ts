@@ -279,6 +279,7 @@ function makeAccessoryRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRu
     battery_topology: null,
     quantity_per_match: 1,
     comment: null,
+    desired_features: [],
     active: true,
     accessories: { model: 'Smart Meter' },
     ...partial,
@@ -310,6 +311,12 @@ describe('accessoryRuleMatches', () => {
     const rule = makeAccessoryRule({ id: 'r1', trigger_metric: 'inverter_quantity', min_quantity: 3 });
     expect(accessoryRuleMatches(makeGeneratedSolution({ inverter_quantity: 2 }), rule)).toBe(false);
     expect(accessoryRuleMatches(makeGeneratedSolution({ inverter_quantity: 3 }), rule)).toBe(true);
+  });
+
+  it('rejects a rule gated by desired_features, since bulk generation has no customer context', () => {
+    // Otherwise-unconstrained rule that would normally match everything.
+    const rule = makeAccessoryRule({ id: 'r1', desired_features: ['external_ats'] });
+    expect(accessoryRuleMatches(makeGeneratedSolution(), rule)).toBe(false);
   });
 });
 

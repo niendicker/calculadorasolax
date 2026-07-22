@@ -36,6 +36,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
       microgrid: null,
       generator: null,
       atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
       maxPowerPerPhaseW: null,
     },
     solution: null,
@@ -409,9 +410,10 @@ describe('setDesiredFeatures', () => {
       residentialOptions: {
         ...s.residentialOptions,
         whiteTariff: { requiredPowerW: 1000, requiredEnergyWh: 2000, includeBackupReserve: false, tariffSpreadPerKwh: 0.5 },
-        microgrid: { onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: false, photoUrl: null },
-        generator: { voltageV: 220, phases: 1, apparentPowerVA: 1000, photoUrl: null },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 1000, photoUrl: null, ownAtsAcknowledged: false },
         atsPhotoUrl: 'https://example.com/ats.jpg',
+        atsBackupAcknowledged: true,
       },
     }));
 
@@ -423,6 +425,7 @@ describe('setDesiredFeatures', () => {
     expect(options.microgrid).toBeNull();
     expect(options.generator).toBeNull();
     expect(options.atsPhotoUrl).toBeNull();
+    expect(options.atsBackupAcknowledged).toBe(false);
   });
 
   it('keeps all configs when all their features stay selected', () => {
@@ -442,19 +445,21 @@ describe('setWhiteTariffConfig / setMicrogridConfig / setGeneratorConfig / setAt
 
   it('sets each feature config independently', () => {
     const whiteTariff = { requiredPowerW: 500, requiredEnergyWh: 1000, includeBackupReserve: true, tariffSpreadPerKwh: 0.3 };
-    const microgrid = { onGridPhases: 3 as const, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null };
-    const generator = { voltageV: 380, phases: 3 as const, apparentPowerVA: 8000, photoUrl: null };
+    const microgrid = { voltageV: 220, onGridPhases: 3 as const, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true };
+    const generator = { voltageV: 380, phases: 3 as const, apparentPowerVA: 8000, photoUrl: null, ownAtsAcknowledged: true };
 
     useWizardStore.getState().setWhiteTariffConfig(whiteTariff);
     useWizardStore.getState().setMicrogridConfig(microgrid);
     useWizardStore.getState().setGeneratorConfig(generator);
     useWizardStore.getState().setAtsPhotoUrl('https://example.com/ats.jpg');
+    useWizardStore.getState().setAtsBackupAcknowledged(true);
 
     const options = useWizardStore.getState().residentialOptions;
     expect(options.whiteTariff).toEqual(whiteTariff);
     expect(options.microgrid).toEqual(microgrid);
     expect(options.generator).toEqual(generator);
     expect(options.atsPhotoUrl).toBe('https://example.com/ats.jpg');
+    expect(options.atsBackupAcknowledged).toBe(true);
   });
 
   it('clears a config back to null', () => {

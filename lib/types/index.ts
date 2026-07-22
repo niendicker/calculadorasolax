@@ -42,16 +42,24 @@ export interface WhiteTariffConfig {
  * the existing on-grid (grid-tied) system that will be connected alongside the
  * new hybrid system. */
 export interface MicrogridConfig {
+  /** Voltage of the existing on-grid system (V). Informational only — not
+   * validated against the recommended solution. */
+  voltageV: number;
   /** Number of phases of the existing on-grid system. */
   onGridPhases: 1 | 2 | 3;
   /** Apparent power of the existing on-grid system (VA). */
   onGridApparentPowerVA: number;
   /** When true, microgrid compatibility is enforced even if it forces a bigger
    * system; when false, the app offers a choice between the smallest solution
-   * and the smallest one that also supports microgrid (see Solution.microgridAlternative). */
+   * and the smallest one that also supports microgrid (see Solution.microgridAlternative).
+   * The wizard always creates new configs with this set to true — false only
+   * ever occurs in projects saved before that was the case. */
   isFundamentalRequirement: boolean;
   /** Optional reference photo of the existing on-grid installation, uploaded by the user. */
   photoUrl: string | null;
+  /** User confirms they're aware the on-grid system's power must be lower than
+   * the solution's inverter and battery power. */
+  powerNoticeAcknowledged: boolean;
 }
 
 /** Extra report inputs only used when 'external_generator' is a desired feature.
@@ -62,6 +70,8 @@ export interface GeneratorConfig {
   apparentPowerVA: number;
   /** Optional reference photo of the generator, uploaded by the user. */
   photoUrl: string | null;
+  /** User confirms they're aware the external generator needs its own ATS switch. */
+  ownAtsAcknowledged: boolean;
 }
 
 // How multiple loads' IP/IN ratios combine into the system's peak apparent power:
@@ -193,6 +203,9 @@ export interface ResidentialOptions {
   generator: GeneratorConfig | null;
   /** Optional reference photo of the ATS panel, uploaded by the user. Only meaningful when 'external_ats' is in desiredFeatures. */
   atsPhotoUrl: string | null;
+  /** User confirms they're aware the ATS externo must be used for full backup.
+   * Only meaningful when 'external_ats' is in desiredFeatures. */
+  atsBackupAcknowledged: boolean;
   /** Max power allowed per phase (W); null uses the suggested default (inverter power / phase count). */
   maxPowerPerPhaseW: number | null;
 }
@@ -223,6 +236,17 @@ export interface IndustrialOptions {
   demandCharge: boolean;
 }
 
+/** One accessory line in a computed Solution, carrying the metadata from
+ * whichever accessory_rules row matched it (or system defaults for
+ * accessories baked directly into the approved solution, with no rule). */
+export interface AccessoryLine {
+  model: string;
+  qty: number;
+  optional: boolean;
+  appliesTo: 'inverter' | 'battery' | 'system';
+  comment: string | null;
+}
+
 export interface Solution {
   inverterId: string;
   inverterModel: string;
@@ -236,7 +260,7 @@ export interface Solution {
   availableEnergyWh?: number;
   /** null when the customer opted out of PV sizing ('no_pv' desired feature). */
   pvPowerKw: number | null;
-  accessories: string[];
+  accessories: AccessoryLine[];
   solutionId?: string;
   solutionCode?: string;
   sourceFile?: string;

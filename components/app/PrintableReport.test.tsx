@@ -120,10 +120,31 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('6.50 kWp')).toBeInTheDocument();
   });
 
-  it('lists each accessory as its own row', () => {
-    render(<PrintableReport {...baseProps({ solution: { ...solution, accessories: ['Smart Meter', 'X1-Matebox'] } })} />);
+  it('lists each accessory as its own row with its real quantity, status and comment', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: {
+            ...solution,
+            accessories: [
+              { model: 'Smart Meter', qty: 2, optional: false, appliesTo: 'system', comment: null },
+              {
+                model: 'X1-Matebox',
+                qty: 1,
+                optional: true,
+                appliesTo: 'inverter',
+                comment: 'Instalar próximo ao quadro.',
+              },
+            ],
+          },
+        })}
+      />
+    );
     expect(screen.getByText('Smart Meter')).toBeInTheDocument();
     expect(screen.getByText('X1-Matebox')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('Obrigatório')).toBeInTheDocument();
+    expect(screen.getByText('Opcional — Instalar próximo ao quadro.')).toBeInTheDocument();
   });
 
   it('breaks down the battery model into Master + expansion units when the catalog defines one', () => {

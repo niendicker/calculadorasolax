@@ -32,6 +32,31 @@ describe('getCalculationErrorMessage', () => {
     expect(fallback).toBe(getCalculationErrorMessage(undefined));
     expect(fallback).toBe(getCalculationErrorMessage(null));
   });
+
+  it('names the specific blocking feature when the code is no_solution_matches_desired_features', () => {
+    const message = getCalculationErrorMessage('no_solution_matches_desired_features', ['microgrid']);
+    expect(message).toContain('Microrrede');
+    expect(message).not.toBe(getCalculationErrorMessage('no_solution_matches_desired_features'));
+  });
+
+  it('lists multiple blocking features joined with "e"', () => {
+    const message = getCalculationErrorMessage('no_solution_matches_desired_features', ['external_ats', 'microgrid']);
+    expect(message).toContain('ATS Externo');
+    expect(message).toContain('Microrrede');
+    expect(message).toContain(' e ');
+  });
+
+  it('falls back to the generic desired-features message when blockingFeatures is missing or empty', () => {
+    const genericMessage = getCalculationErrorMessage('no_solution_matches_desired_features');
+    expect(getCalculationErrorMessage('no_solution_matches_desired_features', [])).toBe(genericMessage);
+    expect(getCalculationErrorMessage('no_solution_matches_desired_features', null)).toBe(genericMessage);
+  });
+
+  it('ignores blockingFeatures for any other error code', () => {
+    expect(getCalculationErrorMessage('no_approved_solution', ['microgrid'])).toBe(
+      getCalculationErrorMessage('no_approved_solution')
+    );
+  });
 });
 
 describe('getNetworkErrorMessage', () => {

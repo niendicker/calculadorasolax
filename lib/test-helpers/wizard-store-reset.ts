@@ -25,6 +25,7 @@ export function resetWizardStore() {
       microgrid: null,
       generator: null,
       atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
       maxPowerPerPhaseW: null,
     },
     industrialOptions: {

@@ -1,6 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
   batteryTopologyMap,
+  blockingDesiredFeatures,
   buildSolutionPayload,
   clampNumber,
   effectiveTargetEnergyWh,
@@ -228,7 +229,13 @@ Deno.serve(async (req) => {
       compatibleSolutions = compatibleSolutions.filter((solution) => matchingModels.has(solution.inverter_model));
 
       if (!compatibleSolutions.length) {
-        return jsonResponse({ error: 'no_solution_matches_desired_features' }, { status: 422 });
+        return jsonResponse(
+          {
+            error: 'no_solution_matches_desired_features',
+            blockingFeatures: blockingDesiredFeatures(hardFilterFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
+          },
+          { status: 422 }
+        );
       }
     }
 
@@ -310,7 +317,10 @@ Deno.serve(async (req) => {
 
       if (microgridIsFundamental) {
         if (!microgridCompatibleSolutions.length) {
-          return jsonResponse({ error: 'no_solution_matches_desired_features' }, { status: 422 });
+          return jsonResponse(
+            { error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] },
+            { status: 422 }
+          );
         }
         compatibleSolutions = microgridCompatibleSolutions;
       } else {
@@ -344,6 +354,7 @@ Deno.serve(async (req) => {
         battery_topology,
         quantity_per_match,
         comment,
+        desired_features,
         accessories (model)
       `
       )
@@ -361,6 +372,7 @@ Deno.serve(async (req) => {
       pvPowerKw,
       accessoryRules,
       standardGridTopology,
+      desiredFeatures,
     });
 
     if (microgridAlternativeSolution) {
@@ -369,6 +381,7 @@ Deno.serve(async (req) => {
         pvPowerKw,
         accessoryRules,
         standardGridTopology,
+        desiredFeatures,
       });
       return jsonResponse({ ...payload, microgridAlternative });
     }

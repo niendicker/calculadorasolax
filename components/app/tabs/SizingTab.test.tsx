@@ -66,6 +66,7 @@ const emptyResidentialOptions = {
   microgrid: null,
   generator: null,
   atsPhotoUrl: null,
+  atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
 };
 
@@ -97,6 +98,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     setMicrogridConfig: vi.fn(),
     setGeneratorConfig: vi.fn(),
     setAtsPhotoUrl: vi.fn(),
+    setAtsBackupAcknowledged: vi.fn(),
     onUploadFeaturePhoto: vi.fn(),
     resetResidential: vi.fn(),
     calculate: vi.fn(),
@@ -387,7 +389,10 @@ describe('SizingTab: funcionalidades desejadas', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Microrrede' }));
 
-    expect(screen.getByText('1 de 2 inversores cadastrados com suporte a microrrede')).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('1 de 2 inversores cadastrados no catálogo suportam microrrede.')
+    ).toBeInTheDocument();
   });
 
   it('enabling Tarifa Branca from scratch seeds its default config', () => {
@@ -399,11 +404,13 @@ describe('SizingTab: funcionalidades desejadas', () => {
     );
   });
 
-  it('enabling Microrrede from scratch seeds its default config', () => {
+  it('enabling Microrrede from scratch seeds its default config, always fundamental', () => {
     const { props } = setup();
     fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
-    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridPhases: 1 }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ onGridPhases: 1, voltageV: 220, isFundamentalRequirement: true })
+    );
   });
 
   it('enabling Gerador Externo from scratch seeds its default config', () => {
@@ -411,6 +418,33 @@ describe('SizingTab: funcionalidades desejadas', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 1 }));
+  });
+
+  it('seeds Microrrede phases/voltage matching the grid type already chosen in Configurações', () => {
+    const { props } = setup({
+      residentialOptions: { ...emptyResidentialOptions, gridType: 'threePhase_380' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ onGridPhases: 3, voltageV: 380 })
+    );
+  });
+
+  it('seeds Gerador Externo phases/voltage matching the grid type already chosen in Configurações', () => {
+    const { props } = setup({
+      residentialOptions: { ...emptyResidentialOptions, gridType: 'splitPhase_220' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 2, voltageV: 220 }));
+  });
+
+  it('falls back to monofásico 220V when no grid type has been chosen yet', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, gridType: null } });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 1, voltageV: 220 }));
   });
 });
 
@@ -484,31 +518,299 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
   });
 
-  it('updates microgrid power, phases and the fundamental-requirement checkbox', () => {
+  it('updates microgrid power and phases (phase change auto-picks a valid voltage)', () => {
     const props = enable(/^Microrrede/, 'microgrid');
     fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '4000' } });
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Fases do sistema ongrid' })).getByRole('radio', { name: 'Trifásico' }));
-    fireEvent.click(screen.getByLabelText('Requisito fundamental'));
 
     expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridApparentPowerVA: 4000 }));
-    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridPhases: 3 }));
-    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ isFundamentalRequirement: true }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ onGridPhases: 3, voltageV: 220 }));
+    expect(screen.queryByLabelText('Requisito fundamental')).not.toBeInTheDocument();
   });
 
-  it('updates generator voltage, power and phases', () => {
+  it('updates microgrid voltage when trifásico is already selected', () => {
+    const props = enable(/^Microrrede/, 'microgrid', {
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+    });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Tensão do sistema ongrid' })).getByRole('radio', { name: '380V' }));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ voltageV: 380 }));
+  });
+
+  it('checks the microgrid power-notice acknowledgement checkbox', () => {
+    const props = enable(/^Microrrede/, 'microgrid');
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ powerNoticeAcknowledged: true }));
+  });
+
+  it('renders the microgrid power-notice field in a warning style until acknowledged, then in a neutral style', () => {
+    enable(/^Microrrede/, 'microgrid');
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
+    expect(checkbox).not.toBeChecked();
+    const unacknowledgedField = checkbox.closest('label') as HTMLElement;
+    expect(unacknowledgedField.className).toContain('amber');
+
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['microgrid'],
+        microgrid: {
+          voltageV: 220,
+          onGridPhases: 1,
+          onGridApparentPowerVA: 0,
+          isFundamentalRequirement: true,
+          photoUrl: null,
+          powerNoticeAcknowledged: true,
+        },
+      },
+    });
+    fireEvent.click(screen.getAllByRole('tab', { name: /^Microrrede/ })[1]);
+    const acknowledgedCheckbox = screen.getAllByRole('checkbox')[1] as HTMLInputElement;
+    expect(acknowledgedCheckbox).toBeChecked();
+    expect((acknowledgedCheckbox.closest('label') as HTMLElement).className).not.toContain('amber');
+  });
+
+  it('places the microgrid power-notice field right before the photo upload area', () => {
+    enable(/^Microrrede/, 'microgrid');
+    const checkboxLabel = screen.getByRole('checkbox').closest('label') as HTMLElement;
+    const photoField = screen.getByText('Anexar foto');
+    expect(checkboxLabel.compareDocumentPosition(photoField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByLabelText('Potência (VA)').compareDocumentPosition(checkboxLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('updates generator power and phases (phase change auto-picks a valid voltage)', () => {
     const props = enable(/^Gerador Externo/, 'external_generator');
-    fireEvent.change(screen.getByLabelText('Tensão (V)'), { target: { value: '220' } });
     fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '5000' } });
-    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Fases do gerador' })).getByRole('radio', { name: 'Bifásico' }));
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Fases do gerador' })).getByRole('radio', { name: 'Trifásico' }));
 
-    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ voltageV: 220 }));
     expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ apparentPowerVA: 5000 }));
-    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 2 }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 3, voltageV: 220 }));
   });
 
-  it('shows the ATS reminder for Gerador Externo when ATS Externo is not also selected', () => {
+  it('updates generator voltage when trifásico is already selected', () => {
+    const props = enable(/^Gerador Externo/, 'external_generator', {
+      generator: { voltageV: 220, phases: 3, apparentPowerVA: 0, photoUrl: null, ownAtsAcknowledged: false },
+    });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Tensão do gerador' })).getByRole('radio', { name: '380V' }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ voltageV: 380 }));
+  });
+
+  it('shows only 220V as a voltage option for monofásico', () => {
     enable(/^Gerador Externo/, 'external_generator');
-    expect(screen.getByText(/Gerador Externo normalmente exige ATS Externo/)).toBeInTheDocument();
+    const voltageGroup = screen.getByRole('radiogroup', { name: 'Tensão do gerador' });
+    expect(within(voltageGroup).getByRole('radio', { name: '220V' })).toBeInTheDocument();
+    expect(within(voltageGroup).queryByRole('radio', { name: '380V' })).not.toBeInTheDocument();
+  });
+
+  it('shows only 110/220V as a voltage option for bifásico', () => {
+    enable(/^Gerador Externo/, 'external_generator', {
+      generator: { voltageV: 220, phases: 2, apparentPowerVA: 0, photoUrl: null, ownAtsAcknowledged: false },
+    });
+    const voltageGroup = screen.getByRole('radiogroup', { name: 'Tensão do gerador' });
+    expect(within(voltageGroup).getByRole('radio', { name: '110/220V' })).toBeInTheDocument();
+    expect(within(voltageGroup).queryByRole('radio', { name: '220V' })).not.toBeInTheDocument();
+  });
+
+  it('shows both 220V and 380V as voltage options for trifásico', () => {
+    enable(/^Gerador Externo/, 'external_generator', {
+      generator: { voltageV: 220, phases: 3, apparentPowerVA: 0, photoUrl: null, ownAtsAcknowledged: false },
+    });
+    const voltageGroup = screen.getByRole('radiogroup', { name: 'Tensão do gerador' });
+    expect(within(voltageGroup).getByRole('radio', { name: '220V' })).toBeInTheDocument();
+    expect(within(voltageGroup).getByRole('radio', { name: '380V' })).toBeInTheDocument();
+  });
+
+  it('resets voltage to 220 when switching from Trifásico 380V to Monofásico', () => {
+    const props = enable(/^Gerador Externo/, 'external_generator', {
+      generator: { voltageV: 380, phases: 3, apparentPowerVA: 0, photoUrl: null, ownAtsAcknowledged: false },
+    });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Fases do gerador' })).getByRole('radio', { name: 'Monofásico' }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 1, voltageV: 220 }));
+  });
+
+  it('warns when the generator phases/voltage do not match the configured grid type', () => {
+    enable(/^Gerador Externo/, 'external_generator', { gridType: 'threePhase_220' });
+    expect(
+      screen.getByText(/A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\)/)
+    ).toBeInTheDocument();
+  });
+
+  it('does not warn about generator phases/voltage when they exactly match the configured grid type', () => {
+    enable(/^Gerador Externo/, 'external_generator', { gridType: 'singlePhase_220' });
+    expect(screen.queryByText(/são incompatíveis com o tipo de rede configurado/)).not.toBeInTheDocument();
+  });
+
+  it('does not warn when no grid type is configured yet', () => {
+    enable(/^Gerador Externo/, 'external_generator', { gridType: null });
+    expect(screen.queryByText(/são incompatíveis com o tipo de rede configurado/)).not.toBeInTheDocument();
+  });
+
+  it('allows the microgrid exception: 380V trifásico or 220V bifásico network with a 220V monofásico ongrid inverter', () => {
+    enable(/^Microrrede/, 'microgrid', { gridType: 'threePhase_380' });
+    expect(screen.queryByText(/são incompatíveis com o tipo de rede configurado/)).not.toBeInTheDocument();
+  });
+
+  it('still warns for microgrid when the mismatch is not the documented exception', () => {
+    enable(/^Microrrede/, 'microgrid', {
+      gridType: 'singlePhase_220',
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+    });
+    expect(
+      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\)/)
+    ).toBeInTheDocument();
+  });
+
+  it('shows how many registered inverters support Gerador Externo when the tab is enabled', () => {
+    const generatorInverter: InverterCatalogOption = {
+      ...inverter,
+      id: 'i2',
+      model: 'X1-Hybrid-7.5-GEN',
+      flags: ['external_generator'],
+    };
+    setup({
+      inverterCatalog: [inverter, generatorInverter],
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_generator'] },
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+
+    expect(
+      screen.getByLabelText('1 de 2 inversores cadastrados no catálogo suportam Gerador Externo.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows a neutral chip when no grid type/model is selected yet in Configurações', () => {
+    setup({
+      inverterCatalog: [inverter],
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['microgrid'] },
+      availableInverterModels: null,
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
+    expect(
+      screen.getByLabelText(/Selecione o tipo de rede em Configurações para ver quantos inversores compatíveis/)
+    ).toBeInTheDocument();
+  });
+
+  it('shows a clear zero-support chip when none of the selected options support the feature', () => {
+    const otherInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'Other-Model', flags: [] };
+    setup({
+      inverterCatalog: [inverter, otherInverter],
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['microgrid'], inverterModel: 'Other-Model' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
+    expect(
+      screen.getByLabelText('Nenhum inversor das opções selecionadas em Configurações suporta microrrede.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows the selected-options support count when a specific inverter model is chosen and supports the feature', () => {
+    const generatorInverter: InverterCatalogOption = {
+      ...inverter,
+      id: 'i2',
+      model: 'X1-Hybrid-7.5-GEN',
+      flags: ['external_generator'],
+    };
+    setup({
+      inverterCatalog: [inverter, generatorInverter],
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_generator'],
+        inverterModel: 'X1-Hybrid-7.5-GEN',
+      },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    expect(
+      screen.getByLabelText('1 de 1 inversores das opções selecionadas em Configurações suportam Gerador Externo.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows the own-ATS acknowledgement checkbox for Gerador Externo, unchecked by default', () => {
+    enable(/^Gerador Externo/, 'external_generator');
+    expect(screen.getByText('O gerador externo precisa ter a própria chave ATS.')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Ciente/ })).not.toBeChecked();
+  });
+
+  it('warns when the generator power is below the loads peak power', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_generator'],
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 2000, photoUrl: null, ownAtsAcknowledged: false },
+      },
+      peakW: 5500,
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    expect(screen.getByText('Potência do gerador insuficiente para carregar as baterias')).toBeInTheDocument();
+  });
+
+  it('does not warn when the generator power covers the loads peak power', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_generator'],
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: false },
+      },
+      peakW: 5500,
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
+    expect(screen.queryByText('Potência do gerador insuficiente para carregar as baterias')).not.toBeInTheDocument();
+  });
+
+  it('checks the own-ATS acknowledgement checkbox', () => {
+    const props = enable(/^Gerador Externo/, 'external_generator');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ciente/ }));
+    expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ ownAtsAcknowledged: true }));
+  });
+
+  it('renders the own-ATS field in a warning style until acknowledged, then in a neutral style', () => {
+    enable(/^Gerador Externo/, 'external_generator');
+    const unacknowledgedField = screen.getByRole('checkbox', { name: /Ciente/ }).closest('label') as HTMLElement;
+    expect(unacknowledgedField.className).toContain('amber');
+
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_generator'],
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 0, photoUrl: null, ownAtsAcknowledged: true },
+      },
+    });
+    fireEvent.click(screen.getAllByRole('tab', { name: /^Gerador Externo/ })[1]);
+    const acknowledgedField = screen.getAllByRole('checkbox', { name: /Ciente/ })[1].closest('label') as HTMLElement;
+    expect(acknowledgedField.className).not.toContain('amber');
+  });
+
+  it('shows how many registered inverters support ATS Externo when the tab is enabled', () => {
+    const atsInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X1-Hybrid-7.5-ATS', flags: ['external_ats'] };
+    setup({
+      inverterCatalog: [inverter, atsInverter],
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    expect(
+      screen.getByLabelText('1 de 2 inversores cadastrados no catálogo suportam ATS Externo.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows the ATS backup-acknowledgement field in a warning style until checked, then in a neutral style', () => {
+    enable(/^ATS Externo/, 'external_ats');
+    expect(screen.getByText('O ATS externo deve ser usado para backup completo.')).toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
+    expect(checkbox).not.toBeChecked();
+    const unacknowledgedField = checkbox.closest('label') as HTMLElement;
+    expect(unacknowledgedField.className).toContain('amber');
+
+    setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'], atsBackupAcknowledged: true },
+    });
+    fireEvent.click(screen.getAllByRole('tab', { name: /^ATS Externo/ })[1]);
+    const acknowledgedCheckbox = screen.getAllByRole('checkbox')[1] as HTMLInputElement;
+    expect(acknowledgedCheckbox).toBeChecked();
+    expect((acknowledgedCheckbox.closest('label') as HTMLElement).className).not.toContain('amber');
+  });
+
+  it('checks the ATS backup-acknowledgement checkbox', () => {
+    const props = enable(/^ATS Externo/, 'external_ats');
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(props.setAtsBackupAcknowledged).toHaveBeenCalledWith(true);
   });
 
   it('uploads a photo for a feature and surfaces an upload error', async () => {
@@ -730,16 +1032,33 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 });
 
 describe('SizingTab: Solução tab accessories and microgrid variant choice', () => {
-  it('renders accessories with their quantity, optional flag and attachments', () => {
+  it('renders accessories with their quantity, required/optional flag, appliesTo and comment', () => {
     setup({
-      solution: { ...fakeSolution, accessories: ['Smart Meter x2', 'Kit CFTV x1 (opcional)'] },
+      solution: {
+        ...fakeSolution,
+        accessories: [
+          { model: 'Smart Meter', qty: 2, optional: false, appliesTo: 'system', comment: null },
+          {
+            model: 'Kit CFTV',
+            qty: 1,
+            optional: true,
+            appliesTo: 'inverter',
+            comment: 'Instalar próximo ao quadro.',
+          },
+        ],
+      },
       productMedia: {
         'Smart Meter': { model: 'Smart Meter', nickname: 'Medidor', imageUrl: null, documents: [] },
       },
     });
-    expect(screen.getByText('Medidor')).toBeInTheDocument();
-    expect(screen.getByText('Quantidade: x2')).toBeInTheDocument();
-    expect(screen.getByText('Kit CFTV (opcional)')).toBeInTheDocument();
+    const accessoriesSection = screen.getByText('Acessórios').closest('div') as HTMLElement;
+    expect(within(accessoriesSection).getByText('Medidor')).toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('Quantidade: x2')).toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('Obrigatório')).toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('Kit CFTV')).toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('Opcional')).toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('Inversor')).toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('Instalar próximo ao quadro.')).toBeInTheDocument();
   });
 
   it('lets the user choose between the economic and microgrid variants', () => {

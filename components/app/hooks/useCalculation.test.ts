@@ -22,6 +22,7 @@ const validResidentialOptions: ResidentialOptions = {
   microgrid: null,
   generator: null,
   atsPhotoUrl: null,
+  atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
 };
 
@@ -100,6 +101,88 @@ describe('useCalculation: canCalculate', () => {
 
   it('is true once topology, battery, grid type and at least one load are set', () => {
     const { result } = renderCalculation(baseProps());
+    expect(result.current.canCalculate).toBe(true);
+  });
+
+  it('is false when Gerador Externo is selected but its power is below the loads peak power', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          desiredFeatures: ['external_generator'],
+          generator: { voltageV: 220, phases: 1, apparentPowerVA: 2000, photoUrl: null, ownAtsAcknowledged: false },
+        },
+        peakW: 5500,
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('is true when Gerador Externo power covers the loads peak power and the ATS notice is acknowledged', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          desiredFeatures: ['external_generator'],
+          generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: true },
+        },
+        peakW: 5500,
+      })
+    );
+    expect(result.current.canCalculate).toBe(true);
+  });
+
+  it('is false when Gerador Externo power is sufficient but the own-ATS notice is not acknowledged', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          desiredFeatures: ['external_generator'],
+          generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: false },
+        },
+        peakW: 5500,
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('is false when Microrrede is selected but the power notice is not acknowledged', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          desiredFeatures: ['microgrid'],
+          microgrid: {
+            voltageV: 220,
+            onGridPhases: 1,
+            onGridApparentPowerVA: 500,
+            isFundamentalRequirement: true,
+            photoUrl: null,
+            powerNoticeAcknowledged: false,
+          },
+        },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('is true when Microrrede is selected and the power notice is acknowledged', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          desiredFeatures: ['microgrid'],
+          microgrid: {
+            voltageV: 220,
+            onGridPhases: 1,
+            onGridApparentPowerVA: 500,
+            isFundamentalRequirement: true,
+            photoUrl: null,
+            powerNoticeAcknowledged: true,
+          },
+        },
+      })
+    );
     expect(result.current.canCalculate).toBe(true);
   });
 });

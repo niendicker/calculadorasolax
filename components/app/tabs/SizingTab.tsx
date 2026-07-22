@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Battery,
   BatteryCharging,
+  Boxes,
   Calculator,
   Check,
   ChevronRight,
@@ -32,6 +33,7 @@ import type {
   BatteryTopology,
   DesiredFeatureId,
   GeneratorConfig,
+  InverterFlag,
   MicrogridConfig,
   ProductDocument,
   ResidentialGridType,
@@ -40,7 +42,7 @@ import type {
   WhiteTariffConfig,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
+import { Tooltip, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import {
   batteryQuantityBreakdown,
   buildMarginSummary,
@@ -48,7 +50,8 @@ import {
   calculateTariffSavings,
   expansionModelSet,
   formatCurrencyBRL,
-  parseAccessoryLabel,
+  isGeneratorPowerInsufficient,
+  normalizeAccessoryLine,
   type MarginRow,
 } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
@@ -97,6 +100,7 @@ export function SizingTab({
   setMicrogridConfig,
   setGeneratorConfig,
   setAtsPhotoUrl,
+  setAtsBackupAcknowledged,
   onUploadFeaturePhoto,
   resetResidential,
   calculate,
@@ -122,6 +126,7 @@ export function SizingTab({
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
     atsPhotoUrl: string | null;
+    atsBackupAcknowledged: boolean;
     maxPowerPerPhaseW: number | null;
   };
   batteryCatalog: BatteryCatalogOption[];
@@ -144,6 +149,7 @@ export function SizingTab({
   setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
   setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
+  setAtsBackupAcknowledged: (atsBackupAcknowledged: boolean) => void;
   onUploadFeaturePhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
   resetResidential: () => void;
   calculate: () => void;
@@ -375,9 +381,15 @@ export function SizingTab({
                   onGeneratorChange={setGeneratorConfig}
                   atsPhotoUrl={residentialOptions.atsPhotoUrl}
                   onAtsPhotoUrlChange={setAtsPhotoUrl}
+                  atsBackupAcknowledged={residentialOptions.atsBackupAcknowledged}
+                  onAtsBackupAcknowledgedChange={setAtsBackupAcknowledged}
                   onUploadPhoto={onUploadFeaturePhoto}
                   loadsCount={residentialOptions.loads.length}
                   inverterCatalog={inverterCatalog}
+                  availableInverterModels={availableInverterModels}
+                  selectedInverterModel={residentialOptions.inverterModel}
+                  gridType={residentialOptions.gridType}
+                  peakW={peakW}
                 />
               )}
 
@@ -501,10 +513,14 @@ const emptyWhiteTariffConfig: WhiteTariffConfig = {
 };
 
 const emptyMicrogridConfig: MicrogridConfig = {
+  voltageV: 220,
   onGridPhases: 1,
   onGridApparentPowerVA: 0,
-  isFundamentalRequirement: false,
+  // The wizard no longer lets the user opt out of this — enabling
+  // Microrrede always means it's a fundamental requirement now.
+  isFundamentalRequirement: true,
   photoUrl: null,
+  powerNoticeAcknowledged: false,
 };
 
 const emptyGeneratorConfig: GeneratorConfig = {
@@ -512,6 +528,7 @@ const emptyGeneratorConfig: GeneratorConfig = {
   phases: 1,
   apparentPowerVA: 0,
   photoUrl: null,
+  ownAtsAcknowledged: false,
 };
 
 const phaseOptions: { value: 1 | 2 | 3; label: string }[] = [
@@ -552,6 +569,218 @@ function PhasePicker({
         );
       })}
     </div>
+  );
+}
+
+/** Which voltage(s) are physically valid for a given phase count: mono is
+ * always 220V, bifásico is a single dual-rail "110/220V" system (still
+ * stored as the nominal 220 value), and only trifásico has a real 220V vs
+ * 380V choice. */
+function voltageOptionsForPhases(phases: 1 | 2 | 3): { value: 220 | 380; label: string }[] {
+  if (phases === 1) return [{ value: 220, label: '220V' }];
+  if (phases === 2) return [{ value: 220, label: '110/220V' }];
+  return [
+    { value: 220, label: '220V' },
+    { value: 380, label: '380V' },
+  ];
+}
+
+function VoltagePicker({
+  value,
+  phases,
+  onChange,
+  ariaLabel,
+}: {
+  value: number;
+  phases: 1 | 2 | 3;
+  onChange: (value: 220 | 380) => void;
+  ariaLabel: string;
+}) {
+  const options = voltageOptionsForPhases(phases);
+  return (
+    <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              'h-9 min-w-[88px] flex-1 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              active
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Network phases/voltage implied by each ResidentialGridType, so the
+ * Microrrede/Gerador Externo phase+voltage selection can be checked against
+ * whatever grid type is chosen in Configurações. */
+const gridTypePhaseVoltage: Record<ResidentialGridType, { phases: 1 | 2 | 3; voltage: 220 | 380 }> = {
+  singlePhase_220: { phases: 1, voltage: 220 },
+  splitPhase_220: { phases: 2, voltage: 220 },
+  threePhase_220: { phases: 3, voltage: 220 },
+  threePhase_380: { phases: 3, voltage: 380 },
+};
+
+/** Phases/voltage to seed Microrrede/Gerador Externo with when the feature is
+ * first enabled — matching whatever grid type is already chosen in
+ * Configurações (always a valid, compatible starting point) instead of
+ * always defaulting to monofásico 220V regardless of context. Falls back to
+ * monofásico 220V only when no grid type has been chosen yet. */
+function defaultPhaseVoltageForGridType(gridType: ResidentialGridType | null): { phases: 1 | 2 | 3; voltage: 220 | 380 } {
+  return gridType ? gridTypePhaseVoltage[gridType] : { phases: 1, voltage: 220 };
+}
+
+/** Compatibility between a chosen grid type and a phases+voltage selection.
+ * `forMicrogrid` allows one documented exception: a 380V trifásico or 220V
+ * bifásico network can still host a 220V monofásico on-grid inverter. Every
+ * other combination (and the generator, which never gets the exception)
+ * requires an exact match. Returns 'unknown' when no grid type is chosen yet
+ * in Configurações — there's nothing to compare against. */
+function checkPhaseVoltageCompatibility(
+  gridType: ResidentialGridType | null,
+  phases: 1 | 2 | 3,
+  voltageV: number,
+  { forMicrogrid }: { forMicrogrid: boolean }
+): 'unknown' | 'compatible' | 'incompatible' {
+  if (!gridType) return 'unknown';
+  const network = gridTypePhaseVoltage[gridType];
+  if (phases === network.phases && voltageV === network.voltage) return 'compatible';
+  if (forMicrogrid) {
+    const networkAllowsException = gridType === 'threePhase_380' || gridType === 'splitPhase_220';
+    if (networkAllowsException && phases === 1 && voltageV === 220) return 'compatible';
+  }
+  return 'incompatible';
+}
+
+/** Shows how many catalog inverters support a given flag (e.g. microgrid,
+ * external_generator), and — separately — how many among whatever's already
+ * chosen in Configurações (a specific model, or the set compatible with the
+ * chosen grid type/battery topology when the model is "Automático") do. */
+function InverterSupportSummary({
+  flag,
+  featureLabel,
+  inverterCatalog,
+  availableInverterModels,
+  selectedInverterModel,
+}: {
+  flag: InverterFlag;
+  featureLabel: string;
+  inverterCatalog: InverterCatalogOption[];
+  availableInverterModels: Set<string> | null;
+  selectedInverterModel: string | null;
+}) {
+  const totalSupporting = inverterCatalog.filter((inverter) => inverter.flags.includes(flag)).length;
+
+  const selectedCatalog = selectedInverterModel
+    ? inverterCatalog.filter((inverter) => inverter.model === selectedInverterModel)
+    : availableInverterModels
+      ? inverterCatalog.filter((inverter) => availableInverterModels.has(inverter.model))
+      : null;
+  const selectedSupporting = selectedCatalog?.filter((inverter) => inverter.flags.includes(flag)).length ?? 0;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <SupportCountChip
+        icon={Boxes}
+        label={`${totalSupporting}/${inverterCatalog.length}`}
+        tone="neutral"
+        tooltip={`${totalSupporting} de ${inverterCatalog.length} inversores cadastrados no catálogo suportam ${featureLabel}.`}
+      />
+      {selectedCatalog === null ? (
+        <SupportCountChip
+          icon={Settings}
+          label="—"
+          tone="neutral"
+          tooltip={`Selecione o tipo de rede em Configurações para ver quantos inversores compatíveis com a seleção atual suportam ${featureLabel}.`}
+        />
+      ) : (
+        <SupportCountChip
+          icon={selectedSupporting === 0 ? AlertTriangle : Settings}
+          label={`${selectedSupporting}/${selectedCatalog.length}`}
+          tone={selectedSupporting === 0 ? 'warning' : 'neutral'}
+          tooltip={
+            selectedSupporting === 0
+              ? `Nenhum inversor das opções selecionadas em Configurações suporta ${featureLabel}.`
+              : `${selectedSupporting} de ${selectedCatalog.length} inversores das opções selecionadas em Configurações suportam ${featureLabel}.`
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+/** Compact icon + count pill with a tooltip explaining what it means —
+ * used by InverterSupportSummary so the two counts (catalog-wide vs.
+ * narrowed by Configurações) read at a glance instead of as full sentences. */
+function SupportCountChip({
+  icon: Icon,
+  label,
+  tone,
+  tooltip,
+}: {
+  icon: typeof Boxes;
+  label: string;
+  tone: 'neutral' | 'warning';
+  tooltip: string;
+}) {
+  return (
+    <Tooltip content={tooltip}>
+      <span
+        aria-label={tooltip}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
+          tone === 'warning'
+            ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+            : 'border-transparent bg-muted text-muted-foreground'
+        )}
+      >
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </span>
+    </Tooltip>
+  );
+}
+
+/** Warns when the phases+voltage chosen for the on-grid/generator system
+ * don't match (or, for microgrid, don't fall under its one documented
+ * exception — see checkPhaseVoltageCompatibility) the grid type already
+ * chosen in Configurações. Renders nothing until a grid type is chosen, or
+ * once the combination is compatible. */
+function PhaseVoltageCompatibilityWarning({
+  gridType,
+  phases,
+  voltageV,
+  forMicrogrid,
+}: {
+  gridType: ResidentialGridType | null;
+  phases: 1 | 2 | 3;
+  voltageV: number;
+  forMicrogrid: boolean;
+}) {
+  const status = checkPhaseVoltageCompatibility(gridType, phases, voltageV, { forMicrogrid });
+  if (!gridType || status !== 'incompatible') return null;
+
+  const phaseLabel = phaseOptions.find((option) => option.value === phases)?.label ?? '';
+  const voltageLabel = voltageOptionsForPhases(phases).find((option) => option.value === voltageV)?.label ?? `${voltageV}V`;
+
+  return (
+    <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      A tensão/fases selecionadas ({phaseLabel} {voltageLabel}) são incompatíveis com o tipo de rede configurado (
+      {gridLabels[gridType]}).
+    </p>
   );
 }
 
@@ -851,9 +1080,15 @@ function DesiredFeaturesPicker({
   onGeneratorChange,
   atsPhotoUrl,
   onAtsPhotoUrlChange,
+  atsBackupAcknowledged,
+  onAtsBackupAcknowledgedChange,
   onUploadPhoto,
   loadsCount,
   inverterCatalog,
+  availableInverterModels,
+  selectedInverterModel,
+  gridType,
+  peakW,
 }: {
   activeTab: DesiredFeatureId;
   onActiveTabChange: (id: DesiredFeatureId) => void;
@@ -867,11 +1102,16 @@ function DesiredFeaturesPicker({
   onGeneratorChange: (generator: GeneratorConfig | null) => void;
   atsPhotoUrl: string | null;
   onAtsPhotoUrlChange: (atsPhotoUrl: string | null) => void;
+  atsBackupAcknowledged: boolean;
+  onAtsBackupAcknowledgedChange: (atsBackupAcknowledged: boolean) => void;
   onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
   loadsCount: number;
   inverterCatalog: InverterCatalogOption[];
+  availableInverterModels: Set<string> | null;
+  selectedInverterModel: string | null;
+  gridType: ResidentialGridType | null;
+  peakW: number;
 }) {
-  const microgridInverterCount = inverterCatalog.filter((inverter) => inverter.flags.includes('microgrid')).length;
   const tabs = DESIRED_FEATURE_DEFINITIONS;
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const isBackupTab = activeTab === 'backup';
@@ -886,8 +1126,14 @@ function DesiredFeaturesPicker({
     } else {
       onChange([...value, id]);
       if (id === 'white_tariff' && !whiteTariff) onWhiteTariffChange(emptyWhiteTariffConfig);
-      if (id === 'microgrid' && !microgrid) onMicrogridChange(emptyMicrogridConfig);
-      if (id === 'external_generator' && !generator) onGeneratorChange(emptyGeneratorConfig);
+      if (id === 'microgrid' && !microgrid) {
+        const defaults = defaultPhaseVoltageForGridType(gridType);
+        onMicrogridChange({ ...emptyMicrogridConfig, onGridPhases: defaults.phases, voltageV: defaults.voltage });
+      }
+      if (id === 'external_generator' && !generator) {
+        const defaults = defaultPhaseVoltageForGridType(gridType);
+        onGeneratorChange({ ...emptyGeneratorConfig, phases: defaults.phases, voltageV: defaults.voltage });
+      }
     }
   }
 
@@ -941,13 +1187,41 @@ function DesiredFeaturesPicker({
         {isBackupTab && isActiveEnabled && <LoadSelector defaultToMine />}
 
         {isActiveEnabled && activeTab === 'external_ats' && (
-          <PhotoUploadField
-            label="Foto do disjuntor geral"
-            photoUrl={atsPhotoUrl}
-            slot="ats"
-            onUploadPhoto={onUploadPhoto}
-            onChange={onAtsPhotoUrlChange}
-          />
+          <div className="space-y-3">
+            <InverterSupportSummary
+              flag="external_ats"
+              featureLabel="ATS Externo"
+              inverterCatalog={inverterCatalog}
+              availableInverterModels={availableInverterModels}
+              selectedInverterModel={selectedInverterModel}
+            />
+            <label
+              className={cn(
+                'flex items-start gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
+                atsBackupAcknowledged
+                  ? 'border-border bg-background'
+                  : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+              )}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={atsBackupAcknowledged}
+                onChange={(event) => onAtsBackupAcknowledgedChange(event.target.checked)}
+              />
+              <span className="flex items-start gap-1.5">
+                {!atsBackupAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+                <span>O ATS externo deve ser usado para backup completo.</span>
+              </span>
+            </label>
+            <PhotoUploadField
+              label="Foto do disjuntor geral"
+              photoUrl={atsPhotoUrl}
+              slot="ats"
+              onUploadPhoto={onUploadPhoto}
+              onChange={onAtsPhotoUrlChange}
+            />
+          </div>
         )}
 
         {isActiveEnabled && activeTab === 'white_tariff' && (
@@ -1022,58 +1296,91 @@ function DesiredFeaturesPicker({
         {isActiveEnabled && activeTab === 'microgrid' && (
           <div className="space-y-3">
           <p className="text-xs text-muted-foreground">Dados do sistema ongrid existente a ser conectado.</p>
-          <Badge variant="secondary">
-            {microgridInverterCount} de {inverterCatalog.length} inversores cadastrados com suporte a microrrede
-          </Badge>
-          <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            A potência do sistema ongrid deve ser menor que a do inversor e das baterias da solução.
-          </p>
-          <div className="space-y-1.5">
-            <Label htmlFor="microgridPower">Potência (VA)</Label>
-            <Input
-              id="microgridPower"
-              type="number"
-              min={0}
-              placeholder="Ex.: 3000"
-              value={microgrid?.onGridApparentPowerVA || ''}
-              onChange={(event) =>
-                onMicrogridChange({
-                  ...(microgrid ?? emptyMicrogridConfig),
-                  onGridApparentPowerVA: Number(event.target.value) || 0,
-                })
-              }
-            />
-          </div>
+          <InverterSupportSummary
+            flag="microgrid"
+            featureLabel="microrrede"
+            inverterCatalog={inverterCatalog}
+            availableInverterModels={availableInverterModels}
+            selectedInverterModel={selectedInverterModel}
+          />
           <div className="space-y-1.5">
             <Label>Fases</Label>
             <PhasePicker
               value={microgrid?.onGridPhases ?? 1}
               ariaLabel="Fases do sistema ongrid"
-              onChange={(phases) =>
+              onChange={(phases) => {
+                const validVoltages = voltageOptionsForPhases(phases).map((option) => option.value);
+                const currentVoltage = microgrid?.voltageV ?? 220;
                 onMicrogridChange({
                   ...(microgrid ?? emptyMicrogridConfig),
                   onGridPhases: phases,
-                })
-              }
+                  voltageV: validVoltages.includes(currentVoltage as 220 | 380) ? currentVoltage : validVoltages[0],
+                });
+              }}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Tensão</Label>
+              <VoltagePicker
+                value={microgrid?.voltageV ?? 220}
+                phases={microgrid?.onGridPhases ?? 1}
+                ariaLabel="Tensão do sistema ongrid"
+                onChange={(voltageV) =>
+                  onMicrogridChange({
+                    ...(microgrid ?? emptyMicrogridConfig),
+                    voltageV,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="microgridPower">Potência (VA)</Label>
+              <Input
+                id="microgridPower"
+                type="number"
+                min={0}
+                placeholder="Ex.: 3000"
+                value={microgrid?.onGridApparentPowerVA || ''}
+                onChange={(event) =>
+                  onMicrogridChange({
+                    ...(microgrid ?? emptyMicrogridConfig),
+                    onGridApparentPowerVA: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+          </div>
+          <PhaseVoltageCompatibilityWarning
+            gridType={gridType}
+            phases={microgrid?.onGridPhases ?? 1}
+            voltageV={microgrid?.voltageV ?? 220}
+            forMicrogrid
+          />
+          <label
+            className={cn(
+              'flex items-start gap-2 rounded-md border px-3 py-2 text-xs transition-colors',
+              microgrid?.powerNoticeAcknowledged
+                ? 'border-border bg-background'
+                : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+            )}
+          >
             <input
               type="checkbox"
-              checked={microgrid?.isFundamentalRequirement ?? false}
+              className="mt-0.5"
+              checked={microgrid?.powerNoticeAcknowledged ?? false}
               onChange={(event) =>
                 onMicrogridChange({
                   ...(microgrid ?? emptyMicrogridConfig),
-                  isFundamentalRequirement: event.target.checked,
+                  powerNoticeAcknowledged: event.target.checked,
                 })
               }
             />
-            Requisito fundamental
+            <span className="flex items-start gap-1.5">
+              {!microgrid?.powerNoticeAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+              <span>A potência do sistema ongrid deve ser menor que a do inversor e das baterias da solução.</span>
+            </span>
           </label>
-          <p className="text-xs text-muted-foreground">
-            Se não for fundamental, você poderá escolher entre a versão econômica e a versão com microrrede.
-          </p>
           <PhotoUploadField
             label="Foto da etiqueta do inversor ongrid"
             photoUrl={microgrid?.photoUrl ?? null}
@@ -1086,19 +1393,40 @@ function DesiredFeaturesPicker({
 
         {isActiveEnabled && activeTab === 'external_generator' && (
           <div className="space-y-3">
+          <InverterSupportSummary
+            flag="external_generator"
+            featureLabel="Gerador Externo"
+            inverterCatalog={inverterCatalog}
+            availableInverterModels={availableInverterModels}
+            selectedInverterModel={selectedInverterModel}
+          />
+          <div className="space-y-1.5">
+            <Label>Fases</Label>
+            <PhasePicker
+              value={generator?.phases ?? 1}
+              ariaLabel="Fases do gerador"
+              onChange={(phases) => {
+                const validVoltages = voltageOptionsForPhases(phases).map((option) => option.value);
+                const currentVoltage = generator?.voltageV ?? 220;
+                onGeneratorChange({
+                  ...(generator ?? emptyGeneratorConfig),
+                  phases,
+                  voltageV: validVoltages.includes(currentVoltage as 220 | 380) ? currentVoltage : validVoltages[0],
+                });
+              }}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="generatorVoltage">Tensão (V)</Label>
-              <Input
-                id="generatorVoltage"
-                type="number"
-                min={0}
-                placeholder="Ex.: 220"
-                value={generator?.voltageV || ''}
-                onChange={(event) =>
+              <Label>Tensão</Label>
+              <VoltagePicker
+                value={generator?.voltageV ?? 220}
+                phases={generator?.phases ?? 1}
+                ariaLabel="Tensão do gerador"
+                onChange={(voltageV) =>
                   onGeneratorChange({
                     ...(generator ?? emptyGeneratorConfig),
-                    voltageV: Number(event.target.value) || 0,
+                    voltageV,
                   })
                 }
               />
@@ -1120,25 +1448,44 @@ function DesiredFeaturesPicker({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Fases</Label>
-            <PhasePicker
-              value={generator?.phases ?? 1}
-              ariaLabel="Fases do gerador"
-              onChange={(phases) =>
+          {isGeneratorPowerInsufficient(value, generator, peakW) && (
+            <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Potência do gerador insuficiente para carregar as baterias
+            </p>
+          )}
+          <PhaseVoltageCompatibilityWarning
+            gridType={gridType}
+            phases={generator?.phases ?? 1}
+            voltageV={generator?.voltageV ?? 220}
+            forMicrogrid={false}
+          />
+          <label
+            className={cn(
+              'flex items-start gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
+              generator?.ownAtsAcknowledged
+                ? 'border-border bg-background'
+                : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+            )}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={generator?.ownAtsAcknowledged ?? false}
+              onChange={(event) =>
                 onGeneratorChange({
                   ...(generator ?? emptyGeneratorConfig),
-                  phases,
+                  ownAtsAcknowledged: event.target.checked,
                 })
               }
             />
-          </div>
-          {!value.includes('external_ats') && (
-            <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Gerador Externo normalmente exige ATS Externo — considere selecionar essa funcionalidade também.
-            </p>
-          )}
+            <span className="flex items-start gap-1.5">
+              {!generator?.ownAtsAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+              <span>
+                <span className="font-medium">Ciente:</span> O gerador externo precisa ter a própria chave ATS.
+              </span>
+            </span>
+          </label>
           <PhotoUploadField
             label="Foto da etiqueta do gerador"
             photoUrl={generator?.photoUrl ?? null}
@@ -1742,18 +2089,26 @@ function ResultSummary({
           <p className="text-sm font-medium">Acessórios</p>
           <div className="mt-2 space-y-2">
             {solution.accessories.map((accessory) => {
-              const { model, qty, optional } = parseAccessoryLabel(accessory);
+              const { model, qty, optional, appliesTo, comment } = normalizeAccessoryLine(accessory);
               return (
-                <div key={accessory} className="grid gap-3 sm:grid-cols-[1fr_88px]">
-                  <div className="min-w-0">
-                    <Badge variant="secondary">
-                      {productMedia[model]?.nickname || model}
-                      {optional ? ' (opcional)' : ''}
-                    </Badge>
-                    <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
-                    <ProductAttachments media={productMedia[model]} onPreview={setPreviewDoc} inline />
+                <div key={model} className="rounded-lg border bg-muted/30 p-3">
+                  <div className="grid gap-3 sm:grid-cols-[1fr_88px]">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant="secondary">{productMedia[model]?.nickname || model}</Badge>
+                        <Badge variant={optional ? 'outline' : 'default'}>
+                          {optional ? 'Opcional' : 'Obrigatório'}
+                        </Badge>
+                        {appliesTo !== 'system' && (
+                          <Badge variant="secondary">{appliesTo === 'inverter' ? 'Inversor' : 'Bateria'}</Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
+                      {comment && <p className="mt-1 text-xs text-muted-foreground">{comment}</p>}
+                      <ProductAttachments media={productMedia[model]} onPreview={setPreviewDoc} inline />
+                    </div>
+                    <ProductImage media={productMedia[model]} onPreviewImage={setPreviewImage} />
                   </div>
-                  <ProductImage media={productMedia[model]} onPreviewImage={setPreviewImage} />
                 </div>
               );
             })}

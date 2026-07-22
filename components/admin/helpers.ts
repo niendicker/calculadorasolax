@@ -32,7 +32,7 @@ export const LOAD_CATALOG_COLUMNS = 'id, name_pt, name_en, name_zh, power_w, cat
 export const PRESET_COLUMNS = 'id, name, description, loads, display_order';
 
 export const ACCESSORY_RULE_COLUMNS =
-  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, comment, active, accessories (model)';
+  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, comment, desired_features, active, accessories (model)';
 
 export const ESS_RULE_COLUMNS =
   'id, name, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, battery_configs, comment, active, created_at';
@@ -160,6 +160,10 @@ export function accessoryRuleInverterModels(rule: Partial<AccessoryRuleRow>) {
   return rule.inverter_model ? [rule.inverter_model] : [];
 }
 
+export function accessoryRuleDesiredFeatures(rule: Partial<AccessoryRuleRow>) {
+  return Array.isArray(rule.desired_features) ? rule.desired_features.filter(Boolean) : [];
+}
+
 export function batteryAssociationMax(battery: BatteryRow | undefined) {
   return clampNumber(battery?.max_association_qty, 1, 15, 15);
 }
@@ -240,6 +244,12 @@ export function accessoryRuleMatches(
   generatedGridType?: InverterGridType
 ) {
   if (!rule.active) return false;
+  // Feature-gated rules depend on what a future customer enables in the
+  // wizard, which this bulk generator has no knowledge of — they're only
+  // ever evaluated live, per request, by the calculate-residential Edge
+  // Function (see ruleMatches there). Baking one in here would apply it to
+  // every generated solution regardless of the customer's actual choice.
+  if (accessoryRuleDesiredFeatures(rule).length > 0) return false;
   const inverterModels = accessoryRuleInverterModels(rule);
   if (inverterModels.length > 0 && !inverterModels.includes(solution.inverter_model)) return false;
   if (rule.battery_model && rule.battery_model !== solution.battery_model) return false;

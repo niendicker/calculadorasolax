@@ -62,6 +62,8 @@ export function ProjectTab({
   onManageClients: () => void;
 }) {
   const [search, setSearch] = useState('');
+  const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false);
+  const nameError = nameSubmitAttempted && !projectInfo.name.trim();
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredProjects = savedProjects.filter((project) => {
@@ -71,6 +73,20 @@ export function ProjectTab({
     );
   });
 
+  function handleSave() {
+    if (!projectInfo.name.trim()) {
+      setNameSubmitAttempted(true);
+      return;
+    }
+    setNameSubmitAttempted(false);
+    onSave();
+  }
+
+  function handleCancel() {
+    setNameSubmitAttempted(false);
+    onCancelNew();
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader>
@@ -79,12 +95,6 @@ export function ProjectTab({
           <p className="text-sm text-muted-foreground">
             Escolha um cliente cadastrado e salve a configuração para reutilizar depois.
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={onSave}>
-            <Save className="h-4 w-4" />
-            Salvar projeto
-          </Button>
         </div>
       </PageHeader>
 
@@ -150,8 +160,9 @@ export function ProjectTab({
                       isNew
                       setProjectInfo={setProjectInfo}
                       onManageClients={onManageClients}
-                      onSave={onSave}
-                      onCancel={onCancelNew}
+                      onSave={handleSave}
+                      onCancel={handleCancel}
+                      nameError={nameError}
                     />
                   )}
                   {filteredProjects.map((project) =>
@@ -163,8 +174,9 @@ export function ProjectTab({
                         isNew={false}
                         setProjectInfo={setProjectInfo}
                         onManageClients={onManageClients}
-                        onSave={onSave}
-                        onCancel={onCancelNew}
+                        onSave={handleSave}
+                        onCancel={handleCancel}
+                        nameError={nameError}
                       />
                     ) : (
                       <ProjectCard
@@ -212,6 +224,7 @@ function ProjectDraftCard({
   onManageClients,
   onSave,
   onCancel,
+  nameError,
 }: {
   projectInfo: ProjectInfo;
   clients: Client[];
@@ -220,6 +233,7 @@ function ProjectDraftCard({
   onManageClients: () => void;
   onSave: () => void;
   onCancel: () => void;
+  nameError: boolean;
 }) {
   return (
     <Card className="border-primary/40 bg-primary/5 sm:col-span-2">
@@ -234,7 +248,14 @@ function ProjectDraftCard({
             onChange={(event) => setProjectInfo({ name: event.target.value })}
             placeholder="Ex: Residência Silva"
             autoFocus
+            aria-invalid={nameError}
+            aria-describedby={nameError ? 'projectName-error' : undefined}
           />
+          {nameError && (
+            <p id="projectName-error" role="alert" className="text-sm text-destructive">
+              Informe um nome para o projeto.
+            </p>
+          )}
         </ProjectField>
         <div className="space-y-1.5">
           <Label htmlFor="clientId">Cliente</Label>

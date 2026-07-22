@@ -4,6 +4,9 @@
 // incompatibility, invalid input, and network/server errors all need
 // different guidance for the user.
 
+import { desiredFeatureLabel } from './desired-features';
+import type { DesiredFeatureId } from './types';
+
 const MESSAGES: Record<string, string> = {
   invalid_payload:
     'Os dados do dimensionamento estão incompletos ou inválidos. Revise as cargas e configurações e tente novamente.',
@@ -24,8 +27,19 @@ const MESSAGES: Record<string, string> = {
 const NETWORK_ERROR_MESSAGE = 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
 const FALLBACK_MESSAGE = 'Não foi possível encontrar uma solução compatível.';
 
-/** Message for a known Edge Function error code (the `error` field of its JSON body). */
-export function getCalculationErrorMessage(code: string | null | undefined): string {
+/** Message for a known Edge Function error code (the `error` field of its JSON body).
+ * `blockingFeatures` — present only on `no_solution_matches_desired_features` — names which
+ * desired feature(s) have no available inverter, so the message can be specific instead of generic. */
+export function getCalculationErrorMessage(
+  code: string | null | undefined,
+  blockingFeatures?: DesiredFeatureId[] | null
+): string {
+  if (code === 'no_solution_matches_desired_features' && blockingFeatures && blockingFeatures.length > 0) {
+    const labels = blockingFeatures.map((feature) => desiredFeatureLabel(feature));
+    const featureList = labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
+    const plural = labels.length > 1;
+    return `Nenhum inversor disponível suporta ${plural ? 'as funcionalidades' : 'a funcionalidade'} "${featureList}" com a configuração atual. Tente escolher outro inversor ou remover ${plural ? 'essas funcionalidades' : 'essa funcionalidade'}.`;
+  }
   if (code && MESSAGES[code]) return MESSAGES[code];
   return FALLBACK_MESSAGE;
 }

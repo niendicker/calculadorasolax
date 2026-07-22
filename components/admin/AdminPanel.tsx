@@ -23,6 +23,7 @@ import {
   LOAD_CATALOG_COLUMNS,
   PRESET_COLUMNS,
   SIMULATION_COLUMNS,
+  accessoryRuleDesiredFeatures,
   accessoryRuleInverterModels,
   clampNumber,
   fetchApprovedSolutions,
@@ -620,6 +621,7 @@ export function AdminPanel() {
       battery_topology: ruleForm.battery_topology || null,
       quantity_per_match: toNumber(ruleForm.quantity_per_match, 1),
       comment: ruleForm.comment?.trim() || null,
+      desired_features: accessoryRuleDesiredFeatures(ruleForm),
       active: ruleForm.active ?? true,
     };
 

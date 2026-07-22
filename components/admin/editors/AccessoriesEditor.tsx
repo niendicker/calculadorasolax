@@ -5,8 +5,16 @@ import { Boxes, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import { cn } from '@/lib/utils';
-import { accessoryRuleInverterModels, formatTriggerMetric, selectClasses, textareaClasses, toNumber } from '../helpers';
+import {
+  accessoryRuleDesiredFeatures,
+  accessoryRuleInverterModels,
+  formatTriggerMetric,
+  selectClasses,
+  textareaClasses,
+  toNumber,
+} from '../helpers';
 import {
   Actions,
   CatalogLayout,
@@ -355,6 +363,21 @@ export function AccessoriesEditor(props: {
                   </select>
                 </Field>
 
+                <Field
+                  asDiv
+                  label={
+                    <InfoLabel
+                      label="Funcionalidade desejada"
+                      tip="Se marcar uma ou mais, a regra só se aplica quando o cliente habilitar pelo menos uma delas na aba Funcionalidades. Avaliado apenas no cálculo em tempo real — não entra na geração em massa de soluções."
+                    />
+                  }
+                >
+                  <DesiredFeaturesInput
+                    value={ruleForm}
+                    onChange={(desired_features) => setRuleForm({ ...ruleForm, desired_features })}
+                  />
+                </Field>
+
                 <Field label="Comentário automático">
                   <textarea
                     className={textareaClasses()}
@@ -449,6 +472,53 @@ function InverterModelsInput({
       </div>
       <p className="text-xs text-muted-foreground">
         {selected.length === 0 ? 'Qualquer inversor.' : `${selected.length} inversor(es) selecionado(s).`}
+      </p>
+    </div>
+  );
+}
+
+function DesiredFeaturesInput({
+  value,
+  onChange,
+}: {
+  value: Partial<AccessoryRuleRow>;
+  onChange: (features: string[]) => void;
+}) {
+  const selected = accessoryRuleDesiredFeatures(value);
+
+  function toggle(featureId: string) {
+    if (selected.includes(featureId)) {
+      onChange(selected.filter((item) => item !== featureId));
+      return;
+    }
+    onChange([...selected, featureId]);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {DESIRED_FEATURE_DEFINITIONS.map((feature) => {
+          const active = selected.includes(feature.id);
+          return (
+            <button
+              key={feature.id}
+              type="button"
+              aria-pressed={active}
+              className={cn(
+                'inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                active
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+              )}
+              onClick={() => toggle(feature.id)}
+            >
+              <span className="truncate">{feature.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {selected.length === 0 ? 'Qualquer funcionalidade.' : `${selected.length} funcionalidade(s) selecionada(s).`}
       </p>
     </div>
   );

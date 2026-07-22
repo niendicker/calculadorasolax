@@ -179,6 +179,12 @@ export interface AccessoryRuleRow {
   battery_topology: BatteryTopology | null;
   quantity_per_match: number;
   comment: string | null;
+  /** Empty/null = no feature condition. Non-empty = the customer must have
+   * enabled at least one of these (OR). Values are DesiredFeatureId strings
+   * (see lib/desired-features.ts). Only ever evaluated live per-request by
+   * the calculate-residential Edge Function — the bulk solution generator
+   * below has no customer context, so it skips rules that set this. */
+  desired_features: string[] | null;
   active: boolean;
   accessories?: { model: string } | null;
 }
@@ -375,6 +381,7 @@ export const emptyRule: Partial<AccessoryRuleRow> = {
   battery_topology: null,
   quantity_per_match: 1,
   comment: '',
+  desired_features: [],
   active: true,
 };
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blockingDesiredFeatures,
   buildSolutionPayload,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
@@ -67,6 +68,7 @@ function makeRule(partial: Partial<AccessoryRule> = {}): AccessoryRule {
     battery_topology: null,
     quantity_per_match: 1,
     comment: null,
+    desired_features: [],
     accessories: { model: 'Smart Meter' },
     ...partial,
   };
@@ -196,55 +198,74 @@ describe('ruleMatches', () => {
   it('matches when there is no inverter/battery/grid restriction and the metric threshold is met', () => {
     const solution = makeSolution();
     const rule = makeRule({ min_quantity: 1, trigger_metric: 'per_solution' });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(true);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(true);
   });
 
   it('rejects when the solution inverter is not in inverter_models', () => {
     const solution = makeSolution({ inverter_model: 'X1-Hybrid-5.0-D' });
     const rule = makeRule({ inverter_models: ['X3-ULT-30K'] });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(false);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(false);
   });
 
   it('accepts when the solution inverter is included in inverter_models', () => {
     const solution = makeSolution({ inverter_model: 'X3-ULT-30K' });
     const rule = makeRule({ inverter_models: ['X3-ULT-30K', 'X1-Hybrid-5.0-D'] });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(true);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(true);
   });
 
   it('rejects when battery_model is set and does not match', () => {
     const solution = makeSolution({ battery_model: 'Battery A' });
     const rule = makeRule({ battery_model: 'Battery B' });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(false);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(false);
   });
 
   it('rejects when grid_topology is set and does not match the requested topology', () => {
     const solution = makeSolution();
     const rule = makeRule({ grid_topology: '3p_380V' });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(false);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(false);
   });
 
   it('accepts when grid_topology matches after normalization', () => {
     const solution = makeSolution();
     const rule = makeRule({ grid_topology: '1p_220V' });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(true);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(true);
   });
 
   it('rejects when battery_topology is set and does not match', () => {
     const solution = makeSolution({ battery_topology: 'HV' });
     const rule = makeRule({ battery_topology: 'LV' });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(false);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(false);
   });
 
   it('rejects when the trigger metric value is below min_quantity', () => {
     const solution = makeSolution({ inverter_quantity: 1 });
     const rule = makeRule({ trigger_metric: 'inverter_quantity', min_quantity: 2 });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(false);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(false);
   });
 
   it('accepts when the trigger metric value meets min_quantity', () => {
     const solution = makeSolution({ battery_quantity: 3 });
     const rule = makeRule({ trigger_metric: 'battery_quantity', min_quantity: 2 });
-    expect(ruleMatches(solution, rule, '1P_220V')).toBe(true);
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(true);
+  });
+
+  it('accepts a rule with no desired_features regardless of what the customer enabled', () => {
+    const solution = makeSolution();
+    const rule = makeRule({ desired_features: [] });
+    expect(ruleMatches(solution, rule, '1P_220V', [])).toBe(true);
+    expect(ruleMatches(solution, rule, '1P_220V', ['backup'])).toBe(true);
+  });
+
+  it('rejects a rule with desired_features when none of them is enabled', () => {
+    const solution = makeSolution();
+    const rule = makeRule({ desired_features: ['external_ats', 'external_generator'] });
+    expect(ruleMatches(solution, rule, '1P_220V', ['backup'])).toBe(false);
+  });
+
+  it('accepts a rule with desired_features when at least one is enabled (OR)', () => {
+    const solution = makeSolution();
+    const rule = makeRule({ desired_features: ['external_ats', 'external_generator'] });
+    expect(ruleMatches(solution, rule, '1P_220V', ['backup', 'external_generator'])).toBe(true);
   });
 });
 
@@ -256,6 +277,7 @@ describe('buildSolutionPayload', () => {
       pvPowerKw: 1.2,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
+      desiredFeatures: [],
     });
     expect(payload.availableEnergyWh).toBe(5220);
     expect(payload.pvPowerKw).toBe(1.2);
@@ -270,6 +292,7 @@ describe('buildSolutionPayload', () => {
       pvPowerKw: null,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
+      desiredFeatures: [],
     });
     expect(payload.availableEnergyWh).toBe(10440);
     expect(payload.pvPowerKw).toBeNull();
@@ -282,6 +305,7 @@ describe('buildSolutionPayload', () => {
       pvPowerKw: 1.23,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
+      desiredFeatures: [],
     });
     expect(payload.pvPowerKw).toBe(1.3);
   });
@@ -302,10 +326,65 @@ describe('buildSolutionPayload', () => {
       pvPowerKw: null,
       accessoryRules: [matchingRule, nonMatchingRule],
       standardGridTopology: '1P_220V',
+      desiredFeatures: [],
     });
-    expect(payload.accessories).toContain('X1-Matebox Advanced');
-    expect(payload.accessories).toContain('Smart Meter - M1-40 x2 (opcional)');
-    expect(payload.accessories.some((a) => a.includes('Should Not Appear'))).toBe(false);
+    expect(payload.accessories).toContainEqual(
+      expect.objectContaining({ model: 'X1-Matebox Advanced', optional: false, appliesTo: 'system' })
+    );
+    expect(payload.accessories).toContainEqual(
+      expect.objectContaining({ model: 'Smart Meter - M1-40', qty: 2, optional: true })
+    );
+    expect(payload.accessories.some((a) => a.model.includes('Should Not Appear'))).toBe(false);
+  });
+
+  it('infers appliesTo from the matching rule\'s inverter/battery model scope', () => {
+    const solution = makeSolution();
+    const inverterRule = makeRule({
+      inverter_models: [solution.inverter_model],
+      accessories: { model: 'Inverter Only Accessory' },
+    });
+    const batteryRule = makeRule({
+      battery_model: solution.battery_model,
+      accessories: { model: 'Battery Only Accessory' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [inverterRule, batteryRule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(
+      expect.objectContaining({ model: 'Inverter Only Accessory', appliesTo: 'inverter' })
+    );
+    expect(payload.accessories).toContainEqual(
+      expect.objectContaining({ model: 'Battery Only Accessory', appliesTo: 'battery' })
+    );
+  });
+
+  it('only includes an accessory gated by desired_features when the customer enabled it', () => {
+    const solution = makeSolution();
+    const gatedRule = makeRule({
+      desired_features: ['external_ats'],
+      accessories: { model: 'ATS Accessory' },
+    });
+    const withoutFeature = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [gatedRule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(withoutFeature.accessories.some((a) => a.model === 'ATS Accessory')).toBe(false);
+
+    const withFeature = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [gatedRule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: ['external_ats'],
+    });
+    expect(withFeature.accessories.some((a) => a.model === 'ATS Accessory')).toBe(true);
   });
 
   it('does not duplicate an accessory already present in the solution', () => {
@@ -316,8 +395,34 @@ describe('buildSolutionPayload', () => {
       pvPowerKw: null,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
+      desiredFeatures: [],
     });
-    expect(payload.accessories.filter((a) => a.includes('Smart Meter')).length).toBe(1);
+    expect(payload.accessories.filter((a) => a.model.includes('Smart Meter')).length).toBe(1);
+  });
+
+  it('enriches a base-list accessory with optional/appliesTo/comment when a rule also matches it', () => {
+    const solution = makeSolution({ accessories: [{ model: 'Smart Meter - M1-40', quantity: 1 }] });
+    const rule = makeRule({
+      inclusion: 'optional',
+      battery_model: solution.battery_model,
+      comment: 'Instalar próximo ao quadro.',
+      accessories: { model: 'Smart Meter - M1-40' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(
+      expect.objectContaining({
+        model: 'Smart Meter - M1-40',
+        optional: true,
+        appliesTo: 'battery',
+        comment: 'Instalar próximo ao quadro.',
+      })
+    );
   });
 
   it('merges the solution own comments with automatic comments from matching rules, deduped', () => {
@@ -328,6 +433,7 @@ describe('buildSolutionPayload', () => {
       pvPowerKw: null,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
+      desiredFeatures: [],
     });
     expect(payload.comments).toContain('comentário original');
     expect(payload.comments).toContain('comentário automático');
@@ -363,6 +469,39 @@ describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
     expect(inverterSatisfiesRequiredFlags(['external_ats'], ['external_ats', 'microgrid'])).toBe(false);
     expect(inverterSatisfiesRequiredFlags(null, ['external_ats'])).toBe(false);
     expect(inverterSatisfiesRequiredFlags([], ['external_ats'])).toBe(false);
+  });
+});
+
+describe('blockingDesiredFeatures', () => {
+  it('returns nothing when no desired feature requires an inverter flag', () => {
+    expect(blockingDesiredFeatures(['backup', 'no_pv'], [{ flags: [] }])).toEqual([]);
+  });
+
+  it('reports a feature as blocking when zero candidate inverters have its flag', () => {
+    const candidates = [{ flags: ['external_ats'] }, { flags: [] }];
+    expect(blockingDesiredFeatures(['microgrid'], candidates)).toEqual(['microgrid']);
+  });
+
+  it('reports nothing blocking when some candidate has every required flag', () => {
+    const candidates = [{ flags: ['external_ats', 'microgrid'] }];
+    expect(blockingDesiredFeatures(['external_ats', 'microgrid'], candidates)).toEqual([]);
+  });
+
+  it('reports the whole combination as blocking when each flag has support individually but no single inverter has both', () => {
+    const candidates = [{ flags: ['external_ats'] }, { flags: ['microgrid'] }];
+    expect(new Set(blockingDesiredFeatures(['external_ats', 'microgrid'], candidates))).toEqual(
+      new Set(['external_ats', 'microgrid'])
+    );
+  });
+
+  it('only reports the specific unsupported feature, not ones already covered', () => {
+    const candidates = [{ flags: ['external_ats'] }];
+    expect(blockingDesiredFeatures(['external_ats', 'microgrid'], candidates)).toEqual(['microgrid']);
+  });
+
+  it('treats null/undefined flags as no flags', () => {
+    const candidates = [{ flags: null }, { flags: undefined }];
+    expect(blockingDesiredFeatures(['microgrid'], candidates)).toEqual(['microgrid']);
   });
 });
 
@@ -578,15 +717,16 @@ describe('validateResidentialOptions', () => {
     const valid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['microgrid'],
-      microgrid: { onGridPhases: 3, onGridApparentPowerVA: 5000, isFundamentalRequirement: false },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 5000, isFundamentalRequirement: false },
     });
     expect(valid).toEqual([]);
 
     const invalid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['microgrid'],
-      microgrid: { onGridPhases: 4, onGridApparentPowerVA: -1, isFundamentalRequirement: 'yes' },
+      microgrid: { voltageV: -1, onGridPhases: 4, onGridApparentPowerVA: -1, isFundamentalRequirement: 'yes' },
     });
+    expect(invalid.some((e) => e.includes('voltageV'))).toBe(true);
     expect(invalid.some((e) => e.includes('onGridPhases'))).toBe(true);
     expect(invalid.some((e) => e.includes('onGridApparentPowerVA'))).toBe(true);
     expect(invalid.some((e) => e.includes('isFundamentalRequirement'))).toBe(true);

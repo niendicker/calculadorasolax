@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import { LoginIllustration } from './LoginIllustration';
 
 interface ToastState {
   message: string;
@@ -221,7 +222,9 @@ export function AuthPanel({
   return (
     <main className="min-h-screen bg-background">
       <section className="grid min-h-screen grid-rows-[1fr_auto] px-6 py-5 sm:px-10 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-20 xl:px-28">
-        <div className="hidden lg:block" />
+        <div className="hidden lg:flex lg:items-center lg:justify-center">
+          <LoginIllustration />
+        </div>
 
         <div className="flex w-full items-center justify-center py-14 lg:justify-end">
           <div className="w-full max-w-[420px]">

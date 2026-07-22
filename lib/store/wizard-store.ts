@@ -82,6 +82,7 @@ interface WizardStore {
   setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
   setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
+  setAtsBackupAcknowledged: (atsBackupAcknowledged: boolean) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
   /** Returns false (no-op) instead of adding when the project is already at ACCOUNT_LIMITS.loadsPerProject. */
   addLoad: (load: SingleLoad) => boolean;
@@ -109,7 +110,7 @@ const defaultResidential: ResidentialOptions = {
   topology: null,
   batteryModel: null,
   inverterModel: null,
-  gridType: null,
+  gridType: 'singlePhase_220',
   loads: [],
   peakCalcMode: 'sum',
   desiredFeatures: ['backup'],
@@ -117,6 +118,7 @@ const defaultResidential: ResidentialOptions = {
   microgrid: null,
   generator: null,
   atsPhotoUrl: null,
+  atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
 };
 
@@ -675,6 +677,9 @@ export const useWizardStore = create<WizardStore>()(
             microgrid: desiredFeatures.includes('microgrid') ? s.residentialOptions.microgrid : null,
             generator: desiredFeatures.includes('external_generator') ? s.residentialOptions.generator : null,
             atsPhotoUrl: desiredFeatures.includes('external_ats') ? s.residentialOptions.atsPhotoUrl : null,
+            atsBackupAcknowledged: desiredFeatures.includes('external_ats')
+              ? s.residentialOptions.atsBackupAcknowledged
+              : false,
           },
         })),
 
@@ -696,6 +701,11 @@ export const useWizardStore = create<WizardStore>()(
       setAtsPhotoUrl: (atsPhotoUrl) =>
         set((s) => ({
           residentialOptions: { ...s.residentialOptions, atsPhotoUrl },
+        })),
+
+      setAtsBackupAcknowledged: (atsBackupAcknowledged) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, atsBackupAcknowledged },
         })),
 
       setPeakCalcMode: (peakCalcMode) =>

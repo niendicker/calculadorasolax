@@ -1,7 +1,13 @@
 'use client';
 
 import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
-import { batteryQuantityBreakdown, calculateSystemCost, calculateTariffSavings, formatCurrencyBRL } from './helpers';
+import {
+  batteryQuantityBreakdown,
+  calculateSystemCost,
+  calculateTariffSavings,
+  formatCurrencyBRL,
+  normalizeAccessoryLine,
+} from './helpers';
 import { ReportInfoRow, ReportMetric } from './shared-ui';
 import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfile } from './types';
 
@@ -137,14 +143,20 @@ export function PrintableReport({
                 <td className="border px-3 py-2">{solution.pvPowerKw.toFixed(2)} kWp</td>
               </tr>
             )}
-            {solution.accessories.map((accessory) => (
-              <tr key={accessory}>
-                <td className="border px-3 py-2">Acessório</td>
-                <td className="border px-3 py-2">{accessory}</td>
-                <td className="border px-3 py-2">1</td>
-                <td className="border px-3 py-2">Conforme regra/catálogo aprovado</td>
-              </tr>
-            ))}
+            {solution.accessories.map((accessory) => {
+              const { model, qty, optional, comment } = normalizeAccessoryLine(accessory);
+              return (
+                <tr key={model}>
+                  <td className="border px-3 py-2">Acessório</td>
+                  <td className="border px-3 py-2">{model}</td>
+                  <td className="border px-3 py-2">{qty}</td>
+                  <td className="border px-3 py-2">
+                    {optional ? 'Opcional' : 'Obrigatório'}
+                    {comment ? ` — ${comment}` : ''}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>

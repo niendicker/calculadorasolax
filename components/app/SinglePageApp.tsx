@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Boxes,
+  ClipboardList,
   FolderOpen,
   LayoutDashboard,
   LogOut,
@@ -79,6 +80,7 @@ export function SinglePageApp() {
     setMicrogridConfig,
     setGeneratorConfig,
     setAtsPhotoUrl,
+    setAtsBackupAcknowledged,
     setSolution,
     setLoadCatalog,
     setLoadPresets,
@@ -86,6 +88,7 @@ export function SinglePageApp() {
   } = useWizardStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
@@ -541,6 +544,7 @@ export function SinglePageApp() {
               setMicrogridConfig={setMicrogridConfig}
               setGeneratorConfig={setGeneratorConfig}
               setAtsPhotoUrl={setAtsPhotoUrl}
+              setAtsBackupAcknowledged={setAtsBackupAcknowledged}
               onUploadFeaturePhoto={uploadFeaturePhoto}
               resetResidential={resetResidential}
               calculate={calculate}
@@ -559,11 +563,37 @@ export function SinglePageApp() {
           <AppFooter />
         </div>
 
-        {/* No padding here on purpose: this is the scrolling ancestor sticky
-         * children (see SizingTab's summary header) measure `top` against —
-         * padding on the scroller itself creates a gap those children can't
-         * cleanly cancel. Padding instead lives on each child below. */}
-        <aside className="hidden xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card">
+        {/* Below xl this becomes a slide-in drawer (same pattern as the nav
+         * drawer further down) instead of the fixed right column, so the
+         * summary content portaled in via PageSummary stays reachable on
+         * mobile/tablet instead of just being display:none'd away.
+         * No padding on the scroll wrapper on purpose: this is the scrolling
+         * ancestor sticky children (see SizingTab's summary header) measure
+         * `top` against — padding on the scroller itself creates a gap those
+         * children can't cleanly cancel. Padding instead lives on each child
+         * below. */}
+        <aside
+          role={summaryDrawerOpen && summaryActive ? 'dialog' : undefined}
+          aria-modal={summaryDrawerOpen && summaryActive ? true : undefined}
+          aria-label={summaryDrawerOpen && summaryActive ? 'Resumo' : undefined}
+          className={cn(
+            'xl:static xl:z-auto xl:flex xl:min-h-0 xl:w-auto xl:max-w-none xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:shadow-none',
+            summaryDrawerOpen && summaryActive
+              ? 'fixed inset-y-0 right-0 z-50 flex w-80 max-w-[85vw] flex-col overflow-y-auto border-l bg-card shadow-xl'
+              : 'hidden'
+          )}
+        >
+          <div className="flex items-center justify-between px-4 pt-5 xl:hidden">
+            <p className="font-medium">Resumo</p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Fechar resumo"
+              onClick={() => setSummaryDrawerOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
           <div ref={setSummaryEl} className="space-y-4 px-4 py-5" />
           {!summaryActive && (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
@@ -571,6 +601,14 @@ export function SinglePageApp() {
             </div>
           )}
         </aside>
+        {summaryDrawerOpen && summaryActive && (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/35 xl:hidden"
+            aria-label="Fechar resumo"
+            onClick={() => setSummaryDrawerOpen(false)}
+          />
+        )}
 
         <Button
           type="button"
@@ -585,6 +623,22 @@ export function SinglePageApp() {
         >
           <Menu className="h-5 w-5" />
         </Button>
+
+        {summaryActive && (
+          <Button
+            type="button"
+            size="icon-lg"
+            className="fixed z-30 shadow-lg xl:hidden"
+            style={{
+              bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+              right: 'calc(1rem + env(safe-area-inset-right))',
+            }}
+            aria-label="Ver resumo"
+            onClick={() => setSummaryDrawerOpen(true)}
+          >
+            <ClipboardList className="h-5 w-5" />
+          </Button>
+        )}
       </div>
 
       {mobileMenuOpen && (

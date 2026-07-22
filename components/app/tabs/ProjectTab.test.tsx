@@ -25,6 +25,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
       microgrid: null,
       generator: null,
       atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
       maxPowerPerPhaseW: null,
     },
     solution: null,
@@ -144,10 +145,21 @@ describe('ProjectTab: new project draft', () => {
     expect(props.onManageClients).toHaveBeenCalled();
   });
 
-  it('Salvar projeto in the draft card delegates to onSave', () => {
-    const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
-    fireEvent.click(screen.getAllByRole('button', { name: /Salvar projeto/ })[0]);
+  it('Salvar projeto in the draft card delegates to onSave when a name is set', () => {
+    const { props } = setup({
+      projectDetailsVisible: true,
+      currentProjectId: null,
+      projectInfo: { name: 'Residência Silva', clientId: null, address: '', notes: '' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar projeto/ }));
     expect(props.onSave).toHaveBeenCalled();
+  });
+
+  it('blocks saving and shows an inline error when the name is empty', () => {
+    const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar projeto/ }));
+    expect(props.onSave).not.toHaveBeenCalled();
+    expect(screen.getByText('Informe um nome para o projeto.')).toBeInTheDocument();
   });
 });
 

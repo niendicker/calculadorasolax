@@ -23,6 +23,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     battery_topology: null,
     quantity_per_match: 1,
     comment: null,
+    desired_features: [],
     active: true,
     ...partial,
   };
@@ -255,6 +256,22 @@ describe('AccessoriesEditor: rules tab', () => {
 
     fireEvent.click(within(ruleDialog).getByRole('button', { name: /Salvar/ }));
     expect(onSaveRule).toHaveBeenCalled();
+  });
+
+  it('toggles a desired-feature filter on the new-rule modal', () => {
+    render(<ControlledEditor rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+
+    const ruleDialog = screen.getByRole('dialog', { name: /Nova regra/ });
+    expect(within(ruleDialog).getByText('Qualquer funcionalidade.')).toBeInTheDocument();
+
+    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'ATS Externo' }));
+    expect(within(ruleDialog).getByText('1 funcionalidade(s) selecionada(s).')).toBeInTheDocument();
+
+    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'ATS Externo' }));
+    expect(within(ruleDialog).getByText('Qualquer funcionalidade.')).toBeInTheDocument();
   });
 
   it('opens an existing rule for editing, edits every field, deselects an inverter, and closes via the close button', () => {

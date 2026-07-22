@@ -24,6 +24,7 @@ const fakeProject: SavedProject = {
     microgrid: null,
     generator: null,
     atsPhotoUrl: null,
+    atsBackupAcknowledged: false,
     maxPowerPerPhaseW: null,
   },
   solution: null,

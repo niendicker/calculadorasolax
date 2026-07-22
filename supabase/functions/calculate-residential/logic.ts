@@ -59,6 +59,40 @@ export function inverterSatisfiesRequiredFlags(
   return required.every((flag) => flags.has(flag));
 }
 
+/** Of the given desired features, which ones (that require an inverter flag)
+ * are the reason no candidate inverter satisfies them — so the error
+ * returned to the client can say *which* functionality has no available
+ * inverter, instead of a generic "no solution" message.
+ *
+ * A feature is unambiguously blocking when zero candidate inverters have its
+ * flag at all. If every required flag individually has some support but no
+ * single inverter satisfies all of them together (a combination conflict —
+ * e.g. two different features are each covered by a different inverter,
+ * with no overlap), every flag-requiring feature in the input is reported,
+ * since the combination as a whole is what's unavailable. */
+export function blockingDesiredFeatures(
+  desiredFeatures: DesiredFeatureId[],
+  candidateInverters: { flags: string[] | null | undefined }[]
+): DesiredFeatureId[] {
+  const flagRequiring = DESIRED_FEATURE_DEFINITIONS.filter(
+    (feature) => desiredFeatures.includes(feature.id) && feature.requiresInverterFlag
+  );
+  if (flagRequiring.length === 0) return [];
+
+  const requiredFlags = flagRequiring.map((feature) => feature.requiresInverterFlag!);
+  const someInverterSatisfiesAll = candidateInverters.some((inverter) =>
+    inverterSatisfiesRequiredFlags(inverter.flags, requiredFlags)
+  );
+  if (someInverterSatisfiesAll) return [];
+
+  const unsupported = flagRequiring.filter(
+    (feature) => !candidateInverters.some((inverter) => (inverter.flags ?? []).includes(feature.requiresInverterFlag!))
+  );
+  if (unsupported.length > 0) return unsupported.map((feature) => feature.id);
+
+  return flagRequiring.map((feature) => feature.id);
+}
+
 /** Whether a solution can coexist with the on-grid system described by
  * microgrid: the on-grid apparent power must stay under both the inverter's
  * rated power and the battery bank's power, and — when the inverter declares
@@ -115,10 +149,12 @@ export interface WhiteTariffConfig {
 
 /** Mirrors lib/types.ts MicrogridConfig. */
 export interface MicrogridConfig {
+  voltageV: number;
   onGridPhases: 1 | 2 | 3;
   onGridApparentPowerVA: number;
   isFundamentalRequirement: boolean;
   photoUrl?: string | null;
+  powerNoticeAcknowledged?: boolean;
 }
 
 /** Mirrors lib/types.ts GeneratorConfig. Informational only — not validated
@@ -128,6 +164,7 @@ export interface GeneratorConfig {
   phases: 1 | 2 | 3;
   apparentPowerVA: number;
   photoUrl?: string | null;
+  ownAtsAcknowledged?: boolean;
 }
 
 export interface ResidentialOptions {
@@ -142,6 +179,7 @@ export interface ResidentialOptions {
   microgrid: MicrogridConfig | null;
   generator: GeneratorConfig | null;
   atsPhotoUrl?: string | null;
+  atsBackupAcknowledged?: boolean;
 }
 
 export interface ApprovedSolution {
@@ -176,6 +214,10 @@ export interface AccessoryRule {
   battery_topology: ApprovedSolution['battery_topology'] | null;
   quantity_per_match: number;
   comment: string | null;
+  /** Empty/null = no feature condition (matches regardless). Non-empty = the
+   * customer must have enabled at least one of these (OR). Mirrors
+   * lib/types.ts DesiredFeatureId. */
+  desired_features: string[] | null;
   accessories: { model: string } | null;
 }
 
@@ -297,7 +339,8 @@ export function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRul
 export function ruleMatches(
   solution: ApprovedSolution,
   rule: AccessoryRule,
-  requestedGridTopology: StandardGridTopology
+  requestedGridTopology: StandardGridTopology,
+  desiredFeatures: DesiredFeatureId[]
 ): boolean {
   const inverterModels = Array.isArray(rule.inverter_models) && rule.inverter_models.length > 0
     ? rule.inverter_models
@@ -313,7 +356,23 @@ export function ruleMatches(
     return false;
   }
   if (rule.battery_topology && rule.battery_topology !== solution.battery_topology) return false;
+  if (
+    rule.desired_features &&
+    rule.desired_features.length > 0 &&
+    !rule.desired_features.some((feature) => desiredFeatures.includes(feature as DesiredFeatureId))
+  ) {
+    return false;
+  }
   return ruleMetricValue(solution, rule.trigger_metric) >= rule.min_quantity;
+}
+
+/** Mirrors lib/types.ts AccessoryLine. */
+export interface AccessoryLine {
+  model: string;
+  qty: number;
+  optional: boolean;
+  appliesTo: 'inverter' | 'battery' | 'system';
+  comment: string | null;
 }
 
 export interface SolutionPayload {
@@ -331,8 +390,24 @@ export interface SolutionPayload {
   batteryPowerW: number;
   availableEnergyWh: number;
   pvPowerKw: number | null;
-  accessories: string[];
+  accessories: AccessoryLine[];
   comments: string[];
+}
+
+/** What component an accessory rule's match conditions target: a rule scoped
+ * to inverter model(s) only applies to the inverter, one scoped to a battery
+ * model only applies to the battery; a rule with both (or neither) is a
+ * system-level/general accessory. Mirrors the multi-rule Set version of this
+ * inference in components/admin/editors/AccessoriesEditor.tsx
+ * (accessoryCategories), collapsed to a single value since here we're
+ * classifying one already-matched rule for one accessory line. */
+export function accessoryAppliesTo(rule: AccessoryRule): 'inverter' | 'battery' | 'system' {
+  const hasInverter =
+    (Array.isArray(rule.inverter_models) && rule.inverter_models.length > 0) || Boolean(rule.inverter_model);
+  const hasBattery = Boolean(rule.battery_model);
+  if (hasInverter && !hasBattery) return 'inverter';
+  if (hasBattery && !hasInverter) return 'battery';
+  return 'system';
 }
 
 /** Builds the full response payload for one chosen ApprovedSolution: resolves
@@ -348,6 +423,7 @@ export function buildSolutionPayload(
     pvPowerKw: number | null;
     accessoryRules: AccessoryRule[];
     standardGridTopology: StandardGridTopology;
+    desiredFeatures: DesiredFeatureId[];
   }
 ): SolutionPayload {
   const availableEnergyWh =
@@ -355,25 +431,44 @@ export function buildSolutionPayload(
       ? solution.available_energy_wh
       : Math.round(params.usefulEnergyWhPerBattery * solution.battery_quantity);
 
-  const accessories = solution.accessories
+  const accessories: AccessoryLine[] = solution.accessories
     .filter((accessory) => accessory.model && accessory.quantity > 0)
-    .map((accessory) => (accessory.quantity > 1 ? `${accessory.model} x${accessory.quantity}` : accessory.model!));
+    .map((accessory) => ({
+      model: accessory.model!,
+      qty: accessory.quantity,
+      optional: false,
+      appliesTo: 'system',
+      comment: null,
+    }));
 
-  const normalizedAccessoryModels = new Set(
-    accessories.map((accessory) => accessory.replace(/ x\d+$/, '').toLowerCase())
-  );
+  const accessoryByModel = new Map(accessories.map((accessory) => [accessory.model.toLowerCase(), accessory]));
   const automaticComments: string[] = [];
 
   for (const rule of params.accessoryRules) {
-    if (!rule.accessories?.model || !ruleMatches(solution, rule, params.standardGridTopology)) continue;
+    if (!rule.accessories?.model || !ruleMatches(solution, rule, params.standardGridTopology, params.desiredFeatures)) continue;
 
     const normalizedModel = rule.accessories.model.toLowerCase();
-    const label =
-      rule.quantity_per_match > 1 ? `${rule.accessories.model} x${rule.quantity_per_match}` : rule.accessories.model;
+    const existing = accessoryByModel.get(normalizedModel);
 
-    if (!normalizedAccessoryModels.has(normalizedModel)) {
-      accessories.push(rule.inclusion === 'optional' ? `${label} (opcional)` : label);
-      normalizedAccessoryModels.add(normalizedModel);
+    if (existing) {
+      // Already present (baked into the solution's own accessory list) but a
+      // rule also matches it: enrich it with the rule's metadata instead of
+      // leaving it stuck at the base-list defaults — otherwise the comment
+      // still lands in the generic `comments` list below while the card
+      // itself would keep showing "Obrigatório" with no explanation.
+      existing.optional = rule.inclusion === 'optional';
+      existing.appliesTo = accessoryAppliesTo(rule);
+      if (rule.comment) existing.comment = rule.comment;
+    } else {
+      const line: AccessoryLine = {
+        model: rule.accessories.model,
+        qty: rule.quantity_per_match,
+        optional: rule.inclusion === 'optional',
+        appliesTo: accessoryAppliesTo(rule),
+        comment: rule.comment ?? null,
+      };
+      accessories.push(line);
+      accessoryByModel.set(normalizedModel, line);
     }
 
     if (rule.comment) automaticComments.push(rule.comment);
@@ -477,6 +572,9 @@ export function validateResidentialOptions(raw: unknown): string[] {
     if (!microgrid || typeof microgrid !== 'object') {
       errors.push('microgrid is required when desiredFeatures includes microgrid');
     } else {
+      if (typeof microgrid.voltageV !== 'number' || microgrid.voltageV <= 0) {
+        errors.push('microgrid.voltageV must be a number > 0');
+      }
       if (![1, 2, 3].includes(microgrid.onGridPhases as number)) {
         errors.push('microgrid.onGridPhases must be 1, 2, or 3');
       }

@@ -3,7 +3,13 @@ import type { createClient } from '@/lib/supabase/client';
 import { enqueuePendingSimulation } from '@/lib/metrics-queue';
 import { getNetworkErrorMessage } from '@/lib/calculation-error-messages';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
-import { parseAccessoryLabel, resolveCalculationErrorMessage } from '../helpers';
+import {
+  isGeneratorAtsUnacknowledged,
+  isGeneratorPowerInsufficient,
+  isMicrogridPowerNoticeUnacknowledged,
+  normalizeAccessoryLine,
+  resolveCalculationErrorMessage,
+} from '../helpers';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
 
 export function useCalculation({
@@ -40,7 +46,7 @@ export function useCalculation({
         return;
       }
 
-      const accessoryModels = solution.accessories.map((accessory) => parseAccessoryLabel(accessory).model);
+      const accessoryModels = solution.accessories.map((accessory) => normalizeAccessoryLine(accessory).model);
       const media: Record<string, ProductMedia> = {};
       const missing: { table: 'inverters' | 'batteries' | 'accessories'; model: string }[] = [];
 
@@ -117,7 +123,10 @@ export function useCalculation({
     residentialOptions.topology &&
     residentialOptions.batteryModel &&
     residentialOptions.gridType &&
-    residentialOptions.loads.length > 0
+    residentialOptions.loads.length > 0 &&
+    !isGeneratorPowerInsufficient(residentialOptions.desiredFeatures, residentialOptions.generator, peakW) &&
+    !isGeneratorAtsUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.generator) &&
+    !isMicrogridPowerNoticeUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.microgrid)
   );
 
   async function calculate() {
@@ -152,7 +161,10 @@ export function useCalculation({
         loads: residentialOptions.loads,
         inverter_model: nextSolution.inverterModel,
         battery_model: nextSolution.batteryModel,
-        accessories: nextSolution.accessories,
+        // app_simulations is an analytics table keyed on plain accessory
+        // names (see admin DashboardPanels.tsx countAccessories) — keep it
+        // decoupled from the richer Solution.accessories shape used for display.
+        accessories: nextSolution.accessories.map((accessory) => accessory.model),
         solution_code: nextSolution.solutionCode ?? null,
       };
       const { error: simulationError } = await supabase.from('app_simulations').insert(simulationPayload);

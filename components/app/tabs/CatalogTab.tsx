@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { expansionModelSet } from '../helpers';
 import { PageHeader } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
@@ -52,6 +53,7 @@ export function CatalogTab({
   const normalizedSearch = search.trim().toLowerCase();
   const filteredInverters = inverterCatalog.filter((item) => item.model.toLowerCase().includes(normalizedSearch));
   const filteredBatteries = batteryCatalog.filter((item) => item.model.toLowerCase().includes(normalizedSearch));
+  const batteryExpansionModels = expansionModelSet(batteryCatalog);
   const filteredAccessories = accessoryCatalog.filter((item) => item.model.toLowerCase().includes(normalizedSearch));
 
   return (
@@ -158,6 +160,11 @@ export function CatalogTab({
           <div className="grid gap-3 lg:grid-cols-2">
             {filteredBatteries.map((battery) => {
               const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
+              const roleBadge = battery.expansionModel
+                ? 'Master'
+                : batteryExpansionModels.has(battery.model)
+                  ? 'Expansão'
+                  : null;
               return (
                 <CatalogProductCard
                   key={battery.id}
@@ -165,10 +172,11 @@ export function CatalogTab({
                   model={battery.model}
                   imageUrl={battery.imageUrl}
                   documents={battery.documents}
-                  badges={[battery.topology]}
+                  badges={roleBadge ? [battery.topology, roleBadge] : [battery.topology]}
                   specs={[
                     ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
                     ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
+                    ...(battery.expansionModel ? [['Expansão', battery.expansionModel] as [string, string]] : []),
                   ]}
                   onPreviewImage={setPreviewImage}
                   onPreviewDoc={setPreviewDoc}

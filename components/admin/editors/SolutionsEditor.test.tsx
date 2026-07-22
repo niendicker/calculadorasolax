@@ -318,6 +318,7 @@ describe('SolutionsEditor: form', () => {
       battery_topology: null,
       quantity_per_match: 1,
       comment: null,
+      desired_features: [],
       active: true,
       accessories: { model: 'Smart Meter' },
     };

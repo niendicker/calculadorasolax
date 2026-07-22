@@ -1,7 +1,9 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
 import type {
+  AccessoryLine,
   DesiredFeatureId,
+  GeneratorConfig,
   MicrogridConfig,
   Solution,
   StockProductType,
@@ -9,7 +11,12 @@ import type {
   WhiteTariffConfig,
 } from '@/lib/types';
 
-export function parseAccessoryLabel(raw: string) {
+/** Solutions saved before accessories carried structured metadata (either in
+ * localStorage or a saved project's jsonb) still have plain string entries
+ * like "Smart Meter - M1-40 x2 (opcional)" — parse those defensively into the
+ * current shape; already-structured entries pass through unchanged. */
+export function normalizeAccessoryLine(raw: string | AccessoryLine): AccessoryLine {
+  if (typeof raw !== 'string') return raw;
   const optional = /\s*\(opcional\)\s*$/.test(raw);
   const withoutOptional = optional ? raw.replace(/\s*\(opcional\)\s*$/, '') : raw;
   const qtyMatch = withoutOptional.match(/^(.*)\s+x(\d+)$/);
@@ -17,7 +24,42 @@ export function parseAccessoryLabel(raw: string) {
     model: qtyMatch ? qtyMatch[1] : withoutOptional,
     qty: qtyMatch ? Number(qtyMatch[2]) : 1,
     optional,
+    appliesTo: 'system',
+    comment: null,
   };
+}
+
+/** True when Gerador Externo is selected and its rated power can't cover the
+ * registered loads' peak power — the wizard blocks calculating in this case
+ * (see canCalculate in useCalculation.ts) and shows a matching warning in
+ * SizingTab's Gerador Externo panel, both driven by this single check. */
+export function isGeneratorPowerInsufficient(
+  desiredFeatures: DesiredFeatureId[],
+  generator: GeneratorConfig | null,
+  peakW: number
+): boolean {
+  if (!desiredFeatures.includes('external_generator') || !generator) return false;
+  return generator.apparentPowerVA < peakW;
+}
+
+/** True when Gerador Externo is selected and the user hasn't yet confirmed
+ * they're aware the generator needs its own ATS switch — the wizard blocks
+ * calculating until this is checked (see canCalculate in useCalculation.ts). */
+export function isGeneratorAtsUnacknowledged(desiredFeatures: DesiredFeatureId[], generator: GeneratorConfig | null): boolean {
+  if (!desiredFeatures.includes('external_generator')) return false;
+  return !generator?.ownAtsAcknowledged;
+}
+
+/** True when Microrrede is selected and the user hasn't yet confirmed
+ * they're aware the on-grid system's power must stay below the solution's
+ * inverter/battery power — the wizard blocks calculating until this is
+ * checked (see canCalculate in useCalculation.ts). */
+export function isMicrogridPowerNoticeUnacknowledged(
+  desiredFeatures: DesiredFeatureId[],
+  microgrid: MicrogridConfig | null
+): boolean {
+  if (!desiredFeatures.includes('microgrid')) return false;
+  return !microgrid?.powerNoticeAcknowledged;
 }
 
 export interface SystemCostEstimate {
@@ -41,7 +83,7 @@ export function calculateSystemCost(solution: Solution, userStockItems: UserStoc
     { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
     { productType: 'battery', model: solution.batteryModel, qty: solution.batteryQty },
     ...solution.accessories.map((accessory) => {
-      const { model, qty } = parseAccessoryLabel(accessory);
+      const { model, qty } = normalizeAccessoryLine(accessory);
       return { productType: 'accessory' as const, model, qty };
     }),
   ];
@@ -237,7 +279,7 @@ export async function resolveCalculationErrorMessage(functionError: unknown): Pr
   if (functionError instanceof FunctionsHttpError) {
     try {
       const body = await functionError.context.json();
-      return getCalculationErrorMessage(body?.error);
+      return getCalculationErrorMessage(body?.error, body?.blockingFeatures);
     } catch {
       return getCalculationErrorMessage(undefined);
     }
