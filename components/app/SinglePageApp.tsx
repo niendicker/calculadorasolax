@@ -52,6 +52,7 @@ export function SinglePageApp() {
     userStockItems,
     residentialOptions,
     solution,
+    secondarySolution,
     setProjectInfo,
     newProjectDraft,
     cancelProjectDraft,
@@ -72,6 +73,7 @@ export function SinglePageApp() {
     clearUserData,
     setTopology,
     setBatteryModel,
+    setSecondaryBatteryModel,
     setInverterModel,
     setGridType,
     setMaxPowerPerPhaseW,
@@ -82,6 +84,7 @@ export function SinglePageApp() {
     setAtsPhotoUrl,
     setAtsBackupAcknowledged,
     setSolution,
+    setSecondarySolution,
     setLoadCatalog,
     setLoadPresets,
     resetResidential,
@@ -173,7 +176,7 @@ export function SinglePageApp() {
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
   const nominalW = totalNominalW(residentialOptions.loads);
 
-  const { loading, error, canCalculate, calculate, productMedia } = useCalculation({
+  const { loading, error, secondaryError, canCalculate, calculate, productMedia } = useCalculation({
     supabase,
     residentialOptions,
     projectInfo,
@@ -181,10 +184,36 @@ export function SinglePageApp() {
     dailyKwh,
     solution,
     setSolution,
+    secondarySolution,
+    setSecondarySolution,
     inverterCatalog,
     batteryCatalog,
     accessoryCatalog,
   });
+
+  // Selecting/clearing a battery (primary or secondary) should refresh the
+  // solution without making the user press "Calcular" again — but this must
+  // stay opt-in per change (via the ref below), not a plain effect on
+  // batteryModel/secondaryBatteryModel: those also change when a saved
+  // project loads, and re-calculating there would clobber the project's own
+  // saved solution.
+  const pendingBatteryAutoCalcRef = useRef(false);
+
+  function setBatteryModelAndRecalc(model: string | null) {
+    pendingBatteryAutoCalcRef.current = true;
+    setBatteryModel(model);
+  }
+
+  function setSecondaryBatteryModelAndRecalc(model: string | null) {
+    pendingBatteryAutoCalcRef.current = true;
+    setSecondaryBatteryModel(model);
+  }
+
+  useEffect(() => {
+    if (!pendingBatteryAutoCalcRef.current) return;
+    pendingBatteryAutoCalcRef.current = false;
+    if (canCalculate) calculate();
+  }, [residentialOptions.batteryModel, residentialOptions.secondaryBatteryModel, canCalculate, calculate]);
 
   const availableInverterModels = useMemo(() => {
     if (!residentialOptions.gridType) return null;
@@ -528,6 +557,8 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
               solution={solution}
+              secondarySolution={secondarySolution}
+              secondaryError={secondaryError}
               nominalW={nominalW}
               peakW={peakW}
               dailyKwh={dailyKwh}
@@ -536,7 +567,8 @@ export function SinglePageApp() {
               initialLoading={initialLoading}
               error={error}
               setTopology={setTopology}
-              setBatteryModel={setBatteryModel}
+              setBatteryModel={setBatteryModelAndRecalc}
+              setSecondaryBatteryModel={setSecondaryBatteryModelAndRecalc}
               setInverterModel={setInverterModel}
               setGridType={setGridType}
               setDesiredFeatures={setDesiredFeatures}

@@ -20,6 +20,8 @@ export function useCalculation({
   dailyKwh,
   solution,
   setSolution,
+  secondarySolution,
+  setSecondarySolution,
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
@@ -31,22 +33,28 @@ export function useCalculation({
   dailyKwh: number;
   solution: Solution | null;
   setSolution: (solution: Solution | null) => void;
+  secondarySolution: Solution | null;
+  setSecondarySolution: (solution: Solution | null) => void;
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [secondaryError, setSecondaryError] = useState<string | null>(null);
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
 
   useEffect(() => {
     async function loadProductMedia() {
-      if (!solution) {
+      if (!solution && !secondarySolution) {
         setProductMedia({});
         return;
       }
 
-      const accessoryModels = solution.accessories.map((accessory) => normalizeAccessoryLine(accessory).model);
+      const solutions = [solution, secondarySolution].filter((item): item is Solution => item !== null);
+      const accessoryModels = solutions.flatMap((item) =>
+        item.accessories.map((accessory) => normalizeAccessoryLine(accessory).model)
+      );
       const media: Record<string, ProductMedia> = {};
       const missing: { table: 'inverters' | 'batteries' | 'accessories'; model: string }[] = [];
 
@@ -60,7 +68,7 @@ export function useCalculation({
           documents: ProductMedia['documents'];
         }[]
       ) {
-        if (!model) return;
+        if (!model || media[model]) return;
         const match = catalog.find((item) => item.model === model);
         if (match) {
           media[model] = { model, nickname: match.nickname ?? null, imageUrl: match.imageUrl, documents: match.documents };
@@ -69,13 +77,15 @@ export function useCalculation({
         }
       }
 
-      resolveFromCatalog(solution.inverterModel, 'inverters', inverterCatalog);
-      resolveFromCatalog(solution.batteryModel, 'batteries', batteryCatalog);
-      // The expansion/Slave model (e.g. "T58 Slave") never appears directly on
-      // the Solution — it's only known via the Master battery's catalog row —
-      // so it needs its own resolve call to get its card the same media.
-      const expansionModel = batteryCatalog.find((battery) => battery.model === solution.batteryModel)?.expansionModel;
-      if (expansionModel) resolveFromCatalog(expansionModel, 'batteries', batteryCatalog);
+      for (const item of solutions) {
+        resolveFromCatalog(item.inverterModel, 'inverters', inverterCatalog);
+        resolveFromCatalog(item.batteryModel, 'batteries', batteryCatalog);
+        // The expansion/Slave model (e.g. "T58 Slave") never appears directly on
+        // the Solution — it's only known via the Master battery's catalog row —
+        // so it needs its own resolve call to get its card the same media.
+        const expansionModel = batteryCatalog.find((battery) => battery.model === item.batteryModel)?.expansionModel;
+        if (expansionModel) resolveFromCatalog(expansionModel, 'batteries', batteryCatalog);
+      }
       for (const model of accessoryModels) resolveFromCatalog(model, 'accessories', accessoryCatalog);
 
       if (missing.length > 0) {
@@ -117,7 +127,7 @@ export function useCalculation({
     }
 
     loadProductMedia();
-  }, [solution, supabase, inverterCatalog, batteryCatalog, accessoryCatalog]);
+  }, [solution, secondarySolution, supabase, inverterCatalog, batteryCatalog, accessoryCatalog]);
 
   const canCalculate = Boolean(
     residentialOptions.topology &&
@@ -129,26 +139,25 @@ export function useCalculation({
     !isMicrogridPowerNoticeUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.microgrid)
   );
 
-  async function calculate() {
-    if (!canCalculate) return;
-
-    setLoading(true);
-    setError(null);
-
+  async function runCalculation(
+    batteryModel: string,
+    setResultSolution: (solution: Solution | null) => void,
+    setResultError: (error: string | null) => void
+  ) {
     try {
-      const { data, error: functionError } = await supabase.functions.invoke(
-        'calculate-residential',
-        { body: residentialOptions }
-      );
+      const { data, error: functionError } = await supabase.functions.invoke('calculate-residential', {
+        body: { ...residentialOptions, batteryModel },
+      });
 
       if (functionError || !data) {
-        setSolution(null);
-        setError(await resolveCalculationErrorMessage(functionError));
+        setResultSolution(null);
+        setResultError(await resolveCalculationErrorMessage(functionError));
         return;
       }
 
       const nextSolution = data as Solution;
-      setSolution(nextSolution);
+      setResultSolution(nextSolution);
+      setResultError(null);
 
       const { data: userData } = await supabase.auth.getUser();
       const simulationPayload = {
@@ -175,12 +184,29 @@ export function useCalculation({
       }
     } catch (err) {
       console.error(err);
-      setSolution(null);
-      setError(getNetworkErrorMessage());
-    } finally {
-      setLoading(false);
+      setResultSolution(null);
+      setResultError(getNetworkErrorMessage());
     }
   }
 
-  return { loading, error, canCalculate, calculate, productMedia };
+  async function calculate() {
+    if (!canCalculate) return;
+
+    setLoading(true);
+    setError(null);
+    setSecondaryError(null);
+    if (!residentialOptions.secondaryBatteryModel) {
+      setSecondarySolution(null);
+    }
+
+    const calls = [runCalculation(residentialOptions.batteryModel as string, setSolution, setError)];
+    if (residentialOptions.secondaryBatteryModel) {
+      calls.push(runCalculation(residentialOptions.secondaryBatteryModel, setSecondarySolution, setSecondaryError));
+    }
+
+    await Promise.allSettled(calls);
+    setLoading(false);
+  }
+
+  return { loading, error, secondaryError, canCalculate, calculate, productMedia };
 }

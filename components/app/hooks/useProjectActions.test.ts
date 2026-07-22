@@ -15,6 +15,7 @@ const fakeProject: SavedProject = {
   residentialOptions: {
     topology: null,
     batteryModel: null,
+    secondaryBatteryModel: null,
     inverterModel: null,
     gridType: null,
     loads: [],

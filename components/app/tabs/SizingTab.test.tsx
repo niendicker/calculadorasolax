@@ -29,6 +29,8 @@ const battery: BatteryCatalogOption = {
 
 const lvBattery: BatteryCatalogOption = { ...battery, id: 'b2', model: 'TP-LD53', topology: 'LV' };
 
+const battery2: BatteryCatalogOption = { ...battery, id: 'b3', model: 'TP-HS7.2', topology: 'HV' };
+
 const inverter: InverterCatalogOption = {
   id: 'i1',
   model: 'X1-Hybrid-5.0kW-G4',
@@ -58,6 +60,7 @@ const fakeSolution: Solution = {
 const emptyResidentialOptions = {
   topology: null,
   batteryModel: null,
+  secondaryBatteryModel: null,
   inverterModel: null,
   gridType: null,
   loads: [] as unknown[],
@@ -82,6 +85,8 @@ function setup(overrides: Record<string, unknown> = {}) {
     inverterCatalog: [inverter],
     availableInverterModels: null,
     solution: null,
+    secondarySolution: null,
+    secondaryError: null,
     nominalW: 0,
     peakW: 0,
     dailyKwh: 0,
@@ -91,6 +96,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     error: null,
     setTopology: vi.fn(),
     setBatteryModel: vi.fn(),
+    setSecondaryBatteryModel: vi.fn(),
     setInverterModel: vi.fn(),
     setGridType: vi.fn(),
     setDesiredFeatures: vi.fn(),
@@ -244,6 +250,53 @@ describe('SizingTab: summary panel', () => {
     expect(screen.getByText('kWh/dia')).toBeInTheDocument();
   });
 
+  it('raises the Resumo Nominal/Pico/Energia cards to the Tarifa Branca floor when it exceeds the loads', () => {
+    setup({
+      nominalW: 3000,
+      peakW: 5500,
+      dailyKwh: 3,
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['white_tariff'],
+        whiteTariff: {
+          requiredPowerW: 6000,
+          requiredEnergyWh: 8000,
+          includeBackupReserve: false,
+          tariffSpreadPerKwh: 0.4,
+        },
+      },
+    });
+    // Power floor is a plain max(), applied to both Nominal and Pico the same
+    // way, so both cards land on the same 6.00 value; energy without
+    // includeBackupReserve is *replaced* by requiredEnergyWh (8000 Wh = 8.00
+    // kWh/dia), not added.
+    expect(screen.getAllByText('6.00')).toHaveLength(2);
+    expect(screen.getByText('8.00')).toBeInTheDocument();
+    expect(screen.queryByText('3.00')).not.toBeInTheDocument();
+  });
+
+  it('adds the backup reserve on top of the Tarifa Branca energy floor when includeBackupReserve is on', () => {
+    setup({
+      nominalW: 1000,
+      peakW: 2000,
+      dailyKwh: 3,
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['white_tariff'],
+        whiteTariff: {
+          requiredPowerW: 500,
+          requiredEnergyWh: 8000,
+          includeBackupReserve: true,
+          tariffSpreadPerKwh: 0.4,
+        },
+      },
+    });
+    // Power floor (500W) is below the loads (1000W), so the loads value wins.
+    expect(screen.getByText('1.00')).toBeInTheDocument();
+    // Energy: requiredEnergyWh + base (8000 + 3000 = 11000 Wh = 11.00 kWh/dia).
+    expect(screen.getByText('11.00')).toBeInTheDocument();
+  });
+
   it('shows solution Nominal/Pico/Energia on the Solução tab, capped by the weaker of battery vs inverter', () => {
     setup({ solution: fakeSolution });
     // Battery: 1.8kW/2.5kW peak x1; Inverter: 5000W rated/7000W peak — battery is the bottleneck for both.
@@ -264,7 +317,7 @@ describe('SizingTab: summary panel', () => {
     expect(energyRow).toHaveTextContent('Fator decisivo');
     expect(energyRow).toHaveTextContent('+8%');
 
-    const peakRow = within(marginCard).getByText('Potência de pico').closest('.px-2');
+    const peakRow = within(marginCard).getByText('Potência máxima').closest('.px-2');
     expect(peakRow).not.toHaveTextContent('Fator decisivo');
     expect(peakRow).toHaveTextContent('+17%');
   });
@@ -274,7 +327,7 @@ describe('SizingTab: summary panel', () => {
     setup({ solution: fakeSolution, nominalW: 3000, peakW: 8000, dailyKwh: 3 });
 
     const marginCard = screen.getByText('Margem sobre a necessidade do cliente').closest('.rounded-lg') as HTMLElement;
-    const peakRow = within(marginCard).getByText('Potência de pico').closest('.px-2');
+    const peakRow = within(marginCard).getByText('Potência máxima').closest('.px-2');
     expect(peakRow).toHaveTextContent('Insuficiente');
     expect(peakRow).not.toHaveTextContent('Fator decisivo');
   });
@@ -306,6 +359,79 @@ describe('SizingTab: rede e configuração', () => {
 
     expect(props.setBatteryModel).toHaveBeenCalledWith('TP-LD53');
     expect(props.setTopology).not.toHaveBeenCalled();
+  });
+
+  it('selects a second battery of the same topology as the secondary comparison model', () => {
+    const { props } = setup({
+      batteryCatalog: [battery, battery2, lvBattery],
+      residentialOptions: { ...emptyResidentialOptions, topology: 'HighVoltage', batteryModel: 'TP-HS3.6' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    fireEvent.click(screen.getByText('TP-HS7.2'));
+
+    expect(props.setSecondaryBatteryModel).toHaveBeenCalledWith('TP-HS7.2');
+    expect(props.setBatteryModel).not.toHaveBeenCalled();
+  });
+
+  it('unmarking the primary battery promotes the secondary into its place', () => {
+    const { props } = setup({
+      batteryCatalog: [battery, battery2, lvBattery],
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        topology: 'HighVoltage',
+        batteryModel: 'TP-HS3.6',
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    const card = screen.getAllByText('TP-HS3.6').find((el) => el.closest('[role="button"]'));
+    fireEvent.click(card as HTMLElement);
+
+    expect(props.setBatteryModel).toHaveBeenCalledWith('TP-HS7.2');
+    expect(props.setSecondaryBatteryModel).toHaveBeenCalledWith(null);
+  });
+
+  it('unmarking the secondary battery only clears the secondary slot', () => {
+    const { props } = setup({
+      batteryCatalog: [battery, battery2, lvBattery],
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        topology: 'HighVoltage',
+        batteryModel: 'TP-HS3.6',
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    fireEvent.click(screen.getByText('TP-HS7.2'));
+
+    expect(props.setSecondaryBatteryModel).toHaveBeenCalledWith(null);
+    expect(props.setBatteryModel).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when clicking a third battery while both slots are already filled', () => {
+    const battery3: BatteryCatalogOption = { ...battery, id: 'b4', model: 'TP-HS9.0', topology: 'HV' };
+    const { props } = setup({
+      batteryCatalog: [battery, battery2, battery3, lvBattery],
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        topology: 'HighVoltage',
+        batteryModel: 'TP-HS3.6',
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+
+    fireEvent.click(screen.getByText('TP-HS9.0'));
+
+    expect(props.setBatteryModel).not.toHaveBeenCalled();
+    expect(props.setSecondaryBatteryModel).not.toHaveBeenCalled();
   });
 
   it('excludes an expansion/Slave battery from the picker and its HV/LV count badge', () => {
@@ -1103,6 +1229,63 @@ describe('SizingTab: Solução tab accessories and microgrid variant choice', ()
     // Inverter has no rated/peak power -> both fall back to the battery's own 1.8kW/2.5kW.
     expect(screen.getByText('1.80')).toBeInTheDocument();
     expect(screen.getByText('2.50')).toBeInTheDocument();
+  });
+});
+
+describe('SizingTab: comparação de duas baterias', () => {
+  it('does not show a battery tab switcher when only one battery model is selected', () => {
+    setup({ solution: fakeSolution });
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    expect(screen.queryByRole('tablist', { name: 'Bateria da solução' })).not.toBeInTheDocument();
+  });
+
+  it('shows a tab per battery, labeled with its nickname, and switches between independent solutions/errors', () => {
+    const secondarySolution: Solution = { ...fakeSolution, batteryModel: 'TP-HS7.2', batteryQty: 2 };
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        batteryModel: 'TP-HS3.6',
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+      solution: fakeSolution,
+      secondarySolution,
+      productMedia: {
+        'TP-HS3.6': { model: 'TP-HS3.6', nickname: 'Bateria A', imageUrl: null, documents: [] },
+        'TP-HS7.2': { model: 'TP-HS7.2', nickname: 'Bateria B', imageUrl: null, documents: [] },
+      },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+
+    const switcher = screen.getByRole('tablist', { name: 'Bateria da solução' });
+    expect(within(switcher).getByRole('tab', { name: 'Bateria A' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(switcher).getByRole('tab', { name: 'Bateria B' })).toHaveAttribute('aria-selected', 'false');
+    const batteryCardA = screen.getByText('Bateria A', { selector: 'p' }).closest('.rounded-lg') as HTMLElement;
+    expect(within(batteryCardA).getByText('Quantidade: x1')).toBeInTheDocument();
+
+    fireEvent.click(within(switcher).getByRole('tab', { name: 'Bateria B' }));
+    expect(within(switcher).getByRole('tab', { name: 'Bateria B' })).toHaveAttribute('aria-selected', 'true');
+    const batteryCardB = screen.getByText('Bateria B', { selector: 'p' }).closest('.rounded-lg') as HTMLElement;
+    expect(within(batteryCardB).getByText('Quantidade: x2')).toBeInTheDocument();
+  });
+
+  it('shows the secondary battery error isolated in its own tab, without affecting the primary tab', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        batteryModel: 'TP-HS3.6',
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+      solution: fakeSolution,
+      secondarySolution: null,
+      secondaryError: 'Nenhuma solução compatível foi encontrada.',
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    const switcher = screen.getByRole('tablist', { name: 'Bateria da solução' });
+    fireEvent.click(within(switcher).getByRole('tab', { name: 'TP-HS7.2' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Nenhuma solução compatível foi encontrada.');
   });
 });
 

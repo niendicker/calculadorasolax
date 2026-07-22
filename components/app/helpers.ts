@@ -204,7 +204,7 @@ export function buildMarginSummary({
     },
     {
       key: 'peak',
-      label: 'Potência de pico',
+      label: 'Potência máxima',
       requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
       providedValue: solution.inverterPeakPowerW ?? 0,
       unit: 'W',

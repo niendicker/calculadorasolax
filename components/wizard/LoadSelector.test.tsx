@@ -808,8 +808,8 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mono' }));
     expect(useWizardStore.getState().residentialOptions.loads[0].phaseType).toBe('mono');
 
-    // Toggle "incluída no pico".
-    const includedButton = screen.getByLabelText(/Contar Chuveiro na potência de pico|Não contar Chuveiro na potência de pico/);
+    // Toggle "incluída na máxima".
+    const includedButton = screen.getByLabelText(/Contar Chuveiro na potência máxima|Não contar Chuveiro na potência máxima/);
     const wasIncluded = includedButton.getAttribute('aria-pressed') === 'true';
     fireEvent.click(includedButton);
     expect(useWizardStore.getState().residentialOptions.loads[0].includedInPeak).toBe(!wasIncluded);

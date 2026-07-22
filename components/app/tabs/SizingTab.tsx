@@ -48,6 +48,8 @@ import {
   buildMarginSummary,
   calculateSystemCost,
   calculateTariffSavings,
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
   expansionModelSet,
   formatCurrencyBRL,
   isGeneratorPowerInsufficient,
@@ -84,6 +86,8 @@ export function SizingTab({
   inverterCatalog,
   availableInverterModels,
   solution,
+  secondarySolution,
+  secondaryError,
   nominalW,
   peakW,
   dailyKwh,
@@ -93,6 +97,7 @@ export function SizingTab({
   error,
   setTopology,
   setBatteryModel,
+  setSecondaryBatteryModel,
   setInverterModel,
   setGridType,
   setDesiredFeatures,
@@ -118,6 +123,7 @@ export function SizingTab({
   residentialOptions: {
     topology: BatteryTopology | null;
     batteryModel: string | null;
+    secondaryBatteryModel: string | null;
     inverterModel: string | null;
     gridType: ResidentialGridType | null;
     loads: unknown[];
@@ -133,6 +139,8 @@ export function SizingTab({
   inverterCatalog: InverterCatalogOption[];
   availableInverterModels: Set<string> | null;
   solution: Solution | null;
+  secondarySolution: Solution | null;
+  secondaryError: string | null;
   nominalW: number;
   peakW: number;
   dailyKwh: number;
@@ -142,6 +150,7 @@ export function SizingTab({
   error: string | null;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
+  setSecondaryBatteryModel: (batteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
@@ -163,6 +172,12 @@ export function SizingTab({
   const [configTab, setConfigTab] = useState<'gridType' | 'battery'>('gridType');
   const [activeFeatureTab, setActiveFeatureTab] = useState<DesiredFeatureId>('backup');
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
+  const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
+
+  const hasSecondaryBattery = Boolean(residentialOptions.secondaryBatteryModel);
+  const effectiveBatteryTab = hasSecondaryBattery ? activeBatteryTab : 'primary';
+  const activeSolution = effectiveBatteryTab === 'primary' ? solution : secondarySolution;
+  const activeError = effectiveBatteryTab === 'primary' ? error : secondaryError;
 
   // Jump straight to the Solução tab whenever a fresh calculation finishes
   // (success or failure) — that's where the feedback the user just asked
@@ -171,8 +186,8 @@ export function SizingTab({
   // also changes when a saved project is loaded, which this must catch too.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (solution || error) setSummaryTab('solucao');
-  }, [solution, error]);
+    if (solution || error || secondarySolution || secondaryError) setSummaryTab('solucao');
+  }, [solution, error, secondarySolution, secondaryError]);
 
   function jumpToGridType() {
     setMainTab('config');
@@ -194,6 +209,16 @@ export function SizingTab({
         residentialOptions.inverterModel ? ` · ${residentialOptions.inverterModel}` : ' · inversor pendente'
       }`
     : 'Nenhuma seleção';
+
+  // The Resumo cards must reflect everything the solution needs to cover, not
+  // just the registered loads — e.g. Tarifa Branca raises the power/energy
+  // floor (with or without a backup reserve on top), same targets the
+  // Edge Function actually sizes against (see effectiveTargetPowerW/
+  // effectiveTargetEnergyWh).
+  const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, nominalW);
+  const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, peakW);
+  const summaryDailyKwh =
+    effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, dailyKwh * 1000) / 1000;
 
   return (
     <>
@@ -268,23 +293,53 @@ export function SizingTab({
             >
               <span
                 aria-hidden="true"
-                className={cn('h-1.5 w-1.5 shrink-0 rounded-full', solution ? 'bg-primary' : 'bg-transparent')}
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  solution || secondarySolution ? 'bg-primary' : 'bg-transparent'
+                )}
               />
               Solução
             </button>
           </div>
+          {summaryTab === 'solucao' && hasSecondaryBattery && (
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Bateria da solução">
+              {(['primary', 'secondary'] as const).map((tab) => {
+                const model =
+                  tab === 'primary' ? residentialOptions.batteryModel : residentialOptions.secondaryBatteryModel;
+                const label = (model && productMedia[model]?.nickname) || model || '—';
+                const active = effectiveBatteryTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveBatteryTab(tab)}
+                    className={cn(
+                      'truncate rounded-md px-2 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                      active
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {summaryTab === 'resumo' ? (
             <div className="grid grid-cols-3 gap-2">
-              <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
-              <Metric icon={Zap} label="Pico" value={(peakW / 1000).toFixed(2)} unit="kVA" />
-              <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
+              <Metric icon={Gauge} label="Nominal" value={(summaryNominalW / 1000).toFixed(2)} unit="kVA" />
+              <Metric icon={Zap} label="Máxima" value={(summaryPeakW / 1000).toFixed(2)} unit="kVA" />
+              <Metric icon={BatteryCharging} label="Energia" value={summaryDailyKwh.toFixed(2)} unit="kWh/dia" />
             </div>
           ) : (
             !loading &&
-            !error &&
-            solution &&
-            !solution.microgridAlternative && (
-              <SolutionMetricCards solution={solution} batteryCatalog={batteryCatalog} />
+            !activeError &&
+            activeSolution &&
+            !activeSolution.microgridAlternative && (
+              <SolutionMetricCards solution={activeSolution} batteryCatalog={batteryCatalog} />
             )
           )}
           <Separator />
@@ -299,20 +354,20 @@ export function SizingTab({
           />
         ) : (
           <>
-            {error && (
+            {activeError && (
               <p role="alert" className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
-                {error}
+                {activeError}
               </p>
             )}
             {loading ? (
               <SolutionSkeleton />
-            ) : !solution ? (
+            ) : !activeSolution ? (
               <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 Configure os dados na aba Resumo e calcule para ver a solução recomendada.
               </p>
             ) : (
               <ResultSummary
-                solution={solution}
+                solution={activeSolution}
                 batteryCatalog={batteryCatalog}
                 onExport={exportPdf}
                 productMedia={productMedia}
@@ -489,9 +544,11 @@ export function SizingTab({
                       batteries={batteryCatalog}
                       topology={residentialOptions.topology}
                       selectedModel={residentialOptions.batteryModel}
+                      secondarySelectedModel={residentialOptions.secondaryBatteryModel}
                       loading={initialLoading}
                       setTopology={setTopology}
                       setBatteryModel={setBatteryModel}
+                      setSecondaryBatteryModel={setSecondaryBatteryModel}
                       userStockItems={userStockItems}
                       solution={solution}
                     />
@@ -1510,18 +1567,22 @@ function BatteryModelPicker({
   batteries,
   topology,
   selectedModel,
+  secondarySelectedModel,
   loading,
   setTopology,
   setBatteryModel,
+  setSecondaryBatteryModel,
   userStockItems,
   solution,
 }: {
   batteries: BatteryCatalogOption[];
   topology: BatteryTopology | null;
   selectedModel: string | null;
+  secondarySelectedModel: string | null;
   loading: boolean;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
+  setSecondaryBatteryModel: (batteryModel: string | null) => void;
   userStockItems: UserStockItem[];
   solution: Solution | null;
 }) {
@@ -1537,10 +1598,11 @@ function BatteryModelPicker({
   };
 
   const selectedBattery = batteries.find((battery) => battery.model === selectedModel);
+  const secondarySelectedBattery = batteries.find((battery) => battery.model === secondarySelectedModel);
   const summary = selectedBattery
     ? `${selectedBattery.model} · ${selectedBattery.capacityKwh} kWh${
         solution?.batteryModel === selectedBattery.model ? ` · x${solution.batteryQty}` : ''
-      }`
+      }${secondarySelectedBattery ? ` + ${secondarySelectedBattery.model} · ${secondarySelectedBattery.capacityKwh} kWh` : ''}`
     : topology
       ? `${topologyLabels[topology]} · modelo pendente`
       : 'Nenhuma seleção';
@@ -1550,19 +1612,35 @@ function BatteryModelPicker({
   }
 
   function selectBattery(battery: BatteryCatalogOption) {
-    if (battery.topology !== activeTopology) {
-      setTopology(battery.topology === 'HV' ? 'HighVoltage' : 'LowVoltage');
-    } else if (!topology) {
+    if (battery.topology !== activeTopology || !topology) {
       setTopology(battery.topology === 'HV' ? 'HighVoltage' : 'LowVoltage');
     }
-    setBatteryModel(battery.model);
+
+    if (battery.model === selectedModel) {
+      // Unmark the primary; promote the secondary (if any) into its place.
+      setBatteryModel(secondarySelectedModel ?? null);
+      setSecondaryBatteryModel(null);
+      return;
+    }
+    if (battery.model === secondarySelectedModel) {
+      setSecondaryBatteryModel(null);
+      return;
+    }
+    if (!selectedModel) {
+      setBatteryModel(battery.model);
+      return;
+    }
+    if (!secondarySelectedModel) {
+      setSecondaryBatteryModel(battery.model);
+    }
+    // Both slots already filled — unmark one before picking a third.
   }
 
   return (
     <div className="space-y-3 rounded-lg border bg-background p-3">
       <p className="text-xs text-muted-foreground">{summary}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-muted-foreground">Selecione um modelo cadastrado pelo admin.</p>
+        <p className="text-xs text-muted-foreground">Selecione até 2 modelos para comparar soluções.</p>
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
           {(['HV', 'LV'] as const).map((tab) => {
             const active = activeTopology === tab;
@@ -1599,6 +1677,7 @@ function BatteryModelPicker({
         <div className="grid gap-3 lg:grid-cols-2">
           {visibleBatteries.map((battery) => {
             const selected = selectedModel === battery.model;
+            const selectedSecondary = secondarySelectedModel === battery.model;
             const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
             const inStock = userStockItems.some(
               (item) => item.productType === 'battery' && item.productModel === battery.model
@@ -1608,7 +1687,7 @@ function BatteryModelPicker({
                 key={battery.id}
                 role="button"
                 tabIndex={0}
-                aria-pressed={selected}
+                aria-pressed={selected || selectedSecondary}
                 onClick={() => selectBattery(battery)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -1617,10 +1696,17 @@ function BatteryModelPicker({
                   }
                 }}
                 className={cn(
-                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
-                  selected ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
+                  'relative grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
+                  selected || selectedSecondary
+                    ? 'border-accent bg-primary/10 shadow-sm'
+                    : 'hover:border-primary/50 hover:bg-muted/60'
                 )}
               >
+                {secondarySelectedModel && (selected || selectedSecondary) && (
+                  <span className="absolute -top-2 -left-2 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[0.7rem] font-semibold text-accent-foreground shadow-sm">
+                    {selected ? '1' : '2'}
+                  </span>
+                )}
                 <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background">
                   {battery.imageUrl ? (
                     <button
@@ -1663,7 +1749,7 @@ function BatteryModelPicker({
                       Energia útil: {usefulEnergyKwh.toFixed(2)} kWh · SOC mín. {battery.minSocPercent}%
                     </span>
                     <span>
-                      Potência: {battery.standardPowerKw ?? '-'} kW · pico {battery.peakPowerKw ?? '-'} kW
+                      Potência: {battery.standardPowerKw ?? '-'} kW · máxima {battery.peakPowerKw ?? '-'} kW
                     </span>
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-1">
@@ -1813,7 +1899,7 @@ function InverterModelPicker({
                   <div className="grid gap-1 text-xs text-muted-foreground">
                     <span>Fases: {inverter.phases}</span>
                     <span>
-                      Potência: {inverter.standardPowerKva ?? '-'} kVA · pico {inverter.peakPowerKva ?? '-'} kVA
+                      Potência: {inverter.standardPowerKva ?? '-'} kVA · máxima {inverter.peakPowerKva ?? '-'} kVA
                     </span>
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-1">
@@ -1850,7 +1936,7 @@ function InverterModelPicker({
   );
 }
 
-/** Nominal/Pico for the proposed solution are capped by whichever side of the
+/** Nominal/Máxima for the proposed solution are capped by whichever side of the
  * pair (battery or inverter) is weaker — the system can't exceed either. The
  * inverter's rated/peak power already comes as solution-level totals from
  * the API; the battery's only comes as per-unit catalog specs, so it's
@@ -1898,7 +1984,7 @@ function SolutionMetricCards({
       />
       <Metric
         icon={Zap}
-        label="Pico"
+        label="Máxima"
         value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
         unit="kVA"
         accent

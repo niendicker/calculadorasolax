@@ -16,6 +16,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
     residentialOptions: {
       topology: 'HighVoltage',
       batteryModel: 'TP-HS3.6',
+      secondaryBatteryModel: null,
       inverterModel: null,
       gridType: 'singlePhase_220',
       loads: [],

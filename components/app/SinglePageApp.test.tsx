@@ -430,6 +430,70 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
   });
 });
 
+describe('SinglePageApp: auto-recalculates when the battery selection changes', () => {
+  const batteryRow = {
+    id: 'b1',
+    model: 'TP-HS3.6',
+    nickname: null,
+    capacity_kwh: 3.6,
+    topology: 'HV',
+    standard_power_kw: 1.8,
+    peak_power_kw: 2.5,
+    min_soc_percent: 10,
+    expansion_model: null,
+    image_url: null,
+    documents: [],
+  };
+
+  it('calls calculate automatically once a battery is picked, without pressing Calcular', async () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'singlePhase_220',
+        topology: 'HighVoltage',
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    const supabase = setupSupabase({ batteries: { data: [batteryRow], error: null } });
+    const invoke = vi.fn().mockResolvedValue({ data: makeSolution(), error: null });
+    (supabase as unknown as { functions: unknown }).functions = { invoke };
+
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(await screen.findByText('TP-HS3.6'));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalled());
+    expect(invoke).toHaveBeenCalledWith(
+      'calculate-residential',
+      expect.objectContaining({ body: expect.objectContaining({ batteryModel: 'TP-HS3.6' }) })
+    );
+  });
+
+  it('does not auto-calculate while other required fields are still missing', async () => {
+    // No gridType/loads configured — canCalculate stays false after picking a battery.
+    useWizardStore.setState((s) => ({
+      residentialOptions: { ...s.residentialOptions, topology: 'HighVoltage' },
+    }));
+    const supabase = setupSupabase({ batteries: { data: [batteryRow], error: null } });
+    const invoke = vi.fn().mockResolvedValue({ data: makeSolution(), error: null });
+    (supabase as unknown as { functions: unknown }).functions = { invoke };
+
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(await screen.findByText('TP-HS3.6'));
+
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
 describe('SinglePageApp: uploading a feature photo', () => {
   it('uploads an ATS photo through the profile-assets bucket and stores the public URL', async () => {
     const supabase = setupSupabase({}, { loggedIn: true });

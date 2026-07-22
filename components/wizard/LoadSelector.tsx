@@ -210,7 +210,7 @@ function PresetCard({
           <span className="font-medium text-foreground">{peakKva.toFixed(1)}</span>
           kVA
           <TooltipBubble triggerRef={peakTipRef} openUp={peakTipOpenUp} visible={peakTipVisible}>
-            Pico
+            Máxima
           </TooltipBubble>
         </span>
         <span
@@ -730,8 +730,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           <div>
             <p className="text-xs font-medium">
               <InfoLabel
-                label="Modo de cálculo do pico (IP/IN)"
-                tip="Define como as cargas com maior corrente de partida somam no pico de potência aparente do sistema, usado para escolher o inversor."
+                label="Modo de cálculo da máxima (IP/IN)"
+                tip="Define como as cargas com maior corrente de partida somam na potência aparente máxima do sistema, usado para escolher o inversor."
               />
             </p>
             <div className="mt-2 grid grid-cols-1 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-3">
@@ -740,17 +740,17 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   {
                     value: 'sum' as const,
                     label: 'Soma de todas',
-                    tip: 'Pico = soma de (potência × IP/IN) de todas as cargas, como se todas partissem ao mesmo tempo. Mais conservador.',
+                    tip: 'Máxima = soma de (potência × IP/IN) de todas as cargas, como se todas partissem ao mesmo tempo. Mais conservador.',
                   },
                   {
                     value: 'largest-surge' as const,
                     label: 'Só a maior carga',
-                    tip: 'Pico = soma nominal de todas as cargas + o maior excedente de partida entre elas, assumindo que só uma carga parte por vez.',
+                    tip: 'Máxima = soma nominal de todas as cargas + o maior excedente de partida entre elas, assumindo que só uma carga parte por vez.',
                   },
                   {
                     value: 'select' as const,
                     label: 'Selecionar cargas',
-                    tip: 'Pico = soma de (potência × IP/IN) apenas das cargas marcadas abaixo. Use para simular só um subconjunto das cargas partindo ao mesmo tempo.',
+                    tip: 'Máxima = soma de (potência × IP/IN) apenas das cargas marcadas abaixo. Use para simular só um subconjunto das cargas partindo ao mesmo tempo.',
                   },
                 ]
               ).map((option) => (
@@ -765,7 +765,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             </div>
             {(residentialOptions.peakCalcMode ?? 'sum') === 'select' && (
               <p className="mt-2 text-[0.7rem] text-muted-foreground">
-                Marque, em cada carga, se ela deve contar na potência de pico (ícone de raio no cabeçalho da carga).
+                Marque, em cada carga, se ela deve contar na potência máxima (ícone de raio no cabeçalho da carga).
               </p>
             )}
           </div>
@@ -1540,8 +1540,8 @@ function LoadCard({
               <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span>
               <TooltipBubble triggerRef={peakTipRef} openUp={peakTipOpenUp} visible={peakTipVisible}>
                 {peakCalcMode === 'select' && !includedInPeak
-                  ? 'Potência de pico (não contabilizada — carga desmarcada)'
-                  : 'Potência de pico (nominal × IP/IN × quantidade)'}
+                  ? 'Potência máxima (não contabilizada — carga desmarcada)'
+                  : 'Potência máxima (nominal × IP/IN × quantidade)'}
               </TooltipBubble>
             </span>
             <span
@@ -1587,15 +1587,15 @@ function LoadCard({
               aria-pressed={includedInPeak}
               aria-label={
                 includedInPeak
-                  ? `Não contar ${load.name} na potência de pico`
-                  : `Contar ${load.name} na potência de pico`
+                  ? `Não contar ${load.name} na potência máxima`
+                  : `Contar ${load.name} na potência máxima`
               }
             >
               <Zap className={cn('h-3.5 w-3.5', includedInPeak ? 'text-primary' : 'text-muted-foreground')} />
               <TooltipBubble triggerRef={includedToggleTipRef} openUp={includedToggleTipOpenUp} visible={includedToggleTipVisible} align="end">
                 {includedInPeak
-                  ? 'Conta na potência de pico — clique para excluir'
-                  : 'Não conta na potência de pico — clique para incluir'}
+                  ? 'Conta na potência máxima — clique para excluir'
+                  : 'Não conta na potência máxima — clique para incluir'}
               </TooltipBubble>
             </Button>
           )}
@@ -1656,7 +1656,7 @@ function LoadCard({
           <Label htmlFor={`ip-in-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel
               label="IP/IN"
-              tip="Relação entre a potência aparente de partida (pico) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
+              tip="Relação entre a potência aparente de partida (máxima) e a nominal. Motores e compressores (ar-condicionado, geladeira, bombas) costumam partir com 2 a 3× a potência nominal; cargas resistivas/eletrônicas usam 1."
             />
           </Label>
           <NumberFieldWithClear
@@ -1674,7 +1674,7 @@ function LoadCard({
           <Label htmlFor={`usage-factor-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel
               label="Fator de uso"
-              tip="Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta o pico de potência."
+              tip="Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima."
             />
           </Label>
           <NumberFieldWithClear

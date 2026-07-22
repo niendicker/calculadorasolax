@@ -27,6 +27,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
     residentialOptions: {
       topology: 'HighVoltage',
       batteryModel: 'T-BAT-SYS-HV-5.8',
+      secondaryBatteryModel: null,
       inverterModel: 'X1-Hybrid-5.0kW-G4',
       gridType: 'singlePhase_220',
       loads: [makeLoad({ powerW: 1000, hoursPerDay: 2, qty: 1 })],
@@ -368,6 +369,28 @@ describe('setBatteryModel', () => {
   });
 });
 
+describe('setSecondaryBatteryModel', () => {
+  beforeEach(() => resetStore());
+
+  it('sets the secondary battery model without touching other fields', () => {
+    useWizardStore.getState().setBatteryModel('TP-HS3.6');
+    useWizardStore.getState().setSecondaryBatteryModel('TP-HS7.2');
+    expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('TP-HS3.6');
+    expect(useWizardStore.getState().residentialOptions.secondaryBatteryModel).toBe('TP-HS7.2');
+  });
+});
+
+describe('setSecondarySolution', () => {
+  beforeEach(() => resetStore());
+
+  it('sets the secondary solution without touching the primary one', () => {
+    const solution = { inverterId: 'i1', inverterModel: 'X1', batteryId: 'b1', batteryModel: 'TP-HS7.2', batteryQty: 1, pvPowerKw: 5, accessories: [] };
+    useWizardStore.getState().setSecondarySolution(solution);
+    expect(useWizardStore.getState().secondarySolution).toEqual(solution);
+    expect(useWizardStore.getState().solution).toBeNull();
+  });
+});
+
 describe('setInverterModel', () => {
   beforeEach(() => resetStore());
 
@@ -535,16 +558,24 @@ describe('resetResidential / resetIndustrial', () => {
 
   it('resetResidential clears residentialOptions and the calculated solution back to defaults', () => {
     useWizardStore.setState((s) => ({
-      residentialOptions: { ...s.residentialOptions, batteryModel: 'TP-HS3.6', loads: [makeLoad({ powerW: 1, hoursPerDay: 1, qty: 1 })] },
+      residentialOptions: {
+        ...s.residentialOptions,
+        batteryModel: 'TP-HS3.6',
+        secondaryBatteryModel: 'TP-HS7.2',
+        loads: [makeLoad({ powerW: 1, hoursPerDay: 1, qty: 1 })],
+      },
       solution: { id: 's1' } as never,
+      secondarySolution: { id: 's2' } as never,
     }));
 
     useWizardStore.getState().resetResidential();
 
     const s = useWizardStore.getState();
     expect(s.residentialOptions.batteryModel).toBeNull();
+    expect(s.residentialOptions.secondaryBatteryModel).toBeNull();
     expect(s.residentialOptions.loads).toHaveLength(0);
     expect(s.solution).toBeNull();
+    expect(s.secondarySolution).toBeNull();
   });
 
   it('resetIndustrial clears industrialOptions and the calculated solution back to defaults', () => {

@@ -16,6 +16,7 @@ export function resetWizardStore() {
     residentialOptions: {
       topology: null,
       batteryModel: null,
+      secondaryBatteryModel: null,
       inverterModel: null,
       gridType: null,
       loads: [],
@@ -36,6 +37,7 @@ export function resetWizardStore() {
       demandCharge: false,
     },
     solution: null,
+    secondarySolution: null,
     loadCatalog: [],
     loadPresets: [],
   });

@@ -190,6 +190,10 @@ export interface UserStockItem {
 export interface ResidentialOptions {
   topology: BatteryTopology | null;
   batteryModel: string | null;
+  /** Optional second battery model to compare a solution against, shown as a
+   * second tab in the Solução summary alongside batteryModel's. Same
+   * topology as batteryModel (there's only one `topology` field). */
+  secondaryBatteryModel: string | null;
   inverterModel: string | null;
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];

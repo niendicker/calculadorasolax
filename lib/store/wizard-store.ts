@@ -43,6 +43,10 @@ interface WizardStore {
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
+  /** Result for residentialOptions.secondaryBatteryModel, when set — a live
+   * comparison aid, not part of what gets saved with the project (see
+   * saveCurrentProject/loadProject, which only persist `solution`). */
+  secondarySolution: Solution | null;
   loadCatalog: CatalogItem[];
   loadPresets: LoadPresetItem[];
 
@@ -74,6 +78,7 @@ interface WizardStore {
   clearUserData: () => void;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
+  setSecondaryBatteryModel: (secondaryBatteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setMaxPowerPerPhaseW: (maxPowerPerPhaseW: number | null) => void;
@@ -93,6 +98,7 @@ interface WizardStore {
     value: IndustrialOptions[K]
   ) => void;
   setSolution: (solution: Solution | null) => void;
+  setSecondarySolution: (solution: Solution | null) => void;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
   setLoadPresets: (presets: LoadPresetItem[]) => void;
   resetResidential: () => void;
@@ -109,6 +115,7 @@ const defaultProjectInfo: ProjectInfo = {
 const defaultResidential: ResidentialOptions = {
   topology: null,
   batteryModel: null,
+  secondaryBatteryModel: null,
   inverterModel: null,
   gridType: 'singlePhase_220',
   loads: [],
@@ -201,6 +208,7 @@ export const useWizardStore = create<WizardStore>()(
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
+      secondarySolution: null,
       loadCatalog: [],
       loadPresets: [],
 
@@ -216,6 +224,7 @@ export const useWizardStore = create<WizardStore>()(
           projectDetailsVisible: true,
           residentialOptions: defaultResidential,
           solution: null,
+          secondarySolution: null,
         }),
 
       // Discards an in-progress "Dados do projeto" card without saving. For a
@@ -235,6 +244,7 @@ export const useWizardStore = create<WizardStore>()(
               projectDetailsVisible: false,
               residentialOptions: defaultResidential,
               solution: null,
+              secondarySolution: null,
             };
           }
 
@@ -252,6 +262,7 @@ export const useWizardStore = create<WizardStore>()(
               loads: project.residentialOptions.loads.map((load) => ({ ...load })),
             },
             solution: project.solution,
+            secondarySolution: null,
           };
         }),
 
@@ -315,6 +326,7 @@ export const useWizardStore = create<WizardStore>()(
               loads: project.residentialOptions.loads.map((load) => ({ ...load })),
             },
             solution: project.solution,
+            secondarySolution: null,
           };
         }),
 
@@ -338,6 +350,7 @@ export const useWizardStore = create<WizardStore>()(
                   projectInfo: defaultProjectInfo,
                   residentialOptions: defaultResidential,
                   solution: null,
+                  secondarySolution: null,
                 }
               : {}),
           };
@@ -653,6 +666,11 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, batteryModel },
         })),
 
+      setSecondaryBatteryModel: (secondaryBatteryModel) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, secondaryBatteryModel },
+        })),
+
       setInverterModel: (inverterModel) =>
         set((s) => ({
           residentialOptions: { ...s.residentialOptions, inverterModel },
@@ -749,12 +767,14 @@ export const useWizardStore = create<WizardStore>()(
 
       setSolution: (solution) => set({ solution }),
 
+      setSecondarySolution: (secondarySolution) => set({ secondarySolution }),
+
       setLoadCatalog: (loadCatalog) => set({ loadCatalog }),
 
       setLoadPresets: (loadPresets) => set({ loadPresets }),
 
       resetResidential: () =>
-        set({ residentialOptions: defaultResidential, solution: null }),
+        set({ residentialOptions: defaultResidential, solution: null, secondarySolution: null }),
 
       resetIndustrial: () =>
         set({ industrialOptions: defaultIndustrial, solution: null }),
@@ -768,6 +788,7 @@ export const useWizardStore = create<WizardStore>()(
         residentialOptions: state.residentialOptions,
         industrialOptions: state.industrialOptions,
         solution: state.solution,
+        secondarySolution: state.secondarySolution,
         loadCatalog: state.loadCatalog,
         loadPresets: state.loadPresets,
       }),

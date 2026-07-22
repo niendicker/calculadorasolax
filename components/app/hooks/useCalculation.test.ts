@@ -13,6 +13,7 @@ function makeLoad(): SingleLoad {
 const validResidentialOptions: ResidentialOptions = {
   topology: 'HighVoltage',
   batteryModel: 'TP-HS3.6',
+  secondaryBatteryModel: null,
   inverterModel: null,
   gridType: 'singlePhase_220',
   loads: [makeLoad()],
@@ -72,6 +73,8 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     dailyKwh: 5.5,
     solution: null,
     setSolution: vi.fn(),
+    secondarySolution: null,
+    setSecondarySolution: vi.fn(),
     inverterCatalog: [],
     batteryCatalog: [],
     accessoryCatalog: [],
@@ -254,6 +257,49 @@ describe('useCalculation: calculate', () => {
     const queued = JSON.parse(window.localStorage.getItem('solax-pending-simulations') ?? '[]');
     expect(queued).toHaveLength(1);
     expect(queued[0].payload.project_name).toBe('Projeto teste');
+  });
+
+  it('runs a parallel second call for the secondary battery, keeping success/failure isolated per slot', async () => {
+    const invoke = vi.fn().mockImplementation((_name: string, { body }: { body: { batteryModel: string } }) =>
+      body.batteryModel === 'TP-HS7.2'
+        ? Promise.resolve({ data: null, error: { message: 'boom' } })
+        : Promise.resolve({ data: fakeSolution, error: null })
+    );
+    const { supabase } = makeSupabase();
+    supabase.functions.invoke = invoke;
+    const setSolution = vi.fn();
+    const setSecondarySolution = vi.fn();
+    const { result } = renderCalculation(
+      baseProps({
+        supabase,
+        setSolution,
+        setSecondarySolution,
+        residentialOptions: { ...validResidentialOptions, secondaryBatteryModel: 'TP-HS7.2' },
+      })
+    );
+
+    await act(async () => {
+      await result.current.calculate();
+    });
+
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(setSolution).toHaveBeenCalledWith(fakeSolution);
+    expect(setSecondarySolution).toHaveBeenCalledWith(null);
+    expect(result.current.error).toBeNull();
+    expect(result.current.secondaryError).toBe(getCalculationErrorMessage(undefined));
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('does not call the secondary battery when none is selected', async () => {
+    const { supabase } = makeSupabase();
+    const { result } = renderCalculation(baseProps({ supabase }));
+
+    await act(async () => {
+      await result.current.calculate();
+    });
+
+    expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
+    expect(result.current.secondaryError).toBeNull();
   });
 });
 
