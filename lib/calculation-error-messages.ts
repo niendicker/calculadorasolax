@@ -13,7 +13,7 @@ const MESSAGES: Record<string, string> = {
   no_approved_solution:
     'Nenhuma combinação aprovada atende a essa carga, bateria e tipo de rede. Tente reduzir as cargas, aumentar a capacidade da bateria ou escolher outro modelo.',
   no_compatible_ess_rule:
-    'O inversor e a bateria selecionados não são compatíveis entre si para essa configuração. Tente outro modelo de bateria ou inversor.',
+    'Nenhuma solução compatível foi encontrada para essa combinação de inversor e bateria. Tente outro modelo de bateria ou inversor.',
   no_solution_matches_desired_features:
     'Nenhuma combinação aprovada atende às funcionalidades desejadas selecionadas. Tente escolher outro inversor ou remover alguma funcionalidade.',
   battery_lookup_failed: 'Erro interno ao consultar a bateria selecionada. Tente novamente em instantes.',
