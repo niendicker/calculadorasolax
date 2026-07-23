@@ -414,9 +414,9 @@ export function SizingTab({
                 onChooseMicrogridVariant={onChooseMicrogridVariant}
                 desiredFeatures={residentialOptions.desiredFeatures}
                 microgrid={residentialOptions.microgrid}
-                nominalW={nominalW}
-                peakW={peakW}
-                dailyKwh={dailyKwh}
+                nominalW={backupNominalW}
+                peakW={backupPeakW}
+                dailyKwh={backupDailyKwh}
               />
             )}
           </>
