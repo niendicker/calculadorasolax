@@ -576,6 +576,9 @@ describe('resetResidential / resetIndustrial', () => {
     expect(s.residentialOptions.loads).toHaveLength(0);
     expect(s.solution).toBeNull();
     expect(s.secondarySolution).toBeNull();
+    // Back to the HV/monofásico 220V starting point, not a blank slate.
+    expect(s.residentialOptions.topology).toBe('HighVoltage');
+    expect(s.residentialOptions.gridType).toBe('singlePhase_220');
   });
 
   it('resetIndustrial clears industrialOptions and the calculated solution back to defaults', () => {

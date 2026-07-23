@@ -5,7 +5,9 @@ import { getNetworkErrorMessage } from '@/lib/calculation-error-messages';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
 import {
   isGeneratorAtsUnacknowledged,
+  isGeneratorPhaseVoltageIncompatible,
   isGeneratorPowerInsufficient,
+  isMicrogridPhaseVoltageIncompatible,
   isMicrogridPowerNoticeUnacknowledged,
   normalizeAccessoryLine,
   resolveCalculationErrorMessage,
@@ -136,7 +138,9 @@ export function useCalculation({
     residentialOptions.loads.length > 0 &&
     !isGeneratorPowerInsufficient(residentialOptions.desiredFeatures, residentialOptions.generator, peakW) &&
     !isGeneratorAtsUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.generator) &&
-    !isMicrogridPowerNoticeUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.microgrid)
+    !isGeneratorPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.generator, residentialOptions.gridType) &&
+    !isMicrogridPowerNoticeUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.microgrid) &&
+    !isMicrogridPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.microgrid, residentialOptions.gridType)
   );
 
   async function runCalculation(

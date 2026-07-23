@@ -6,17 +6,23 @@ import {
   Battery,
   BatteryCharging,
   Boxes,
+  Cable,
   Calculator,
   Check,
   ChevronRight,
   FileText,
   FolderOpen,
+  Fuel,
   Gauge,
   ImagePlus,
+  Layers,
   ListChecks,
   Loader2,
+  Network,
+  Receipt,
   Save,
   Settings,
+  SolarPanel,
   Sun,
   Trash2,
   Zap,
@@ -48,11 +54,17 @@ import {
   buildMarginSummary,
   calculateSystemCost,
   calculateTariffSavings,
+  checkPhaseVoltageCompatibility,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   expansionModelSet,
   formatCurrencyBRL,
+  gridTypePhaseVoltage,
+  isGeneratorAtsUnacknowledged,
+  isGeneratorPhaseVoltageIncompatible,
   isGeneratorPowerInsufficient,
+  isMicrogridPhaseVoltageIncompatible,
+  isMicrogridPowerNoticeUnacknowledged,
   normalizeAccessoryLine,
   type MarginRow,
 } from '../helpers';
@@ -204,6 +216,24 @@ export function SizingTab({
     setActiveFeatureTab(id);
   }
 
+  // Bubbles the same per-tab warning up to the "Funcionalidades"/"Configurações"
+  // main tabs, so a pending issue is visible even while the user is looking
+  // at the other section — no need to click through every feature tab first.
+  const featuresTabHasIssue = DESIRED_FEATURE_DEFINITIONS.some((feature) =>
+    desiredFeatureHasPendingIssue(feature.id, residentialOptions.desiredFeatures, {
+      microgrid: residentialOptions.microgrid,
+      generator: residentialOptions.generator,
+      atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
+      gridType: residentialOptions.gridType,
+      peakW,
+      loadsCount: residentialOptions.loads.length,
+      inverterCatalog,
+      availableInverterModels,
+      selectedInverterModel: residentialOptions.inverterModel,
+    })
+  );
+  const configTabHasIssue = availableInverterModels !== null && availableInverterModels.size === 0;
+
   const gridTypeSummary = residentialOptions.gridType
     ? `${gridLabels[residentialOptions.gridType]}${
         residentialOptions.inverterModel ? ` · ${residentialOptions.inverterModel}` : ' · inversor pendente'
@@ -214,11 +244,18 @@ export function SizingTab({
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
   // floor (with or without a backup reserve on top), same targets the
   // Edge Function actually sizes against (see effectiveTargetPowerW/
-  // effectiveTargetEnergyWh).
-  const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, nominalW);
-  const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, peakW);
+  // effectiveTargetEnergyWh). The loads themselves only count here while
+  // Backup is enabled — disabling it doesn't clear the registered loads (the
+  // user may re-enable it later), but they shouldn't inflate the summary
+  // while backup isn't actually being requested.
+  const isBackupEnabled = residentialOptions.desiredFeatures.includes('backup');
+  const backupNominalW = isBackupEnabled ? nominalW : 0;
+  const backupPeakW = isBackupEnabled ? peakW : 0;
+  const backupDailyKwh = isBackupEnabled ? dailyKwh : 0;
+  const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupNominalW);
+  const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupPeakW);
   const summaryDailyKwh =
-    effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, dailyKwh * 1000) / 1000;
+    effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupDailyKwh * 1000) / 1000;
 
   return (
     <>
@@ -244,7 +281,7 @@ export function SizingTab({
             Limpar
           </Button>
           {solution && (
-            <Button variant="outline" onClick={exportPdf}>
+            <Button variant="outline" onClick={exportPdf} disabled={!canCalculate}>
               <FileText className="h-4 w-4" />
               Exportar PDF
             </Button>
@@ -370,6 +407,7 @@ export function SizingTab({
                 solution={activeSolution}
                 batteryCatalog={batteryCatalog}
                 onExport={exportPdf}
+                canExport={canCalculate}
                 productMedia={productMedia}
                 userStockItems={userStockItems}
                 whiteTariff={residentialOptions.whiteTariff}
@@ -401,7 +439,11 @@ export function SizingTab({
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                   )}
                 >
-                  <ListChecks className="h-4 w-4" />
+                  {featuresTabHasIssue ? (
+                    <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+                  ) : (
+                    <ListChecks className="h-4 w-4" aria-hidden="true" />
+                  )}
                   Funcionalidades
                 </button>
                 <button
@@ -416,7 +458,11 @@ export function SizingTab({
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                   )}
                 >
-                  <Settings className="h-4 w-4" />
+                  {configTabHasIssue ? (
+                    <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+                  ) : (
+                    <Settings className="h-4 w-4" aria-hidden="true" />
+                  )}
                   Configurações
                 </button>
               </div>
@@ -680,16 +726,6 @@ function VoltagePicker({
   );
 }
 
-/** Network phases/voltage implied by each ResidentialGridType, so the
- * Microrrede/Gerador Externo phase+voltage selection can be checked against
- * whatever grid type is chosen in Configurações. */
-const gridTypePhaseVoltage: Record<ResidentialGridType, { phases: 1 | 2 | 3; voltage: 220 | 380 }> = {
-  singlePhase_220: { phases: 1, voltage: 220 },
-  splitPhase_220: { phases: 2, voltage: 220 },
-  threePhase_220: { phases: 3, voltage: 220 },
-  threePhase_380: { phases: 3, voltage: 380 },
-};
-
 /** Phases/voltage to seed Microrrede/Gerador Externo with when the feature is
  * first enabled — matching whatever grid type is already chosen in
  * Configurações (always a valid, compatible starting point) instead of
@@ -697,28 +733,6 @@ const gridTypePhaseVoltage: Record<ResidentialGridType, { phases: 1 | 2 | 3; vol
  * monofásico 220V only when no grid type has been chosen yet. */
 function defaultPhaseVoltageForGridType(gridType: ResidentialGridType | null): { phases: 1 | 2 | 3; voltage: 220 | 380 } {
   return gridType ? gridTypePhaseVoltage[gridType] : { phases: 1, voltage: 220 };
-}
-
-/** Compatibility between a chosen grid type and a phases+voltage selection.
- * `forMicrogrid` allows one documented exception: a 380V trifásico or 220V
- * bifásico network can still host a 220V monofásico on-grid inverter. Every
- * other combination (and the generator, which never gets the exception)
- * requires an exact match. Returns 'unknown' when no grid type is chosen yet
- * in Configurações — there's nothing to compare against. */
-function checkPhaseVoltageCompatibility(
-  gridType: ResidentialGridType | null,
-  phases: 1 | 2 | 3,
-  voltageV: number,
-  { forMicrogrid }: { forMicrogrid: boolean }
-): 'unknown' | 'compatible' | 'incompatible' {
-  if (!gridType) return 'unknown';
-  const network = gridTypePhaseVoltage[gridType];
-  if (phases === network.phases && voltageV === network.voltage) return 'compatible';
-  if (forMicrogrid) {
-    const networkAllowsException = gridType === 'threePhase_380' || gridType === 'splitPhase_220';
-    if (networkAllowsException && phases === 1 && voltageV === 220) return 'compatible';
-  }
-  return 'incompatible';
 }
 
 /** Shows how many catalog inverters support a given flag (e.g. microgrid,
@@ -810,11 +824,13 @@ function SupportCountChip({
   );
 }
 
-/** Warns when the phases+voltage chosen for the on-grid/generator system
- * don't match (or, for microgrid, don't fall under its one documented
- * exception — see checkPhaseVoltageCompatibility) the grid type already
- * chosen in Configurações. Renders nothing until a grid type is chosen, or
- * once the combination is compatible. */
+/** Blocks calculating (and, since export always follows canCalculate,
+ * exporting the PDF too — see canCalculate in useCalculation.ts) when the
+ * phases+voltage chosen for the on-grid/generator system don't match (or,
+ * for microgrid, don't fall under its one documented exception — see
+ * checkPhaseVoltageCompatibility) the grid type already chosen in
+ * Configurações. Renders nothing until a grid type is chosen, or once the
+ * combination is compatible. */
 function PhaseVoltageCompatibilityWarning({
   gridType,
   phases,
@@ -833,10 +849,10 @@ function PhaseVoltageCompatibilityWarning({
   const voltageLabel = voltageOptionsForPhases(phases).find((option) => option.value === voltageV)?.label ?? `${voltageV}V`;
 
   return (
-    <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+    <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       A tensão/fases selecionadas ({phaseLabel} {voltageLabel}) são incompatíveis com o tipo de rede configurado (
-      {gridLabels[gridType]}).
+      {gridLabels[gridType]}) — corrija para poder calcular.
     </p>
   );
 }
@@ -921,21 +937,26 @@ function PhotoUploadField({
   );
 }
 
-function SummaryGroup({ title, children }: { title: string; children: ReactNode }) {
+function SummaryGroup({ title, icon: Icon, children }: { title: string; icon: typeof Boxes; children: ReactNode }) {
   return (
     <div>
-      <p className="px-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="flex items-center gap-1.5 px-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        {title}
+      </p>
       <div className="mt-1 space-y-0.5">{children}</div>
     </div>
   );
 }
 
 function SummaryRow({
+  icon: Icon,
   label,
   value,
   done,
   onClick,
 }: {
+  icon: typeof Boxes;
   label: string;
   value: string;
   done: boolean;
@@ -945,27 +966,32 @@ function SummaryRow({
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <span className="flex shrink-0 items-center gap-2">
-        <span
-          aria-hidden="true"
-          className={cn('h-1.5 w-1.5 shrink-0 rounded-full', done ? 'bg-primary' : 'bg-muted-foreground/40')}
-        />
-        <span className="text-muted-foreground">{label}</span>
-      </span>
-      <span className="flex min-w-0 flex-1 items-center justify-end gap-1 font-medium text-foreground">
-        <span className="min-w-0 truncate">{value}</span>
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      </span>
+      <Icon className={cn('h-4 w-4 shrink-0', done ? 'text-primary' : 'text-muted-foreground/50')} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-muted-foreground">{label}</span>
+      <Badge variant={done ? 'secondary' : 'outline'} className="min-w-0 max-w-[55%] shrink">
+        <span className="truncate">{value}</span>
+      </Badge>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
     </button>
   );
 }
 
+const featureIcons: Record<DesiredFeatureId, typeof Boxes> = {
+  backup: BatteryCharging,
+  external_ats: Cable,
+  microgrid: Network,
+  external_generator: Fuel,
+  no_pv: SolarPanel,
+  white_tariff: Receipt,
+};
+
 /** Always-visible, grouped snapshot of every selection made across the
- * Funcionalidades and Configurações tabs, each row jumping straight back to
+ * Funcionalidades e Configurações tabs, each row jumping straight back to
  * the control that set it — so the user doesn't have to hunt for where a
- * given setting lives. */
+ * given setting lives. Icons identify each row at a glance, and the current
+ * value reads as a tag rather than plain text. */
 function ConfigurationSummary({
   residentialOptions,
   loadsCount,
@@ -1014,38 +1040,43 @@ function ConfigurationSummary({
 
   return (
     <div className="space-y-3">
-      <SummaryGroup title="Rede & inversor">
+      <SummaryGroup title="Rede & inversor" icon={Zap}>
         <SummaryRow
+          icon={Zap}
           label="Tipo de rede"
           value={gridType ? gridLabels[gridType] : 'Não selecionado'}
           done={Boolean(gridType)}
           onClick={onJumpToGridType}
         />
         <SummaryRow
+          icon={Boxes}
           label="Inversor"
           value={inverterModel ?? 'Automático'}
           done={Boolean(inverterModel)}
           onClick={onJumpToGridType}
         />
       </SummaryGroup>
-      <SummaryGroup title="Modelo de bateria">
+      <SummaryGroup title="Modelo de bateria" icon={Battery}>
         <SummaryRow
+          icon={Layers}
           label="Topologia"
           value={topology ? topologyLabels[topology] : 'Não selecionada'}
           done={Boolean(topology)}
           onClick={onJumpToBattery}
         />
         <SummaryRow
+          icon={Battery}
           label="Bateria"
           value={batteryModel ?? 'Não selecionado'}
           done={Boolean(batteryModel)}
           onClick={onJumpToBattery}
         />
       </SummaryGroup>
-      <SummaryGroup title="Funcionalidades">
+      <SummaryGroup title="Funcionalidades" icon={ListChecks}>
         {DESIRED_FEATURE_DEFINITIONS.map((feature) => (
           <SummaryRow
             key={feature.id}
+            icon={featureIcons[feature.id]}
             label={feature.label}
             value={featureValue(feature.id)}
             done={desiredFeatures.includes(feature.id)}
@@ -1082,16 +1113,21 @@ function FeatureTabButton({
   label,
   description,
   enabled,
+  hasIssue,
   isActiveTab,
   onClick,
 }: {
   label: string;
   description: string;
   enabled: boolean;
+  hasIssue: boolean;
   isActiveTab: boolean;
   onClick: () => void;
 }) {
   const { ref, openUp, visible, onMouseEnter, onMouseLeave, onFocus, onBlur } = useTooltipFlip<HTMLButtonElement>();
+  const tooltip = hasIssue
+    ? `${description ? `${description} ` : ''}Há algo pendente de revisão nesta aba — confira antes de calcular.`
+    : description;
   return (
     <button
       ref={ref}
@@ -1110,18 +1146,90 @@ function FeatureTabButton({
           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
-      />
+      {hasIssue ? (
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+      ) : (
+        <span
+          aria-hidden="true"
+          className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
+        />
+      )}
       {label}
-      {description && (
+      {tooltip && (
         <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible}>
-          {description}
+          {tooltip}
         </TooltipBubble>
       )}
     </button>
   );
+}
+
+/** True when an enabled desired feature still has something pending review —
+ * a blocking inconsistency (generator power/phase-voltage, microgrid
+ * phase-voltage), no available inverter supporting the feature's required
+ * flag among whatever's chosen in Configurações (see InverterSupportSummary),
+ * or just an unacknowledged confirmation (ATS/generator/microgrid checkboxes).
+ * Shared between each feature's own tab (see DesiredFeaturesPicker) and the
+ * "Funcionalidades" main tab (see SizingTab), which shows the same warning
+ * whenever any of its feature tabs would. */
+function desiredFeatureHasPendingIssue(
+  id: DesiredFeatureId,
+  value: DesiredFeatureId[],
+  {
+    microgrid,
+    generator,
+    atsBackupAcknowledged,
+    gridType,
+    peakW,
+    loadsCount,
+    inverterCatalog,
+    availableInverterModels,
+    selectedInverterModel,
+  }: {
+    microgrid: MicrogridConfig | null;
+    generator: GeneratorConfig | null;
+    atsBackupAcknowledged: boolean;
+    gridType: ResidentialGridType | null;
+    peakW: number;
+    loadsCount: number;
+    inverterCatalog: InverterCatalogOption[];
+    availableInverterModels: Set<string> | null;
+    selectedInverterModel: string | null;
+  }
+): boolean {
+  if (!value.includes(id)) return false;
+
+  const requiredFlag = DESIRED_FEATURE_DEFINITIONS.find((feature) => feature.id === id)?.requiresInverterFlag;
+  if (requiredFlag) {
+    const narrowedCatalog = selectedInverterModel
+      ? inverterCatalog.filter((inverter) => inverter.model === selectedInverterModel)
+      : availableInverterModels
+        ? inverterCatalog.filter((inverter) => availableInverterModels.has(inverter.model))
+        : null;
+    if (narrowedCatalog !== null && !narrowedCatalog.some((inverter) => inverter.flags.includes(requiredFlag))) {
+      return true;
+    }
+  }
+
+  switch (id) {
+    case 'backup':
+      return loadsCount === 0;
+    case 'external_ats':
+      return !atsBackupAcknowledged;
+    case 'microgrid':
+      return (
+        isMicrogridPowerNoticeUnacknowledged(value, microgrid) ||
+        isMicrogridPhaseVoltageIncompatible(value, microgrid, gridType)
+      );
+    case 'external_generator':
+      return (
+        isGeneratorPowerInsufficient(value, generator, peakW) ||
+        isGeneratorAtsUnacknowledged(value, generator) ||
+        isGeneratorPhaseVoltageIncompatible(value, generator, gridType)
+      );
+    default:
+      return false;
+  }
 }
 
 function DesiredFeaturesPicker({
@@ -1174,6 +1282,20 @@ function DesiredFeaturesPicker({
   const isBackupTab = activeTab === 'backup';
   const isActiveEnabled = value.includes(activeTab);
 
+  function hasPendingIssue(id: DesiredFeatureId): boolean {
+    return desiredFeatureHasPendingIssue(id, value, {
+      microgrid,
+      generator,
+      atsBackupAcknowledged,
+      gridType,
+      peakW,
+      loadsCount,
+      inverterCatalog,
+      availableInverterModels,
+      selectedInverterModel,
+    });
+  }
+
   function toggle(id: DesiredFeatureId) {
     if (value.includes(id)) {
       onChange(value.filter((item) => item !== id));
@@ -1203,6 +1325,7 @@ function DesiredFeaturesPicker({
             label={tab.label}
             description={tab.description}
             enabled={value.includes(tab.id)}
+            hasIssue={hasPendingIssue(tab.id)}
             isActiveTab={activeTab === tab.id}
             onClick={() => onActiveTabChange(tab.id)}
           />
@@ -1268,7 +1391,11 @@ function DesiredFeaturesPicker({
               />
               <span className="flex items-start gap-1.5">
                 {!atsBackupAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-                <span>O ATS externo deve ser usado para backup completo.</span>
+                <span>
+                  {atsBackupAcknowledged
+                    ? 'Confirmado: o ATS externo é usado para backup completo.'
+                    : 'O ATS externo deve ser usado para backup completo.'}
+                </span>
               </span>
             </label>
             <PhotoUploadField
@@ -1435,7 +1562,11 @@ function DesiredFeaturesPicker({
             />
             <span className="flex items-start gap-1.5">
               {!microgrid?.powerNoticeAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-              <span>A potência do sistema ongrid deve ser menor que a do inversor e das baterias da solução.</span>
+              <span>
+                {microgrid?.powerNoticeAcknowledged
+                  ? 'Confirmado: a potência do sistema ongrid é menor que a do inversor e das baterias da solução.'
+                  : 'A potência do sistema ongrid deve ser menor que a do inversor e das baterias da solução.'}
+              </span>
             </span>
           </label>
           <PhotoUploadField
@@ -1539,7 +1670,15 @@ function DesiredFeaturesPicker({
             <span className="flex items-start gap-1.5">
               {!generator?.ownAtsAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
               <span>
-                <span className="font-medium">Ciente:</span> O gerador externo precisa ter a própria chave ATS.
+                {generator?.ownAtsAcknowledged ? (
+                  <>
+                    <span className="font-medium">Confirmado:</span> o gerador externo tem a própria chave ATS.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">Ciente:</span> O gerador externo precisa ter a própria chave ATS.
+                  </>
+                )}
               </span>
             </span>
           </label>
@@ -2064,6 +2203,7 @@ function ResultSummary({
   solution,
   batteryCatalog,
   onExport,
+  canExport,
   productMedia,
   userStockItems,
   whiteTariff,
@@ -2077,6 +2217,7 @@ function ResultSummary({
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
   onExport: () => void;
+  canExport: boolean;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
   whiteTariff: WhiteTariffConfig | null;
@@ -2232,7 +2373,7 @@ function ResultSummary({
         </div>
       )}
 
-      <Button className="w-full" variant="outline" onClick={onExport}>
+      <Button className="w-full" variant="outline" onClick={onExport} disabled={!canExport}>
         <FileText className="h-4 w-4" />
         Exportar relatório em PDF
       </Button>

@@ -166,6 +166,22 @@ describe('SizingTab: title bar', () => {
     setup({ solution: fakeSolution });
     expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeInTheDocument();
   });
+
+  it('disables Exportar PDF (header and Solução tab) when canCalculate is false, even with a stale solution', () => {
+    setup({ solution: fakeSolution, canCalculate: false });
+    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    expect(screen.getByRole('button', { name: 'Exportar relatório em PDF' })).toBeDisabled();
+  });
+
+  it('keeps Exportar PDF enabled when canCalculate is true', () => {
+    setup({ solution: fakeSolution, canCalculate: true });
+    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
+    expect(screen.getByRole('button', { name: 'Exportar relatório em PDF' })).toBeEnabled();
+  });
 });
 
 describe('SizingTab: summary panel', () => {
@@ -242,12 +258,25 @@ describe('SizingTab: summary panel', () => {
     expect(expansionCard).toHaveTextContent('Quantidade: x2');
   });
 
-  it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh on the Resumo tab', () => {
-    setup({ nominalW: 3000, peakW: 5500, dailyKwh: 12.34 });
+  it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh on the Resumo tab, while Backup is enabled', () => {
+    setup({
+      nominalW: 3000,
+      peakW: 5500,
+      dailyKwh: 12.34,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] },
+    });
     expect(screen.getByText('3.00')).toBeInTheDocument();
     expect(screen.getByText('5.50')).toBeInTheDocument();
     expect(screen.getByText('12.34')).toBeInTheDocument();
     expect(screen.getByText('kWh/dia')).toBeInTheDocument();
+  });
+
+  it('zeroes out the Resumo Nominal/Pico/Energia cards once Backup is disabled, even with loads still registered', () => {
+    setup({ nominalW: 3000, peakW: 5500, dailyKwh: 12.34 });
+    expect(screen.getAllByText('0.00')).toHaveLength(3);
+    expect(screen.queryByText('3.00')).not.toBeInTheDocument();
+    expect(screen.queryByText('5.50')).not.toBeInTheDocument();
+    expect(screen.queryByText('12.34')).not.toBeInTheDocument();
   });
 
   it('raises the Resumo Nominal/Pico/Energia cards to the Tarifa Branca floor when it exceeds the loads', () => {
@@ -282,7 +311,7 @@ describe('SizingTab: summary panel', () => {
       dailyKwh: 3,
       residentialOptions: {
         ...emptyResidentialOptions,
-        desiredFeatures: ['white_tariff'],
+        desiredFeatures: ['backup', 'white_tariff'],
         whiteTariff: {
           requiredPowerW: 500,
           requiredEnergyWh: 8000,
@@ -488,6 +517,151 @@ describe('SizingTab: funcionalidades desejadas', () => {
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
   });
 
+  it('shows a warning icon on Backup once enabled with no loads registered', () => {
+    setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [] },
+    });
+    expect(screen.getByRole('tab', { name: /^Backup/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('hides the Backup warning icon once at least one load is registered', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['backup'],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^Backup/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a warning icon on ATS Externo once enabled with the backup notice unacknowledged', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: false,
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('hides the ATS Externo warning icon once the backup notice is acknowledged', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: true,
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('never shows a warning icon on a disabled feature tab', () => {
+    setup();
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('does not show a warning icon on Microrrede once the power notice is acknowledged and phases/voltage match', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        gridType: 'singlePhase_220',
+        desiredFeatures: ['microgrid'],
+        microgrid: {
+          voltageV: 220,
+          onGridPhases: 1,
+          onGridApparentPowerVA: 500,
+          isFundamentalRequirement: true,
+          photoUrl: null,
+          powerNoticeAcknowledged: true,
+        },
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^Microrrede/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a warning icon on Microrrede when the phases/voltage are incompatible with the grid type', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        gridType: 'singlePhase_220',
+        desiredFeatures: ['microgrid'],
+        microgrid: {
+          voltageV: 380,
+          onGridPhases: 3,
+          onGridApparentPowerVA: 500,
+          isFundamentalRequirement: true,
+          photoUrl: null,
+          powerNoticeAcknowledged: true,
+        },
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^Microrrede/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('does not show a warning icon on Gerador Externo when power/ATS/phases-voltage are all fine', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        gridType: 'singlePhase_220',
+        desiredFeatures: ['external_generator'],
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: true },
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^Gerador Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a warning icon on Gerador Externo when the own-ATS notice is unacknowledged', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        gridType: 'singlePhase_220',
+        desiredFeatures: ['external_generator'],
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: false },
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^Gerador Externo/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('shows a warning icon when no inverter among the ones narrowed down in Configurações supports the feature', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: true,
+        inverterModel: inverter.model,
+      },
+    });
+    // `inverter` (the fixture default) has flags: [] — it doesn't support external_ats.
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('does not show a warning icon when the selected inverter does support the feature', () => {
+    const atsInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X1-ATS', flags: ['external_ats'] };
+    setup({
+      inverterCatalog: [inverter, atsInverter],
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: true,
+        inverterModel: atsInverter.model,
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('does not show a warning icon for the inverter-support check before Configurações narrows anything down', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: true,
+      },
+    });
+    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
   it('switches tabs without changing the enabled features, and shows only the active tab panel', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
 
@@ -571,6 +745,57 @@ describe('SizingTab: funcionalidades desejadas', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Gerador Externo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 1, voltageV: 220 }));
+  });
+});
+
+describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling', () => {
+  it('shows a warning icon on the Funcionalidades main tab when Backup is enabled with no loads registered', () => {
+    setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [] },
+    });
+    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('shows a warning icon on the Funcionalidades main tab when an enabled feature has a pending issue', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: false,
+      },
+    });
+    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('does not show a warning icon on Funcionalidades when every enabled feature is fully acknowledged', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: true,
+      },
+    });
+    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('does not show a warning icon on Funcionalidades when no feature is enabled', () => {
+    setup();
+    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a warning icon on the Configurações main tab when no inverter is available for the current grid/battery combo', () => {
+    setup({ availableInverterModels: new Set() });
+    expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+  });
+
+  it('does not show a warning icon on Configurações when there is at least one available inverter', () => {
+    setup({ availableInverterModels: new Set(['X1-Hybrid-5.0kW-G4']) });
+    expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+  });
+
+  it('does not show a warning icon on Configurações before any grid/battery combo has narrowed the inverters down', () => {
+    setup({ availableInverterModels: null });
+    expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 });
 
@@ -690,6 +915,9 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       },
     });
     fireEvent.click(screen.getAllByRole('tab', { name: /^Microrrede/ })[1]);
+    expect(
+      screen.getByText('Confirmado: a potência do sistema ongrid é menor que a do inversor e das baterias da solução.')
+    ).toBeInTheDocument();
     const acknowledgedCheckbox = screen.getAllByRole('checkbox')[1] as HTMLInputElement;
     expect(acknowledgedCheckbox).toBeChecked();
     expect((acknowledgedCheckbox.closest('label') as HTMLElement).className).not.toContain('amber');
@@ -900,7 +1128,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       },
     });
     fireEvent.click(screen.getAllByRole('tab', { name: /^Gerador Externo/ })[1]);
-    const acknowledgedField = screen.getAllByRole('checkbox', { name: /Ciente/ })[1].closest('label') as HTMLElement;
+    const acknowledgedField = screen.getByRole('checkbox', { name: /Confirmado/ }).closest('label') as HTMLElement;
     expect(acknowledgedField.className).not.toContain('amber');
   });
 
@@ -928,6 +1156,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'], atsBackupAcknowledged: true },
     });
     fireEvent.click(screen.getAllByRole('tab', { name: /^ATS Externo/ })[1]);
+    expect(screen.getByText('Confirmado: o ATS externo é usado para backup completo.')).toBeInTheDocument();
     const acknowledgedCheckbox = screen.getAllByRole('checkbox')[1] as HTMLInputElement;
     expect(acknowledgedCheckbox).toBeChecked();
     expect((acknowledgedCheckbox.closest('label') as HTMLElement).className).not.toContain('amber');

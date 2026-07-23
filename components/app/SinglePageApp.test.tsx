@@ -317,13 +317,69 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    act(() => { useWizardStore.setState({ solution: makeSolution() }); });
+    act(() => {
+      useWizardStore.setState((s) => ({
+        solution: makeSolution(),
+        residentialOptions: {
+          ...s.residentialOptions,
+          topology: 'HighVoltage',
+          batteryModel: 'TP-HS3.6',
+          gridType: 'singlePhase_220',
+          loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        },
+      }));
+    });
     window.print = vi.fn();
 
     fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
 
     expect(window.print).toHaveBeenCalled();
+  });
+
+  it('sets document.title to "projeto_data" right before printing, and restores it afterwards', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    const originalTitle = document.title;
+    act(() => {
+      useWizardStore.setState((s) => ({
+        solution: makeSolution(),
+        projectInfo: { ...s.projectInfo, name: 'Casa de praia' },
+        residentialOptions: {
+          ...s.residentialOptions,
+          topology: 'HighVoltage',
+          batteryModel: 'TP-HS3.6',
+          gridType: 'singlePhase_220',
+          loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        },
+      }));
+    });
+    let titleDuringPrint = '';
+    window.print = vi.fn(() => { titleDuringPrint = document.title; });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
+
+    expect(titleDuringPrint).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}$/);
+
+    window.dispatchEvent(new Event('afterprint'));
+    expect(document.title).toBe(originalTitle);
+  });
+
+  it('does not export the PDF when the config that produced the solution is no longer valid (e.g. loads cleared after calculating)', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    act(() => { useWizardStore.setState({ solution: makeSolution() }); });
+    window.print = vi.fn();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
+
+    expect(window.print).not.toHaveBeenCalled();
   });
 
   it('renders the printable report once a solution is set', async () => {
@@ -491,6 +547,87 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(await screen.findByText('TP-HS3.6'));
 
     expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
+  it('selects the first HV battery from the catalog after clicking Limpar', async () => {
+    const batteryRows = [
+      {
+        id: 'b1',
+        model: 'TP-HS3.6',
+        nickname: null,
+        capacity_kwh: 3.6,
+        topology: 'HV',
+        standard_power_kw: 1.8,
+        peak_power_kw: 2.5,
+        min_soc_percent: 10,
+        expansion_model: null,
+        image_url: null,
+        documents: [],
+      },
+      {
+        id: 'b2',
+        model: 'TP-LD53',
+        nickname: null,
+        capacity_kwh: 5.3,
+        topology: 'LV',
+        standard_power_kw: 2.5,
+        peak_power_kw: 3.5,
+        min_soc_percent: 10,
+        expansion_model: null,
+        image_url: null,
+        documents: [],
+      },
+    ];
+    setupSupabase({ batteries: { data: batteryRows, error: null } });
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+    expect(useWizardStore.getState().residentialOptions.topology).toBe('HighVoltage');
+    expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('TP-HS3.6');
+  });
+
+  it('never auto-selects an expansion/Slave battery as the default', async () => {
+    const batteryRows = [
+      {
+        id: 'b1',
+        model: 'T58 Slave',
+        nickname: null,
+        capacity_kwh: 5.8,
+        topology: 'HV',
+        standard_power_kw: 2.88,
+        peak_power_kw: 4.032,
+        min_soc_percent: 10,
+        expansion_model: null,
+        image_url: null,
+        documents: [],
+      },
+      {
+        id: 'b2',
+        model: 'T58 V2 Master',
+        nickname: null,
+        capacity_kwh: 5.8,
+        topology: 'HV',
+        standard_power_kw: 2.88,
+        peak_power_kw: 4.032,
+        min_soc_percent: 10,
+        expansion_model: 'T58 Slave',
+        image_url: null,
+        documents: [],
+      },
+    ];
+    setupSupabase({ batteries: { data: batteryRows, error: null } });
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+
+    expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('T58 V2 Master');
   });
 });
 

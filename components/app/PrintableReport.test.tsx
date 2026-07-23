@@ -111,6 +111,39 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('3.20 kWh disponíveis')).toBeInTheDocument();
   });
 
+  it('highlights the nickname as the primary name, with the model as a caption underneath', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: {
+            ...solution,
+            accessories: [{ model: 'Smart Meter - M1-40', qty: 1, optional: false, appliesTo: 'system', comment: null }],
+          },
+          productMedia: {
+            'X1-Hybrid-5.0kW-G4': { model: 'X1-Hybrid-5.0kW-G4', nickname: 'Inversor Prime', imageUrl: null, documents: [] },
+            'TP-HS3.6': { model: 'TP-HS3.6', nickname: 'Bateria Compacta', imageUrl: null, documents: [] },
+            'Smart Meter - M1-40': { model: 'Smart Meter - M1-40', nickname: 'Medidor Inteligente', imageUrl: null, documents: [] },
+          },
+        })}
+      />
+    );
+    expect(screen.getByText('Inversor Prime')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+    // "Bateria Compacta" also appears in the top "Bateria selecionada" metric.
+    expect(screen.getAllByText('Bateria Compacta').length).toBeGreaterThan(0);
+    expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
+    expect(screen.getByText('Medidor Inteligente')).toBeInTheDocument();
+    expect(screen.getByText('Smart Meter - M1-40')).toBeInTheDocument();
+  });
+
+  it('falls back to the model alone when there is no nickname for it', () => {
+    render(<PrintableReport {...baseProps()} />);
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+    // Only the caption line duplicates the model text when a nickname exists —
+    // with no nickname, the model appears exactly once, as the bold name.
+    expect(screen.getAllByText('X1-Hybrid-5.0kW-G4')).toHaveLength(1);
+  });
+
   it('shows the PV row only when pvPowerKw is not null', () => {
     const { rerender } = render(<PrintableReport {...baseProps({ solution: { ...solution, pvPowerKw: null } })} />);
     expect(screen.queryByText('Potência FV recomendada')).not.toBeInTheDocument();
@@ -142,7 +175,7 @@ describe('PrintableReport: recommended products', () => {
     );
     expect(screen.getByText('Smart Meter')).toBeInTheDocument();
     expect(screen.getByText('X1-Matebox')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('×2')).toBeInTheDocument();
     expect(screen.getByText('Obrigatório')).toBeInTheDocument();
     expect(screen.getByText('Opcional — Instalar próximo ao quadro.')).toBeInTheDocument();
   });
@@ -170,8 +203,88 @@ describe('PrintableReport: recommended products', () => {
         })}
       />
     );
-    expect(screen.getByText('1× T58 V2 Master + 2× T58 Slave')).toBeInTheDocument();
-    expect(screen.queryByText('T58 V2 Master', { selector: 'td' })).not.toBeInTheDocument();
+    expect(screen.getByText('Bateria')).toBeInTheDocument();
+    expect(screen.getByText('T58 V2 Master')).toBeInTheDocument();
+    expect(screen.getByText('Bateria (expansão)')).toBeInTheDocument();
+    expect(screen.getByText('T58 Slave')).toBeInTheDocument();
+    expect(screen.getByText('×2')).toBeInTheDocument();
+  });
+});
+
+describe('PrintableReport: secondary battery comparison', () => {
+  it('does not show a second products table when there is no secondary solution', () => {
+    render(<PrintableReport {...baseProps()} />);
+    expect(screen.getByText('Produtos recomendados')).toBeInTheDocument();
+    expect(screen.queryByText(/comparação/)).not.toBeInTheDocument();
+  });
+
+  it('shows both solution versions, one products table per battery', () => {
+    const secondarySolution: Solution = {
+      ...solution,
+      batteryModel: 'TP-HS7.2',
+      batteryQty: 2,
+      inverterModel: 'X1-Hybrid-8.0kW-G4',
+    };
+    render(
+      <PrintableReport
+        {...baseProps({ secondarySolution, secondaryBatteryModel: 'TP-HS7.2' })}
+      />
+    );
+    expect(screen.getByText('Produtos recomendados — Bateria TP-HS3.6')).toBeInTheDocument();
+    expect(screen.getByText('Produtos recomendados — Bateria TP-HS7.2 (comparação)')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid-8.0kW-G4')).toBeInTheDocument();
+    expect(screen.getByText('TP-HS7.2')).toBeInTheDocument();
+  });
+});
+
+describe('PrintableReport: funcionalidades selecionadas', () => {
+  it('is hidden when there are no desired features', () => {
+    render(<PrintableReport {...baseProps()} />);
+    expect(screen.queryByText('Funcionalidades selecionadas')).not.toBeInTheDocument();
+  });
+
+  it('lists each selected feature with its configured values', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          desiredFeatures: ['backup', 'white_tariff', 'microgrid', 'external_generator', 'external_ats'],
+          whiteTariff: { requiredPowerW: 3000, requiredEnergyWh: 6000, includeBackupReserve: true, tariffSpreadPerKwh: 0.8 },
+          microgrid: {
+            voltageV: 220,
+            onGridPhases: 3,
+            onGridApparentPowerVA: 5000,
+            isFundamentalRequirement: true,
+            photoUrl: null,
+            powerNoticeAcknowledged: true,
+          },
+          generator: {
+            voltageV: 220,
+            phases: 1,
+            apparentPowerVA: 8000,
+            photoUrl: 'https://cdn.example.com/gerador.png',
+            ownAtsAcknowledged: true,
+          },
+          atsPhotoUrl: 'https://cdn.example.com/ats.png',
+          atsBackupAcknowledged: true,
+        })}
+      />
+    );
+
+    expect(screen.getByText('Funcionalidades selecionadas')).toBeInTheDocument();
+    expect(screen.getByText('Backup')).toBeInTheDocument();
+    expect(screen.getByText('Todos os inversores híbridos suportam backup.')).toBeInTheDocument();
+    expect(screen.getByText('Tarifa Branca')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Potência 3.00 kVA · energia 6.00 kWh · com reserva de backup · diferença tarifária R\$ 0,80\/kWh/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Microrrede')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Rede existente 220V · 3F · 5000 VA · requisito fundamental · aviso de potência confirmado/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Gerador Externo')).toBeInTheDocument();
+    expect(screen.getByText(/Gerador 220V · 1F · 8000 VA · chave ATS própria confirmada · foto anexada/)).toBeInTheDocument();
+    expect(screen.getByText('ATS Externo')).toBeInTheDocument();
+    expect(screen.getByText(/Uso para backup completo confirmado · foto anexada/)).toBeInTheDocument();
   });
 });
 
@@ -184,12 +297,12 @@ describe('PrintableReport: loads table', () => {
 });
 
 describe('PrintableReport: economic analysis section', () => {
-  it('is hidden when there is no pricing and no white tariff', () => {
+  it('is hidden when there is no white tariff', () => {
     render(<PrintableReport {...baseProps()} />);
     expect(screen.queryByText('Análise econômica')).not.toBeInTheDocument();
   });
 
-  it('shows system cost when stock items are priced', () => {
+  it('shows the system cost inline under the products table when stock items are priced', () => {
     render(
       <PrintableReport
         {...baseProps({
@@ -199,7 +312,7 @@ describe('PrintableReport: economic analysis section', () => {
         })}
       />
     );
-    expect(screen.getByText('Análise econômica')).toBeInTheDocument();
+    expect(screen.queryByText('Análise econômica')).not.toBeInTheDocument();
     expect(screen.getByText(/parcial: 1 de 2 itens/)).toBeInTheDocument();
   });
 

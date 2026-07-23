@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
+import { buildPdfFileName, expansionModelSet } from './helpers';
 import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
@@ -266,8 +267,23 @@ export function SinglePageApp() {
   }
 
   function exportPdf() {
-    if (!solution) return;
+    if (!solution || !canCalculate) return;
+    const previousTitle = document.title;
+    document.title = buildPdfFileName(projectInfo.name);
+    window.addEventListener('afterprint', () => { document.title = previousTitle; }, { once: true });
     window.print();
+  }
+
+  // resetResidential() already brings topology/gridType back to the store's
+  // HV/monofásico 220V defaults — this just goes one step further and also
+  // pre-selects a battery, so "Limpar" leaves a ready-to-calculate starting
+  // point instead of an empty battery picker (the catalog isn't known to the
+  // store, so it can't be part of the static defaults there).
+  function resetResidentialToDefaults() {
+    resetResidential();
+    const expansionModels = expansionModelSet(batteryCatalog);
+    const defaultBattery = batteryCatalog.find((battery) => battery.topology === 'HV' && !expansionModels.has(battery.model));
+    if (defaultBattery) setBatteryModel(defaultBattery.model);
   }
 
   function chooseMicrogridVariant(variant: 'economic' | 'microgrid') {
@@ -578,7 +594,7 @@ export function SinglePageApp() {
               setAtsPhotoUrl={setAtsPhotoUrl}
               setAtsBackupAcknowledged={setAtsBackupAcknowledged}
               onUploadFeaturePhoto={uploadFeaturePhoto}
-              resetResidential={resetResidential}
+              resetResidential={resetResidentialToDefaults}
               calculate={calculate}
               exportPdf={exportPdf}
               saveProject={saveProject}
@@ -813,6 +829,8 @@ export function SinglePageApp() {
           client={clients.find((c) => c.id === projectInfo.clientId) ?? null}
           profile={profile}
           solution={solution}
+          secondarySolution={secondarySolution}
+          secondaryBatteryModel={residentialOptions.secondaryBatteryModel}
           loads={residentialOptions.loads}
           topology={residentialOptions.topology}
           selectedBatteryModel={residentialOptions.batteryModel}
@@ -821,7 +839,13 @@ export function SinglePageApp() {
           dailyKwh={dailyKwh}
           userStockItems={userStockItems}
           whiteTariff={residentialOptions.whiteTariff}
+          desiredFeatures={residentialOptions.desiredFeatures}
+          microgrid={residentialOptions.microgrid}
+          generator={residentialOptions.generator}
+          atsPhotoUrl={residentialOptions.atsPhotoUrl}
+          atsBackupAcknowledged={residentialOptions.atsBackupAcknowledged}
           batteryCatalog={batteryCatalog}
+          productMedia={productMedia}
         />
       )}
     </main>

@@ -154,16 +154,10 @@ describe('ReportMetric / ReportInfoRow', () => {
     expect(screen.getByText('5.00 kVA')).toBeInTheDocument();
   });
 
-  it('renders a table row with label/value cells', () => {
-    render(
-      <table>
-        <tbody>
-          <ReportInfoRow label="Cliente" value="Ana" />
-        </tbody>
-      </table>
-    );
-    expect(screen.getByRole('cell', { name: 'Ana' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Cliente' })).toBeInTheDocument();
+  it('renders a label/value row', () => {
+    render(<ReportInfoRow label="Cliente" value="Ana" />);
+    expect(screen.getByText('Cliente')).toBeInTheDocument();
+    expect(screen.getByText('Ana')).toBeInTheDocument();
   });
 });
 

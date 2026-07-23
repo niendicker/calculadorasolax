@@ -5,11 +5,76 @@ import type {
   DesiredFeatureId,
   GeneratorConfig,
   MicrogridConfig,
+  ResidentialGridType,
   Solution,
   StockProductType,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
+
+/** Network phases/voltage implied by each ResidentialGridType, so the
+ * Microrrede/Gerador Externo phase+voltage selection can be checked against
+ * whatever grid type is chosen in Configurações. */
+export const gridTypePhaseVoltage: Record<ResidentialGridType, { phases: 1 | 2 | 3; voltage: 220 | 380 }> = {
+  singlePhase_220: { phases: 1, voltage: 220 },
+  splitPhase_220: { phases: 2, voltage: 220 },
+  threePhase_220: { phases: 3, voltage: 220 },
+  threePhase_380: { phases: 3, voltage: 380 },
+};
+
+/** Compatibility between a chosen grid type and a phases+voltage selection.
+ * `forMicrogrid` allows one documented exception: a 380V trifásico or 220V
+ * bifásico network can still host a 220V monofásico on-grid inverter. Every
+ * other combination (and the generator, which never gets the exception)
+ * requires an exact match. Returns 'unknown' when no grid type is chosen yet
+ * in Configurações — there's nothing to compare against. */
+export function checkPhaseVoltageCompatibility(
+  gridType: ResidentialGridType | null,
+  phases: 1 | 2 | 3,
+  voltageV: number,
+  { forMicrogrid }: { forMicrogrid: boolean }
+): 'unknown' | 'compatible' | 'incompatible' {
+  if (!gridType) return 'unknown';
+  const network = gridTypePhaseVoltage[gridType];
+  if (phases === network.phases && voltageV === network.voltage) return 'compatible';
+  if (forMicrogrid) {
+    const networkAllowsException = gridType === 'threePhase_380' || gridType === 'splitPhase_220';
+    if (networkAllowsException && phases === 1 && voltageV === 220) return 'compatible';
+  }
+  return 'incompatible';
+}
+
+/** True when Microrrede is selected and its phases/voltage don't match (or
+ * fall under the one documented exception for) the grid type chosen in
+ * Configurações — the wizard blocks calculating (and exporting the PDF,
+ * which always follows canCalculate) in this case, and shows a matching
+ * warning in SizingTab's Microrrede panel. */
+export function isMicrogridPhaseVoltageIncompatible(
+  desiredFeatures: DesiredFeatureId[],
+  microgrid: MicrogridConfig | null,
+  gridType: ResidentialGridType | null
+): boolean {
+  if (!desiredFeatures.includes('microgrid') || !microgrid) return false;
+  return (
+    checkPhaseVoltageCompatibility(gridType, microgrid.onGridPhases, microgrid.voltageV, { forMicrogrid: true }) ===
+    'incompatible'
+  );
+}
+
+/** True when Gerador Externo is selected and its phases/voltage don't match
+ * the grid type chosen in Configurações — same blocking behavior as
+ * isMicrogridPhaseVoltageIncompatible, no exception for the generator. */
+export function isGeneratorPhaseVoltageIncompatible(
+  desiredFeatures: DesiredFeatureId[],
+  generator: GeneratorConfig | null,
+  gridType: ResidentialGridType | null
+): boolean {
+  if (!desiredFeatures.includes('external_generator') || !generator) return false;
+  return (
+    checkPhaseVoltageCompatibility(gridType, generator.phases, generator.voltageV, { forMicrogrid: false }) ===
+    'incompatible'
+  );
+}
 
 /** Solutions saved before accessories carried structured metadata (either in
  * localStorage or a saved project's jsonb) still have plain string entries
@@ -245,6 +310,20 @@ export function buildMarginSummary({
 
 export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
+/** Default filename for the exported PDF report ("projeto_data") — most
+ * browsers' print-to-PDF dialog suggests document.title as the filename, so
+ * this is set as the title right before calling window.print() (see exportPdf
+ * in SinglePageApp.tsx). Falls back to "projeto" when there's no project name
+ * yet, and strips characters that aren't safe in a filename on any OS. */
+export function buildPdfFileName(projectName: string, date: Date = new Date()): string {
+  const safeName = projectName
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '_');
+  const isoDate = date.toISOString().slice(0, 10);
+  return `${safeName || 'projeto'}_${isoDate}`;
 }
 
 export interface TariffSavingsEstimate {

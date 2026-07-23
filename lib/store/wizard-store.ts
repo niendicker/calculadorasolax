@@ -113,7 +113,7 @@ const defaultProjectInfo: ProjectInfo = {
 };
 
 const defaultResidential: ResidentialOptions = {
-  topology: null,
+  topology: 'HighVoltage',
   batteryModel: null,
   secondaryBatteryModel: null,
   inverterModel: null,

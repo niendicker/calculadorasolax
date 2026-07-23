@@ -3,13 +3,17 @@ import {
   TARIFF_BUSINESS_DAYS_PER_MONTH,
   batteryQuantityBreakdown,
   buildMarginSummary,
+  buildPdfFileName,
   calculateSystemCost,
   calculateTariffSavings,
+  checkPhaseVoltageCompatibility,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   expansionModelSet,
   isGeneratorAtsUnacknowledged,
+  isGeneratorPhaseVoltageIncompatible,
   isGeneratorPowerInsufficient,
+  isMicrogridPhaseVoltageIncompatible,
   isMicrogridPowerNoticeUnacknowledged,
   normalizeAccessoryLine,
 } from './helpers';
@@ -287,6 +291,23 @@ describe('calculateTariffSavings', () => {
   });
 });
 
+describe('buildPdfFileName', () => {
+  const date = new Date('2026-07-22T15:30:00Z');
+
+  it('joins the project name and the date', () => {
+    expect(buildPdfFileName('Casa de praia', date)).toBe('Casa_de_praia_2026-07-22');
+  });
+
+  it('falls back to "projeto" when the name is empty or only whitespace', () => {
+    expect(buildPdfFileName('', date)).toBe('projeto_2026-07-22');
+    expect(buildPdfFileName('   ', date)).toBe('projeto_2026-07-22');
+  });
+
+  it('strips characters unsafe in a filename and collapses whitespace into underscores', () => {
+    expect(buildPdfFileName('  Projeto: "Norte" / Sul <2>  ', date)).toBe('Projeto_Norte_Sul_2_2026-07-22');
+  });
+});
+
 describe('normalizeAccessoryLine', () => {
   it('parses plain, quantity-suffixed, and optional legacy string labels', () => {
     expect(normalizeAccessoryLine('Smart Meter - M1-40')).toEqual({
@@ -384,5 +405,105 @@ describe('isMicrogridPowerNoticeUnacknowledged', () => {
     expect(
       isMicrogridPowerNoticeUnacknowledged(['microgrid'], makeMicrogrid({ powerNoticeAcknowledged: true }))
     ).toBe(false);
+  });
+});
+
+describe('checkPhaseVoltageCompatibility', () => {
+  it('is unknown when no grid type is chosen yet', () => {
+    expect(checkPhaseVoltageCompatibility(null, 1, 220, { forMicrogrid: false })).toBe('unknown');
+  });
+
+  it('is compatible when phases and voltage match the grid type exactly', () => {
+    expect(checkPhaseVoltageCompatibility('threePhase_380', 3, 380, { forMicrogrid: false })).toBe('compatible');
+  });
+
+  it('is incompatible on a mismatch, for both generator and microgrid', () => {
+    expect(checkPhaseVoltageCompatibility('singlePhase_220', 3, 380, { forMicrogrid: false })).toBe('incompatible');
+    expect(checkPhaseVoltageCompatibility('singlePhase_220', 3, 380, { forMicrogrid: true })).toBe('incompatible');
+  });
+
+  it('allows the documented microgrid exception (220V monofásico on a 380V trifásico or 220V bifásico network)', () => {
+    expect(checkPhaseVoltageCompatibility('threePhase_380', 1, 220, { forMicrogrid: true })).toBe('compatible');
+    expect(checkPhaseVoltageCompatibility('splitPhase_220', 1, 220, { forMicrogrid: true })).toBe('compatible');
+  });
+
+  it('does not extend the microgrid exception to the generator', () => {
+    expect(checkPhaseVoltageCompatibility('threePhase_380', 1, 220, { forMicrogrid: false })).toBe('incompatible');
+  });
+
+  it('does not apply the exception outside its two documented grid types', () => {
+    expect(checkPhaseVoltageCompatibility('threePhase_220', 1, 220, { forMicrogrid: true })).toBe('incompatible');
+  });
+});
+
+describe('isMicrogridPhaseVoltageIncompatible', () => {
+  it('is false when microgrid is not selected, regardless of mismatch', () => {
+    expect(isMicrogridPhaseVoltageIncompatible([], makeMicrogrid({ onGridPhases: 3, voltageV: 380 }), 'singlePhase_220')).toBe(
+      false
+    );
+  });
+
+  it('is false when microgrid is selected but no config exists yet', () => {
+    expect(isMicrogridPhaseVoltageIncompatible(['microgrid'], null, 'singlePhase_220')).toBe(false);
+  });
+
+  it('is true when the configured phases/voltage mismatch the grid type', () => {
+    expect(
+      isMicrogridPhaseVoltageIncompatible(['microgrid'], makeMicrogrid({ onGridPhases: 3, voltageV: 380 }), 'singlePhase_220')
+    ).toBe(true);
+  });
+
+  it('is false when the configured phases/voltage match the grid type', () => {
+    expect(
+      isMicrogridPhaseVoltageIncompatible(['microgrid'], makeMicrogrid({ onGridPhases: 1, voltageV: 220 }), 'singlePhase_220')
+    ).toBe(false);
+  });
+
+  it('is false under the documented microgrid exception', () => {
+    expect(
+      isMicrogridPhaseVoltageIncompatible(['microgrid'], makeMicrogrid({ onGridPhases: 1, voltageV: 220 }), 'threePhase_380')
+    ).toBe(false);
+  });
+});
+
+describe('isGeneratorPhaseVoltageIncompatible', () => {
+  it('is false when external_generator is not selected, regardless of mismatch', () => {
+    expect(
+      isGeneratorPhaseVoltageIncompatible([], makeGenerator({ phases: 3, voltageV: 380 }), 'singlePhase_220')
+    ).toBe(false);
+  });
+
+  it('is false when external_generator is selected but no generator config exists yet', () => {
+    expect(isGeneratorPhaseVoltageIncompatible(['external_generator'], null, 'singlePhase_220')).toBe(false);
+  });
+
+  it('is true when the configured phases/voltage mismatch the grid type', () => {
+    expect(
+      isGeneratorPhaseVoltageIncompatible(
+        ['external_generator'],
+        makeGenerator({ phases: 3, voltageV: 380 }),
+        'singlePhase_220'
+      )
+    ).toBe(true);
+  });
+
+  it('is false when the configured phases/voltage match the grid type', () => {
+    expect(
+      isGeneratorPhaseVoltageIncompatible(
+        ['external_generator'],
+        makeGenerator({ phases: 1, voltageV: 220 }),
+        'singlePhase_220'
+      )
+    ).toBe(false);
+  });
+
+  it('does not get the microgrid exception', () => {
+    expect(
+      isGeneratorPhaseVoltageIncompatible(
+        ['external_generator'],
+        makeGenerator({ phases: 1, voltageV: 220 }),
+        'threePhase_380'
+      )
+    ).toBe(true);
   });
 });

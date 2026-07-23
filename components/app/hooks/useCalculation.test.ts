@@ -188,6 +188,42 @@ describe('useCalculation: canCalculate', () => {
     );
     expect(result.current.canCalculate).toBe(true);
   });
+
+  it('is false when Microrrede is acknowledged but its phases/voltage are incompatible with the grid type', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          // gridType is singlePhase_220 (1F/220V) — 3F/380V is a mismatch.
+          desiredFeatures: ['microgrid'],
+          microgrid: {
+            voltageV: 380,
+            onGridPhases: 3,
+            onGridApparentPowerVA: 500,
+            isFundamentalRequirement: true,
+            photoUrl: null,
+            powerNoticeAcknowledged: true,
+          },
+        },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('is false when Gerador Externo is acknowledged and its power is sufficient but its phases/voltage are incompatible with the grid type', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: {
+          ...validResidentialOptions,
+          // gridType is singlePhase_220 (1F/220V) — 3F/380V is a mismatch.
+          desiredFeatures: ['external_generator'],
+          generator: { voltageV: 380, phases: 3, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: true },
+        },
+        peakW: 5500,
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
 });
 
 describe('useCalculation: calculate', () => {

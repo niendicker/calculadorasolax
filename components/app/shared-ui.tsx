@@ -168,21 +168,31 @@ export function Requirement({ done, label }: { done: boolean; label: string }) {
   );
 }
 
-export function ReportMetric({ label, value }: { label: string; value: string }) {
+export function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
   return (
-    <div className="rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 font-semibold">{value}</p>
+    <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+        {label}
+      </p>
+      <p className="mt-1.5 text-base font-semibold text-foreground">{value}</p>
     </div>
   );
 }
 
-export function ReportInfoRow({ label, value }: { label: string; value: string }) {
+/** A single label/value line for the report's plain-language sections — a
+ * light bottom divider between rows reads as a tidy list instead of the grid
+ * lines a real <table> forces, which is what makes those sections feel
+ * "spreadsheet-y" instead of like a document meant to be read. */
+export function ReportInfoRow({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
   return (
-    <tr>
-      <th className="w-36 border bg-muted px-3 py-2 text-left font-medium">{label}</th>
-      <td className="border px-3 py-2">{value}</td>
-    </tr>
+    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-2 text-sm last:border-0">
+      <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+        {label}
+      </span>
+      <span className="min-w-0 truncate text-right font-medium text-foreground">{value}</span>
+    </div>
   );
 }
 

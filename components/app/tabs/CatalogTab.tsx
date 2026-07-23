@@ -98,8 +98,10 @@ export function CatalogTab({
       </div>
 
       {!initialLoading && (
-        <div className="max-w-xs">
-          <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
+        <div className="flex justify-end">
+          <div className="max-w-xs">
+            <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
+          </div>
         </div>
       )}
 
