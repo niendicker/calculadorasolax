@@ -183,7 +183,12 @@ function ProductsList({
   productMedia: Record<string, ProductMedia>;
 }) {
   const systemCost = calculateSystemCost(solution, userStockItems);
-  const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog);
+  const batteryParts = batteryQuantityBreakdown(
+    solution.batteryModel,
+    solution.batteryQty,
+    batteryCatalog,
+    (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+  );
 
   return (
     <section className="mb-8">

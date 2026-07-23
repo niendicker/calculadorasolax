@@ -387,6 +387,11 @@ export interface SolutionPayload {
   batteryId: string;
   batteryModel: string;
   batteryQty: number;
+  /** Number of battery ports in use per inverter — each port is its own
+   * physical string and needs its own Master unit, so the client needs this
+   * (together with inverterQty) to know how many Master vs. Slave/expansion
+   * units batteryQty actually breaks down into. */
+  batteryPortsUsed: number;
   batteryPowerW: number;
   availableEnergyWh: number;
   pvPowerKw: number | null;
@@ -486,6 +491,7 @@ export function buildSolutionPayload(
     batteryId: solution.id,
     batteryModel: solution.battery_model,
     batteryQty: solution.battery_quantity,
+    batteryPortsUsed: solution.battery_ports_used,
     batteryPowerW: solution.battery_power_w,
     availableEnergyWh,
     pvPowerKw: params.pvPowerKw === null ? null : Math.ceil(params.pvPowerKw * 10) / 10,

@@ -2308,7 +2308,12 @@ function ResultSummary({
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
-  const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog);
+  const batteryParts = batteryQuantityBreakdown(
+    solution.batteryModel,
+    solution.batteryQty,
+    batteryCatalog,
+    (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+  );
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff);
 
@@ -2501,7 +2506,12 @@ function MicrogridVariantChoice({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {options.map((option) => {
-          const batteryParts = batteryQuantityBreakdown(option.solution.batteryModel, option.solution.batteryQty, batteryCatalog);
+          const batteryParts = batteryQuantityBreakdown(
+            option.solution.batteryModel,
+            option.solution.batteryQty,
+            batteryCatalog,
+            (option.solution.inverterQty ?? 1) * (option.solution.batteryPortsUsed ?? 1)
+          );
           return (
             <div key={option.variant} className="flex flex-col gap-3 rounded-lg border bg-background p-3">
               <div>

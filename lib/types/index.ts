@@ -260,6 +260,9 @@ export interface Solution {
   batteryId: string;
   batteryModel: string;
   batteryQty: number;
+  /** Battery ports in use per inverter — each port is its own physical
+   * string and needs its own Master unit (see batteryQuantityBreakdown). */
+  batteryPortsUsed?: number;
   batteryPowerW?: number;
   availableEnergyWh?: number;
   /** null when the customer opted out of PV sizing ('no_pv' desired feature). */

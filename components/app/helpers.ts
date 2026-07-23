@@ -181,20 +181,30 @@ export interface BatteryQuantityPart {
  * "Slave"/expansion units instead of more of the same model (e.g. "T58 V2
  * Master" + "T58 Slave"). Energy/power math already treats batteryQty as N
  * identical units, which holds true either way — this only changes what's
- * displayed for units 2..N, using the Master row's expansionModel. */
+ * displayed for units 2..N, using the Master row's expansionModel.
+ *
+ * Each battery port is its own physical string and needs its own Master at
+ * the head of the chain — mastersNeeded should be inverterQty × the
+ * solution's battery ports in use, not a flat 1, or a multi-port/
+ * multi-inverter solution ends up short a Master in this breakdown. Defaults
+ * to 1 for callers that don't have that data (e.g. older saved projects). */
 export function batteryQuantityBreakdown(
   model: string,
   quantity: number,
-  batteryCatalog: { model: string; expansionModel?: string | null }[]
+  batteryCatalog: { model: string; expansionModel?: string | null }[],
+  mastersNeeded = 1
 ): BatteryQuantityPart[] {
   const expansionModel = batteryCatalog.find((battery) => battery.model === model)?.expansionModel;
-  if (expansionModel && quantity > 1) {
-    return [
-      { model, qty: 1 },
-      { model: expansionModel, qty: quantity - 1 },
-    ];
-  }
-  return [{ model, qty: quantity }];
+  if (!expansionModel || quantity <= 1) return [{ model, qty: quantity }];
+
+  const masters = Math.min(quantity, Math.max(1, mastersNeeded));
+  const slaves = quantity - masters;
+  if (slaves <= 0) return [{ model, qty: quantity }];
+
+  return [
+    { model, qty: masters },
+    { model: expansionModel, qty: slaves },
+  ];
 }
 
 /** Expansion/Slave models only ever exist as units 2..N of some other
