@@ -71,6 +71,7 @@ const emptyResidentialOptions = {
   atsPhotoUrl: null,
   atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
+  peakCalcMode: 'sum' as const,
 };
 
 function setup(overrides: Record<string, unknown> = {}) {
@@ -265,18 +266,20 @@ describe('SizingTab: summary panel', () => {
       dailyKwh: 12.34,
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] },
     });
-    expect(screen.getByText('3.00')).toBeInTheDocument();
-    expect(screen.getByText('5.50')).toBeInTheDocument();
-    expect(screen.getByText('12.34')).toBeInTheDocument();
-    expect(screen.getByText('kWh/dia')).toBeInTheDocument();
+    const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
+    expect(within(resumo).getByText('3.00')).toBeInTheDocument();
+    expect(within(resumo).getByText('5.50')).toBeInTheDocument();
+    expect(within(resumo).getByText('12.34')).toBeInTheDocument();
+    expect(within(resumo).getByText('kWh/dia')).toBeInTheDocument();
   });
 
   it('zeroes out the Resumo Nominal/Pico/Energia cards once Backup is disabled, even with loads still registered', () => {
     setup({ nominalW: 3000, peakW: 5500, dailyKwh: 12.34 });
-    expect(screen.getAllByText('0.00')).toHaveLength(3);
-    expect(screen.queryByText('3.00')).not.toBeInTheDocument();
-    expect(screen.queryByText('5.50')).not.toBeInTheDocument();
-    expect(screen.queryByText('12.34')).not.toBeInTheDocument();
+    const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
+    expect(within(resumo).getAllByText('0.00')).toHaveLength(3);
+    expect(within(resumo).queryByText('3.00')).not.toBeInTheDocument();
+    expect(within(resumo).queryByText('5.50')).not.toBeInTheDocument();
+    expect(within(resumo).queryByText('12.34')).not.toBeInTheDocument();
   });
 
   it('raises the Resumo Nominal/Pico/Energia cards to the Tarifa Branca floor when it exceeds the loads', () => {
@@ -299,9 +302,10 @@ describe('SizingTab: summary panel', () => {
     // way, so both cards land on the same 6.00 value; energy without
     // includeBackupReserve is *replaced* by requiredEnergyWh (8000 Wh = 8.00
     // kWh/dia), not added.
-    expect(screen.getAllByText('6.00')).toHaveLength(2);
-    expect(screen.getByText('8.00')).toBeInTheDocument();
-    expect(screen.queryByText('3.00')).not.toBeInTheDocument();
+    const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
+    expect(within(resumo).getAllByText('6.00')).toHaveLength(2);
+    expect(within(resumo).getByText('8.00')).toBeInTheDocument();
+    expect(within(resumo).queryByText('3.00')).not.toBeInTheDocument();
   });
 
   it('adds the backup reserve on top of the Tarifa Branca energy floor when includeBackupReserve is on', () => {
@@ -321,9 +325,10 @@ describe('SizingTab: summary panel', () => {
       },
     });
     // Power floor (500W) is below the loads (1000W), so the loads value wins.
-    expect(screen.getByText('1.00')).toBeInTheDocument();
+    const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
+    expect(within(resumo).getByText('1.00')).toBeInTheDocument();
     // Energy: requiredEnergyWh + base (8000 + 3000 = 11000 Wh = 11.00 kWh/dia).
-    expect(screen.getByText('11.00')).toBeInTheDocument();
+    expect(within(resumo).getByText('11.00')).toBeInTheDocument();
   });
 
   it('shows solution Nominal/Pico/Energia on the Solução tab, capped by the weaker of battery vs inverter', () => {
@@ -339,7 +344,13 @@ describe('SizingTab: summary panel', () => {
   it('shows a margin summary that highlights the tightest constraint as the decisive factor', () => {
     // nominal margin: (5000-3000)/3000 = +67%; peak margin: (7000-6000)/6000 = +17%;
     // energy margin: (3240-3000)/3000 = +8% — energy is the tightest, so it's decisive.
-    setup({ solution: fakeSolution, nominalW: 3000, peakW: 6000, dailyKwh: 3 });
+    setup({
+      solution: fakeSolution,
+      nominalW: 3000,
+      peakW: 6000,
+      dailyKwh: 3,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] },
+    });
 
     const marginCard = screen.getByText('Margem sobre a necessidade do cliente').closest('.rounded-lg') as HTMLElement;
     const energyRow = within(marginCard).getByText('Energia', { selector: 'span' }).closest('.px-2');
@@ -353,7 +364,13 @@ describe('SizingTab: summary panel', () => {
 
   it('flags a margin as "Insuficiente" instead of "Fator decisivo" when the solution falls short', () => {
     // A peak target the solution can't meet (8000 > the 7000 the inverter provides) forces a negative margin.
-    setup({ solution: fakeSolution, nominalW: 3000, peakW: 8000, dailyKwh: 3 });
+    setup({
+      solution: fakeSolution,
+      nominalW: 3000,
+      peakW: 8000,
+      dailyKwh: 3,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] },
+    });
 
     const marginCard = screen.getByText('Margem sobre a necessidade do cliente').closest('.rounded-lg') as HTMLElement;
     const peakRow = within(marginCard).getByText('Potência máxima').closest('.px-2');

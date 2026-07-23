@@ -845,6 +845,7 @@ export function SinglePageApp() {
           atsPhotoUrl={residentialOptions.atsPhotoUrl}
           atsBackupAcknowledged={residentialOptions.atsBackupAcknowledged}
           batteryCatalog={batteryCatalog}
+          accessoryCatalog={accessoryCatalog}
           productMedia={productMedia}
         />
       )}

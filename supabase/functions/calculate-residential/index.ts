@@ -3,13 +3,10 @@ import {
   batteryTopologyMap,
   blockingDesiredFeatures,
   buildSolutionPayload,
-  clampNumber,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   gridTopologyMap,
   inverterSatisfiesRequiredFlags,
-  matchingEssBatteryConfig,
-  normalizeStandardGridTopology,
   requiredInverterFlags,
   solutionSupportsMicrogrid,
   standardGridTopologyMap,
@@ -20,7 +17,6 @@ import {
   type AccessoryRule,
   type ApprovedSolution,
   type BatteryCatalogRow,
-  type EssCompatibilityRule,
   type ResidentialOptions,
 } from './logic.ts';
 
@@ -240,44 +236,25 @@ Deno.serve(async (req) => {
     }
 
     if (options.batteryModel) {
-      const { data: essRules, error: essRulesErr } = await supabase
-        .from('ess_compatibility_rules')
-        .select(
-          'id, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, battery_configs, active'
-        )
-        .eq('active', true);
+      // The scaled min/max-battery-quantity-per-inverter check lives in the
+      // database (see migration 0052_ess_compatible_solution_ids.sql) — it's
+      // the one place both this Edge Function and the admin's solution
+      // generator (components/admin/helpers.ts) can read the same rule
+      // without re-deriving the inverterQty/battery_ports_used scaling twice.
+      const { data: compatibleIds, error: essErr } = await supabase.rpc('ess_compatible_solution_ids', {
+        p_battery_model: options.batteryModel,
+        p_battery_topology: batteryTopology,
+        p_grid_topology: gridTopology,
+        p_solution_ids: compatibleSolutions.map((solution) => solution.id),
+      });
 
-      if (essRulesErr) {
-        console.error(essRulesErr);
+      if (essErr) {
+        console.error(essErr);
         return jsonResponse({ error: 'ess_rules_lookup_failed' }, { status: 500 });
       }
 
-      const relevantRules = ((essRules ?? []) as EssCompatibilityRule[]).filter((rule) => {
-        const config = matchingEssBatteryConfig(rule, options.batteryModel!);
-        return (
-          config &&
-          (!config.battery_topology || config.battery_topology === batteryTopology) &&
-          (!rule.grid_topology || normalizeStandardGridTopology(rule.grid_topology) === standardGridTopology)
-        );
-      });
-
-      if (relevantRules.length > 0) {
-        compatibleSolutions = compatibleSolutions.filter((solution) =>
-          relevantRules.some((rule) => {
-            const config = matchingEssBatteryConfig(rule, options.batteryModel!);
-            if (!config) return false;
-            const maxParallel = clampNumber(rule.max_parallel_inverters, 1, 10, 1);
-            const minBatteryQty = clampNumber(config.min_battery_qty, 1, 7, 1);
-            const maxBatteryQty = clampNumber(config.max_battery_qty, 1, 15, 1);
-            return (
-              rule.inverter_model === solution.inverter_model &&
-              solution.inverter_quantity <= maxParallel &&
-              solution.battery_quantity >= minBatteryQty &&
-              solution.battery_quantity <= maxBatteryQty
-            );
-          })
-        );
-      }
+      const compatibleIdSet = new Set(compatibleIds as string[]);
+      compatibleSolutions = compatibleSolutions.filter((solution) => compatibleIdSet.has(solution.id));
     }
 
     if (!compatibleSolutions.length) {

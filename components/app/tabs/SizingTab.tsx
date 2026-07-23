@@ -41,6 +41,7 @@ import type {
   GeneratorConfig,
   InverterFlag,
   MicrogridConfig,
+  PeakCalcMode,
   ProductDocument,
   ResidentialGridType,
   Solution,
@@ -146,6 +147,7 @@ export function SizingTab({
     atsPhotoUrl: string | null;
     atsBackupAcknowledged: boolean;
     maxPowerPerPhaseW: number | null;
+    peakCalcMode: PeakCalcMode;
   };
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
@@ -257,6 +259,32 @@ export function SizingTab({
   const summaryDailyKwh =
     effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupDailyKwh * 1000) / 1000;
 
+  // Resumo tab shows the same alert as soon as anything on the page (either
+  // section tab) is pending review — no need to switch tabs to notice. A
+  // missing battery selection is critical (blocks calculation, see
+  // canCalculate); a missing inverter selection is just a heads-up since the
+  // backend auto-selects one — same split as the "Inversor"/"Bateria"
+  // SummaryRows below.
+  const resumoTabCritical = featuresTabHasIssue || configTabHasIssue || !residentialOptions.batteryModel;
+  const resumoTabWarning = !residentialOptions.inverterModel;
+
+  // Solução tab shows an alert when the recommended solution falls short of
+  // what's required on any operational margin row (same rows/gating as
+  // ResultSummary's buildMarginSummary call below).
+  const solutionMarginRows =
+    activeSolution && !activeSolution.microgridAlternative
+      ? buildMarginSummary({
+          desiredFeatures: residentialOptions.desiredFeatures,
+          whiteTariff: residentialOptions.whiteTariff,
+          microgrid: residentialOptions.microgrid,
+          nominalW: backupNominalW,
+          peakW: backupPeakW,
+          dailyKwh: backupDailyKwh,
+          solution: activeSolution,
+        })
+      : [];
+  const solutionTabHasIssue = solutionMarginRows.some((row) => row.providedValue < row.requiredValue);
+
   return (
     <>
       <PageHeader>
@@ -314,6 +342,13 @@ export function SizingTab({
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
+              {resumoTabCritical ? (
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+              ) : (
+                resumoTabWarning && (
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-yellow-500 dark:text-yellow-400" aria-hidden="true" />
+                )
+              )}
               Resumo
             </button>
             <button
@@ -328,13 +363,17 @@ export function SizingTab({
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  solution || secondarySolution ? 'bg-primary' : 'bg-transparent'
-                )}
-              />
+              {solutionTabHasIssue ? (
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'h-1.5 w-1.5 shrink-0 rounded-full',
+                    solution || secondarySolution ? 'bg-primary' : 'bg-transparent'
+                  )}
+                />
+              )}
               Solução
             </button>
           </div>
@@ -366,7 +405,7 @@ export function SizingTab({
             </div>
           )}
           {summaryTab === 'resumo' ? (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Resumo do sistema">
               <Metric icon={Gauge} label="Nominal" value={(summaryNominalW / 1000).toFixed(2)} unit="kVA" />
               <Metric icon={Zap} label="Máxima" value={(summaryPeakW / 1000).toFixed(2)} unit="kVA" />
               <Metric icon={BatteryCharging} label="Energia" value={summaryDailyKwh.toFixed(2)} unit="kWh/dia" />
@@ -491,6 +530,9 @@ export function SizingTab({
                   selectedInverterModel={residentialOptions.inverterModel}
                   gridType={residentialOptions.gridType}
                   peakW={peakW}
+                  nominalW={nominalW}
+                  dailyKwh={dailyKwh}
+                  peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
                 />
               )}
 
@@ -530,13 +572,11 @@ export function SizingTab({
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                       )}
                     >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'h-1.5 w-1.5 shrink-0 rounded-full',
-                          residentialOptions.batteryModel ? 'bg-primary' : 'bg-transparent'
-                        )}
-                      />
+                      {residentialOptions.batteryModel ? (
+                        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                      )}
                       Modelo bateria
                     </button>
                   </div>
@@ -954,12 +994,16 @@ function SummaryRow({
   label,
   value,
   done,
+  alertLevel,
   onClick,
 }: {
   icon: typeof Boxes;
   label: string;
   value: string;
   done: boolean;
+  /** 'critical' blocks calculation (styled destructive/red); 'warning' is just
+   * worth a second look, e.g. an auto-selected inverter (styled amber). */
+  alertLevel?: 'critical' | 'warning';
   onClick: () => void;
 }) {
   return (
@@ -968,7 +1012,17 @@ function SummaryRow({
       onClick={onClick}
       className="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <Icon className={cn('h-4 w-4 shrink-0', done ? 'text-primary' : 'text-muted-foreground/50')} aria-hidden="true" />
+      {alertLevel ? (
+        <AlertTriangle
+          className={cn(
+            'h-4 w-4 shrink-0',
+            alertLevel === 'critical' ? 'text-destructive' : 'text-yellow-500 dark:text-yellow-400'
+          )}
+          aria-hidden="true"
+        />
+      ) : (
+        <Icon className={cn('h-4 w-4 shrink-0', done ? 'text-primary' : 'text-muted-foreground/50')} aria-hidden="true" />
+      )}
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{label}</span>
       <Badge variant={done ? 'secondary' : 'outline'} className="min-w-0 max-w-[55%] shrink">
         <span className="truncate">{value}</span>
@@ -1053,6 +1107,7 @@ function ConfigurationSummary({
           label="Inversor"
           value={inverterModel ?? 'Automático'}
           done={Boolean(inverterModel)}
+          alertLevel={!inverterModel ? 'warning' : undefined}
           onClick={onJumpToGridType}
         />
       </SummaryGroup>
@@ -1069,6 +1124,7 @@ function ConfigurationSummary({
           label="Bateria"
           value={batteryModel ?? 'Não selecionado'}
           done={Boolean(batteryModel)}
+          alertLevel={!batteryModel ? 'critical' : undefined}
           onClick={onJumpToBattery}
         />
       </SummaryGroup>
@@ -1232,6 +1288,12 @@ function desiredFeatureHasPendingIssue(
   }
 }
 
+const peakCalcModeLabels: Record<PeakCalcMode, string> = {
+  sum: 'Soma de todas',
+  'largest-surge': 'Só a maior carga',
+  select: 'Selecionar cargas',
+};
+
 function DesiredFeaturesPicker({
   activeTab,
   onActiveTabChange,
@@ -1254,6 +1316,9 @@ function DesiredFeaturesPicker({
   selectedInverterModel,
   gridType,
   peakW,
+  nominalW,
+  dailyKwh,
+  peakCalcMode,
 }: {
   activeTab: DesiredFeatureId;
   onActiveTabChange: (id: DesiredFeatureId) => void;
@@ -1276,6 +1341,9 @@ function DesiredFeaturesPicker({
   selectedInverterModel: string | null;
   gridType: ResidentialGridType | null;
   peakW: number;
+  nominalW: number;
+  dailyKwh: number;
+  peakCalcMode: PeakCalcMode;
 }) {
   const tabs = DESIRED_FEATURE_DEFINITIONS;
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
@@ -1334,10 +1402,19 @@ function DesiredFeaturesPicker({
 
       <div className="space-y-3 rounded-lg border bg-background p-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">{activeFeature.label}</p>
-            {activeFeature.description && (
-              <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
+            {isBackupTab ? (
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Resumo das cargas cadastradas">
+                <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
+                <Metric icon={Zap} label="Máxima" value={(peakW / 1000).toFixed(2)} unit="kVA" />
+                <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
+                <Metric icon={Layers} label="Modo de cálculo" value={peakCalcModeLabels[peakCalcMode]} />
+              </div>
+            ) : (
+              activeFeature.description && (
+                <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
+              )
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">

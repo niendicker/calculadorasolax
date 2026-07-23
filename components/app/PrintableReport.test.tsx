@@ -176,7 +176,7 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('Smart Meter')).toBeInTheDocument();
     expect(screen.getByText('X1-Matebox')).toBeInTheDocument();
     expect(screen.getByText('×2')).toBeInTheDocument();
-    expect(screen.getByText('Obrigatório')).toBeInTheDocument();
+    expect(screen.getByText('Acessório obrigatório')).toBeInTheDocument();
     expect(screen.getByText('Opcional — Instalar próximo ao quadro.')).toBeInTheDocument();
   });
 

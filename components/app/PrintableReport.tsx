@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   Battery,
   BatteryCharging,
   Boxes,
@@ -43,7 +44,14 @@ import {
   normalizeAccessoryLine,
 } from './helpers';
 import { ReportInfoRow, ReportMetric } from './shared-ui';
-import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfile, type ProductMedia } from './types';
+import {
+  gridLabels,
+  topologyLabels,
+  type AccessoryCatalogOption,
+  type BatteryCatalogOption,
+  type InlineProfile,
+  type ProductMedia,
+} from './types';
 
 const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   backup: BatteryCharging,
@@ -122,6 +130,8 @@ function ProductLine({
   model,
   qty,
   note,
+  alert,
+  description,
 }: {
   icon: LucideIcon;
   category: string;
@@ -129,6 +139,8 @@ function ProductLine({
   model: string;
   qty: string;
   note?: string;
+  alert?: string;
+  description?: string | null;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border/50 py-3 last:border-0">
@@ -140,7 +152,14 @@ function ProductLine({
           <p className="text-xs text-muted-foreground">{category}</p>
           <p className="text-sm font-semibold text-foreground">{nickname || model}</p>
           {nickname && <p className="text-xs text-muted-foreground">{model}</p>}
+          {alert && (
+            <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-destructive">
+              <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {alert}
+            </p>
+          )}
           {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
+          {description && <p className="mt-0.5 text-xs text-muted-foreground/80 italic">{description}</p>}
         </div>
       </div>
       <p className="shrink-0 text-sm font-semibold text-foreground">{qty}</p>
@@ -152,12 +171,14 @@ function ProductsList({
   title,
   solution,
   batteryCatalog,
+  accessoryCatalog,
   userStockItems,
   productMedia,
 }: {
   title: string;
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
+  accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
   productMedia: Record<string, ProductMedia>;
 }) {
@@ -204,6 +225,7 @@ function ProductsList({
         )}
         {solution.accessories.map((accessory) => {
           const { model, qty, optional, comment } = normalizeAccessoryLine(accessory);
+          const description = accessoryCatalog.find((item) => item.model === model)?.description;
           return (
             <ProductLine
               key={model}
@@ -212,7 +234,9 @@ function ProductsList({
               nickname={productMedia[model]?.nickname}
               model={model}
               qty={`×${qty}`}
-              note={`${optional ? 'Opcional' : 'Obrigatório'}${comment ? ` — ${comment}` : ''}`}
+              note={optional ? `Opcional${comment ? ` — ${comment}` : ''}` : (comment ?? undefined)}
+              alert={!optional ? 'Acessório obrigatório' : undefined}
+              description={description}
             />
           );
         })}
@@ -224,13 +248,18 @@ function ProductsList({
             ` (parcial: ${systemCost.pricedItemsCount} de ${systemCost.totalItemsCount} itens com valor cadastrado)`}
         </p>
       )}
-      {solution.comments && solution.comments.length > 0 && (
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          {solution.comments.map((comment, index) => (
-            <li key={`${index}-${comment}`}>{comment}</li>
-          ))}
-        </ul>
-      )}
+      {(() => {
+        const visibleComments = (solution.comments ?? []).filter((comment) => !comment.startsWith('Gerada por regra ESS'));
+        return (
+          visibleComments.length > 0 && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {visibleComments.map((comment, index) => (
+                <li key={`${index}-${comment}`}>{comment}</li>
+              ))}
+            </ul>
+          )
+        );
+      })()}
     </section>
   );
 }
@@ -256,6 +285,7 @@ export function PrintableReport({
   atsPhotoUrl,
   atsBackupAcknowledged,
   batteryCatalog,
+  accessoryCatalog,
   productMedia,
 }: {
   projectInfo: ProjectInfo;
@@ -278,6 +308,7 @@ export function PrintableReport({
   atsPhotoUrl?: string | null;
   atsBackupAcknowledged?: boolean;
   batteryCatalog: BatteryCatalogOption[];
+  accessoryCatalog?: AccessoryCatalogOption[];
   productMedia?: Record<string, ProductMedia>;
 }) {
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
@@ -346,24 +377,6 @@ export function PrintableReport({
         </div>
       </section>
 
-      <ProductsList
-        title={secondarySolution ? `Produtos recomendados — Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
-        solution={solution}
-        batteryCatalog={batteryCatalog}
-        userStockItems={userStockItems}
-        productMedia={productMedia ?? {}}
-      />
-
-      {secondarySolution && (
-        <ProductsList
-          title={`Produtos recomendados — Bateria ${secondaryBatteryModel ?? secondarySolution.batteryModel} (comparação)`}
-          solution={secondarySolution}
-          batteryCatalog={batteryCatalog}
-          userStockItems={userStockItems}
-          productMedia={productMedia ?? {}}
-        />
-      )}
-
       {desiredFeatures && desiredFeatures.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
@@ -397,40 +410,62 @@ export function PrintableReport({
         </section>
       )}
 
-      <section className="mb-8">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
-          <Gauge className="h-4 w-4 text-primary" aria-hidden="true" />
-          Cargas informadas
-        </h2>
-        <div className="overflow-hidden rounded-xl border border-border/70">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
-                <th className="px-4 py-2 font-medium">Carga</th>
-                <th className="px-4 py-2 text-right font-medium">Potência</th>
-                <th className="px-4 py-2 text-right font-medium">Qtd.</th>
-                <th className="px-4 py-2 text-right font-medium">Uso diário</th>
-                <th className="px-4 py-2 text-right font-medium">Pico</th>
-                <th className="px-4 py-2 text-right font-medium">Consumo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loads.map((load) => (
-                <tr key={load.id} className="border-b border-border/40 last:border-0">
-                  <td className="px-4 py-2 font-medium text-foreground">{load.name}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.powerW} VA</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.qty}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.hoursPerDay} h/dia</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.powerW * load.qty} VA</td>
-                  <td className="px-4 py-2 text-right tabular-nums font-medium text-foreground">
-                    {loadEnergyKwh(load).toFixed(2)} kWh/dia
-                  </td>
+      <ProductsList
+        title={secondarySolution ? `Produtos recomendados — Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
+        solution={solution}
+        batteryCatalog={batteryCatalog}
+        accessoryCatalog={accessoryCatalog ?? []}
+        userStockItems={userStockItems}
+        productMedia={productMedia ?? {}}
+      />
+
+      {secondarySolution && (
+        <ProductsList
+          title={`Produtos recomendados — Bateria ${secondaryBatteryModel ?? secondarySolution.batteryModel} (comparação)`}
+          solution={secondarySolution}
+          batteryCatalog={batteryCatalog}
+          accessoryCatalog={accessoryCatalog ?? []}
+          userStockItems={userStockItems}
+          productMedia={productMedia ?? {}}
+        />
+      )}
+
+      {(!desiredFeatures || desiredFeatures.includes('backup')) && (
+        <section className="mb-8">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
+            <Gauge className="h-4 w-4 text-primary" aria-hidden="true" />
+            Cargas informadas
+          </h2>
+          <div className="overflow-hidden rounded-xl border border-border/70">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
+                  <th className="px-4 py-2 font-medium">Carga</th>
+                  <th className="px-4 py-2 text-right font-medium">Potência</th>
+                  <th className="px-4 py-2 text-right font-medium">Qtd.</th>
+                  <th className="px-4 py-2 text-right font-medium">Uso diário</th>
+                  <th className="px-4 py-2 text-right font-medium">Pico</th>
+                  <th className="px-4 py-2 text-right font-medium">Consumo</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {loads.map((load) => (
+                  <tr key={load.id} className="border-b border-border/40 last:border-0">
+                    <td className="px-4 py-2 font-medium text-foreground">{load.name}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.powerW} VA</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.qty}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.hoursPerDay} h/dia</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.powerW * load.qty} VA</td>
+                    <td className="px-4 py-2 text-right tabular-nums font-medium text-foreground">
+                      {loadEnergyKwh(load).toFixed(2)} kWh/dia
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {tariffSavings && (
         <section className="mb-8">
