@@ -32,7 +32,7 @@ export const LOAD_CATALOG_COLUMNS = 'id, name_pt, name_en, name_zh, power_w, cat
 export const PRESET_COLUMNS = 'id, name, description, loads, display_order';
 
 export const ACCESSORY_RULE_COLUMNS =
-  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, scale_with_metric, comment, desired_features, active, accessories (model)';
+  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, scale_with_metric, metric_divisor, comment, desired_features, active, accessories (model)';
 
 export const ESS_RULE_COLUMNS =
   'id, name, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, battery_configs, comment, active, created_at';
@@ -274,7 +274,7 @@ export function applyAccessoryRules(
   for (const rule of rules) {
     if (!rule.accessories?.model || !accessoryRuleMatches(solution, rule, generatedGridType)) continue;
     const matchQty = rule.scale_with_metric
-      ? rule.quantity_per_match * solutionRuleMetricValue(solution, rule.trigger_metric)
+      ? rule.quantity_per_match * Math.ceil(solutionRuleMetricValue(solution, rule.trigger_metric) / Math.max(1, rule.metric_divisor))
       : rule.quantity_per_match;
     const currentQty = accessories.get(rule.accessories.model) ?? 0;
     accessories.set(rule.accessories.model, currentQty + matchQty);

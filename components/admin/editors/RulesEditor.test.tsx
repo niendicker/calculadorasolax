@@ -64,6 +64,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     battery_topology: null,
     quantity_per_match: 1,
     scale_with_metric: false,
+    metric_divisor: 1,
     comment: null,
     desired_features: [],
     active: true,
@@ -216,6 +217,21 @@ describe('RulesEditor: accessory rules', () => {
     expect(scaleCheckbox).toBeChecked();
   });
 
+  it('only shows "Agrupar a cada" once scaling is on, and lets the group size be edited', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova regra/ });
+
+    fireEvent.change(within(dialog).getByLabelText('Limiar baseado em'), { target: { value: 'battery_quantity' } });
+    expect(within(dialog).queryByLabelText(/^Agrupar a cada/)).not.toBeInTheDocument();
+
+    const scaleCheckbox = within(dialog).getByRole('checkbox', { name: /Escalar quantidade com o limiar/ });
+    expect(scaleCheckbox).not.toBeDisabled();
+    fireEvent.click(scaleCheckbox);
+    fireEvent.change(within(dialog).getByLabelText(/^Agrupar a cada/), { target: { value: '4' } });
+    expect(within(dialog).getByLabelText(/^Agrupar a cada/)).toHaveValue(4);
+  });
+
   it('shows the scaling formula in the rule card details when scale_with_metric is on', () => {
     render(
       <ControlledEditor
@@ -233,7 +249,7 @@ describe('RulesEditor: accessory rules', () => {
       />
     );
     const card = screen.getByText('Regra A').closest('[data-slot="card"]') as HTMLElement;
-    expect(within(card).getByText('1 × Portas de bateria')).toBeInTheDocument();
+    expect(within(card).getByText('1 a cada 1 de Portas de bateria')).toBeInTheDocument();
   });
 
   it('groups rules into sections by accessory, with a count badge per section', () => {

@@ -180,7 +180,9 @@ export function RulesEditor(props: {
           ],
           [
             'Quantidade',
-            row.scale_with_metric ? `${row.quantity_per_match} × ${formatTriggerMetric(row.trigger_metric)}` : String(row.quantity_per_match),
+            row.scale_with_metric
+              ? `${row.quantity_per_match} a cada ${row.metric_divisor} de ${formatTriggerMetric(row.trigger_metric)}`
+              : String(row.quantity_per_match),
             true,
           ],
           ['Inversores', accessoryRuleInverterModels(row).length > 0 ? accessoryRuleInverterModels(row) : ['Qualquer'], true],
@@ -336,9 +338,19 @@ export function RulesEditor(props: {
                 />
                 <InfoLabel
                   label="Escalar quantidade com o limiar"
-                  tip="Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido (ex.: 1 por porta de bateria em uso, em vez de 1 fixo por solução). Sem efeito quando o limiar é 'Por solução'."
+                  tip="Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido dividida pelo agrupamento abaixo (arredondando pra cima) — ex.: 1 a cada 4 baterias, em vez de 1 fixo por solução. Sem efeito quando o limiar é 'Por solução'."
                 />
               </label>
+              {(ruleForm.scale_with_metric ?? false) && ruleForm.trigger_metric !== 'per_solution' && (
+                <NumberWithUnitField
+                  label="Agrupar a cada"
+                  tip="Tamanho do grupo do limiar que soma 1 vez a Quantidade do acessório, arredondando pra cima (ex.: 4 baterias com agrupamento 4 → 1x; 5 baterias → 2x)."
+                  icon={<Boxes className="h-4 w-4" />}
+                  unit={formatTriggerMetric(ruleForm.trigger_metric ?? 'battery_quantity')}
+                  value={ruleForm.metric_divisor ?? 1}
+                  onChange={(event) => setRuleForm({ ...ruleForm, metric_divisor: Math.max(1, toNumber(event.target.value, 1)) })}
+                />
+              )}
 
               <Separator />
               <p className="text-sm text-muted-foreground">Filtros vazios valem para qualquer combinação.</p>

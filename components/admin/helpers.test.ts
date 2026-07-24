@@ -279,6 +279,7 @@ function makeAccessoryRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRu
     battery_topology: null,
     quantity_per_match: 1,
     scale_with_metric: false,
+    metric_divisor: 1,
     comment: null,
     desired_features: [],
     active: true,
@@ -380,6 +381,49 @@ describe('applyAccessoryRules', () => {
     ];
     const result = applyAccessoryRules(solution, rules);
     expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 1 }]);
+  });
+
+  it('divides the metric by metric_divisor, rounding up, before multiplying by quantity_per_match', () => {
+    const rule = makeAccessoryRule({
+      id: 'r1',
+      quantity_per_match: 1,
+      scale_with_metric: true,
+      trigger_metric: 'battery_quantity',
+      metric_divisor: 4,
+      min_quantity: 1,
+      accessories: { model: 'Management Module' },
+    });
+
+    // Exactly one group of 4 -> 1 unit.
+    expect(applyAccessoryRules(makeGeneratedSolution({ battery_quantity: 4 }), [rule]).accessories).toEqual([
+      { model: 'Management Module', quantity: 1 },
+    ]);
+    // One battery over a full group of 4 still needs a second unit (rounds up).
+    expect(applyAccessoryRules(makeGeneratedSolution({ battery_quantity: 5 }), [rule]).accessories).toEqual([
+      { model: 'Management Module', quantity: 2 },
+    ]);
+    // Two full groups -> 2 units, no rounding needed.
+    expect(applyAccessoryRules(makeGeneratedSolution({ battery_quantity: 8 }), [rule]).accessories).toEqual([
+      { model: 'Management Module', quantity: 2 },
+    ]);
+  });
+
+  it('multiplies quantity_per_match by the number of complete groups when scaling with a divisor', () => {
+    const solution = makeGeneratedSolution({ battery_quantity: 9 });
+    const rules = [
+      makeAccessoryRule({
+        id: 'r1',
+        quantity_per_match: 2,
+        scale_with_metric: true,
+        trigger_metric: 'battery_quantity',
+        metric_divisor: 4,
+        min_quantity: 1,
+        accessories: { model: 'Bracket Pair' },
+      }),
+    ];
+    // ceil(9/4) = 3 groups x 2 per group = 6.
+    const result = applyAccessoryRules(solution, rules);
+    expect(result.accessories).toEqual([{ model: 'Bracket Pair', quantity: 6 }]);
   });
 });
 

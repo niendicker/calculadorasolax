@@ -331,6 +331,7 @@ Deno.serve(async (req) => {
         battery_topology,
         quantity_per_match,
         scale_with_metric,
+        metric_divisor,
         comment,
         desired_features,
         accessories (model)

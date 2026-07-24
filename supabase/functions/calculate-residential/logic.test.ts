@@ -68,6 +68,7 @@ function makeRule(partial: Partial<AccessoryRule> = {}): AccessoryRule {
     battery_topology: null,
     quantity_per_match: 1,
     scale_with_metric: false,
+    metric_divisor: 1,
     comment: null,
     desired_features: [],
     accessories: { model: 'Smart Meter' },
@@ -374,6 +375,32 @@ describe('buildSolutionPayload', () => {
       desiredFeatures: [],
     });
     expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 1 }));
+  });
+
+  it('divides the metric by metric_divisor, rounding up, before multiplying by quantity_per_match', () => {
+    const rule = makeRule({
+      quantity_per_match: 1,
+      scale_with_metric: true,
+      trigger_metric: 'battery_quantity',
+      metric_divisor: 4,
+      min_quantity: 1,
+      accessories: { model: 'Management Module' },
+    });
+    const build = (batteryQuantity: number) =>
+      buildSolutionPayload(makeSolution({ battery_quantity: batteryQuantity }), {
+        usefulEnergyWhPerBattery: null,
+        pvPowerKw: null,
+        accessoryRules: [rule],
+        standardGridTopology: '1P_220V',
+        desiredFeatures: [],
+      });
+
+    // Exactly one group of 4 -> 1 unit.
+    expect(build(4).accessories).toContainEqual(expect.objectContaining({ model: 'Management Module', qty: 1 }));
+    // One battery over a full group of 4 still needs a second unit (rounds up).
+    expect(build(5).accessories).toContainEqual(expect.objectContaining({ model: 'Management Module', qty: 2 }));
+    // Two full groups -> 2 units, no rounding needed.
+    expect(build(8).accessories).toContainEqual(expect.objectContaining({ model: 'Management Module', qty: 2 }));
   });
 
   it('infers appliesTo from the matching rule\'s inverter/battery model scope', () => {

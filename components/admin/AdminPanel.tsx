@@ -624,6 +624,7 @@ export function AdminPanel() {
       battery_topology: ruleForm.battery_topology || null,
       quantity_per_match: toNumber(ruleForm.quantity_per_match, 1),
       scale_with_metric: ruleForm.scale_with_metric ?? false,
+      metric_divisor: Math.max(1, toNumber(ruleForm.metric_divisor, 1)),
       comment: ruleForm.comment?.trim() || null,
       desired_features: accessoryRuleDesiredFeatures(ruleForm),
       active: ruleForm.active ?? true,

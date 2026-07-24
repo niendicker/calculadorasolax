@@ -180,11 +180,16 @@ export interface AccessoryRuleRow {
   grid_topology: GridTopology | null;
   battery_topology: BatteryTopology | null;
   quantity_per_match: number;
-  /** When true, the applied quantity is quantity_per_match multiplied by the
-   * trigger_metric's live value (e.g. "1 per battery port in use") instead
-   * of a flat quantity_per_match regardless of how far past min_quantity the
-   * metric is. No effect when trigger_metric is 'per_solution' (always 1). */
+  /** When true, the applied quantity is quantity_per_match multiplied by
+   * ceil(trigger_metric's live value / metric_divisor) instead of a flat
+   * quantity_per_match regardless of how far past min_quantity the metric
+   * is. No effect when trigger_metric is 'per_solution' (always 1). */
   scale_with_metric: boolean;
+  /** Group size the metric is divided by (rounded up) before multiplying by
+   * quantity_per_match — e.g. 4 means "1 unit per 4 batteries in a port".
+   * 1 (the default) means "1 unit per 1 unit of the metric". Only relevant
+   * when scale_with_metric is true. */
+  metric_divisor: number;
   comment: string | null;
   /** Empty/null = no feature condition. Non-empty = the customer must have
    * enabled at least one of these (OR). Values are DesiredFeatureId strings
@@ -389,6 +394,7 @@ export const emptyRule: Partial<AccessoryRuleRow> = {
   battery_topology: null,
   quantity_per_match: 1,
   scale_with_metric: false,
+  metric_divisor: 1,
   comment: '',
   desired_features: [],
   active: true,
