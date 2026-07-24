@@ -324,6 +324,28 @@ describe('RulesEditor: accessory rules', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
     expect(onRemoveRule).toHaveBeenCalledWith('r1');
   });
+
+  it('groups accessory rules by "Limiar baseado em", then by accessory model', () => {
+    render(
+      <ControlledEditor
+        rules={[
+          makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra Qtd. baterias', accessories: { model: 'Smart Meter' }, trigger_metric: 'battery_quantity' }),
+          makeRule({ id: 'r2', accessory_id: 'a1', name: 'Regra Por solução', accessories: { model: 'Smart Meter' }, trigger_metric: 'per_solution' }),
+          makeRule({ id: 'r3', accessory_id: 'a2', name: 'Regra Qtd. inversores', accessories: { model: 'Matebox' }, trigger_metric: 'inverter_quantity' }),
+        ]}
+      />
+    );
+
+    // All three rules show up when no threshold tab is selected.
+    expect(screen.getByText('Regra Qtd. baterias')).toBeInTheDocument();
+    expect(screen.getByText('Regra Por solução')).toBeInTheDocument();
+    expect(screen.getByText('Regra Qtd. inversores')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: (_, el) => el.textContent === 'Qtd. baterias1' }));
+    expect(screen.getByText('Regra Qtd. baterias')).toBeInTheDocument();
+    expect(screen.queryByText('Regra Por solução')).not.toBeInTheDocument();
+    expect(screen.queryByText('Regra Qtd. inversores')).not.toBeInTheDocument();
+  });
 });
 
 describe('RulesEditor: ESS compatibility', () => {
@@ -366,5 +388,41 @@ describe('RulesEditor: ESS compatibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remover Compat X1' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
     expect(onRemoveEss).toHaveBeenCalledWith('e1');
+  });
+
+  it('groups ESS rows by the inverter cadastro\'s network type, then by inverter model', () => {
+    render(
+      <ControlledEditor
+        inverters={[
+          makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', grid_types: ['1P_220V'] }),
+          makeInverter({ id: 'i2', model: 'X3-Hybrid-10.0kW-G4', grid_types: ['3P_380V'] }),
+        ]}
+        essRows={[
+          makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat X1 Mono', grid_topology: '1p_220V' }),
+          makeEssRule({ id: 'e2', inverter_model: 'X3-Hybrid-10.0kW-G4', name: 'Compat X3 Tri', grid_topology: '3p_380V' }),
+          // No grid_topology pinned — should still land under the network its inverter is
+          // actually registered for, taken from the inverter's own cadastro, not left in limbo.
+          makeEssRule({ id: 'e3', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat X1 sem rede fixa', grid_topology: null }),
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Compatibilidade ESS/ }));
+
+    // All three rules show up when no network-type tab is selected.
+    expect(screen.getByText('Compat X1 Mono')).toBeInTheDocument();
+    expect(screen.getByText('Compat X3 Tri')).toBeInTheDocument();
+    expect(screen.getByText('Compat X1 sem rede fixa')).toBeInTheDocument();
+
+    // Switching to the "Monofásica 220V" tab keeps only rules whose inverter is
+    // registered for that network — including the one with no grid_topology pinned.
+    fireEvent.click(screen.getByRole('button', { name: /Monofásica 220V/ }));
+    expect(screen.getByText('Compat X1 Mono')).toBeInTheDocument();
+    expect(screen.getByText('Compat X1 sem rede fixa')).toBeInTheDocument();
+    expect(screen.queryByText('Compat X3 Tri')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Trifásica 380V/ }));
+    expect(screen.getByText('Compat X3 Tri')).toBeInTheDocument();
+    expect(screen.queryByText('Compat X1 Mono')).not.toBeInTheDocument();
+    expect(screen.queryByText('Compat X1 sem rede fixa')).not.toBeInTheDocument();
   });
 });

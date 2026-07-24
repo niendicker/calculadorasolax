@@ -17,6 +17,7 @@ import {
   formatTriggerMetric,
   inverterSupportedBatteryTopologies,
   normalizeEssBatteryConfigs,
+  normalizeInverterGridType,
   normalizeInverterGridTypes,
   selectClasses,
   textareaClasses,
@@ -30,8 +31,10 @@ import {
   type AccessoryRuleRow,
   type BatteryRow,
   type BatteryTopology,
+  inverterGridTypeOptions,
   type EssBatteryConfig,
   type EssCompatibilityRuleRow,
+  type InverterGridType,
   type InverterRow,
   type TriggerMetric,
 } from '../types';
@@ -45,6 +48,14 @@ export type RulesJumpTarget =
   | null;
 
 type RuleScope = 'accessory' | 'ess';
+
+const TRIGGER_METRIC_VALUES: TriggerMetric[] = [
+  'per_solution',
+  'inverter_quantity',
+  'battery_quantity',
+  'battery_ports_used',
+  'battery_quantity_per_port',
+];
 
 function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -116,6 +127,8 @@ export function RulesEditor(props: {
     props.jumpTarget?.scope === 'accessory' ? props.jumpTarget.accessoryModel : ''
   );
   const [essQuery, setEssQuery] = useState(props.jumpTarget?.scope === 'ess' ? props.jumpTarget.inverterModel : '');
+  const [essNetworkTab, setEssNetworkTab] = useState<string>('all');
+  const [accessoryMetricTab, setAccessoryMetricTab] = useState<string>('all');
   const [ruleFormOpen, setRuleFormOpen] = useState(false);
   const [essFormOpen, setEssFormOpen] = useState(false);
 
@@ -125,11 +138,53 @@ export function RulesEditor(props: {
     return (row.accessories?.model ?? '').toLowerCase().includes(q) || row.name.toLowerCase().includes(q);
   });
 
+  const accessoryMetricCounts = new Map<TriggerMetric, number>();
+  for (const row of visibleRules) {
+    accessoryMetricCounts.set(row.trigger_metric, (accessoryMetricCounts.get(row.trigger_metric) ?? 0) + 1);
+  }
+  const accessoryMetricOptions = TRIGGER_METRIC_VALUES
+    .filter((metric) => accessoryMetricCounts.has(metric))
+    .map((metric) => ({ value: metric as string, label: formatTriggerMetric(metric), count: accessoryMetricCounts.get(metric) ?? 0 }));
+  const effectiveAccessoryMetricTab =
+    accessoryMetricTab !== 'all' && !accessoryMetricCounts.has(accessoryMetricTab as TriggerMetric) ? 'all' : accessoryMetricTab;
+  const metricFilteredRules =
+    effectiveAccessoryMetricTab === 'all'
+      ? visibleRules
+      : visibleRules.filter((row) => row.trigger_metric === effectiveAccessoryMetricTab);
+
   const visibleEssRows = props.essRows.filter((row) => {
     const q = essQuery.trim().toLowerCase();
     if (!q) return true;
     return row.inverter_model.toLowerCase().includes(q) || (row.name ?? '').toLowerCase().includes(q);
   });
+
+  const essInverterByModel = new Map(props.inverters.map((inverter) => [inverter.model, inverter]));
+
+  // Which registered network type(s) of the inverter a rule applies to — driven by the
+  // inverter's own cadastro (grid_types), not just the rule's grid_topology, and mirroring
+  // the same intersection buildRuleGeneratedSolutions uses so grouping matches what's
+  // actually generated. A rule pinned to one network only counts if the inverter is still
+  // registered for it; an unpinned rule counts for every network the inverter supports.
+  function essRowNetworkKeys(row: EssCompatibilityRuleRow): InverterGridType[] {
+    const inverterGridTypes = normalizeInverterGridTypes(essInverterByModel.get(row.inverter_model)?.grid_types);
+    const ruleGridType = row.grid_topology ? normalizeInverterGridType(row.grid_topology) : null;
+    return (ruleGridType ? [ruleGridType] : inverterGridTypes).filter((gt) => inverterGridTypes.includes(gt));
+  }
+
+  const essNetworkCounts = new Map<string, number>();
+  for (const row of visibleEssRows) {
+    for (const key of essRowNetworkKeys(row)) {
+      essNetworkCounts.set(key, (essNetworkCounts.get(key) ?? 0) + 1);
+    }
+  }
+  const essNetworkOptions = inverterGridTypeOptions
+    .filter((option) => essNetworkCounts.has(option.value))
+    .map((option) => ({ value: option.value as string, label: option.label, count: essNetworkCounts.get(option.value) ?? 0 }));
+  const effectiveEssNetworkTab = essNetworkTab !== 'all' && !essNetworkCounts.has(essNetworkTab) ? 'all' : essNetworkTab;
+  const networkFilteredEssRows =
+    effectiveEssNetworkTab === 'all'
+      ? visibleEssRows
+      : visibleEssRows.filter((row) => essRowNetworkKeys(row).includes(effectiveEssNetworkTab as InverterGridType));
 
   function openNewRule() {
     setRuleForm({
@@ -164,7 +219,7 @@ export function RulesEditor(props: {
   const currentGridTypes = normalizeInverterGridTypes(selectedInverter?.grid_types);
   const currentBatteryTopologies = inverterSupportedBatteryTopologies(selectedInverter);
 
-  const groupedRules = Array.from(groupBy(visibleRules, (row) => row.accessories?.model ?? '(sem acessório)'))
+  const groupedRules = Array.from(groupBy(metricFilteredRules, (row) => row.accessories?.model ?? '(sem acessório)'))
     .map(([label, rows]) => ({
       key: label,
       label,
@@ -197,7 +252,7 @@ export function RulesEditor(props: {
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const groupedEssRows = Array.from(groupBy(visibleEssRows, (row) => row.inverter_model))
+  const groupedEssRows = Array.from(groupBy(networkFilteredEssRows, (row) => row.inverter_model))
     .map(([label, rows]) => ({
       key: label,
       label,
@@ -242,7 +297,7 @@ export function RulesEditor(props: {
       {scope === 'accessory' ? (
         <CatalogLayout
           title="Regras de acessórios"
-          count={visibleRules.length}
+          count={metricFilteredRules.length}
           formOpen={ruleFormOpen}
           formTitle={ruleModalTitle}
           newLabel="Nova regra"
@@ -259,6 +314,16 @@ export function RulesEditor(props: {
                 onChange={(event) => setAccessoryQuery(event.target.value)}
               />
             </label>
+          }
+          filter={
+            accessoryMetricOptions.length > 0 && (
+              <SegmentedTabs
+                label="Limiar baseado em"
+                value={effectiveAccessoryMetricTab}
+                options={[{ value: 'all', label: 'Todos', count: visibleRules.length }, ...accessoryMetricOptions]}
+                onChange={setAccessoryMetricTab}
+              />
+            )
           }
           form={
             <>
@@ -419,7 +484,7 @@ export function RulesEditor(props: {
       ) : (
         <CatalogLayout
           title="Compatibilidade ESS"
-          count={visibleEssRows.length}
+          count={networkFilteredEssRows.length}
           formOpen={essFormOpen}
           formTitle={essModalTitle}
           newLabel="Nova compatibilidade"
@@ -436,6 +501,16 @@ export function RulesEditor(props: {
                 onChange={(event) => setEssQuery(event.target.value)}
               />
             </label>
+          }
+          filter={
+            essNetworkOptions.length > 0 && (
+              <SegmentedTabs
+                label="Tipo de rede"
+                value={effectiveEssNetworkTab}
+                options={[{ value: 'all', label: 'Todas', count: visibleEssRows.length }, ...essNetworkOptions]}
+                onChange={setEssNetworkTab}
+              />
+            )
           }
           form={
             <>
