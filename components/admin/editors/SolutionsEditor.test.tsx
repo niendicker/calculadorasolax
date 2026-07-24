@@ -103,6 +103,7 @@ function ControlledEditor(overrides: {
   onNew?: () => void;
   onSave?: (afterPersist?: () => void) => void;
   onApplyGenerated?: (generated: GeneratedSolutionPayload[], afterApply?: () => void, cleanupStale?: boolean) => void;
+  onRefreshAll?: () => void;
   onRemove?: (id: string) => void;
   onDelete?: (id: string) => void;
   onDeleteMany?: (ids: string[]) => void;
@@ -136,6 +137,7 @@ function ControlledEditor(overrides: {
       onNew={overrides.onNew ?? vi.fn()}
       onSave={overrides.onSave ?? vi.fn()}
       onApplyGenerated={overrides.onApplyGenerated ?? vi.fn()}
+      onRefreshAll={overrides.onRefreshAll ?? vi.fn()}
       onRemove={overrides.onRemove ?? vi.fn()}
       onDelete={overrides.onDelete ?? vi.fn()}
       onDeleteMany={overrides.onDeleteMany ?? vi.fn()}
@@ -494,6 +496,21 @@ describe('SolutionsEditor: inactivate/delete', () => {
       />
     );
     expect(screen.queryByRole('button', { name: 'Limpar todas as combinações filtradas' })).not.toBeInTheDocument();
+  });
+
+  it('"Atualizar tudo" asks for confirmation before calling onRefreshAll', async () => {
+    const onRefreshAll = vi.fn();
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
+        batteries={[makeBattery({ id: 'b1', model: 'TP-HS3.6' })]}
+        solutions={[makeSolution({ id: 's1', solution_code: 'code-1', inverter_model: 'X1-Hybrid-5.0kW-G4', battery_model: 'TP-HS3.6' })]}
+        onRefreshAll={onRefreshAll}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar todas as combinações' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Atualizar' }, { timeout: 1000 }));
+    expect(onRefreshAll).toHaveBeenCalled();
   });
 });
 

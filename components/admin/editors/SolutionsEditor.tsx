@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Battery, Boxes, Cable, EyeOff, Loader2, Pencil, Plus, Save, Search, X, Zap } from 'lucide-react';
+import { Battery, Boxes, Cable, EyeOff, Loader2, Pencil, Plus, RefreshCw, Save, Search, X, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,6 +56,7 @@ export function SolutionsEditor(props: {
   onNew: () => void;
   onSave: (afterPersist?: () => void) => void;
   onApplyGenerated: (generatedSolutions: GeneratedSolutionPayload[], afterApply?: () => void, cleanupStale?: boolean) => void;
+  onRefreshAll: () => void;
   onRemove: (id: string) => void;
   onDelete: (id: string) => void;
   onDeleteMany: (ids: string[]) => void;
@@ -312,6 +313,16 @@ export function SolutionsEditor(props: {
                 </Button>
               </>
             )}
+            <ConfirmDeleteButton
+              ariaLabel="Atualizar todas as combinações"
+              icon={<RefreshCw className="h-4 w-4" />}
+              title="Atualizar todas as combinações?"
+              description="Todas as combinações aprovadas serão excluídas e substituídas por novas combinações geradas a partir das regras ativas, considerando todos os inversores e baterias cadastrados. Essa ação não pode ser desfeita."
+              confirmLabel="Atualizar"
+              label="Atualizar tudo"
+              disabled={props.saving}
+              onConfirm={props.onRefreshAll}
+            />
           </div>
         </div>
 

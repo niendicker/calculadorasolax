@@ -26,6 +26,7 @@ import {
   SIMULATION_COLUMNS,
   accessoryRuleDesiredFeatures,
   accessoryRuleInverterModels,
+  buildRuleGeneratedSolutions,
   clampNumber,
   fetchApprovedSolutions,
   normalizeBatteryFlags,
@@ -958,6 +959,59 @@ export function AdminPanel() {
     });
   }
 
+  async function refreshAllSolutions() {
+    setSaving(true);
+    setStatus('Recalculando todas as combinações...');
+    setError(null);
+
+    const regenerated = buildRuleGeneratedSolutions({
+      inverters,
+      batteries,
+      accessoryRules: rules,
+      essRules,
+      filterInverterModels: null,
+      filterBatteryModels: null,
+    });
+
+    if (regenerated.length === 0) {
+      setSaving(false);
+      return setFailure(
+        'Nenhuma combinação gerada a partir das regras. Verifique se existem regras ESS ativas antes de atualizar.'
+      );
+    }
+
+    const previousIds = solutions.map((s) => s.id);
+    if (previousIds.length > 0) {
+      const { error: deleteError } = await supabase.from('approved_solutions').delete().in('id', previousIds);
+      if (deleteError) {
+        setSaving(false);
+        return setFailure(deleteError.message);
+      }
+    }
+
+    const { error: upsertError } = await supabase
+      .from('approved_solutions')
+      .upsert(regenerated, { onConflict: 'solution_code' });
+
+    if (upsertError) {
+      setSaving(false);
+      return setFailure(upsertError.message);
+    }
+
+    setSaving(false);
+    await recordActivityLog({
+      entityType: 'solution',
+      action: 'update',
+      targetId: null,
+      targetLabel: 'Todas as combinações',
+      summary: `Excluiu ${previousIds.length} combinação${previousIds.length !== 1 ? 'ões' : ''} aprovada${previousIds.length !== 1 ? 's' : ''} e gerou/aprovou ${regenerated.length} nova${regenerated.length !== 1 ? 's' : ''} a partir das regras.`,
+      beforeData: { removedCount: previousIds.length },
+      afterData: { generatedCount: regenerated.length },
+    });
+    setSuccess(`${regenerated.length} combinação${regenerated.length !== 1 ? 'ões' : ''} regenerada${regenerated.length !== 1 ? 's' : ''} e aprovada${regenerated.length !== 1 ? 's' : ''}.`);
+    await loadResource('solutions');
+  }
+
   async function sendPasswordReset(email: string) {
     if (!email) return;
     setSaving(true);
@@ -1093,6 +1147,7 @@ export function AdminPanel() {
                     onNew={resetSolution}
                     onSave={saveSolution}
                     onApplyGenerated={applyGeneratedSolutions}
+                    onRefreshAll={refreshAllSolutions}
                     onRemove={(id) => removeRow('approved_solutions', id, true)}
                     onDelete={(id) => removeRow('approved_solutions', id)}
                     onDeleteMany={removeManySolutions}
