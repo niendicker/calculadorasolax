@@ -236,9 +236,9 @@ describe('solutionRuleMetricValue', () => {
     expect(solutionRuleMetricValue(solution, 'per_solution')).toBe(1);
     expect(solutionRuleMetricValue(solution, 'inverter_quantity')).toBe(2);
     expect(solutionRuleMetricValue(solution, 'battery_quantity')).toBe(4);
-    // battery_ports_used is the total physical ports across every inverter
-    // (inverter_quantity x ports per inverter), not just one inverter's ports.
-    expect(solutionRuleMetricValue(solution, 'battery_ports_used')).toBe(2);
+    // battery_ports_used stays a single inverter's port count, not summed
+    // across every inverter — pre-existing rules were calibrated against that.
+    expect(solutionRuleMetricValue(solution, 'battery_ports_used')).toBe(1);
   });
 });
 
@@ -385,8 +385,9 @@ describe('applyAccessoryRules', () => {
     expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 1 }]);
   });
 
-  it('scales battery_ports_used by the total ports across every inverter, not just one inverter\'s ports', () => {
-    // 2 inverters x 2 ports each = 4 physical ports in the whole solution.
+  it('scales battery_ports_used by a single inverter\'s ports, not summed across every inverter', () => {
+    // 2 inverters x 2 ports each — battery_ports_used stays a per-inverter fact
+    // so pre-existing rules built around it keep meaning what they always meant.
     const solution = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 2 });
     const rules = [
       makeAccessoryRule({
@@ -399,12 +400,12 @@ describe('applyAccessoryRules', () => {
       }),
     ];
     const result = applyAccessoryRules(solution, rules);
-    expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 4 }]);
+    expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 2 }]);
   });
 
-  it('gates battery_ports_used on the total ports across every inverter', () => {
-    // 2 inverters x 1 port each = 2 total ports, enough to clear a min_quantity of 2
-    // even though each inverter alone only uses 1 port.
+  it('gates battery_ports_used on a single inverter\'s ports, not summed across every inverter', () => {
+    // 2 inverters x 1 port each — each inverter alone only uses 1 port, so a
+    // min_quantity of 2 must NOT be cleared just because there happen to be 2 inverters.
     const solution = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 1 });
     const rule = makeAccessoryRule({
       id: 'r1',
@@ -412,7 +413,7 @@ describe('applyAccessoryRules', () => {
       min_quantity: 2,
       accessories: { model: 'TBMS-MCS0800' },
     });
-    expect(accessoryRuleMatches(solution, rule)).toBe(true);
+    expect(accessoryRuleMatches(solution, rule)).toBe(false);
   });
 
   it('divides the metric by metric_divisor, rounding up, before multiplying by quantity_per_match', () => {
