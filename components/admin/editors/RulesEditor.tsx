@@ -32,7 +32,6 @@ import {
   type BatteryTopology,
   type EssBatteryConfig,
   type EssCompatibilityRuleRow,
-  type Inclusion,
   type InverterRow,
   type TriggerMetric,
 } from '../types';
@@ -172,7 +171,7 @@ export function RulesEditor(props: {
       items: rows.map((row) => ({
         id: row.id,
         title: row.name,
-        badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
+        badges: [row.active ? 'ativa' : 'inativa'],
         details: [
           [
             'Condição',
@@ -180,9 +179,11 @@ export function RulesEditor(props: {
           ],
           [
             'Quantidade',
-            row.scale_with_metric
-              ? `${row.quantity_per_match} a cada ${row.metric_divisor} de ${formatTriggerMetric(row.trigger_metric)}`
-              : String(row.quantity_per_match),
+            !row.scale_with_metric
+              ? String(row.quantity_per_match)
+              : row.trigger_metric === 'battery_quantity_per_port'
+                ? `${row.quantity_per_match} por porta em uso`
+                : `${row.quantity_per_match} a cada ${row.metric_divisor} de ${formatTriggerMetric(row.trigger_metric)}`,
             true,
           ],
           ['Inversores', accessoryRuleInverterModels(row).length > 0 ? accessoryRuleInverterModels(row) : ['Qualquer'], true],
@@ -281,16 +282,6 @@ export function RulesEditor(props: {
                 <Input value={ruleForm.name ?? ''} onChange={(event) => setRuleForm({ ...ruleForm, name: event.target.value })} />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Inclusão">
-                  <select
-                    className={selectClasses()}
-                    value={ruleForm.inclusion ?? 'required'}
-                    onChange={(event) => setRuleForm({ ...ruleForm, inclusion: event.target.value as Inclusion })}
-                  >
-                    <option value="required">Obrigatório</option>
-                    <option value="optional">Opcional</option>
-                  </select>
-                </Field>
                 <NumberWithUnitField
                   label="Quantidade do acessório"
                   tip="Quantidade adicionada quando a regra for aplicada."
@@ -316,6 +307,7 @@ export function RulesEditor(props: {
                     <option value="inverter_quantity">Qtd. inversores</option>
                     <option value="battery_quantity">Qtd. baterias</option>
                     <option value="battery_ports_used">Portas de bateria</option>
+                    <option value="battery_quantity_per_port">Baterias por porta</option>
                   </select>
                 </Field>
                 <NumberWithUnitField
@@ -338,19 +330,25 @@ export function RulesEditor(props: {
                 />
                 <InfoLabel
                   label="Escalar quantidade com o limiar"
-                  tip="Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido dividida pelo agrupamento abaixo (arredondando pra cima) — ex.: 1 a cada 4 baterias, em vez de 1 fixo por solução. Sem efeito quando o limiar é 'Por solução'."
+                  tip={
+                    ruleForm.trigger_metric === 'battery_quantity_per_port'
+                      ? "Aplica a Quantidade do acessório uma vez por porta de bateria em uso na solução, assim que a densidade de baterias por porta atingir a Quantidade mínima."
+                      : "Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido dividida pelo agrupamento abaixo (arredondando pra cima) — ex.: 1 a cada 4 baterias, em vez de 1 fixo por solução. Sem efeito quando o limiar é 'Por solução'."
+                  }
                 />
               </label>
-              {(ruleForm.scale_with_metric ?? false) && ruleForm.trigger_metric !== 'per_solution' && (
-                <NumberWithUnitField
-                  label="Agrupar a cada"
-                  tip="Tamanho do grupo do limiar que soma 1 vez a Quantidade do acessório, arredondando pra cima (ex.: 4 baterias com agrupamento 4 → 1x; 5 baterias → 2x)."
-                  icon={<Boxes className="h-4 w-4" />}
-                  unit={formatTriggerMetric(ruleForm.trigger_metric ?? 'battery_quantity')}
-                  value={ruleForm.metric_divisor ?? 1}
-                  onChange={(event) => setRuleForm({ ...ruleForm, metric_divisor: Math.max(1, toNumber(event.target.value, 1)) })}
-                />
-              )}
+              {(ruleForm.scale_with_metric ?? false) &&
+                ruleForm.trigger_metric !== 'per_solution' &&
+                ruleForm.trigger_metric !== 'battery_quantity_per_port' && (
+                  <NumberWithUnitField
+                    label="Agrupar a cada"
+                    tip="Tamanho do grupo do limiar que soma 1 vez a Quantidade do acessório, arredondando pra cima (ex.: 4 baterias com agrupamento 4 → 1x; 5 baterias → 2x)."
+                    icon={<Boxes className="h-4 w-4" />}
+                    unit={formatTriggerMetric(ruleForm.trigger_metric ?? 'battery_quantity')}
+                    value={ruleForm.metric_divisor ?? 1}
+                    onChange={(event) => setRuleForm({ ...ruleForm, metric_divisor: Math.max(1, toNumber(event.target.value, 1)) })}
+                  />
+                )}
 
               <Separator />
               <p className="text-sm text-muted-foreground">Filtros vazios valem para qualquer combinação.</p>

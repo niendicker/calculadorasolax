@@ -150,7 +150,8 @@ export function formatTriggerMetric(value: TriggerMetric) {
   if (value === 'per_solution') return 'Por solução';
   if (value === 'inverter_quantity') return 'Qtd. inversores';
   if (value === 'battery_quantity') return 'Qtd. baterias';
-  return 'Portas de bateria';
+  if (value === 'battery_ports_used') return 'Portas de bateria';
+  return 'Baterias por porta';
 }
 
 export function accessoryRuleInverterModels(rule: Partial<AccessoryRuleRow>) {
@@ -231,11 +232,38 @@ export function slugPart(value: string) {
     .replace(/^-+|-+$/g, '') || 'item';
 }
 
-export function solutionRuleMetricValue(solution: Pick<SolutionRow, 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used'>, metric: TriggerMetric) {
+type MetricSolution = Pick<SolutionRow, 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used'>;
+
+/** Total physical battery ports in use across every inverter — battery_ports_used
+ * is stored per inverter (see buildRuleGeneratedSolutions), so the solution-wide
+ * total needs multiplying by inverter_quantity. */
+export function solutionTotalBatteryPorts(solution: Pick<SolutionRow, 'inverter_quantity' | 'battery_ports_used'>) {
+  return solution.inverter_quantity * solution.battery_ports_used;
+}
+
+export function solutionRuleMetricValue(solution: MetricSolution, metric: TriggerMetric) {
   if (metric === 'per_solution') return 1;
   if (metric === 'inverter_quantity') return solution.inverter_quantity;
   if (metric === 'battery_quantity') return solution.battery_quantity;
-  return solution.battery_ports_used;
+  if (metric === 'battery_quantity_per_port') return solution.battery_quantity / Math.max(1, solutionTotalBatteryPorts(solution));
+  // 'battery_ports_used': total physical ports in use across every inverter,
+  // not just the per-inverter count stored on the solution row — a rule
+  // gating/scaling on this metric means "per port in the whole solution".
+  return solutionTotalBatteryPorts(solution);
+}
+
+/** The quantity a matching accessory rule contributes once scale_with_metric
+ * is applied. 'battery_quantity_per_port' is special-cased: it gates on the
+ * average batteries-per-port (see solutionRuleMetricValue) but *scales* by
+ * the total port count instead — "1 per port once a port is dense enough",
+ * not "1 per unit of average density", which wouldn't be a whole number of
+ * accessories. Every other metric scales by ceil(its own value / metric_divisor). */
+export function accessoryRuleAppliedQuantity(solution: MetricSolution, rule: Pick<AccessoryRuleRow, 'quantity_per_match' | 'scale_with_metric' | 'trigger_metric' | 'metric_divisor'>) {
+  if (!rule.scale_with_metric) return rule.quantity_per_match;
+  if (rule.trigger_metric === 'battery_quantity_per_port') {
+    return rule.quantity_per_match * solutionTotalBatteryPorts(solution);
+  }
+  return rule.quantity_per_match * Math.ceil(solutionRuleMetricValue(solution, rule.trigger_metric) / Math.max(1, rule.metric_divisor));
 }
 
 export function accessoryRuleMatches(
@@ -273,9 +301,7 @@ export function applyAccessoryRules(
 
   for (const rule of rules) {
     if (!rule.accessories?.model || !accessoryRuleMatches(solution, rule, generatedGridType)) continue;
-    const matchQty = rule.scale_with_metric
-      ? rule.quantity_per_match * Math.ceil(solutionRuleMetricValue(solution, rule.trigger_metric) / Math.max(1, rule.metric_divisor))
-      : rule.quantity_per_match;
+    const matchQty = accessoryRuleAppliedQuantity(solution, rule);
     const currentQty = accessories.get(rule.accessories.model) ?? 0;
     accessories.set(rule.accessories.model, currentQty + matchQty);
     if (rule.comment) comments.push(rule.comment);

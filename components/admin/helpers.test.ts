@@ -236,7 +236,9 @@ describe('solutionRuleMetricValue', () => {
     expect(solutionRuleMetricValue(solution, 'per_solution')).toBe(1);
     expect(solutionRuleMetricValue(solution, 'inverter_quantity')).toBe(2);
     expect(solutionRuleMetricValue(solution, 'battery_quantity')).toBe(4);
-    expect(solutionRuleMetricValue(solution, 'battery_ports_used')).toBe(1);
+    // battery_ports_used is the total physical ports across every inverter
+    // (inverter_quantity x ports per inverter), not just one inverter's ports.
+    expect(solutionRuleMetricValue(solution, 'battery_ports_used')).toBe(2);
   });
 });
 
@@ -383,6 +385,36 @@ describe('applyAccessoryRules', () => {
     expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 1 }]);
   });
 
+  it('scales battery_ports_used by the total ports across every inverter, not just one inverter\'s ports', () => {
+    // 2 inverters x 2 ports each = 4 physical ports in the whole solution.
+    const solution = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 2 });
+    const rules = [
+      makeAccessoryRule({
+        id: 'r1',
+        quantity_per_match: 1,
+        scale_with_metric: true,
+        trigger_metric: 'battery_ports_used',
+        min_quantity: 1,
+        accessories: { model: 'TBMS-MCS0800' },
+      }),
+    ];
+    const result = applyAccessoryRules(solution, rules);
+    expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 4 }]);
+  });
+
+  it('gates battery_ports_used on the total ports across every inverter', () => {
+    // 2 inverters x 1 port each = 2 total ports, enough to clear a min_quantity of 2
+    // even though each inverter alone only uses 1 port.
+    const solution = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 1 });
+    const rule = makeAccessoryRule({
+      id: 'r1',
+      trigger_metric: 'battery_ports_used',
+      min_quantity: 2,
+      accessories: { model: 'TBMS-MCS0800' },
+    });
+    expect(accessoryRuleMatches(solution, rule)).toBe(true);
+  });
+
   it('divides the metric by metric_divisor, rounding up, before multiplying by quantity_per_match', () => {
     const rule = makeAccessoryRule({
       id: 'r1',
@@ -424,6 +456,26 @@ describe('applyAccessoryRules', () => {
     // ceil(9/4) = 3 groups x 2 per group = 6.
     const result = applyAccessoryRules(solution, rules);
     expect(result.accessories).toEqual([{ model: 'Bracket Pair', quantity: 6 }]);
+  });
+
+  it('gates battery_quantity_per_port on average batteries-per-port, but scales by total ports (not the ratio)', () => {
+    const rule = makeAccessoryRule({
+      id: 'r1',
+      quantity_per_match: 1,
+      scale_with_metric: true,
+      trigger_metric: 'battery_quantity_per_port',
+      min_quantity: 4,
+      metric_divisor: 1,
+      accessories: { model: 'Port Module' },
+    });
+
+    // 2 inverters x 1 port each = 2 total ports; 8 batteries / 2 ports = 4/port -> gate passes.
+    const dense = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 8 });
+    expect(applyAccessoryRules(dense, [rule]).accessories).toEqual([{ model: 'Port Module', quantity: 2 }]);
+
+    // Same 2 ports but only 6 batteries -> 3/port, still >= 4? No: 3 < 4, gate fails, rule doesn't match at all.
+    const sparse = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 6 });
+    expect(applyAccessoryRules(sparse, [rule]).accessories).toEqual([]);
   });
 });
 

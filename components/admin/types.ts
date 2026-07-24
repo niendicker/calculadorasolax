@@ -31,7 +31,17 @@ export type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 export type GridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
 export type BatteryTopology = 'HV' | 'LV';
 export type Inclusion = 'required' | 'optional';
-export type TriggerMetric = 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+export type TriggerMetric =
+  | 'per_solution'
+  | 'inverter_quantity'
+  | 'battery_quantity'
+  | 'battery_ports_used'
+  /** Average batteries per physical port (battery_quantity / total ports) —
+   * for rules gated on port density (e.g. "4+ batteries in a port") rather
+   * than a solution-wide total. When scale_with_metric is on, this metric
+   * scales by the total port count instead of its own (average) value —
+   * see solutionRuleMetricValue/ruleMetricValue's scale-vs-gate split. */
+  | 'battery_quantity_per_port';
 export type ProductEditorTab = 'general' | 'media';
 
 export const inverterGridTypeOptions: { value: InverterGridType; label: string }[] = [

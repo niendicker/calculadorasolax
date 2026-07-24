@@ -614,7 +614,9 @@ export function AdminPanel() {
     const payload = {
       accessory_id: ruleForm.accessory_id,
       name: ruleForm.name?.trim(),
-      inclusion: ruleForm.inclusion,
+      // The optional/required choice was removed from the rule form — every
+      // accessory a rule applies is now always required (see migration 0056).
+      inclusion: 'required' as const,
       trigger_metric: ruleForm.trigger_metric,
       min_quantity: toNumber(ruleForm.min_quantity, 1),
       inverter_model: inverterModels[0] ?? null,

@@ -358,6 +358,45 @@ describe('buildSolutionPayload', () => {
     expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 2 }));
   });
 
+  it('scales battery_ports_used by the total ports across every inverter, not just one inverter\'s ports', () => {
+    // 2 inverters x 2 ports each = 4 physical ports in the whole solution.
+    const solution = makeSolution({ inverter_quantity: 2, battery_ports_used: 2 });
+    const rule = makeRule({
+      quantity_per_match: 1,
+      scale_with_metric: true,
+      trigger_metric: 'battery_ports_used',
+      min_quantity: 1,
+      accessories: { model: 'TBMS-MCS0800' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 4 }));
+  });
+
+  it('gates battery_ports_used on the total ports across every inverter', () => {
+    // 2 inverters x 1 port each = 2 total ports, enough to clear a min_quantity of 2
+    // even though each inverter alone only uses 1 port.
+    const solution = makeSolution({ inverter_quantity: 2, battery_ports_used: 1 });
+    const rule = makeRule({
+      trigger_metric: 'battery_ports_used',
+      min_quantity: 2,
+      accessories: { model: 'TBMS-MCS0800' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800' }));
+  });
+
   it('keeps a flat quantity_per_match when scale_with_metric is off, even past min_quantity', () => {
     const solution = makeSolution({ battery_ports_used: 2 });
     const rule = makeRule({
@@ -401,6 +440,37 @@ describe('buildSolutionPayload', () => {
     expect(build(5).accessories).toContainEqual(expect.objectContaining({ model: 'Management Module', qty: 2 }));
     // Two full groups -> 2 units, no rounding needed.
     expect(build(8).accessories).toContainEqual(expect.objectContaining({ model: 'Management Module', qty: 2 }));
+  });
+
+  it('gates battery_quantity_per_port on average batteries-per-port, but scales by total ports (not the ratio)', () => {
+    const rule = makeRule({
+      quantity_per_match: 1,
+      scale_with_metric: true,
+      trigger_metric: 'battery_quantity_per_port',
+      min_quantity: 4,
+      metric_divisor: 1,
+      accessories: { model: 'Port Module' },
+    });
+
+    // 2 inverters x 1 port each = 2 total ports; 8 batteries / 2 ports = 4/port -> gate passes.
+    const dense = buildSolutionPayload(makeSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 8 }), {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(dense.accessories).toContainEqual(expect.objectContaining({ model: 'Port Module', qty: 2 }));
+
+    // Same 2 ports but only 6 batteries -> 3/port, below the 4 threshold: rule doesn't match at all.
+    const sparse = buildSolutionPayload(makeSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 6 }), {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(sparse.accessories.some((a) => a.model === 'Port Module')).toBe(false);
   });
 
   it('infers appliesTo from the matching rule\'s inverter/battery model scope', () => {

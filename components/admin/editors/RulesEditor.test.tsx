@@ -202,6 +202,17 @@ describe('RulesEditor: accessory rules', () => {
     expect(within(dialog).getByLabelText('Acessório')).toHaveValue('a2');
   });
 
+  it('has no obrigatório/opcional choice — every rule-applied accessory is required', () => {
+    render(<ControlledEditor rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra A', accessories: { model: 'Smart Meter' } })]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    expect(screen.queryByLabelText('Inclusão')).not.toBeInTheDocument();
+
+    const card = screen.getByText('Regra A').closest('[data-slot="card"]') as HTMLElement;
+    expect(within(card).queryByText('obrigatório')).not.toBeInTheDocument();
+    expect(within(card).queryByText('opcional')).not.toBeInTheDocument();
+  });
+
   it('toggles "Escalar quantidade com o limiar", disabled when the trigger is "Por solução"', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
@@ -232,6 +243,16 @@ describe('RulesEditor: accessory rules', () => {
     expect(within(dialog).getByLabelText(/^Agrupar a cada/)).toHaveValue(4);
   });
 
+  it('hides "Agrupar a cada" for "Baterias por porta" — it always scales by total ports, not a group size', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova regra/ });
+
+    fireEvent.change(within(dialog).getByLabelText('Limiar baseado em'), { target: { value: 'battery_quantity_per_port' } });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Escalar quantidade com o limiar/ }));
+    expect(within(dialog).queryByLabelText(/^Agrupar a cada/)).not.toBeInTheDocument();
+  });
+
   it('shows the scaling formula in the rule card details when scale_with_metric is on', () => {
     render(
       <ControlledEditor
@@ -250,6 +271,26 @@ describe('RulesEditor: accessory rules', () => {
     );
     const card = screen.getByText('Regra A').closest('[data-slot="card"]') as HTMLElement;
     expect(within(card).getByText('1 a cada 1 de Portas de bateria')).toBeInTheDocument();
+  });
+
+  it('shows "X por porta em uso" for battery_quantity_per_port instead of an "a cada" group size', () => {
+    render(
+      <ControlledEditor
+        rules={[
+          makeRule({
+            id: 'r1',
+            accessory_id: 'a1',
+            name: 'Regra B',
+            accessories: { model: 'Smart Meter' },
+            trigger_metric: 'battery_quantity_per_port',
+            quantity_per_match: 1,
+            scale_with_metric: true,
+          }),
+        ]}
+      />
+    );
+    const card = screen.getByText('Regra B').closest('[data-slot="card"]') as HTMLElement;
+    expect(within(card).getByText('1 por porta em uso')).toBeInTheDocument();
   });
 
   it('groups rules into sections by accessory, with a count badge per section', () => {

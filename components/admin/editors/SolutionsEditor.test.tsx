@@ -538,6 +538,17 @@ describe('SolutionsEditor: Geradas tab', () => {
     expect(stored.length).toBeGreaterThan(0);
   });
 
+  it('shows both the per-inverter port count and the solution-wide total (inverters × ports/inverter)', () => {
+    const twoPortInverter = makeInverter({ id: 'i2', model: 'X3-Hybrid-15.0', battery_ports: 2 });
+    const twoInverterRule: EssCompatibilityRuleRow = { ...essRule, inverter_model: 'X3-Hybrid-15.0', max_parallel_inverters: 2, max_battery_qty: 2 };
+    render(<ControlledEditor inverters={[twoPortInverter]} batteries={batteries} essRules={[twoInverterRule]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Geradas/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Gerar combinações/ }));
+
+    // 2 inverters x 2 ports/inverter = 4 total ports.
+    expect(screen.getByText('Portas ×2/inversor (4 no total)')).toBeInTheDocument();
+  });
+
   it('approves a single pending combination', () => {
     const onApplyGenerated = vi.fn((_gen, afterApply?: () => void) => afterApply?.());
     render(<ControlledEditor inverters={inverters} batteries={batteries} essRules={[essRule]} onApplyGenerated={onApplyGenerated} />);

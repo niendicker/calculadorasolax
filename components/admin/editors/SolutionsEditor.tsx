@@ -8,7 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { batteryQuantityBreakdown, buildRuleGeneratedSolutions, expansionModelSet, selectClasses, toNumber } from '../helpers';
+import {
+  batteryQuantityBreakdown,
+  buildRuleGeneratedSolutions,
+  expansionModelSet,
+  selectClasses,
+  solutionTotalBatteryPorts,
+  toNumber,
+} from '../helpers';
 import {
   Actions,
   DetailItem,
@@ -566,6 +573,9 @@ export function SolutionsEditor(props: {
                                       </div>
                                       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                                         <span>Inv ×{solution.inverter_quantity}</span>
+                                        <span>
+                                          Portas ×{solution.battery_ports_used}/inversor ({solutionTotalBatteryPorts(solution)} no total)
+                                        </span>
                                         <span>Bat ×{solution.battery_quantity} · {solution.battery_topology}</span>
                                         <span>{(solution.rated_power_w / 1000).toFixed(1)} kVA / {(solution.peak_power_w / 1000).toFixed(1)} kVA pico</span>
                                         <span>{(solution.available_energy_wh / 1000).toFixed(1)} kWh</span>
@@ -656,8 +666,8 @@ export function SolutionsEditor(props: {
               onChange={(event) => setForm({ ...form, inverter_quantity: toNumber(event.target.value, 1) })}
             />
             <NumberWithUnitField
-              label="Portas"
-              tip="Número de portas de bateria usadas nesta combinação."
+              label="Portas por inversor"
+              tip="Número de portas de bateria em uso em CADA inversor — não o total da combinação. O total (usado para escalar acessórios e a quebra Master/Slave) é Qtd. inversores × este valor."
               icon={<Cable className="h-4 w-4" />}
               unit="un."
               value={form.battery_ports_used ?? 1}

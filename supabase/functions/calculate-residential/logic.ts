@@ -205,7 +205,7 @@ export interface AccessoryRule {
   id: string;
   name: string;
   inclusion: 'required' | 'optional';
-  trigger_metric: 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used';
+  trigger_metric: 'per_solution' | 'inverter_quantity' | 'battery_quantity' | 'battery_ports_used' | 'battery_quantity_per_port';
   min_quantity: number;
   inverter_model: string | null;
   inverter_models: string[] | null;
@@ -336,11 +336,39 @@ export function matchingEssBatteryConfig(rule: EssCompatibilityRule, batteryMode
   return null;
 }
 
+/** Total physical battery ports in use across every inverter — battery_ports_used
+ * is stored per inverter (see buildRuleGeneratedSolutions in
+ * components/admin/helpers.ts), so the solution-wide total needs multiplying
+ * by inverter_quantity. Mirrors components/admin/helpers.ts solutionTotalBatteryPorts. */
+export function solutionTotalBatteryPorts(solution: Pick<ApprovedSolution, 'inverter_quantity' | 'battery_ports_used'>): number {
+  return solution.inverter_quantity * solution.battery_ports_used;
+}
+
 export function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRule['trigger_metric']): number {
   if (metric === 'per_solution') return 1;
   if (metric === 'inverter_quantity') return solution.inverter_quantity;
   if (metric === 'battery_quantity') return solution.battery_quantity;
-  return solution.battery_ports_used;
+  if (metric === 'battery_quantity_per_port') return solution.battery_quantity / Math.max(1, solutionTotalBatteryPorts(solution));
+  // 'battery_ports_used': total physical ports in use across every inverter,
+  // not just the per-inverter count stored on the solution row — a rule
+  // gating/scaling on this metric means "per port in the whole solution".
+  return solutionTotalBatteryPorts(solution);
+}
+
+/** Mirrors components/admin/helpers.ts accessoryRuleAppliedQuantity: the
+ * quantity a matching rule contributes once scale_with_metric is on.
+ * 'battery_quantity_per_port' gates on the average batteries-per-port but
+ * *scales* by the total port count instead of its own value — "1 per port
+ * once a port is dense enough", not "1 per unit of average density". */
+export function accessoryRuleAppliedQuantity(
+  solution: ApprovedSolution,
+  rule: Pick<AccessoryRule, 'quantity_per_match' | 'scale_with_metric' | 'trigger_metric' | 'metric_divisor'>
+): number {
+  if (!rule.scale_with_metric) return rule.quantity_per_match;
+  if (rule.trigger_metric === 'battery_quantity_per_port') {
+    return rule.quantity_per_match * solutionTotalBatteryPorts(solution);
+  }
+  return rule.quantity_per_match * Math.ceil(ruleMetricValue(solution, rule.trigger_metric) / Math.max(1, rule.metric_divisor));
 }
 
 export function ruleMatches(
@@ -474,9 +502,7 @@ export function buildSolutionPayload(
     } else {
       const line: AccessoryLine = {
         model: rule.accessories.model,
-        qty: rule.scale_with_metric
-          ? rule.quantity_per_match * Math.ceil(ruleMetricValue(solution, rule.trigger_metric) / Math.max(1, rule.metric_divisor))
-          : rule.quantity_per_match,
+        qty: accessoryRuleAppliedQuantity(solution, rule),
         optional: rule.inclusion === 'optional',
         appliesTo: accessoryAppliesTo(rule),
         comment: rule.comment ?? null,
