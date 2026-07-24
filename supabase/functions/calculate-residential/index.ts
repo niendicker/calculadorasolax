@@ -330,6 +330,7 @@ Deno.serve(async (req) => {
         grid_topology,
         battery_topology,
         quantity_per_match,
+        scale_with_metric,
         comment,
         desired_features,
         accessories (model)

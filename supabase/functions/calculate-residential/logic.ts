@@ -213,6 +213,10 @@ export interface AccessoryRule {
   grid_topology: string | null;
   battery_topology: ApprovedSolution['battery_topology'] | null;
   quantity_per_match: number;
+  /** Mirrors components/admin/types.ts AccessoryRuleRow.scale_with_metric:
+   * when true, the applied quantity is quantity_per_match multiplied by the
+   * trigger_metric's live value instead of a flat quantity_per_match. */
+  scale_with_metric: boolean;
   comment: string | null;
   /** Empty/null = no feature condition (matches regardless). Non-empty = the
    * customer must have enabled at least one of these (OR). Mirrors
@@ -467,7 +471,7 @@ export function buildSolutionPayload(
     } else {
       const line: AccessoryLine = {
         model: rule.accessories.model,
-        qty: rule.quantity_per_match,
+        qty: rule.scale_with_metric ? rule.quantity_per_match * ruleMetricValue(solution, rule.trigger_metric) : rule.quantity_per_match,
         optional: rule.inclusion === 'optional',
         appliesTo: accessoryAppliesTo(rule),
         comment: rule.comment ?? null,

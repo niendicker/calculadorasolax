@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Boxes, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
@@ -21,7 +22,7 @@ import {
   textareaClasses,
   toNumber,
 } from '../helpers';
-import { Actions, CatalogLayout, Field, InfoLabel, NumberWithUnitField, SegmentedTabs } from '../shared-ui';
+import { Actions, CatalogLayout, Field, InfoLabel, NumberWithUnitField, RecordCardGrid, SegmentedTabs } from '../shared-ui';
 import {
   emptyEssRule,
   emptyRule,
@@ -45,6 +46,47 @@ export type RulesJumpTarget =
   | null;
 
 type RuleScope = 'accessory' | 'ess';
+
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyFn(item);
+    const list = map.get(key);
+    if (list) list.push(item);
+    else map.set(key, [item]);
+  }
+  return map;
+}
+
+/** Rules grouped under the product (accessory/inverter) they apply to — a
+ * flat list gets unreadable once there's more than a handful of rules across
+ * different products, since nothing visually separates one product's rules
+ * from the next. */
+function GroupedRecordSections({
+  groups,
+  emptyLabel,
+}: {
+  groups: { key: string; label: string; items: Parameters<typeof RecordCardGrid>[0]['items'] }[];
+  emptyLabel: string;
+}) {
+  if (groups.length === 0) {
+    return <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map((group) => (
+        <div key={group.key}>
+          <div className="mb-2 flex items-center gap-2">
+            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
+            <Badge variant="outline">{group.items.length}</Badge>
+          </div>
+          <RecordCardGrid items={group.items} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function RulesEditor(props: {
   accessories: AccessoryRow[];
@@ -122,6 +164,65 @@ export function RulesEditor(props: {
   const selectedInverter = props.inverters.find((inverter) => inverter.model === essForm.inverter_model);
   const currentGridTypes = normalizeInverterGridTypes(selectedInverter?.grid_types);
   const currentBatteryTopologies = inverterSupportedBatteryTopologies(selectedInverter);
+
+  const groupedRules = Array.from(groupBy(visibleRules, (row) => row.accessories?.model ?? '(sem acessório)'))
+    .map(([label, rows]) => ({
+      key: label,
+      label,
+      items: rows.map((row) => ({
+        id: row.id,
+        title: row.name,
+        badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
+        details: [
+          [
+            'Condição',
+            row.trigger_metric === 'per_solution' ? 'Por solução' : `${formatTriggerMetric(row.trigger_metric)} >= ${row.min_quantity}`,
+          ],
+          [
+            'Quantidade',
+            row.scale_with_metric ? `${row.quantity_per_match} × ${formatTriggerMetric(row.trigger_metric)}` : String(row.quantity_per_match),
+            true,
+          ],
+          ['Inversores', accessoryRuleInverterModels(row).length > 0 ? accessoryRuleInverterModels(row) : ['Qualquer'], true],
+        ] as [string, string | string[], true?][],
+        description: row.comment ?? undefined,
+        removing: props.removingIds.has(row.id),
+        onEdit: () => openEditRule(row),
+        onRemove: () => props.onRemoveRule(row.id),
+        removeDescription: `A regra "${row.name}" será removida e não será mais aplicada às combinações.`,
+      })),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const groupedEssRows = Array.from(groupBy(visibleEssRows, (row) => row.inverter_model))
+    .map(([label, rows]) => ({
+      key: label,
+      label,
+      items: rows.map((row) => {
+        const batteryConfigs = normalizeEssBatteryConfigs(row, props.batteries);
+        const batteryTags = batteryConfigs.map(
+          (config) => `${config.battery_model} (${config.min_battery_qty}–${config.max_battery_qty})`
+        );
+        return {
+          id: row.id,
+          title: row.name?.trim() || row.inverter_model,
+          badges: [
+            row.active ? 'ativa' : 'inativa',
+            ...Array.from(new Set(batteryConfigs.map((config) => config.battery_topology))),
+          ],
+          details: [
+            ['Baterias', batteryTags.length > 0 ? batteryTags : ['—'], true],
+            ['Máx. paralelo', String(row.max_parallel_inverters ?? 1)],
+          ] as [string, string | string[], true?][],
+          description: row.comment ?? undefined,
+          removing: props.removingIds.has(row.id),
+          onEdit: () => openEditEss(row),
+          onRemove: () => props.onRemoveEss(row.id),
+          removeDescription: 'Essa compatibilidade ESS será removida e as combinações geradas por ela não serão mais atualizadas.',
+        };
+      }),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <div className="space-y-4">
@@ -226,6 +327,19 @@ export function RulesEditor(props: {
                 />
               </div>
 
+              <label className={cn('flex items-center gap-2 text-sm', ruleForm.trigger_metric === 'per_solution' && 'opacity-50')}>
+                <input
+                  type="checkbox"
+                  checked={ruleForm.scale_with_metric ?? false}
+                  disabled={ruleForm.trigger_metric === 'per_solution'}
+                  onChange={(event) => setRuleForm({ ...ruleForm, scale_with_metric: event.target.checked })}
+                />
+                <InfoLabel
+                  label="Escalar quantidade com o limiar"
+                  tip="Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido (ex.: 1 por porta de bateria em uso, em vez de 1 fixo por solução). Sem efeito quando o limiar é 'Por solução'."
+                />
+              </label>
+
               <Separator />
               <p className="text-sm text-muted-foreground">Filtros vazios valem para qualquer combinação.</p>
               <Field asDiv label="Inversor">
@@ -289,26 +403,9 @@ export function RulesEditor(props: {
               <Actions onSave={() => props.onSaveRule(() => setRuleFormOpen(false))} saving={props.saving} />
             </>
           }
-          items={visibleRules.map((row) => ({
-            id: row.id,
-            title: row.name,
-            badges: [row.inclusion === 'required' ? 'obrigatório' : 'opcional', row.active ? 'ativa' : 'inativa'],
-            details: [
-              ['Acessório', row.accessories?.model ?? '—'],
-              [
-                'Condição',
-                row.trigger_metric === 'per_solution' ? 'Por solução' : `${formatTriggerMetric(row.trigger_metric)} >= ${row.min_quantity}`,
-              ],
-              ['Quantidade', String(row.quantity_per_match), true],
-              ['Inversores', accessoryRuleInverterModels(row).length > 0 ? accessoryRuleInverterModels(row) : ['Qualquer'], true],
-            ],
-            description: row.comment ?? undefined,
-            removing: props.removingIds.has(row.id),
-            onEdit: () => openEditRule(row),
-            onRemove: () => props.onRemoveRule(row.id),
-            removeDescription: `A regra "${row.name}" será removida e não será mais aplicada às combinações.`,
-          }))}
-        />
+        >
+          <GroupedRecordSections groups={groupedRules} emptyLabel="Nenhuma regra de acessório encontrada." />
+        </CatalogLayout>
       ) : (
         <CatalogLayout
           title="Compatibilidade ESS"
@@ -419,31 +516,9 @@ export function RulesEditor(props: {
               <Actions onSave={() => props.onSaveEss(() => setEssFormOpen(false))} saving={props.saving} />
             </>
           }
-          items={visibleEssRows.map((row) => {
-            const batteryConfigs = normalizeEssBatteryConfigs(row, props.batteries);
-            const batteryTags = batteryConfigs.map(
-              (config) => `${config.battery_model} (${config.min_battery_qty}–${config.max_battery_qty})`
-            );
-            return {
-              id: row.id,
-              title: row.name?.trim() || row.inverter_model,
-              badges: [
-                row.active ? 'ativa' : 'inativa',
-                ...Array.from(new Set(batteryConfigs.map((config) => config.battery_topology))),
-              ],
-              details: [
-                ['Inversor', row.inverter_model],
-                ['Baterias', batteryTags.length > 0 ? batteryTags : ['—'], true],
-                ['Máx. paralelo', String(row.max_parallel_inverters ?? 1)],
-              ],
-              description: row.comment ?? undefined,
-              removing: props.removingIds.has(row.id),
-              onEdit: () => openEditEss(row),
-              onRemove: () => props.onRemoveEss(row.id),
-              removeDescription: 'Essa compatibilidade ESS será removida e as combinações geradas por ela não serão mais atualizadas.',
-            };
-          })}
-        />
+        >
+          <GroupedRecordSections groups={groupedEssRows} emptyLabel="Nenhuma compatibilidade ESS encontrada." />
+        </CatalogLayout>
       )}
     </div>
   );

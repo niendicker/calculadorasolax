@@ -786,6 +786,7 @@ export function CatalogLayout({
   filter,
   search,
   items,
+  children,
   expandForm = false,
 }: {
   title: string;
@@ -798,7 +799,10 @@ export function CatalogLayout({
   form: ReactNode;
   filter?: ReactNode;
   search?: ReactNode;
-  items: Parameters<typeof RecordCardGrid>[0]['items'];
+  /** Flat list, rendered as a single RecordCardGrid. Ignored when `children` is set. */
+  items?: Parameters<typeof RecordCardGrid>[0]['items'];
+  /** Overrides the default flat RecordCardGrid — use for grouped/sectioned listings. */
+  children?: ReactNode;
   expandForm?: boolean;
 }) {
   return (
@@ -820,7 +824,7 @@ export function CatalogLayout({
         {form}
       </EditorModal>
 
-      <RecordCardGrid items={items} />
+      {children ?? <RecordCardGrid items={items ?? []} />}
     </div>
   );
 }

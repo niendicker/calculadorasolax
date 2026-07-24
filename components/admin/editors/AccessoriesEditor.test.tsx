@@ -22,6 +22,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     grid_topology: null,
     battery_topology: null,
     quantity_per_match: 1,
+    scale_with_metric: false,
     comment: null,
     desired_features: [],
     active: true,

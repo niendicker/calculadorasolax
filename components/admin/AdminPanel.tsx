@@ -623,6 +623,7 @@ export function AdminPanel() {
       grid_topology: ruleForm.grid_topology ? normalizeInverterGridType(ruleForm.grid_topology) : null,
       battery_topology: ruleForm.battery_topology || null,
       quantity_per_match: toNumber(ruleForm.quantity_per_match, 1),
+      scale_with_metric: ruleForm.scale_with_metric ?? false,
       comment: ruleForm.comment?.trim() || null,
       desired_features: accessoryRuleDesiredFeatures(ruleForm),
       active: ruleForm.active ?? true,

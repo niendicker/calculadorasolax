@@ -63,6 +63,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     grid_topology: null,
     battery_topology: null,
     quantity_per_match: 1,
+    scale_with_metric: false,
     comment: null,
     desired_features: [],
     active: true,
@@ -200,14 +201,58 @@ describe('RulesEditor: accessory rules', () => {
     expect(within(dialog).getByLabelText('Acessório')).toHaveValue('a2');
   });
 
-  it('shows which accessory each rule belongs to', () => {
+  it('toggles "Escalar quantidade com o limiar", disabled when the trigger is "Por solução"', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova regra/ });
+
+    expect(within(dialog).getByRole('checkbox', { name: /Escalar quantidade com o limiar/ })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText('Limiar baseado em'), { target: { value: 'battery_ports_used' } });
+    const scaleCheckbox = within(dialog).getByRole('checkbox', { name: /Escalar quantidade com o limiar/ });
+    expect(scaleCheckbox).not.toBeDisabled();
+
+    fireEvent.click(scaleCheckbox);
+    expect(scaleCheckbox).toBeChecked();
+  });
+
+  it('shows the scaling formula in the rule card details when scale_with_metric is on', () => {
     render(
       <ControlledEditor
-        rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra A', accessories: { model: 'Smart Meter' } })]}
+        rules={[
+          makeRule({
+            id: 'r1',
+            accessory_id: 'a1',
+            name: 'Regra A',
+            accessories: { model: 'Smart Meter' },
+            trigger_metric: 'battery_ports_used',
+            quantity_per_match: 1,
+            scale_with_metric: true,
+          }),
+        ]}
       />
     );
     const card = screen.getByText('Regra A').closest('[data-slot="card"]') as HTMLElement;
-    expect(within(card).getByText('Smart Meter')).toBeInTheDocument();
+    expect(within(card).getByText('1 × Portas de bateria')).toBeInTheDocument();
+  });
+
+  it('groups rules into sections by accessory, with a count badge per section', () => {
+    render(
+      <ControlledEditor
+        rules={[
+          makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra A1', accessories: { model: 'Smart Meter' } }),
+          makeRule({ id: 'r2', accessory_id: 'a1', name: 'Regra A2', accessories: { model: 'Smart Meter' } }),
+          makeRule({ id: 'r3', accessory_id: 'a2', name: 'Regra B1', accessories: { model: 'Matebox' } }),
+        ]}
+      />
+    );
+    const headerRow = screen.getByText('Smart Meter').closest('div') as HTMLElement;
+    expect(within(headerRow).getByText('2')).toBeInTheDocument();
+
+    const smartMeterGroup = headerRow.parentElement as HTMLElement;
+    expect(within(smartMeterGroup).getByText('Regra A1')).toBeInTheDocument();
+    expect(within(smartMeterGroup).getByText('Regra A2')).toBeInTheDocument();
+    expect(within(smartMeterGroup).queryByText('Regra B1')).not.toBeInTheDocument();
   });
 
   it('removes a rule via the confirm popover', async () => {

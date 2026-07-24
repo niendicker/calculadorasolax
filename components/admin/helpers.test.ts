@@ -278,6 +278,7 @@ function makeAccessoryRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRu
     grid_topology: null,
     battery_topology: null,
     quantity_per_match: 1,
+    scale_with_metric: false,
     comment: null,
     desired_features: [],
     active: true,
@@ -347,6 +348,38 @@ describe('applyAccessoryRules', () => {
       makeAccessoryRule({ id: 'r2', accessories: null }),
     ];
     expect(applyAccessoryRules(solution, rules)).toEqual({ accessories: [], comments: [] });
+  });
+
+  it('multiplies quantity_per_match by the trigger metric\'s value when scale_with_metric is on', () => {
+    const solution = makeGeneratedSolution({ battery_ports_used: 2 });
+    const rules = [
+      makeAccessoryRule({
+        id: 'r1',
+        quantity_per_match: 1,
+        scale_with_metric: true,
+        trigger_metric: 'battery_ports_used',
+        min_quantity: 1,
+        accessories: { model: 'TBMS-MCS0800' },
+      }),
+    ];
+    const result = applyAccessoryRules(solution, rules);
+    expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 2 }]);
+  });
+
+  it('keeps a flat quantity_per_match when scale_with_metric is off, even past min_quantity', () => {
+    const solution = makeGeneratedSolution({ battery_ports_used: 2 });
+    const rules = [
+      makeAccessoryRule({
+        id: 'r1',
+        quantity_per_match: 1,
+        scale_with_metric: false,
+        trigger_metric: 'battery_ports_used',
+        min_quantity: 1,
+        accessories: { model: 'TBMS-MCS0800' },
+      }),
+    ];
+    const result = applyAccessoryRules(solution, rules);
+    expect(result.accessories).toEqual([{ model: 'TBMS-MCS0800', quantity: 1 }]);
   });
 });
 

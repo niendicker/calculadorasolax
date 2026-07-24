@@ -67,6 +67,7 @@ function makeRule(partial: Partial<AccessoryRule> = {}): AccessoryRule {
     grid_topology: null,
     battery_topology: null,
     quantity_per_match: 1,
+    scale_with_metric: false,
     comment: null,
     desired_features: [],
     accessories: { model: 'Smart Meter' },
@@ -335,6 +336,44 @@ describe('buildSolutionPayload', () => {
       expect.objectContaining({ model: 'Smart Meter - M1-40', qty: 2, optional: true })
     );
     expect(payload.accessories.some((a) => a.model.includes('Should Not Appear'))).toBe(false);
+  });
+
+  it('multiplies quantity_per_match by the trigger metric\'s value when scale_with_metric is on', () => {
+    const solution = makeSolution({ battery_ports_used: 2 });
+    const rule = makeRule({
+      quantity_per_match: 1,
+      scale_with_metric: true,
+      trigger_metric: 'battery_ports_used',
+      min_quantity: 1,
+      accessories: { model: 'TBMS-MCS0800' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 2 }));
+  });
+
+  it('keeps a flat quantity_per_match when scale_with_metric is off, even past min_quantity', () => {
+    const solution = makeSolution({ battery_ports_used: 2 });
+    const rule = makeRule({
+      quantity_per_match: 1,
+      scale_with_metric: false,
+      trigger_metric: 'battery_ports_used',
+      min_quantity: 1,
+      accessories: { model: 'TBMS-MCS0800' },
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 1 }));
   });
 
   it('infers appliesTo from the matching rule\'s inverter/battery model scope', () => {
