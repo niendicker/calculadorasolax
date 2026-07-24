@@ -835,6 +835,7 @@ export function SinglePageApp() {
           topology={residentialOptions.topology}
           selectedBatteryModel={residentialOptions.batteryModel}
           gridType={residentialOptions.gridType}
+          nominalW={nominalW}
           peakW={peakW}
           dailyKwh={dailyKwh}
           userStockItems={userStockItems}

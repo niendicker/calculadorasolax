@@ -67,6 +67,7 @@ import {
   isMicrogridPhaseVoltageIncompatible,
   isMicrogridPowerNoticeUnacknowledged,
   normalizeAccessoryLine,
+  solutionMetrics,
   type MarginRow,
 } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
@@ -2150,31 +2151,6 @@ function InverterModelPicker({
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
-}
-
-/** Nominal/Máxima for the proposed solution are capped by whichever side of the
- * pair (battery or inverter) is weaker — the system can't exceed either. The
- * inverter's rated/peak power already comes as solution-level totals from
- * the API; the battery's only comes as per-unit catalog specs, so it's
- * multiplied by batteryQty here to compare on the same basis. */
-function solutionMetrics(solution: Solution, batteryCatalog: BatteryCatalogOption[]) {
-  const batteryCat = batteryCatalog.find((battery) => battery.model === solution.batteryModel);
-  const batteryNominalW = batteryCat?.standardPowerKw != null ? batteryCat.standardPowerKw * 1000 * solution.batteryQty : null;
-  const batteryPeakW = batteryCat?.peakPowerKw != null ? batteryCat.peakPowerKw * 1000 * solution.batteryQty : null;
-  const inverterNominalW = solution.inverterRatedPowerW ?? null;
-  const inverterPeakW = solution.inverterPeakPowerW ?? null;
-
-  function minOf(a: number | null, b: number | null): number | null {
-    if (a == null) return b;
-    if (b == null) return a;
-    return Math.min(a, b);
-  }
-
-  return {
-    nominalW: minOf(batteryNominalW, inverterNominalW),
-    peakW: minOf(batteryPeakW, inverterPeakW),
-    energyKwh: (solution.availableEnergyWh ?? 0) / 1000,
-  };
 }
 
 /** The Solução tab's top metric cards — pulled out of ResultSummary so they

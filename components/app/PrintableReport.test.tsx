@@ -45,6 +45,7 @@ function baseProps(overrides: Partial<Parameters<typeof PrintableReport>[0]> = {
     topology: 'HighVoltage' as const,
     selectedBatteryModel: 'TP-HS3.6',
     gridType: 'singlePhase_220' as const,
+    nominalW: 3000,
     peakW: 5500,
     dailyKwh: 5.5,
     userStockItems: [] as UserStockItem[],
@@ -208,6 +209,47 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('Bateria (expansão)')).toBeInTheDocument();
     expect(screen.getByText('T58 Slave')).toBeInTheDocument();
     expect(screen.getByText('×2')).toBeInTheDocument();
+  });
+});
+
+describe('PrintableReport: solution metrics and operating margins', () => {
+  it('shows the nominal/peak/energy metrics and margin rows for the proposed solution', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: { ...solution, inverterPeakPowerW: 8000 },
+          desiredFeatures: ['backup'],
+          nominalW: 1000,
+          peakW: 2000,
+          dailyKwh: 2,
+        })}
+      />
+    );
+    expect(screen.getByText('Potência nominal')).toBeInTheDocument();
+    expect(screen.getByText('5.00 kVA')).toBeInTheDocument();
+    expect(screen.getByText('8.00 kVA')).toBeInTheDocument();
+    expect(screen.getByText('Energia disponível')).toBeInTheDocument();
+    expect(screen.getByText('3.20 kWh')).toBeInTheDocument();
+
+    expect(screen.getByText('Margens operacionais')).toBeInTheDocument();
+    expect(screen.getByText(/Necessário 1\.00 kVA · Solução oferece 5\.00 kVA/)).toBeInTheDocument();
+    expect(screen.getByText(/Necessário 2\.00 kVA · Solução oferece 8\.00 kVA/)).toBeInTheDocument();
+    expect(screen.getByText(/Necessário 2\.00 kWh · Solução oferece 3\.20 kWh/)).toBeInTheDocument();
+  });
+
+  it('zeroes the margin requirement when Backup is disabled, even with loads still registered — same gating as the Solução tab', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: { ...solution, inverterPeakPowerW: 8000 },
+          desiredFeatures: [],
+          nominalW: 1000,
+          peakW: 2000,
+          dailyKwh: 2,
+        })}
+      />
+    );
+    expect(screen.getByText(/Necessário 0\.00 kVA · Solução oferece 5\.00 kVA/)).toBeInTheDocument();
   });
 });
 

@@ -207,6 +207,36 @@ export function batteryQuantityBreakdown(
   ];
 }
 
+/** Nominal/Máxima for a proposed solution are capped by whichever side of the
+ * pair (battery or inverter) is weaker — the system can't exceed either. The
+ * inverter's rated/peak power already comes as solution-level totals from
+ * the API; the battery's only comes as per-unit catalog specs, so it's
+ * multiplied by batteryQty here to compare on the same basis. Shared between
+ * the Solução tab's metric cards and the PDF report so both read the same
+ * numbers off the same formula. */
+export function solutionMetrics(
+  solution: Solution,
+  batteryCatalog: { model: string; standardPowerKw: number | null; peakPowerKw: number | null }[]
+): { nominalW: number | null; peakW: number | null; energyKwh: number } {
+  const batteryCat = batteryCatalog.find((battery) => battery.model === solution.batteryModel);
+  const batteryNominalW = batteryCat?.standardPowerKw != null ? batteryCat.standardPowerKw * 1000 * solution.batteryQty : null;
+  const batteryPeakW = batteryCat?.peakPowerKw != null ? batteryCat.peakPowerKw * 1000 * solution.batteryQty : null;
+  const inverterNominalW = solution.inverterRatedPowerW ?? null;
+  const inverterPeakW = solution.inverterPeakPowerW ?? null;
+
+  function minOf(a: number | null, b: number | null): number | null {
+    if (a == null) return b;
+    if (b == null) return a;
+    return Math.min(a, b);
+  }
+
+  return {
+    nominalW: minOf(batteryNominalW, inverterNominalW),
+    peakW: minOf(batteryPeakW, inverterPeakW),
+    energyKwh: (solution.availableEnergyWh ?? 0) / 1000,
+  };
+}
+
 /** Expansion/Slave models only ever exist as units 2..N of some other
  * "Master" battery's bank — they aren't a real standalone base model, so
  * they must never be offered directly in the battery picker. */

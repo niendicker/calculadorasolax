@@ -21,6 +21,7 @@ import {
   TrendingUp,
   User,
   Wallet,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import type {
@@ -38,10 +39,12 @@ import type {
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import {
   batteryQuantityBreakdown,
+  buildMarginSummary,
   calculateSystemCost,
   calculateTariffSavings,
   formatCurrencyBRL,
   normalizeAccessoryLine,
+  solutionMetrics,
 } from './helpers';
 import { ReportInfoRow, ReportMetric } from './shared-ui';
 import {
@@ -174,6 +177,12 @@ function ProductsList({
   accessoryCatalog,
   userStockItems,
   productMedia,
+  desiredFeatures,
+  whiteTariff,
+  microgrid,
+  nominalW,
+  peakW,
+  dailyKwh,
 }: {
   title: string;
   solution: Solution;
@@ -181,6 +190,12 @@ function ProductsList({
   accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
   productMedia: Record<string, ProductMedia>;
+  desiredFeatures: DesiredFeatureId[];
+  whiteTariff: WhiteTariffConfig | null;
+  microgrid: MicrogridConfig | null;
+  nominalW: number;
+  peakW: number;
+  dailyKwh: number;
 }) {
   const systemCost = calculateSystemCost(solution, userStockItems);
   const batteryParts = batteryQuantityBreakdown(
@@ -189,6 +204,10 @@ function ProductsList({
     batteryCatalog,
     (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
   );
+  const metrics = solutionMetrics(solution, batteryCatalog);
+  const marginRows = solution.microgridAlternative
+    ? []
+    : buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, nominalW, peakW, dailyKwh, solution });
 
   return (
     <section className="mb-8">
@@ -196,6 +215,19 @@ function ProductsList({
         <Boxes className="h-4 w-4 text-primary" aria-hidden="true" />
         {title}
       </h2>
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <ReportMetric
+          icon={Gauge}
+          label="Potência nominal"
+          value={metrics.nominalW != null ? `${(metrics.nominalW / 1000).toFixed(2)} kVA` : '-'}
+        />
+        <ReportMetric
+          icon={Zap}
+          label="Potência máxima"
+          value={metrics.peakW != null ? `${(metrics.peakW / 1000).toFixed(2)} kVA` : '-'}
+        />
+        <ReportMetric icon={BatteryCharging} label="Energia disponível" value={`${metrics.energyKwh.toFixed(2)} kWh`} />
+      </div>
       <div className="rounded-xl border border-border/70 px-4">
         <ProductLine
           icon={Boxes}
@@ -246,6 +278,38 @@ function ProductsList({
           );
         })}
       </div>
+      {marginRows.length > 0 && (
+        <div className="mt-3 rounded-xl border border-border/70 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Gauge className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            Margens operacionais
+          </p>
+          <div className="space-y-1">
+            {marginRows.map((row) => {
+              const marginPct =
+                row.requiredValue > 0 ? ((row.providedValue - row.requiredValue) / row.requiredValue) * 100 : null;
+              const insufficient = marginPct !== null && marginPct < 0;
+              const unitLabel = row.unit === 'W' ? 'kVA' : 'kWh';
+              const toKilo = (value: number) => (value / 1000).toFixed(2);
+              return (
+                <div
+                  key={row.key}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border/40 py-1 text-sm last:border-0"
+                >
+                  <span className="flex items-center gap-1 font-medium text-foreground">
+                    {insufficient && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />}
+                    {row.label}
+                  </span>
+                  <span className={`text-xs ${insufficient ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                    Necessário {toKilo(row.requiredValue)} {unitLabel} · Solução oferece {toKilo(row.providedValue)} {unitLabel}
+                    {marginPct !== null && ` (${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(0)}%)`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {systemCost.pricedItemsCount > 0 && (
         <p className="mt-2 text-sm text-muted-foreground">
           Custo total do sistema: <span className="font-medium text-foreground">{formatCurrencyBRL(systemCost.totalCost)}</span>
@@ -280,6 +344,7 @@ export function PrintableReport({
   topology,
   selectedBatteryModel,
   gridType,
+  nominalW,
   peakW,
   dailyKwh,
   userStockItems,
@@ -303,6 +368,7 @@ export function PrintableReport({
   topology: BatteryTopology | null;
   selectedBatteryModel: string | null;
   gridType: ResidentialGridType | null;
+  nominalW: number;
   peakW: number;
   dailyKwh: number;
   userStockItems: UserStockItem[];
@@ -325,6 +391,16 @@ export function PrintableReport({
     (load.powerW * load.hoursPerDay * load.qty) / 1000;
 
   const tariffSavings = calculateTariffSavings(whiteTariff);
+
+  // Margins must reflect what the loads actually require the same way the
+  // Solução tab does: the registered loads only count toward the
+  // requirement while Backup is enabled (see SizingTab.tsx) — otherwise a
+  // disabled Backup with loads still on file would inflate the margins as if
+  // they were still being covered.
+  const isBackupEnabled = (desiredFeatures ?? []).includes('backup');
+  const marginNominalW = isBackupEnabled ? nominalW : 0;
+  const marginPeakW = isBackupEnabled ? peakW : 0;
+  const marginDailyKwh = isBackupEnabled ? dailyKwh : 0;
 
   return (
     <div className="print-report">
@@ -422,6 +498,12 @@ export function PrintableReport({
         accessoryCatalog={accessoryCatalog ?? []}
         userStockItems={userStockItems}
         productMedia={productMedia ?? {}}
+        desiredFeatures={desiredFeatures ?? []}
+        whiteTariff={whiteTariff}
+        microgrid={microgrid ?? null}
+        nominalW={marginNominalW}
+        peakW={marginPeakW}
+        dailyKwh={marginDailyKwh}
       />
 
       {secondarySolution && (
@@ -432,6 +514,12 @@ export function PrintableReport({
           accessoryCatalog={accessoryCatalog ?? []}
           userStockItems={userStockItems}
           productMedia={productMedia ?? {}}
+          desiredFeatures={desiredFeatures ?? []}
+          whiteTariff={whiteTariff}
+          microgrid={microgrid ?? null}
+          nominalW={marginNominalW}
+          peakW={marginPeakW}
+          dailyKwh={marginDailyKwh}
         />
       )}
 
