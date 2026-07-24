@@ -6,6 +6,7 @@ import {
   Database,
   FileClock,
   Layers,
+  ListChecks,
   Plug,
   Users,
   Zap,
@@ -21,6 +22,7 @@ export type TabKey =
   | 'inverters'
   | 'batteries'
   | 'accessories'
+  | 'rules'
   | 'loads'
   | 'presets'
   | 'logs';
@@ -294,6 +296,7 @@ export const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'batteries', label: 'Baterias', icon: Battery },
   { key: 'inverters', label: 'Inversores', icon: Zap },
   { key: 'accessories', label: 'Acessórios', icon: Cable },
+  { key: 'rules', label: 'Regras', icon: ListChecks },
   { key: 'loads', label: 'Cargas', icon: Plug },
   { key: 'presets', label: 'Presets', icon: Layers },
   { key: 'solutions', label: 'Combinações', icon: Boxes },

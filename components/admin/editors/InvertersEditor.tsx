@@ -1,59 +1,38 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Activity, Cable, Plus, Search, Zap } from 'lucide-react';
+import { Activity, Cable, ListChecks, Search, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import {
-  batteryAssociationMax,
-  clampNumber,
-  expansionModelSet,
   formatInverterGridType,
-  inverterSupportedBatteryTopologies,
-  normalizeEssBatteryConfigs,
   normalizeInverterFlags,
   normalizeInverterGridTypes,
   phasesFromInverterGridTypes,
-  selectClasses,
-  textareaClasses,
   toNullableNumber,
   toNumber,
 } from '../helpers';
 import {
   Actions,
   CatalogLayout,
-  EditorModal,
   Field,
   InfoLabel,
   InlineOptionTabs,
   MediaSummary,
   NumberWithUnitField,
   ProductMediaFields,
-  RecordCardGrid,
   SegmentedTabs,
   ToggleChipsInput,
 } from '../shared-ui';
 import {
-  emptyEssRule,
   emptyInverter,
   inverterFlagOptions,
   inverterGridTypeOptions,
   productEditorTabOptions,
-  type BatteryRow,
-  type BatteryTopology,
-  type EssBatteryConfig,
   type EssCompatibilityRuleRow,
   type InverterRow,
   type ProductEditorTab,
 } from '../types';
-
-type InverterFormTab = ProductEditorTab | 'ess';
-
-const inverterEditorTabOptions: { value: InverterFormTab; label: string }[] = [
-  ...productEditorTabOptions,
-  { value: 'ess', label: 'Compatibilidade ESS' },
-];
 
 export function InvertersEditor(props: {
   rows: InverterRow[];
@@ -70,41 +49,20 @@ export function InvertersEditor(props: {
   ) => Promise<string>;
   saving: boolean;
   essRows: EssCompatibilityRuleRow[];
-  essForm: Partial<EssCompatibilityRuleRow>;
-  setEssForm: (value: Partial<EssCompatibilityRuleRow>) => void;
-  batteries: BatteryRow[];
-  onSaveEss: (afterPersist?: () => void) => void;
-  onRemoveEss: (id: string) => void;
+  onViewEssRules: (inverterModel: string) => void;
 }) {
   const { form, setForm } = props;
-  const { essForm, setEssForm } = props;
   const [formOpen, setFormOpen] = useState(false);
-  const [activeFormTab, setActiveFormTab] = useState<InverterFormTab>('general');
-  const [essFormOpen, setEssFormOpen] = useState(false);
+  const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
   const [selectedPhase, setSelectedPhase] = useState<'all' | '1' | '2' | '3'>('all');
   const [selectedVoltage, setSelectedVoltage] = useState<'all' | '220V' | '380V'>('all');
   const [selectedBatteryTopology, setSelectedBatteryTopology] = useState<'all' | 'HV' | 'LV'>('all');
   const [query, setQuery] = useState('');
 
-  const inverterEssRows = useMemo(
-    () => (form.model ? props.essRows.filter((row) => row.inverter_model === form.model) : []),
+  const inverterEssRuleCount = useMemo(
+    () => (form.model ? props.essRows.filter((row) => row.inverter_model === form.model).length : 0),
     [props.essRows, form.model]
   );
-  const currentGridTypes = normalizeInverterGridTypes(form.grid_types);
-  const currentBatteryTopologies = inverterSupportedBatteryTopologies(form as InverterRow | undefined);
-  const essModalTitle = `${essForm.id ? 'Editar compatibilidade ESS' : 'Nova compatibilidade ESS'}${
-    form.model?.trim() ? ` - ${form.model.trim()}` : ''
-  }`;
-
-  function openNewEss() {
-    setEssForm({ ...emptyEssRule, inverter_model: form.model ?? '' });
-    setEssFormOpen(true);
-  }
-
-  function openEditEss(row: EssCompatibilityRuleRow) {
-    setEssForm(row);
-    setEssFormOpen(true);
-  }
 
   const phaseOptions = useMemo(() => {
     const counts = { '1': 0, '2': 0, '3': 0 };
@@ -182,14 +140,12 @@ export function InvertersEditor(props: {
   function openNew() {
     setForm(emptyInverter);
     setActiveFormTab('general');
-    setEssFormOpen(false);
     setFormOpen(true);
   }
 
   function openEdit(row: InverterRow) {
     setForm(row);
     setActiveFormTab('general');
-    setEssFormOpen(false);
     setFormOpen(true);
   }
 
@@ -200,12 +156,8 @@ export function InvertersEditor(props: {
       formOpen={formOpen}
       formTitle={form.id ? 'Editar inversor' : 'Novo inversor'}
       newLabel="Novo inversor"
-      expandForm={activeFormTab === 'ess'}
       onNew={openNew}
-      onClose={() => {
-        setFormOpen(false);
-        setEssFormOpen(false);
-      }}
+      onClose={() => setFormOpen(false)}
       search={
         <label className="relative block sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -269,7 +221,7 @@ export function InvertersEditor(props: {
               placeholder="Ex.: Inversor Compacto"
             />
           </Field>
-          <InlineOptionTabs options={inverterEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
+          <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (
             <>
               <div className="space-y-3 rounded-lg border bg-background p-3">
@@ -384,146 +336,13 @@ export function InvertersEditor(props: {
                   onChange={(flags) => setForm({ ...form, flags })}
                 />
               </Field>
-            </>
-          ) : activeFormTab === 'ess' ? (
-            <div className="space-y-4">
-              {!form.model?.trim() ? (
-                <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                  Preencha e salve o modelo do inversor antes de cadastrar compatibilidades ESS.
-                </p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold">Compatibilidade com baterias (ESS)</p>
-                      <p className="text-xs text-muted-foreground">
-                        {inverterEssRows.length} regra{inverterEssRows.length === 1 ? '' : 's'} cadastrada
-                        {inverterEssRows.length === 1 ? '' : 's'} para este inversor.
-                      </p>
-                    </div>
-                    <Button type="button" size="sm" onClick={openNewEss}>
-                      <Plus className="h-4 w-4" />
-                      Nova compatibilidade
-                    </Button>
-                  </div>
-
-                  {inverterEssRows.length === 0 ? (
-                    <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                      Nenhuma compatibilidade ESS cadastrada ainda para este inversor.
-                    </p>
-                  ) : (
-                    <RecordCardGrid
-                      className="mt-3 md:grid-cols-1 2xl:grid-cols-1"
-                      items={inverterEssRows.map((row) => {
-                        const batteryConfigs = normalizeEssBatteryConfigs(row, props.batteries);
-                        const batteryTags = batteryConfigs.map(
-                          (config) => `${config.battery_model} (${config.min_battery_qty}–${config.max_battery_qty})`
-                        );
-                        return {
-                          id: row.id,
-                          title:
-                            row.name?.trim() ||
-                            (batteryConfigs.length > 0
-                              ? `${batteryConfigs.length} bateria${batteryConfigs.length === 1 ? '' : 's'} compatível${batteryConfigs.length === 1 ? '' : 'is'}`
-                              : 'Sem baterias selecionadas'),
-                          badges: [
-                            row.active ? 'ativa' : 'inativa',
-                            ...Array.from(new Set(batteryConfigs.map((config) => config.battery_topology))),
-                          ],
-                          details: [
-                            ['Baterias', batteryTags.length > 0 ? batteryTags : ['—'], true],
-                            ['Máx. paralelo', String(row.max_parallel_inverters ?? 1)],
-                          ],
-                          description: row.comment ?? undefined,
-                          removing: props.removingIds.has(row.id),
-                          onEdit: () => openEditEss(row),
-                          onRemove: () => props.onRemoveEss(row.id),
-                          removeDescription:
-                            'Essa compatibilidade ESS será removida e as combinações geradas por ela não serão mais atualizadas.',
-                        };
-                      })}
-                    />
-                  )}
-                </>
+              {form.model?.trim() && (
+                <Button type="button" variant="outline" size="sm" onClick={() => props.onViewEssRules(form.model!)}>
+                  <ListChecks className="h-4 w-4" />
+                  Ver compatibilidade ESS{inverterEssRuleCount > 0 ? ` (${inverterEssRuleCount})` : ''}
+                </Button>
               )}
-
-              <EditorModal
-                open={essFormOpen}
-                title={essModalTitle}
-                onClose={() => setEssFormOpen(false)}
-              >
-                <Field label="Nome da regra">
-                  <Input
-                    value={essForm.name ?? ''}
-                    onChange={(event) => setEssForm({ ...essForm, name: event.target.value })}
-                    placeholder="Ex.: Compatibilidade padrão HV"
-                  />
-                </Field>
-                <div className="space-y-3 rounded-lg border bg-background p-3">
-                  <p className="text-sm font-semibold">Inversor</p>
-                  <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
-                    <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-                      <span className="font-medium text-foreground">{form.model}</span>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Redes: {currentGridTypes.map(formatInverterGridType).join(', ') || '—'}
-                      </p>
-                    </div>
-                    <Field label="Máximo paralelo">
-                      <select
-                        className={selectClasses()}
-                        value={essForm.max_parallel_inverters ?? 1}
-                        onChange={(event) => setEssForm({ ...essForm, max_parallel_inverters: toNumber(event.target.value, 1) })}
-                      >
-                        {Array.from({ length: 10 }, (_, index) => index + 1).map((qty) => (
-                          <option key={qty} value={qty}>
-                            {qty}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-lg border bg-background p-3">
-                  <p className="text-sm font-semibold">Bateria</p>
-                  <p className="text-xs text-muted-foreground">
-                    Topologias compatíveis: {currentBatteryTopologies.join(', ') || '—'}.
-                  </p>
-                  <EssBatteryConfigsInput
-                    batteries={props.batteries}
-                    supportedTopologies={currentBatteryTopologies}
-                    value={essForm}
-                    onChange={(battery_configs) =>
-                      setEssForm({
-                        ...essForm,
-                        battery_configs,
-                        battery_model: battery_configs[0]?.battery_model ?? '',
-                        battery_topology: battery_configs[0]?.battery_topology ?? null,
-                        min_battery_qty: battery_configs[0]?.min_battery_qty ?? 1,
-                        max_battery_qty: battery_configs[0]?.max_battery_qty ?? 2,
-                      })
-                    }
-                  />
-                </div>
-
-                <Field label="Comentário">
-                  <textarea
-                    className={textareaClasses()}
-                    value={essForm.comment ?? ''}
-                    onChange={(event) => setEssForm({ ...essForm, comment: event.target.value })}
-                  />
-                </Field>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={essForm.active ?? true}
-                    onChange={(event) => setEssForm({ ...essForm, active: event.target.checked })}
-                  />
-                  Ativa
-                </label>
-                <Actions onSave={() => props.onSaveEss(() => setEssFormOpen(false))} saving={props.saving} />
-              </EditorModal>
-            </div>
+            </>
           ) : (
             <ProductMediaFields
               table="inverters"
@@ -535,9 +354,7 @@ export function InvertersEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
-          {activeFormTab !== 'ess' && (
-            <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
-          )}
+          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
         </>
       }
       items={visibleRows.map((row) => ({
@@ -558,147 +375,5 @@ export function InvertersEditor(props: {
         removeDescription: `O inversor ${row.model} e todos os seus dados serão removidos do cadastro.`,
       }))}
     />
-  );
-}
-
-function EssBatteryConfigsInput({
-  batteries,
-  supportedTopologies,
-  value,
-  onChange,
-}: {
-  batteries: BatteryRow[];
-  supportedTopologies: BatteryTopology[];
-  value: Partial<EssCompatibilityRuleRow>;
-  onChange: (configs: EssBatteryConfig[]) => void;
-}) {
-  const configs = normalizeEssBatteryConfigs(value, batteries);
-  const configByModel = new Map(configs.map((config) => [config.battery_model, config]));
-  const slaveModels = expansionModelSet(batteries);
-  const availableBatteries = batteries.filter(
-    (battery) => supportedTopologies.includes(battery.topology) && !slaveModels.has(battery.model)
-  );
-
-  function toggleBattery(battery: BatteryRow) {
-    const existing = configByModel.get(battery.model);
-    if (existing) {
-      onChange(configs.filter((config) => config.battery_model !== battery.model));
-      return;
-    }
-    const associationMax = batteryAssociationMax(battery);
-    onChange([
-      ...configs,
-      {
-        battery_model: battery.model,
-        battery_topology: battery.topology,
-        min_battery_qty: 1,
-        max_battery_qty: associationMax,
-      },
-    ]);
-  }
-
-  function updateConfig(model: string, patch: Partial<EssBatteryConfig>) {
-    onChange(
-      configs.map((config) => {
-        if (config.battery_model !== model) return config;
-        const battery = batteries.find((item) => item.model === model);
-        const associationMax = batteryAssociationMax(battery);
-        const minQty = clampNumber(patch.min_battery_qty ?? config.min_battery_qty, 1, Math.min(7, associationMax), 1);
-        const maxQty = Math.max(minQty, clampNumber(patch.max_battery_qty ?? config.max_battery_qty, 1, associationMax, associationMax));
-        return { ...config, ...patch, min_battery_qty: minQty, max_battery_qty: maxQty };
-      })
-    );
-  }
-
-  if (supportedTopologies.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-        Selecione um inversor para listar baterias compatíveis.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {availableBatteries.map((battery) => {
-          const active = configByModel.has(battery.model);
-          return (
-            <button
-              key={battery.id}
-              type="button"
-              aria-pressed={active}
-              className={cn(
-                'inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                active
-                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
-              )}
-              onClick={() => toggleBattery(battery)}
-            >
-              <span className="truncate">{battery.model}</span>
-              <span className={active ? 'text-primary-foreground/80' : 'text-muted-foreground'}>{battery.topology}</span>
-            </button>
-          );
-        })}
-      </div>
-      {availableBatteries.length === 0 && (
-        <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-          Nenhuma bateria compatível com a topologia do inversor.
-        </p>
-      )}
-      {configs.length > 0 && (
-        <div className="space-y-2">
-          {configs.map((config) => {
-            const battery = batteries.find((item) => item.model === config.battery_model);
-            const associationMax = batteryAssociationMax(battery);
-            const minLimit = Math.min(7, associationMax);
-            return (
-              <div
-                key={config.battery_model}
-                className="grid gap-2 rounded-lg border bg-card p-2 sm:grid-cols-[minmax(0,1fr)_170px]"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{config.battery_model}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {config.battery_topology} · associação máx. {associationMax}/porta
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <label className="min-w-0 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 dark:border-blue-800 dark:bg-blue-950/40">
-                    <span className="block text-[10px] font-semibold uppercase text-blue-600 dark:text-blue-400">Min/porta</span>
-                    <select
-                      className="h-7 w-full bg-transparent text-sm font-semibold text-blue-900 outline-none dark:text-blue-100"
-                      value={config.min_battery_qty}
-                      onChange={(event) => updateConfig(config.battery_model, { min_battery_qty: toNumber(event.target.value, 1) })}
-                    >
-                      {Array.from({ length: minLimit }, (_, index) => index + 1).map((qty) => (
-                        <option key={qty} value={qty}>
-                          {qty}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="min-w-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 dark:border-rose-800 dark:bg-rose-950/40">
-                    <span className="block text-[10px] font-semibold uppercase text-rose-600 dark:text-rose-400">Max/porta</span>
-                    <select
-                      className="h-7 w-full bg-transparent text-sm font-semibold text-rose-900 outline-none dark:text-rose-100"
-                      value={config.max_battery_qty}
-                      onChange={(event) => updateConfig(config.battery_model, { max_battery_qty: toNumber(event.target.value, associationMax) })}
-                    >
-                      {Array.from({ length: associationMax }, (_, index) => index + 1).map((qty) => (
-                        <option key={qty} value={qty}>
-                          {qty}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BatteryRow, EssCompatibilityRuleRow, InverterRow } from '../types';
+import type { EssCompatibilityRuleRow, InverterRow } from '../types';
 import { InvertersEditor } from './InvertersEditor';
 
 function makeInverter(partial: Partial<InverterRow> & Pick<InverterRow, 'id' | 'model'>): InverterRow {
@@ -28,25 +28,6 @@ function makeInverter(partial: Partial<InverterRow> & Pick<InverterRow, 'id' | '
   };
 }
 
-const battery: BatteryRow = {
-  id: 'b1',
-  model: 'TP-HS3.6',
-  topology: 'HV',
-  capacity_kwh: 3.6,
-  standard_power_kw: 1.8,
-  peak_power_kw: 2.5,
-  min_soc_percent: 10,
-  nominal_voltage_v: null,
-  voltage_min_v: null,
-  voltage_max_v: null,
-  recommended_current_a: null,
-  max_current_a: null,
-  flags: [],
-  max_association_qty: 15,
-  image_url: null,
-  documents: [],
-};
-
 function makeEssRule(partial: Partial<EssCompatibilityRuleRow> & Pick<EssCompatibilityRuleRow, 'id' | 'inverter_model'>): EssCompatibilityRuleRow {
   return {
     name: null,
@@ -67,16 +48,13 @@ function makeEssRule(partial: Partial<EssCompatibilityRuleRow> & Pick<EssCompati
 function ControlledEditor(overrides: {
   rows?: InverterRow[];
   essRows?: EssCompatibilityRuleRow[];
-  batteries?: BatteryRow[];
   onSave?: (afterPersist?: () => void) => void;
   onRemove?: (id: string) => void;
-  onSaveEss?: (afterPersist?: () => void) => void;
-  onRemoveEss?: (id: string) => void;
+  onViewEssRules?: (inverterModel: string) => void;
   removingIds?: Set<string>;
   saving?: boolean;
 }) {
   const [form, setForm] = useState<Partial<InverterRow>>({});
-  const [essForm, setEssForm] = useState<Partial<EssCompatibilityRuleRow>>({});
   return (
     <InvertersEditor
       rows={overrides.rows ?? []}
@@ -88,11 +66,7 @@ function ControlledEditor(overrides: {
       uploadAsset={vi.fn().mockResolvedValue('https://cdn.example.com/x.png')}
       saving={overrides.saving ?? false}
       essRows={overrides.essRows ?? []}
-      essForm={essForm}
-      setEssForm={setEssForm}
-      batteries={overrides.batteries ?? [battery]}
-      onSaveEss={overrides.onSaveEss ?? vi.fn()}
-      onRemoveEss={overrides.onRemoveEss ?? vi.fn()}
+      onViewEssRules={overrides.onViewEssRules ?? vi.fn()}
     />
   );
 }
@@ -266,150 +240,33 @@ describe('InvertersEditor: general form', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
     expect(onRemove).toHaveBeenCalledWith('i1');
   });
-});
 
-describe('InvertersEditor: ESS compatibility tab', () => {
-  it('prompts to save the inverter model first when empty', () => {
-    render(<ControlledEditor />);
+  it('only shows the "Ver compatibilidade ESS" link once the model is filled in, and calls onViewEssRules with it', () => {
+    const onViewEssRules = vi.fn();
+    render(<ControlledEditor rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]} onViewEssRules={onViewEssRules} />);
+
     fireEvent.click(screen.getByRole('button', { name: /Novo inversor/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    expect(screen.getByText('Preencha e salve o modelo do inversor antes de cadastrar compatibilidades ESS.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ver compatibilidade ESS/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Novo inversor' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver compatibilidade ESS/ }));
+    expect(onViewEssRules).toHaveBeenCalledWith('X1-Hybrid-5.0kW-G4');
   });
 
-  it('lists only ESS rules for the current inverter model', () => {
+  it('shows the ESS rule count next to the "Ver compatibilidade ESS" link', () => {
     render(
       <ControlledEditor
         rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
-        essRows={[makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat padrão' })]}
+        essRows={[
+          makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4' }),
+          makeEssRule({ id: 'e2', inverter_model: 'X1-Hybrid-5.0kW-G4' }),
+          makeEssRule({ id: 'e3', inverter_model: 'other-model' }),
+        ]}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    expect(screen.getByText('Compat padrão')).toBeInTheDocument();
-  });
-
-  it('opens the new ESS modal, toggles a compatible battery, and saves', () => {
-    const onSaveEss = vi.fn((afterPersist?: () => void) => afterPersist?.());
-    render(<ControlledEditor rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]} onSaveEss={onSaveEss} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
-
-    const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
-    fireEvent.click(within(essDialog).getByRole('button', { name: /TP-HS3.6/ }));
-    // Now shown both as a selected toggle chip and in the per-battery config card below.
-    expect(within(essDialog).getAllByText('TP-HS3.6')).toHaveLength(2);
-
-    fireEvent.click(within(essDialog).getByRole('button', { name: /Salvar/ }));
-    expect(onSaveEss).toHaveBeenCalled();
-  });
-
-  it('excludes expansion/Slave batteries from the compatible-battery toggle list', () => {
-    const master: BatteryRow = { ...battery, id: 'b-master', model: 'T58 V2 Master', expansion_model: 'T58 Slave' };
-    const slave: BatteryRow = { ...battery, id: 'b-slave', model: 'T58 Slave' };
-    render(
-      <ControlledEditor
-        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
-        batteries={[master, slave]}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
-
-    const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
-    expect(within(essDialog).getByRole('button', { name: /T58 V2 Master/ })).toBeInTheDocument();
-    expect(within(essDialog).queryByRole('button', { name: /T58 Slave/ })).not.toBeInTheDocument();
-  });
-
-  it('shows a message when the inverter topology has no compatible batteries', () => {
-    render(
-      <ControlledEditor
-        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'LV' })]}
-        batteries={[battery]}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
-
-    const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
-    expect(within(essDialog).getByText('Nenhuma bateria compatível com a topologia do inversor.')).toBeInTheDocument();
-  });
-
-  it('opens an existing ESS rule for editing, edits its fields, and closes the sub-modal via the close button', () => {
-    render(
-      <ControlledEditor
-        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
-        essRows={[makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat padrão' })]}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-
-    const essCard = screen.getByText('Compat padrão').closest('[data-slot="card"]') as HTMLElement;
-    fireEvent.click(within(essCard).getByRole('button', { name: 'Editar' }));
-
-    const essDialog = screen.getByRole('dialog', { name: /Editar compatibilidade ESS/ });
-    fireEvent.change(within(essDialog).getByLabelText('Nome da regra'), { target: { value: 'Compat renomeada' } });
-    expect(within(essDialog).getByLabelText('Nome da regra')).toHaveValue('Compat renomeada');
-
-    fireEvent.change(within(essDialog).getByLabelText('Máximo paralelo'), { target: { value: '2' } });
-    fireEvent.change(within(essDialog).getByLabelText('Comentário'), { target: { value: 'Observação' } });
-    expect(within(essDialog).getByLabelText('Comentário')).toHaveValue('Observação');
-
-    fireEvent.click(within(essDialog).getByRole('checkbox', { name: 'Ativa' }));
-
-    // Toggling the already-selected battery off removes its config card too.
-    fireEvent.click(within(essDialog).getByRole('button', { name: /^TP-HS3.6/ }));
-    expect(within(essDialog).queryAllByText('TP-HS3.6')).toHaveLength(1);
-
-    fireEvent.click(within(essDialog).getByRole('button', { name: /Fechar Editar compatibilidade ESS/ }));
-    expect(screen.queryByRole('dialog', { name: /Editar compatibilidade ESS/ })).not.toBeInTheDocument();
-  });
-
-  it('adjusts a compatible battery\'s min/max quantity per port, leaving other selected batteries\' configs untouched', () => {
-    const otherBattery: BatteryRow = { ...battery, id: 'b2', model: 'TP-HS7.2' };
-    render(
-      <ControlledEditor
-        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
-        batteries={[battery, otherBattery]}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
-
-    const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
-    fireEvent.click(within(essDialog).getByRole('button', { name: /^TP-HS3.6/ }));
-    fireEvent.click(within(essDialog).getByRole('button', { name: /^TP-HS7.2/ }));
-
-    const [minSelect, maxSelect] = within(essDialog).getAllByRole('combobox').slice(-2);
-    fireEvent.change(minSelect, { target: { value: '2' } });
-    expect(minSelect).toHaveValue('2');
-    fireEvent.change(maxSelect, { target: { value: '3' } });
-    expect(maxSelect).toHaveValue('3');
-
-    // The other battery's own config selects (min/max, right after "Máximo
-    // paralelo") are untouched by editing this one.
-    const [, otherMinSelect] = within(essDialog).getAllByRole('combobox');
-    expect(otherMinSelect).toHaveValue('1');
-  });
-
-  it('removes an ESS rule via the confirm popover', async () => {
-    const onRemoveEss = vi.fn();
-    render(
-      <ControlledEditor
-        rows={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
-        essRows={[makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat padrão' })]}
-        onRemoveEss={onRemoveEss}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remover Compat padrão' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
-    expect(onRemoveEss).toHaveBeenCalledWith('e1');
+    expect(screen.getByRole('button', { name: 'Ver compatibilidade ESS (2)' })).toBeInTheDocument();
   });
 });
+

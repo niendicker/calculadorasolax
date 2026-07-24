@@ -12,6 +12,7 @@ import { BatteriesEditor } from './editors/BatteriesEditor';
 import { InvertersEditor } from './editors/InvertersEditor';
 import { LoadCatalogEditor } from './editors/LoadCatalogEditor';
 import { PresetsEditor } from './editors/PresetsEditor';
+import { RulesEditor, type RulesJumpTarget } from './editors/RulesEditor';
 import { SolutionsEditor } from './editors/SolutionsEditor';
 import {
   ACCESSORY_COLUMNS,
@@ -85,6 +86,7 @@ const TAB_RESOURCES: Record<TabKey, ResourceKey[]> = {
   inverters: ['inverters', 'batteries', 'essRules'],
   batteries: ['batteries'],
   accessories: ['accessories', 'rules', 'inverters', 'batteries'],
+  rules: ['accessories', 'rules', 'inverters', 'batteries', 'essRules'],
   loads: ['loadCatalog'],
   presets: ['presets', 'loadCatalog'],
   logs: ['activityLogs'],
@@ -134,6 +136,7 @@ export function AdminPanel() {
   const [presetForm, setPresetForm] = useState<Partial<PresetRow>>(emptyPreset);
   const [ruleForm, setRuleForm] = useState<Partial<AccessoryRuleRow>>(emptyRule);
   const [essRuleForm, setEssRuleForm] = useState<Partial<EssCompatibilityRuleRow>>(emptyEssRule);
+  const [rulesJumpTarget, setRulesJumpTarget] = useState<RulesJumpTarget>(null);
   const [solutionForm, setSolutionForm] = useState<Partial<SolutionRow>>(emptySolution);
   const [solutionAccessories, setSolutionAccessories] = useState<{ model: string | null; quantity: number }[]>([]);
   const [solutionComments, setSolutionComments] = useState<string[]>([]);
@@ -978,6 +981,16 @@ export function AdminPanel() {
     void ensureTabData(tab);
   }
 
+  function viewAccessoryRules(accessoryId: string, accessoryModel: string) {
+    setRulesJumpTarget({ scope: 'accessory', accessoryId, accessoryModel });
+    selectTab('rules');
+  }
+
+  function viewInverterEssRules(inverterModel: string) {
+    setRulesJumpTarget({ scope: 'ess', inverterModel });
+    selectTab('rules');
+  }
+
   function refreshActiveTab() {
     void ensureTabData(activeTab, true);
   }
@@ -1095,11 +1108,7 @@ export function AdminPanel() {
                     uploadAsset={uploadProductAsset}
                     saving={saving}
                     essRows={essRules}
-                    essForm={essRuleForm}
-                    setEssForm={setEssRuleForm}
-                    batteries={batteries}
-                    onSaveEss={saveEssRule}
-                    onRemoveEss={(id) => removeRow('ess_compatibility_rules', id)}
+                    onViewEssRules={viewInverterEssRules}
                   />
                 )}
 
@@ -1127,12 +1136,28 @@ export function AdminPanel() {
                     uploadAsset={uploadProductAsset}
                     rules={rules}
                     saving={saving}
+                    onViewRules={viewAccessoryRules}
+                  />
+                )}
+
+                {activeTab === 'rules' && (
+                  <RulesEditor
+                    accessories={accessories}
+                    inverters={inverters}
+                    batteries={batteries}
+                    rules={rules}
                     ruleForm={ruleForm}
                     setRuleForm={setRuleForm}
                     onSaveRule={saveRule}
                     onRemoveRule={(id) => removeRow('accessory_rules', id)}
-                    inverters={inverters}
-                    batteries={batteries}
+                    essRows={essRules}
+                    essForm={essRuleForm}
+                    setEssForm={setEssRuleForm}
+                    onSaveEss={saveEssRule}
+                    onRemoveEss={(id) => removeRow('ess_compatibility_rules', id)}
+                    removingIds={removingIds}
+                    saving={saving}
+                    jumpTarget={rulesJumpTarget}
                   />
                 )}
 

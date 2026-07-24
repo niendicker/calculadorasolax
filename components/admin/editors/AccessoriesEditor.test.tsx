@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { useState } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { AccessoryRow, AccessoryRuleRow, BatteryRow, InverterRow } from '../types';
+import type { AccessoryRow, AccessoryRuleRow } from '../types';
 import { AccessoriesEditor, accessoryCategories } from './AccessoriesEditor';
 
 function makeAccessory(partial: Partial<AccessoryRow> & Pick<AccessoryRow, 'id' | 'model'>): AccessoryRow {
@@ -29,47 +29,6 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
   };
 }
 
-function makeInverter(partial: Partial<InverterRow> & Pick<InverterRow, 'id' | 'model'>): InverterRow {
-  return {
-    power_kw: 5,
-    standard_power_kva: 5,
-    peak_power_kva: 7,
-    phases: 1,
-    topology: 'HV',
-    grid_types: ['1P_220V'],
-    max_battery_qty: 6,
-    battery_ports: 1,
-    battery_voltage_min_v: null,
-    battery_voltage_max_v: null,
-    battery_current_max_a: null,
-    max_power_per_phase_w: null,
-    flags: [],
-    pv_oversizing_percent: 100,
-    image_url: null,
-    documents: [],
-    ...partial,
-  };
-}
-
-const battery: BatteryRow = {
-  id: 'b1',
-  model: 'TP-HS3.6',
-  topology: 'HV',
-  capacity_kwh: 3.6,
-  standard_power_kw: 1.8,
-  peak_power_kw: 2.5,
-  min_soc_percent: 10,
-  nominal_voltage_v: null,
-  voltage_min_v: null,
-  voltage_max_v: null,
-  recommended_current_a: null,
-  max_current_a: null,
-  flags: [],
-  max_association_qty: 15,
-  image_url: null,
-  documents: [],
-};
-
 describe('accessoryCategories', () => {
   it('categorizes as "system" when there are no rules for the accessory', () => {
     expect(accessoryCategories('a1', [])).toEqual(new Set(['system']));
@@ -92,17 +51,13 @@ describe('accessoryCategories', () => {
 function ControlledEditor(overrides: {
   rows?: AccessoryRow[];
   rules?: AccessoryRuleRow[];
-  inverters?: InverterRow[];
-  batteries?: BatteryRow[];
   onSave?: (afterPersist?: () => void) => void;
   onRemove?: (id: string) => void;
-  onSaveRule?: (afterPersist?: () => void) => void;
-  onRemoveRule?: (id: string) => void;
+  onViewRules?: (accessoryId: string, accessoryModel: string) => void;
   removingIds?: Set<string>;
   saving?: boolean;
 }) {
   const [form, setForm] = useState<Partial<AccessoryRow>>({});
-  const [ruleForm, setRuleForm] = useState<Partial<AccessoryRuleRow>>({});
   return (
     <AccessoriesEditor
       rows={overrides.rows ?? []}
@@ -114,12 +69,7 @@ function ControlledEditor(overrides: {
       uploadAsset={vi.fn().mockResolvedValue('https://cdn.example.com/x.png')}
       rules={overrides.rules ?? []}
       saving={overrides.saving ?? false}
-      ruleForm={ruleForm}
-      setRuleForm={setRuleForm}
-      onSaveRule={overrides.onSaveRule ?? vi.fn()}
-      onRemoveRule={overrides.onRemoveRule ?? vi.fn()}
-      inverters={overrides.inverters ?? [makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' })]}
-      batteries={overrides.batteries ?? [battery]}
+      onViewRules={overrides.onViewRules ?? vi.fn()}
     />
   );
 }
@@ -218,131 +168,33 @@ describe('AccessoriesEditor: general form', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
     expect(onRemove).toHaveBeenCalledWith('a1');
   });
-});
 
-describe('AccessoriesEditor: rules tab', () => {
-  it('prompts to save the accessory first when there is no id yet', () => {
-    render(<ControlledEditor />);
+  it('only shows the "Ver regras" link once the accessory has an id, and calls onViewRules with it', () => {
+    const onViewRules = vi.fn();
+    render(<ControlledEditor rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]} onViewRules={onViewRules} />);
+
     fireEvent.click(screen.getByRole('button', { name: /Novo acessório/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-    expect(screen.getByText('Salve o acessório antes de cadastrar regras de aplicação.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ver regras de aplicação/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Novo acessório' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver regras de aplicação/ }));
+    expect(onViewRules).toHaveBeenCalledWith('a1', 'Smart Meter');
   });
 
-  it('lists only rules for the current accessory, and shows the empty state otherwise', () => {
+  it('shows the rule count next to the "Ver regras" link', () => {
     render(
       <ControlledEditor
         rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]}
-        rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra do Smart Meter' })]}
+        rules={[
+          makeRule({ id: 'r1', accessory_id: 'a1' }),
+          makeRule({ id: 'r2', accessory_id: 'a1' }),
+          makeRule({ id: 'r3', accessory_id: 'a2' }),
+        ]}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-
-    expect(screen.getByText('Regra do Smart Meter')).toBeInTheDocument();
-  });
-
-  it('opens the new-rule modal, toggles an inverter filter, and saves', () => {
-    const onSaveRule = vi.fn((afterPersist?: () => void) => afterPersist?.());
-    render(<ControlledEditor rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]} onSaveRule={onSaveRule} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
-
-    const ruleDialog = screen.getByRole('dialog', { name: /Nova regra/ });
-    expect(within(ruleDialog).getByText('Qualquer inversor.')).toBeInTheDocument();
-
-    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
-    expect(within(ruleDialog).getByText('1 inversor(es) selecionado(s).')).toBeInTheDocument();
-
-    fireEvent.click(within(ruleDialog).getByRole('button', { name: /Salvar/ }));
-    expect(onSaveRule).toHaveBeenCalled();
-  });
-
-  it('toggles a desired-feature filter on the new-rule modal', () => {
-    render(<ControlledEditor rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
-
-    const ruleDialog = screen.getByRole('dialog', { name: /Nova regra/ });
-    expect(within(ruleDialog).getByText('Qualquer funcionalidade.')).toBeInTheDocument();
-
-    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'ATS Externo' }));
-    expect(within(ruleDialog).getByText('1 funcionalidade(s) selecionada(s).')).toBeInTheDocument();
-
-    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'ATS Externo' }));
-    expect(within(ruleDialog).getByText('Qualquer funcionalidade.')).toBeInTheDocument();
-  });
-
-  it('opens an existing rule for editing, edits every field, deselects an inverter, and closes via the close button', () => {
-    render(
-      <ControlledEditor
-        rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]}
-        rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra do Smart Meter', inverter_models: ['X1-Hybrid-5.0kW-G4'] })]}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-
-    const ruleCard = screen.getByText('Regra do Smart Meter').closest('[data-slot="card"]') as HTMLElement;
-    fireEvent.click(within(ruleCard).getByRole('button', { name: 'Editar' }));
-
-    const ruleDialog = screen.getByRole('dialog', { name: /Editar regra/ });
-    fireEvent.change(within(ruleDialog).getByLabelText('Nome da regra'), { target: { value: 'Regra renomeada' } });
-    expect(within(ruleDialog).getByLabelText('Nome da regra')).toHaveValue('Regra renomeada');
-
-    fireEvent.change(within(ruleDialog).getByLabelText('Inclusão'), { target: { value: 'optional' } });
-    expect(within(ruleDialog).getByLabelText('Inclusão')).toHaveValue('optional');
-
-    fireEvent.change(within(ruleDialog).getByLabelText(/^Quantidade do acessório/), { target: { value: '3' } });
-    expect(within(ruleDialog).getByLabelText(/^Quantidade do acessório/)).toHaveValue(3);
-
-    fireEvent.change(within(ruleDialog).getByLabelText('Limiar baseado em'), { target: { value: 'inverter_quantity' } });
-    expect(within(ruleDialog).getByLabelText('Limiar baseado em')).toHaveValue('inverter_quantity');
-
-    fireEvent.change(within(ruleDialog).getByLabelText(/^Quantidade mínima/), { target: { value: '2' } });
-    expect(within(ruleDialog).getByLabelText(/^Quantidade mínima/)).toHaveValue(2);
-
-    fireEvent.change(within(ruleDialog).getByLabelText('Bateria'), { target: { value: 'TP-HS3.6' } });
-    expect(within(ruleDialog).getByLabelText('Bateria')).toHaveValue('TP-HS3.6');
-
-    fireEvent.change(within(ruleDialog).getByLabelText('Comentário automático'), { target: { value: 'Aplica-se sempre.' } });
-    expect(within(ruleDialog).getByLabelText('Comentário automático')).toHaveValue('Aplica-se sempre.');
-
-    fireEvent.click(within(ruleDialog).getByRole('checkbox', { name: 'Ativa' }));
-
-    // Started pre-selected (via inverter_models) — clicking again deselects it.
-    fireEvent.click(within(ruleDialog).getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
-    expect(within(ruleDialog).getByText('Qualquer inversor.')).toBeInTheDocument();
-
-    fireEvent.click(within(ruleDialog).getByRole('button', { name: /Fechar Editar regra/ }));
-    expect(screen.queryByRole('dialog', { name: /Editar regra/ })).not.toBeInTheDocument();
-  });
-
-  it('disables "Quantidade mínima" when the trigger is "Por solução"', () => {
-    render(<ControlledEditor rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
-
-    expect(screen.getByLabelText(/^Quantidade mínima/)).toBeDisabled();
-  });
-
-  it('removes a rule via the confirm popover', async () => {
-    const onRemoveRule = vi.fn();
-    render(
-      <ControlledEditor
-        rows={[makeAccessory({ id: 'a1', model: 'Smart Meter' })]}
-        rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra 1' })]}
-        onRemoveRule={onRemoveRule}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remover Regra 1' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
-
-    expect(onRemoveRule).toHaveBeenCalledWith('r1');
+    expect(screen.getByRole('button', { name: 'Ver regras de aplicação (2)' })).toBeInTheDocument();
   });
 });
+

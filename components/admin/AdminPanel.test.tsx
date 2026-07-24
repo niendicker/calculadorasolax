@@ -474,26 +474,31 @@ describe('AdminPanel: saving every entity type records the right activity log en
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Combinação salva.'));
   });
 
-  it('saves a new accessory rule from an existing accessory\'s "Regras de aplicação" tab', async () => {
+  it('saves a new accessory rule from an existing accessory\'s "Ver regras de aplicação" link', async () => {
     await openAdminPanel({ accessories: { data: [accessoryRow], error: null } });
     fireEvent.click(screen.getByRole('button', { name: /Acessórios/ }));
     await waitFor(() => expect(screen.getByText('Smart Meter')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver regras de aplicação/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Nova regra/ })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+
+    // The accessory jumped from is pre-selected in the new rule's "Acessório" field.
+    const ruleDialog = screen.getByRole('dialog', { name: /Nova regra/ });
+    fireEvent.click(within(ruleDialog).getByRole('button', { name: /Salvar/ }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Regra salva.'));
   });
 
-  it('saves a new ESS compatibility rule from an existing inverter\'s "Compatibilidade ESS" tab', async () => {
+  it('saves a new ESS compatibility rule from an existing inverter\'s "Ver compatibilidade ESS" link', async () => {
     await openAdminPanel();
     fireEvent.click(screen.getByRole('button', { name: /Inversores/ }));
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver compatibilidade ESS/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Nova compatibilidade/ })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
 
     const essDialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
@@ -591,8 +596,8 @@ describe('AdminPanel: removing every entity type resolves the right activity-log
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compatibilidade ESS' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remover Regra ESS' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver compatibilidade ESS/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remover Regra ESS' }, { timeout: 1000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Registro removido com sucesso.'));
@@ -607,8 +612,8 @@ describe('AdminPanel: removing every entity type resolves the right activity-log
     await waitFor(() => expect(screen.getByText('Smart Meter')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regras de aplicação' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remover Regra Smart Meter' }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver regras de aplicação/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remover Regra Smart Meter' }, { timeout: 1000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Registro removido com sucesso.'));
