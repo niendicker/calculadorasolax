@@ -349,13 +349,10 @@ export function ruleMetricValue(solution: ApprovedSolution, metric: AccessoryRul
   if (metric === 'inverter_quantity') return solution.inverter_quantity;
   if (metric === 'battery_quantity') return solution.battery_quantity;
   if (metric === 'battery_quantity_per_port') return solution.battery_quantity / Math.max(1, solutionTotalBatteryPorts(solution));
-  // 'battery_ports_used': ports in use on a single inverter. Rules configured
-  // against this metric predate battery_quantity_per_port and were calibrated
-  // with that per-inverter value in mind — summing across every inverter here
-  // would silently change what their existing min_quantity/quantity_per_match
-  // mean without anyone having touched the rule. Mirrors
-  // components/admin/helpers.ts solutionRuleMetricValue.
-  return solution.battery_ports_used;
+  // 'battery_ports_used': total physical ports in use across every inverter,
+  // not just the per-inverter count stored on the solution row — a rule
+  // gating/scaling on this metric means "per port in the whole solution".
+  return solutionTotalBatteryPorts(solution);
 }
 
 /** Mirrors components/admin/helpers.ts accessoryRuleAppliedQuantity: the

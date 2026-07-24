@@ -358,9 +358,8 @@ describe('buildSolutionPayload', () => {
     expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 2 }));
   });
 
-  it('scales battery_ports_used by a single inverter\'s ports, not summed across every inverter', () => {
-    // 2 inverters x 2 ports each — battery_ports_used stays a per-inverter fact
-    // so pre-existing rules built around it keep meaning what they always meant.
+  it('scales battery_ports_used by the total ports across every inverter, not just one inverter\'s ports', () => {
+    // 2 inverters x 2 ports each = 4 physical ports in the whole solution.
     const solution = makeSolution({ inverter_quantity: 2, battery_ports_used: 2 });
     const rule = makeRule({
       quantity_per_match: 1,
@@ -376,12 +375,12 @@ describe('buildSolutionPayload', () => {
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
     });
-    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 2 }));
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800', qty: 4 }));
   });
 
-  it('gates battery_ports_used on a single inverter\'s ports, not summed across every inverter', () => {
-    // 2 inverters x 1 port each — each inverter alone only uses 1 port, so a
-    // min_quantity of 2 must NOT be cleared just because there happen to be 2 inverters.
+  it('gates battery_ports_used on the total ports across every inverter', () => {
+    // 2 inverters x 1 port each = 2 total ports, enough to clear a min_quantity of 2
+    // even though each inverter alone only uses 1 port.
     const solution = makeSolution({ inverter_quantity: 2, battery_ports_used: 1 });
     const rule = makeRule({
       trigger_metric: 'battery_ports_used',
@@ -395,7 +394,7 @@ describe('buildSolutionPayload', () => {
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
     });
-    expect(payload.accessories.some((a) => a.model === 'TBMS-MCS0800')).toBe(false);
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'TBMS-MCS0800' }));
   });
 
   it('keeps a flat quantity_per_match when scale_with_metric is off, even past min_quantity', () => {
