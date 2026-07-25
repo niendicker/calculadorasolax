@@ -25,6 +25,19 @@ function makeSolution(partial: Partial<Solution> = {}): Solution {
   };
 }
 
+// The desktop sidebar and the mobile bottom nav bar both render buttons named
+// "Projeto"/"Dimensionamento"/"Catálogo"/"Clientes" at the same time (jsdom
+// doesn't apply the `lg:hidden`/`hidden lg:flex` breakpoint classes that keep
+// only one visible per viewport) — scope to the sidebar's landmark to avoid
+// "multiple elements found" on plain screen.getByRole queries.
+function sidebarNav() {
+  return within(screen.getByRole('navigation', { name: 'Navegação principal' }));
+}
+
+function bottomNav() {
+  return within(screen.getByRole('navigation', { name: 'Navegação' }));
+}
+
 const { createClientMock, routerMock } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   routerMock: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
@@ -97,10 +110,10 @@ describe('SinglePageApp: initial load and navigation', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Catálogo' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
   });
 
@@ -127,7 +140,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     renderApp();
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Clientes' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
 
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
   });
@@ -148,7 +161,7 @@ describe('SinglePageApp: login-gated navigation', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clientes' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
     expect(routerMock.push).not.toHaveBeenCalled();
 
@@ -179,34 +192,108 @@ describe('SinglePageApp: sign out', () => {
   });
 });
 
-describe('SinglePageApp: mobile menu', () => {
-  it('opens, switches tabs, and closes', async () => {
-    setupSupabase();
+describe('SinglePageApp: mobile bottom nav', () => {
+  it('switches tabs directly from the bottom nav bar, without opening a menu', async () => {
+    setupSupabase({}, { loggedIn: true });
     renderApp();
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
-    const dialog = screen.getByRole('dialog', { name: 'Menu' });
-    const mobileNav = within(dialog).getByRole('navigation');
-
-    fireEvent.click(within(mobileNav).getByRole('button', { name: 'Catálogo' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Catálogo' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[0]);
-    expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument();
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
   });
 
-  it('closes via the X button inside the mobile menu', async () => {
+  it('opens the summary drawer by tapping the already-active tab again', async () => {
     setupSupabase();
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
+    // Projeto is already the active tab (and has a summary), so tapping it
+    // again opens the summary instead of just re-selecting the same tab.
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Projeto' }));
+    expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
+  });
+
+  it('switches to an inactive tab on first tap, and only opens its summary once already active', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
+    expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
+  });
+
+  it('reaches Clientes via the "Mais" menu instead of the bottom bar', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    expect(bottomNav().queryByRole('button', { name: 'Clientes' })).not.toBeInTheDocument();
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
+    const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clientes' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+  });
+
+  it('opens the "Mais" menu, switches to Meu Catálogo, and closes', async () => {
+    setupSupabase();
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
+    const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
+    const moreNav = within(dialog).getByRole('navigation');
+
+    fireEvent.click(within(moreNav).getByRole('button', { name: 'Meu Catálogo' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[0]);
+    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
+  });
+
+  it('closes the "Mais" menu via the X button inside it', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[1]);
-    expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
+  });
+
+  it('opens the summary drawer as soon as "Calcular" is pressed, without waiting for the result', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    act(() => {
+      useWizardStore.setState((s) => ({
+        residentialOptions: {
+          ...s.residentialOptions,
+          topology: 'HighVoltage',
+          batteryModel: 'TP-HS3.6',
+          gridType: 'singlePhase_220',
+          loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        },
+      }));
+    });
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
+    expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+    expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 });
 
@@ -238,7 +325,7 @@ describe('SinglePageApp: summary panel', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
     expect(screen.queryByText('Nenhum resumo disponível para esta seção.')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Catálogo' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
     await waitFor(() => expect(screen.getByText('Nenhum resumo disponível para esta seção.')).toBeInTheDocument());
   });
 });
@@ -252,7 +339,7 @@ describe('SinglePageApp: desktop sidebar navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Meu Catálogo' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Projeto' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument();
   });
 
@@ -273,41 +360,42 @@ describe('SinglePageApp: desktop sidebar navigation', () => {
 });
 
 describe('SinglePageApp: full mobile menu navigation', () => {
-  it('navigates to every mobile-nav destination and closes the menu each time', async () => {
+  it('navigates to every mobile-nav destination, via the bottom bar and the "Mais" menu', async () => {
     setupSupabase({}, { loggedIn: true, role: 'admin' });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    function openMobileMenuNav() {
-      fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
-      const dialog = screen.getByRole('dialog', { name: 'Menu' });
+    function openMoreMenuNav() {
+      fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
+      const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
       return within(dialog).getByRole('navigation');
     }
 
-    fireEvent.click(within(openMobileMenuNav()).getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(openMobileMenuNav()).getByRole('button', { name: 'Meu Catálogo' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
-
-    fireEvent.click(within(openMobileMenuNav()).getByRole('button', { name: 'Clientes' }));
+    fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Clientes' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(openMobileMenuNav()).getByRole('button', { name: 'Perfil' }));
+    fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Meu Catálogo' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Perfil' }));
     expect(screen.getByLabelText('Nome')).toBeInTheDocument();
   });
 
-  it('follows the "Administração" link from the mobile menu and closes it', async () => {
+  it('follows the "Administração" link from the "Mais" menu and closes it', async () => {
     setupSupabase({}, { loggedIn: true, role: 'admin' });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
-    const dialog = screen.getByRole('dialog', { name: 'Menu' });
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
+    const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
     fireEvent.click(within(dialog).getByRole('link', { name: /Administração/ }));
 
-    expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
   });
 });
 
@@ -331,7 +419,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     });
     window.print = vi.fn();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
 
     expect(window.print).toHaveBeenCalled();
@@ -359,7 +447,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     let titleDuringPrint = '';
     window.print = vi.fn(() => { titleDuringPrint = document.title; });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
 
     expect(titleDuringPrint).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}$/);
@@ -376,7 +464,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
     window.print = vi.fn();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
 
     expect(window.print).not.toHaveBeenCalled();
@@ -388,7 +476,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
 
     await waitFor(() => expect(document.querySelector('.print-report')).toBeInTheDocument());
   });
@@ -402,7 +490,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
     act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument());
 
     const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
@@ -421,7 +509,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
     act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByText('Versão Econômica')).toBeInTheDocument());
 
     const economicCard = screen.getByText('Versão Econômica').closest('.rounded-lg') as HTMLElement;
@@ -445,7 +533,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     });
     renderApp();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
   });
 
@@ -479,7 +567,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     });
     renderApp();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
     await waitFor(() => expect(useWizardStore.getState().residentialOptions.maxPowerPerPhaseW).toBeCloseTo(3333.33, 1));
@@ -515,7 +603,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     (supabase as unknown as { functions: unknown }).functions = { invoke };
 
     renderApp();
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
@@ -539,7 +627,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     (supabase as unknown as { functions: unknown }).functions = { invoke };
 
     renderApp();
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
@@ -582,7 +670,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     ];
     setupSupabase({ batteries: { data: batteryRows, error: null } });
     renderApp();
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
@@ -622,7 +710,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     ];
     setupSupabase({ batteries: { data: batteryRows, error: null } });
     renderApp();
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
@@ -643,7 +731,7 @@ describe('SinglePageApp: uploading a feature photo', () => {
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));

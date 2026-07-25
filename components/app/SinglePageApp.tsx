@@ -38,6 +38,17 @@ import { ProjectTab } from './tabs/ProjectTab';
 import { SizingTab } from './tabs/SizingTab';
 import { gridTypeToApprovedTopology } from './types';
 
+/** Marks the active bottom-nav tab as having a summary — purely decorative
+ * (not its own button, since a <button> can't nest inside the tab's <button>);
+ * tapping the already-active tab opens the summary instead of re-selecting it. */
+function BottomNavSummaryBadge() {
+  return (
+    <span className="absolute -right-1.5 -top-1 flex h-3 w-3 items-center justify-center rounded-full border border-background bg-primary">
+      <ClipboardList className="h-2 w-2 text-primary-foreground" />
+    </span>
+  );
+}
+
 export function SinglePageApp() {
   const router = useRouter();
   const locale = useLocale();
@@ -310,6 +321,15 @@ export function SinglePageApp() {
     return data.publicUrl;
   }
 
+  // Opening the summary drawer here is a no-op on desktop (xl:static already
+  // shows it as a fixed column regardless of this state) but on mobile/tablet
+  // it means the result surfaces immediately instead of staying hidden behind
+  // a tap-the-active-tab-again gesture the user has to already know about.
+  function calculateAndShowSummary() {
+    calculate();
+    setSummaryDrawerOpen(true);
+  }
+
   function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'myStock' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -339,7 +359,7 @@ export function SinglePageApp() {
             </div>
           </div>
 
-          <nav className="mt-8 space-y-1">
+          <nav className="mt-8 space-y-1" aria-label="Navegação principal">
             <button
               type="button"
               aria-current={activeTab === 'project' ? 'page' : undefined}
@@ -451,31 +471,35 @@ export function SinglePageApp() {
           </div>
         </aside>
 
-        <header className="z-20 border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Sun className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="font-semibold leading-tight">SolaX</p>
-                <p className="text-xs text-muted-foreground">Web app</p>
-              </div>
+        <div className="flex min-h-0 min-w-0 flex-col pb-16 lg:pb-0">
+          {/* Mobile only: the page title (portaled in per-tab via PageHeader)
+           * doubles as the app's top bar, with a small brand mark and quick
+           * profile action framing it — this used to be a separate bar
+           * stacked above the title bar, which wasted vertical space and
+           * duplicated the SolaX brand mark already shown in the sidebar/nav. */}
+          <div
+            className={cn(
+              'z-20 flex shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
+              scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
+            )}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground lg:hidden">
+              <Sun className="h-4 w-4" />
             </div>
-            <Button variant="outline" size="icon" aria-label="Abrir perfil" onClick={openProfile}>
+            <div
+              ref={setTitleBarEl}
+              className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"
+            />
+            <Button
+              variant="outline"
+              size="icon-lg"
+              aria-label="Abrir perfil"
+              onClick={openProfile}
+              className="shrink-0 lg:hidden"
+            >
               <UserRound className="h-4 w-4" />
             </Button>
           </div>
-        </header>
-
-        <div className="flex min-h-0 min-w-0 flex-col">
-          <div
-            ref={setTitleBarEl}
-            className={cn(
-              'z-20 flex shrink-0 flex-col gap-3 border-b bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200 lg:flex-row lg:items-end lg:justify-between',
-              scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
-            )}
-          />
 
           <section ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-4 lg:px-6 lg:pb-5">
             <TitleBarPortalProvider value={titleBarEl}>
@@ -595,7 +619,7 @@ export function SinglePageApp() {
               setAtsBackupAcknowledged={setAtsBackupAcknowledged}
               onUploadFeaturePhoto={uploadFeaturePhoto}
               resetResidential={resetResidentialToDefaults}
-              calculate={calculate}
+              calculate={calculateAndShowSummary}
               exportPdf={exportPdf}
               saveProject={saveProject}
               productMedia={productMedia}
@@ -627,7 +651,7 @@ export function SinglePageApp() {
           className={cn(
             'xl:static xl:z-auto xl:flex xl:min-h-0 xl:w-auto xl:max-w-none xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:shadow-none',
             summaryDrawerOpen && summaryActive
-              ? 'fixed inset-y-0 right-0 z-50 flex w-80 max-w-[85vw] flex-col overflow-y-auto border-l bg-card shadow-xl'
+              ? 'fixed inset-y-0 right-0 z-50 flex w-[88vw] max-w-sm flex-col overflow-y-auto border-l bg-card shadow-xl'
               : 'hidden'
           )}
         >
@@ -635,7 +659,7 @@ export function SinglePageApp() {
             <p className="font-medium">Resumo</p>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-lg"
               aria-label="Fechar resumo"
               onClick={() => setSummaryDrawerOpen(false)}
             >
@@ -658,25 +682,81 @@ export function SinglePageApp() {
           />
         )}
 
-        <Button
-          type="button"
-          size="icon-lg"
-          className="fixed z-30 shadow-lg lg:hidden"
-          style={{
-            bottom: 'calc(1rem + env(safe-area-inset-bottom))',
-            left: 'calc(1rem + env(safe-area-inset-left))',
-          }}
-          aria-label="Abrir menu"
-          onClick={() => setMobileMenuOpen(true)}
+        <nav
+          className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t bg-background/95 shadow-lg backdrop-blur lg:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          aria-label="Navegação"
         >
-          <Menu className="h-5 w-5" />
-        </Button>
+          <button
+            type="button"
+            aria-current={activeTab === 'project' ? 'page' : undefined}
+            onClick={() =>
+              activeTab === 'project' && summaryActive ? setSummaryDrawerOpen(true) : openMobileTab('project')
+            }
+            className={cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
+              activeTab === 'project' && 'font-medium text-primary'
+            )}
+          >
+            <span className="relative inline-flex">
+              <FolderOpen className="h-5 w-5" />
+              {activeTab === 'project' && summaryActive && <BottomNavSummaryBadge />}
+            </span>
+            Projeto
+          </button>
+          <button
+            type="button"
+            aria-current={activeTab === 'sizing' ? 'page' : undefined}
+            onClick={() =>
+              activeTab === 'sizing' && summaryActive ? setSummaryDrawerOpen(true) : openMobileTab('sizing')
+            }
+            className={cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
+              activeTab === 'sizing' && 'font-medium text-primary'
+            )}
+          >
+            <span className="relative inline-flex">
+              <LayoutDashboard className="h-5 w-5" />
+              {activeTab === 'sizing' && summaryActive && <BottomNavSummaryBadge />}
+            </span>
+            Dimensionamento
+          </button>
+          <button
+            type="button"
+            aria-current={activeTab === 'catalog' ? 'page' : undefined}
+            onClick={() =>
+              activeTab === 'catalog' && summaryActive ? setSummaryDrawerOpen(true) : openMobileTab('catalog')
+            }
+            className={cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
+              activeTab === 'catalog' && 'font-medium text-primary'
+            )}
+          >
+            <span className="relative inline-flex">
+              <Boxes className="h-5 w-5" />
+              {activeTab === 'catalog' && summaryActive && <BottomNavSummaryBadge />}
+            </span>
+            Catálogo
+          </button>
+          <button
+            type="button"
+            aria-label="Mais opções"
+            onClick={() => setMobileMenuOpen(true)}
+            className={cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
+              (activeTab === 'myStock' || activeTab === 'clients' || activeTab === 'profile') && 'font-medium text-primary'
+            )}
+          >
+            <Menu className="h-5 w-5" />
+            Mais
+          </button>
+        </nav>
 
         {summaryActive && (
           <Button
             type="button"
             size="icon-lg"
-            className="fixed z-30 shadow-lg xl:hidden"
+            className="fixed z-30 hidden shadow-lg lg:inline-flex xl:hidden"
             style={{
               bottom: 'calc(1rem + env(safe-area-inset-bottom))',
               right: 'calc(1rem + env(safe-area-inset-right))',
@@ -690,85 +770,30 @@ export function SinglePageApp() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Mais opções">
           <button
             type="button"
             className="absolute inset-0 bg-black/35"
             aria-label="Fechar menu"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col border-r bg-card px-4 py-5 shadow-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Sun className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-semibold leading-tight">SolaX</p>
-                  <p className="text-xs text-muted-foreground">Calculator</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon-sm" aria-label="Fechar menu" onClick={() => setMobileMenuOpen(false)}>
+          <aside className="absolute inset-x-0 bottom-0 flex max-h-[80vh] flex-col rounded-t-2xl border-t bg-card px-4 pt-2 shadow-xl">
+            <div className="mx-auto h-1.5 w-10 shrink-0 rounded-full bg-muted" />
+            <div className="flex shrink-0 items-center justify-between gap-3 py-3">
+              <p className="font-semibold">Mais opções</p>
+              <Button variant="ghost" size="icon-lg" aria-label="Fechar menu" onClick={() => setMobileMenuOpen(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <nav className="my-auto space-y-1">
-              <button
-                type="button"
-                aria-current={activeTab === 'project' ? 'page' : undefined}
-                onClick={() => openMobileTab('project')}
-                className={cn(
-                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'project' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <FolderOpen className="h-4 w-4" />
-                Projeto
-              </button>
-              <button
-                type="button"
-                aria-current={activeTab === 'sizing' ? 'page' : undefined}
-                onClick={() => openMobileTab('sizing')}
-                className={cn(
-                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'sizing' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                Dimensionamento
-              </button>
-              <button
-                type="button"
-                aria-current={activeTab === 'catalog' ? 'page' : undefined}
-                onClick={() => openMobileTab('catalog')}
-                className={cn(
-                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'catalog' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <Boxes className="h-4 w-4" />
-                Catálogo
-              </button>
-              <button
-                type="button"
-                aria-current={activeTab === 'myStock' ? 'page' : undefined}
-                onClick={() => openMobileTab('myStock')}
-                className={cn(
-                  'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'myStock' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <Wallet className="h-3.5 w-3.5" />
-                Meu Catálogo
-              </button>
+            <nav className="space-y-1 overflow-y-auto border-t pt-2">
               <button
                 type="button"
                 aria-current={activeTab === 'clients' ? 'page' : undefined}
                 onClick={openMobileClientsManager}
                 className={cn(
-                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'clients' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                  'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'clients' && 'bg-primary/10 font-medium text-foreground'
                 )}
               >
                 <Users className="h-4 w-4" />
@@ -776,11 +801,23 @@ export function SinglePageApp() {
               </button>
               <button
                 type="button"
+                aria-current={activeTab === 'myStock' ? 'page' : undefined}
+                onClick={() => openMobileTab('myStock')}
+                className={cn(
+                  'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'myStock' && 'bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <Wallet className="h-4 w-4" />
+                Meu Catálogo
+              </button>
+              <button
+                type="button"
                 aria-current={activeTab === 'profile' ? 'page' : undefined}
                 onClick={openMobileProfile}
                 className={cn(
-                  'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'profile' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                  'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  activeTab === 'profile' && 'bg-primary/10 font-medium text-foreground'
                 )}
               >
                 <UserRound className="h-4 w-4" />
@@ -789,7 +826,7 @@ export function SinglePageApp() {
               {profile?.role === 'admin' && (
                 <Link
                   href={`/${locale}/admin`}
-                  className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <ShieldUser className="h-4 w-4" />
@@ -798,7 +835,10 @@ export function SinglePageApp() {
               )}
             </nav>
 
-            <div className="space-y-2" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div
+              className="shrink-0 space-y-2 border-t pt-3 pb-3"
+              style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+            >
               <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
                 {userEmail ? (
                   <>
