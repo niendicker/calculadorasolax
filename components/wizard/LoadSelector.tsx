@@ -28,6 +28,44 @@ import { cn } from '@/lib/utils';
 import { InfoLabel, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import { SearchInput } from '@/components/app/shared-ui';
 
+// Fixed-order, CVD-safe categorical triad (one hue per phase, never cycled) so
+// a load's phase reads at a glance across the card header, the phase picker,
+// and the per-fase power summary — instead of only ever being a bare "L1"/
+// "L2"/"L3" string. Text still always carries the letter too; color is never
+// the only signal.
+const phaseDotClass: Record<LoadPhase, string> = {
+  L1: 'bg-[#2a78d6] dark:bg-[#3987e5]',
+  L2: 'bg-[#eb6834] dark:bg-[#d95926]',
+  L3: 'bg-[#1baf7a] dark:bg-[#199e70]',
+};
+
+function PhaseDot({ phase, className }: { phase: LoadPhase; className?: string }) {
+  return <span className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', phaseDotClass[phase], className)} />;
+}
+
+/** A small pill badge (dot + letter) identifying one phase — used wherever a
+ * bare "L1"/"L2"/"L3" used to stand alone in running text. */
+function PhaseTag({ phase }: { phase: LoadPhase }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border bg-background px-1.5 py-0.5 text-[0.65rem] font-semibold leading-none">
+      <PhaseDot phase={phase} />
+      {phase}
+    </span>
+  );
+}
+
+/** All three phase dots clustered together, for a trifásica load that draws
+ * from every phase at once. */
+function TriPhaseDots() {
+  return (
+    <span className="inline-flex -space-x-0.5">
+      {loadPhases.map((phase) => (
+        <PhaseDot key={phase} phase={phase} className="ring-1 ring-background" />
+      ))}
+    </span>
+  );
+}
+
 export function NumberFieldWithClear({
   id,
   value,
@@ -829,7 +867,10 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                         dragOverPhase === phase && 'border-primary bg-primary/10 ring-2 ring-primary/40'
                       )}
                     >
-                      <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Fase {phase}</p>
+                      <p className="flex items-center justify-center gap-1 text-[0.7rem] font-medium uppercase text-muted-foreground">
+                        <PhaseDot phase={phase} />
+                        Fase {phase}
+                      </p>
                       <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
                         {phaseW.toFixed(0)} VA
                       </p>
@@ -1558,13 +1599,23 @@ function LoadCard({
                 Consumo diário estimado
               </TooltipBubble>
             </span>
-            <span className={cn(!voltageValid && 'font-medium text-destructive')}>
+            <span className={cn('inline-flex items-center gap-1.5', !voltageValid && 'font-medium text-destructive')}>
               {voltageV}V ·{' '}
-              {phaseType === 'trifasica'
-                ? 'Trifásica'
-                : load.phase2
-                  ? `Mono · Fases ${phase}-${load.phase2}`
-                  : `Mono${phaseCount > 1 ? ` · Fase ${phase}` : ''}`}
+              {phaseType === 'trifasica' ? (
+                <span className="inline-flex items-center gap-1">
+                  <TriPhaseDots /> Trifásica
+                </span>
+              ) : load.phase2 ? (
+                <span className="inline-flex items-center gap-1">
+                  Mono · <PhaseTag phase={phase} /> <PhaseTag phase={load.phase2} />
+                </span>
+              ) : phaseCount > 1 ? (
+                <span className="inline-flex items-center gap-1">
+                  Mono · <PhaseTag phase={phase} />
+                </span>
+              ) : (
+                'Mono'
+              )}
               {!voltageValid && ' · tensão incompatível'}
             </span>
           </div>
@@ -1771,13 +1822,15 @@ function LoadCard({
                     aria-pressed={active}
                     onClick={() => onUpdate(load.id, { phase: a, phase2: b })}
                     className={cn(
-                      'h-7 flex-1 rounded-md text-xs font-medium transition',
+                      'flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs font-medium transition',
                       active
                         ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                         : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                     )}
                   >
+                    <PhaseDot phase={a} />
                     {a}-{b}
+                    <PhaseDot phase={b} />
                   </button>
                 );
               })}
@@ -1797,9 +1850,11 @@ function LoadCard({
                 type="button"
                 aria-pressed="true"
                 disabled
-                className="h-7 flex-1 rounded-md bg-background text-xs font-medium text-foreground shadow-sm ring-1 ring-border"
+                className="flex h-7 flex-1 items-center justify-center gap-1 rounded-md bg-background text-xs font-medium text-foreground shadow-sm ring-1 ring-border"
               >
+                <PhaseDot phase="L1" />
                 L1-L2
+                <PhaseDot phase="L2" />
               </button>
             </div>
           </div>
@@ -1817,12 +1872,13 @@ function LoadCard({
                   aria-pressed={phase === option}
                   onClick={() => onUpdate(load.id, { phase: option })}
                   className={cn(
-                    'h-7 flex-1 rounded-md text-xs font-medium transition',
+                    'flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs font-medium transition',
                     phase === option
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                   )}
                 >
+                  <PhaseDot phase={option} />
                   {option}
                 </button>
               ))}
