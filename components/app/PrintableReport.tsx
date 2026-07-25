@@ -61,7 +61,7 @@ const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   external_ats: Cable,
   microgrid: Network,
   external_generator: Fuel,
-  no_pv: SolarPanel,
+  pv: SolarPanel,
   white_tariff: Receipt,
 };
 
@@ -115,8 +115,8 @@ function desiredFeatureDetails(
       );
     case 'backup':
       return 'Todos os inversores híbridos suportam backup.';
-    case 'no_pv':
-      return 'Dimensionado sem arranjo fotovoltaico.';
+    case 'pv':
+      return 'Dimensionado com recomendação de arranjo fotovoltaico.';
     default:
       return '-';
   }
@@ -465,7 +465,10 @@ export function PrintableReport({
             Funcionalidades selecionadas
           </h2>
           <div className="space-y-3 rounded-xl border border-border/70 p-4">
-            {desiredFeatures.map((id) => {
+            {/* Filters out any id no longer recognized (e.g. a renamed/removed
+             * feature still sitting in an older saved project) — featureIcons
+             * wouldn't have an entry for it. */}
+            {desiredFeatures.filter((id) => id in featureIcons).map((id) => {
               const Icon = featureIcons[id];
               return (
                 <div key={id} className="flex items-start gap-3">

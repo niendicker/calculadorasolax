@@ -6,7 +6,7 @@ export interface DesiredFeatureDefinition {
   description: string;
   /** When set, only inverters carrying this flag satisfy the requirement —
    * enforced as a hard filter when picking an approved solution. Features
-   * without this (e.g. 'no_pv', 'white_tariff') use dedicated logic instead. */
+   * without this (e.g. 'pv', 'white_tariff') use dedicated logic instead. */
   requiresInverterFlag?: InverterFlag;
 }
 
@@ -38,9 +38,9 @@ export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
     requiresInverterFlag: 'external_generator',
   },
   {
-    id: 'no_pv',
-    label: 'Sem FV',
-    description: 'Dimensiona sem recomendar um arranjo fotovoltaico.',
+    id: 'pv',
+    label: 'Fotovoltaico',
+    description: 'Ao habilitar, o dimensionamento recomenda um arranjo fotovoltaico.',
   },
   {
     id: 'white_tariff',

@@ -331,6 +331,19 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
     expect(screen.getByText('ATS Externo')).toBeInTheDocument();
     expect(screen.getByText(/Uso para backup completo confirmado · foto anexada/)).toBeInTheDocument();
   });
+
+  it('skips a feature id no longer recognized (e.g. a renamed one saved on an older project) instead of crashing', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          // 'no_pv' predates the 'pv' rename — an older saved project can still have it.
+          desiredFeatures: ['backup', 'no_pv' as unknown as 'pv'],
+        })}
+      />
+    );
+    expect(screen.getByText('Funcionalidades selecionadas')).toBeInTheDocument();
+    expect(screen.getByText('Backup')).toBeInTheDocument();
+  });
 });
 
 describe('PrintableReport: loads table', () => {

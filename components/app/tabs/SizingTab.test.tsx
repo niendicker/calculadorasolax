@@ -885,18 +885,18 @@ describe('SizingTab: configuration summary row jumps', () => {
     expect(screen.getByRole('tab', { name: 'Inversores Híbridos' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows the external_generator, white_tariff and no_pv summary values', () => {
+  it('shows the external_generator, white_tariff and pv summary values', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
-        desiredFeatures: ['external_generator', 'white_tariff', 'no_pv'],
+        desiredFeatures: ['external_generator', 'white_tariff', 'pv'],
         generator: { voltageV: 220, apparentPowerVA: 5000, phases: 1, photoUrl: null },
         whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 0, tariffSpreadPerKwh: 0.35, includeBackupReserve: false },
       },
     });
     expect(screen.getByText('Ativado · 5000 VA')).toBeInTheDocument();
     expect(screen.getByText('Ativado · R$ 0.35/kWh')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Sem FV/ })).toHaveTextContent('Ativado');
+    expect(screen.getByRole('button', { name: /Fotovoltaico/ })).toHaveTextContent('Ativado');
   });
 });
 
@@ -1488,6 +1488,26 @@ describe('SizingTab: Solução tab accessories and microgrid variant choice', ()
     expect(within(accessoriesSection).getByText('Incluso')).toBeInTheDocument();
     expect(within(accessoriesSection).queryByText('Obrigatório')).not.toBeInTheDocument();
     expect(within(accessoriesSection).queryByText('Opcional')).not.toBeInTheDocument();
+  });
+
+  it("shows the accessory's description below the model when present", () => {
+    setup({
+      solution: {
+        ...fakeSolution,
+        accessories: [{ model: 'Smart Meter', qty: 1, optional: false, appliesTo: 'system', comment: null }],
+      },
+      productMedia: {
+        'Smart Meter': {
+          model: 'Smart Meter',
+          nickname: 'Medidor',
+          description: 'Mede o consumo em tempo real.',
+          imageUrl: null,
+          documents: [],
+        },
+      },
+    });
+    const accessoriesSection = screen.getByText('Acessórios').closest('div') as HTMLElement;
+    expect(within(accessoriesSection).getByText('Mede o consumo em tempo real.')).toBeInTheDocument();
   });
 
   it('lets the user choose between the economic and microgrid variants', () => {

@@ -17,13 +17,13 @@ export type BatteryFlag = 'ip65' | 'ip66';
 /** Functional requirements the customer can opt into during sizing. Some map
  * 1:1 to an InverterFlag (see DESIRED_FEATURE_DEFINITIONS in lib/desired-features.ts)
  * and are enforced as a hard filter on the recommended inverter; others
- * ('no_pv', 'white_tariff') change sizing/report behavior directly. */
+ * ('pv', 'white_tariff') change sizing/report behavior directly. */
 export type DesiredFeatureId =
   | 'backup'
   | 'external_ats'
   | 'microgrid'
   | 'external_generator'
-  | 'no_pv'
+  | 'pv'
   | 'white_tariff';
 
 /** Extra sizing/report inputs only used when 'white_tariff' is a desired feature. */
@@ -269,7 +269,7 @@ export interface Solution {
   batteryPortsUsed?: number;
   batteryPowerW?: number;
   availableEnergyWh?: number;
-  /** null when the customer opted out of PV sizing ('no_pv' desired feature). */
+  /** null unless the customer opted into PV sizing ('pv' desired feature). */
   pvPowerKw: number | null;
   accessories: AccessoryLine[];
   solutionId?: string;

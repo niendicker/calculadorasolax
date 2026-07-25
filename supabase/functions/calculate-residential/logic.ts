@@ -24,7 +24,7 @@ export type PeakCalcMode = 'sum' | 'largest-surge' | 'select';
 export type InverterFlag = 'microgrid' | 'super_backup' | 'dual_voltage' | 'external_ats' | 'external_generator';
 
 /** Mirrors lib/types.ts DesiredFeatureId. */
-export type DesiredFeatureId = 'backup' | 'external_ats' | 'microgrid' | 'external_generator' | 'no_pv' | 'white_tariff';
+export type DesiredFeatureId = 'backup' | 'external_ats' | 'microgrid' | 'external_generator' | 'pv' | 'white_tariff';
 
 /** Mirrors lib/desired-features.ts DESIRED_FEATURE_DEFINITIONS — add a new
  * flag-based requirement by adding one entry here (and the matching entry in
@@ -35,14 +35,14 @@ export const DESIRED_FEATURE_DEFINITIONS: { id: DesiredFeatureId; requiresInvert
   { id: 'external_ats', requiresInverterFlag: 'external_ats' },
   { id: 'microgrid', requiresInverterFlag: 'microgrid' },
   { id: 'external_generator', requiresInverterFlag: 'external_generator' },
-  { id: 'no_pv' },
+  { id: 'pv' },
   { id: 'white_tariff' },
 ];
 
 export const VALID_DESIRED_FEATURES: DesiredFeatureId[] = DESIRED_FEATURE_DEFINITIONS.map((f) => f.id);
 
 /** The inverter flags a set of desired features requires — features without
- * a requiresInverterFlag (e.g. 'no_pv', 'white_tariff') contribute nothing here. */
+ * a requiresInverterFlag (e.g. 'pv', 'white_tariff') contribute nothing here. */
 export function requiredInverterFlags(desiredFeatures: DesiredFeatureId[]): InverterFlag[] {
   return DESIRED_FEATURE_DEFINITIONS.filter(
     (feature) => desiredFeatures.includes(feature.id) && feature.requiresInverterFlag

@@ -15,6 +15,8 @@ export interface ProductMedia {
   model: string;
   /** Optional friendly name set by the admin; shown more prominently than `model` when set. */
   nickname?: string | null;
+  /** Only ever populated for accessories — inverters/batteries have no description field. */
+  description?: string | null;
   imageUrl: string | null;
   documents: ProductDocument[];
 }

@@ -647,12 +647,12 @@ describe('buildSolutionPayload', () => {
 describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
   it('returns no required flags when no desired feature maps to one', () => {
     expect(requiredInverterFlags([])).toEqual([]);
-    expect(requiredInverterFlags(['no_pv', 'white_tariff'])).toEqual([]);
+    expect(requiredInverterFlags(['pv', 'white_tariff'])).toEqual([]);
   });
 
   it('collects the inverter flag for each flag-based desired feature', () => {
     expect(requiredInverterFlags(['external_ats'])).toEqual(['external_ats']);
-    expect(new Set(requiredInverterFlags(['external_ats', 'microgrid', 'no_pv']))).toEqual(
+    expect(new Set(requiredInverterFlags(['external_ats', 'microgrid', 'pv']))).toEqual(
       new Set(['external_ats', 'microgrid'])
     );
   });
@@ -678,7 +678,7 @@ describe('requiredInverterFlags / inverterSatisfiesRequiredFlags', () => {
 
 describe('blockingDesiredFeatures', () => {
   it('returns nothing when no desired feature requires an inverter flag', () => {
-    expect(blockingDesiredFeatures(['backup', 'no_pv'], [{ flags: [] }])).toEqual([]);
+    expect(blockingDesiredFeatures(['backup', 'pv'], [{ flags: [] }])).toEqual([]);
   });
 
   it('reports a feature as blocking when zero candidate inverters have its flag', () => {

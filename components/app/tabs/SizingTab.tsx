@@ -1040,7 +1040,7 @@ const featureIcons: Record<DesiredFeatureId, typeof Boxes> = {
   external_ats: Cable,
   microgrid: Network,
   external_generator: Fuel,
-  no_pv: SolarPanel,
+  pv: SolarPanel,
   white_tariff: Receipt,
 };
 
@@ -1772,9 +1772,9 @@ function DesiredFeaturesPicker({
           </div>
         )}
 
-        {isActiveEnabled && activeTab === 'no_pv' && (
+        {isActiveEnabled && activeTab === 'pv' && (
           <p className="text-xs text-muted-foreground">
-            Nenhuma configuração adicional — o dimensionamento não incluirá um arranjo fotovoltaico.
+            Nenhuma configuração adicional — o dimensionamento vai recomendar um arranjo fotovoltaico.
           </p>
         )}
       </div>
@@ -2401,6 +2401,9 @@ function ResultSummary({
                       {productMedia[model]?.nickname && (
                         // pl-2 lines this up with the Badge's own text, which sits inset by its px-2.
                         <p className="mt-1.5 pl-2 text-xs text-muted-foreground">{model}</p>
+                      )}
+                      {productMedia[model]?.description && (
+                        <p className="mt-1 pl-2 text-xs text-muted-foreground">{productMedia[model].description}</p>
                       )}
                       {qty !== 1 && <p className="mt-2 pl-2 text-sm text-muted-foreground">{qty} unidades</p>}
                       {comment && <p className="mt-1 pl-2 text-xs text-muted-foreground">{comment}</p>}

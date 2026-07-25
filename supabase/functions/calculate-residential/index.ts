@@ -141,8 +141,13 @@ Deno.serve(async (req) => {
       .eq('battery_topology', batteryTopology)
       .gte('rated_power_w', minRatedPowerW)
       .gte('peak_power_w', targetPowerW)
+      // The inverter's own rating being sufficient isn't enough — the battery
+      // bank has to be able to sustain the continuous load too, or the
+      // inverter can't actually draw the power it's rated for.
+      .gte('battery_power_w', minRatedPowerW)
       .order('rated_power_w', { ascending: true })
       .order('available_energy_wh', { ascending: true })
+      .order('battery_power_w', { ascending: true })
       .order('battery_quantity', { ascending: true })
       // Generous safety cap, not a real page size: every filter that can
       // reject a row here (feature flags, ESS rules, microgrid) runs in JS
@@ -311,9 +316,10 @@ Deno.serve(async (req) => {
 
     const solution = compatibleSolutions[0] as ApprovedSolution;
 
-    // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average); null when
-    // the customer opted out of PV sizing via the 'no_pv' desired feature.
-    const pvPowerKw = desiredFeatures.includes('no_pv') ? null : dailyKwh / 4;
+    // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average); only
+    // computed when the customer opts into PV sizing via the 'pv' desired
+    // feature — null (no PV) is the default otherwise.
+    const pvPowerKw = desiredFeatures.includes('pv') ? dailyKwh / 4 : null;
 
     const { data: rules, error: rulesErr } = await supabase
       .from('accessory_rules')

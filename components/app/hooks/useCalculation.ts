@@ -66,6 +66,7 @@ export function useCalculation({
         catalog: {
           model: string;
           nickname?: string | null;
+          description?: string | null;
           imageUrl: string | null;
           documents: ProductMedia['documents'];
         }[]
@@ -73,7 +74,13 @@ export function useCalculation({
         if (!model || media[model]) return;
         const match = catalog.find((item) => item.model === model);
         if (match) {
-          media[model] = { model, nickname: match.nickname ?? null, imageUrl: match.imageUrl, documents: match.documents };
+          media[model] = {
+            model,
+            nickname: match.nickname ?? null,
+            description: match.description ?? null,
+            imageUrl: match.imageUrl,
+            documents: match.documents,
+          };
         } else {
           missing.push({ table, model });
         }
@@ -105,7 +112,7 @@ export function useCalculation({
             ? supabase.from('batteries').select('model, nickname, image_url, documents').in('model', missingByTable.batteries)
             : Promise.resolve({ data: [] }),
           missingByTable.accessories.length > 0
-            ? supabase.from('accessories').select('model, nickname, image_url, documents').in('model', missingByTable.accessories)
+            ? supabase.from('accessories').select('model, nickname, description, image_url, documents').in('model', missingByTable.accessories)
             : Promise.resolve({ data: [] }),
         ]);
 
@@ -113,12 +120,19 @@ export function useCalculation({
           ...(inverterResult.data ?? []),
           ...(batteryResult.data ?? []),
           ...(accessoryResult.data ?? []),
-        ] as { model: string; nickname: string | null; image_url: string | null; documents: ProductMedia['documents'] | null }[];
+        ] as {
+          model: string;
+          nickname: string | null;
+          description?: string | null;
+          image_url: string | null;
+          documents: ProductMedia['documents'] | null;
+        }[];
 
         for (const row of rows) {
           media[row.model] = {
             model: row.model,
             nickname: row.nickname ?? null,
+            description: row.description ?? null,
             imageUrl: row.image_url,
             documents: row.documents ?? [],
           };
