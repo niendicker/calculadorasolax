@@ -617,6 +617,94 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     );
   });
 
+  it('calls calculate automatically once the inverter selection changes, without pressing Calcular', async () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'singlePhase_220',
+        topology: 'HighVoltage',
+        batteryModel: 'TP-HS3.6',
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    const supabase = setupSupabase({
+      batteries: { data: [batteryRow], error: null },
+      inverters: {
+        data: [
+          {
+            id: 'i1',
+            model: 'X1-Hybrid-5.0kW-G4',
+            topology: 'HV',
+            phases: 1,
+            standard_power_kva: 5,
+            peak_power_kva: 7,
+            max_power_per_phase_w: null,
+            image_url: null,
+            documents: [],
+          },
+        ],
+        error: null,
+      },
+      // Needed for the inverter to show up as an available option once a
+      // gridType is set — otherwise availableInverterModels comes back empty
+      // and InverterModelPicker filters every inverter out.
+      approved_solutions: {
+        data: [{ grid_topology: '1p_220V', battery_topology: 'HV', inverter_model: 'X1-Hybrid-5.0kW-G4' }],
+        error: null,
+      },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: makeSolution(), error: null });
+    (supabase as unknown as { functions: unknown }).functions = { invoke };
+
+    renderApp();
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+    fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalled());
+    expect(invoke).toHaveBeenCalledWith(
+      'calculate-residential',
+      expect.objectContaining({ body: expect.objectContaining({ inverterModel: 'X1-Hybrid-5.0kW-G4' }) })
+    );
+  });
+
+  it('does not auto-calculate on an inverter change while other required fields are still missing', async () => {
+    // No gridType/loads/battery configured — canCalculate stays false after picking an inverter.
+    const supabase = setupSupabase({
+      inverters: {
+        data: [
+          {
+            id: 'i1',
+            model: 'X1-Hybrid-5.0kW-G4',
+            topology: 'HV',
+            phases: 1,
+            standard_power_kva: 5,
+            peak_power_kva: 7,
+            max_power_per_phase_w: null,
+            image_url: null,
+            documents: [],
+          },
+        ],
+        error: null,
+      },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: makeSolution(), error: null });
+    (supabase as unknown as { functions: unknown }).functions = { invoke };
+
+    renderApp();
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+    fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
+
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('does not auto-calculate while other required fields are still missing', async () => {
     // No gridType/loads configured — canCalculate stays false after picking a battery.
     useWizardStore.setState((s) => ({

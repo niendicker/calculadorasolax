@@ -217,29 +217,43 @@ export function SinglePageApp() {
     accessoryCatalog,
   });
 
-  // Selecting/clearing a battery (primary or secondary) should refresh the
-  // solution without making the user press "Calcular" again — but this must
-  // stay opt-in per change (via the ref below), not a plain effect on
-  // batteryModel/secondaryBatteryModel: those also change when a saved
-  // project loads, and re-calculating there would clobber the project's own
-  // saved solution.
-  const pendingBatteryAutoCalcRef = useRef(false);
+  // Selecting/clearing a battery (primary or secondary) or the inverter
+  // should refresh the solution without making the user press "Calcular"
+  // again — but this must stay opt-in per change (via the ref below), not a
+  // plain effect on these fields: they also change when a saved project
+  // loads, and re-calculating there would clobber the project's own saved
+  // solution. `canCalculate` already reflects whether every other tab
+  // (loads, grid type, features, etc.) is currently valid, so a change made
+  // while something else is broken elsewhere just updates the selection
+  // without forcing a doomed recalculation.
+  const pendingAutoCalcRef = useRef(false);
 
   function setBatteryModelAndRecalc(model: string | null) {
-    pendingBatteryAutoCalcRef.current = true;
+    pendingAutoCalcRef.current = true;
     setBatteryModel(model);
   }
 
   function setSecondaryBatteryModelAndRecalc(model: string | null) {
-    pendingBatteryAutoCalcRef.current = true;
+    pendingAutoCalcRef.current = true;
     setSecondaryBatteryModel(model);
   }
 
+  function setInverterModelAndRecalc(model: string | null) {
+    pendingAutoCalcRef.current = true;
+    setInverterModel(model);
+  }
+
   useEffect(() => {
-    if (!pendingBatteryAutoCalcRef.current) return;
-    pendingBatteryAutoCalcRef.current = false;
+    if (!pendingAutoCalcRef.current) return;
+    pendingAutoCalcRef.current = false;
     if (canCalculate) calculate();
-  }, [residentialOptions.batteryModel, residentialOptions.secondaryBatteryModel, canCalculate, calculate]);
+  }, [
+    residentialOptions.batteryModel,
+    residentialOptions.secondaryBatteryModel,
+    residentialOptions.inverterModel,
+    canCalculate,
+    calculate,
+  ]);
 
   const availableInverterModels = useMemo(() => {
     if (!residentialOptions.gridType) return null;
@@ -622,7 +636,7 @@ export function SinglePageApp() {
               setTopology={setTopology}
               setBatteryModel={setBatteryModelAndRecalc}
               setSecondaryBatteryModel={setSecondaryBatteryModelAndRecalc}
-              setInverterModel={setInverterModel}
+              setInverterModel={setInverterModelAndRecalc}
               setGridType={setGridType}
               setDesiredFeatures={setDesiredFeatures}
               setWhiteTariffConfig={setWhiteTariffConfig}
