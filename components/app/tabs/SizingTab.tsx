@@ -19,6 +19,7 @@ import {
   ListChecks,
   Loader2,
   Network,
+  Plug,
   Receipt,
   Save,
   Settings,
@@ -2284,12 +2285,8 @@ function ResultSummary({
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const inverterMedia = productMedia[solution.inverterModel];
-  const batteryParts = batteryQuantityBreakdown(
-    solution.batteryModel,
-    solution.batteryQty,
-    batteryCatalog,
-    (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
-  );
+  const totalBatteryPorts = (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1);
+  const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog, totalBatteryPorts);
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff);
 
@@ -2325,7 +2322,9 @@ function ResultSummary({
             ) : (
               <p className="mt-1 text-lg font-semibold">{solution.inverterModel}</p>
             )}
-            <p className="text-sm text-muted-foreground">Quantidade: x{solution.inverterQty ?? 1}</p>
+            {(solution.inverterQty ?? 1) !== 1 && (
+              <p className="mt-2 text-sm text-muted-foreground">{solution.inverterQty} unidades</p>
+            )}
             <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} />
           </div>
           <ProductImage media={inverterMedia} onPreviewImage={setPreviewImage} />
@@ -2350,7 +2349,13 @@ function ResultSummary({
                 ) : (
                   <p className="mt-1 text-lg font-semibold">{part.model}</p>
                 )}
-                <p className="text-sm text-muted-foreground">Quantidade: x{part.qty}</p>
+                {part.qty !== 1 && <p className="mt-2 text-sm text-muted-foreground">{part.qty} unidades</p>}
+                {totalBatteryPorts > 1 && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Plug className="h-3.5 w-3.5" />
+                    {totalBatteryPorts} portas · {part.qty / totalBatteryPorts} baterias/porta
+                  </p>
+                )}
                 <ProductAttachments media={partMedia} onPreview={setPreviewDoc} />
               </div>
               <ProductImage media={partMedia} onPreviewImage={setPreviewImage} />
@@ -2374,23 +2379,24 @@ function ResultSummary({
           <p className="text-sm font-medium">Acessórios</p>
           <div className="mt-2 space-y-2">
             {solution.accessories.map((accessory) => {
-              const { model, qty, optional, appliesTo, comment } = normalizeAccessoryLine(accessory);
+              const { model, qty, optional, comment } = normalizeAccessoryLine(accessory);
               return (
-                <div key={model} className="rounded-lg border bg-muted/30 p-3">
+                <div key={model} className="relative rounded-lg border bg-muted/30 p-3">
+                  <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2 z-10">
+                    {optional ? 'Opcional' : 'Obrigatório'}
+                  </Badge>
                   <div className="grid gap-3 sm:grid-cols-[1fr_88px]">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 flex-col">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant="secondary">{productMedia[model]?.nickname || model}</Badge>
-                        <Badge variant={optional ? 'outline' : 'default'}>
-                          {optional ? 'Opcional' : 'Obrigatório'}
-                        </Badge>
-                        {appliesTo !== 'system' && (
-                          <Badge variant="secondary">{appliesTo === 'inverter' ? 'Inversor' : 'Bateria'}</Badge>
-                        )}
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">Quantidade: x{qty}</p>
-                      {comment && <p className="mt-1 text-xs text-muted-foreground">{comment}</p>}
-                      <ProductAttachments media={productMedia[model]} onPreview={setPreviewDoc} inline />
+                      {productMedia[model]?.nickname && (
+                        // pl-2 lines this up with the Badge's own text, which sits inset by its px-2.
+                        <p className="mt-1.5 pl-2 text-xs text-muted-foreground">{model}</p>
+                      )}
+                      {qty !== 1 && <p className="mt-2 pl-2 text-sm text-muted-foreground">{qty} unidades</p>}
+                      {comment && <p className="mt-1 pl-2 text-xs text-muted-foreground">{comment}</p>}
+                      <ProductAttachments media={productMedia[model]} onPreview={setPreviewDoc} inline className="mt-auto pt-1" />
                     </div>
                     <ProductImage media={productMedia[model]} onPreviewImage={setPreviewImage} />
                   </div>

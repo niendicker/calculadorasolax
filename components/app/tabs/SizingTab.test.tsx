@@ -252,11 +252,47 @@ describe('SizingTab: summary panel', () => {
 
     const masterCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
     expect(masterCard).toHaveTextContent('T58 V2 Master');
-    expect(masterCard).toHaveTextContent('Quantidade: x1');
+    // Master qty is 1 here — not worth calling out, so the quantity line is omitted.
+    expect(masterCard).not.toHaveTextContent('unidade');
 
     const expansionCard = screen.getByText('Bateria (expansão)', { selector: 'div' }).parentElement;
     expect(expansionCard).toHaveTextContent('T58 Slave');
-    expect(expansionCard).toHaveTextContent('Quantidade: x2');
+    expect(expansionCard).toHaveTextContent('2 unidades');
+  });
+
+  it('shows the port breakdown on the battery card when more than one port is in use', () => {
+    setup({
+      solution: { ...fakeSolution, batteryQty: 8, inverterQty: 2, batteryPortsUsed: 1 },
+    });
+
+    const batteryCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
+    expect(batteryCard).toHaveTextContent('2 portas · 4 baterias/porta');
+  });
+
+  it('differentiates the per-port count between the Master and expansion cards', () => {
+    const masterBattery: BatteryCatalogOption = { ...battery, model: 'T58 V2 Master', expansionModel: 'T58 Slave' };
+    setup({
+      batteryCatalog: [masterBattery, lvBattery],
+      // 2 ports total; 6 batteries -> 2 masters (1/port) + 4 slaves (2/port).
+      solution: { ...fakeSolution, batteryModel: 'T58 V2 Master', batteryQty: 6, inverterQty: 2, batteryPortsUsed: 1 },
+    });
+
+    const masterCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
+    expect(masterCard).toHaveTextContent('2 unidades');
+    expect(masterCard).toHaveTextContent('2 portas · 1 baterias/porta');
+
+    const expansionCard = screen.getByText('Bateria (expansão)', { selector: 'div' }).parentElement;
+    expect(expansionCard).toHaveTextContent('4 unidades');
+    expect(expansionCard).toHaveTextContent('2 portas · 2 baterias/porta');
+  });
+
+  it('hides the port breakdown on the battery card when only one port is in use', () => {
+    setup({
+      solution: { ...fakeSolution, batteryQty: 4, inverterQty: 1, batteryPortsUsed: 1 },
+    });
+
+    const batteryCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
+    expect(batteryCard).not.toHaveTextContent('porta');
   });
 
   it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh on the Resumo tab, while Backup is enabled', () => {
@@ -1404,7 +1440,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 });
 
 describe('SizingTab: Solução tab accessories and microgrid variant choice', () => {
-  it('renders accessories with their quantity, required/optional flag, appliesTo and comment', () => {
+  it('renders accessories with their quantity, required/optional flag and comment', () => {
     setup({
       solution: {
         ...fakeSolution,
@@ -1425,11 +1461,17 @@ describe('SizingTab: Solução tab accessories and microgrid variant choice', ()
     });
     const accessoriesSection = screen.getByText('Acessórios').closest('div') as HTMLElement;
     expect(within(accessoriesSection).getByText('Medidor')).toBeInTheDocument();
-    expect(within(accessoriesSection).getByText('Quantidade: x2')).toBeInTheDocument();
+    // The model shows below the nickname, de-emphasized — but only when there
+    // is a nickname to be secondary to (Kit CFTV has none, so it's not duplicated).
+    expect(within(accessoriesSection).getByText('Smart Meter')).toBeInTheDocument();
+    expect(within(accessoriesSection).queryByText('Kit CFTV', { selector: 'p' })).not.toBeInTheDocument();
+    expect(within(accessoriesSection).getByText('2 unidades')).toBeInTheDocument();
+    // Kit CFTV has qty 1 — not worth calling out, so its quantity line is omitted.
+    expect(within(accessoriesSection).queryByText('1 unidades')).not.toBeInTheDocument();
     expect(within(accessoriesSection).getByText('Obrigatório')).toBeInTheDocument();
     expect(within(accessoriesSection).getByText('Kit CFTV')).toBeInTheDocument();
     expect(within(accessoriesSection).getByText('Opcional')).toBeInTheDocument();
-    expect(within(accessoriesSection).getByText('Inversor')).toBeInTheDocument();
+    expect(within(accessoriesSection).queryByText('Inversor')).not.toBeInTheDocument();
     expect(within(accessoriesSection).getByText('Instalar próximo ao quadro.')).toBeInTheDocument();
   });
 
@@ -1506,12 +1548,13 @@ describe('SizingTab: comparação de duas baterias', () => {
     expect(within(switcher).getByRole('tab', { name: 'Bateria A' })).toHaveAttribute('aria-selected', 'true');
     expect(within(switcher).getByRole('tab', { name: 'Bateria B' })).toHaveAttribute('aria-selected', 'false');
     const batteryCardA = screen.getByText('Bateria A', { selector: 'p' }).closest('.rounded-lg') as HTMLElement;
-    expect(within(batteryCardA).getByText('Quantidade: x1')).toBeInTheDocument();
+    // qty 1 — not worth calling out, so the quantity line is omitted.
+    expect(within(batteryCardA).queryByText(/unidade/)).not.toBeInTheDocument();
 
     fireEvent.click(within(switcher).getByRole('tab', { name: 'Bateria B' }));
     expect(within(switcher).getByRole('tab', { name: 'Bateria B' })).toHaveAttribute('aria-selected', 'true');
     const batteryCardB = screen.getByText('Bateria B', { selector: 'p' }).closest('.rounded-lg') as HTMLElement;
-    expect(within(batteryCardB).getByText('Quantidade: x2')).toBeInTheDocument();
+    expect(within(batteryCardB).getByText('2 unidades')).toBeInTheDocument();
   });
 
   it('shows the secondary battery error isolated in its own tab, without affecting the primary tab', () => {

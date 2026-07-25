@@ -405,15 +405,17 @@ export function ProductAttachments({
   media,
   onPreview,
   inline = false,
+  className,
 }: {
   media: ProductMedia | undefined;
   onPreview: (doc: ProductDocument) => void;
   inline?: boolean;
+  className?: string;
 }) {
   if (!media || media.documents.length === 0) return null;
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-2', inline ? '' : 'mt-2')}>
+    <div className={cn('flex flex-wrap items-center gap-2', inline ? '' : 'mt-2', className)}>
       {media.documents.map((document) => (
         <button
           key={`${media.model}-${document.url}`}
@@ -460,8 +462,8 @@ export function CatalogProductCard({
   stockControl?: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[72px_1fr]">
-      <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg border bg-background">
+    <div className="grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[112px_1fr]">
+      <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border bg-background">
         {imageUrl ? (
           <button
             type="button"
