@@ -342,6 +342,23 @@ describe('loadProject', () => {
     expect(s.currentProjectId).toBeNull();
     expect(s.projectDetailsVisible).toBe(false);
   });
+
+  it('drops a no-longer-recognized feature id (e.g. "no_pv", renamed to "pv") instead of letting it through', () => {
+    const saved = makeSavedProject({
+      id: 'p1',
+      residentialOptions: {
+        ...makeSavedProject({ id: 'p1' }).residentialOptions,
+        // Legacy id from before the 'no_pv' -> 'pv' rename — would otherwise
+        // fail the Edge Function's desiredFeatures validation outright.
+        desiredFeatures: ['backup', 'no_pv' as unknown as 'pv'],
+      },
+    });
+    useWizardStore.setState({ savedProjects: [saved] });
+
+    useWizardStore.getState().loadProject('p1');
+
+    expect(useWizardStore.getState().residentialOptions.desiredFeatures).toEqual(['backup']);
+  });
 });
 
 describe('setTopology', () => {

@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
+import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import { createClient } from '@/lib/supabase/client';
 import type {
   BatteryTopology,
@@ -113,6 +114,18 @@ const defaultProjectInfo: ProjectInfo = {
   address: '',
   notes: '',
 };
+
+const VALID_DESIRED_FEATURE_IDS = new Set(DESIRED_FEATURE_DEFINITIONS.map((feature) => feature.id));
+
+/** Drops any feature id no longer recognized (e.g. 'no_pv', renamed to 'pv')
+ * from data that predates the rename — either persisted in localStorage or
+ * saved as a project in the database. Without this, a stale id would fail
+ * the Edge Function's desiredFeatures validation outright, surfacing as a
+ * generic "invalid payload" error with no obvious cause. */
+function sanitizeDesiredFeatures(desiredFeatures: DesiredFeatureId[] | undefined): DesiredFeatureId[] {
+  if (!Array.isArray(desiredFeatures)) return [];
+  return desiredFeatures.filter((id) => VALID_DESIRED_FEATURE_IDS.has(id));
+}
 
 const defaultResidential: ResidentialOptions = {
   topology: 'HighVoltage',
@@ -263,6 +276,7 @@ export const useWizardStore = create<WizardStore>()(
               ...defaultResidential,
               ...project.residentialOptions,
               loads: project.residentialOptions.loads.map((load) => ({ ...load })),
+              desiredFeatures: sanitizeDesiredFeatures(project.residentialOptions.desiredFeatures),
             },
             solution: project.solution,
             secondarySolution: null,
@@ -327,6 +341,7 @@ export const useWizardStore = create<WizardStore>()(
               ...defaultResidential,
               ...project.residentialOptions,
               loads: project.residentialOptions.loads.map((load) => ({ ...load })),
+              desiredFeatures: sanitizeDesiredFeatures(project.residentialOptions.desiredFeatures),
             },
             solution: project.solution,
             secondarySolution: null,
@@ -697,6 +712,7 @@ export const useWizardStore = create<WizardStore>()(
             whiteTariff: desiredFeatures.includes('white_tariff') ? s.residentialOptions.whiteTariff : null,
             microgrid: desiredFeatures.includes('microgrid') ? s.residentialOptions.microgrid : null,
             generator: desiredFeatures.includes('external_generator') ? s.residentialOptions.generator : null,
+            pv: desiredFeatures.includes('pv') ? s.residentialOptions.pv : null,
             atsPhotoUrl: desiredFeatures.includes('external_ats') ? s.residentialOptions.atsPhotoUrl : null,
             atsBackupAcknowledged: desiredFeatures.includes('external_ats')
               ? s.residentialOptions.atsBackupAcknowledged
@@ -806,10 +822,14 @@ export const useWizardStore = create<WizardStore>()(
       // that field missing entirely instead of falling back to its default.
       merge: (persistedState, currentState) => {
         const persisted = (persistedState ?? {}) as Partial<WizardStore>;
+        const residentialOptions = { ...currentState.residentialOptions, ...persisted.residentialOptions };
         return {
           ...currentState,
           ...persisted,
-          residentialOptions: { ...currentState.residentialOptions, ...persisted.residentialOptions },
+          residentialOptions: {
+            ...residentialOptions,
+            desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),
+          },
           industrialOptions: { ...currentState.industrialOptions, ...persisted.industrialOptions },
         };
       },
