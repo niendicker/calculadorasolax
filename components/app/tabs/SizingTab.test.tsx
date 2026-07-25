@@ -78,7 +78,6 @@ const emptyResidentialOptions = {
 function setup(overrides: Record<string, unknown> = {}) {
   const props = {
     title: 'Cargas',
-    subtitle: 'Informe os equipamentos que serão alimentados pelo sistema',
     projectName: '',
     loadingLabel: 'Calculando...',
     calculateLabel: 'Calcular',
@@ -112,7 +111,8 @@ function setup(overrides: Record<string, unknown> = {}) {
     resetResidential: vi.fn(),
     calculate: vi.fn(),
     exportPdf: vi.fn(),
-    saveProject: vi.fn(),
+    autosaveStatus: 'idle' as const,
+    autosaveLastSavedAt: null,
     productMedia: {},
     userStockItems: [] as UserStockItem[],
     onChooseMicrogridVariant: vi.fn(),
@@ -134,24 +134,56 @@ beforeEach(() => {
 });
 
 describe('SizingTab: title bar', () => {
-  it('shows the title, subtitle and project badge when a project is loaded', () => {
+  it('shows the project name as the heading when a project is loaded, instead of the generic app title', () => {
     setup({ projectName: 'Casa de praia' });
-    expect(screen.getByRole('heading', { name: 'Cargas' })).toBeInTheDocument();
-    expect(screen.getByText('Informe os equipamentos que serão alimentados pelo sistema')).toBeInTheDocument();
-    expect(screen.getByText('Casa de praia')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Casa de praia' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Cargas' })).not.toBeInTheDocument();
   });
 
-  it('wires Salvar projeto, Limpar and Calcular to their callbacks', () => {
-    const { props } = setup({ canCalculate: true });
+  it('keeps a screen-reader-only heading with the generic title when no project is loaded yet', () => {
+    setup({ projectName: '' });
+    const heading = screen.getByRole('heading', { name: 'Cargas' });
+    expect(heading).toHaveClass('sr-only');
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: /Salvar projeto/ }));
-    expect(props.saveProject).toHaveBeenCalled();
+  it('wires Limpar and Calcular to their callbacks', () => {
+    const { props } = setup({ canCalculate: true });
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
     expect(props.resetResidential).toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
     expect(props.calculate).toHaveBeenCalled();
+  });
+
+  it('no longer shows a manual "Salvar projeto" button — saving is now automatic', () => {
+    setup();
+    expect(screen.queryByRole('button', { name: /Salvar projeto/ })).not.toBeInTheDocument();
+  });
+
+  it('shows nothing for the autosave indicator while idle', () => {
+    setup({ autosaveStatus: 'idle' });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('shows a pending indicator once an edit is queued for autosave', () => {
+    setup({ autosaveStatus: 'pending' });
+    expect(screen.getByRole('status')).toHaveTextContent('Alterações pendentes de salvamento');
+  });
+
+  it('shows a saving indicator while the autosave request is in flight', () => {
+    setup({ autosaveStatus: 'saving' });
+    expect(screen.getByRole('status')).toHaveTextContent('Salvando...');
+  });
+
+  it('shows the last-saved time once autosave succeeds', () => {
+    setup({ autosaveStatus: 'saved', autosaveLastSavedAt: new Date('2026-01-01T14:32:00') });
+    expect(screen.getByRole('status')).toHaveTextContent(/Salvo automaticamente às 14:32/);
+  });
+
+  it('shows an error indicator when autosave fails', () => {
+    setup({ autosaveStatus: 'error' });
+    expect(screen.getByRole('status')).toHaveTextContent('Não foi possível salvar automaticamente');
   });
 
   it('disables Calcular until canCalculate is true, and shows the loading label while loading', () => {
@@ -838,6 +870,34 @@ describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling
     expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
+  it('turns the feature icon red in the Resumo panel when the feature has a pending issue, without swapping it for a triangle', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: false,
+      },
+    });
+    const row = screen.getByRole('button', { name: /^ATS Externo/ });
+    const icon = row.querySelector('svg');
+    expect(icon).toHaveClass('lucide-cable');
+    expect(icon).toHaveClass('text-destructive');
+  });
+
+  it('does not turn the feature icon red in the Resumo panel once the pending issue is acknowledged', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['external_ats'],
+        atsBackupAcknowledged: true,
+      },
+    });
+    const row = screen.getByRole('button', { name: /^ATS Externo/ });
+    const icon = row.querySelector('svg');
+    expect(icon).toHaveClass('lucide-cable');
+    expect(icon).not.toHaveClass('text-destructive');
+  });
+
   it('shows a warning icon on the Configurações main tab when no inverter is available for the current grid/battery combo', () => {
     setup({ availableInverterModels: new Set() });
     expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
@@ -1036,11 +1096,43 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(props.setGeneratorConfig).toHaveBeenCalledWith(expect.objectContaining({ phases: 1, voltageV: 220 }));
   });
 
-  it('warns when the generator phases/voltage do not match the configured grid type', () => {
+  it('warns when the generator phases/voltage do not match the configured grid type, stating the correct selection', () => {
     enable(/^Gerador Externo/, 'external_generator', { gridType: 'threePhase_220' });
     expect(
-      screen.getByText(/A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\)/)
+      screen.getByText(
+        /A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\) — selecione Trifásico e 220V/
+      )
     ).toBeInTheDocument();
+  });
+
+  it('highlights the correct phase option on the picker button when the generator phase is incompatible', () => {
+    enable(/^Gerador Externo/, 'external_generator', { gridType: 'threePhase_220' });
+    const phaseOption = within(screen.getByRole('radiogroup', { name: 'Fases do gerador' })).getByRole('radio', {
+      name: 'Trifásico',
+    });
+    expect(phaseOption).toHaveClass('ring-emerald-500/70');
+  });
+
+  it('highlights the correct voltage option on the picker button when only the voltage is incompatible', () => {
+    enable(/^Gerador Externo/, 'external_generator', {
+      gridType: 'threePhase_380',
+      generator: { voltageV: 220, phases: 3, apparentPowerVA: 0, photoUrl: null, ownAtsAcknowledged: false },
+    });
+    const voltageOption = within(screen.getByRole('radiogroup', { name: 'Tensão do gerador' })).getByRole('radio', {
+      name: '380V',
+    });
+    expect(voltageOption).toHaveClass('ring-emerald-500/70');
+  });
+
+  it('does not highlight any phase/voltage option when the generator selection is already compatible', () => {
+    enable(/^Gerador Externo/, 'external_generator', { gridType: 'singlePhase_220' });
+    const radios = [
+      ...within(screen.getByRole('radiogroup', { name: 'Fases do gerador' })).getAllByRole('radio'),
+      ...within(screen.getByRole('radiogroup', { name: 'Tensão do gerador' })).getAllByRole('radio'),
+    ];
+    for (const radio of radios) {
+      expect(radio).not.toHaveClass('ring-emerald-500/70');
+    }
   });
 
   it('does not warn about generator phases/voltage when they exactly match the configured grid type', () => {
@@ -1058,14 +1150,56 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(screen.queryByText(/são incompatíveis com o tipo de rede configurado/)).not.toBeInTheDocument();
   });
 
-  it('still warns for microgrid when the mismatch is not the documented exception', () => {
+  it('still warns for microgrid when the mismatch is not the documented exception, stating the correct selection', () => {
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'singlePhase_220',
       microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
     });
     expect(
-      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\)/)
+      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\) — selecione Monofásico e 220V/)
     ).toBeInTheDocument();
+    // No documented exception applies to a Monofásico network, so it shouldn't be mentioned.
+    expect(screen.queryByText(/aceito como exceção/)).not.toBeInTheDocument();
+  });
+
+  it('mentions the documented microgrid exception when the network would allow it, alongside the exact match', () => {
+    enable(/^Microrrede/, 'microgrid', {
+      gridType: 'threePhase_380',
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+    });
+    expect(
+      screen.getByText(/selecione Trifásico e 380V \(ou Monofásico 220V, aceito como exceção para microrrede\)/)
+    ).toBeInTheDocument();
+  });
+
+  it('does not highlight the alternate exception phase when the current phase is already valid and only the voltage is off', () => {
+    // threePhase_380 accepts both Trifásico (network match) and Monofásico 220V
+    // (documented exception). With Trifásico already selected, only the
+    // voltage is wrong — recommending Monofásico too would be a confusing
+    // detour, so no phase option should be highlighted, only the voltage.
+    enable(/^Microrrede/, 'microgrid', {
+      gridType: 'threePhase_380',
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+    });
+    const phaseRadios = within(screen.getByRole('radiogroup', { name: 'Fases do sistema ongrid' })).getAllByRole('radio');
+    for (const radio of phaseRadios) {
+      expect(radio).not.toHaveClass('ring-emerald-500/70');
+    }
+    const voltageOption = within(screen.getByRole('radiogroup', { name: 'Tensão do sistema ongrid' })).getByRole('radio', {
+      name: '380V',
+    });
+    expect(voltageOption).toHaveClass('ring-emerald-500/70');
+  });
+
+  it('highlights both the network phase and the documented 1-phase exception for microgrid, but not the current selection', () => {
+    enable(/^Microrrede/, 'microgrid', {
+      gridType: 'threePhase_380',
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+    });
+    const phaseGroup = screen.getByRole('radiogroup', { name: 'Fases do sistema ongrid' });
+    const threePhaseOption = within(phaseGroup).getByRole('radio', { name: 'Trifásico' });
+    // Trifásico is already the active selection (compatible), so it's not marked "recommended".
+    expect(threePhaseOption).not.toHaveClass('ring-emerald-500/70');
   });
 
   it('shows how many registered inverters support Gerador Externo when the tab is enabled', () => {
@@ -1334,6 +1468,29 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   });
 });
 
+describe('SizingTab: feature tab pending-issue styling', () => {
+  it('adds the destructive ring/pulse to a feature tab with a pending issue, and to the Funcionalidades tab', () => {
+    setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
+
+    const atsTab = screen.getByRole('tab', { name: /^ATS Externo/ });
+    expect(atsTab.className).toContain('tab-alert-pulse');
+    expect(atsTab.className).toContain('ring-destructive/50');
+
+    const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });
+    expect(funcionalidadesTab.className).toContain('tab-alert-pulse');
+  });
+
+  it('does not add the alert styling to a tab with no pending issue', () => {
+    setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] } });
+
+    const backupTab = screen.getByRole('tab', { name: /^Backup/ });
+    expect(backupTab.className).not.toContain('tab-alert-pulse');
+
+    const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });
+    expect(funcionalidadesTab.className).not.toContain('tab-alert-pulse');
+  });
+});
+
 describe('SizingTab: pv (Fotovoltaico) fields', () => {
   function enablePv(extraOptions: Record<string, unknown> = {}) {
     const { props } = setup({
@@ -1485,28 +1642,49 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 });
 
 describe('SizingTab: Solução tab PV recommendation', () => {
-  it('shows the recommended PV power, monthly generation and estimated savings when present', () => {
+  it('shows the recommended PV power together with monthly generation, and highlights the estimated gain under Análise econômica', () => {
     setup({
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450, pvEstimatedMonthlySavingsBrl: 405 },
     });
     expect(screen.getByText('FV recomendado')).toBeInTheDocument();
     expect(screen.getByText('3.00 kWp')).toBeInTheDocument();
-    expect(screen.getByText('Geração estimada: 450 kWh/mês')).toBeInTheDocument();
-    expect(screen.getByText(/Economia estimada:.*405.*\/mês/)).toBeInTheDocument();
+    expect(screen.getByText('· 450 kWh/mês estimados')).toBeInTheDocument();
+    expect(screen.getByText('Análise econômica')).toBeInTheDocument();
+    expect(screen.getByText('Ganho estimado com geração fotovoltaica')).toBeInTheDocument();
+    expect(screen.getByText(/4\.860.*\/ano/)).toBeInTheDocument();
+    expect(screen.getByText(/405.*\/mês/)).toBeInTheDocument();
   });
 
-  it('omits generation/savings lines when they are not present, without hiding the PV power itself', () => {
+  it('omits generation/savings when they are not present, without hiding the PV power itself', () => {
     setup({
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: null, pvEstimatedMonthlySavingsBrl: null },
     });
     expect(screen.getByText('3.00 kWp')).toBeInTheDocument();
-    expect(screen.queryByText(/Geração estimada/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Economia estimada/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/kWh\/mês estimados/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganho estimado com geração fotovoltaica')).not.toBeInTheDocument();
   });
 
   it('hides the whole PV card when pvPowerKw is null', () => {
     setup({ solution: { ...fakeSolution, pvPowerKw: null } });
     expect(screen.queryByText('FV recomendado')).not.toBeInTheDocument();
+  });
+});
+
+describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
+  it('highlights the battery savings, leading with the annual figure and the monthly one de-emphasized', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 0, tariffSpreadPerKwh: 0.5, includeBackupReserve: false },
+      },
+      solution: fakeSolution,
+    });
+    const heading = screen.getByText('Ganho estimado com baterias (Tarifa Branca)');
+    const card = heading.closest('div')!.parentElement!;
+    expect(card).toHaveClass('border-primary/30', 'bg-primary/5');
+    const value = within(card).getByText(/\/ano$/);
+    expect(value).toHaveClass('text-primary');
+    expect(within(card).getByText(/\/mês/)).toBeInTheDocument();
   });
 });
 

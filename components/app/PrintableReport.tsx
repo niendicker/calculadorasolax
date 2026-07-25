@@ -260,10 +260,7 @@ function ProductsList({
             qty={`${solution.pvPowerKw.toFixed(2)} kWp`}
             note={
               solution.pvMonthlyGenerationKwh != null
-                ? `Geração estimada: ${solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês` +
-                  (solution.pvEstimatedMonthlySavingsBrl != null
-                    ? ` · Economia estimada: ${formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês`
-                    : '')
+                ? `${solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados`
                 : undefined
             }
           />
@@ -571,23 +568,31 @@ export function PrintableReport({
         </section>
       )}
 
-      {tariffSavings && (
+      {(tariffSavings || solution.pvEstimatedMonthlySavingsBrl != null) && (
         <section className="mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <Wallet className="h-4 w-4 text-primary" aria-hidden="true" />
             Análise econômica
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            <ReportMetric
-              icon={TrendingUp}
-              label="Economia estimada com Tarifa Branca"
-              value={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês`}
-            />
-            <ReportMetric
-              icon={TrendingUp}
-              label={`Economia anual (${tariffSavings.businessDaysPerMonth} dias úteis/mês)`}
-              value={formatCurrencyBRL(tariffSavings.annualSavings)}
-            />
+            {tariffSavings && (
+              <ReportMetric
+                icon={TrendingUp}
+                label="Ganho estimado com baterias (Tarifa Branca)"
+                value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
+                note={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês`}
+                highlight
+              />
+            )}
+            {solution.pvEstimatedMonthlySavingsBrl != null && (
+              <ReportMetric
+                icon={TrendingUp}
+                label="Ganho estimado com geração fotovoltaica"
+                value={`${formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl * 12)}/ano`}
+                note={`${formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês`}
+                highlight
+              />
+            )}
           </div>
         </section>
       )}

@@ -156,7 +156,7 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('6.50 kWp')).toBeInTheDocument();
   });
 
-  it('shows the PV generation/savings note when present, and omits it otherwise', () => {
+  it('shows PV monthly generation next to the recommended power, and highlights the estimated gain under Análise econômica', () => {
     const { rerender } = render(
       <PrintableReport
         {...baseProps({
@@ -164,8 +164,11 @@ describe('PrintableReport: recommended products', () => {
         })}
       />
     );
-    expect(screen.getByText(/Geração estimada: 450 kWh\/mês/)).toBeInTheDocument();
-    expect(screen.getByText(/Economia estimada:.*405.*\/mês/)).toBeInTheDocument();
+    expect(screen.getByText('450 kWh/mês estimados')).toBeInTheDocument();
+    expect(screen.getByText('Análise econômica')).toBeInTheDocument();
+    expect(screen.getByText('Ganho estimado com geração fotovoltaica')).toBeInTheDocument();
+    expect(screen.getByText(/4\.860.*\/ano/)).toBeInTheDocument();
+    expect(screen.getByText(/405.*\/mês/)).toBeInTheDocument();
 
     rerender(
       <PrintableReport
@@ -174,7 +177,8 @@ describe('PrintableReport: recommended products', () => {
         })}
       />
     );
-    expect(screen.queryByText(/Geração estimada/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/kWh\/mês estimados/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganho estimado com geração fotovoltaica')).not.toBeInTheDocument();
   });
 
   it('lists each accessory as its own row with its real quantity, status and comment', () => {
@@ -403,7 +407,7 @@ describe('PrintableReport: economic analysis section', () => {
         })}
       />
     );
-    expect(screen.getByText('Economia estimada com Tarifa Branca')).toBeInTheDocument();
+    expect(screen.getByText('Ganho estimado com baterias (Tarifa Branca)')).toBeInTheDocument();
   });
 });
 

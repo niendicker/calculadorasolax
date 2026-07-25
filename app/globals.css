@@ -194,3 +194,21 @@
     animation: none !important;
   }
 }
+
+/* Feature tab alert (SizingTab.tsx FeatureTabButton and the Funcionalidades/
+ * Configurações main tabs) — pulses twice to draw the eye when a pending
+ * issue first appears, then settles into a static ring so it never nags. */
+@keyframes tab-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--destructive) 55%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 0%, transparent); }
+}
+
+.tab-alert-pulse {
+  animation: tab-alert-pulse 0.9s ease-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-alert-pulse {
+    animation: none;
+  }
+}

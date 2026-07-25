@@ -168,14 +168,36 @@ export function Requirement({ done, label }: { done: boolean; label: string }) {
   );
 }
 
-export function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
+export function ReportMetric({
+  label,
+  value,
+  icon: Icon,
+  highlight,
+  note,
+}: {
+  label: string;
+  value: string;
+  icon?: LucideIcon;
+  /** Calls out a standout figure (e.g. PV/battery savings) with the primary
+   * color instead of the plain neutral card other metrics use. */
+  highlight?: boolean;
+  /** Smaller secondary line below the value, e.g. the monthly figure behind
+   * an annual headline value — de-emphasized on purpose. */
+  note?: string;
+}) {
   return (
-    <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div
+      className={cn(
+        'rounded-xl border p-3.5',
+        highlight ? 'border-primary/30 bg-primary/5' : 'border-border/70 bg-muted/30'
+      )}
+    >
+      <p className={cn('flex items-center gap-1.5 text-xs', highlight ? 'text-primary/80' : 'text-muted-foreground')}>
         {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
         {label}
       </p>
-      <p className="mt-1.5 text-base font-semibold text-foreground">{value}</p>
+      <p className={cn('mt-1.5 text-base font-semibold', highlight ? 'text-primary' : 'text-foreground')}>{value}</p>
+      {note && <p className="mt-0.5 text-[11px] text-muted-foreground">{note}</p>}
     </div>
   );
 }

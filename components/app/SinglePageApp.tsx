@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import { buildPdfFileName, expansionModelSet } from './helpers';
+import { useAutosave } from './hooks/useAutosave';
 import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
@@ -184,6 +185,18 @@ export function SinglePageApp() {
       removeProject,
       setActiveTab,
     });
+
+  // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
+  // only while actually viewing that tab, logged in, and once something is
+  // worth persisting (an empty draft loading its defaults shouldn't create a
+  // project). See useAutosave for why enabling it re-baselines instead of
+  // saving immediately (a project just finishing its load looks like a
+  // "change" too, but isn't an edit).
+  const { status: autosaveStatus, lastSavedAt: autosaveLastSavedAt } = useAutosave({
+    enabled: Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
+    data: { projectInfo, residentialOptions, solution },
+    saveCurrentProject,
+  });
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
@@ -589,7 +602,6 @@ export function SinglePageApp() {
           ) : (
             <SizingTab
               title={t('title')}
-              subtitle={t('subtitle')}
               projectName={projectInfo.name}
               loadingLabel={tc('loading')}
               calculateLabel={tc('calculate')}
@@ -623,7 +635,8 @@ export function SinglePageApp() {
               resetResidential={resetResidentialToDefaults}
               calculate={calculateAndShowSummary}
               exportPdf={exportPdf}
-              saveProject={saveProject}
+              autosaveStatus={autosaveStatus}
+              autosaveLastSavedAt={autosaveLastSavedAt}
               productMedia={productMedia}
               userStockItems={userStockItems}
               onChooseMicrogridVariant={chooseMicrogridVariant}

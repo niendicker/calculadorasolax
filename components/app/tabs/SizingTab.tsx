@@ -27,6 +27,7 @@ import {
   SolarPanel,
   Sun,
   Trash2,
+  TrendingUp,
   Zap,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -74,6 +75,7 @@ import {
   solutionMetrics,
   type MarginRow,
 } from '../helpers';
+import type { AutosaveStatus } from '../hooks/useAutosave';
 import { PageHeader, PageSummary } from '../shell/slots';
 import {
   BatteryCardsSkeleton,
@@ -95,7 +97,6 @@ import {
 
 export function SizingTab({
   title,
-  subtitle,
   projectName,
   loadingLabel,
   calculateLabel,
@@ -129,13 +130,13 @@ export function SizingTab({
   resetResidential,
   calculate,
   exportPdf,
-  saveProject,
+  autosaveStatus,
+  autosaveLastSavedAt,
   productMedia,
   userStockItems,
   onChooseMicrogridVariant,
 }: {
   title: string;
-  subtitle: string;
   projectName: string;
   loadingLabel: string;
   calculateLabel: string;
@@ -185,7 +186,8 @@ export function SizingTab({
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
-  saveProject: () => void;
+  autosaveStatus: AutosaveStatus;
+  autosaveLastSavedAt: Date | null;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
@@ -298,22 +300,19 @@ export function SizingTab({
     <>
       <PageHeader>
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            {projectName && (
-              <Badge variant="secondary" className="gap-1">
-                <FolderOpen className="h-3 w-3" />
-                {projectName}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          {projectName ? (
+            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+              <FolderOpen className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              {projectName}
+            </h1>
+          ) : (
+            // No project loaded/named yet — keep a heading for screen readers
+            // without showing the app/section name visually in the title bar.
+            <h1 className="sr-only">{title}</h1>
+          )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={saveProject}>
-            <Save className="h-4 w-4" />
-            Salvar projeto
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AutosaveIndicator status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
           <Button variant="outline" onClick={() => resetResidential()}>
             Limpar
           </Button>
@@ -345,7 +344,7 @@ export function SizingTab({
               aria-selected={summaryTab === 'resumo'}
               onClick={() => setSummaryTab('resumo')}
               className={cn(
-                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10',
                 summaryTab === 'resumo'
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -366,7 +365,7 @@ export function SizingTab({
               aria-selected={summaryTab === 'solucao'}
               onClick={() => setSummaryTab('solucao')}
               className={cn(
-                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10',
                 summaryTab === 'solucao'
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -436,6 +435,9 @@ export function SizingTab({
             onJumpToGridType={jumpToGridType}
             onJumpToBattery={jumpToBattery}
             onJumpToFeature={jumpToFeature}
+            peakW={peakW}
+            inverterCatalog={inverterCatalog}
+            availableInverterModels={availableInverterModels}
           />
         ) : (
           <>
@@ -484,7 +486,8 @@ export function SizingTab({
                     'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                     mainTab === 'features'
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+                    featuresTabHasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
                   )}
                 >
                   {featuresTabHasIssue ? (
@@ -503,7 +506,8 @@ export function SizingTab({
                     'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                     mainTab === 'config'
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+                    configTabHasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
                   )}
                 >
                   {configTabHasIssue ? (
@@ -697,19 +701,60 @@ const phaseOptions: { value: 1 | 2 | 3; label: string }[] = [
   { value: 3, label: 'Trifásico' },
 ];
 
+/** Replaces the old manual "Salvar projeto" button — reflects useAutosave's
+ * status instead. Renders nothing while 'idle' (nothing worth saving yet,
+ * e.g. logged out or an empty draft — see the `enabled` gate in
+ * SinglePageApp). */
+function AutosaveIndicator({ status, lastSavedAt }: { status: AutosaveStatus; lastSavedAt: Date | null }) {
+  if (status === 'idle') return null;
+  const timeLabel = lastSavedAt ? lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <span role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      {status === 'saving' ? (
+        <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Salvando...
+        </>
+      ) : status === 'error' ? (
+        <>
+          <AlertTriangle className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />
+          <span className="text-destructive">Não foi possível salvar automaticamente</span>
+        </>
+      ) : status === 'pending' ? (
+        <>
+          <Save className="h-3.5 w-3.5" aria-hidden="true" />
+          Alterações pendentes de salvamento
+        </>
+      ) : (
+        timeLabel && (
+          <>
+            <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            Salvo automaticamente às {timeLabel}
+          </>
+        )
+      )}
+    </span>
+  );
+}
+
 function PhasePicker({
   value,
   onChange,
   ariaLabel,
+  recommendedValues = [],
 }: {
   value: 1 | 2 | 3;
   onChange: (value: 1 | 2 | 3) => void;
   ariaLabel: string;
+  /** Phase(s) that would fix an incompatible selection — highlighted in green,
+   * never auto-applied. Empty when the current selection is already fine. */
+  recommendedValues?: (1 | 2 | 3)[];
 }) {
   return (
     <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
       {phaseOptions.map((option) => {
         const active = value === option.value;
+        const recommended = !active && recommendedValues.includes(option.value);
         return (
           <button
             key={option.value}
@@ -718,13 +763,22 @@ function PhasePicker({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              'h-9 min-w-[88px] flex-1 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              'relative h-9 min-w-[88px] flex-1 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
               active
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+              recommended && 'ring-2 ring-emerald-500/70 text-emerald-700 dark:text-emerald-400'
             )}
           >
             {option.label}
+            {recommended && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white"
+              >
+                <Check className="h-2.5 w-2.5" />
+              </span>
+            )}
           </button>
         );
       })}
@@ -750,17 +804,22 @@ function VoltagePicker({
   phases,
   onChange,
   ariaLabel,
+  recommendedValue = null,
 }: {
   value: number;
   phases: 1 | 2 | 3;
   onChange: (value: 220 | 380) => void;
   ariaLabel: string;
+  /** Voltage that would fix an incompatible selection — highlighted in green,
+   * never auto-applied. Null when the current selection is already fine. */
+  recommendedValue?: 220 | 380 | null;
 }) {
   const options = voltageOptionsForPhases(phases);
   return (
     <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
       {options.map((option) => {
         const active = value === option.value;
+        const recommended = !active && recommendedValue === option.value;
         return (
           <button
             key={option.value}
@@ -769,13 +828,22 @@ function VoltagePicker({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              'h-9 min-w-[88px] flex-1 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              'relative h-9 min-w-[88px] flex-1 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
               active
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+              recommended && 'ring-2 ring-emerald-500/70 text-emerald-700 dark:text-emerald-400'
             )}
           >
             {option.label}
+            {recommended && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white"
+              >
+                <Check className="h-2.5 w-2.5" />
+              </span>
+            )}
           </button>
         );
       })}
@@ -790,6 +858,49 @@ function VoltagePicker({
  * monofásico 220V only when no grid type has been chosen yet. */
 function defaultPhaseVoltageForGridType(gridType: ResidentialGridType | null): { phases: 1 | 2 | 3; voltage: 220 | 380 } {
   return gridType ? gridTypePhaseVoltage[gridType] : { phases: 1, voltage: 220 };
+}
+
+/** Which phase count(s) would fix the current Microrrede/Gerador Externo
+ * selection — the network's own phase count, plus (microgrid only) 1-phase
+ * when the documented exception applies. Empty once the current phase/voltage
+ * is already compatible. When the current phase is already one of the valid
+ * options (only the voltage is off), recommends just that phase — which,
+ * being already active, shows no highlight — rather than also pointing at the
+ * other valid phase: with the right phase already picked, suggesting a
+ * completely different one alongside it would be a confusing, unnecessary
+ * detour when fixing the voltage is enough. Feeds the green "recomendado"
+ * highlight in PhasePicker; never auto-selects anything. */
+function recommendedPhases(
+  gridType: ResidentialGridType | null,
+  phases: 1 | 2 | 3,
+  voltageV: number,
+  forMicrogrid: boolean
+): (1 | 2 | 3)[] {
+  if (!gridType) return [];
+  if (checkPhaseVoltageCompatibility(gridType, phases, voltageV, { forMicrogrid }) !== 'incompatible') return [];
+  const network = gridTypePhaseVoltage[gridType];
+  const exceptionApplies = forMicrogrid && (gridType === 'threePhase_380' || gridType === 'splitPhase_220');
+  const validPhases: (1 | 2 | 3)[] = exceptionApplies && network.phases !== 1 ? [network.phases, 1] : [network.phases];
+  return validPhases.includes(phases) ? [phases] : validPhases;
+}
+
+/** Which voltage would fix the current selection, given the phase count
+ * currently chosen — null once the current phase/voltage is already
+ * compatible, or when no voltage under that phase count would help (the
+ * phase itself needs to change first; VoltagePicker's own options are
+ * scoped to the current phase anyway, so there's nothing to highlight). */
+function recommendedVoltageForPhase(
+  gridType: ResidentialGridType | null,
+  phases: 1 | 2 | 3,
+  voltageV: number,
+  forMicrogrid: boolean
+): 220 | 380 | null {
+  if (!gridType) return null;
+  if (checkPhaseVoltageCompatibility(gridType, phases, voltageV, { forMicrogrid }) !== 'incompatible') return null;
+  const network = gridTypePhaseVoltage[gridType];
+  if (phases === network.phases) return network.voltage;
+  const exceptionApplies = forMicrogrid && (gridType === 'threePhase_380' || gridType === 'splitPhase_220');
+  return exceptionApplies && phases === 1 ? 220 : null;
 }
 
 /** Shows how many catalog inverters support a given flag (e.g. microgrid,
@@ -905,11 +1016,20 @@ function PhaseVoltageCompatibilityWarning({
   const phaseLabel = phaseOptions.find((option) => option.value === phases)?.label ?? '';
   const voltageLabel = voltageOptionsForPhases(phases).find((option) => option.value === voltageV)?.label ?? `${voltageV}V`;
 
+  // What the user should pick instead — not applied automatically, just
+  // spelled out so they don't have to reverse-engineer it from the grid type.
+  const network = gridTypePhaseVoltage[gridType];
+  const networkPhaseLabel = phaseOptions.find((option) => option.value === network.phases)?.label ?? '';
+  const networkVoltageLabel =
+    voltageOptionsForPhases(network.phases).find((option) => option.value === network.voltage)?.label ?? `${network.voltage}V`;
+  const microgridExceptionApplies = forMicrogrid && (gridType === 'threePhase_380' || gridType === 'splitPhase_220');
+
   return (
     <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       A tensão/fases selecionadas ({phaseLabel} {voltageLabel}) são incompatíveis com o tipo de rede configurado (
-      {gridLabels[gridType]}) — corrija para poder calcular.
+      {gridLabels[gridType]}) — selecione {networkPhaseLabel} e {networkVoltageLabel}
+      {microgridExceptionApplies ? ` (ou Monofásico 220V, aceito como exceção para microrrede)` : ''} para poder calcular.
     </p>
   );
 }
@@ -1012,6 +1132,7 @@ function SummaryRow({
   value,
   done,
   alertLevel,
+  hasIssue,
   onClick,
 }: {
   icon: typeof Boxes;
@@ -1021,6 +1142,10 @@ function SummaryRow({
   /** 'critical' blocks calculation (styled destructive/red); 'warning' is just
    * worth a second look, e.g. an auto-selected inverter (styled amber). */
   alertLevel?: 'critical' | 'warning';
+  /** Pending issue on an enabled feature (see desiredFeatureHasPendingIssue) —
+   * turns this row's own icon red instead of swapping it for a triangle, so
+   * the feature stays identifiable at a glance while flagged. */
+  hasIssue?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -1038,7 +1163,10 @@ function SummaryRow({
           aria-hidden="true"
         />
       ) : (
-        <Icon className={cn('h-4 w-4 shrink-0', done ? 'text-primary' : 'text-muted-foreground/50')} aria-hidden="true" />
+        <Icon
+          className={cn('h-4 w-4 shrink-0', hasIssue ? 'text-destructive' : done ? 'text-primary' : 'text-muted-foreground/50')}
+          aria-hidden="true"
+        />
       )}
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{label}</span>
       <Badge variant={done ? 'secondary' : 'outline'} className="min-w-0 max-w-[55%] shrink">
@@ -1069,6 +1197,9 @@ function ConfigurationSummary({
   onJumpToGridType,
   onJumpToBattery,
   onJumpToFeature,
+  peakW,
+  inverterCatalog,
+  availableInverterModels,
 }: {
   residentialOptions: {
     topology: BatteryTopology | null;
@@ -1079,15 +1210,31 @@ function ConfigurationSummary({
     whiteTariff: WhiteTariffConfig | null;
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
+    pv: PvConfig | null;
     atsPhotoUrl: string | null;
+    atsBackupAcknowledged: boolean;
   };
   loadsCount: number;
   onJumpToGridType: () => void;
   onJumpToBattery: () => void;
   onJumpToFeature: (id: DesiredFeatureId) => void;
+  peakW: number;
+  inverterCatalog: InverterCatalogOption[];
+  availableInverterModels: Set<string> | null;
 }) {
-  const { topology, batteryModel, gridType, inverterModel, desiredFeatures, whiteTariff, microgrid, generator, atsPhotoUrl } =
-    residentialOptions;
+  const {
+    topology,
+    batteryModel,
+    gridType,
+    inverterModel,
+    desiredFeatures,
+    whiteTariff,
+    microgrid,
+    generator,
+    pv,
+    atsPhotoUrl,
+    atsBackupAcknowledged,
+  } = residentialOptions;
 
   function featureValue(id: DesiredFeatureId): string {
     if (!desiredFeatures.includes(id)) return 'Desativado';
@@ -1153,6 +1300,18 @@ function ConfigurationSummary({
             label={feature.label}
             value={featureValue(feature.id)}
             done={desiredFeatures.includes(feature.id)}
+            hasIssue={desiredFeatureHasPendingIssue(feature.id, desiredFeatures, {
+              microgrid,
+              generator,
+              pv,
+              atsBackupAcknowledged,
+              gridType,
+              peakW,
+              loadsCount,
+              inverterCatalog,
+              availableInverterModels,
+              selectedInverterModel: inverterModel,
+            })}
             onClick={() => onJumpToFeature(feature.id)}
           />
         ))}
@@ -1216,7 +1375,8 @@ function FeatureTabButton({
         'relative flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
         isActiveTab
           ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+        hasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
       )}
     >
       {hasIssue ? (
@@ -1597,6 +1757,7 @@ function DesiredFeaturesPicker({
             <PhasePicker
               value={microgrid?.onGridPhases ?? 1}
               ariaLabel="Fases do sistema ongrid"
+              recommendedValues={recommendedPhases(gridType, microgrid?.onGridPhases ?? 1, microgrid?.voltageV ?? 220, true)}
               onChange={(phases) => {
                 const validVoltages = voltageOptionsForPhases(phases).map((option) => option.value);
                 const currentVoltage = microgrid?.voltageV ?? 220;
@@ -1615,6 +1776,12 @@ function DesiredFeaturesPicker({
                 value={microgrid?.voltageV ?? 220}
                 phases={microgrid?.onGridPhases ?? 1}
                 ariaLabel="Tensão do sistema ongrid"
+                recommendedValue={recommendedVoltageForPhase(
+                  gridType,
+                  microgrid?.onGridPhases ?? 1,
+                  microgrid?.voltageV ?? 220,
+                  true
+                )}
                 onChange={(voltageV) =>
                   onMicrogridChange({
                     ...(microgrid ?? emptyMicrogridConfig),
@@ -1698,6 +1865,7 @@ function DesiredFeaturesPicker({
             <PhasePicker
               value={generator?.phases ?? 1}
               ariaLabel="Fases do gerador"
+              recommendedValues={recommendedPhases(gridType, generator?.phases ?? 1, generator?.voltageV ?? 220, false)}
               onChange={(phases) => {
                 const validVoltages = voltageOptionsForPhases(phases).map((option) => option.value);
                 const currentVoltage = generator?.voltageV ?? 220;
@@ -1716,6 +1884,12 @@ function DesiredFeaturesPicker({
                 value={generator?.voltageV ?? 220}
                 phases={generator?.phases ?? 1}
                 ariaLabel="Tensão do gerador"
+                recommendedValue={recommendedVoltageForPhase(
+                  gridType,
+                  generator?.phases ?? 1,
+                  generator?.voltageV ?? 220,
+                  false
+                )}
                 onChange={(voltageV) =>
                   onGeneratorChange({
                     ...(generator ?? emptyGeneratorConfig),
@@ -2452,17 +2626,14 @@ function ResultSummary({
             <Sun className="h-4 w-4 text-primary" />
             FV recomendado
           </div>
-          <p className="mt-1 text-lg font-semibold">{solution.pvPowerKw.toFixed(2)} kWp</p>
-          {solution.pvMonthlyGenerationKwh != null && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Geração estimada: {solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês
-            </p>
-          )}
-          {solution.pvEstimatedMonthlySavingsBrl != null && (
-            <p className="text-sm text-muted-foreground">
-              Economia estimada: {formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês
-            </p>
-          )}
+          <div className="mt-1 flex items-baseline gap-2">
+            <p className="text-lg font-semibold">{solution.pvPowerKw.toFixed(2)} kWp</p>
+            {solution.pvMonthlyGenerationKwh != null && (
+              <p className="text-sm text-muted-foreground">
+                · {solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -2509,7 +2680,7 @@ function ResultSummary({
         </div>
       )}
 
-      {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
+      {(systemCost.pricedItemsCount > 0 || tariffSavings || solution.pvEstimatedMonthlySavingsBrl != null) && (
         <div className="rounded-lg border bg-background p-3">
           <p className="text-sm font-medium">Análise econômica</p>
           <div className="mt-2 space-y-2 text-sm">
@@ -2526,13 +2697,30 @@ function ResultSummary({
               </div>
             )}
             {tariffSavings && (
-              <div>
-                <p className="text-muted-foreground">Economia estimada com Tarifa Branca</p>
-                <p className="text-lg font-semibold">{formatCurrencyBRL(tariffSavings.monthlySavings)}/mês</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatCurrencyBRL(tariffSavings.annualSavings)}/ano · considerando {tariffSavings.businessDaysPerMonth}{' '}
-                  dias úteis/mês
-                </p>
+              <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <TrendingUp className="h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-muted-foreground">Ganho estimado com baterias (Tarifa Branca)</p>
+                  <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(tariffSavings.annualSavings)}/ano</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando {tariffSavings.businessDaysPerMonth}{' '}
+                    dias úteis/mês
+                  </p>
+                </div>
+              </div>
+            )}
+            {solution.pvEstimatedMonthlySavingsBrl != null && (
+              <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <TrendingUp className="h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-muted-foreground">Ganho estimado com geração fotovoltaica</p>
+                  <p className="text-lg font-semibold text-primary">
+                    {formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl * 12)}/ano
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês
+                  </p>
+                </div>
               </div>
             )}
           </div>
