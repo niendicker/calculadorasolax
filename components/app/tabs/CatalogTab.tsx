@@ -67,38 +67,32 @@ export function CatalogTab({
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-fit sm:grid-cols-3">
+      <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
         {sectionOptions.map((tab) => {
           const active = section === tab.value;
           return (
             <button
               key={tab.value}
               type="button"
-              aria-pressed={active}
+              role="tab"
+              aria-selected={active}
               onClick={() => setSection(tab.value)}
               className={cn(
-                'flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition',
+                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
                 active
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
               {tab.label}
-              <span
-                className={cn(
-                  'rounded-full px-1.5 py-0.5 text-[0.7rem]',
-                  active ? 'bg-primary/10 text-primary' : 'bg-background'
-                )}
-              >
-                {tab.count}
-              </span>
+              <span className="text-xs text-muted-foreground">({tab.count})</span>
             </button>
           );
         })}
       </div>
 
       {!initialLoading && (
-        <div className="flex justify-end">
+        <div className="flex justify-start">
           <div className="max-w-xs">
             <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
           </div>

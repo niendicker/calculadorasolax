@@ -2,8 +2,9 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Battery, Boxes, Loader2, Plus, Zap } from 'lucide-react';
+import { Battery, Boxes, Loader2, Lock, Plus, Zap } from 'lucide-react';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { ACCOUNT_LIMITS } from '@/lib/limits';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
@@ -82,11 +83,14 @@ export function MyStockTab({
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [search, setSearch] = useState('');
+  const [activeSection, setActiveSection] = useState<StockProductType>('inverter');
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredStockItems = userStockItems.filter((item) =>
     item.productModel.toLowerCase().includes(normalizedSearch)
   );
+
+  const atLimit = userStockItems.length >= ACCOUNT_LIMITS.userStockItems;
 
   const catalogByType: Record<StockProductType, CatalogEntry[]> = {
     inverter: inverterCatalog.map((inverter) => ({
@@ -119,6 +123,13 @@ export function MyStockTab({
         </div>
       </PageHeader>
 
+      {atLimit && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Você atingiu o limite de {ACCOUNT_LIMITS.userStockItems} produtos no seu catálogo. Remova um item para
+          adicionar outro.
+        </p>
+      )}
+
       {userStockItems.length > 0 && (
         <div className="max-w-xs">
           <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
@@ -126,7 +137,33 @@ export function MyStockTab({
       )}
 
       <div className="space-y-4">
+        <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
+          {sectionDefinitions.map((section) => {
+            const count = filteredStockItems.filter((item) => item.productType === section.type).length;
+            const active = activeSection === section.type;
+            return (
+              <button
+                key={section.type}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveSection(section.type)}
+                className={cn(
+                  'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+                  active
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+              >
+                {section.label}
+                <span className="text-xs text-muted-foreground">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         {sectionDefinitions.map((section) => {
+          if (section.type !== activeSection) return null;
           const items = filteredStockItems.filter((item) => item.productType === section.type);
           const availableToAdd = catalogByType[section.type].filter(
             (product) =>
@@ -135,31 +172,31 @@ export function MyStockTab({
               )
           );
           return (
-            <div key={section.type} className="space-y-2">
-              <p className="text-sm font-medium">{section.label}</p>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {items.map((item) => (
-                  <StockProductCard
-                    key={item.id}
-                    item={item}
-                    fallbackIcon={section.fallbackIcon}
-                    inverterCatalog={inverterCatalog}
-                    batteryCatalog={batteryCatalog}
-                    accessoryCatalog={accessoryCatalog}
-                    onPreviewImage={setPreviewImage}
-                    onPreviewDoc={setPreviewDoc}
-                    onUpdateValue={onUpdateValue}
-                    onRemove={onRemove}
-                  />
-                ))}
-                <AddProductCard
-                  productType={section.type}
-                  availableProducts={availableToAdd}
-                  groupTabs={section.groupTabs}
-                  smallIcon={section.smallIcon}
-                  onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
+            <div key={section.type} className="grid gap-3 lg:grid-cols-2">
+              {items.map((item) => (
+                <StockProductCard
+                  key={item.id}
+                  item={item}
+                  fallbackIcon={section.fallbackIcon}
+                  inverterCatalog={inverterCatalog}
+                  batteryCatalog={batteryCatalog}
+                  accessoryCatalog={accessoryCatalog}
+                  onPreviewImage={setPreviewImage}
+                  onPreviewDoc={setPreviewDoc}
+                  onUpdateValue={onUpdateValue}
+                  onRemove={onRemove}
                 />
-              </div>
+              ))}
+              <AddProductCard
+                productType={section.type}
+                availableProducts={availableToAdd}
+                groupTabs={section.groupTabs}
+                smallIcon={section.smallIcon}
+                atLimit={atLimit}
+                stockCount={userStockItems.length}
+                stockLimit={ACCOUNT_LIMITS.userStockItems}
+                onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
+              />
             </div>
           );
         })}
@@ -176,12 +213,22 @@ function AddProductCard({
   availableProducts,
   groupTabs,
   smallIcon,
+  atLimit,
+  stockCount,
+  stockLimit,
   onAdd,
 }: {
   productType: StockProductType;
   availableProducts: CatalogEntry[];
   groupTabs?: GroupTab[];
   smallIcon: React.ReactNode;
+  /** Once the account-wide stock limit is reached, this card can't open the
+   * picker at all — showing the count here (not just after a failed add
+   * attempt) is the point where the user is actually looking to add
+   * something, so it's the clearest place to explain why they can't. */
+  atLimit: boolean;
+  stockCount: number;
+  stockLimit: number;
   onAdd: (model: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -262,13 +309,30 @@ function AddProductCard({
     }
   }
 
+  const productLabel = productType === 'inverter' ? 'inversor' : productType === 'battery' ? 'bateria' : 'acessório';
+
+  if (atLimit) {
+    return (
+      <div
+        role="status"
+        className="grid min-h-[104px] place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground"
+      >
+        <Lock className="h-6 w-6" aria-hidden="true" />
+        <span className="text-sm font-medium">Limite atingido</span>
+        <span className="text-xs">
+          {stockCount}/{stockLimit} produtos · remova um item para adicionar um {productLabel}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
         aria-expanded={open}
-        aria-label={`Adicionar ${productType === 'inverter' ? 'inversor' : productType === 'battery' ? 'bateria' : 'acessório'} ao catálogo`}
+        aria-label={`Adicionar ${productLabel} ao catálogo`}
         onClick={() => setOpen((current) => !current)}
         className="grid min-h-[104px] cursor-pointer place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
       >
@@ -427,6 +491,15 @@ function StockProductCard({
       description={description}
       onPreviewImage={onPreviewImage}
       onPreviewDoc={onPreviewDoc}
+      topRightAction={
+        <ConfirmDeleteButton
+          ariaLabel={`Remover ${item.productModel} do meu catálogo`}
+          title="Remover do catálogo?"
+          description="Esse item sai do seu catálogo pessoal. Você pode adicioná-lo novamente pela aba Catálogo quando quiser."
+          confirmLabel="Remover"
+          onConfirm={() => onRemove(item.id)}
+        />
+      }
       stockControl={
         <div className="flex items-center gap-2 border-t pt-2">
           <span className="text-xs text-muted-foreground">Meu preço</span>
@@ -447,13 +520,6 @@ function StockProductCard({
               className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </div>
-          <ConfirmDeleteButton
-            ariaLabel={`Remover ${item.productModel} do meu catálogo`}
-            title="Remover do catálogo?"
-            description="Esse item sai do seu catálogo pessoal. Você pode adicioná-lo novamente pela aba Catálogo quando quiser."
-            confirmLabel="Remover"
-            onConfirm={() => onRemove(item.id)}
-          />
         </div>
       }
     />

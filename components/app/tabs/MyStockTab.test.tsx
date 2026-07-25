@@ -2,6 +2,7 @@
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { ACCOUNT_LIMITS } from '@/lib/limits';
 import type { UserStockItem } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
@@ -71,20 +72,63 @@ describe('MyStockTab: listing', () => {
     expect(screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4')).toHaveValue(1000);
   });
 
+  it('warns the user once they reach the stock item limit', () => {
+    setup({
+      userStockItems: Array.from({ length: ACCOUNT_LIMITS.userStockItems }, (_, i) => ({
+        ...stockItem,
+        id: `s${i}`,
+        productModel: `Model ${i}`,
+      })),
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      `Você atingiu o limite de ${ACCOUNT_LIMITS.userStockItems} produtos no seu catálogo`
+    );
+  });
+
+  it('does not show the limit warning below the limit', () => {
+    setup({ userStockItems: [stockItem] });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('replaces the Adicionar card with a clear limit-reached count once at the limit, instead of a generic retry message', () => {
+    setup({
+      userStockItems: Array.from({ length: ACCOUNT_LIMITS.userStockItems }, (_, i) => ({
+        ...stockItem,
+        id: `s${i}`,
+        productModel: `Model ${i}`,
+      })),
+    });
+
+    expect(screen.queryByRole('button', { name: /Adicionar inversor ao catálogo/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
+    expect(screen.getByText(`${ACCOUNT_LIMITS.userStockItems}/${ACCOUNT_LIMITS.userStockItems} produtos`, { exact: false })).toBeInTheDocument();
+  });
+
   it('hides the search box when there is nothing in stock yet', () => {
     setup();
     expect(screen.queryByPlaceholderText('Pesquisar modelo...')).not.toBeInTheDocument();
   });
 
-  it('filters stock items by search', () => {
+  it('filters stock items by search within the active section', () => {
     const secondItem: UserStockItem = { ...stockItem, id: 's2', productType: 'battery', productModel: 'TP-HS3.6' };
     setup({ userStockItems: [stockItem, secondItem] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'TP-HS3.6' } });
-
+    // Inverters is the active section by default, and the search excludes it.
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
     expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
+  });
+
+  it('shows an item count on each section tab, reflecting the active search filter', () => {
+    const secondItem: UserStockItem = { ...stockItem, id: 's2', productType: 'battery', productModel: 'TP-HS3.6' };
+    setup({ userStockItems: [stockItem, secondItem] });
+
+    expect(screen.getByRole('tab', { name: /Inversores/ })).toHaveTextContent('(1)');
+    expect(screen.getByRole('tab', { name: /Baterias/ })).toHaveTextContent('(1)');
+    expect(screen.getByRole('tab', { name: /Acessórios/ })).toHaveTextContent('(0)');
   });
 });
 
@@ -147,13 +191,14 @@ describe('MyStockTab: adding from the catalog', () => {
   });
 
   it('shows a limit-reached error verbatim when adding fails', async () => {
-    const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 10 itens no catálogo atingido.'));
+    const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 14 itens no catálogo atingido.'));
     setup({ onAddToStock });
 
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar acessório ao catálogo' }));
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
     fireEvent.click(within(dialog).getByText('Smart Meter'));
 
-    await waitFor(() => expect(within(dialog).getByText('Limite de 10 itens no catálogo atingido.')).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByText('Limite de 14 itens no catálogo atingido.')).toBeInTheDocument());
   });
 });

@@ -471,6 +471,7 @@ export function CatalogProductCard({
   onPreviewImage,
   onPreviewDoc,
   stockControl,
+  topRightAction,
 }: {
   fallbackIcon: React.ReactNode;
   model: string;
@@ -482,9 +483,14 @@ export function CatalogProductCard({
   onPreviewImage: (image: { url: string; alt: string }) => void;
   onPreviewDoc: (doc: ProductDocument) => void;
   stockControl?: React.ReactNode;
+  /** Pinned to the card's top-right corner (e.g. a delete button) — separate
+   * from stockControl, which sits at the bottom with the rest of the card's
+   * own actions. */
+  topRightAction?: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[112px_1fr]">
+    <div className="relative grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[112px_1fr]">
+      {topRightAction && <div className="absolute right-2 top-2 z-10">{topRightAction}</div>}
       <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border bg-background">
         {imageUrl ? (
           <button
@@ -499,7 +505,7 @@ export function CatalogProductCard({
           fallbackIcon
         )}
       </div>
-      <div className="min-w-0 space-y-1.5">
+      <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9')}>
         <div className="flex items-start justify-between gap-2">
           <p className="min-w-0 break-words text-sm font-semibold leading-snug">{model}</p>
           {badges && badges.length > 0 && (

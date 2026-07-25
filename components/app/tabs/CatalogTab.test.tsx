@@ -63,10 +63,10 @@ describe('CatalogTab: sections', () => {
 
   it('switches to batteries and accessories', () => {
     setup();
-    fireEvent.click(screen.getByRole('button', { name: /Baterias/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
     expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Acessórios/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
     expect(screen.getByText('Smart Meter')).toBeInTheDocument();
   });
 
@@ -116,11 +116,11 @@ describe('CatalogTab: stock control', () => {
   });
 
   it('shows a limit-reached error verbatim when adding fails', async () => {
-    const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 10 itens no catálogo atingido.'));
+    const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 14 itens no catálogo atingido.'));
     setup({ onAddToStock });
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu catálogo' }));
 
-    await waitFor(() => expect(screen.getByText('Limite de 10 itens no catálogo atingido.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Limite de 14 itens no catálogo atingido.')).toBeInTheDocument());
   });
 });
