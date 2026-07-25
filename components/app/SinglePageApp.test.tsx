@@ -736,7 +736,7 @@ describe('SinglePageApp: uploading a feature photo', () => {
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
 
     const file = new File(['fake-image'], 'disjuntor.png', { type: 'image/png' });

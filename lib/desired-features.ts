@@ -21,7 +21,7 @@ export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
   },
   {
     id: 'external_ats',
-    label: 'ATS Externo',
+    label: 'Backup Total',
     description: 'Exige um inversor compatível com chave de transferência automática externa.',
     requiresInverterFlag: 'external_ats',
   },

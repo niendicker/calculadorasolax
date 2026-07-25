@@ -236,6 +236,11 @@ describe('SizingTab: title bar', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
     expect(screen.getByRole('button', { name: 'Exportar relatório em PDF' })).toBeEnabled();
   });
+
+  it('disables Exportar PDF while a calculation is in flight, even with an otherwise-exportable stale solution', () => {
+    setup({ solution: fakeSolution, canCalculate: true, loading: true });
+    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeDisabled();
+  });
 });
 
 describe('SizingTab: summary panel', () => {
@@ -599,11 +604,11 @@ describe('SizingTab: rede e configuração', () => {
 });
 
 describe('SizingTab: funcionalidades desejadas', () => {
-  it('toggling ATS Externo reveals its photo upload field once the parent reflects the new selection', () => {
+  it('toggling Backup Total reveals its photo upload field once the parent reflects the new selection', () => {
     const { rerender, props } = setup();
 
     // The tab's accessible name includes its tooltip copy too, so match loosely.
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith(['external_ats']);
 
@@ -619,7 +624,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
     // rerender() here swaps in a tree without the Shell wrapper used by
     // renderWithShell, so React remounts SizingTab and its tab state resets.
     // The tab's accessible name includes its tooltip copy too, so match loosely.
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
   });
 
@@ -627,7 +632,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
     setup({
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [] },
     });
-    expect(screen.getByRole('tab', { name: /^Backup/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Backup' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
   it('hides the Backup warning icon once at least one load is registered', () => {
@@ -638,10 +643,10 @@ describe('SizingTab: funcionalidades desejadas', () => {
         loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
       },
     });
-    expect(screen.getByRole('tab', { name: /^Backup/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Backup' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
-  it('shows a warning icon on ATS Externo once enabled with the backup notice unacknowledged', () => {
+  it('shows a warning icon on Backup Total once enabled with the backup notice unacknowledged', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
@@ -649,10 +654,10 @@ describe('SizingTab: funcionalidades desejadas', () => {
         atsBackupAcknowledged: false,
       },
     });
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Backup Total/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
-  it('hides the ATS Externo warning icon once the backup notice is acknowledged', () => {
+  it('hides the Backup Total warning icon once the backup notice is acknowledged', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
@@ -660,12 +665,12 @@ describe('SizingTab: funcionalidades desejadas', () => {
         atsBackupAcknowledged: true,
       },
     });
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Backup Total/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
   it('never shows a warning icon on a disabled feature tab', () => {
     setup();
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Backup Total/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
   it('does not show a warning icon on Microrrede once the power notice is acknowledged and phases/voltage match', () => {
@@ -740,7 +745,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
       },
     });
     // `inverter` (the fixture default) has flags: [] — it doesn't support external_ats.
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Backup Total/ }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
   it('does not show a warning icon when the selected inverter does support the feature', () => {
@@ -754,7 +759,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
         inverterModel: atsInverter.model,
       },
     });
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Backup Total/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
   it('does not show a warning icon for the inverter-support check before Configurações narrows anything down', () => {
@@ -765,14 +770,14 @@ describe('SizingTab: funcionalidades desejadas', () => {
         atsBackupAcknowledged: true,
       },
     });
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Backup Total/ }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
   it('switches tabs without changing the enabled features, and shows only the active tab panel', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
 
     // The tab's accessible name includes its tooltip copy too, so match loosely.
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     expect(screen.getByText('Foto do disjuntor geral')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: /^Tarifa Branca/ }));
@@ -780,7 +785,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
     // Switching tabs is just navigation: it must not toggle any feature.
     expect(screen.queryByText('Foto do disjuntor geral')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^Tarifa Branca/ })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /^ATS Externo/ })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: /^Backup Total/ })).toHaveAttribute('aria-selected', 'false');
     // The Tarifa Branca tab isn't enabled, so its panel shows the "Habilitar" prompt, not its fields.
     expect(screen.queryByLabelText('Potência (W)')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
@@ -897,7 +902,7 @@ describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling
         atsBackupAcknowledged: false,
       },
     });
-    const row = screen.getByRole('button', { name: /^ATS Externo/ });
+    const row = screen.getByRole('button', { name: /^Backup Total/ });
     const icon = row.querySelector('svg');
     expect(icon).toHaveClass('lucide-cable');
     expect(icon).toHaveClass('text-destructive');
@@ -911,7 +916,7 @@ describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling
         atsBackupAcknowledged: true,
       },
     });
-    const row = screen.getByRole('button', { name: /^ATS Externo/ });
+    const row = screen.getByRole('button', { name: /^Backup Total/ });
     const icon = row.querySelector('svg');
     expect(icon).toHaveClass('lucide-cable');
     expect(icon).not.toHaveClass('text-destructive');
@@ -948,9 +953,9 @@ describe('SizingTab: configuration summary row jumps', () => {
 
   it('jumps to Funcionalidades with the clicked feature as the active tab', () => {
     setup();
-    fireEvent.click(screen.getByRole('button', { name: /^Backup/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Backup(?!\s*Total)/ }));
     expect(screen.getByRole('tab', { name: 'Funcionalidades' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /^Backup/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Backup' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('re-clicking an already-active tab (Resumo, Funcionalidades, Tipo de rede) is a no-op', () => {
@@ -993,14 +998,23 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   it('updates white tariff power, energy, spread and the backup-reserve checkbox', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff');
     fireEvent.change(screen.getByLabelText('Potência (W)'), { target: { value: '3000' } });
-    fireEvent.change(screen.getByLabelText('Energia (Wh)'), { target: { value: '5000' } });
+    // 22 kWh/mês ÷ 22 dias úteis/mês = 1000 Wh/dia, a clean value to assert on.
+    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '22' } });
     fireEvent.change(screen.getByLabelText('Spread (R$/kWh)'), { target: { value: '0.35' } });
     fireEvent.click(screen.getByLabelText('Reservar para backup das cargas'));
 
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredEnergyWh: 5000 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredEnergyWh: 1000 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ tariffSpreadPerKwh: 0.35 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
+  });
+
+  it('shows the white tariff energy field converted to kWh/mês, with the equivalent kWh/dia noted below', () => {
+    enable(/^Tarifa Branca/, 'white_tariff', {
+      whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 1000, tariffSpreadPerKwh: 0, includeBackupReserve: false },
+    });
+    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(22);
+    expect(screen.getByText('1.00 kWh/dia')).toBeInTheDocument();
   });
 
   it('updates microgrid power and phases (phase change auto-picks a valid voltage)', () => {
@@ -1340,21 +1354,21 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(acknowledgedField.className).not.toContain('amber');
   });
 
-  it('shows how many registered inverters support ATS Externo when the tab is enabled', () => {
+  it('shows how many registered inverters support Backup Total when the tab is enabled', () => {
     const atsInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X1-Hybrid-7.5-ATS', flags: ['external_ats'] };
     setup({
       inverterCatalog: [inverter, atsInverter],
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
     });
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     expect(
-      screen.getByLabelText('1 de 2 inversores cadastrados no catálogo suportam ATS Externo.')
+      screen.getByLabelText('1 de 2 inversores cadastrados no catálogo suportam Backup Total.')
     ).toBeInTheDocument();
   });
 
   it('shows the ATS backup-acknowledgement field in a warning style until checked, then in a neutral style', () => {
-    enable(/^ATS Externo/, 'external_ats');
-    expect(screen.getByText('O ATS externo deve ser usado para backup completo.')).toBeInTheDocument();
+    enable(/^Backup Total/, 'external_ats');
+    expect(screen.getByText('Um QTA deve ser usado para backup total.')).toBeInTheDocument();
     const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
     expect(checkbox).not.toBeChecked();
     const unacknowledgedField = checkbox.closest('label') as HTMLElement;
@@ -1363,15 +1377,15 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     setup({
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'], atsBackupAcknowledged: true },
     });
-    fireEvent.click(screen.getAllByRole('tab', { name: /^ATS Externo/ })[1]);
-    expect(screen.getByText('Confirmado: o ATS externo é usado para backup completo.')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('tab', { name: /^Backup Total/ })[1]);
+    expect(screen.getByText('Confirmado: um QTA é usado para backup total.')).toBeInTheDocument();
     const acknowledgedCheckbox = screen.getAllByRole('checkbox')[1] as HTMLInputElement;
     expect(acknowledgedCheckbox).toBeChecked();
     expect((acknowledgedCheckbox.closest('label') as HTMLElement).className).not.toContain('amber');
   });
 
   it('checks the ATS backup-acknowledgement checkbox', () => {
-    const props = enable(/^ATS Externo/, 'external_ats');
+    const props = enable(/^Backup Total/, 'external_ats');
     fireEvent.click(screen.getByRole('checkbox'));
     expect(props.setAtsBackupAcknowledged).toHaveBeenCalledWith(true);
   });
@@ -1382,7 +1396,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       onUploadFeaturePhoto: onUploadPhoto,
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
     });
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
 
     const file = new File(['x'], 'foto.png', { type: 'image/png' });
     const input = document.getElementById('photo-upload-ats') as HTMLInputElement;
@@ -1430,7 +1444,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       onUploadFeaturePhoto: onUploadPhoto,
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
     });
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
 
     const file = new File(['x'], 'foto.png', { type: 'image/png' });
     const input = document.getElementById('photo-upload-ats') as HTMLInputElement;
@@ -1445,7 +1459,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       onUploadFeaturePhoto: onUploadPhoto,
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] },
     });
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
 
     const input = document.getElementById('photo-upload-ats') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [] } });
@@ -1457,7 +1471,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     const { props } = setup({
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'], atsPhotoUrl: 'https://cdn.example.com/x.png' },
     });
-    fireEvent.click(screen.getByRole('tab', { name: /^ATS Externo/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
 
     expect(screen.getByText('Trocar foto')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Remover/ }));
@@ -1491,7 +1505,7 @@ describe('SizingTab: feature tab pending-issue styling', () => {
   it('adds the destructive ring/pulse to a feature tab with a pending issue, and to the Funcionalidades tab', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
 
-    const atsTab = screen.getByRole('tab', { name: /^ATS Externo/ });
+    const atsTab = screen.getByRole('tab', { name: /^Backup Total/ });
     expect(atsTab.className).toContain('tab-alert-pulse');
     expect(atsTab.className).toContain('ring-destructive/50');
 
@@ -1502,7 +1516,7 @@ describe('SizingTab: feature tab pending-issue styling', () => {
   it('does not add the alert styling to a tab with no pending issue', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] } });
 
-    const backupTab = screen.getByRole('tab', { name: /^Backup/ });
+    const backupTab = screen.getByRole('tab', { name: 'Backup' });
     expect(backupTab.className).not.toContain('tab-alert-pulse');
 
     const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });

@@ -62,6 +62,7 @@ import {
   calculateSystemCost,
   calculateTariffSavings,
   checkPhaseVoltageCompatibility,
+  TARIFF_BUSINESS_DAYS_PER_MONTH,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   expansionModelSet,
@@ -325,7 +326,7 @@ export function SizingTab({
             onConfirm={() => resetResidential()}
           />
           {solution && (
-            <Button variant="outline" onClick={exportPdf} disabled={!canCalculate}>
+            <Button variant="outline" onClick={exportPdf} disabled={!canCalculate || loading}>
               <FileText className="h-4 w-4" />
               Exportar PDF
             </Button>
@@ -1643,7 +1644,7 @@ function DesiredFeaturesPicker({
           <div className="space-y-3">
             <InverterSupportSummary
               flag="external_ats"
-              featureLabel="ATS Externo"
+              featureLabel="Backup Total"
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
               selectedInverterModel={selectedInverterModel}
@@ -1666,8 +1667,8 @@ function DesiredFeaturesPicker({
                 {!atsBackupAcknowledged && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
                 <span>
                   {atsBackupAcknowledged
-                    ? 'Confirmado: o ATS externo é usado para backup completo.'
-                    : 'O ATS externo deve ser usado para backup completo.'}
+                    ? 'Confirmado: um QTA é usado para backup total.'
+                    : 'Um QTA deve ser usado para backup total.'}
                 </span>
               </span>
             </label>
@@ -1701,20 +1702,31 @@ function DesiredFeaturesPicker({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffEnergy">Energia (Wh)</Label>
+              <Label htmlFor="whiteTariffEnergy">Energia (kWh/mês)</Label>
               <Input
                 id="whiteTariffEnergy"
                 type="number"
                 min={0}
-                placeholder="Ex.: 5000"
-                value={whiteTariff?.requiredEnergyWh || ''}
-                onChange={(event) =>
+                step={0.01}
+                placeholder="Ex.: 110"
+                value={
+                  whiteTariff?.requiredEnergyWh
+                    ? Math.round(((whiteTariff.requiredEnergyWh * TARIFF_BUSINESS_DAYS_PER_MONTH) / 1000) * 100) / 100
+                    : ''
+                }
+                onChange={(event) => {
+                  const monthlyKwh = Number(event.target.value) || 0;
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
-                    requiredEnergyWh: Number(event.target.value) || 0,
-                  })
-                }
+                    requiredEnergyWh: Math.round((monthlyKwh * 1000) / TARIFF_BUSINESS_DAYS_PER_MONTH),
+                  });
+                }}
               />
+              {whiteTariff?.requiredEnergyWh ? (
+                <p className="text-xs text-muted-foreground">
+                  {(whiteTariff.requiredEnergyWh / 1000).toFixed(2)} kWh/dia
+                </p>
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="whiteTariffSpread">Spread (R$/kWh)</Label>

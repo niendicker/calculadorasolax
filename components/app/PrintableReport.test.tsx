@@ -353,7 +353,7 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Gerador Externo')).toBeInTheDocument();
     expect(screen.getByText(/Gerador 220V · 1F · 8000 VA · chave ATS própria confirmada · foto anexada/)).toBeInTheDocument();
-    expect(screen.getByText('ATS Externo')).toBeInTheDocument();
+    expect(screen.getByText('Backup Total')).toBeInTheDocument();
     expect(screen.getByText(/Uso para backup completo confirmado · foto anexada/)).toBeInTheDocument();
   });
 

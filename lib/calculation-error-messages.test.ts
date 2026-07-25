@@ -41,7 +41,7 @@ describe('getCalculationErrorMessage', () => {
 
   it('lists multiple blocking features joined with "e"', () => {
     const message = getCalculationErrorMessage('no_solution_matches_desired_features', ['external_ats', 'microgrid']);
-    expect(message).toContain('ATS Externo');
+    expect(message).toContain('Backup Total');
     expect(message).toContain('Microrrede');
     expect(message).toContain(' e ');
   });
