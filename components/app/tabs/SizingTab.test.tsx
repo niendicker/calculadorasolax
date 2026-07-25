@@ -244,6 +244,59 @@ describe('SizingTab: title bar', () => {
     setup({ solution: fakeSolution, canCalculate: true, loading: true });
     expect(screen.getByRole('button', { name: /Baixar relatório/ })).toBeDisabled();
   });
+
+  // The Edge Function now intentionally falls back to the largest available
+  // combination when nothing fully meets the customer's power/energy
+  // requirements (see calculate-residential/logic.ts's rankByLeastShortfall)
+  // instead of erroring out — the frontend must block export in that case
+  // even though canCalculate itself is unaffected (it's an input-completeness
+  // gate, unrelated to whether the found solution is actually adequate).
+  it('disables Baixar relatório when the solution falls short of the required power, even though canCalculate is true', () => {
+    setup({
+      solution: fakeSolution, // inverterPeakPowerW: 7000
+      canCalculate: true,
+      peakW: 10000,
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] },
+    });
+    for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {
+      expect(button).toBeDisabled();
+    }
+  });
+
+  it('disables Baixar relatório when only the secondary/expansion solution falls short, even with an adequate primary', () => {
+    const shortSecondary: Solution = { ...fakeSolution, inverterPeakPowerW: 100 };
+    setup({
+      solution: fakeSolution, // inverterPeakPowerW: 7000, adequate
+      secondarySolution: shortSecondary,
+      canCalculate: true,
+      peakW: 5000,
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['backup'],
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+    });
+    for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {
+      expect(button).toBeDisabled();
+    }
+  });
+
+  it('keeps Baixar relatório enabled when both the primary and secondary solutions are adequate', () => {
+    setup({
+      solution: fakeSolution, // inverterPeakPowerW: 7000
+      secondarySolution: fakeSolution,
+      canCalculate: true,
+      peakW: 5000,
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        desiredFeatures: ['backup'],
+        secondaryBatteryModel: 'TP-HS7.2',
+      },
+    });
+    for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {
+      expect(button).toBeEnabled();
+    }
+  });
 });
 
 describe('SizingTab: summary panel', () => {

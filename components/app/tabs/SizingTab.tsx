@@ -75,6 +75,7 @@ import {
   isMicrogridPowerNoticeUnacknowledged,
   isPvConfigIncomplete,
   normalizeAccessoryLine,
+  solutionHasInsufficientMargin,
   solutionMetrics,
   type MarginRow,
 } from '../helpers';
@@ -299,6 +300,26 @@ export function SizingTab({
       : [];
   const solutionTabHasIssue = solutionMarginRows.some((row) => row.providedValue < row.requiredValue);
 
+  // Broader than solutionTabHasIssue on purpose: blocks PDF export whenever
+  // *either* battery search (primary or secondary) came back short on power/
+  // energy, not just whichever tab happens to be active right now — the
+  // printed report always includes both solutions regardless of which tab is
+  // selected on screen (see PrintableReport.tsx). Skips a solution still
+  // sitting on an unchosen microgrid alternative — there's no export button
+  // reachable in that state (see ResultSummary's MicrogridVariantChoice
+  // early-return), so there's nothing to gate yet.
+  const marginCheckParams = {
+    desiredFeatures: residentialOptions.desiredFeatures,
+    whiteTariff: residentialOptions.whiteTariff,
+    microgrid: residentialOptions.microgrid,
+    nominalW: backupNominalW,
+    peakW: backupPeakW,
+    dailyKwh: backupDailyKwh,
+  };
+  const hasInsufficientSolution = [solution, secondarySolution].some(
+    (s) => s && !s.microgridAlternative && solutionHasInsufficientMargin(s, marginCheckParams)
+  );
+
   return (
     <>
       <PageHeader>
@@ -326,7 +347,16 @@ export function SizingTab({
             onConfirm={() => resetResidential()}
           />
           {solution && (
-            <Button variant="outline" onClick={exportPdf} disabled={!canCalculate || loading}>
+            <Button
+              variant="outline"
+              onClick={exportPdf}
+              disabled={!canCalculate || loading || hasInsufficientSolution}
+              title={
+                hasInsufficientSolution
+                  ? 'A solução encontrada não atende 100% aos requisitos de potência/energia — ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
+                  : undefined
+              }
+            >
               <FileText className="h-4 w-4" />
               Baixar relatório
             </Button>
@@ -466,7 +496,7 @@ export function SizingTab({
                 solution={activeSolution}
                 batteryCatalog={batteryCatalog}
                 onExport={exportPdf}
-                canExport={canCalculate}
+                canExport={canCalculate && !hasInsufficientSolution}
                 productMedia={productMedia}
                 userStockItems={userStockItems}
                 whiteTariff={residentialOptions.whiteTariff}
@@ -2504,10 +2534,13 @@ function formatMarginValue(value: number, unit: 'W' | 'Wh') {
 /** Shows how much slack the recommended solution has over what the customer
  * actually needs on each gating dimension, highlighting whichever one has
  * the least slack — the real reason a bigger/smaller solution wasn't picked
- * instead. A negative margin would mean the solution doesn't actually meet
- * that requirement; the Edge Function shouldn't ever return one, but it's
- * called out distinctly (destructive styling) rather than silently mislabeled
- * "decisive" if it ever happens. */
+ * instead. A negative margin means the solution doesn't actually meet that
+ * requirement — the Edge Function intentionally falls back to the largest
+ * available combination when nothing fully qualifies (see
+ * calculate-residential/logic.ts's rankByLeastShortfall), so this is a real,
+ * expected outcome, not an anomaly; it's called out distinctly (destructive
+ * styling) and blocks PDF export (see hasInsufficientSolution in SizingTab)
+ * until the customer adjusts the configuration. */
 function MarginSummary({ rows }: { rows: MarginRow[] }) {
   if (rows.length === 0) return null;
 

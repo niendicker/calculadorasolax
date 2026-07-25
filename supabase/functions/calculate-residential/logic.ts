@@ -209,6 +209,55 @@ export interface ApprovedSolution {
   comments: string[];
 }
 
+export interface CapacityTargets {
+  minRatedPowerW: number;
+  targetPowerW: number;
+  targetEnergyWh: number;
+  usefulEnergyWhPerBattery: number | null;
+}
+
+/** Used only by index.ts's relaxed fallback query, when no candidate fully
+ * satisfies every capacity requirement (the strict, gte-filtered query came
+ * back empty) — ranks candidates by how close each gets to satisfying ALL
+ * three capacity dimensions at once (maximin over the power/peak/energy
+ * adequacy ratios), so the fallback favors the least-bad overall compromise
+ * instead of just being the biggest inverter with an emptier battery bank
+ * (or vice versa — a plain "sort by rated_power_w descending" would silently
+ * privilege closing the power shortfall over the energy shortfall for
+ * reasons unrelated to which one the customer actually needs). Ties are
+ * broken by the same cheapest-first order the strict path already uses.
+ * Never used when a candidate is already fully adequate. */
+export function rankByLeastShortfall(candidates: ApprovedSolution[], targets: CapacityTargets): ApprovedSolution[] {
+  function effectiveEnergyWh(candidate: ApprovedSolution): number {
+    return targets.usefulEnergyWhPerBattery !== null
+      ? targets.usefulEnergyWhPerBattery * candidate.battery_quantity
+      : candidate.available_energy_wh;
+  }
+
+  function ratio(provided: number, required: number): number {
+    return required > 0 ? provided / required : Infinity;
+  }
+
+  function worstRatio(candidate: ApprovedSolution): number {
+    return Math.min(
+      ratio(candidate.rated_power_w, targets.minRatedPowerW),
+      ratio(candidate.peak_power_w, targets.targetPowerW),
+      ratio(effectiveEnergyWh(candidate), targets.targetEnergyWh)
+    );
+  }
+
+  return [...candidates].sort((a, b) => {
+    const diff = worstRatio(b) - worstRatio(a);
+    if (diff !== 0) return diff;
+    return (
+      a.rated_power_w - b.rated_power_w ||
+      effectiveEnergyWh(a) - effectiveEnergyWh(b) ||
+      a.battery_power_w - b.battery_power_w ||
+      a.battery_quantity - b.battery_quantity
+    );
+  });
+}
+
 export interface AccessoryRule {
   id: string;
   name: string;

@@ -16,6 +16,7 @@ import {
   isMicrogridPhaseVoltageIncompatible,
   isMicrogridPowerNoticeUnacknowledged,
   normalizeAccessoryLine,
+  solutionHasInsufficientMargin,
 } from './helpers';
 import type { AccessoryLine, GeneratorConfig, MicrogridConfig, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
 
@@ -223,6 +224,20 @@ describe('buildMarginSummary', () => {
       solution: baseSolution,
     });
     expect(rows.some((row) => row.key.startsWith('microgrid'))).toBe(false);
+  });
+});
+
+describe('solutionHasInsufficientMargin', () => {
+  const params = { desiredFeatures: [], whiteTariff: null, microgrid: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
+
+  it('returns true when any margin row falls short of what is required', () => {
+    const shortOnEnergy = makeSolution({ inverterRatedPowerW: 5000, inverterPeakPowerW: 7000, availableEnergyWh: 1000 });
+    expect(solutionHasInsufficientMargin(shortOnEnergy, params)).toBe(true);
+  });
+
+  it('returns false when every margin row meets or exceeds what is required', () => {
+    const adequate = makeSolution({ inverterRatedPowerW: 5000, inverterPeakPowerW: 7000, availableEnergyWh: 3240 });
+    expect(solutionHasInsufficientMargin(adequate, params)).toBe(false);
   });
 });
 

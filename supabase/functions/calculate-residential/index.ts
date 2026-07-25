@@ -7,6 +7,7 @@ import {
   effectiveTargetPowerW,
   gridTopologyMap,
   inverterSatisfiesRequiredFlags,
+  rankByLeastShortfall,
   requiredInverterFlags,
   solutionSupportsMicrogrid,
   standardGridTopologyMap,
@@ -114,28 +115,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    let solutionQuery = supabase
+    const solutionColumns = `
+      id,
+      source_file,
+      solution_code,
+      inverter_model,
+      inverter_quantity,
+      battery_ports_used,
+      rated_power_w,
+      peak_power_w,
+      grid_topology,
+      battery_model,
+      battery_topology,
+      battery_quantity,
+      battery_power_w,
+      available_energy_wh,
+      accessories,
+      comments
+    `;
+
+    let strictQuery = supabase
       .from('approved_solutions')
-      .select(
-        `
-        id,
-        source_file,
-        solution_code,
-        inverter_model,
-        inverter_quantity,
-        battery_ports_used,
-        rated_power_w,
-        peak_power_w,
-        grid_topology,
-        battery_model,
-        battery_topology,
-        battery_quantity,
-        battery_power_w,
-        available_energy_wh,
-        accessories,
-        comments
-      `
-      )
+      .select(solutionColumns)
       .eq('active', true)
       .eq('grid_topology', gridTopology)
       .eq('battery_topology', batteryTopology)
@@ -157,38 +158,64 @@ Deno.serve(async (req) => {
       .limit(500);
 
     if (usefulEnergyWhPerBattery === null) {
-      solutionQuery = solutionQuery.gte('available_energy_wh', targetEnergyWh);
+      strictQuery = strictQuery.gte('available_energy_wh', targetEnergyWh);
     }
+    if (options.batteryModel) strictQuery = strictQuery.eq('battery_model', options.batteryModel);
+    if (options.inverterModel) strictQuery = strictQuery.eq('inverter_model', options.inverterModel);
 
-    if (options.batteryModel) {
-      solutionQuery = solutionQuery.eq('battery_model', options.batteryModel);
-    }
+    const { data: strictRows, error: strictErr } = await strictQuery;
 
-    if (options.inverterModel) {
-      solutionQuery = solutionQuery.eq('inverter_model', options.inverterModel);
-    }
-
-    const { data: solutions, error: solutionErr } = await solutionQuery;
-
-    if (solutionErr) {
-      console.error(solutionErr);
+    if (strictErr) {
+      console.error(strictErr);
       return jsonResponse({ error: 'solution_lookup_failed' }, { status: 500 });
     }
 
-    if (!solutions?.length) {
-      return jsonResponse({ error: 'no_approved_solution' }, { status: 422 });
-    }
-
-    let compatibleSolutions = solutions as ApprovedSolution[];
+    let compatibleSolutions = (strictRows ?? []) as ApprovedSolution[];
 
     if (usefulEnergyWhPerBattery !== null) {
       compatibleSolutions = compatibleSolutions.filter(
         (solution) => usefulEnergyWhPerBattery! * solution.battery_quantity >= targetEnergyWh
       );
+    }
 
-      if (!compatibleSolutions.length) {
+    // Nothing fully satisfies every power/energy requirement — rather than a
+    // dead-end error, fall back to the largest available combination for the
+    // selected grid/battery topology and (if pinned) inverter/battery model,
+    // ranked by least overall shortfall (see rankByLeastShortfall). The
+    // frontend already renders negative margins and blocks PDF export for
+    // this case (see MarginSummary/hasInsufficientSolution in SizingTab.tsx)
+    // — this is the intentional "show what's available, not just a wall"
+    // path, not an error condition. Identity/compatibility filters (grid and
+    // battery topology, pinned models) stay exactly as strict.
+    if (!compatibleSolutions.length) {
+      let relaxedQuery = supabase
+        .from('approved_solutions')
+        .select(solutionColumns)
+        .eq('active', true)
+        .eq('grid_topology', gridTopology)
+        .eq('battery_topology', batteryTopology)
+        .limit(500);
+
+      if (options.batteryModel) relaxedQuery = relaxedQuery.eq('battery_model', options.batteryModel);
+      if (options.inverterModel) relaxedQuery = relaxedQuery.eq('inverter_model', options.inverterModel);
+
+      const { data: relaxedRows, error: relaxedErr } = await relaxedQuery;
+
+      if (relaxedErr) {
+        console.error(relaxedErr);
+        return jsonResponse({ error: 'solution_lookup_failed' }, { status: 500 });
+      }
+
+      if (!relaxedRows?.length) {
         return jsonResponse({ error: 'no_approved_solution' }, { status: 422 });
       }
+
+      compatibleSolutions = rankByLeastShortfall(relaxedRows as ApprovedSolution[], {
+        minRatedPowerW,
+        targetPowerW,
+        targetEnergyWh,
+        usefulEnergyWhPerBattery,
+      });
     }
 
     const microgridSelected = desiredFeatures.includes('microgrid');

@@ -10,6 +10,7 @@ import {
   inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
+  rankByLeastShortfall,
   requiredInverterFlags,
   ruleMatches,
   solutionSupportsMicrogrid,
@@ -867,6 +868,84 @@ describe('solutionSupportsMicrogrid', () => {
     expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }))).toBe(false);
     // 2999 VA / 3 phases < 1000 W limit
     expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2999, onGridPhases: 3 }))).toBe(true);
+  });
+});
+
+describe('rankByLeastShortfall', () => {
+  const targets = { minRatedPowerW: 10000, targetPowerW: 12000, targetEnergyWh: 10000, usefulEnergyWhPerBattery: null };
+
+  it('ranks the maximin candidate first, not just the one with the single biggest dimension', () => {
+    // "Power-heavy": comfortably covers power, but energy is far short (ratio 0.3).
+    const powerHeavy = makeSolution({
+      id: 'power-heavy',
+      rated_power_w: 15000,
+      peak_power_w: 18000,
+      available_energy_wh: 3000,
+    });
+    // "Balanced": every dimension is somewhat short, but none as short as
+    // powerHeavy's worst (energy 0.3) — its worst ratio (power 0.8) is better.
+    const balanced = makeSolution({
+      id: 'balanced',
+      rated_power_w: 8000,
+      peak_power_w: 9600,
+      available_energy_wh: 8000,
+    });
+
+    const ranked = rankByLeastShortfall([powerHeavy, balanced], targets);
+    expect(ranked[0].id).toBe('balanced');
+  });
+
+  it('breaks ties (equal worst ratio) by the same cheapest-first order the strict path uses', () => {
+    // Both have worst ratio = min(rated/10000, peak/12000, energy/10000) = 1.0
+    // (bottleneck is energy for both), but "bigger" is unnecessarily larger.
+    const cheaper = makeSolution({ id: 'cheaper', rated_power_w: 10000, peak_power_w: 12000, available_energy_wh: 10000 });
+    const bigger = makeSolution({ id: 'bigger', rated_power_w: 20000, peak_power_w: 24000, available_energy_wh: 10000 });
+
+    const ranked = rankByLeastShortfall([bigger, cheaper], targets);
+    expect(ranked[0].id).toBe('cheaper');
+  });
+
+  it('uses usefulEnergyWhPerBattery × battery_quantity instead of raw available_energy_wh when a battery model is pinned', () => {
+    const rawEnergyWinner = makeSolution({
+      id: 'raw-energy-winner',
+      rated_power_w: 12000,
+      peak_power_w: 14400,
+      available_energy_wh: 9000,
+      battery_quantity: 1,
+    });
+    const perBatteryWinner = makeSolution({
+      id: 'per-battery-winner',
+      rated_power_w: 12000,
+      peak_power_w: 14400,
+      available_energy_wh: 100, // irrelevant once usefulEnergyWhPerBattery is set
+      battery_quantity: 3,
+    });
+
+    const withoutPinnedBattery = rankByLeastShortfall([rawEnergyWinner, perBatteryWinner], targets);
+    expect(withoutPinnedBattery[0].id).toBe('raw-energy-winner');
+
+    const withPinnedBattery = rankByLeastShortfall([rawEnergyWinner, perBatteryWinner], {
+      ...targets,
+      usefulEnergyWhPerBattery: 4000, // 4000 * 3 = 12000 Wh, well above the raw-energy winner's 9000
+    });
+    expect(withPinnedBattery[0].id).toBe('per-battery-winner');
+  });
+
+  it('treats a zero target dimension as always satisfied (Infinity ratio), never the worst dimension', () => {
+    const solution = makeSolution({ rated_power_w: 5000, peak_power_w: 6000, available_energy_wh: 100 });
+    const ranked = rankByLeastShortfall([solution], { ...targets, targetEnergyWh: 0 });
+    // Should not throw/NaN, and the single candidate is trivially "first".
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0].id).toBe(solution.id);
+  });
+
+  it('does not mutate the input array', () => {
+    const a = makeSolution({ id: 'a', rated_power_w: 5000 });
+    const b = makeSolution({ id: 'b', rated_power_w: 20000, peak_power_w: 24000, available_energy_wh: 20000 });
+    const input = [a, b];
+    rankByLeastShortfall(input, targets);
+    expect(input[0].id).toBe('a');
+    expect(input[1].id).toBe('b');
   });
 });
 

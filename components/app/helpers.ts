@@ -362,6 +362,20 @@ export function buildMarginSummary({
   return rows;
 }
 
+/** True when any of buildMarginSummary's rows for this solution falls short
+ * of what the customer needs — the Edge Function now intentionally falls
+ * back to the largest available combination when nothing fully qualifies
+ * (see calculate-residential/logic.ts's rankByLeastShortfall), so this is a
+ * real, expected outcome rather than something the server should never
+ * return. Used to block PDF export until the user adjusts loads/battery/
+ * inverter selection. */
+export function solutionHasInsufficientMargin(
+  solution: Solution,
+  params: Omit<Parameters<typeof buildMarginSummary>[0], 'solution'>
+): boolean {
+  return buildMarginSummary({ ...params, solution }).some((row) => row.providedValue < row.requiredValue);
+}
+
 export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
