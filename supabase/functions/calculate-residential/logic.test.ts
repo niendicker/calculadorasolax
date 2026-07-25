@@ -71,6 +71,7 @@ function makeRule(partial: Partial<AccessoryRule> = {}): AccessoryRule {
     metric_divisor: 1,
     comment: null,
     desired_features: [],
+    excludes_accessory_models: [],
     accessories: { model: 'Smart Meter' },
     ...partial,
   };
@@ -471,6 +472,46 @@ describe('buildSolutionPayload', () => {
       desiredFeatures: [],
     });
     expect(sparse.accessories.some((a) => a.model === 'Port Module')).toBe(false);
+  });
+
+  it('drops an accessory whose own rule matched when another matching rule excludes it', () => {
+    const solution = makeSolution({ inverter_quantity: 2 });
+    const rules = [
+      makeRule({
+        trigger_metric: 'inverter_quantity',
+        min_quantity: 2,
+        accessories: { model: 'Paralleling Bracket' },
+      }),
+      makeRule({
+        accessories: { model: 'ATS Enclosure' },
+        excludes_accessory_models: ['Paralleling Bracket'],
+      }),
+    ];
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: rules,
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories.some((a) => a.model === 'Paralleling Bracket')).toBe(false);
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'ATS Enclosure' }));
+  });
+
+  it('excludes even an accessory baked into the solution\'s own base accessory list', () => {
+    const solution = makeSolution({ inverter_quantity: 2, accessories: [{ model: 'Paralleling Bracket', quantity: 1 }] });
+    const rule = makeRule({
+      accessories: { model: 'ATS Enclosure' },
+      excludes_accessory_models: ['Paralleling Bracket'],
+    });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories.some((a) => a.model === 'Paralleling Bracket')).toBe(false);
   });
 
   it('infers appliesTo from the matching rule\'s inverter/battery model scope', () => {

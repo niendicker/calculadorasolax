@@ -460,6 +460,23 @@ export function RulesEditor(props: {
                 />
               </Field>
 
+              <Field
+                asDiv
+                label={
+                  <InfoLabel
+                    label="Exclui acessórios"
+                    tip="Quando esta regra bater, os acessórios marcados aqui são removidos da lista final, mesmo que a própria regra deles também tenha batido — use para quando dois acessórios diferentes cobrem a mesma necessidade e só um deve aparecer."
+                  />
+                }
+              >
+                <ExcludedAccessoriesInput
+                  accessories={props.accessories}
+                  currentAccessoryId={ruleForm.accessory_id}
+                  value={ruleForm}
+                  onChange={(excludes_accessory_models) => setRuleForm({ ...ruleForm, excludes_accessory_models })}
+                />
+              </Field>
+
               <Field label="Comentário automático">
                 <textarea
                   className={textareaClasses()}
@@ -700,6 +717,60 @@ function DesiredFeaturesInput({
       </div>
       <p className="text-xs text-muted-foreground">
         {selected.length === 0 ? 'Qualquer funcionalidade.' : `${selected.length} funcionalidade(s) selecionada(s).`}
+      </p>
+    </div>
+  );
+}
+
+function ExcludedAccessoriesInput({
+  accessories,
+  currentAccessoryId,
+  value,
+  onChange,
+}: {
+  accessories: AccessoryRow[];
+  currentAccessoryId: string | undefined;
+  value: Partial<AccessoryRuleRow>;
+  onChange: (models: string[]) => void;
+}) {
+  const selected = value.excludes_accessory_models ?? [];
+  // A rule can't exclude its own accessory — that would always suppress the
+  // very line it just created.
+  const options = accessories.filter((accessory) => accessory.id !== currentAccessoryId);
+
+  function toggle(model: string) {
+    if (selected.includes(model)) {
+      onChange(selected.filter((item) => item !== model));
+      return;
+    }
+    onChange([...selected, model]);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {options.map((accessory) => {
+          const active = selected.includes(accessory.model);
+          return (
+            <button
+              key={accessory.id}
+              type="button"
+              aria-pressed={active}
+              className={cn(
+                'inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                active
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-input bg-background text-muted-foreground hover:border-primary/50 hover:bg-muted/60 hover:text-foreground'
+              )}
+              onClick={() => toggle(accessory.model)}
+            >
+              <span className="truncate">{accessory.model}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {selected.length === 0 ? 'Nenhum acessório excluído.' : `${selected.length} acessório(s) excluído(s).`}
       </p>
     </div>
   );

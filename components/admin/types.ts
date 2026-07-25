@@ -208,6 +208,11 @@ export interface AccessoryRuleRow {
    * below has no customer context, so it skips rules that set this. */
   desired_features: string[] | null;
   active: boolean;
+  /** Accessory models to drop from the final list whenever this rule matches,
+   * even if their own rule also matched — for cases where two different
+   * accessories cover the same physical need (e.g. an ATS-bundled enclosure
+   * making a separate paralleling bracket redundant) and only one should win. */
+  excludes_accessory_models: string[] | null;
   accessories?: { model: string } | null;
 }
 
@@ -408,6 +413,7 @@ export const emptyRule: Partial<AccessoryRuleRow> = {
   comment: '',
   desired_features: [],
   active: true,
+  excludes_accessory_models: [],
 };
 
 export const emptyEssRule: Partial<EssCompatibilityRuleRow> = {

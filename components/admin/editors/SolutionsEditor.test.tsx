@@ -323,6 +323,7 @@ describe('SolutionsEditor: form', () => {
       metric_divisor: 1,
       comment: null,
       desired_features: [],
+      excludes_accessory_models: [],
       active: true,
       accessories: { model: 'Smart Meter' },
     };

@@ -630,6 +630,7 @@ export function AdminPanel() {
       metric_divisor: Math.max(1, toNumber(ruleForm.metric_divisor, 1)),
       comment: ruleForm.comment?.trim() || null,
       desired_features: accessoryRuleDesiredFeatures(ruleForm),
+      excludes_accessory_models: ruleForm.excludes_accessory_models ?? [],
       active: ruleForm.active ?? true,
     };
 

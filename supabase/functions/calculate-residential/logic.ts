@@ -225,6 +225,10 @@ export interface AccessoryRule {
    * customer must have enabled at least one of these (OR). Mirrors
    * lib/types.ts DesiredFeatureId. */
   desired_features: string[] | null;
+  /** Mirrors components/admin/types.ts AccessoryRuleRow.excludes_accessory_models:
+   * accessory models to drop from the final list whenever this rule matches,
+   * even if their own rule also matched. */
+  excludes_accessory_models: string[] | null;
   accessories: { model: string } | null;
 }
 
@@ -483,6 +487,7 @@ export function buildSolutionPayload(
 
   const accessoryByModel = new Map(accessories.map((accessory) => [accessory.model.toLowerCase(), accessory]));
   const automaticComments: string[] = [];
+  const excludedModels = new Set<string>();
 
   for (const rule of params.accessoryRules) {
     if (!rule.accessories?.model || !ruleMatches(solution, rule, params.standardGridTopology, params.desiredFeatures)) continue;
@@ -512,7 +517,15 @@ export function buildSolutionPayload(
     }
 
     if (rule.comment) automaticComments.push(rule.comment);
+    for (const excluded of rule.excludes_accessory_models ?? []) excludedModels.add(excluded.toLowerCase());
   }
+
+  // Two different accessories can cover the same physical need (e.g. an
+  // ATS-bundled enclosure making a separate paralleling bracket redundant) —
+  // a matched rule can declare the other one excluded so only one survives,
+  // regardless of which rule matched first or whether the excluded one was
+  // already baked into the solution's own accessory list.
+  const finalAccessories = accessories.filter((accessory) => !excludedModels.has(accessory.model.toLowerCase()));
 
   return {
     solutionId: solution.id,
@@ -530,7 +543,7 @@ export function buildSolutionPayload(
     batteryPowerW: solution.battery_power_w,
     availableEnergyWh,
     pvPowerKw: params.pvPowerKw === null ? null : Math.ceil(params.pvPowerKw * 10) / 10,
-    accessories,
+    accessories: finalAccessories,
     comments: Array.from(new Set([...solution.comments, ...automaticComments])),
   };
 }

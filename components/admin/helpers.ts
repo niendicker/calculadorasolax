@@ -32,7 +32,7 @@ export const LOAD_CATALOG_COLUMNS = 'id, name_pt, name_en, name_zh, power_w, cat
 export const PRESET_COLUMNS = 'id, name, description, loads, display_order';
 
 export const ACCESSORY_RULE_COLUMNS =
-  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, scale_with_metric, metric_divisor, comment, desired_features, active, accessories (model)';
+  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, scale_with_metric, metric_divisor, comment, desired_features, excludes_accessory_models, active, accessories (model)';
 
 export const ESS_RULE_COLUMNS =
   'id, name, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, battery_configs, comment, active, created_at';
@@ -298,6 +298,7 @@ export function applyAccessoryRules(
 ) {
   const accessories = new Map<string, number>();
   const comments: string[] = [];
+  const excludedModels = new Set<string>();
 
   for (const rule of rules) {
     if (!rule.accessories?.model || !accessoryRuleMatches(solution, rule, generatedGridType)) continue;
@@ -306,7 +307,9 @@ export function applyAccessoryRules(
     accessories.set(rule.accessories.model, currentQty + matchQty);
     if (rule.comment) comments.push(rule.comment);
     if (rule.inclusion === 'optional') comments.push(`Acessório opcional: ${rule.accessories.model}.`);
+    for (const excluded of rule.excludes_accessory_models ?? []) excludedModels.add(excluded);
   }
+  for (const excluded of excludedModels) accessories.delete(excluded);
 
   return {
     accessories: Array.from(accessories.entries()).map(([model, quantity]) => ({ model, quantity })),

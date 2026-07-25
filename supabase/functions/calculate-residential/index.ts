@@ -334,6 +334,7 @@ Deno.serve(async (req) => {
         metric_divisor,
         comment,
         desired_features,
+        excludes_accessory_models,
         accessories (model)
       `
       )

@@ -284,6 +284,7 @@ function makeAccessoryRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRu
     metric_divisor: 1,
     comment: null,
     desired_features: [],
+    excludes_accessory_models: [],
     active: true,
     accessories: { model: 'Smart Meter' },
     ...partial,
@@ -476,6 +477,46 @@ describe('applyAccessoryRules', () => {
     // Same 2 ports but only 6 batteries -> 3/port, still >= 4? No: 3 < 4, gate fails, rule doesn't match at all.
     const sparse = makeGeneratedSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 6 });
     expect(applyAccessoryRules(sparse, [rule]).accessories).toEqual([]);
+  });
+
+  it('drops an accessory whose own rule matched when another matching rule excludes it', () => {
+    const solution = makeGeneratedSolution({ inverter_quantity: 2 });
+    const rules = [
+      makeAccessoryRule({
+        id: 'r1',
+        trigger_metric: 'inverter_quantity',
+        min_quantity: 2,
+        accessories: { model: 'Paralleling Bracket' },
+      }),
+      makeAccessoryRule({
+        id: 'r2',
+        accessories: { model: 'ATS Enclosure' },
+        excludes_accessory_models: ['Paralleling Bracket'],
+      }),
+    ];
+    const result = applyAccessoryRules(solution, rules);
+    expect(result.accessories).toEqual([{ model: 'ATS Enclosure', quantity: 1 }]);
+  });
+
+  it('keeps the excluded accessory when the excluding rule does not match', () => {
+    const solution = makeGeneratedSolution({ inverter_quantity: 2 });
+    const rules = [
+      makeAccessoryRule({
+        id: 'r1',
+        trigger_metric: 'inverter_quantity',
+        min_quantity: 2,
+        accessories: { model: 'Paralleling Bracket' },
+      }),
+      makeAccessoryRule({
+        id: 'r2',
+        trigger_metric: 'inverter_quantity',
+        min_quantity: 99,
+        accessories: { model: 'ATS Enclosure' },
+        excludes_accessory_models: ['Paralleling Bracket'],
+      }),
+    ];
+    const result = applyAccessoryRules(solution, rules);
+    expect(result.accessories).toEqual([{ model: 'Paralleling Bracket', quantity: 1 }]);
   });
 });
 

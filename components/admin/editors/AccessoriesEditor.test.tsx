@@ -26,6 +26,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     metric_divisor: 1,
     comment: null,
     desired_features: [],
+    excludes_accessory_models: [],
     active: true,
     ...partial,
   };

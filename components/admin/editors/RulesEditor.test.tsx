@@ -67,6 +67,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     metric_divisor: 1,
     comment: null,
     desired_features: [],
+    excludes_accessory_models: [],
     active: true,
     accessories: null,
     ...partial,
@@ -200,6 +201,38 @@ describe('RulesEditor: accessory rules', () => {
 
     fireEvent.change(within(dialog).getByLabelText('Acessório'), { target: { value: 'a2' } });
     expect(within(dialog).getByLabelText('Acessório')).toHaveValue('a2');
+  });
+
+  it('lets a rule exclude other accessories, but never itself', () => {
+    render(
+      <ControlledEditor
+        accessories={[
+          makeAccessory({ id: 'a1', model: 'Smart Meter' }),
+          makeAccessory({ id: 'a2', model: 'Matebox' }),
+          makeAccessory({ id: 'a3', model: 'ATS Enclosure' }),
+        ]}
+        jumpTarget={{ scope: 'accessory', accessoryId: 'a1', accessoryModel: 'Smart Meter' }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova regra/ });
+
+    // The rule's own accessory (Smart Meter) can't be offered as something to exclude.
+    expect(within(dialog).queryByRole('button', { name: 'Smart Meter' })).not.toBeInTheDocument();
+
+    const matebox = within(dialog).getByRole('button', { name: 'Matebox' });
+    expect(matebox).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(matebox);
+    expect(matebox).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByText('1 acessório(s) excluído(s).')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ATS Enclosure' }));
+    expect(within(dialog).getByText('2 acessório(s) excluído(s).')).toBeInTheDocument();
+
+    fireEvent.click(matebox);
+    expect(matebox).toHaveAttribute('aria-pressed', 'false');
+    expect(within(dialog).getByText('1 acessório(s) excluído(s).')).toBeInTheDocument();
   });
 
   it('has no obrigatório/opcional choice — every rule-applied accessory is required', () => {
