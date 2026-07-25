@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Battery,
@@ -1484,6 +1484,58 @@ const peakCalcModeLabels: Record<PeakCalcMode, string> = {
   select: 'Selecionar cargas',
 };
 
+function formatMonthlyKwh(requiredEnergyWh: number): string {
+  if (!requiredEnergyWh) return '';
+  return String(Math.round(((requiredEnergyWh * TARIFF_BUSINESS_DAYS_PER_MONTH) / 1000) * 100) / 100);
+}
+
+/** Tarifa Branca's energy field takes kWh/mês from the user but the stored
+ * value is Wh/dia (see TARIFF_BUSINESS_DAYS_PER_MONTH) — dividing by 22
+ * doesn't round-trip to a clean number, so a naive `value={computed}` would
+ * reformat what's on screen (e.g. "100" becoming "99.99") on every
+ * keystroke. Buffers the raw text locally instead, only resyncing from
+ * `requiredEnergyWh` when it changes for a reason other than this field's
+ * own last edit (project load, feature reset, etc). */
+function WhiteTariffEnergyField({
+  requiredEnergyWh,
+  onChange,
+}: {
+  requiredEnergyWh: number;
+  onChange: (requiredEnergyWh: number) => void;
+}) {
+  const [text, setText] = useState(() => formatMonthlyKwh(requiredEnergyWh));
+  const lastEmittedRef = useRef(requiredEnergyWh);
+
+  useEffect(() => {
+    if (requiredEnergyWh !== lastEmittedRef.current) {
+      lastEmittedRef.current = requiredEnergyWh;
+      setText(formatMonthlyKwh(requiredEnergyWh));
+    }
+  }, [requiredEnergyWh]);
+
+  return (
+    <>
+      <Label htmlFor="whiteTariffEnergy">Energia (kWh/mês)</Label>
+      <Input
+        id="whiteTariffEnergy"
+        type="number"
+        min={0}
+        step={0.01}
+        placeholder="Ex.: 110"
+        value={text}
+        onChange={(event) => {
+          const raw = event.target.value;
+          setText(raw);
+          const wh = Math.round(((Number(raw) || 0) * 1000) / TARIFF_BUSINESS_DAYS_PER_MONTH);
+          lastEmittedRef.current = wh;
+          onChange(wh);
+        }}
+      />
+      {requiredEnergyWh ? <p className="text-xs text-muted-foreground">{(requiredEnergyWh / 1000).toFixed(2)} kWh/dia</p> : null}
+    </>
+  );
+}
+
 function DesiredFeaturesPicker({
   activeTab,
   onActiveTabChange,
@@ -1702,31 +1754,12 @@ function DesiredFeaturesPicker({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffEnergy">Energia (kWh/mês)</Label>
-              <Input
-                id="whiteTariffEnergy"
-                type="number"
-                min={0}
-                step={0.01}
-                placeholder="Ex.: 110"
-                value={
-                  whiteTariff?.requiredEnergyWh
-                    ? Math.round(((whiteTariff.requiredEnergyWh * TARIFF_BUSINESS_DAYS_PER_MONTH) / 1000) * 100) / 100
-                    : ''
+              <WhiteTariffEnergyField
+                requiredEnergyWh={whiteTariff?.requiredEnergyWh ?? 0}
+                onChange={(requiredEnergyWh) =>
+                  onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), requiredEnergyWh })
                 }
-                onChange={(event) => {
-                  const monthlyKwh = Number(event.target.value) || 0;
-                  onWhiteTariffChange({
-                    ...(whiteTariff ?? emptyWhiteTariffConfig),
-                    requiredEnergyWh: Math.round((monthlyKwh * 1000) / TARIFF_BUSINESS_DAYS_PER_MONTH),
-                  });
-                }}
               />
-              {whiteTariff?.requiredEnergyWh ? (
-                <p className="text-xs text-muted-foreground">
-                  {(whiteTariff.requiredEnergyWh / 1000).toFixed(2)} kWh/dia
-                </p>
-              ) : null}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="whiteTariffSpread">Spread (R$/kWh)</Label>

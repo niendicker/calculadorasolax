@@ -8,7 +8,7 @@ import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { Solution, UserStockItem } from '@/lib/types';
-import { renderWithShell } from '../test-helpers/render-with-shell';
+import { renderWithShell, Shell } from '../test-helpers/render-with-shell';
 import type { BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { SizingTab } from './SizingTab';
 
@@ -1018,6 +1018,43 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     });
     expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(22);
     expect(screen.getByText('1.00 kWh/dia')).toBeInTheDocument();
+  });
+
+  it('keeps showing exactly what the user typed, instead of reformatting it into a lossy decimal on every keystroke', () => {
+    // requiredEnergyWh (Wh/dia) and the displayed kWh/mês only round-trip
+    // cleanly by coincidence (÷22 rarely lands on a round number) — the field
+    // must echo the typed text, not a value recomputed from the rounded Wh
+    // storage, or "100" would flicker into "99.99" as soon as it's typed.
+    const { props, rerender } = setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['white_tariff'] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Tarifa Branca/ }));
+
+    function rerenderWithLatestWhiteTariff() {
+      const latest = (props.setWhiteTariffConfig as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] ?? null;
+      rerender(
+        <Shell>
+          <NextIntlClientProvider locale="pt" messages={ptMessages}>
+            <SizingTab
+              {...(props as Parameters<typeof SizingTab>[0])}
+              residentialOptions={{ ...emptyResidentialOptions, desiredFeatures: ['white_tariff'], whiteTariff: latest }}
+            />
+          </NextIntlClientProvider>
+        </Shell>
+      );
+    }
+
+    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '1' } });
+    rerenderWithLatestWhiteTariff();
+    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(1);
+
+    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '10' } });
+    rerenderWithLatestWhiteTariff();
+    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(10);
+
+    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '100' } });
+    rerenderWithLatestWhiteTariff();
+    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(100);
   });
 
   it('updates microgrid power and phases (phase change auto-picks a valid voltage)', () => {

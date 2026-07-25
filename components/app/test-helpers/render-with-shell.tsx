@@ -12,7 +12,7 @@ import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider
  *  so that @testing-library/react's automatic cleanup() actually unmounts
  *  them between tests — otherwise portaled content would leak into every
  *  later test in the file. */
-function Shell({ children }: { children: ReactNode }) {
+export function Shell({ children }: { children: ReactNode }) {
   const [titleBar, setTitleBar] = useState<HTMLDivElement | null>(null);
   const [summary, setSummary] = useState<HTMLDivElement | null>(null);
 
