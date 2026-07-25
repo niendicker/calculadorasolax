@@ -10,6 +10,7 @@ import {
   Calculator,
   Check,
   ChevronRight,
+  Eraser,
   FileText,
   FolderOpen,
   Fuel,
@@ -35,6 +36,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Separator } from '@/components/ui/separator';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
@@ -313,9 +315,15 @@ export function SizingTab({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AutosaveIndicator status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
-          <Button variant="outline" onClick={() => resetResidential()}>
-            Limpar
-          </Button>
+          <ConfirmDeleteButton
+            ariaLabel="Limpar dimensionamento"
+            title="Limpar dimensionamento?"
+            description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
+            confirmLabel="Limpar"
+            label="Limpar"
+            icon={<Eraser className="h-4 w-4" />}
+            onConfirm={() => resetResidential()}
+          />
           {solution && (
             <Button variant="outline" onClick={exportPdf} disabled={!canCalculate}>
               <FileText className="h-4 w-4" />

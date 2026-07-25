@@ -673,7 +673,8 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
 
     expect(useWizardStore.getState().residentialOptions.topology).toBe('HighVoltage');
     expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('TP-HS3.6');
@@ -713,7 +714,8 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
 
     expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('T58 V2 Master');
   });
