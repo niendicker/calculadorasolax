@@ -328,7 +328,7 @@ export function SizingTab({
           {solution && (
             <Button variant="outline" onClick={exportPdf} disabled={!canCalculate || loading}>
               <FileText className="h-4 w-4" />
-              Exportar PDF
+              Baixar relatório
             </Button>
           )}
           <Button onClick={calculate} disabled={!canCalculate || loading}>
@@ -2749,7 +2749,7 @@ function ResultSummary({
 
       <Button className="w-full" variant="outline" onClick={onExport} disabled={!canExport}>
         <FileText className="h-4 w-4" />
-        Exportar relatório em PDF
+        Baixar relatório
       </Button>
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />

@@ -213,33 +213,36 @@ describe('SizingTab: title bar', () => {
     expect(screen.getByRole('button', { name: 'Calculando...' })).toBeDisabled();
   });
 
-  it('only shows Exportar PDF once a solution exists', () => {
+  // The header and the Solução tab each have their own "Baixar relatório"
+  // button (same label/action, different spots) — a solution present also
+  // auto-jumps the summary to the Solução tab (see the effect watching
+  // `solution`), so both can be on screen at once. getAllByRole disambiguates
+  // instead of relying on the two buttons having different text.
+  it('only shows Baixar relatório once a solution exists', () => {
     setup({ solution: null });
-    expect(screen.queryByRole('button', { name: /Exportar PDF/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Baixar relatório/ })).not.toBeInTheDocument();
 
     setup({ solution: fakeSolution });
-    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Baixar relatório/ }).length).toBeGreaterThan(0);
   });
 
-  it('disables Exportar PDF (header and Solução tab) when canCalculate is false, even with a stale solution', () => {
+  it('disables Baixar relatório (header and Solução tab) when canCalculate is false, even with a stale solution', () => {
     setup({ solution: fakeSolution, canCalculate: false });
-    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
-    expect(screen.getByRole('button', { name: 'Exportar relatório em PDF' })).toBeDisabled();
+    for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {
+      expect(button).toBeDisabled();
+    }
   });
 
-  it('keeps Exportar PDF enabled when canCalculate is true', () => {
+  it('keeps Baixar relatório enabled when canCalculate is true', () => {
     setup({ solution: fakeSolution, canCalculate: true });
-    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeEnabled();
-
-    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
-    expect(screen.getByRole('button', { name: 'Exportar relatório em PDF' })).toBeEnabled();
+    for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {
+      expect(button).toBeEnabled();
+    }
   });
 
-  it('disables Exportar PDF while a calculation is in flight, even with an otherwise-exportable stale solution', () => {
+  it('disables Baixar relatório while a calculation is in flight, even with an otherwise-exportable stale solution', () => {
     setup({ solution: fakeSolution, canCalculate: true, loading: true });
-    expect(screen.getByRole('button', { name: /Exportar PDF/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Baixar relatório/ })).toBeDisabled();
   });
 });
 

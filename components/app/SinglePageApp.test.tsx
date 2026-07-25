@@ -420,7 +420,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     window.print = vi.fn();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
 
     expect(window.print).toHaveBeenCalled();
   });
@@ -448,7 +448,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     window.print = vi.fn(() => { titleDuringPrint = document.title; });
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
 
     expect(titleDuringPrint).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}$/);
 
@@ -465,7 +465,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     window.print = vi.fn();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
 
     expect(window.print).not.toHaveBeenCalled();
   });
