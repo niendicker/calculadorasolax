@@ -513,8 +513,8 @@ export function SizingTab({
       </PageSummary>
 
       <div className="mt-4 space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
+          <Card className="gap-3 rounded-none border-none bg-transparent p-0 shadow-none ring-0">
+            <CardHeader className="px-0">
               <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Seções de dimensionamento">
                 <button
                   type="button"
@@ -522,7 +522,7 @@ export function SizingTab({
                   aria-selected={mainTab === 'features'}
                   onClick={() => setMainTab('features')}
                   className={cn(
-                    'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                    'flex h-12 flex-1 items-center justify-center gap-2 rounded-md px-6 py-2.5 text-base font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-11',
                     mainTab === 'features'
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
@@ -530,9 +530,9 @@ export function SizingTab({
                   )}
                 >
                   {featuresTabHasIssue ? (
-                    <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+                    <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
                   ) : (
-                    <ListChecks className="h-4 w-4" aria-hidden="true" />
+                    <ListChecks className="h-5 w-5" aria-hidden="true" />
                   )}
                   Funcionalidades
                 </button>
@@ -542,7 +542,7 @@ export function SizingTab({
                   aria-selected={mainTab === 'config'}
                   onClick={() => setMainTab('config')}
                   className={cn(
-                    'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                    'flex h-12 flex-1 items-center justify-center gap-2 rounded-md px-6 py-2.5 text-base font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-11',
                     mainTab === 'config'
                       ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                       : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
@@ -550,15 +550,15 @@ export function SizingTab({
                   )}
                 >
                   {configTabHasIssue ? (
-                    <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+                    <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
                   ) : (
-                    <Settings className="h-4 w-4" aria-hidden="true" />
+                    <Settings className="h-5 w-5" aria-hidden="true" />
                   )}
                   Configurações
                 </button>
               </div>
             </CardHeader>
-            <CardContent className={mainTab === 'config' ? 'space-y-4' : undefined}>
+            <CardContent className={cn('px-0', mainTab === 'config' && 'space-y-4')}>
               {mainTab === 'features' && (
                 <DesiredFeaturesPicker
                   activeTab={activeFeatureTab}
@@ -599,7 +599,7 @@ export function SizingTab({
                       aria-selected={configTab === 'gridType'}
                       onClick={() => setConfigTab('gridType')}
                       className={cn(
-                        'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                        'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
                         configTab === 'gridType'
                           ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -620,7 +620,7 @@ export function SizingTab({
                       aria-selected={configTab === 'battery'}
                       onClick={() => setConfigTab('battery')}
                       className={cn(
-                        'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+                        'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
                         configTab === 'battery'
                           ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -1411,7 +1411,7 @@ function FeatureTabButton({
       onFocus={onFocus}
       onBlur={onBlur}
       className={cn(
-        'relative flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
+        'relative flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
         isActiveTab
           ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
           : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',

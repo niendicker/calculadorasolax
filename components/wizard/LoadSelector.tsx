@@ -510,7 +510,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           onToggle={() => setSectionOpen((current) => !current)}
         />
         {sectionOpen && (
-        <div className="space-y-3 rounded-lg border bg-background p-3">
+        <div className="space-y-3">
           <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Cargas">
             <button
               type="button"
