@@ -93,6 +93,7 @@ export function SinglePageApp() {
     setWhiteTariffConfig,
     setMicrogridConfig,
     setGeneratorConfig,
+    setPvConfig,
     setAtsPhotoUrl,
     setAtsBackupAcknowledged,
     setSolution,
@@ -615,6 +616,7 @@ export function SinglePageApp() {
               setWhiteTariffConfig={setWhiteTariffConfig}
               setMicrogridConfig={setMicrogridConfig}
               setGeneratorConfig={setGeneratorConfig}
+              setPvConfig={setPvConfig}
               setAtsPhotoUrl={setAtsPhotoUrl}
               setAtsBackupAcknowledged={setAtsBackupAcknowledged}
               onUploadFeaturePhoto={uploadFeaturePhoto}

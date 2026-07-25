@@ -167,6 +167,13 @@ export interface GeneratorConfig {
   ownAtsAcknowledged?: boolean;
 }
 
+/** Mirrors lib/types.ts PvConfig. */
+export interface PvConfig {
+  monthlyConsumptionKwh: number;
+  hsp: number;
+  energyCostPerKwh: number | null;
+}
+
 export interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
   batteryModel: string | null;
@@ -178,6 +185,7 @@ export interface ResidentialOptions {
   whiteTariff: WhiteTariffConfig | null;
   microgrid: MicrogridConfig | null;
   generator: GeneratorConfig | null;
+  pv: PvConfig | null;
   atsPhotoUrl?: string | null;
   atsBackupAcknowledged?: boolean;
 }
@@ -330,6 +338,37 @@ export function totalDailyKwh(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty * (l.usageFactor ?? 1)) / 1000, 0);
 }
 
+/** PV peak power sized from the customer's own average monthly consumption
+ * and the installation site's HSP (peak sun hours/day) — independent of the
+ * load-based dailyKwh used for battery/inverter sizing. Capped at the
+ * recommended inverter's rated power scaled by its own pv_oversizing_percent
+ * (e.g. 5kW rated x 100% oversizing = 10kWp max), so the suggestion never
+ * exceeds what that inverter model is allowed to carry. */
+export function computePvPowerKw(
+  pv: Pick<PvConfig, 'monthlyConsumptionKwh' | 'hsp'>,
+  ratedPowerW: number,
+  pvOversizingPercent: number
+): number {
+  if (pv.monthlyConsumptionKwh <= 0 || pv.hsp <= 0) return 0;
+  const rawPvKw = pv.monthlyConsumptionKwh / 30 / pv.hsp;
+  const maxPvKw = (ratedPowerW / 1000) * (1 + pvOversizingPercent / 100);
+  return Math.min(rawPvKw, maxPvKw);
+}
+
+/** Theoretical-max monthly generation (kWh) from a PV array at the site's
+ * HSP — not adjusted for self-consumption/load overlap. */
+export function computePvMonthlyGenerationKwh(pvPowerKw: number, hsp: number): number {
+  return pvPowerKw * hsp * 30;
+}
+
+/** Estimated monthly savings (R$) from the PV array's theoretical-max
+ * generation at the customer's own energy cost — null when no cost was
+ * given (the estimate is opt-in, not required to size the array). */
+export function computePvMonthlySavingsBrl(monthlyGenerationKwh: number, energyCostPerKwh: number | null): number | null {
+  if (energyCostPerKwh === null) return null;
+  return monthlyGenerationKwh * energyCostPerKwh;
+}
+
 export function matchingEssBatteryConfig(rule: EssCompatibilityRule, batteryModel: string) {
   const configs = Array.isArray(rule.battery_configs) ? rule.battery_configs : [];
   const config = configs.find((item) => item.battery_model === batteryModel);
@@ -442,6 +481,10 @@ export interface SolutionPayload {
   batteryPowerW: number;
   availableEnergyWh: number;
   pvPowerKw: number | null;
+  /** Theoretical-max monthly generation (kWh), present whenever pvPowerKw is. */
+  pvMonthlyGenerationKwh?: number | null;
+  /** Estimated monthly savings (R$), present only when the customer entered an energy cost. */
+  pvEstimatedMonthlySavingsBrl?: number | null;
   accessories: AccessoryLine[];
   comments: string[];
 }
@@ -464,15 +507,19 @@ export function accessoryAppliesTo(rule: AccessoryRule): 'inverter' | 'battery' 
 
 /** Builds the full response payload for one chosen ApprovedSolution: resolves
  * available energy (per-battery-model override or the solution's own
- * figure), rounds pvPowerKw, and applies every matching accessory_rules row
- * (already fetched by the caller) to extend the solution's own accessories/
- * comments. Pure and reusable so the microgrid "economic vs with-microgrid"
- * choice can build two payloads from a single accessory_rules fetch. */
+ * figure), sizes pvPowerKw from the customer's own consumption/HSP (capped by
+ * this solution's inverter oversizing allowance), and applies every matching
+ * accessory_rules row (already fetched by the caller) to extend the
+ * solution's own accessories/comments. Pure and reusable so the microgrid
+ * "economic vs with-microgrid" choice can build two payloads from a single
+ * accessory_rules fetch. */
 export function buildSolutionPayload(
   solution: ApprovedSolution,
   params: {
     usefulEnergyWhPerBattery: number | null;
-    pvPowerKw: number | null;
+    pv: PvConfig | null;
+    /** The recommended inverter's pv_oversizing_percent (e.g. 50 or 100) — see InvertersEditor. */
+    pvOversizingPercent: number;
     accessoryRules: AccessoryRule[];
     standardGridTopology: StandardGridTopology;
     desiredFeatures: DesiredFeatureId[];
@@ -538,6 +585,13 @@ export function buildSolutionPayload(
   // already baked into the solution's own accessory list.
   const finalAccessories = accessories.filter((accessory) => !excludedModels.has(accessory.model.toLowerCase()));
 
+  const rawPvPowerKw = params.pv ? computePvPowerKw(params.pv, solution.rated_power_w, params.pvOversizingPercent) : null;
+  const pvPowerKw = rawPvPowerKw === null ? null : Math.ceil(rawPvPowerKw * 10) / 10;
+  const pvMonthlyGenerationKwh =
+    pvPowerKw !== null && params.pv ? computePvMonthlyGenerationKwh(pvPowerKw, params.pv.hsp) : null;
+  const pvEstimatedMonthlySavingsBrl =
+    pvMonthlyGenerationKwh !== null ? computePvMonthlySavingsBrl(pvMonthlyGenerationKwh, params.pv!.energyCostPerKwh) : null;
+
   return {
     solutionId: solution.id,
     solutionCode: solution.solution_code,
@@ -553,7 +607,9 @@ export function buildSolutionPayload(
     batteryPortsUsed: solution.battery_ports_used,
     batteryPowerW: solution.battery_power_w,
     availableEnergyWh,
-    pvPowerKw: params.pvPowerKw === null ? null : Math.ceil(params.pvPowerKw * 10) / 10,
+    pvPowerKw,
+    pvMonthlyGenerationKwh,
+    pvEstimatedMonthlySavingsBrl,
     accessories: finalAccessories,
     comments: Array.from(new Set([...solution.comments, ...automaticComments])),
   };
@@ -665,6 +721,23 @@ export function validateResidentialOptions(raw: unknown): string[] {
       }
       if (typeof generator.apparentPowerVA !== 'number' || generator.apparentPowerVA < 0) {
         errors.push('generator.apparentPowerVA must be a number >= 0');
+      }
+    }
+  }
+
+  if (desiredFeatures.includes('pv')) {
+    const pv = options.pv as Record<string, unknown> | null | undefined;
+    if (!pv || typeof pv !== 'object') {
+      errors.push('pv is required when desiredFeatures includes pv');
+    } else {
+      if (typeof pv.monthlyConsumptionKwh !== 'number' || pv.monthlyConsumptionKwh <= 0) {
+        errors.push('pv.monthlyConsumptionKwh must be a number > 0');
+      }
+      if (typeof pv.hsp !== 'number' || pv.hsp <= 0) {
+        errors.push('pv.hsp must be a number > 0');
+      }
+      if (pv.energyCostPerKwh !== null && (typeof pv.energyCostPerKwh !== 'number' || pv.energyCostPerKwh < 0)) {
+        errors.push('pv.energyCostPerKwh must be a number >= 0 or null');
       }
     }
   }

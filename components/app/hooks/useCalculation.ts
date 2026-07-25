@@ -9,6 +9,7 @@ import {
   isGeneratorPowerInsufficient,
   isMicrogridPhaseVoltageIncompatible,
   isMicrogridPowerNoticeUnacknowledged,
+  isPvConfigIncomplete,
   normalizeAccessoryLine,
   resolveCalculationErrorMessage,
 } from '../helpers';
@@ -154,7 +155,8 @@ export function useCalculation({
     !isGeneratorAtsUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.generator) &&
     !isGeneratorPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.generator, residentialOptions.gridType) &&
     !isMicrogridPowerNoticeUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.microgrid) &&
-    !isMicrogridPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.microgrid, residentialOptions.gridType)
+    !isMicrogridPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.microgrid, residentialOptions.gridType) &&
+    !isPvConfigIncomplete(residentialOptions.desiredFeatures, residentialOptions.pv)
   );
 
   async function runCalculation(

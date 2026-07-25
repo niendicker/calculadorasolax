@@ -68,6 +68,7 @@ const emptyResidentialOptions = {
   whiteTariff: null,
   microgrid: null,
   generator: null,
+  pv: null,
   atsPhotoUrl: null,
   atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
@@ -104,6 +105,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     setWhiteTariffConfig: vi.fn(),
     setMicrogridConfig: vi.fn(),
     setGeneratorConfig: vi.fn(),
+    setPvConfig: vi.fn(),
     setAtsPhotoUrl: vi.fn(),
     setAtsBackupAcknowledged: vi.fn(),
     onUploadFeaturePhoto: vi.fn(),
@@ -1332,6 +1334,49 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   });
 });
 
+describe('SizingTab: pv (Fotovoltaico) fields', () => {
+  function enablePv(extraOptions: Record<string, unknown> = {}) {
+    const { props } = setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['pv'], ...extraOptions },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /^Fotovoltaico/ }));
+    return props;
+  }
+
+  it('updates monthly consumption, HSP and energy cost', () => {
+    const props = enablePv();
+    fireEvent.change(screen.getByLabelText('Consumo médio mensal (kWh)'), { target: { value: '450' } });
+    fireEvent.change(screen.getByLabelText('HSP da instalação (h/dia)'), { target: { value: '4.5' } });
+    fireEvent.change(screen.getByLabelText('Custo de energia (R$/kWh) — opcional'), { target: { value: '0.95' } });
+
+    expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ monthlyConsumptionKwh: 450 }));
+    expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ hsp: 4.5 }));
+    expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ energyCostPerKwh: 0.95 }));
+  });
+
+  it('clearing the energy cost field sets it back to null, not 0', () => {
+    const props = enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: 0.95 } });
+    fireEvent.change(screen.getByLabelText('Custo de energia (R$/kWh) — opcional'), { target: { value: '' } });
+    expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ energyCostPerKwh: null }));
+  });
+
+  it('shows a warning while monthly consumption or HSP is missing', () => {
+    enablePv();
+    expect(screen.getByText('Informe o consumo médio mensal e o HSP para calcular o FV.')).toBeInTheDocument();
+  });
+
+  it('hides the warning once both monthly consumption and HSP are filled', () => {
+    enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: null } });
+    expect(screen.queryByText('Informe o consumo médio mensal e o HSP para calcular o FV.')).not.toBeInTheDocument();
+  });
+
+  it('disabling an already-enabled pv feature clears its config', () => {
+    const props = enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: null } });
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+    expect(props.setPvConfig).toHaveBeenCalledWith(null);
+  });
+});
+
 describe('SizingTab: battery/inverter picker image and document previews', () => {
   it('opens an image preview modal when the battery thumbnail is clicked, and shows the in-stock badge', () => {
     const batteryWithImage: BatteryCatalogOption = { ...battery, imageUrl: 'https://cdn.example.com/battery.png' };
@@ -1436,6 +1481,32 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
     fireEvent.keyDown(inverterCard, { key: 'Enter' });
     fireEvent.click(inverterCard);
     expect(props.setInverterModel).toHaveBeenCalledWith(inverter.model);
+  });
+});
+
+describe('SizingTab: Solução tab PV recommendation', () => {
+  it('shows the recommended PV power, monthly generation and estimated savings when present', () => {
+    setup({
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450, pvEstimatedMonthlySavingsBrl: 405 },
+    });
+    expect(screen.getByText('FV recomendado')).toBeInTheDocument();
+    expect(screen.getByText('3.00 kWp')).toBeInTheDocument();
+    expect(screen.getByText('Geração estimada: 450 kWh/mês')).toBeInTheDocument();
+    expect(screen.getByText(/Economia estimada:.*405.*\/mês/)).toBeInTheDocument();
+  });
+
+  it('omits generation/savings lines when they are not present, without hiding the PV power itself', () => {
+    setup({
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: null, pvEstimatedMonthlySavingsBrl: null },
+    });
+    expect(screen.getByText('3.00 kWp')).toBeInTheDocument();
+    expect(screen.queryByText(/Geração estimada/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Economia estimada/)).not.toBeInTheDocument();
+  });
+
+  it('hides the whole PV card when pvPowerKw is null', () => {
+    setup({ solution: { ...fakeSolution, pvPowerKw: null } });
+    expect(screen.queryByText('FV recomendado')).not.toBeInTheDocument();
   });
 });
 

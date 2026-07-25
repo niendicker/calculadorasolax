@@ -316,10 +316,29 @@ Deno.serve(async (req) => {
 
     const solution = compatibleSolutions[0] as ApprovedSolution;
 
-    // PV recommendation: dailyKwh / 4 peak sun hours (Brazil average); only
-    // computed when the customer opts into PV sizing via the 'pv' desired
-    // feature — null (no PV) is the default otherwise.
-    const pvPowerKw = desiredFeatures.includes('pv') ? dailyKwh / 4 : null;
+    // PV sizing: only relevant when the customer opts into PV via the 'pv'
+    // desired feature. pv_oversizing_percent lives on the inverter catalog
+    // row (not denormalized onto approved_solutions, unlike rated_power_w),
+    // so it needs its own lookup — for both the primary and, if present, the
+    // microgrid-alternative solution's inverter.
+    const pvInverterModels = Array.from(
+      new Set([solution.inverter_model, microgridAlternativeSolution?.inverter_model].filter((m): m is string => Boolean(m)))
+    );
+    const pvOversizingByModel = new Map<string, number>();
+    if (desiredFeatures.includes('pv') && pvInverterModels.length > 0) {
+      const { data: inverterRows, error: inverterErr } = await supabase
+        .from('inverters')
+        .select('model, pv_oversizing_percent')
+        .in('model', pvInverterModels);
+      if (inverterErr) {
+        console.error(inverterErr);
+        return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
+      }
+      for (const row of (inverterRows ?? []) as { model: string; pv_oversizing_percent: number | null }[]) {
+        pvOversizingByModel.set(row.model, row.pv_oversizing_percent ?? 100);
+      }
+    }
+    const pv = desiredFeatures.includes('pv') ? (options.pv ?? null) : null;
 
     const { data: rules, error: rulesErr } = await supabase
       .from('accessory_rules')
@@ -356,7 +375,8 @@ Deno.serve(async (req) => {
 
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery,
-      pvPowerKw,
+      pv,
+      pvOversizingPercent: pvOversizingByModel.get(solution.inverter_model) ?? 100,
       accessoryRules,
       standardGridTopology,
       desiredFeatures,
@@ -365,7 +385,8 @@ Deno.serve(async (req) => {
     if (microgridAlternativeSolution) {
       const microgridAlternative = buildSolutionPayload(microgridAlternativeSolution, {
         usefulEnergyWhPerBattery,
-        pvPowerKw,
+        pv,
+        pvOversizingPercent: pvOversizingByModel.get(microgridAlternativeSolution.inverter_model) ?? 100,
         accessoryRules,
         standardGridTopology,
         desiredFeatures,

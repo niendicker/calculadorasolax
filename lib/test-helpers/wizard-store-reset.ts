@@ -25,6 +25,7 @@ export function resetWizardStore() {
       whiteTariff: null,
       microgrid: null,
       generator: null,
+      pv: null,
       atsPhotoUrl: null,
       atsBackupAcknowledged: false,
       maxPowerPerPhaseW: null,

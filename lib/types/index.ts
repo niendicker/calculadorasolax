@@ -74,6 +74,19 @@ export interface GeneratorConfig {
   ownAtsAcknowledged: boolean;
 }
 
+/** Extra sizing inputs only used when 'pv' is a desired feature — sizes the
+ * photovoltaic array from the customer's own average consumption and the
+ * installation site's peak sun hours, instead of the load-based dailyKwh used
+ * for battery/inverter sizing. */
+export interface PvConfig {
+  /** Average monthly energy consumption (kWh/month), as billed. */
+  monthlyConsumptionKwh: number;
+  /** HSP — Horas de Sol Pico (peak sun hours/day) at the installation site. */
+  hsp: number;
+  /** Optional energy cost (R$/kWh), used only for the report's PV savings estimate. */
+  energyCostPerKwh: number | null;
+}
+
 // How multiple loads' IP/IN ratios combine into the system's peak apparent power:
 // - 'sum': every load surges at once (nominal x IP/IN for all loads, conservative).
 // - 'largest-surge': only the single highest-surge load unit starts at a time,
@@ -205,6 +218,8 @@ export interface ResidentialOptions {
   microgrid: MicrogridConfig | null;
   /** Only meaningful when 'external_generator' is in desiredFeatures. */
   generator: GeneratorConfig | null;
+  /** Only meaningful when 'pv' is in desiredFeatures. */
+  pv: PvConfig | null;
   /** Optional reference photo of the ATS panel, uploaded by the user. Only meaningful when 'external_ats' is in desiredFeatures. */
   atsPhotoUrl: string | null;
   /** User confirms they're aware the ATS externo must be used for full backup.
@@ -269,8 +284,18 @@ export interface Solution {
   batteryPortsUsed?: number;
   batteryPowerW?: number;
   availableEnergyWh?: number;
-  /** null unless the customer opted into PV sizing ('pv' desired feature). */
+  /** null unless the customer opted into PV sizing ('pv' desired feature). Capped
+   * at the recommended inverter's rated power scaled by its pv_oversizing_percent,
+   * so the suggestion never exceeds what the inverter allows. */
   pvPowerKw: number | null;
+  /** Estimated monthly generation (kWh) from pvPowerKw at the site's HSP —
+   * present whenever pvPowerKw is. A theoretical-max figure (pvPowerKw × HSP ×
+   * 30), not adjusted for self-consumption. */
+  pvMonthlyGenerationKwh?: number | null;
+  /** Estimated monthly savings (R$) from pvMonthlyGenerationKwh × PvConfig.energyCostPerKwh —
+   * present only when the customer entered an energy cost. Same theoretical-max
+   * caveat as pvMonthlyGenerationKwh. */
+  pvEstimatedMonthlySavingsBrl?: number | null;
   accessories: AccessoryLine[];
   solutionId?: string;
   solutionCode?: string;

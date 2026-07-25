@@ -36,6 +36,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
       whiteTariff: null,
       microgrid: null,
       generator: null,
+      pv: null,
       atsPhotoUrl: null,
       atsBackupAcknowledged: false,
       maxPowerPerPhaseW: null,

@@ -156,6 +156,27 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('6.50 kWp')).toBeInTheDocument();
   });
 
+  it('shows the PV generation/savings note when present, and omits it otherwise', () => {
+    const { rerender } = render(
+      <PrintableReport
+        {...baseProps({
+          solution: { ...solution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450, pvEstimatedMonthlySavingsBrl: 405 },
+        })}
+      />
+    );
+    expect(screen.getByText(/Geração estimada: 450 kWh\/mês/)).toBeInTheDocument();
+    expect(screen.getByText(/Economia estimada:.*405.*\/mês/)).toBeInTheDocument();
+
+    rerender(
+      <PrintableReport
+        {...baseProps({
+          solution: { ...solution, pvPowerKw: 3, pvMonthlyGenerationKwh: null, pvEstimatedMonthlySavingsBrl: null },
+        })}
+      />
+    );
+    expect(screen.queryByText(/Geração estimada/)).not.toBeInTheDocument();
+  });
+
   it('lists each accessory as its own row with its real quantity, status and comment', () => {
     render(
       <PrintableReport

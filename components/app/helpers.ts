@@ -5,6 +5,7 @@ import type {
   DesiredFeatureId,
   GeneratorConfig,
   MicrogridConfig,
+  PvConfig,
   ResidentialGridType,
   Solution,
   StockProductType,
@@ -129,6 +130,15 @@ export function isMicrogridPowerNoticeUnacknowledged(
 ): boolean {
   if (!desiredFeatures.includes('microgrid')) return false;
   return !microgrid?.powerNoticeAcknowledged;
+}
+
+/** True when Fotovoltaico is selected but the customer hasn't yet entered
+ * the monthly consumption and HSP it needs to size the PV array from — the
+ * wizard blocks calculating until both are filled in (see canCalculate in
+ * useCalculation.ts). */
+export function isPvConfigIncomplete(desiredFeatures: DesiredFeatureId[], pv: PvConfig | null): boolean {
+  if (!desiredFeatures.includes('pv')) return false;
+  return !pv?.monthlyConsumptionKwh || !pv?.hsp;
 }
 
 export interface SystemCostEstimate {

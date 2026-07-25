@@ -17,6 +17,7 @@ import type {
   MicrogridConfig,
   PeakCalcMode,
   ProjectInfo,
+  PvConfig,
   ResidentialGridType,
   ResidentialOptions,
   SavedProject,
@@ -86,6 +87,7 @@ interface WizardStore {
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
   setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
+  setPvConfig: (pv: PvConfig | null) => void;
   setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
   setAtsBackupAcknowledged: (atsBackupAcknowledged: boolean) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
@@ -124,6 +126,7 @@ const defaultResidential: ResidentialOptions = {
   whiteTariff: null,
   microgrid: null,
   generator: null,
+  pv: null,
   atsPhotoUrl: null,
   atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
@@ -714,6 +717,11 @@ export const useWizardStore = create<WizardStore>()(
       setGeneratorConfig: (generator) =>
         set((s) => ({
           residentialOptions: { ...s.residentialOptions, generator },
+        })),
+
+      setPvConfig: (pv) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, pv },
         })),
 
       setAtsPhotoUrl: (atsPhotoUrl) =>

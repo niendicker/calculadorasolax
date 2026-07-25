@@ -258,6 +258,14 @@ function ProductsList({
             category="Potência FV recomendada"
             model="Arranjo fotovoltaico"
             qty={`${solution.pvPowerKw.toFixed(2)} kWp`}
+            note={
+              solution.pvMonthlyGenerationKwh != null
+                ? `Geração estimada: ${solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês` +
+                  (solution.pvEstimatedMonthlySavingsBrl != null
+                    ? ` · Economia estimada: ${formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês`
+                    : '')
+                : undefined
+            }
           />
         )}
         {solution.accessories.map((accessory) => {

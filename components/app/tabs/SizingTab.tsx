@@ -45,6 +45,7 @@ import type {
   MicrogridConfig,
   PeakCalcMode,
   ProductDocument,
+  PvConfig,
   ResidentialGridType,
   Solution,
   UserStockItem,
@@ -68,6 +69,7 @@ import {
   isGeneratorPowerInsufficient,
   isMicrogridPhaseVoltageIncompatible,
   isMicrogridPowerNoticeUnacknowledged,
+  isPvConfigIncomplete,
   normalizeAccessoryLine,
   solutionMetrics,
   type MarginRow,
@@ -120,6 +122,7 @@ export function SizingTab({
   setWhiteTariffConfig,
   setMicrogridConfig,
   setGeneratorConfig,
+  setPvConfig,
   setAtsPhotoUrl,
   setAtsBackupAcknowledged,
   onUploadFeaturePhoto,
@@ -147,6 +150,7 @@ export function SizingTab({
     whiteTariff: WhiteTariffConfig | null;
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
+    pv: PvConfig | null;
     atsPhotoUrl: string | null;
     atsBackupAcknowledged: boolean;
     maxPowerPerPhaseW: number | null;
@@ -174,6 +178,7 @@ export function SizingTab({
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
   setMicrogridConfig: (microgrid: MicrogridConfig | null) => void;
   setGeneratorConfig: (generator: GeneratorConfig | null) => void;
+  setPvConfig: (pv: PvConfig | null) => void;
   setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
   setAtsBackupAcknowledged: (atsBackupAcknowledged: boolean) => void;
   onUploadFeaturePhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
@@ -228,6 +233,7 @@ export function SizingTab({
     desiredFeatureHasPendingIssue(feature.id, residentialOptions.desiredFeatures, {
       microgrid: residentialOptions.microgrid,
       generator: residentialOptions.generator,
+      pv: residentialOptions.pv,
       atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
       gridType: residentialOptions.gridType,
       peakW,
@@ -522,6 +528,8 @@ export function SizingTab({
                   onMicrogridChange={setMicrogridConfig}
                   generator={residentialOptions.generator}
                   onGeneratorChange={setGeneratorConfig}
+                  pv={residentialOptions.pv}
+                  onPvChange={setPvConfig}
                   atsPhotoUrl={residentialOptions.atsPhotoUrl}
                   onAtsPhotoUrlChange={setAtsPhotoUrl}
                   atsBackupAcknowledged={residentialOptions.atsBackupAcknowledged}
@@ -675,6 +683,12 @@ const emptyGeneratorConfig: GeneratorConfig = {
   apparentPowerVA: 0,
   photoUrl: null,
   ownAtsAcknowledged: false,
+};
+
+const emptyPvConfig: PvConfig = {
+  monthlyConsumptionKwh: 0,
+  hsp: 0,
+  energyCostPerKwh: null,
 };
 
 const phaseOptions: { value: 1 | 2 | 3; label: string }[] = [
@@ -1237,6 +1251,7 @@ function desiredFeatureHasPendingIssue(
   {
     microgrid,
     generator,
+    pv,
     atsBackupAcknowledged,
     gridType,
     peakW,
@@ -1247,6 +1262,7 @@ function desiredFeatureHasPendingIssue(
   }: {
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
+    pv: PvConfig | null;
     atsBackupAcknowledged: boolean;
     gridType: ResidentialGridType | null;
     peakW: number;
@@ -1286,6 +1302,8 @@ function desiredFeatureHasPendingIssue(
         isGeneratorAtsUnacknowledged(value, generator) ||
         isGeneratorPhaseVoltageIncompatible(value, generator, gridType)
       );
+    case 'pv':
+      return isPvConfigIncomplete(value, pv);
     default:
       return false;
   }
@@ -1308,6 +1326,8 @@ function DesiredFeaturesPicker({
   onMicrogridChange,
   generator,
   onGeneratorChange,
+  pv,
+  onPvChange,
   atsPhotoUrl,
   onAtsPhotoUrlChange,
   atsBackupAcknowledged,
@@ -1333,6 +1353,8 @@ function DesiredFeaturesPicker({
   onMicrogridChange: (microgrid: MicrogridConfig | null) => void;
   generator: GeneratorConfig | null;
   onGeneratorChange: (generator: GeneratorConfig | null) => void;
+  pv: PvConfig | null;
+  onPvChange: (pv: PvConfig | null) => void;
   atsPhotoUrl: string | null;
   onAtsPhotoUrlChange: (atsPhotoUrl: string | null) => void;
   atsBackupAcknowledged: boolean;
@@ -1357,6 +1379,7 @@ function DesiredFeaturesPicker({
     return desiredFeatureHasPendingIssue(id, value, {
       microgrid,
       generator,
+      pv,
       atsBackupAcknowledged,
       gridType,
       peakW,
@@ -1373,6 +1396,7 @@ function DesiredFeaturesPicker({
       if (id === 'white_tariff') onWhiteTariffChange(null);
       if (id === 'microgrid') onMicrogridChange(null);
       if (id === 'external_generator') onGeneratorChange(null);
+      if (id === 'pv') onPvChange(null);
     } else {
       onChange([...value, id]);
       if (id === 'white_tariff' && !whiteTariff) onWhiteTariffChange(emptyWhiteTariffConfig);
@@ -1384,6 +1408,7 @@ function DesiredFeaturesPicker({
         const defaults = defaultPhaseVoltageForGridType(gridType);
         onGeneratorChange({ ...emptyGeneratorConfig, phases: defaults.phases, voltageV: defaults.voltage });
       }
+      if (id === 'pv' && !pv) onPvChange(emptyPvConfig);
     }
   }
 
@@ -1773,9 +1798,65 @@ function DesiredFeaturesPicker({
         )}
 
         {isActiveEnabled && activeTab === 'pv' && (
-          <p className="text-xs text-muted-foreground">
-            Nenhuma configuração adicional — o dimensionamento vai recomendar um arranjo fotovoltaico.
-          </p>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              A potência do arranjo é calculada a partir do consumo e do HSP informados abaixo — não das cargas
+              cadastradas — e nunca ultrapassa o sobredimensionamento permitido pelo inversor recomendado.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pvMonthlyConsumption">Consumo médio mensal (kWh)</Label>
+                <Input
+                  id="pvMonthlyConsumption"
+                  type="number"
+                  min={0}
+                  placeholder="Ex.: 450"
+                  value={pv?.monthlyConsumptionKwh || ''}
+                  onChange={(event) =>
+                    onPvChange({ ...(pv ?? emptyPvConfig), monthlyConsumptionKwh: Number(event.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pvHsp">HSP da instalação (h/dia)</Label>
+                <Input
+                  id="pvHsp"
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  placeholder="Ex.: 4.5"
+                  value={pv?.hsp || ''}
+                  onChange={(event) => onPvChange({ ...(pv ?? emptyPvConfig), hsp: Number(event.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pvEnergyCost">Custo de energia (R$/kWh) — opcional</Label>
+              <Input
+                id="pvEnergyCost"
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder="Ex.: 0.95"
+                value={pv?.energyCostPerKwh ?? ''}
+                onChange={(event) =>
+                  onPvChange({
+                    ...(pv ?? emptyPvConfig),
+                    energyCostPerKwh: event.target.value === '' ? null : Number(event.target.value),
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Usado só para estimar a economia mensal do FV no relatório — não afeta o dimensionamento.
+              </p>
+            </div>
+            {(!pv?.monthlyConsumptionKwh || !pv?.hsp) && (
+              <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Informe o consumo médio mensal e o HSP para calcular o FV.
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -2372,6 +2453,16 @@ function ResultSummary({
             FV recomendado
           </div>
           <p className="mt-1 text-lg font-semibold">{solution.pvPowerKw.toFixed(2)} kWp</p>
+          {solution.pvMonthlyGenerationKwh != null && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Geração estimada: {solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês
+            </p>
+          )}
+          {solution.pvEstimatedMonthlySavingsBrl != null && (
+            <p className="text-sm text-muted-foreground">
+              Economia estimada: {formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês
+            </p>
+          )}
         </div>
       )}
 

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   blockingDesiredFeatures,
   buildSolutionPayload,
+  computePvMonthlyGenerationKwh,
+  computePvMonthlySavingsBrl,
+  computePvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   inverterSatisfiesRequiredFlags,
@@ -273,12 +276,47 @@ describe('ruleMatches', () => {
   });
 });
 
+describe('computePvPowerKw', () => {
+  it('sizes from monthly consumption / 30 / HSP', () => {
+    // 300 kWh/mo / 30 = 10 kWh/day; / 4 HSP = 2.5 kW.
+    expect(computePvPowerKw({ monthlyConsumptionKwh: 300, hsp: 4 }, 10000, 100)).toBe(2.5);
+  });
+
+  it('caps at rated power scaled by pv_oversizing_percent', () => {
+    // Raw would be 3000/30/2 = 50 kW, but 5000W rated x (1+50%) = 7.5 kW caps it.
+    expect(computePvPowerKw({ monthlyConsumptionKwh: 3000, hsp: 2 }, 5000, 50)).toBe(7.5);
+  });
+
+  it('returns 0 when monthlyConsumptionKwh or hsp is not positive', () => {
+    expect(computePvPowerKw({ monthlyConsumptionKwh: 0, hsp: 4 }, 10000, 100)).toBe(0);
+    expect(computePvPowerKw({ monthlyConsumptionKwh: 300, hsp: 0 }, 10000, 100)).toBe(0);
+  });
+});
+
+describe('computePvMonthlyGenerationKwh', () => {
+  it('multiplies pvPowerKw x HSP x 30 days', () => {
+    expect(computePvMonthlyGenerationKwh(2.5, 4)).toBe(300);
+  });
+});
+
+describe('computePvMonthlySavingsBrl', () => {
+  it('multiplies monthly generation by the energy cost', () => {
+    expect(computePvMonthlySavingsBrl(300, 0.9)).toBe(270);
+  });
+
+  it('returns null when no energy cost was given', () => {
+    expect(computePvMonthlySavingsBrl(300, null)).toBeNull();
+  });
+});
+
 describe('buildSolutionPayload', () => {
   it('uses the solution own available_energy_wh when there is no per-battery override', () => {
     const solution = makeSolution({ available_energy_wh: 5220 });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: 1.2,
+      // 108 kWh/mo / 30 / 3 HSP = 1.2 kW raw, well under the 10kW oversizing cap.
+      pv: { monthlyConsumptionKwh: 108, hsp: 3, energyCostPerKwh: null },
+      pvOversizingPercent: 100,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -293,7 +331,8 @@ describe('buildSolutionPayload', () => {
     const solution = makeSolution({ available_energy_wh: 9999, battery_quantity: 2 });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: 5220,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -306,12 +345,75 @@ describe('buildSolutionPayload', () => {
     const solution = makeSolution();
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: 1.23,
+      // 110.7 kWh/mo / 30 / 3 HSP = 1.23 kW raw -> rounds up to 1.3.
+      pv: { monthlyConsumptionKwh: 110.7, hsp: 3, energyCostPerKwh: null },
+      pvOversizingPercent: 100,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
     });
     expect(payload.pvPowerKw).toBe(1.3);
+  });
+
+  it('caps pvPowerKw at the inverter rated power scaled by pv_oversizing_percent', () => {
+    // 5000W rated x (1 + 50%) = 7.5 kW max — well below the raw consumption-based figure.
+    const solution = makeSolution({ rated_power_w: 5000 });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pv: { monthlyConsumptionKwh: 3000, hsp: 3, energyCostPerKwh: null },
+      pvOversizingPercent: 50,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.pvPowerKw).toBe(7.5);
+  });
+
+  it('computes monthly generation and, when an energy cost is given, estimated monthly savings', () => {
+    const solution = makeSolution({ rated_power_w: 10000 });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pv: { monthlyConsumptionKwh: 450, hsp: 5, energyCostPerKwh: 0.9 },
+      pvOversizingPercent: 100,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    // 450/30/5 = 3 kW raw, under the 20kW cap -> pvPowerKw 3.
+    expect(payload.pvPowerKw).toBe(3);
+    // 3 kW x 5 HSP x 30 days = 450 kWh/mo.
+    expect(payload.pvMonthlyGenerationKwh).toBe(450);
+    // 450 kWh x R$0.90 = R$405.
+    expect(payload.pvEstimatedMonthlySavingsBrl).toBe(405);
+  });
+
+  it('omits monthly generation/savings when pv is null (PV not opted into)', () => {
+    const solution = makeSolution();
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pv: null,
+      pvOversizingPercent: 100,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.pvPowerKw).toBeNull();
+    expect(payload.pvMonthlyGenerationKwh).toBeNull();
+    expect(payload.pvEstimatedMonthlySavingsBrl).toBeNull();
+  });
+
+  it('omits estimated savings (but still computes generation) when no energy cost was given', () => {
+    const solution = makeSolution({ rated_power_w: 10000 });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pv: { monthlyConsumptionKwh: 450, hsp: 5, energyCostPerKwh: null },
+      pvOversizingPercent: 100,
+      accessoryRules: [],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.pvMonthlyGenerationKwh).toBe(450);
+    expect(payload.pvEstimatedMonthlySavingsBrl).toBeNull();
   });
 
   it('applies matching accessory rules on top of the solution own accessories, deduped and labeled', () => {
@@ -327,7 +429,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [matchingRule, nonMatchingRule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -352,7 +455,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -372,7 +476,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -391,7 +496,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -410,7 +516,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -430,7 +537,8 @@ describe('buildSolutionPayload', () => {
     const build = (batteryQuantity: number) =>
       buildSolutionPayload(makeSolution({ battery_quantity: batteryQuantity }), {
         usefulEnergyWhPerBattery: null,
-        pvPowerKw: null,
+        pv: null,
+        pvOversizingPercent: 100,
         accessoryRules: [rule],
         standardGridTopology: '1P_220V',
         desiredFeatures: [],
@@ -457,7 +565,8 @@ describe('buildSolutionPayload', () => {
     // 2 inverters x 1 port each = 2 total ports; 8 batteries / 2 ports = 4/port -> gate passes.
     const dense = buildSolutionPayload(makeSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 8 }), {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -467,7 +576,8 @@ describe('buildSolutionPayload', () => {
     // Same 2 ports but only 6 batteries -> 3/port, below the 4 threshold: rule doesn't match at all.
     const sparse = buildSolutionPayload(makeSolution({ inverter_quantity: 2, battery_ports_used: 1, battery_quantity: 6 }), {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -490,7 +600,8 @@ describe('buildSolutionPayload', () => {
     ];
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: rules,
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -507,7 +618,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -520,7 +632,8 @@ describe('buildSolutionPayload', () => {
     const rule = makeRule({ accessories: { model: 'WiFi Dongle' }, bundled: true });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -533,7 +646,8 @@ describe('buildSolutionPayload', () => {
     const rule = makeRule({ accessories: { model: 'WiFi Dongle' }, bundled: true });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -553,7 +667,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [inverterRule, batteryRule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -574,7 +689,8 @@ describe('buildSolutionPayload', () => {
     });
     const withoutFeature = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [gatedRule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -583,7 +699,8 @@ describe('buildSolutionPayload', () => {
 
     const withFeature = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [gatedRule],
       standardGridTopology: '1P_220V',
       desiredFeatures: ['external_ats'],
@@ -596,7 +713,8 @@ describe('buildSolutionPayload', () => {
     const rule = makeRule({ accessories: { model: 'Smart Meter - M1-40' } });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -614,7 +732,8 @@ describe('buildSolutionPayload', () => {
     });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -634,7 +753,8 @@ describe('buildSolutionPayload', () => {
     const rule = makeRule({ comment: 'comentário automático' });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pvPowerKw: null,
+      pv: null,
+      pvOversizingPercent: 100,
       accessoryRules: [rule],
       standardGridTopology: '1P_220V',
       desiredFeatures: [],
@@ -955,5 +1075,33 @@ describe('validateResidentialOptions', () => {
     expect(invalid.some((e) => e.includes('voltageV'))).toBe(true);
     expect(invalid.some((e) => e.includes('phases'))).toBe(true);
     expect(invalid.some((e) => e.includes('apparentPowerVA'))).toBe(true);
+  });
+
+  it('requires a well-formed pv config when pv is a desired feature', () => {
+    const missing = validateResidentialOptions({ ...validPayload(), desiredFeatures: ['pv'] });
+    expect(missing.some((e) => e.includes('pv'))).toBe(true);
+
+    const valid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['pv'],
+      pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: 0.9 },
+    });
+    expect(valid).toEqual([]);
+
+    const validWithNullCost = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['pv'],
+      pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: null },
+    });
+    expect(validWithNullCost).toEqual([]);
+
+    const invalid = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['pv'],
+      pv: { monthlyConsumptionKwh: 0, hsp: -1, energyCostPerKwh: -5 },
+    });
+    expect(invalid.some((e) => e.includes('monthlyConsumptionKwh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('hsp'))).toBe(true);
+    expect(invalid.some((e) => e.includes('energyCostPerKwh'))).toBe(true);
   });
 });
