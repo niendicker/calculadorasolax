@@ -135,7 +135,8 @@ describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
     requiredPowerW: 4000,
     requiredEnergyWh: 6000,
     includeBackupReserve: false,
-    tariffSpreadPerKwh: 0.5,
+    higherTariffPerKwh: 1.2,
+    lowerTariffPerKwh: 0.7,
   };
 
   it('ignores white_tariff\'s power floor when the feature is not selected, even with a config present', () => {
@@ -308,7 +309,8 @@ describe('calculateTariffSavings', () => {
       requiredPowerW: 2000,
       requiredEnergyWh: 4000,
       includeBackupReserve: false,
-      tariffSpreadPerKwh: 0.4,
+      higherTariffPerKwh: 1.2,
+      lowerTariffPerKwh: 0.8,
       ...partial,
     };
   }
@@ -317,8 +319,10 @@ describe('calculateTariffSavings', () => {
     expect(calculateTariffSavings(null)).toBeNull();
   });
 
-  it('computes monthly savings as energy (kWh) x spread x business days', () => {
-    const result = calculateTariffSavings(makeWhiteTariff({ requiredEnergyWh: 4000, tariffSpreadPerKwh: 0.5 }));
+  it('computes monthly savings as energy (kWh) x spread (higher - lower) x business days', () => {
+    const result = calculateTariffSavings(
+      makeWhiteTariff({ requiredEnergyWh: 4000, higherTariffPerKwh: 1.3, lowerTariffPerKwh: 0.8 })
+    );
     expect(result).not.toBeNull();
     const expectedMonthly = 4 * 0.5 * TARIFF_BUSINESS_DAYS_PER_MONTH;
     expect(result!.monthlySavings).toBeCloseTo(expectedMonthly);
@@ -326,10 +330,41 @@ describe('calculateTariffSavings', () => {
     expect(result!.businessDaysPerMonth).toBe(TARIFF_BUSINESS_DAYS_PER_MONTH);
   });
 
-  it('returns zero savings when the spread is zero', () => {
-    const result = calculateTariffSavings(makeWhiteTariff({ tariffSpreadPerKwh: 0 }));
+  it('returns zero savings when higher and lower tariffs are equal', () => {
+    const result = calculateTariffSavings(makeWhiteTariff({ higherTariffPerKwh: 0.8, lowerTariffPerKwh: 0.8 }));
     expect(result!.monthlySavings).toBe(0);
     expect(result!.annualSavings).toBe(0);
+  });
+
+  it('leaves the absolute cost fields null when no total consumption is given', () => {
+    const result = calculateTariffSavings(makeWhiteTariff());
+    expect(result!.monthlyCostWithoutSolaxBrl).toBeNull();
+    expect(result!.monthlyCostWithSolaxBrl).toBeNull();
+  });
+
+  it('computes absolute sem/com SolaX monthly costs when a consistent total consumption is given', () => {
+    // requiredEnergyWh = 4000 Wh/dia -> 4 kWh/dia x 22 = 88 kWh/mês na tarifa maior.
+    const result = calculateTariffSavings(
+      makeWhiteTariff({ requiredEnergyWh: 4000, higherTariffPerKwh: 1.2, lowerTariffPerKwh: 0.8 }),
+      400
+    );
+    const monthlyEnergyHigherKwh = 4 * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    const monthlyEnergyLowerKwh = 400 - monthlyEnergyHigherKwh;
+    const expectedWithout = monthlyEnergyLowerKwh * 0.8 + monthlyEnergyHigherKwh * 1.2;
+    const expectedWith = monthlyEnergyLowerKwh * 0.8 + monthlyEnergyHigherKwh * 0.8;
+    expect(result!.monthlyCostWithoutSolaxBrl).toBeCloseTo(expectedWithout);
+    expect(result!.monthlyCostWithSolaxBrl).toBeCloseTo(expectedWith);
+    // The delta between the two absolute totals always matches the plain savings figure.
+    expect(result!.monthlyCostWithoutSolaxBrl! - result!.monthlyCostWithSolaxBrl!).toBeCloseTo(result!.monthlySavings);
+  });
+
+  it('leaves the absolute cost fields null when the total consumption is smaller than the higher-tariff energy alone', () => {
+    // 4 kWh/dia x 22 = 88 kWh/mês na tarifa maior, mas o total informado é menor que isso.
+    const result = calculateTariffSavings(makeWhiteTariff({ requiredEnergyWh: 4000 }), 50);
+    expect(result!.monthlyCostWithoutSolaxBrl).toBeNull();
+    expect(result!.monthlyCostWithSolaxBrl).toBeNull();
+    // The plain delta still shows even when the breakdown doesn't.
+    expect(result!.monthlySavings).toBeGreaterThan(0);
   });
 });
 

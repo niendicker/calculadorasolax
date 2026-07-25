@@ -156,29 +156,24 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('6.50 kWp')).toBeInTheDocument();
   });
 
-  it('shows PV monthly generation next to the recommended power, and highlights the estimated gain under Análise econômica', () => {
+  it('shows PV monthly generation next to the recommended power', () => {
     const { rerender } = render(
       <PrintableReport
         {...baseProps({
-          solution: { ...solution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450, pvEstimatedMonthlySavingsBrl: 405 },
+          solution: { ...solution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
         })}
       />
     );
     expect(screen.getByText('450 kWh/mês estimados')).toBeInTheDocument();
-    expect(screen.getByText('Análise econômica')).toBeInTheDocument();
-    expect(screen.getByText('Ganho estimado com geração fotovoltaica')).toBeInTheDocument();
-    expect(screen.getByText(/4\.860.*\/ano/)).toBeInTheDocument();
-    expect(screen.getByText(/405.*\/mês/)).toBeInTheDocument();
 
     rerender(
       <PrintableReport
         {...baseProps({
-          solution: { ...solution, pvPowerKw: 3, pvMonthlyGenerationKwh: null, pvEstimatedMonthlySavingsBrl: null },
+          solution: { ...solution, pvPowerKw: 3, pvMonthlyGenerationKwh: null },
         })}
       />
     );
     expect(screen.queryByText(/kWh\/mês estimados/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Ganho estimado com geração fotovoltaica')).not.toBeInTheDocument();
   });
 
   it('lists each accessory as its own row with its real quantity, status and comment', () => {
@@ -318,7 +313,13 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
       <PrintableReport
         {...baseProps({
           desiredFeatures: ['backup', 'white_tariff', 'microgrid', 'external_generator', 'external_ats'],
-          whiteTariff: { requiredPowerW: 3000, requiredEnergyWh: 6000, includeBackupReserve: true, tariffSpreadPerKwh: 0.8 },
+          whiteTariff: {
+            requiredPowerW: 3000,
+            requiredEnergyWh: 6000,
+            includeBackupReserve: true,
+            higherTariffPerKwh: 1.6,
+            lowerTariffPerKwh: 0.8,
+          },
           microgrid: {
             voltageV: 220,
             onGridPhases: 3,
@@ -345,7 +346,9 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
     expect(screen.getByText('Todos os inversores híbridos suportam backup.')).toBeInTheDocument();
     expect(screen.getByText('Tarifa Branca')).toBeInTheDocument();
     expect(
-      screen.getByText(/Potência 3.00 kVA · energia 6.00 kWh · com reserva de backup · diferença tarifária R\$ 0,80\/kWh/)
+      screen.getByText(
+        /Potência 3.00 kVA · energia 6.00 kWh · com reserva de backup · tarifa maior R\$ 1,60\/kWh · tarifa menor R\$ 0,80\/kWh/
+      )
     ).toBeInTheDocument();
     expect(screen.getByText('Microrrede')).toBeInTheDocument();
     expect(
@@ -403,11 +406,54 @@ describe('PrintableReport: economic analysis section', () => {
     render(
       <PrintableReport
         {...baseProps({
-          whiteTariff: { requiredPowerW: 1000, requiredEnergyWh: 2000, includeBackupReserve: false, tariffSpreadPerKwh: 0.5 },
+          whiteTariff: {
+            requiredPowerW: 1000,
+            requiredEnergyWh: 2000,
+            includeBackupReserve: false,
+            higherTariffPerKwh: 1.3,
+            lowerTariffPerKwh: 0.8,
+          },
         })}
       />
     );
     expect(screen.getByText('Ganho estimado com baterias (Tarifa Branca)')).toBeInTheDocument();
+  });
+
+  it('shows the absolute sem/com SolaX monthly costs when pv total consumption makes the breakdown consistent', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          whiteTariff: {
+            requiredPowerW: 1000,
+            requiredEnergyWh: 4000,
+            includeBackupReserve: false,
+            higherTariffPerKwh: 1.2,
+            lowerTariffPerKwh: 0.8,
+          },
+          pv: { monthlyConsumptionKwh: 400, hsp: 4.5 },
+        })}
+      />
+    );
+    expect(screen.getByText('Custo estimado sem SolaX')).toBeInTheDocument();
+    expect(screen.getByText('Custo estimado com SolaX')).toBeInTheDocument();
+  });
+
+  it('omits the absolute sem/com SolaX costs when there is no pv (or an inconsistent) total consumption', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          whiteTariff: {
+            requiredPowerW: 1000,
+            requiredEnergyWh: 2000,
+            includeBackupReserve: false,
+            higherTariffPerKwh: 1.3,
+            lowerTariffPerKwh: 0.8,
+          },
+        })}
+      />
+    );
+    expect(screen.queryByText('Custo estimado sem SolaX')).not.toBeInTheDocument();
+    expect(screen.queryByText('Custo estimado com SolaX')).not.toBeInTheDocument();
   });
 });
 

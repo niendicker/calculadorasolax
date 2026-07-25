@@ -909,6 +909,7 @@ export function SinglePageApp() {
           dailyKwh={dailyKwh}
           userStockItems={userStockItems}
           whiteTariff={residentialOptions.whiteTariff}
+          pv={residentialOptions.pv}
           desiredFeatures={residentialOptions.desiredFeatures}
           microgrid={residentialOptions.microgrid}
           generator={residentialOptions.generator}

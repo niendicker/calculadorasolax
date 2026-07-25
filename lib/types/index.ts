@@ -34,8 +34,11 @@ export interface WhiteTariffConfig {
   requiredEnergyWh: number;
   /** When true, add the standard backup-energy reserve on top of requiredEnergyWh. */
   includeBackupReserve: boolean;
-  /** Price difference between peak and off-peak tariff (R$/kWh), used only for the report's savings estimate. */
-  tariffSpreadPerKwh: number;
+  /** Peak-window tariff (R$/kWh), as billed. */
+  higherTariffPerKwh: number;
+  /** Off-peak tariff (R$/kWh), as billed. The spread used for the report's
+   * savings estimate is derived as higherTariffPerKwh - lowerTariffPerKwh. */
+  lowerTariffPerKwh: number;
 }
 
 /** Extra sizing inputs only used when 'microgrid' is a desired feature — describes
@@ -79,12 +82,12 @@ export interface GeneratorConfig {
  * installation site's peak sun hours, instead of the load-based dailyKwh used
  * for battery/inverter sizing. */
 export interface PvConfig {
-  /** Average monthly energy consumption (kWh/month), as billed. */
+  /** Average monthly energy consumption (kWh/month), as billed — also the
+   * "total consumption" used by Tarifa Branca's savings estimate, when that
+   * feature is also enabled, to split into higher/lower-tariff portions. */
   monthlyConsumptionKwh: number;
   /** HSP — Horas de Sol Pico (peak sun hours/day) at the installation site. */
   hsp: number;
-  /** Optional energy cost (R$/kWh), used only for the report's PV savings estimate. */
-  energyCostPerKwh: number | null;
 }
 
 // How multiple loads' IP/IN ratios combine into the system's peak apparent power:
@@ -292,10 +295,6 @@ export interface Solution {
    * present whenever pvPowerKw is. A theoretical-max figure (pvPowerKw × HSP ×
    * 30), not adjusted for self-consumption. */
   pvMonthlyGenerationKwh?: number | null;
-  /** Estimated monthly savings (R$) from pvMonthlyGenerationKwh × PvConfig.energyCostPerKwh —
-   * present only when the customer entered an energy cost. Same theoretical-max
-   * caveat as pvMonthlyGenerationKwh. */
-  pvEstimatedMonthlySavingsBrl?: number | null;
   accessories: AccessoryLine[];
   solutionId?: string;
   solutionCode?: string;

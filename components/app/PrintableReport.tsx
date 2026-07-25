@@ -31,6 +31,7 @@ import type {
   GeneratorConfig,
   MicrogridConfig,
   ProjectInfo,
+  PvConfig,
   ResidentialGridType,
   Solution,
   UserStockItem,
@@ -91,7 +92,8 @@ function desiredFeatureDetails(
         `Potência ${(whiteTariff.requiredPowerW / 1000).toFixed(2)} kVA · ` +
         `energia ${(whiteTariff.requiredEnergyWh / 1000).toFixed(2)} kWh · ` +
         `${whiteTariff.includeBackupReserve ? 'com' : 'sem'} reserva de backup · ` +
-        `diferença tarifária ${formatCurrencyBRL(whiteTariff.tariffSpreadPerKwh)}/kWh`
+        `tarifa maior ${formatCurrencyBRL(whiteTariff.higherTariffPerKwh)}/kWh · ` +
+        `tarifa menor ${formatCurrencyBRL(whiteTariff.lowerTariffPerKwh)}/kWh`
       );
     case 'microgrid':
       if (!microgrid) return '-';
@@ -354,6 +356,7 @@ export function PrintableReport({
   dailyKwh,
   userStockItems,
   whiteTariff,
+  pv,
   desiredFeatures,
   microgrid,
   generator,
@@ -378,6 +381,7 @@ export function PrintableReport({
   dailyKwh: number;
   userStockItems: UserStockItem[];
   whiteTariff: WhiteTariffConfig | null;
+  pv?: PvConfig | null;
   desiredFeatures?: DesiredFeatureId[];
   microgrid?: MicrogridConfig | null;
   generator?: GeneratorConfig | null;
@@ -395,7 +399,7 @@ export function PrintableReport({
   const loadEnergyKwh = (load: { powerW: number; hoursPerDay: number; qty: number }) =>
     (load.powerW * load.hoursPerDay * load.qty) / 1000;
 
-  const tariffSavings = calculateTariffSavings(whiteTariff);
+  const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
 
   // Margins must reflect what the loads actually require the same way the
   // Solução tab does: the registered loads only count toward the
@@ -568,29 +572,32 @@ export function PrintableReport({
         </section>
       )}
 
-      {(tariffSavings || solution.pvEstimatedMonthlySavingsBrl != null) && (
+      {tariffSavings && (
         <section className="mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <Wallet className="h-4 w-4 text-primary" aria-hidden="true" />
             Análise econômica
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            {tariffSavings && (
+            <ReportMetric
+              icon={TrendingUp}
+              label="Ganho estimado com baterias (Tarifa Branca)"
+              value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
+              note={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês`}
+              highlight
+            />
+            {tariffSavings.monthlyCostWithoutSolaxBrl != null && (
               <ReportMetric
-                icon={TrendingUp}
-                label="Ganho estimado com baterias (Tarifa Branca)"
-                value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
-                note={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês`}
-                highlight
+                icon={Wallet}
+                label="Custo estimado sem SolaX"
+                value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês`}
               />
             )}
-            {solution.pvEstimatedMonthlySavingsBrl != null && (
+            {tariffSavings.monthlyCostWithSolaxBrl != null && (
               <ReportMetric
-                icon={TrendingUp}
-                label="Ganho estimado com geração fotovoltaica"
-                value={`${formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl * 12)}/ano`}
-                note={`${formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês`}
-                highlight
+                icon={Wallet}
+                label="Custo estimado com SolaX"
+                value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês`}
               />
             )}
           </div>

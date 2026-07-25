@@ -500,6 +500,7 @@ export function SizingTab({
                 productMedia={productMedia}
                 userStockItems={userStockItems}
                 whiteTariff={residentialOptions.whiteTariff}
+                pv={residentialOptions.pv}
                 onChooseMicrogridVariant={onChooseMicrogridVariant}
                 desiredFeatures={residentialOptions.desiredFeatures}
                 microgrid={residentialOptions.microgrid}
@@ -706,7 +707,8 @@ const emptyWhiteTariffConfig: WhiteTariffConfig = {
   requiredPowerW: 0,
   requiredEnergyWh: 0,
   includeBackupReserve: false,
-  tariffSpreadPerKwh: 0,
+  higherTariffPerKwh: 0,
+  lowerTariffPerKwh: 0,
 };
 
 const emptyMicrogridConfig: MicrogridConfig = {
@@ -731,7 +733,6 @@ const emptyGeneratorConfig: GeneratorConfig = {
 const emptyPvConfig: PvConfig = {
   monthlyConsumptionKwh: 0,
   hsp: 0,
-  energyCostPerKwh: null,
 };
 
 const phaseOptions: { value: 1 | 2 | 3; label: string }[] = [
@@ -1287,8 +1288,8 @@ function ConfigurationSummary({
       case 'external_generator':
         return generator?.apparentPowerVA ? `Ativado · ${generator.apparentPowerVA} VA` : 'Ativado';
       case 'white_tariff':
-        return whiteTariff?.tariffSpreadPerKwh
-          ? `Ativado · R$ ${whiteTariff.tariffSpreadPerKwh}/kWh`
+        return whiteTariff?.higherTariffPerKwh || whiteTariff?.lowerTariffPerKwh
+          ? `Ativado · R$ ${whiteTariff.higherTariffPerKwh}/${whiteTariff.lowerTariffPerKwh} por kWh`
           : 'Ativado';
       default:
         return 'Ativado';
@@ -1766,7 +1767,7 @@ function DesiredFeaturesPicker({
 
         {isActiveEnabled && activeTab === 'white_tariff' && (
           <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="whiteTariffPower">Potência (W)</Label>
               <Input
@@ -1792,23 +1793,45 @@ function DesiredFeaturesPicker({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffSpread">Spread (R$/kWh)</Label>
+              <Label htmlFor="whiteTariffHigher">Tarifa maior (R$/kWh)</Label>
               <Input
-                id="whiteTariffSpread"
+                id="whiteTariffHigher"
                 type="number"
                 min={0}
                 step={0.01}
-                placeholder="Ex.: 0.35"
-                value={whiteTariff?.tariffSpreadPerKwh || ''}
+                placeholder="Ex.: 1.20"
+                value={whiteTariff?.higherTariffPerKwh || ''}
                 onChange={(event) =>
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
-                    tariffSpreadPerKwh: Number(event.target.value) || 0,
+                    higherTariffPerKwh: Number(event.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="whiteTariffLower">Tarifa menor (R$/kWh)</Label>
+              <Input
+                id="whiteTariffLower"
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder="Ex.: 0.75"
+                value={whiteTariff?.lowerTariffPerKwh || ''}
+                onChange={(event) =>
+                  onWhiteTariffChange({
+                    ...(whiteTariff ?? emptyWhiteTariffConfig),
+                    lowerTariffPerKwh: Number(event.target.value) || 0,
                   })
                 }
               />
             </div>
           </div>
+          {Boolean(whiteTariff?.higherTariffPerKwh || whiteTariff?.lowerTariffPerKwh) && (
+            <p className="text-xs text-muted-foreground">
+              Diferença: R$ {((whiteTariff?.higherTariffPerKwh ?? 0) - (whiteTariff?.lowerTariffPerKwh ?? 0)).toFixed(2)}/kWh
+            </p>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -2086,26 +2109,6 @@ function DesiredFeaturesPicker({
                   onChange={(event) => onPvChange({ ...(pv ?? emptyPvConfig), hsp: Number(event.target.value) || 0 })}
                 />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pvEnergyCost">Custo de energia (R$/kWh) — opcional</Label>
-              <Input
-                id="pvEnergyCost"
-                type="number"
-                min={0}
-                step={0.01}
-                placeholder="Ex.: 0.95"
-                value={pv?.energyCostPerKwh ?? ''}
-                onChange={(event) =>
-                  onPvChange({
-                    ...(pv ?? emptyPvConfig),
-                    energyCostPerKwh: event.target.value === '' ? null : Number(event.target.value),
-                  })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Usado só para estimar a economia mensal do FV no relatório — não afeta o dimensionamento.
-              </p>
             </div>
             {(!pv?.monthlyConsumptionKwh || !pv?.hsp) && (
               <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -2603,6 +2606,7 @@ function ResultSummary({
   productMedia,
   userStockItems,
   whiteTariff,
+  pv,
   onChooseMicrogridVariant,
   desiredFeatures,
   microgrid,
@@ -2617,6 +2621,7 @@ function ResultSummary({
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
   whiteTariff: WhiteTariffConfig | null;
+  pv: PvConfig | null;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
   desiredFeatures: DesiredFeatureId[];
   microgrid: MicrogridConfig | null;
@@ -2630,7 +2635,7 @@ function ResultSummary({
   const totalBatteryPorts = (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1);
   const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog, totalBatteryPorts);
   const systemCost = calculateSystemCost(solution, userStockItems);
-  const tariffSavings = calculateTariffSavings(whiteTariff);
+  const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
 
   if (solution.microgridAlternative) {
     return (
@@ -2766,7 +2771,7 @@ function ResultSummary({
         </div>
       )}
 
-      {(systemCost.pricedItemsCount > 0 || tariffSavings || solution.pvEstimatedMonthlySavingsBrl != null) && (
+      {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
         <div className="rounded-lg border bg-background p-3">
           <p className="text-sm font-medium">Análise econômica</p>
           <div className="mt-2 space-y-2 text-sm">
@@ -2792,20 +2797,13 @@ function ResultSummary({
                     {formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando {tariffSavings.businessDaysPerMonth}{' '}
                     dias úteis/mês
                   </p>
-                </div>
-              </div>
-            )}
-            {solution.pvEstimatedMonthlySavingsBrl != null && (
-              <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-                <TrendingUp className="h-5 w-5 shrink-0 text-primary" />
-                <div>
-                  <p className="text-muted-foreground">Ganho estimado com geração fotovoltaica</p>
-                  <p className="text-lg font-semibold text-primary">
-                    {formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl * 12)}/ano
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrencyBRL(solution.pvEstimatedMonthlySavingsBrl)}/mês
-                  </p>
+                  {tariffSavings.monthlyCostWithoutSolaxBrl != null && tariffSavings.monthlyCostWithSolaxBrl != null && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Custo estimado sem SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês
+                      <br />
+                      Custo estimado com SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês
+                    </p>
+                  )}
                 </div>
               </div>
             )}

@@ -3,7 +3,6 @@ import {
   blockingDesiredFeatures,
   buildSolutionPayload,
   computePvMonthlyGenerationKwh,
-  computePvMonthlySavingsBrl,
   computePvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
@@ -31,7 +30,8 @@ function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffC
     requiredPowerW: 2000,
     requiredEnergyWh: 4000,
     includeBackupReserve: false,
-    tariffSpreadPerKwh: 0.4,
+    higherTariffPerKwh: 1.2,
+    lowerTariffPerKwh: 0.8,
     ...partial,
   };
 }
@@ -300,23 +300,13 @@ describe('computePvMonthlyGenerationKwh', () => {
   });
 });
 
-describe('computePvMonthlySavingsBrl', () => {
-  it('multiplies monthly generation by the energy cost', () => {
-    expect(computePvMonthlySavingsBrl(300, 0.9)).toBe(270);
-  });
-
-  it('returns null when no energy cost was given', () => {
-    expect(computePvMonthlySavingsBrl(300, null)).toBeNull();
-  });
-});
-
 describe('buildSolutionPayload', () => {
   it('uses the solution own available_energy_wh when there is no per-battery override', () => {
     const solution = makeSolution({ available_energy_wh: 5220 });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
       // 108 kWh/mo / 30 / 3 HSP = 1.2 kW raw, well under the 10kW oversizing cap.
-      pv: { monthlyConsumptionKwh: 108, hsp: 3, energyCostPerKwh: null },
+      pv: { monthlyConsumptionKwh: 108, hsp: 3 },
       pvOversizingPercent: 100,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
@@ -347,7 +337,7 @@ describe('buildSolutionPayload', () => {
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
       // 110.7 kWh/mo / 30 / 3 HSP = 1.23 kW raw -> rounds up to 1.3.
-      pv: { monthlyConsumptionKwh: 110.7, hsp: 3, energyCostPerKwh: null },
+      pv: { monthlyConsumptionKwh: 110.7, hsp: 3 },
       pvOversizingPercent: 100,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
@@ -361,7 +351,7 @@ describe('buildSolutionPayload', () => {
     const solution = makeSolution({ rated_power_w: 5000 });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pv: { monthlyConsumptionKwh: 3000, hsp: 3, energyCostPerKwh: null },
+      pv: { monthlyConsumptionKwh: 3000, hsp: 3 },
       pvOversizingPercent: 50,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
@@ -370,11 +360,11 @@ describe('buildSolutionPayload', () => {
     expect(payload.pvPowerKw).toBe(7.5);
   });
 
-  it('computes monthly generation and, when an energy cost is given, estimated monthly savings', () => {
+  it('computes monthly generation from pvPowerKw and HSP', () => {
     const solution = makeSolution({ rated_power_w: 10000 });
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
-      pv: { monthlyConsumptionKwh: 450, hsp: 5, energyCostPerKwh: 0.9 },
+      pv: { monthlyConsumptionKwh: 450, hsp: 5 },
       pvOversizingPercent: 100,
       accessoryRules: [],
       standardGridTopology: '1P_220V',
@@ -384,11 +374,9 @@ describe('buildSolutionPayload', () => {
     expect(payload.pvPowerKw).toBe(3);
     // 3 kW x 5 HSP x 30 days = 450 kWh/mo.
     expect(payload.pvMonthlyGenerationKwh).toBe(450);
-    // 450 kWh x R$0.90 = R$405.
-    expect(payload.pvEstimatedMonthlySavingsBrl).toBe(405);
   });
 
-  it('omits monthly generation/savings when pv is null (PV not opted into)', () => {
+  it('omits monthly generation when pv is null (PV not opted into)', () => {
     const solution = makeSolution();
     const payload = buildSolutionPayload(solution, {
       usefulEnergyWhPerBattery: null,
@@ -400,21 +388,6 @@ describe('buildSolutionPayload', () => {
     });
     expect(payload.pvPowerKw).toBeNull();
     expect(payload.pvMonthlyGenerationKwh).toBeNull();
-    expect(payload.pvEstimatedMonthlySavingsBrl).toBeNull();
-  });
-
-  it('omits estimated savings (but still computes generation) when no energy cost was given', () => {
-    const solution = makeSolution({ rated_power_w: 10000 });
-    const payload = buildSolutionPayload(solution, {
-      usefulEnergyWhPerBattery: null,
-      pv: { monthlyConsumptionKwh: 450, hsp: 5, energyCostPerKwh: null },
-      pvOversizingPercent: 100,
-      accessoryRules: [],
-      standardGridTopology: '1P_220V',
-      desiredFeatures: [],
-    });
-    expect(payload.pvMonthlyGenerationKwh).toBe(450);
-    expect(payload.pvEstimatedMonthlySavingsBrl).toBeNull();
   });
 
   it('applies matching accessory rules on top of the solution own accessories, deduped and labeled', () => {
@@ -1097,7 +1070,8 @@ describe('validateResidentialOptions', () => {
         requiredPowerW: 2000,
         requiredEnergyWh: 4000,
         includeBackupReserve: true,
-        tariffSpreadPerKwh: 0.4,
+        higherTariffPerKwh: 1.2,
+        lowerTariffPerKwh: 0.8,
       },
     });
     expect(valid).toEqual([]);
@@ -1105,12 +1079,19 @@ describe('validateResidentialOptions', () => {
     const invalid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['white_tariff'],
-      whiteTariff: { requiredPowerW: -1, requiredEnergyWh: 'lots', includeBackupReserve: 'yes', tariffSpreadPerKwh: -0.4 },
+      whiteTariff: {
+        requiredPowerW: -1,
+        requiredEnergyWh: 'lots',
+        includeBackupReserve: 'yes',
+        higherTariffPerKwh: -0.4,
+        lowerTariffPerKwh: -0.1,
+      },
     });
     expect(invalid.some((e) => e.includes('requiredPowerW'))).toBe(true);
     expect(invalid.some((e) => e.includes('requiredEnergyWh'))).toBe(true);
     expect(invalid.some((e) => e.includes('includeBackupReserve'))).toBe(true);
-    expect(invalid.some((e) => e.includes('tariffSpreadPerKwh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('higherTariffPerKwh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('lowerTariffPerKwh'))).toBe(true);
   });
 
   it('requires a well-formed microgrid config when microgrid is a desired feature', () => {
@@ -1163,24 +1144,16 @@ describe('validateResidentialOptions', () => {
     const valid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['pv'],
-      pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: 0.9 },
+      pv: { monthlyConsumptionKwh: 450, hsp: 4.5 },
     });
     expect(valid).toEqual([]);
-
-    const validWithNullCost = validateResidentialOptions({
-      ...validPayload(),
-      desiredFeatures: ['pv'],
-      pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: null },
-    });
-    expect(validWithNullCost).toEqual([]);
 
     const invalid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['pv'],
-      pv: { monthlyConsumptionKwh: 0, hsp: -1, energyCostPerKwh: -5 },
+      pv: { monthlyConsumptionKwh: 0, hsp: -1 },
     });
     expect(invalid.some((e) => e.includes('monthlyConsumptionKwh'))).toBe(true);
     expect(invalid.some((e) => e.includes('hsp'))).toBe(true);
-    expect(invalid.some((e) => e.includes('energyCostPerKwh'))).toBe(true);
   });
 });

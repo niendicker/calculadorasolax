@@ -444,7 +444,8 @@ describe('SizingTab: summary panel', () => {
           requiredPowerW: 6000,
           requiredEnergyWh: 8000,
           includeBackupReserve: false,
-          tariffSpreadPerKwh: 0.4,
+          higherTariffPerKwh: 1.2,
+          lowerTariffPerKwh: 0.8,
         },
       },
     });
@@ -470,7 +471,8 @@ describe('SizingTab: summary panel', () => {
           requiredPowerW: 500,
           requiredEnergyWh: 8000,
           includeBackupReserve: true,
-          tariffSpreadPerKwh: 0.4,
+          higherTariffPerKwh: 1.2,
+          lowerTariffPerKwh: 0.8,
         },
       },
     });
@@ -1033,11 +1035,17 @@ describe('SizingTab: configuration summary row jumps', () => {
         ...emptyResidentialOptions,
         desiredFeatures: ['external_generator', 'white_tariff', 'pv'],
         generator: { voltageV: 220, apparentPowerVA: 5000, phases: 1, photoUrl: null },
-        whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 0, tariffSpreadPerKwh: 0.35, includeBackupReserve: false },
+        whiteTariff: {
+          requiredPowerW: 0,
+          requiredEnergyWh: 0,
+          higherTariffPerKwh: 1.35,
+          lowerTariffPerKwh: 1,
+          includeBackupReserve: false,
+        },
       },
     });
     expect(screen.getByText('Ativado · 5000 VA')).toBeInTheDocument();
-    expect(screen.getByText('Ativado · R$ 0.35/kWh')).toBeInTheDocument();
+    expect(screen.getByText('Ativado · R$ 1.35/1 por kWh')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fotovoltaico/ })).toHaveTextContent('Ativado');
   });
 });
@@ -1051,23 +1059,44 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     return props;
   }
 
-  it('updates white tariff power, energy, spread and the backup-reserve checkbox', () => {
+  it('updates white tariff power, energy, tariffs and the backup-reserve checkbox', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff');
     fireEvent.change(screen.getByLabelText('Potência (W)'), { target: { value: '3000' } });
     // 22 kWh/mês ÷ 22 dias úteis/mês = 1000 Wh/dia, a clean value to assert on.
     fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '22' } });
-    fireEvent.change(screen.getByLabelText('Spread (R$/kWh)'), { target: { value: '0.35' } });
+    fireEvent.change(screen.getByLabelText('Tarifa maior (R$/kWh)'), { target: { value: '1.35' } });
+    fireEvent.change(screen.getByLabelText('Tarifa menor (R$/kWh)'), { target: { value: '0.85' } });
     fireEvent.click(screen.getByLabelText('Reservar para backup das cargas'));
 
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredEnergyWh: 1000 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ tariffSpreadPerKwh: 0.35 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ higherTariffPerKwh: 1.35 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ lowerTariffPerKwh: 0.85 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
+  });
+
+  it('shows the derived spread below the two tariff inputs', () => {
+    enable(/^Tarifa Branca/, 'white_tariff', {
+      whiteTariff: {
+        requiredPowerW: 0,
+        requiredEnergyWh: 0,
+        higherTariffPerKwh: 1.35,
+        lowerTariffPerKwh: 0.85,
+        includeBackupReserve: false,
+      },
+    });
+    expect(screen.getByText('Diferença: R$ 0.50/kWh')).toBeInTheDocument();
   });
 
   it('shows the white tariff energy field converted to kWh/mês, with the equivalent kWh/dia noted below', () => {
     enable(/^Tarifa Branca/, 'white_tariff', {
-      whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 1000, tariffSpreadPerKwh: 0, includeBackupReserve: false },
+      whiteTariff: {
+        requiredPowerW: 0,
+        requiredEnergyWh: 1000,
+        higherTariffPerKwh: 0,
+        lowerTariffPerKwh: 0,
+        includeBackupReserve: false,
+      },
     });
     expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(22);
     expect(screen.getByText('1.00 kWh/dia')).toBeInTheDocument();
@@ -1626,21 +1655,18 @@ describe('SizingTab: pv (Fotovoltaico) fields', () => {
     return props;
   }
 
-  it('updates monthly consumption, HSP and energy cost', () => {
+  it('updates monthly consumption and HSP', () => {
     const props = enablePv();
     fireEvent.change(screen.getByLabelText('Consumo médio mensal (kWh)'), { target: { value: '450' } });
     fireEvent.change(screen.getByLabelText('HSP da instalação (h/dia)'), { target: { value: '4.5' } });
-    fireEvent.change(screen.getByLabelText('Custo de energia (R$/kWh) — opcional'), { target: { value: '0.95' } });
 
     expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ monthlyConsumptionKwh: 450 }));
     expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ hsp: 4.5 }));
-    expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ energyCostPerKwh: 0.95 }));
   });
 
-  it('clearing the energy cost field sets it back to null, not 0', () => {
-    const props = enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: 0.95 } });
-    fireEvent.change(screen.getByLabelText('Custo de energia (R$/kWh) — opcional'), { target: { value: '' } });
-    expect(props.setPvConfig).toHaveBeenCalledWith(expect.objectContaining({ energyCostPerKwh: null }));
+  it('no longer shows an energy cost field — pricing lives in Tarifa Branca now', () => {
+    enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5 } });
+    expect(screen.queryByLabelText(/Custo de energia/)).not.toBeInTheDocument();
   });
 
   it('shows a warning while monthly consumption or HSP is missing', () => {
@@ -1649,12 +1675,12 @@ describe('SizingTab: pv (Fotovoltaico) fields', () => {
   });
 
   it('hides the warning once both monthly consumption and HSP are filled', () => {
-    enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: null } });
+    enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5 } });
     expect(screen.queryByText('Informe o consumo médio mensal e o HSP para calcular o FV.')).not.toBeInTheDocument();
   });
 
   it('disabling an already-enabled pv feature clears its config', () => {
-    const props = enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5, energyCostPerKwh: null } });
+    const props = enablePv({ pv: { monthlyConsumptionKwh: 450, hsp: 4.5 } });
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
     expect(props.setPvConfig).toHaveBeenCalledWith(null);
   });
@@ -1768,26 +1794,21 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 });
 
 describe('SizingTab: Solução tab PV recommendation', () => {
-  it('shows the recommended PV power together with monthly generation, and highlights the estimated gain under Análise econômica', () => {
+  it('shows the recommended PV power together with monthly generation', () => {
     setup({
-      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450, pvEstimatedMonthlySavingsBrl: 405 },
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
     expect(screen.getByText('FV recomendado')).toBeInTheDocument();
     expect(screen.getByText('3.00 kWp')).toBeInTheDocument();
     expect(screen.getByText('· 450 kWh/mês estimados')).toBeInTheDocument();
-    expect(screen.getByText('Análise econômica')).toBeInTheDocument();
-    expect(screen.getByText('Ganho estimado com geração fotovoltaica')).toBeInTheDocument();
-    expect(screen.getByText(/4\.860.*\/ano/)).toBeInTheDocument();
-    expect(screen.getByText(/405.*\/mês/)).toBeInTheDocument();
   });
 
-  it('omits generation/savings when they are not present, without hiding the PV power itself', () => {
+  it('omits generation when it is not present, without hiding the PV power itself', () => {
     setup({
-      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: null, pvEstimatedMonthlySavingsBrl: null },
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: null },
     });
     expect(screen.getByText('3.00 kWp')).toBeInTheDocument();
     expect(screen.queryByText(/kWh\/mês estimados/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Ganho estimado com geração fotovoltaica')).not.toBeInTheDocument();
   });
 
   it('hides the whole PV card when pvPowerKw is null', () => {
@@ -1801,7 +1822,13 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
-        whiteTariff: { requiredPowerW: 0, requiredEnergyWh: 0, tariffSpreadPerKwh: 0.5, includeBackupReserve: false },
+        whiteTariff: {
+          requiredPowerW: 0,
+          requiredEnergyWh: 0,
+          higherTariffPerKwh: 1.3,
+          lowerTariffPerKwh: 0.8,
+          includeBackupReserve: false,
+        },
       },
       solution: fakeSolution,
     });
@@ -1811,6 +1838,43 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
     const value = within(card).getByText(/\/ano$/);
     expect(value).toHaveClass('text-primary');
     expect(within(card).getByText(/\/mês/)).toBeInTheDocument();
+  });
+
+  it('shows the absolute sem/com SolaX costs when pv is also enabled with a consistent total consumption', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        whiteTariff: {
+          requiredPowerW: 0,
+          requiredEnergyWh: 4000,
+          higherTariffPerKwh: 1.2,
+          lowerTariffPerKwh: 0.8,
+          includeBackupReserve: false,
+        },
+        pv: { monthlyConsumptionKwh: 400, hsp: 4.5 },
+      },
+      solution: fakeSolution,
+    });
+    expect(screen.getByText(/Custo estimado sem SolaX/)).toBeInTheDocument();
+    expect(screen.getByText(/Custo estimado com SolaX/)).toBeInTheDocument();
+  });
+
+  it('omits the absolute sem/com SolaX costs when pv is not enabled', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        whiteTariff: {
+          requiredPowerW: 0,
+          requiredEnergyWh: 4000,
+          higherTariffPerKwh: 1.2,
+          lowerTariffPerKwh: 0.8,
+          includeBackupReserve: false,
+        },
+      },
+      solution: fakeSolution,
+    });
+    expect(screen.queryByText(/Custo estimado sem SolaX/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Custo estimado com SolaX/)).not.toBeInTheDocument();
   });
 });
 

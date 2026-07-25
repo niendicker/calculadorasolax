@@ -144,7 +144,8 @@ export interface WhiteTariffConfig {
   requiredPowerW: number;
   requiredEnergyWh: number;
   includeBackupReserve: boolean;
-  tariffSpreadPerKwh: number;
+  higherTariffPerKwh: number;
+  lowerTariffPerKwh: number;
 }
 
 /** Mirrors lib/types.ts MicrogridConfig. */
@@ -171,7 +172,6 @@ export interface GeneratorConfig {
 export interface PvConfig {
   monthlyConsumptionKwh: number;
   hsp: number;
-  energyCostPerKwh: number | null;
 }
 
 export interface ResidentialOptions {
@@ -410,14 +410,6 @@ export function computePvMonthlyGenerationKwh(pvPowerKw: number, hsp: number): n
   return pvPowerKw * hsp * 30;
 }
 
-/** Estimated monthly savings (R$) from the PV array's theoretical-max
- * generation at the customer's own energy cost — null when no cost was
- * given (the estimate is opt-in, not required to size the array). */
-export function computePvMonthlySavingsBrl(monthlyGenerationKwh: number, energyCostPerKwh: number | null): number | null {
-  if (energyCostPerKwh === null) return null;
-  return monthlyGenerationKwh * energyCostPerKwh;
-}
-
 export function matchingEssBatteryConfig(rule: EssCompatibilityRule, batteryModel: string) {
   const configs = Array.isArray(rule.battery_configs) ? rule.battery_configs : [];
   const config = configs.find((item) => item.battery_model === batteryModel);
@@ -532,8 +524,6 @@ export interface SolutionPayload {
   pvPowerKw: number | null;
   /** Theoretical-max monthly generation (kWh), present whenever pvPowerKw is. */
   pvMonthlyGenerationKwh?: number | null;
-  /** Estimated monthly savings (R$), present only when the customer entered an energy cost. */
-  pvEstimatedMonthlySavingsBrl?: number | null;
   accessories: AccessoryLine[];
   comments: string[];
 }
@@ -638,8 +628,6 @@ export function buildSolutionPayload(
   const pvPowerKw = rawPvPowerKw === null ? null : Math.ceil(rawPvPowerKw * 10) / 10;
   const pvMonthlyGenerationKwh =
     pvPowerKw !== null && params.pv ? computePvMonthlyGenerationKwh(pvPowerKw, params.pv.hsp) : null;
-  const pvEstimatedMonthlySavingsBrl =
-    pvMonthlyGenerationKwh !== null ? computePvMonthlySavingsBrl(pvMonthlyGenerationKwh, params.pv!.energyCostPerKwh) : null;
 
   return {
     solutionId: solution.id,
@@ -658,7 +646,6 @@ export function buildSolutionPayload(
     availableEnergyWh,
     pvPowerKw,
     pvMonthlyGenerationKwh,
-    pvEstimatedMonthlySavingsBrl,
     accessories: finalAccessories,
     comments: Array.from(new Set([...solution.comments, ...automaticComments])),
   };
@@ -731,8 +718,11 @@ export function validateResidentialOptions(raw: unknown): string[] {
       if (typeof whiteTariff.includeBackupReserve !== 'boolean') {
         errors.push('whiteTariff.includeBackupReserve must be a boolean');
       }
-      if (typeof whiteTariff.tariffSpreadPerKwh !== 'number' || whiteTariff.tariffSpreadPerKwh < 0) {
-        errors.push('whiteTariff.tariffSpreadPerKwh must be a number >= 0');
+      if (typeof whiteTariff.higherTariffPerKwh !== 'number' || whiteTariff.higherTariffPerKwh < 0) {
+        errors.push('whiteTariff.higherTariffPerKwh must be a number >= 0');
+      }
+      if (typeof whiteTariff.lowerTariffPerKwh !== 'number' || whiteTariff.lowerTariffPerKwh < 0) {
+        errors.push('whiteTariff.lowerTariffPerKwh must be a number >= 0');
       }
     }
   }
@@ -784,9 +774,6 @@ export function validateResidentialOptions(raw: unknown): string[] {
       }
       if (typeof pv.hsp !== 'number' || pv.hsp <= 0) {
         errors.push('pv.hsp must be a number > 0');
-      }
-      if (pv.energyCostPerKwh !== null && (typeof pv.energyCostPerKwh !== 'number' || pv.energyCostPerKwh < 0)) {
-        errors.push('pv.energyCostPerKwh must be a number >= 0 or null');
       }
     }
   }

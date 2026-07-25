@@ -398,6 +398,14 @@ export interface TariffSavingsEstimate {
   monthlySavings: number;
   annualSavings: number;
   businessDaysPerMonth: number;
+  /** Absolute monthly bill estimates — only present when a total monthly
+   * consumption was given (Fotovoltaico's monthlyConsumptionKwh, when that
+   * feature is also enabled) AND it's large enough to cover the higher-tariff
+   * energy on its own; otherwise these stay null and only the delta
+   * (monthlySavings/annualSavings) is shown, rather than a breakdown that
+   * would contradict the customer's own total. */
+  monthlyCostWithoutSolaxBrl: number | null;
+  monthlyCostWithSolaxBrl: number | null;
 }
 
 /** Tarifa Branca's peak surcharge applies on business days — used as the
@@ -405,17 +413,48 @@ export interface TariffSavingsEstimate {
 export const TARIFF_BUSINESS_DAYS_PER_MONTH = 22;
 
 /** Estimated savings from shifting the white-tariff window's energy off the
- * grid, using the spread the customer entered. Null when white_tariff isn't configured. */
-export function calculateTariffSavings(whiteTariff: WhiteTariffConfig | null): TariffSavingsEstimate | null {
+ * grid, using the spread derived from the customer's two entered tariffs
+ * (higherTariffPerKwh - lowerTariffPerKwh). Null when white_tariff isn't
+ * configured.
+ *
+ * When `totalMonthlyConsumptionKwh` is given (Fotovoltaico's own
+ * monthlyConsumptionKwh, when that feature is enabled too), also derives two
+ * absolute monthly totals — what the bill would be without and with SolaX —
+ * by splitting the total into higher-tariff-window energy (already known,
+ * see requiredEnergyWh) and the remaining lower-tariff energy. Without
+ * SolaX both portions get billed at their own tariff; with SolaX, the
+ * higher-tariff portion is covered by the battery (recharged during the
+ * cheaper window), so it's effectively billed at the lower tariff too. The
+ * difference between the two totals always equals monthlySavings — this is
+ * the same figure, just decomposed instead of shown as a bare delta. */
+export function calculateTariffSavings(
+  whiteTariff: WhiteTariffConfig | null,
+  totalMonthlyConsumptionKwh: number | null = null
+): TariffSavingsEstimate | null {
   if (!whiteTariff) return null;
 
-  const dailySavings = (whiteTariff.requiredEnergyWh / 1000) * whiteTariff.tariffSpreadPerKwh;
-  const monthlySavings = dailySavings * TARIFF_BUSINESS_DAYS_PER_MONTH;
+  const spread = whiteTariff.higherTariffPerKwh - whiteTariff.lowerTariffPerKwh;
+  const monthlyEnergyHigherKwh = (whiteTariff.requiredEnergyWh / 1000) * TARIFF_BUSINESS_DAYS_PER_MONTH;
+  const monthlySavings = monthlyEnergyHigherKwh * spread;
+
+  let monthlyCostWithoutSolaxBrl: number | null = null;
+  let monthlyCostWithSolaxBrl: number | null = null;
+  if (totalMonthlyConsumptionKwh !== null) {
+    const monthlyEnergyLowerKwh = totalMonthlyConsumptionKwh - monthlyEnergyHigherKwh;
+    if (monthlyEnergyLowerKwh >= 0) {
+      monthlyCostWithoutSolaxBrl =
+        monthlyEnergyLowerKwh * whiteTariff.lowerTariffPerKwh + monthlyEnergyHigherKwh * whiteTariff.higherTariffPerKwh;
+      monthlyCostWithSolaxBrl =
+        monthlyEnergyLowerKwh * whiteTariff.lowerTariffPerKwh + monthlyEnergyHigherKwh * whiteTariff.lowerTariffPerKwh;
+    }
+  }
 
   return {
     monthlySavings,
     annualSavings: monthlySavings * 12,
     businessDaysPerMonth: TARIFF_BUSINESS_DAYS_PER_MONTH,
+    monthlyCostWithoutSolaxBrl,
+    monthlyCostWithSolaxBrl,
   };
 }
 
