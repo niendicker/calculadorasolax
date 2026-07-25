@@ -68,6 +68,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     comment: null,
     desired_features: [],
     excludes_accessory_models: [],
+    bundled: false,
     active: true,
     accessories: null,
     ...partial,
@@ -246,6 +247,17 @@ describe('RulesEditor: accessory rules', () => {
     expect(within(card).queryByText('opcional')).not.toBeInTheDocument();
   });
 
+  it('toggles "Vem na caixa" and shows a badge on the rule card when checked', () => {
+    render(<ControlledEditor rules={[makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra A', accessories: { model: 'Smart Meter' }, bundled: true })]} />);
+
+    const card = screen.getByText('Regra A').closest('[data-slot="card"]') as HTMLElement;
+    expect(within(card).getByText('vem na caixa')).toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: /Editar/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Editar regra' });
+    expect(within(dialog).getByRole('checkbox', { name: /Vem na caixa/ })).toBeChecked();
+  });
+
   it('toggles "Escalar quantidade com o limiar", disabled when the trigger is "Por solução"', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
@@ -394,6 +406,33 @@ describe('RulesEditor: ESS compatibility', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /TP-HS3.6/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: /Salvar/ }));
     expect(onSaveEss).toHaveBeenCalled();
+  });
+
+  it('warns when the battery bank voltage/current at min-max qty would mismatch the inverter port', () => {
+    const inverter = makeInverter({
+      id: 'i1',
+      model: 'X1-Hybrid-5.0kW-G4',
+      battery_voltage_min_v: 40,
+      battery_voltage_max_v: 60,
+      battery_current_max_a: 30,
+    });
+    const hvBattery: BatteryRow = { ...battery, nominal_voltage_v: 51.2, recommended_current_a: 25 };
+    render(
+      <ControlledEditor
+        inverters={[inverter]}
+        batteries={[hvBattery]}
+        jumpTarget={{ scope: 'ess', inverterModel: 'X1-Hybrid-5.0kW-G4' }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+    fireEvent.click(within(dialog).getByRole('button', { name: /TP-HS3.6/ }));
+
+    // 1x51.2V fits within 40-60V, so no warning yet at the default min/max=1/2.
+    // Bump Max/porta to 2: 2x51.2V = 102.4V, over the 60V max.
+    fireEvent.change(within(dialog).getByLabelText('Max/porta'), { target: { value: '2' } });
+    expect(within(dialog).getByText(/ultrapassa o máximo aceito pelo inversor/)).toBeInTheDocument();
   });
 
   it('requires picking an inverter explicitly when there is no jump target', () => {

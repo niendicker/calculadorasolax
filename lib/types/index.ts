@@ -249,6 +249,10 @@ export interface AccessoryLine {
   optional: boolean;
   appliesTo: 'inverter' | 'battery' | 'system';
   comment: string | null;
+  /** True when this item ships bundled with the inverter (e.g. a WiFi dongle
+   * or CTs that come in the box) rather than being separately required/
+   * optional — shown with its own "Incluso" badge instead. */
+  bundled: boolean;
 }
 
 export interface Solution {

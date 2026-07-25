@@ -229,6 +229,11 @@ export interface AccessoryRule {
    * accessory models to drop from the final list whenever this rule matches,
    * even if their own rule also matched. */
   excludes_accessory_models: string[] | null;
+  /** Mirrors components/admin/types.ts AccessoryRuleRow.bundled: true when this
+   * accessory ships bundled with the inverter (e.g. a WiFi dongle or CTs that
+   * come in the box) — surfaced as its own "Incluso" badge instead of
+   * Obrigatório/Opcional on the customer-facing card. */
+  bundled: boolean;
   accessories: { model: string } | null;
 }
 
@@ -412,6 +417,9 @@ export interface AccessoryLine {
   optional: boolean;
   appliesTo: 'inverter' | 'battery' | 'system';
   comment: string | null;
+  /** Mirrors AccessoryRule.bundled: true when this item ships bundled with
+   * the inverter rather than being separately required/optional. */
+  bundled: boolean;
 }
 
 export interface SolutionPayload {
@@ -483,6 +491,7 @@ export function buildSolutionPayload(
       optional: false,
       appliesTo: 'system',
       comment: null,
+      bundled: false,
     }));
 
   const accessoryByModel = new Map(accessories.map((accessory) => [accessory.model.toLowerCase(), accessory]));
@@ -503,6 +512,7 @@ export function buildSolutionPayload(
       // itself would keep showing "Obrigatório" with no explanation.
       existing.optional = rule.inclusion === 'optional';
       existing.appliesTo = accessoryAppliesTo(rule);
+      existing.bundled = rule.bundled;
       if (rule.comment) existing.comment = rule.comment;
     } else {
       const line: AccessoryLine = {
@@ -511,6 +521,7 @@ export function buildSolutionPayload(
         optional: rule.inclusion === 'optional',
         appliesTo: accessoryAppliesTo(rule),
         comment: rule.comment ?? null,
+        bundled: rule.bundled,
       };
       accessories.push(line);
       accessoryByModel.set(normalizedModel, line);

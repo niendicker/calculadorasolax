@@ -72,6 +72,7 @@ function makeRule(partial: Partial<AccessoryRule> = {}): AccessoryRule {
     comment: null,
     desired_features: [],
     excludes_accessory_models: [],
+    bundled: false,
     accessories: { model: 'Smart Meter' },
     ...partial,
   };
@@ -512,6 +513,32 @@ describe('buildSolutionPayload', () => {
       desiredFeatures: [],
     });
     expect(payload.accessories.some((a) => a.model === 'Paralleling Bracket')).toBe(false);
+  });
+
+  it('marks an accessory bundled when the matching rule has bundled set', () => {
+    const solution = makeSolution();
+    const rule = makeRule({ accessories: { model: 'WiFi Dongle' }, bundled: true });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'WiFi Dongle', bundled: true }));
+  });
+
+  it('marks an accessory baked into the solution\'s own base list as bundled when its rule matches', () => {
+    const solution = makeSolution({ accessories: [{ model: 'WiFi Dongle', quantity: 1 }] });
+    const rule = makeRule({ accessories: { model: 'WiFi Dongle' }, bundled: true });
+    const payload = buildSolutionPayload(solution, {
+      usefulEnergyWhPerBattery: null,
+      pvPowerKw: null,
+      accessoryRules: [rule],
+      standardGridTopology: '1P_220V',
+      desiredFeatures: [],
+    });
+    expect(payload.accessories).toContainEqual(expect.objectContaining({ model: 'WiFi Dongle', bundled: true }));
   });
 
   it('infers appliesTo from the matching rule\'s inverter/battery model scope', () => {

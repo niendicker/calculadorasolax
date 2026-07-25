@@ -8,6 +8,7 @@ import {
   batteryAssociationMax,
   buildRuleGeneratedSolutions,
   clampNumber,
+  essPortMismatch,
   expansionModelSet,
   fetchApprovedSolutions,
   formatInverterGridType,
@@ -184,6 +185,59 @@ describe('batteryAssociationMax', () => {
   });
 });
 
+describe('essPortMismatch', () => {
+  it('returns no warnings when either side is missing', () => {
+    const battery = makeBattery({ model: 'b1', topology: 'HV', nominal_voltage_v: 51.2 });
+    expect(essPortMismatch(undefined, battery, 1, 3)).toEqual({ voltageWarning: null, currentWarning: null });
+    expect(
+      essPortMismatch(makeInverter({ model: 'i1', battery_voltage_max_v: 150 }), undefined, 1, 3)
+    ).toEqual({ voltageWarning: null, currentWarning: null });
+  });
+
+  it('flags HV overvoltage at max qty (series stacks voltage) but not undervoltage at min qty', () => {
+    const inverter = makeInverter({ model: 'i1', battery_voltage_min_v: 40, battery_voltage_max_v: 150 });
+    const battery = makeBattery({ model: 'b1', topology: 'HV', nominal_voltage_v: 51.2 });
+    // 3 x 51.2V = 153.6V > 150V max.
+    const { voltageWarning } = essPortMismatch(inverter, battery, 1, 3);
+    expect(voltageWarning).toMatch(/154V|153\.6|153,6/i);
+  });
+
+  it('flags HV undervoltage at min qty (series stacks voltage)', () => {
+    const inverter = makeInverter({ model: 'i1', battery_voltage_min_v: 100, battery_voltage_max_v: 300 });
+    const battery = makeBattery({ model: 'b1', topology: 'HV', nominal_voltage_v: 51.2 });
+    // 1 x 51.2V = 51.2V < 100V min.
+    const { voltageWarning } = essPortMismatch(inverter, battery, 1, 3);
+    expect(voltageWarning).toMatch(/51V|abaixo do mínimo/);
+  });
+
+  it('does not scale LV voltage with quantity (parallel stacks current, not voltage)', () => {
+    const inverter = makeInverter({ model: 'i1', battery_voltage_min_v: 40, battery_voltage_max_v: 60 });
+    const battery = makeBattery({ model: 'b1', topology: 'LV', nominal_voltage_v: 51.2 });
+    const { voltageWarning } = essPortMismatch(inverter, battery, 1, 10);
+    expect(voltageWarning).toBeNull();
+  });
+
+  it('keeps HV current fixed regardless of series qty (each unit in series carries the same current)', () => {
+    const inverter = makeInverter({ model: 'i1', battery_current_max_a: 30 });
+    const battery = makeBattery({ model: 'b1', topology: 'HV', recommended_current_a: 25 });
+    expect(essPortMismatch(inverter, battery, 1, 5).currentWarning).toBeNull();
+  });
+
+  it('scales LV current with max qty (parallel stacks current) and flags overcurrent', () => {
+    const inverter = makeInverter({ model: 'i1', battery_current_max_a: 60 });
+    const battery = makeBattery({ model: 'b1', topology: 'LV', recommended_current_a: 25 });
+    // 3 x 25A = 75A > 60A max.
+    const { currentWarning } = essPortMismatch(inverter, battery, 1, 3);
+    expect(currentWarning).toMatch(/75/);
+  });
+
+  it('returns no warnings when everything fits', () => {
+    const inverter = makeInverter({ model: 'i1', battery_voltage_min_v: 40, battery_voltage_max_v: 200, battery_current_max_a: 60 });
+    const battery = makeBattery({ model: 'b1', topology: 'HV', nominal_voltage_v: 51.2, recommended_current_a: 25 });
+    expect(essPortMismatch(inverter, battery, 1, 3)).toEqual({ voltageWarning: null, currentWarning: null });
+  });
+});
+
 describe('inverterSupportedBatteryTopologies', () => {
   it('returns both topologies for BOTH, the single one otherwise, and [] for no inverter', () => {
     expect(inverterSupportedBatteryTopologies(undefined)).toEqual([]);
@@ -285,6 +339,7 @@ function makeAccessoryRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRu
     comment: null,
     desired_features: [],
     excludes_accessory_models: [],
+    bundled: false,
     active: true,
     accessories: { model: 'Smart Meter' },
     ...partial,

@@ -631,6 +631,7 @@ export function AdminPanel() {
       comment: ruleForm.comment?.trim() || null,
       desired_features: accessoryRuleDesiredFeatures(ruleForm),
       excludes_accessory_models: ruleForm.excludes_accessory_models ?? [],
+      bundled: ruleForm.bundled ?? false,
       active: ruleForm.active ?? true,
     };
 

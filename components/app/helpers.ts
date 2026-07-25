@@ -81,7 +81,10 @@ export function isGeneratorPhaseVoltageIncompatible(
  * like "Smart Meter - M1-40 x2 (opcional)" — parse those defensively into the
  * current shape; already-structured entries pass through unchanged. */
 export function normalizeAccessoryLine(raw: string | AccessoryLine): AccessoryLine {
-  if (typeof raw !== 'string') return raw;
+  // Solutions saved before `bundled` existed are missing that field even
+  // though the rest is already structured — patch it in defensively without
+  // touching an already-fully-structured line's identity.
+  if (typeof raw !== 'string') return raw.bundled === undefined ? { ...raw, bundled: false } : raw;
   const optional = /\s*\(opcional\)\s*$/.test(raw);
   const withoutOptional = optional ? raw.replace(/\s*\(opcional\)\s*$/, '') : raw;
   const qtyMatch = withoutOptional.match(/^(.*)\s+x(\d+)$/);
@@ -91,6 +94,7 @@ export function normalizeAccessoryLine(raw: string | AccessoryLine): AccessoryLi
     optional,
     appliesTo: 'system',
     comment: null,
+    bundled: false,
   };
 }
 

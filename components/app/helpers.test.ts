@@ -36,7 +36,7 @@ function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig 
 }
 
 function makeAccessory(partial: Partial<AccessoryLine> & { model: string }): AccessoryLine {
-  return { qty: 1, optional: false, appliesTo: 'system', comment: null, ...partial };
+  return { qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false, ...partial };
 }
 
 function makeSolution(partial: Partial<Solution> = {}): Solution {
@@ -343,6 +343,7 @@ describe('normalizeAccessoryLine', () => {
       optional: false,
       appliesTo: 'system',
       comment: null,
+      bundled: false,
     });
     expect(normalizeAccessoryLine('Smart Meter - M1-40 x3')).toEqual({
       model: 'Smart Meter - M1-40',
@@ -350,6 +351,7 @@ describe('normalizeAccessoryLine', () => {
       optional: false,
       appliesTo: 'system',
       comment: null,
+      bundled: false,
     });
     expect(normalizeAccessoryLine('X1-Matebox Advanced (opcional)')).toEqual({
       model: 'X1-Matebox Advanced',
@@ -357,6 +359,7 @@ describe('normalizeAccessoryLine', () => {
       optional: true,
       appliesTo: 'system',
       comment: null,
+      bundled: false,
     });
   });
 

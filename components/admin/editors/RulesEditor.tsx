@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Boxes, Search } from 'lucide-react';
+import { AlertTriangle, Boxes, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -12,6 +12,7 @@ import {
   accessoryRuleInverterModels,
   batteryAssociationMax,
   clampNumber,
+  essPortMismatch,
   expansionModelSet,
   formatInverterGridType,
   formatTriggerMetric,
@@ -226,7 +227,7 @@ export function RulesEditor(props: {
       items: rows.map((row) => ({
         id: row.id,
         title: row.name,
-        badges: [row.active ? 'ativa' : 'inativa'],
+        badges: [row.active ? 'ativa' : 'inativa', ...(row.bundled ? ['vem na caixa'] : [])],
         details: [
           [
             'Condição',
@@ -487,6 +488,17 @@ export function RulesEditor(props: {
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  checked={ruleForm.bundled ?? false}
+                  onChange={(event) => setRuleForm({ ...ruleForm, bundled: event.target.checked })}
+                />
+                <InfoLabel
+                  label="Vem na caixa"
+                  tip="Marca esse acessório como incluso no produto (ex.: dongle WiFi, TCs) em vez de obrigatório/opcional — aparece com um selo próprio na Solução do cliente."
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
                   checked={ruleForm.active ?? true}
                   onChange={(event) => setRuleForm({ ...ruleForm, active: event.target.checked })}
                 />
@@ -585,6 +597,7 @@ export function RulesEditor(props: {
                 </p>
                 <EssBatteryConfigsInput
                   batteries={props.batteries}
+                  inverter={selectedInverter}
                   supportedTopologies={currentBatteryTopologies}
                   value={essForm}
                   onChange={(battery_configs) =>
@@ -778,11 +791,13 @@ function ExcludedAccessoriesInput({
 
 function EssBatteryConfigsInput({
   batteries,
+  inverter,
   supportedTopologies,
   value,
   onChange,
 }: {
   batteries: BatteryRow[];
+  inverter: InverterRow | undefined;
   supportedTopologies: BatteryTopology[];
   value: Partial<EssCompatibilityRuleRow>;
   onChange: (configs: EssBatteryConfig[]) => void;
@@ -868,47 +883,66 @@ function EssBatteryConfigsInput({
             const battery = batteries.find((item) => item.model === config.battery_model);
             const associationMax = batteryAssociationMax(battery);
             const minLimit = Math.min(7, associationMax);
+            const mismatch = essPortMismatch(inverter, battery, config.min_battery_qty, config.max_battery_qty);
             return (
               <div
                 key={config.battery_model}
-                className="grid gap-2 rounded-lg border bg-card p-2 sm:grid-cols-[minmax(0,1fr)_170px]"
+                className="space-y-2 rounded-lg border bg-card p-2"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{config.battery_model}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {config.battery_topology} · associação máx. {associationMax}/porta
-                  </p>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px]">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{config.battery_model}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {config.battery_topology} · associação máx. {associationMax}/porta
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="min-w-0 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 dark:border-blue-800 dark:bg-blue-950/40">
+                      <span className="block text-[10px] font-semibold uppercase text-blue-600 dark:text-blue-400">Min/porta</span>
+                      <select
+                        className="h-7 w-full bg-transparent text-sm font-semibold text-blue-900 outline-none dark:text-blue-100"
+                        value={config.min_battery_qty}
+                        onChange={(event) => updateConfig(config.battery_model, { min_battery_qty: toNumber(event.target.value, 1) })}
+                      >
+                        {Array.from({ length: minLimit }, (_, index) => index + 1).map((qty) => (
+                          <option key={qty} value={qty}>
+                            {qty}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="min-w-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 dark:border-rose-800 dark:bg-rose-950/40">
+                      <span className="block text-[10px] font-semibold uppercase text-rose-600 dark:text-rose-400">Max/porta</span>
+                      <select
+                        className="h-7 w-full bg-transparent text-sm font-semibold text-rose-900 outline-none dark:text-rose-100"
+                        value={config.max_battery_qty}
+                        onChange={(event) => updateConfig(config.battery_model, { max_battery_qty: toNumber(event.target.value, associationMax) })}
+                      >
+                        {Array.from({ length: associationMax }, (_, index) => index + 1).map((qty) => (
+                          <option key={qty} value={qty}>
+                            {qty}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <label className="min-w-0 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 dark:border-blue-800 dark:bg-blue-950/40">
-                    <span className="block text-[10px] font-semibold uppercase text-blue-600 dark:text-blue-400">Min/porta</span>
-                    <select
-                      className="h-7 w-full bg-transparent text-sm font-semibold text-blue-900 outline-none dark:text-blue-100"
-                      value={config.min_battery_qty}
-                      onChange={(event) => updateConfig(config.battery_model, { min_battery_qty: toNumber(event.target.value, 1) })}
-                    >
-                      {Array.from({ length: minLimit }, (_, index) => index + 1).map((qty) => (
-                        <option key={qty} value={qty}>
-                          {qty}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="min-w-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 dark:border-rose-800 dark:bg-rose-950/40">
-                    <span className="block text-[10px] font-semibold uppercase text-rose-600 dark:text-rose-400">Max/porta</span>
-                    <select
-                      className="h-7 w-full bg-transparent text-sm font-semibold text-rose-900 outline-none dark:text-rose-100"
-                      value={config.max_battery_qty}
-                      onChange={(event) => updateConfig(config.battery_model, { max_battery_qty: toNumber(event.target.value, associationMax) })}
-                    >
-                      {Array.from({ length: associationMax }, (_, index) => index + 1).map((qty) => (
-                        <option key={qty} value={qty}>
-                          {qty}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                {(mismatch.voltageWarning || mismatch.currentWarning) && (
+                  <div className="space-y-1">
+                    {mismatch.voltageWarning && (
+                      <p className="flex items-start gap-1.5 text-xs text-destructive">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        {mismatch.voltageWarning}
+                      </p>
+                    )}
+                    {mismatch.currentWarning && (
+                      <p className="flex items-start gap-1.5 text-xs text-destructive">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        {mismatch.currentWarning}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

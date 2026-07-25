@@ -19,6 +19,7 @@ import {
   ListChecks,
   Loader2,
   Network,
+  Package,
   Plug,
   Receipt,
   Save,
@@ -2379,12 +2380,19 @@ function ResultSummary({
           <p className="text-sm font-medium">Acessórios</p>
           <div className="mt-2 space-y-2">
             {solution.accessories.map((accessory) => {
-              const { model, qty, optional, comment } = normalizeAccessoryLine(accessory);
+              const { model, qty, optional, comment, bundled } = normalizeAccessoryLine(accessory);
               return (
                 <div key={model} className="relative rounded-lg border bg-muted/30 p-3">
-                  <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2 z-10">
-                    {optional ? 'Opcional' : 'Obrigatório'}
-                  </Badge>
+                  {bundled ? (
+                    <Badge variant="secondary" className="absolute right-2 top-2 z-10">
+                      <Package className="h-3 w-3" />
+                      Incluso
+                    </Badge>
+                  ) : (
+                    <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2 z-10">
+                      {optional ? 'Opcional' : 'Obrigatório'}
+                    </Badge>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-[1fr_88px]">
                     <div className="flex min-w-0 flex-col">
                       <div className="flex flex-wrap items-center gap-1.5">

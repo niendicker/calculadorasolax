@@ -1475,6 +1475,21 @@ describe('SizingTab: Solução tab accessories and microgrid variant choice', ()
     expect(within(accessoriesSection).getByText('Instalar próximo ao quadro.')).toBeInTheDocument();
   });
 
+  it('shows an "Incluso" badge instead of Obrigatório/Opcional for a bundled accessory', () => {
+    setup({
+      solution: {
+        ...fakeSolution,
+        accessories: [
+          { model: 'WiFi Dongle', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: true },
+        ],
+      },
+    });
+    const accessoriesSection = screen.getByText('Acessórios').closest('div') as HTMLElement;
+    expect(within(accessoriesSection).getByText('Incluso')).toBeInTheDocument();
+    expect(within(accessoriesSection).queryByText('Obrigatório')).not.toBeInTheDocument();
+    expect(within(accessoriesSection).queryByText('Opcional')).not.toBeInTheDocument();
+  });
+
   it('lets the user choose between the economic and microgrid variants', () => {
     const microgridSolution: Solution = { ...fakeSolution, inverterModel: 'X1-MG', batteryQty: 2 };
     const economicSolution: Solution = { ...fakeSolution, microgridAlternative: microgridSolution };

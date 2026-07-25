@@ -118,7 +118,9 @@ describe('PrintableReport: recommended products', () => {
         {...baseProps({
           solution: {
             ...solution,
-            accessories: [{ model: 'Smart Meter - M1-40', qty: 1, optional: false, appliesTo: 'system', comment: null }],
+            accessories: [
+              { model: 'Smart Meter - M1-40', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false },
+            ],
           },
           productMedia: {
             'X1-Hybrid-5.0kW-G4': { model: 'X1-Hybrid-5.0kW-G4', nickname: 'Inversor Prime', imageUrl: null, documents: [] },
@@ -161,13 +163,14 @@ describe('PrintableReport: recommended products', () => {
           solution: {
             ...solution,
             accessories: [
-              { model: 'Smart Meter', qty: 2, optional: false, appliesTo: 'system', comment: null },
+              { model: 'Smart Meter', qty: 2, optional: false, appliesTo: 'system', comment: null, bundled: false },
               {
                 model: 'X1-Matebox',
                 qty: 1,
                 optional: true,
                 appliesTo: 'inverter',
                 comment: 'Instalar próximo ao quadro.',
+                bundled: false,
               },
             ],
           },

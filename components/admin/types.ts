@@ -213,6 +213,10 @@ export interface AccessoryRuleRow {
    * accessories cover the same physical need (e.g. an ATS-bundled enclosure
    * making a separate paralleling bracket redundant) and only one should win. */
   excludes_accessory_models: string[] | null;
+  /** True when this accessory ships bundled with the inverter (e.g. a WiFi
+   * dongle or CTs that come in the box) — shown as its own "Incluso" badge
+   * on the customer-facing card instead of Obrigatório/Opcional. */
+  bundled: boolean;
   accessories?: { model: string } | null;
 }
 
@@ -414,6 +418,7 @@ export const emptyRule: Partial<AccessoryRuleRow> = {
   desired_features: [],
   active: true,
   excludes_accessory_models: [],
+  bundled: false,
 };
 
 export const emptyEssRule: Partial<EssCompatibilityRuleRow> = {

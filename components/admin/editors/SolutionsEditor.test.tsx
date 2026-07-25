@@ -324,6 +324,7 @@ describe('SolutionsEditor: form', () => {
       comment: null,
       desired_features: [],
       excludes_accessory_models: [],
+      bundled: false,
       active: true,
       accessories: { model: 'Smart Meter' },
     };

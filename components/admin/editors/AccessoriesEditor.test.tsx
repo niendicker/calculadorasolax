@@ -27,6 +27,7 @@ function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'i
     comment: null,
     desired_features: [],
     excludes_accessory_models: [],
+    bundled: false,
     active: true,
     ...partial,
   };

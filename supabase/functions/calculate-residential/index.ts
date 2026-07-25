@@ -335,6 +335,7 @@ Deno.serve(async (req) => {
         comment,
         desired_features,
         excludes_accessory_models,
+        bundled,
         accessories (model)
       `
       )

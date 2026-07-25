@@ -32,7 +32,7 @@ export const LOAD_CATALOG_COLUMNS = 'id, name_pt, name_en, name_zh, power_w, cat
 export const PRESET_COLUMNS = 'id, name, description, loads, display_order';
 
 export const ACCESSORY_RULE_COLUMNS =
-  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, scale_with_metric, metric_divisor, comment, desired_features, excludes_accessory_models, active, accessories (model)';
+  'id, accessory_id, name, inclusion, trigger_metric, min_quantity, inverter_model, inverter_models, battery_model, grid_topology, battery_topology, quantity_per_match, scale_with_metric, metric_divisor, comment, desired_features, excludes_accessory_models, bundled, active, accessories (model)';
 
 export const ESS_RULE_COLUMNS =
   'id, name, inverter_model, battery_model, battery_topology, grid_topology, max_parallel_inverters, min_battery_qty, max_battery_qty, battery_configs, comment, active, created_at';
@@ -167,6 +167,53 @@ export function accessoryRuleDesiredFeatures(rule: Partial<AccessoryRuleRow>) {
 
 export function batteryAssociationMax(battery: BatteryRow | undefined) {
   return clampNumber(battery?.max_association_qty, 1, 15, 15);
+}
+
+export interface EssPortMismatch {
+  voltageWarning: string | null;
+  currentWarning: string | null;
+}
+
+/** Checks a battery's electrical rating against the inverter port it's being
+ * associated with in an ESS compatibility rule — voltage and current are
+ * reported separately (not combined into a single power figure) since a
+ * voltage overshoot can hide behind current headroom or vice versa.
+ *
+ * HV batteries stack in series per port, so voltage scales with quantity
+ * (checked at min/max qty) while current stays the single battery's own
+ * rating. LV batteries stack in parallel, so voltage stays the single
+ * battery's own rating while current scales with quantity (checked at max
+ * qty, the worst case). */
+export function essPortMismatch(
+  inverter: Pick<InverterRow, 'battery_voltage_min_v' | 'battery_voltage_max_v' | 'battery_current_max_a'> | undefined,
+  battery: Pick<BatteryRow, 'topology' | 'nominal_voltage_v' | 'recommended_current_a' | 'max_current_a'> | undefined,
+  minQty: number,
+  maxQty: number
+): EssPortMismatch {
+  if (!inverter || !battery) return { voltageWarning: null, currentWarning: null };
+  const isSeries = battery.topology === 'HV';
+
+  let voltageWarning: string | null = null;
+  if (battery.nominal_voltage_v != null) {
+    const minV = isSeries ? battery.nominal_voltage_v * minQty : battery.nominal_voltage_v;
+    const maxV = isSeries ? battery.nominal_voltage_v * maxQty : battery.nominal_voltage_v;
+    if (inverter.battery_voltage_min_v != null && minV < inverter.battery_voltage_min_v) {
+      voltageWarning = `${minV.toFixed(0)}V no mínimo/porta fica abaixo do mínimo aceito pelo inversor (${inverter.battery_voltage_min_v}V).`;
+    } else if (inverter.battery_voltage_max_v != null && maxV > inverter.battery_voltage_max_v) {
+      voltageWarning = `${maxV.toFixed(0)}V no máximo/porta ultrapassa o máximo aceito pelo inversor (${inverter.battery_voltage_max_v}V).`;
+    }
+  }
+
+  let currentWarning: string | null = null;
+  const perUnitCurrent = battery.recommended_current_a ?? battery.max_current_a;
+  if (perUnitCurrent != null && inverter.battery_current_max_a != null) {
+    const currentAtMaxQty = isSeries ? perUnitCurrent : perUnitCurrent * maxQty;
+    if (currentAtMaxQty > inverter.battery_current_max_a) {
+      currentWarning = `${currentAtMaxQty.toFixed(1)}A no máximo/porta ultrapassa a corrente máxima da porta do inversor (${inverter.battery_current_max_a}A).`;
+    }
+  }
+
+  return { voltageWarning, currentWarning };
 }
 
 export function normalizeEssBatteryConfigs(rule: Partial<EssCompatibilityRuleRow>, batteries: BatteryRow[] = []): EssBatteryConfig[] {
