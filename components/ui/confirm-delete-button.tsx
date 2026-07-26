@@ -15,6 +15,10 @@ interface ConfirmDeleteButtonProps {
   label?: string;
   disabled?: boolean;
   onConfirm: () => void;
+  /** Visual weight of the trigger button. Defaults to "destructive" (red) —
+   * pass "outline" for actions that need a confirm step but shouldn't draw
+   * as much attention as a delete (e.g. a header "Limpar" reset). */
+  triggerVariant?: 'destructive' | 'outline';
 }
 
 export function ConfirmDeleteButton({
@@ -26,6 +30,7 @@ export function ConfirmDeleteButton({
   label,
   disabled,
   onConfirm,
+  triggerVariant = 'destructive',
 }: ConfirmDeleteButtonProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -104,13 +109,11 @@ export function ConfirmDeleteButton({
       <Button
         ref={triggerRef}
         type="button"
-        variant="destructive"
+        variant={triggerVariant}
         size={label ? 'sm' : 'icon-sm'}
         aria-label={ariaLabel}
         aria-expanded={open}
         disabled={disabled}
-        onMouseEnter={openWithDelay}
-        onMouseLeave={closeWithDelay}
         onFocus={openWithDelay}
         onBlur={closeWithDelay}
         onClick={openWithDelay}

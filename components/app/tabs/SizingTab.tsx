@@ -353,6 +353,7 @@ export function SizingTab({
             label="Limpar"
             icon={<Eraser className="h-4 w-4" />}
             onConfirm={() => resetResidential()}
+            triggerVariant="outline"
           />
           {solution && (
             <Button
