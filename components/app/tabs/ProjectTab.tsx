@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  AlertTriangle,
   BatteryCharging,
   Calculator,
   ClipboardCopy,
@@ -11,6 +12,7 @@ import {
   Copy,
   Gauge,
   Mail,
+  MapPin,
   Pencil,
   Phone,
   Plus,
@@ -741,9 +743,14 @@ function ProjectCard({
           </p>
         )}
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <Badge variant={hasSolution ? 'secondary' : 'outline'}>
-            {hasSolution ? 'Solução calculada' : 'Sem solução calculada'}
-          </Badge>
+          {hasSolution ? (
+            <Badge variant="secondary">Solução calculada</Badge>
+          ) : (
+            <Badge className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              <AlertTriangle className="h-3 w-3" />
+              Sem solução calculada
+            </Badge>
+          )}
           {isStale && (
             <Badge className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
               <Clock className="h-3 w-3" />
@@ -871,7 +878,12 @@ function SelectedProjectSummary({
         </Button>
       </div>
 
-      {project.address && <p className="text-xs text-muted-foreground">{project.address}</p>}
+      {project.address && (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span className="truncate">{project.address}</span>
+        </p>
+      )}
 
       <Separator />
 
@@ -880,49 +892,6 @@ function SelectedProjectSummary({
         <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
         <Requirement done={loads.length > 0} label={`${loads.length} carga(s) cadastrada(s)`} />
       </ul>
-
-      {((systemCost && systemCost.pricedItemsCount > 0) || project.services.length > 0) && (
-        <>
-          <Separator />
-          <div className="space-y-2.5 rounded-lg border bg-background p-2.5">
-            {systemCost && systemCost.pricedItemsCount > 0 && (
-              <div>
-                <p className="text-xs text-muted-foreground">Valor da solução</p>
-                <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
-                {!systemCost.isComplete && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
-                    estoque.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {project.services.length > 0 && (
-              <>
-                {systemCost && systemCost.pricedItemsCount > 0 && <Separator />}
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground">Serviços</p>
-                  {project.services.map((line) => {
-                    const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
-                    return (
-                      <div key={line.serviceId} className="flex items-center justify-between gap-2">
-                        <span className="truncate">
-                          {line.name}
-                          {line.qty !== 1 ? ` × ${line.qty}` : ''}
-                        </span>
-                        <span className="shrink-0">
-                          {unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        </>
-      )}
 
       {metrics && project.solution && (
         <>
@@ -1000,6 +969,49 @@ function SelectedProjectSummary({
         <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
           Este projeto ainda não tem uma solução calculada.
         </p>
+      )}
+
+      {((systemCost && systemCost.pricedItemsCount > 0) || project.services.length > 0) && (
+        <>
+          <Separator />
+          <div className="space-y-2.5 rounded-lg border bg-background p-2.5">
+            {systemCost && systemCost.pricedItemsCount > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground">Valor da solução</p>
+                <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
+                {!systemCost.isComplete && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
+                    estoque.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {project.services.length > 0 && (
+              <>
+                {systemCost && systemCost.pricedItemsCount > 0 && <Separator />}
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Serviços</p>
+                  {project.services.map((line) => {
+                    const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
+                    return (
+                      <div key={line.serviceId} className="flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          {line.name}
+                          {line.qty !== 1 ? ` × ${line.qty}` : ''}
+                        </span>
+                        <span className="shrink-0">
+                          {unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </>
       )}
 
       <Separator />
