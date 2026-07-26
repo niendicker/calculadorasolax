@@ -1850,7 +1850,7 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       },
       solution: fakeSolution,
     });
-    const heading = screen.getByText('Ganho estimado com baterias (Tarifa Branca)');
+    const heading = screen.getByText('Ganho com baterias (Tarifa Branca)');
     const card = heading.closest('div')!.parentElement!;
     expect(card).toHaveClass('border-primary/30', 'bg-primary/5');
     const value = within(card).getByText(/\/ano$/);
@@ -1873,8 +1873,8 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       },
       solution: fakeSolution,
     });
-    expect(screen.getByText(/Custo estimado sem SolaX/)).toBeInTheDocument();
-    expect(screen.getByText(/Custo estimado com SolaX/)).toBeInTheDocument();
+    expect(screen.getByText(/Sem SolaX/)).toBeInTheDocument();
+    expect(screen.getByText(/Com SolaX/)).toBeInTheDocument();
   });
 
   it('omits the absolute sem/com SolaX costs when pv is not enabled', () => {
@@ -1891,8 +1891,8 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       },
       solution: fakeSolution,
     });
-    expect(screen.queryByText(/Custo estimado sem SolaX/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Custo estimado com SolaX/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sem SolaX/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Com SolaX/)).not.toBeInTheDocument();
   });
 
   it('shows the estimated gain from PV generation, valued at the white tariff\'s off-peak rate', () => {
@@ -1909,7 +1909,7 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       },
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
-    const heading = screen.getByText('Ganho estimado com geração solar (FV)');
+    const heading = screen.getByText('Ganho com geração solar');
     const card = heading.closest('div')!.parentElement!;
     expect(card).toHaveClass('border-primary/30', 'bg-primary/5');
     // 450 kWh/month * R$0.80/kWh = R$360/month, R$4320/year.
@@ -1921,7 +1921,7 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
     setup({
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
-    expect(screen.queryByText('Ganho estimado com geração solar (FV)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganho com geração solar')).not.toBeInTheDocument();
   });
 
   it('omits the PV generation gain when the solution has no generation estimate', () => {
@@ -1938,7 +1938,7 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       },
       solution: { ...fakeSolution, pvPowerKw: null, pvMonthlyGenerationKwh: null },
     });
-    expect(screen.queryByText('Ganho estimado com geração solar (FV)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganho com geração solar')).not.toBeInTheDocument();
   });
 });
 

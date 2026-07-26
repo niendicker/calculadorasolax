@@ -2787,8 +2787,7 @@ function ResultSummary({
                 <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
                 {!systemCost.isComplete && (
                   <p className="text-xs text-muted-foreground">
-                    Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
-                    seu catálogo.
+                    Preço parcial ({systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens no catálogo)
                   </p>
                 )}
               </div>
@@ -2797,17 +2796,15 @@ function ResultSummary({
               <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
                 <TrendingUp className="h-5 w-5 shrink-0 text-primary" />
                 <div>
-                  <p className="text-muted-foreground">Ganho estimado com baterias (Tarifa Branca)</p>
+                  <p className="text-muted-foreground">Ganho com baterias (Tarifa Branca)</p>
                   <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(tariffSavings.annualSavings)}/ano</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando {tariffSavings.businessDaysPerMonth}{' '}
-                    dias úteis/mês
+                    {formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · {tariffSavings.businessDaysPerMonth} dias úteis/mês
                   </p>
                   {tariffSavings.monthlyCostWithoutSolaxBrl != null && tariffSavings.monthlyCostWithSolaxBrl != null && (
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      Custo estimado sem SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês
-                      <br />
-                      Custo estimado com SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês
+                      Sem SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês · Com SolaX:{' '}
+                      {formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês
                     </p>
                   )}
                 </div>
@@ -2817,11 +2814,11 @@ function ResultSummary({
               <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
                 <Sun className="h-5 w-5 shrink-0 text-primary" />
                 <div>
-                  <p className="text-muted-foreground">Ganho estimado com geração solar (FV)</p>
+                  <p className="text-muted-foreground">Ganho com geração solar</p>
                   <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(pvSavings.annualSavings)}/ano</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatCurrencyBRL(pvSavings.monthlySavings)}/mês · {solution.pvMonthlyGenerationKwh?.toFixed(0)} kWh/mês
-                    estimados a {formatCurrencyBRL(whiteTariff!.lowerTariffPerKwh)}/kWh
+                    {formatCurrencyBRL(pvSavings.monthlySavings)}/mês · {solution.pvMonthlyGenerationKwh?.toFixed(0)} kWh/mês a{' '}
+                    {formatCurrencyBRL(whiteTariff!.lowerTariffPerKwh)}/kWh
                   </p>
                 </div>
               </div>

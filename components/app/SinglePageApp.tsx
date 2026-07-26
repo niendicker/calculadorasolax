@@ -323,6 +323,30 @@ export function SinglePageApp() {
     window.print();
   }
 
+  // "Compartilhar Relatório" on a not-yet-open project card: quietly loads
+  // it into the wizard state (loadProject sets solution/canCalculate
+  // synchronously from the saved project, no recalculation involved — see
+  // loadProject in wizard-store.ts) WITHOUT opening the edit draft card
+  // (showDetails: false — unlike "Editar", this shouldn't switch the
+  // Projeto tab into edit mode), then the effect below fires exportPdf()
+  // once that project's data has landed in state.
+  const pendingPdfProjectIdRef = useRef<string | null>(null);
+
+  function downloadProjectPdf(id: string) {
+    pendingPdfProjectIdRef.current = id;
+    loadProject(id, { showDetails: false });
+  }
+
+  useEffect(() => {
+    if (!pendingPdfProjectIdRef.current || pendingPdfProjectIdRef.current !== currentProjectId) return;
+    pendingPdfProjectIdRef.current = null;
+    if (!solution || !canCalculate) return;
+    const previousTitle = document.title;
+    document.title = buildPdfFileName(projectInfo.name);
+    window.addEventListener('afterprint', () => { document.title = previousTitle; }, { once: true });
+    window.print();
+  }, [currentProjectId, solution, canCalculate, projectInfo.name]);
+
   // resetResidential() already brings topology/gridType back to the store's
   // HV/monofásico 220V defaults — this just goes one step further and also
   // pre-selects a battery, so "Limpar" leaves a ready-to-calculate starting
@@ -558,6 +582,8 @@ export function SinglePageApp() {
               currentProjectId={currentProjectId}
               savedProjects={savedProjects}
               clients={clients}
+              batteryCatalog={batteryCatalog}
+              userStockItems={userStockItems}
               initialLoading={initialLoading}
               projectStatus={projectStatus}
               topology={residentialOptions.topology}
@@ -575,7 +601,9 @@ export function SinglePageApp() {
               onOpenSizing={openProjectSizing}
               onRemove={deleteProject}
               onDuplicate={duplicateExistingProject}
+              onDownloadPdf={downloadProjectPdf}
               onManageClients={openClientsManager}
+              onShowSummary={() => setSummaryDrawerOpen(true)}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab

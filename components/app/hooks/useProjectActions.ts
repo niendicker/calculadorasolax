@@ -21,7 +21,7 @@ export function useProjectActions({
   saveCurrentProject: () => Promise<SavedProject>;
   newProjectDraft: () => void;
   cancelProjectDraft: () => void;
-  loadProject: (id: string) => void;
+  loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<SavedProject>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;

@@ -1,7 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, Copy, FolderOpen, Plus, Save, Users, X } from 'lucide-react';
+import {
+  BatteryCharging,
+  Calculator,
+  Check,
+  Clock,
+  ClipboardCopy,
+  Copy,
+  Gauge,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Save,
+  Share2,
+  Users,
+  X,
+  Zap,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,10 +26,26 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, SavedProject } from '@/lib/types';
+import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, SavedProject, UserStockItem } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import {
+  batteryQuantityBreakdown,
+  buildProjectShareText,
+  calculateSystemCost,
+  formatCurrencyBRL,
+  normalizeAccessoryLine,
+  solutionMetrics,
+} from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
+import type { BatteryCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
+
+function daysSince(dateStr: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000));
+}
+
+const STALE_AFTER_DAYS = 7;
 
 export function ProjectTab({
   projectInfo,
@@ -20,6 +53,8 @@ export function ProjectTab({
   currentProjectId,
   savedProjects,
   clients,
+  batteryCatalog,
+  userStockItems,
   initialLoading,
   projectStatus,
   topology,
@@ -37,13 +72,17 @@ export function ProjectTab({
   onOpenSizing,
   onRemove,
   onDuplicate,
+  onDownloadPdf,
   onManageClients,
+  onShowSummary,
 }: {
   projectInfo: ProjectInfo;
   projectDetailsVisible: boolean;
   currentProjectId: string | null;
   savedProjects: SavedProject[];
   clients: Client[];
+  batteryCatalog: BatteryCatalogOption[];
+  userStockItems: UserStockItem[];
   initialLoading: boolean;
   projectStatus: string | null;
   topology: BatteryTopology | null;
@@ -61,19 +100,56 @@ export function ProjectTab({
   onOpenSizing: (id: string) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onDownloadPdf: (id: string) => void;
   onManageClients: () => void;
+  /** Brings the shell's summary panel into view (a slide-in drawer on
+   * mobile/tablet) — selecting a project should surface its rich summary
+   * immediately instead of waiting for the user to tap the nav badge. */
+  onShowSummary: () => void;
 }) {
   const [search, setSearch] = useState('');
   const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false);
   const nameError = nameSubmitAttempted && !projectInfo.name.trim();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'client'>('recent');
+
+  const selectedProject =
+    !projectDetailsVisible && selectedProjectId
+      ? savedProjects.find((project) => project.id === selectedProjectId) ?? null
+      : null;
+
+  const projectsWithSolutionCount = savedProjects.filter((project) => project.solution).length;
+  const solutionsValue = savedProjects.reduce(
+    (total, project) => {
+      if (!project.solution) return total;
+      const cost = calculateSystemCost(project.solution, userStockItems);
+      return cost.pricedItemsCount > 0 ? total + cost.totalCost : total;
+    },
+    0
+  );
 
   const normalizedSearch = search.trim().toLowerCase();
-  const filteredProjects = savedProjects.filter((project) => {
-    const clientName = clients.find((client) => client.id === project.clientId)?.name ?? '';
-    return (
-      project.name.toLowerCase().includes(normalizedSearch) || clientName.toLowerCase().includes(normalizedSearch)
-    );
-  });
+  const filteredProjects = savedProjects
+    .filter((project) => {
+      const clientName = clients.find((client) => client.id === project.clientId)?.name ?? '';
+      const matchesSearch =
+        project.name.toLowerCase().includes(normalizedSearch) || clientName.toLowerCase().includes(normalizedSearch);
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'with' && project.solution) ||
+        (statusFilter === 'without' && !project.solution);
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name, 'pt-BR');
+      if (sortBy === 'client') {
+        const clientA = clients.find((client) => client.id === a.clientId)?.name ?? '';
+        const clientB = clients.find((client) => client.id === b.clientId)?.name ?? '';
+        return clientA.localeCompare(clientB, 'pt-BR');
+      }
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
 
   function handleSave() {
     if (!projectInfo.name.trim()) {
@@ -107,21 +183,33 @@ export function ProjectTab({
       </PageHeader>
 
       <PageSummary>
-        <div>
-          <h2 className="text-sm font-semibold">Configuração salva junto</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
-          <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
-        </div>
-        <Separator />
-        <ul className="space-y-2 text-sm">
-          <Requirement done={Boolean(topology)} label={topology ? topologyLabels[topology] : 'Topologia da bateria'} />
-          <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
-          <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
-          <Requirement done={loadsCount > 0} label={`${loadsCount} carga(s) cadastrada(s)`} />
-          <Requirement done={hasSolution} label={hasSolution ? 'Solução calculada' : 'Solução ainda não calculada'} />
-        </ul>
+        {selectedProject ? (
+          <SelectedProjectSummary
+            project={selectedProject}
+            client={clients.find((client) => client.id === selectedProject.clientId)}
+            batteryCatalog={batteryCatalog}
+            userStockItems={userStockItems}
+            onClose={() => setSelectedProjectId(null)}
+          />
+        ) : (
+          <>
+            <div>
+              <h2 className="text-sm font-semibold">Configuração salva junto</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="Pico" value={`${(peakW / 1000).toFixed(2)} kVA`} />
+              <Metric label="Consumo" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
+            </div>
+            <Separator />
+            <ul className="space-y-2 text-sm">
+              <Requirement done={Boolean(topology)} label={topology ? topologyLabels[topology] : 'Topologia da bateria'} />
+              <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
+              <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
+              <Requirement done={loadsCount > 0} label={`${loadsCount} carga(s) cadastrada(s)`} />
+              <Requirement done={hasSolution} label={hasSolution ? 'Solução calculada' : 'Solução ainda não calculada'} />
+            </ul>
+          </>
+        )}
       </PageSummary>
 
       {projectStatus && (
@@ -130,74 +218,132 @@ export function ProjectTab({
         </p>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Projetos salvos</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {initialLoading ? (
-            <ProjectListSkeleton />
-          ) : (
-            <>
-              {savedProjects.length > 0 && (
-                <div className="max-w-xs">
-                  <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold">Projetos salvos</h2>
+        {initialLoading ? (
+          <ProjectListSkeleton />
+        ) : (
+          <>
+            {savedProjects.length > 0 && (
+              <>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                  <span>
+                    {savedProjects.length} projeto{savedProjects.length !== 1 ? 's' : ''}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>{projectsWithSolutionCount} com solução calculada</span>
+                  {solutionsValue > 0 && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>
+                        Valor total: <span className="font-medium text-foreground">{formatCurrencyBRL(solutionsValue)}</span>
+                      </span>
+                    </>
+                  )}
                 </div>
-              )}
 
-              {!projectDetailsVisible && savedProjects.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  Nenhum projeto salvo ainda. Clique em &quot;Novo projeto&quot; para começar.
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="max-w-xs flex-1">
+                    <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
+                  </div>
+                  <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Filtrar por solução">
+                    {(
+                      [
+                        { value: 'all', label: 'Todos' },
+                        { value: 'with', label: 'Com solução' },
+                        { value: 'without', label: 'Sem solução' },
+                      ] as const
+                    ).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="tab"
+                        aria-selected={statusFilter === option.value}
+                        onClick={() => setStatusFilter(option.value)}
+                        className={cn(
+                          'rounded-md px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                          statusFilter === option.value
+                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <select
+                    aria-label="Ordenar projetos"
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+                    className="h-8 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="recent">Mais recentes</option>
+                    <option value="name">Nome (A-Z)</option>
+                    <option value="client">Cliente (A-Z)</option>
+                  </select>
                 </div>
-              ) : !projectDetailsVisible && filteredProjects.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  Nenhum projeto encontrado para essa pesquisa.
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {projectDetailsVisible && !currentProjectId && (
+              </>
+            )}
+
+            {!projectDetailsVisible && savedProjects.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Nenhum projeto salvo ainda. Clique em &quot;Novo projeto&quot; para começar.
+              </div>
+            ) : !projectDetailsVisible && filteredProjects.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Nenhum projeto encontrado para essa pesquisa.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {projectDetailsVisible && !currentProjectId && (
+                  <ProjectDraftCard
+                    projectInfo={projectInfo}
+                    clients={clients}
+                    isNew
+                    setProjectInfo={setProjectInfo}
+                    onManageClients={onManageClients}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                    nameError={nameError}
+                  />
+                )}
+                {filteredProjects.map((project) =>
+                  projectDetailsVisible && project.id === currentProjectId ? (
                     <ProjectDraftCard
+                      key={project.id}
                       projectInfo={projectInfo}
                       clients={clients}
-                      isNew
+                      isNew={false}
                       setProjectInfo={setProjectInfo}
                       onManageClients={onManageClients}
                       onSave={handleSave}
                       onCancel={handleCancel}
                       nameError={nameError}
                     />
-                  )}
-                  {filteredProjects.map((project) =>
-                    projectDetailsVisible && project.id === currentProjectId ? (
-                      <ProjectDraftCard
-                        key={project.id}
-                        projectInfo={projectInfo}
-                        clients={clients}
-                        isNew={false}
-                        setProjectInfo={setProjectInfo}
-                        onManageClients={onManageClients}
-                        onSave={handleSave}
-                        onCancel={handleCancel}
-                        nameError={nameError}
-                      />
-                    ) : (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        clientName={clients.find((client) => client.id === project.clientId)?.name}
-                        onOpen={() => onOpen(project.id)}
-                        onOpenSizing={() => onOpenSizing(project.id)}
-                        onRemove={() => onRemove(project.id)}
-                        onDuplicate={() => onDuplicate(project.id)}
-                      />
-                    )
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  ) : (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      client={clients.find((client) => client.id === project.clientId)}
+                      selected={project.id === selectedProjectId}
+                      onSelect={() => {
+                        const willSelect = selectedProjectId !== project.id;
+                        setSelectedProjectId(willSelect ? project.id : null);
+                        if (willSelect) onShowSummary();
+                      }}
+                      onOpen={() => onOpen(project.id)}
+                      onOpenSizing={() => onOpenSizing(project.id)}
+                      onRemove={() => onRemove(project.id)}
+                      onDuplicate={() => onDuplicate(project.id)}
+                      onDownloadPdf={() => onDownloadPdf(project.id)}
+                    />
+                  )
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -318,47 +464,106 @@ function ProjectDraftCard({
 
 function ProjectCard({
   project,
-  clientName,
+  client,
+  selected,
+  onSelect,
   onOpen,
   onOpenSizing,
   onRemove,
   onDuplicate,
+  onDownloadPdf,
 }: {
   project: SavedProject;
-  clientName: string | undefined;
+  client: Client | undefined;
+  selected: boolean;
+  onSelect: () => void;
   onOpen: () => void;
   onOpenSizing: () => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onDownloadPdf: () => void;
 }) {
+  const hasSolution = Boolean(project.solution);
+  const idleDays = daysSince(project.updatedAt);
+  const isStale = !hasSolution && idleDays >= STALE_AFTER_DAYS;
+
+  function stopAnd(handler: () => void) {
+    return (event: React.MouseEvent) => {
+      event.stopPropagation();
+      handler();
+    };
+  }
+
   return (
-    <div className="relative flex h-full flex-col gap-3 rounded-lg border bg-card p-4">
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        'relative flex h-full cursor-pointer flex-col gap-3 rounded-lg border bg-card p-4 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        selected ? 'border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/30' : 'hover:border-primary/30 hover:bg-muted/30'
+      )}
+    >
       <div className="absolute right-2 top-2 flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label={`Duplicar projeto ${project.name}`}
-          onClick={onDuplicate}
+          onClick={stopAnd(onDuplicate)}
         >
           <Copy className="h-4 w-4" />
         </Button>
-        <ConfirmDeleteButton
-          ariaLabel={`Remover projeto ${project.name}`}
-          title="Remover projeto?"
-          description="O projeto salvo e sua configuração serão removidos deste navegador."
-          confirmLabel="Remover"
-          onConfirm={onRemove}
-        />
+        <span onClick={(event) => event.stopPropagation()}>
+          <ConfirmDeleteButton
+            ariaLabel={`Remover projeto ${project.name}`}
+            title="Remover projeto?"
+            description="O projeto salvo e sua configuração serão removidos deste navegador."
+            confirmLabel="Remover"
+            onConfirm={onRemove}
+          />
+        </span>
       </div>
       <div className="min-w-0 pr-16">
-        <p className="font-medium">{project.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {clientName || 'Cliente não informado'} · Atualizado em{' '}
+        <p className="font-semibold">{project.name}</p>
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Users className="h-3 w-3 shrink-0" />
+          <span className="truncate">{client?.name || 'Cliente não informado'}</span>
+        </p>
+        {client?.phone && (
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Phone className="h-3 w-3 shrink-0" />
+            <span className="truncate">{client.phone}</span>
+          </p>
+        )}
+        {client?.email && (
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Mail className="h-3 w-3 shrink-0" />
+            <span className="truncate">{client.email}</span>
+          </p>
+        )}
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Atualizado em{' '}
           {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
             new Date(project.updatedAt)
           )}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
+          <Badge variant={hasSolution ? 'secondary' : 'outline'}>
+            {hasSolution ? 'Solução calculada' : 'Sem solução calculada'}
+          </Badge>
+          {isStale && (
+            <Badge className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              <Clock className="h-3 w-3" />
+              Parado há {idleDays} dia{idleDays !== 1 ? 's' : ''}
+            </Badge>
+          )}
           <Badge variant="outline">
             {project.residentialOptions.topology
               ? topologyLabels[project.residentialOptions.topology]
@@ -371,16 +576,212 @@ function ProjectCard({
           <Badge variant="outline">{project.residentialOptions.loads.length} carga(s)</Badge>
         </div>
       </div>
-      <div className="mt-auto flex gap-2 pt-1">
-        <Button variant="outline" size="sm" className="flex-1" onClick={onOpen}>
-          <FolderOpen className="h-4 w-4" />
-          Abrir
-        </Button>
-        <Button variant="outline" size="sm" className="flex-1" onClick={onOpenSizing}>
-          <Calculator className="h-4 w-4" />
-          Dimensionamento
+      <div className="mt-auto space-y-2 pt-1">
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={stopAnd(onOpen)}>
+            <Pencil className="h-4 w-4" />
+            Editar
+          </Button>
+          <Button variant="outline" size="sm" className="flex-1" onClick={stopAnd(onOpenSizing)}>
+            <Calculator className="h-4 w-4" />
+            Dimensionamento
+          </Button>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={!hasSolution}
+          title={hasSolution ? undefined : 'Calcule uma solução para este projeto antes de compartilhar o relatório.'}
+          onClick={stopAnd(onDownloadPdf)}
+        >
+          <Share2 className="h-4 w-4" />
+          Compartilhar Relatório
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Rich, read-only summary of a saved project selected from the list —
+ * lets the user inspect a project's own solution without loading it into
+ * the editor (which "Abrir" already does). Rendered in the shell's summary
+ * panel in place of the live "Configuração salva junto" summary. */
+function SelectedProjectSummary({
+  project,
+  client,
+  batteryCatalog,
+  userStockItems,
+  onClose,
+}: {
+  project: SavedProject;
+  client: Client | undefined;
+  batteryCatalog: BatteryCatalogOption[];
+  userStockItems: UserStockItem[];
+  onClose: () => void;
+}) {
+  const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
+  const systemCost = project.solution ? calculateSystemCost(project.solution, userStockItems) : null;
+  const { batteryModel, gridType, loads } = project.residentialOptions;
+  const batteryParts = project.solution
+    ? batteryQuantityBreakdown(
+        project.solution.batteryModel,
+        project.solution.batteryQty,
+        batteryCatalog,
+        (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
+      )
+    : [];
+  const [copied, setCopied] = useState(false);
+
+  async function copyProjectData() {
+    const text = buildProjectShareText(project, client?.name, batteryCatalog);
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-semibold">{project.name}</h2>
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Users className="h-3 w-3 shrink-0" />
+            <span className="truncate">{client?.name || 'Cliente não informado'}</span>
+          </p>
+          {client?.phone && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client.phone}</span>
+            </p>
+          )}
+          {client?.email && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client.email}</span>
+            </p>
+          )}
+        </div>
+        <Button variant="ghost" size="icon-sm" aria-label="Fechar resumo do projeto" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {project.address && <p className="text-xs text-muted-foreground">{project.address}</p>}
+
+      <Separator />
+
+      <ul className="space-y-2 text-sm">
+        <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
+        <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
+        <Requirement done={loads.length > 0} label={`${loads.length} carga(s) cadastrada(s)`} />
+      </ul>
+
+      {metrics && project.solution && (
+        <>
+          <Separator />
+          {systemCost && systemCost.pricedItemsCount > 0 && (
+            <div className="rounded-lg border bg-background p-2.5">
+              <p className="text-xs text-muted-foreground">Valor da solução</p>
+              <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
+              {!systemCost.isComplete && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
+                  estoque.
+                </p>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            <Metric
+              icon={Gauge}
+              label="Nominal"
+              value={metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'}
+              unit="kVA"
+            />
+            <Metric
+              icon={Zap}
+              label="Máxima"
+              value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
+              unit="kVA"
+            />
+            <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" />
+          </div>
+          <div className="space-y-2.5 rounded-lg border bg-background p-2.5 text-xs text-muted-foreground">
+            <div className="space-y-1">
+              <p>
+                Inversor <span className="font-medium text-foreground">{project.solution.inverterModel}</span>
+              </p>
+              {batteryParts.map((part, index) => (
+                <p key={part.model}>
+                  {index === 0 ? 'Bateria' : 'Bateria (expansão)'}{' '}
+                  <span className="font-medium text-foreground">
+                    {part.model} × {part.qty}
+                  </span>
+                </p>
+              ))}
+              {project.solution.pvPowerKw ? (
+                <p>
+                  Fotovoltaico <span className="font-medium text-foreground">{project.solution.pvPowerKw.toFixed(2)} kWp</span>
+                </p>
+              ) : null}
+            </div>
+
+            {project.solution.accessories.length > 0 && (
+              <>
+                <Separator />
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">Acessórios</p>
+                  {project.solution.accessories.map((accessory) => {
+                    const { model, qty, optional, bundled, appliesTo } = normalizeAccessoryLine(accessory);
+                    return (
+                      <div key={model} className="flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          {model}
+                          {qty !== 1 ? ` × ${qty}` : ''}
+                        </span>
+                        <span className="shrink-0 text-[0.7rem]">
+                          {bundled
+                            ? appliesTo === 'inverter'
+                              ? 'Incluso no inversor'
+                              : appliesTo === 'battery'
+                                ? 'Incluso na bateria'
+                                : 'Incluso'
+                            : optional
+                              ? 'Opcional'
+                              : 'Obrigatório'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {!project.solution && (
+        <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          Este projeto ainda não tem uma solução calculada.
+        </p>
+      )}
+
+      <Separator />
+
+      <Button variant="outline" size="sm" className="w-full" onClick={copyProjectData}>
+        {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+        {copied ? 'Dados copiados!' : 'Copiar dados'}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Copia um resumo do projeto para colar no WhatsApp e pedir um orçamento ao vendedor.
+      </p>
+
+      <Separator />
+      <p className="text-xs text-muted-foreground">
+        Atualizado em{' '}
+        {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(project.updatedAt))}
+      </p>
+    </>
   );
 }

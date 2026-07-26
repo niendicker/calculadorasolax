@@ -340,6 +340,18 @@ describe('loadProject', () => {
     expect(s.residentialOptions.loads[0]).not.toBe(saved.residentialOptions.loads[0]);
   });
 
+  it('loads the project data without opening the edit draft when showDetails is false', () => {
+    const saved = makeSavedProject({ id: 'p1', name: 'Casa de praia' });
+    useWizardStore.setState({ savedProjects: [saved], projectDetailsVisible: false });
+
+    useWizardStore.getState().loadProject('p1', { showDetails: false });
+
+    const s = useWizardStore.getState();
+    expect(s.currentProjectId).toBe('p1');
+    expect(s.projectDetailsVisible).toBe(false);
+    expect(s.projectInfo.name).toBe('Casa de praia');
+  });
+
   it('is a no-op when the id does not match any saved project', () => {
     useWizardStore.setState({ savedProjects: [makeSavedProject({ id: 'p1' })] });
 

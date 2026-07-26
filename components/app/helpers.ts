@@ -1,5 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
+import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import type {
   AccessoryLine,
   DesiredFeatureId,
@@ -7,11 +8,13 @@ import type {
   MicrogridConfig,
   PvConfig,
   ResidentialGridType,
+  SavedProject,
   Solution,
   StockProductType,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
+import { gridLabels, topologyLabels } from './types';
 
 /** Network phases/voltage implied by each ResidentialGridType, so the
  * Microrrede/Gerador Externo phase+voltage selection can be checked against
@@ -392,6 +395,74 @@ export function buildPdfFileName(projectName: string, date: Date = new Date()): 
     .replace(/\s+/g, '_');
   const isoDate = date.toISOString().slice(0, 10);
   return `${safeName || 'projeto'}_${isoDate}`;
+}
+
+/** Plain-text, WhatsApp-friendly (using its *bold* markup) summary of a
+ * saved project — meant for the customer to copy from their project summary
+ * and paste to their own salesperson when asking for a quote on that exact
+ * configuration/solution, so it needs to stand on its own without the app
+ * open (same spirit as PrintableReport, just as short-form text instead of
+ * a full PDF). */
+export function buildProjectShareText(
+  project: SavedProject,
+  clientName: string | undefined,
+  batteryCatalog: { model: string; standardPowerKw: number | null; peakPowerKw: number | null; expansionModel?: string | null }[]
+): string {
+  const { topology, gridType, loads, operationHours, peakCalcMode } = project.residentialOptions;
+  const peakW = totalPeakW(loads, peakCalcMode ?? 'sum');
+  const dailyKwh = totalDailyKwh(loads, operationHours);
+
+  const lines: string[] = [`*Projeto: ${project.name || 'Sem nome'}*`];
+  if (clientName) lines.push(`Cliente: ${clientName}`);
+  if (project.address) lines.push(`Endereço: ${project.address}`);
+
+  lines.push('', '*Configuração:*');
+  if (topology) lines.push(`- Topologia: ${topologyLabels[topology]}`);
+  if (gridType) lines.push(`- Rede: ${gridLabels[gridType]}`);
+  lines.push(`- ${loads.length} carga(s) cadastrada(s)`);
+  lines.push(`- Pico: ${(peakW / 1000).toFixed(2)} kVA`);
+  lines.push(`- Consumo: ${dailyKwh.toFixed(2)} kWh/dia`);
+
+  if (project.solution) {
+    const metrics = solutionMetrics(project.solution, batteryCatalog);
+    const batteryParts = batteryQuantityBreakdown(
+      project.solution.batteryModel,
+      project.solution.batteryQty,
+      batteryCatalog,
+      (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
+    );
+
+    lines.push('', '*Solução recomendada:*');
+    lines.push(`- Inversor: ${project.solution.inverterModel}`);
+    batteryParts.forEach((part, index) => {
+      lines.push(`- Bateria${index > 0 ? ' (expansão)' : ''}: ${part.model} × ${part.qty}`);
+    });
+    if (project.solution.pvPowerKw) lines.push(`- Fotovoltaico: ${project.solution.pvPowerKw.toFixed(2)} kWp`);
+    lines.push(
+      `- Nominal: ${metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'} kVA · Máxima: ${
+        metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'
+      } kVA · Energia: ${metrics.energyKwh.toFixed(2)} kWh`
+    );
+
+    // Bundled accessories (already included with the inverter/battery) aren't
+    // something the salesperson needs to quote separately, so they're left
+    // out of the share text — only standalone required/optional items go in.
+    const quotableAccessories = project.solution.accessories
+      .map((accessory) => normalizeAccessoryLine(accessory))
+      .filter((accessory) => !accessory.bundled);
+    if (quotableAccessories.length > 0) {
+      lines.push('', '*Acessórios:*');
+      for (const { model, qty, optional } of quotableAccessories) {
+        lines.push(`- ${model}${qty !== 1 ? ` × ${qty}` : ''} (${optional ? 'opcional' : 'obrigatório'})`);
+      }
+    }
+  } else {
+    lines.push('', 'Solução ainda não calculada.');
+  }
+
+  lines.push('', 'Poderia me passar um orçamento para essa solução?');
+
+  return lines.join('\n');
 }
 
 export interface TariffSavingsEstimate {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Client, ProjectInfo, SavedProject } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
@@ -45,6 +45,8 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     currentProjectId: null,
     savedProjects: [] as SavedProject[],
     clients: [] as Client[],
+    batteryCatalog: [],
+    userStockItems: [],
     initialLoading: false,
     projectStatus: null,
     topology: null,
@@ -62,7 +64,9 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     onOpenSizing: vi.fn(),
     onRemove: vi.fn(),
     onDuplicate: vi.fn(),
+    onDownloadPdf: vi.fn(),
     onManageClients: vi.fn(),
+    onShowSummary: vi.fn(),
     ...overrides,
   };
   const utils = renderWithShell(<ProjectTab {...props} />);
@@ -102,6 +106,119 @@ describe('ProjectTab: empty and list states', () => {
 
     expect(screen.getByText('Casa de praia')).toBeInTheDocument();
     expect(screen.queryByText('Escritório')).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectTab: aggregate stats, filtering and sorting', () => {
+  it('shows a stats line with the project count, how many have a solution, and the total priced value', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+        makeProject({ id: 'p2', name: 'Escritório' }),
+      ],
+      userStockItems: [
+        { id: 's1', productType: 'inverter', productModel: 'X1-Hybrid', unitValue: 8000, createdAt: '', updatedAt: '' },
+      ],
+    });
+
+    expect(screen.getByText('2 projetos')).toBeInTheDocument();
+    expect(screen.getByText('1 com solução calculada')).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*8\.000,00/)).toBeInTheDocument();
+  });
+
+  it('filters the list to only projects with (or without) a calculated solution', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+        makeProject({ id: 'p2', name: 'Escritório' }),
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Com solução' }));
+    expect(screen.getByText('Casa de praia')).toBeInTheDocument();
+    expect(screen.queryByText('Escritório')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Sem solução' }));
+    expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
+    expect(screen.getByText('Escritório')).toBeInTheDocument();
+  });
+
+  it('sorts the list by name when "Nome (A-Z)" is chosen', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Zebra' }), makeProject({ id: 'p2', name: 'Alpha' })],
+    });
+
+    fireEvent.change(screen.getByLabelText('Ordenar projetos'), { target: { value: 'name' } });
+
+    const names = screen.getAllByText(/^(Zebra|Alpha)$/).map((el) => el.textContent);
+    expect(names).toEqual(['Alpha', 'Zebra']);
+  });
+
+  it("shows the linked client's phone and email on the card", () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c1' })],
+      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 99999-0000', email: 'ana@example.com' } as Client],
+    });
+
+    expect(screen.getByText('(11) 99999-0000')).toBeInTheDocument();
+    expect(screen.getByText('ana@example.com')).toBeInTheDocument();
+  });
+
+  it('flags a project without a solution as stale once it has been idle for a week', () => {
+    const staleDate = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', updatedAt: staleDate, solution: null })],
+    });
+
+    expect(screen.getByText(/Parado há 10 dias/)).toBeInTheDocument();
+  });
+
+  it('does not flag a project as stale when it already has a calculated solution', () => {
+    const staleDate = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          updatedAt: staleDate,
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+    });
+
+    expect(screen.queryByText(/Parado há/)).not.toBeInTheDocument();
   });
 });
 
@@ -185,9 +302,9 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
   });
 
-  it('clicking Abrir on a saved project delegates to onOpen with its id', () => {
+  it('clicking Editar on a saved project delegates to onOpen with its id', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     expect(props.onOpen).toHaveBeenCalledWith('p1');
   });
 
@@ -201,6 +318,284 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     fireEvent.click(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' }));
     expect(props.onDuplicate).toHaveBeenCalledWith('p1');
+  });
+});
+
+describe('ProjectTab: selecting a project without opening it', () => {
+  function clickCard(name: string) {
+    const card = screen.getAllByText(name).map((el) => el.closest('[role="button"]')).find(Boolean);
+    if (!card) throw new Error(`Card for "${name}" not found`);
+    fireEvent.click(card);
+  }
+
+  it('shows a rich read-only summary in the side panel when a card is selected', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          clientId: 'c1',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 2,
+            pvPowerKw: 5,
+            accessories: [],
+          },
+        }),
+      ],
+      clients: [{ id: 'c1', name: 'Ana Souza' } as Client],
+    });
+
+    clickCard('Casa de praia');
+
+    expect(screen.getByText('Inversor')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+  });
+
+  it('shows the solution value priced from the user stock, flagging a partial total when an item has no price', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      userStockItems: [
+        {
+          id: 'stock1',
+          productType: 'inverter',
+          productModel: 'X1-Hybrid',
+          unitValue: 8000,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+    });
+
+    clickCard('Casa de praia');
+
+    const label = screen.getByText('Valor da solução');
+    expect(label).toBeInTheDocument();
+    expect(within(label.parentElement!).getByText(/R\$\s*8\.000,00/)).toBeInTheDocument();
+    expect(screen.getByText(/Preço parcial: 1 de 2 itens/)).toBeInTheDocument();
+  });
+
+  it('splits master and expansion battery units into separate lines', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'T58 Master',
+            batteryQty: 3,
+            batteryPortsUsed: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      batteryCatalog: [
+        {
+          id: 'bat1',
+          model: 'T58 Master',
+          capacityKwh: 5.8,
+          topology: 'HV',
+          standardPowerKw: 5,
+          peakPowerKw: 6,
+          minSocPercent: 10,
+          expansionModel: 'T58 Slave',
+          imageUrl: null,
+          documents: [],
+        },
+      ],
+    });
+
+    clickCard('Casa de praia');
+
+    expect(screen.getByText('Bateria')).toBeInTheDocument();
+    expect(screen.getByText('T58 Master × 1')).toBeInTheDocument();
+    expect(screen.getByText('Bateria (expansão)')).toBeInTheDocument();
+    expect(screen.getByText('T58 Slave × 2')).toBeInTheDocument();
+  });
+
+  it('marks bundled accessories as included with the inverter/battery in the summary', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [
+              { model: 'WiFi Dongle', qty: 1, optional: false, appliesTo: 'inverter', comment: null, bundled: true },
+              { model: 'CT Clamp', qty: 2, optional: false, appliesTo: 'battery', comment: null, bundled: true },
+              { model: 'Disjuntor CA', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false },
+            ],
+          },
+        }),
+      ],
+    });
+
+    clickCard('Casa de praia');
+
+    expect(screen.getByText('WiFi Dongle')).toBeInTheDocument();
+    expect(screen.getByText('Incluso no inversor')).toBeInTheDocument();
+    expect(screen.getByText('CT Clamp × 2')).toBeInTheDocument();
+    expect(screen.getByText('Incluso na bateria')).toBeInTheDocument();
+    expect(screen.getByText('Disjuntor CA')).toBeInTheDocument();
+    expect(screen.getByText('Obrigatório')).toBeInTheDocument();
+  });
+
+  it('"Copiar dados" copies a WhatsApp-friendly summary to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          clientId: 'c1',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      clients: [{ id: 'c1', name: 'Ana Souza' } as Client],
+    });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copiedText = writeText.mock.calls[0][0] as string;
+    expect(copiedText).toContain('Casa de praia');
+    expect(copiedText).toContain('Ana Souza');
+    expect(copiedText).toContain('X1-Hybrid');
+    expect(copiedText).toContain('orçamento');
+
+    expect(await screen.findByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+  });
+
+  it('"Copiar dados" omits bundled accessories from the copied text, keeping only quotable ones', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [
+              { model: 'WiFi Dongle', qty: 1, optional: false, appliesTo: 'inverter', comment: null, bundled: true },
+              { model: 'Disjuntor CA', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false },
+            ],
+          },
+        }),
+      ],
+    });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copiedText = writeText.mock.calls[0][0] as string;
+    expect(copiedText).not.toContain('WiFi Dongle');
+    expect(copiedText).toContain('Disjuntor CA');
+  });
+
+  it('clicking the selected card again clears the selection', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    clickCard('Casa de praia');
+    expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+
+    clickCard('Casa de praia');
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
+  });
+
+  it('brings the summary panel into view (e.g. the mobile drawer) when a project is selected', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    clickCard('Casa de praia');
+    expect(props.onShowSummary).toHaveBeenCalledTimes(1);
+
+    clickCard('Casa de praia');
+    expect(props.onShowSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trigger selection when clicking the card action buttons', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+
+    expect(props.onOpen).toHaveBeenCalledWith('p1');
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectTab: downloading a PDF from the card', () => {
+  it('is disabled when the project has no calculated solution', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', solution: null })] });
+    expect(screen.getByRole('button', { name: 'Compartilhar Relatório' })).toBeDisabled();
+  });
+
+  it('delegates to onDownloadPdf with the project id when a solution exists', () => {
+    const { props } = setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 2,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar Relatório' }));
+    expect(props.onDownloadPdf).toHaveBeenCalledWith('p1');
   });
 });
 

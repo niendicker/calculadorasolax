@@ -56,7 +56,11 @@ interface WizardStore {
   newProjectDraft: () => void;
   cancelProjectDraft: () => void;
   saveCurrentProject: () => Promise<SavedProject>;
-  loadProject: (id: string) => void;
+  /** `showDetails` (default true) controls whether this also opens the
+   * project-editing draft card — pass false for a "quiet" load that just
+   * brings the project's data into the live wizard state (e.g. to generate
+   * its PDF report) without switching the Projeto tab into edit mode. */
+  loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<SavedProject>;
   fetchProjects: () => Promise<void>;
@@ -326,14 +330,14 @@ export const useWizardStore = create<WizardStore>()(
         return saved;
       },
 
-      loadProject: (id) =>
+      loadProject: (id, options) =>
         set((s) => {
           const project = s.savedProjects.find((item) => item.id === id);
           if (!project) return {};
 
           return {
             currentProjectId: project.id,
-            projectDetailsVisible: true,
+            projectDetailsVisible: options?.showDetails ?? true,
             projectInfo: {
               name: project.name,
               clientId: project.clientId,
@@ -852,7 +856,10 @@ export const useWizardStore = create<WizardStore>()(
       partialize: (state) => ({
         projectInfo: state.projectInfo,
         currentProjectId: state.currentProjectId,
-        projectDetailsVisible: state.projectDetailsVisible,
+        // Deliberately not persisted: a project left open in edit mode
+        // (e.g. via "Editar" or mid-draft) shouldn't still be in edit mode
+        // after a page reload — reloading the Projeto tab should always
+        // start from the read-only list.
         residentialOptions: state.residentialOptions,
         industrialOptions: state.industrialOptions,
         solution: state.solution,
