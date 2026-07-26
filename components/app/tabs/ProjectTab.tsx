@@ -244,7 +244,12 @@ export function ProjectTab({
       )}
 
       <div className="space-y-3">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div
+          className={cn(
+            'flex flex-col gap-3 rounded-lg border bg-card p-3',
+            savedProjects.length > 0 && 'lg:flex-row lg:items-center lg:justify-between'
+          )}
+        >
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <h2 className="text-sm font-semibold">Projetos salvos</h2>
             {savedProjects.length > 0 && (
@@ -262,12 +267,12 @@ export function ProjectTab({
           </div>
 
           {savedProjects.length > 0 && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="sm:w-52">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+              <div className="w-full shrink-0 sm:w-52">
                 <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Filtrar por solução">
+                <div className="flex h-10 items-center gap-1 rounded-lg bg-muted p-1 md:h-8" role="tablist" aria-label="Filtrar por solução">
                   {(
                     [
                       { value: 'all', label: 'Todos' },
@@ -282,7 +287,7 @@ export function ProjectTab({
                       aria-selected={statusFilter === option.value}
                       onClick={() => setStatusFilter(option.value)}
                       className={cn(
-                        'rounded-md px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'flex h-full items-center rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         statusFilter === option.value
                           ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                           : 'text-muted-foreground hover:text-foreground'
@@ -296,7 +301,7 @@ export function ProjectTab({
                   aria-label="Ordenar projetos"
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                  className="h-8 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-10 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8"
                 >
                   <option value="recent">Mais recentes</option>
                   <option value="name">Nome (A-Z)</option>

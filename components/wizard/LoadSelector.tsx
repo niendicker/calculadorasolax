@@ -451,7 +451,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     }
     setLoadLimitMessage(null);
     preset.loads.forEach((load) => addLoad(newLoad(load)));
-    setActiveSubTab('catalog');
   }
 
   async function handleSaveCurrentAsPreset() {

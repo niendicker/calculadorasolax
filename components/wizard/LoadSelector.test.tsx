@@ -112,15 +112,14 @@ describe('LoadSelector: collapsible sections', () => {
 });
 
 describe('LoadSelector: adding from a system preset', () => {
-  it('adds every load from the preset and switches to the Catálogo tab', () => {
+  it('adds every load from the preset and stays on the Predefinições tab', () => {
     renderLoadSelector();
 
     fireEvent.click(screen.getByRole('button', { name: /Residencial essencial/ }));
 
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
     expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ name: 'Chuveiro elétrico', powerW: 5500 });
-    // handleAddPreset switches to the Catálogo tab afterwards.
-    expect(screen.getByRole('tab', { name: 'Catálogo' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('shows a specific message when the preset does not fully fit the remaining capacity', () => {
