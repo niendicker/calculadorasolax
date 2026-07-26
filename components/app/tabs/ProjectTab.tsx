@@ -344,44 +344,46 @@ export function ProjectTab({
           </div>
 
           {savedProjects.length > 0 && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="flex h-10 items-center gap-1 rounded-lg bg-muted p-1 md:h-8" role="tablist" aria-label="Filtrar por solução">
-                {(
-                  [
-                    { value: 'all', label: 'Todos' },
-                    { value: 'with', label: 'Com solução' },
-                    { value: 'without', label: 'Sem solução' },
-                  ] as const
-                ).map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="tab"
-                    aria-selected={statusFilter === option.value}
-                    onClick={() => setStatusFilter(option.value)}
-                    className={cn(
-                      'flex h-full items-center rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                      statusFilter === option.value
-                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <select
-                aria-label="Ordenar projetos"
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                className="h-10 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8"
-              >
-                <option value="recent">Mais recentes</option>
-                <option value="name">Nome (A-Z)</option>
-                <option value="client">Cliente (A-Z)</option>
-              </select>
+            <div className="flex flex-col items-end gap-2">
               <div className="w-full shrink-0 sm:w-52">
                 <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex h-10 items-center gap-1 rounded-lg bg-muted p-1 md:h-8" role="tablist" aria-label="Filtrar por solução">
+                  {(
+                    [
+                      { value: 'all', label: 'Todos' },
+                      { value: 'with', label: 'Com solução' },
+                      { value: 'without', label: 'Sem solução' },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={statusFilter === option.value}
+                      onClick={() => setStatusFilter(option.value)}
+                      className={cn(
+                        'flex h-full items-center rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        statusFilter === option.value
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  aria-label="Ordenar projetos"
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+                  className="h-10 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8"
+                >
+                  <option value="recent">Mais recentes</option>
+                  <option value="name">Nome (A-Z)</option>
+                  <option value="client">Cliente (A-Z)</option>
+                </select>
               </div>
             </div>
           )}
