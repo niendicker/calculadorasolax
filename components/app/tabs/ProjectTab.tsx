@@ -5,8 +5,9 @@ import {
   BatteryCharging,
   Calculator,
   Check,
-  Clock,
   ClipboardCopy,
+  ClipboardList,
+  Clock,
   Copy,
   Gauge,
   Mail,
@@ -27,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, SavedProject, UserStockItem } from '@/lib/types';
+import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import {
   batteryQuantityBreakdown,
@@ -190,8 +192,9 @@ export function ProjectTab({
             batteryCatalog={batteryCatalog}
             userStockItems={userStockItems}
             onClose={() => setSelectedProjectId(null)}
+            onOpenSizing={() => onOpenSizing(selectedProject.id)}
           />
-        ) : (
+        ) : projectDetailsVisible ? (
           <>
             <div>
               <h2 className="text-sm font-semibold">Configuração salva junto</h2>
@@ -209,6 +212,11 @@ export function ProjectTab({
               <Requirement done={hasSolution} label={hasSolution ? 'Solução calculada' : 'Solução ainda não calculada'} />
             </ul>
           </>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+            <ClipboardList className="h-8 w-8 text-muted-foreground/50" />
+            <p>Selecione um projeto na lista para ver o resumo, ou clique em &quot;Novo projeto&quot; para começar.</p>
+          </div>
         )}
       </PageSummary>
 
@@ -219,72 +227,73 @@ export function ProjectTab({
       )}
 
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold">Projetos salvos</h2>
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h2 className="text-sm font-semibold">Projetos salvos</h2>
+            {savedProjects.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {savedProjects.length} projeto{savedProjects.length !== 1 ? 's' : ''} · {projectsWithSolutionCount} com
+                solução calculada
+                {solutionsValue > 0 && (
+                  <>
+                    {' · '}Valor total:{' '}
+                    <span className="font-medium text-foreground">{formatCurrencyBRL(solutionsValue)}</span>
+                  </>
+                )}
+              </span>
+            )}
+          </div>
+
+          {savedProjects.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="sm:w-52">
+                <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Filtrar por solução">
+                  {(
+                    [
+                      { value: 'all', label: 'Todos' },
+                      { value: 'with', label: 'Com solução' },
+                      { value: 'without', label: 'Sem solução' },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={statusFilter === option.value}
+                      onClick={() => setStatusFilter(option.value)}
+                      className={cn(
+                        'rounded-md px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                        statusFilter === option.value
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  aria-label="Ordenar projetos"
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+                  className="h-8 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <option value="recent">Mais recentes</option>
+                  <option value="name">Nome (A-Z)</option>
+                  <option value="client">Cliente (A-Z)</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
         {initialLoading ? (
           <ProjectListSkeleton />
         ) : (
           <>
-            {savedProjects.length > 0 && (
-              <>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                  <span>
-                    {savedProjects.length} projeto{savedProjects.length !== 1 ? 's' : ''}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span>{projectsWithSolutionCount} com solução calculada</span>
-                  {solutionsValue > 0 && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>
-                        Valor total: <span className="font-medium text-foreground">{formatCurrencyBRL(solutionsValue)}</span>
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="max-w-xs flex-1">
-                    <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
-                  </div>
-                  <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Filtrar por solução">
-                    {(
-                      [
-                        { value: 'all', label: 'Todos' },
-                        { value: 'with', label: 'Com solução' },
-                        { value: 'without', label: 'Sem solução' },
-                      ] as const
-                    ).map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        role="tab"
-                        aria-selected={statusFilter === option.value}
-                        onClick={() => setStatusFilter(option.value)}
-                        className={cn(
-                          'rounded-md px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                          statusFilter === option.value
-                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  <select
-                    aria-label="Ordenar projetos"
-                    value={sortBy}
-                    onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                    className="h-8 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="recent">Mais recentes</option>
-                    <option value="name">Nome (A-Z)</option>
-                    <option value="client">Cliente (A-Z)</option>
-                  </select>
-                </div>
-              </>
-            )}
-
             {!projectDetailsVisible && savedProjects.length === 0 ? (
               <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 Nenhum projeto salvo ainda. Clique em &quot;Novo projeto&quot; para começar.
@@ -325,6 +334,7 @@ export function ProjectTab({
                       key={project.id}
                       project={project}
                       client={clients.find((client) => client.id === project.clientId)}
+                      userStockItems={userStockItems}
                       selected={project.id === selectedProjectId}
                       onSelect={() => {
                         const willSelect = selectedProjectId !== project.id;
@@ -465,6 +475,7 @@ function ProjectDraftCard({
 function ProjectCard({
   project,
   client,
+  userStockItems,
   selected,
   onSelect,
   onOpen,
@@ -475,6 +486,7 @@ function ProjectCard({
 }: {
   project: SavedProject;
   client: Client | undefined;
+  userStockItems: UserStockItem[];
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -486,6 +498,7 @@ function ProjectCard({
   const hasSolution = Boolean(project.solution);
   const idleDays = daysSince(project.updatedAt);
   const isStale = !hasSolution && idleDays >= STALE_AFTER_DAYS;
+  const systemCost = project.solution ? calculateSystemCost(project.solution, userStockItems) : null;
 
   function stopAnd(handler: () => void) {
     return (event: React.MouseEvent) => {
@@ -554,6 +567,13 @@ function ProjectCard({
             new Date(project.updatedAt)
           )}
         </p>
+        {systemCost && systemCost.pricedItemsCount > 0 && (
+          <p className="mt-0.5 text-xs">
+            <span className="text-muted-foreground">Valor: </span>
+            <span className="font-medium text-foreground">{formatCurrencyBRL(systemCost.totalCost)}</span>
+            {!systemCost.isComplete && <span className="text-muted-foreground"> (parcial)</span>}
+          </p>
+        )}
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Badge variant={hasSolution ? 'secondary' : 'outline'}>
             {hasSolution ? 'Solução calculada' : 'Sem solução calculada'}
@@ -613,12 +633,14 @@ function SelectedProjectSummary({
   batteryCatalog,
   userStockItems,
   onClose,
+  onOpenSizing,
 }: {
   project: SavedProject;
   client: Client | undefined;
   batteryCatalog: BatteryCatalogOption[];
   userStockItems: UserStockItem[];
   onClose: () => void;
+  onOpenSizing: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost = project.solution ? calculateSystemCost(project.solution, userStockItems) : null;
@@ -634,7 +656,20 @@ function SelectedProjectSummary({
   const [copied, setCopied] = useState(false);
 
   async function copyProjectData() {
-    const text = buildProjectShareText(project, client?.name, batteryCatalog);
+    const text = buildProjectShareText(
+      {
+        name: project.name,
+        address: project.address,
+        topology: project.residentialOptions.topology,
+        gridType: project.residentialOptions.gridType,
+        loadsCount: project.residentialOptions.loads.length,
+        peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+        dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
+        solution: project.solution,
+      },
+      client?.name,
+      batteryCatalog
+    );
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -768,6 +803,11 @@ function SelectedProjectSummary({
       )}
 
       <Separator />
+
+      <Button size="sm" className="w-full" onClick={onOpenSizing}>
+        <Calculator className="h-4 w-4" />
+        Ir para Dimensionamento
+      </Button>
 
       <Button variant="outline" size="sm" className="w-full" onClick={copyProjectData}>
         {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}

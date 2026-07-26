@@ -469,7 +469,7 @@ describe('setDesiredFeatures', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        whiteTariff: { requiredPowerW: 1000, requiredEnergyWh: 2000, includeBackupReserve: false, higherTariffPerKwh: 1.0, lowerTariffPerKwh: 0.5 },
+        whiteTariff: { requiredPowerW: 1000, pontaEnergyWh: 2000, intermediateEnergyWh: 0, includeBackupReserve: false, pontaTariffPerKwh: 1.0, intermediateTariffPerKwh: 0.95, foraPontaTariffPerKwh: 0.5 },
         microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
         generator: { voltageV: 220, phases: 1, apparentPowerVA: 1000, photoUrl: null, ownAtsAcknowledged: false },
         atsPhotoUrl: 'https://example.com/ats.jpg',
@@ -489,7 +489,7 @@ describe('setDesiredFeatures', () => {
   });
 
   it('keeps all configs when all their features stay selected', () => {
-    const whiteTariff = { requiredPowerW: 1000, requiredEnergyWh: 2000, includeBackupReserve: false, higherTariffPerKwh: 1.0, lowerTariffPerKwh: 0.5 };
+    const whiteTariff = { requiredPowerW: 1000, pontaEnergyWh: 2000, intermediateEnergyWh: 0, includeBackupReserve: false, pontaTariffPerKwh: 1.0, intermediateTariffPerKwh: 0.95, foraPontaTariffPerKwh: 0.5 };
     useWizardStore.setState((s) => ({
       residentialOptions: { ...s.residentialOptions, whiteTariff },
     }));
@@ -504,7 +504,7 @@ describe('setWhiteTariffConfig / setMicrogridConfig / setGeneratorConfig / setAt
   beforeEach(() => resetStore());
 
   it('sets each feature config independently', () => {
-    const whiteTariff = { requiredPowerW: 500, requiredEnergyWh: 1000, includeBackupReserve: true, higherTariffPerKwh: 0.8, lowerTariffPerKwh: 0.3 };
+    const whiteTariff = { requiredPowerW: 500, pontaEnergyWh: 1000, intermediateEnergyWh: 0, includeBackupReserve: true, pontaTariffPerKwh: 0.8, intermediateTariffPerKwh: 0.95, foraPontaTariffPerKwh: 0.3 };
     const microgrid = { voltageV: 220, onGridPhases: 3 as const, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true };
     const generator = { voltageV: 380, phases: 3 as const, apparentPowerVA: 8000, photoUrl: null, ownAtsAcknowledged: true };
 

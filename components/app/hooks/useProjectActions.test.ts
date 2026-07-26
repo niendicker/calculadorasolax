@@ -148,7 +148,7 @@ describe('useProjectActions: open/openSizing/delete', () => {
 
     act(() => result.current.openProjectSizing('p1'));
 
-    expect(props.loadProject).toHaveBeenCalledWith('p1');
+    expect(props.loadProject).toHaveBeenCalledWith('p1', { showDetails: false });
     expect(props.setActiveTab).toHaveBeenCalledWith('sizing');
     expect(result.current.projectStatus).toBe('Projeto carregado.');
   });

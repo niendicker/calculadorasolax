@@ -26,19 +26,30 @@ export type DesiredFeatureId =
   | 'pv'
   | 'white_tariff';
 
-/** Extra sizing/report inputs only used when 'white_tariff' is a desired feature. */
+/** Extra sizing/report inputs only used when 'white_tariff' is a desired feature.
+ * Tarifa Branca has three billing windows — ponta (peak), intermediária and
+ * fora ponta (off-peak) — each with its own R$/kWh rate. The battery is
+ * sized to cover both expensive windows (ponta + intermediária energy); fora
+ * ponta energy is never stored directly, it's derived as (total monthly
+ * consumption − ponta − intermediária) wherever it's needed (see
+ * calculateTariffSavings in helpers.ts). */
 export interface WhiteTariffConfig {
-  /** Power the system must sustain during the white-tariff peak window (W). */
+  /** Power the system must sustain during the white-tariff peak (ponta) window (W). */
   requiredPowerW: number;
-  /** Energy the battery must supply during the peak window (Wh). */
-  requiredEnergyWh: number;
-  /** When true, add the standard backup-energy reserve on top of requiredEnergyWh. */
+  /** Energy the battery must supply during the ponta window (Wh). */
+  pontaEnergyWh: number;
+  /** Energy the battery must supply during the intermediária window (Wh). */
+  intermediateEnergyWh: number;
+  /** When true, add the standard backup-energy reserve on top of pontaEnergyWh + intermediateEnergyWh. */
   includeBackupReserve: boolean;
-  /** Peak-window tariff (R$/kWh), as billed. */
-  higherTariffPerKwh: number;
-  /** Off-peak tariff (R$/kWh), as billed. The spread used for the report's
-   * savings estimate is derived as higherTariffPerKwh - lowerTariffPerKwh. */
-  lowerTariffPerKwh: number;
+  /** Ponta (peak) tariff (R$/kWh), as billed. */
+  pontaTariffPerKwh: number;
+  /** Intermediária tariff (R$/kWh), as billed. */
+  intermediateTariffPerKwh: number;
+  /** Fora ponta (off-peak) tariff (R$/kWh), as billed. The spreads used for
+   * the report's savings estimate are derived as pontaTariffPerKwh -
+   * foraPontaTariffPerKwh and intermediateTariffPerKwh - foraPontaTariffPerKwh. */
+  foraPontaTariffPerKwh: number;
 }
 
 /** Extra sizing inputs only used when 'microgrid' is a desired feature — describes

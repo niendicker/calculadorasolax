@@ -833,7 +833,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           </div>
           )}
           {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
-            <div className="rounded-md border bg-card p-3">
+            <div>
               <p className="text-xs font-medium">
                 <InfoLabel
                   label="Potência por fase"

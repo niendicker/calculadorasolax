@@ -8,6 +8,7 @@ import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { Solution, UserStockItem } from '@/lib/types';
+import { formatCurrencyBRL, TARIFF_BUSINESS_DAYS_PER_MONTH } from '../helpers';
 import { renderWithShell, Shell } from '../test-helpers/render-with-shell';
 import type { BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { SizingTab } from './SizingTab';
@@ -459,18 +460,20 @@ describe('SizingTab: summary panel', () => {
         ...emptyResidentialOptions,
         desiredFeatures: ['white_tariff'],
         whiteTariff: {
-          requiredPowerW: 6000,
-          requiredEnergyWh: 8000,
-          includeBackupReserve: false,
-          higherTariffPerKwh: 1.2,
-          lowerTariffPerKwh: 0.8,
-        },
+            requiredPowerW: 6000,
+            pontaEnergyWh: 8000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.2,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
       },
     });
     // Power floor is a plain max(), applied to both Nominal and Pico the same
     // way, so both cards land on the same 6.00 value; energy without
-    // includeBackupReserve is *replaced* by requiredEnergyWh (8000 Wh = 8.00
-    // kWh/dia), not added.
+    // includeBackupReserve is *replaced* by pontaEnergyWh + intermediateEnergyWh
+    // (8000 Wh = 8.00 kWh/dia), not added.
     const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
     expect(within(resumo).getAllByText('6.00')).toHaveLength(2);
     expect(within(resumo).getByText('8.00')).toBeInTheDocument();
@@ -486,18 +489,20 @@ describe('SizingTab: summary panel', () => {
         ...emptyResidentialOptions,
         desiredFeatures: ['backup', 'white_tariff'],
         whiteTariff: {
-          requiredPowerW: 500,
-          requiredEnergyWh: 8000,
-          includeBackupReserve: true,
-          higherTariffPerKwh: 1.2,
-          lowerTariffPerKwh: 0.8,
-        },
+            requiredPowerW: 500,
+            pontaEnergyWh: 8000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: true,
+            pontaTariffPerKwh: 1.2,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
       },
     });
     // Power floor (500W) is below the loads (1000W), so the loads value wins.
     const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
     expect(within(resumo).getByText('1.00')).toBeInTheDocument();
-    // Energy: requiredEnergyWh + base (8000 + 3000 = 11000 Wh = 11.00 kWh/dia).
+    // Energy: pontaEnergyWh + intermediateEnergyWh + base (8000 + 0 + 3000 = 11000 Wh = 11.00 kWh/dia).
     expect(within(resumo).getByText('11.00')).toBeInTheDocument();
   });
 
@@ -552,7 +557,7 @@ describe('SizingTab: summary panel', () => {
 describe('SizingTab: rede e configuração', () => {
   it('selects a grid type', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     const radiogroup = screen.getByRole('radiogroup', { name: 'Tipo de rede' });
     fireEvent.click(within(radiogroup).getByRole('radio', { name: 'Monofásico220V' }));
     expect(props.setGridType).toHaveBeenCalledWith('singlePhase_220');
@@ -560,7 +565,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('clicking the LV tab requests a topology switch (battery visibility follows the topology prop from the parent)', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
     fireEvent.click(screen.getByRole('button', { name: /^LV/ }));
     expect(props.setTopology).toHaveBeenCalledWith('LowVoltage');
@@ -568,7 +573,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('selects a battery already matching the active topology without re-requesting it', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, topology: 'LowVoltage' } });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByText('TP-LD53'));
@@ -582,7 +587,7 @@ describe('SizingTab: rede e configuração', () => {
       batteryCatalog: [battery, battery2, lvBattery],
       residentialOptions: { ...emptyResidentialOptions, topology: 'HighVoltage', batteryModel: 'TP-HS3.6' },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByText('TP-HS7.2'));
@@ -601,7 +606,7 @@ describe('SizingTab: rede e configuração', () => {
         secondaryBatteryModel: 'TP-HS7.2',
       },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     const card = screen.getAllByText('TP-HS3.6').find((el) => el.closest('[role="button"]'));
@@ -621,7 +626,7 @@ describe('SizingTab: rede e configuração', () => {
         secondaryBatteryModel: 'TP-HS7.2',
       },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByText('TP-HS7.2'));
@@ -641,7 +646,7 @@ describe('SizingTab: rede e configuração', () => {
         secondaryBatteryModel: 'TP-HS7.2',
       },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByText('TP-HS9.0'));
@@ -654,7 +659,7 @@ describe('SizingTab: rede e configuração', () => {
     const master: BatteryCatalogOption = { ...battery, model: 'T58 V2 Master', expansionModel: 'T58 Slave' };
     const slave: BatteryCatalogOption = { ...battery, id: 'b-slave', model: 'T58 Slave' };
     setup({ batteryCatalog: [master, slave, lvBattery] });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     expect(screen.getByText('T58 V2 Master')).toBeInTheDocument();
@@ -665,7 +670,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('selects an inverter model, and falls back to "Todos"', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: 'X1-Hybrid-5.0kW-G4' } });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
 
     fireEvent.click(screen.getByText('Todos'));
     expect(props.setInverterModel).toHaveBeenCalledWith(null);
@@ -673,7 +678,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('restricts inverter choices to availableInverterModels when given', () => {
     setup({ availableInverterModels: new Set(['some-other-model']) });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
     expect(screen.getByText('Nenhum inversor com solução aprovada para este tipo de rede.')).toBeInTheDocument();
   });
@@ -887,7 +892,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Tarifa Branca/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ requiredPowerW: 0, requiredEnergyWh: 0 })
+      expect.objectContaining({ requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0 })
     );
   });
 
@@ -1000,17 +1005,17 @@ describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling
 
   it('shows a warning icon on the Configurações main tab when no inverter is available for the current grid/battery combo', () => {
     setup({ availableInverterModels: new Set() });
-    expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Armazenamento de Energia' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
   it('does not show a warning icon on Configurações when there is at least one available inverter', () => {
     setup({ availableInverterModels: new Set(['X1-Hybrid-5.0kW-G4']) });
-    expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Armazenamento de Energia' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
   it('does not show a warning icon on Configurações before any grid/battery combo has narrowed the inverters down', () => {
     setup({ availableInverterModels: null });
-    expect(screen.getByRole('tab', { name: 'Configurações' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Armazenamento de Energia' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 });
 
@@ -1042,7 +1047,7 @@ describe('SizingTab: configuration summary row jumps', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Funcionalidades' }));
     expect(screen.getByRole('tab', { name: 'Funcionalidades' })).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
     expect(screen.getByRole('tab', { name: 'Inversores Híbridos' })).toHaveAttribute('aria-selected', 'true');
   });
@@ -1054,16 +1059,18 @@ describe('SizingTab: configuration summary row jumps', () => {
         desiredFeatures: ['external_generator', 'white_tariff', 'pv'],
         generator: { voltageV: 220, apparentPowerVA: 5000, phases: 1, photoUrl: null },
         whiteTariff: {
-          requiredPowerW: 0,
-          requiredEnergyWh: 0,
-          higherTariffPerKwh: 1.35,
-          lowerTariffPerKwh: 1,
-          includeBackupReserve: false,
-        },
+            requiredPowerW: 0,
+            pontaEnergyWh: 0,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.35,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 1,
+          },
       },
     });
     expect(screen.getByText('Ativado · 5000 VA')).toBeInTheDocument();
-    expect(screen.getByText('Ativado · R$ 1.35/1 por kWh')).toBeInTheDocument();
+    expect(screen.getByText('Ativado · R$ 1.35/0.95/1 por kWh')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fotovoltaico/ })).toHaveTextContent('Ativado');
   });
 });
@@ -1077,51 +1084,60 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     return props;
   }
 
-  it('updates white tariff power, energy, tariffs and the backup-reserve checkbox', () => {
+  it('updates white tariff power, energies, tariffs and the backup-reserve checkbox', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff');
     fireEvent.change(screen.getByLabelText('Potência (W)'), { target: { value: '3000' } });
     // 22 kWh/mês ÷ 22 dias úteis/mês = 1000 Wh/dia, a clean value to assert on.
-    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '22' } });
-    fireEvent.change(screen.getByLabelText('Tarifa maior (R$/kWh)'), { target: { value: '1.35' } });
-    fireEvent.change(screen.getByLabelText('Tarifa menor (R$/kWh)'), { target: { value: '0.85' } });
+    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '22' } });
+    fireEvent.change(screen.getByLabelText('Energia intermediária (kWh/mês)'), { target: { value: '11' } });
+    fireEvent.change(screen.getByLabelText('Tarifa ponta (R$/kWh)'), { target: { value: '1.35' } });
+    fireEvent.change(screen.getByLabelText('Tarifa intermediária (R$/kWh)'), { target: { value: '1.05' } });
+    fireEvent.change(screen.getByLabelText('Tarifa fora ponta (R$/kWh)'), { target: { value: '0.85' } });
     fireEvent.click(screen.getByLabelText('Reservar para backup das cargas'));
 
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredEnergyWh: 1000 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ higherTariffPerKwh: 1.35 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ lowerTariffPerKwh: 0.85 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaEnergyWh: 1000 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateEnergyWh: 500 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.35 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1.05 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.85 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
   });
 
-  it('shows the derived spread below the two tariff inputs', () => {
+  it('shows the derived ponta and intermediária spreads below the tariff inputs', () => {
     enable(/^Tarifa Branca/, 'white_tariff', {
       whiteTariff: {
-        requiredPowerW: 0,
-        requiredEnergyWh: 0,
-        higherTariffPerKwh: 1.35,
-        lowerTariffPerKwh: 0.85,
-        includeBackupReserve: false,
-      },
+            requiredPowerW: 0,
+            pontaEnergyWh: 0,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.35,
+            intermediateTariffPerKwh: 1.1,
+            foraPontaTariffPerKwh: 0.85,
+          },
     });
-    expect(screen.getByText('Diferença: R$ 0.50/kWh')).toBeInTheDocument();
+    expect(screen.getByText(/Diferença para fora ponta: R\$ 0.50\/kWh/)).toBeInTheDocument();
+    expect(screen.getByText(/Diferença para fora ponta: R\$ 0.25\/kWh/)).toBeInTheDocument();
   });
 
-  it('shows the white tariff energy field converted to kWh/mês, with the equivalent kWh/dia noted below', () => {
+  it('shows the white tariff ponta energy field converted to kWh/mês, with the equivalent kWh/dia noted below', () => {
     enable(/^Tarifa Branca/, 'white_tariff', {
       whiteTariff: {
-        requiredPowerW: 0,
-        requiredEnergyWh: 1000,
-        higherTariffPerKwh: 0,
-        lowerTariffPerKwh: 0,
-        includeBackupReserve: false,
-      },
+            requiredPowerW: 0,
+            pontaEnergyWh: 1000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 0,
+            intermediateTariffPerKwh: 0,
+            foraPontaTariffPerKwh: 0,
+          },
     });
-    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(22);
+    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(22);
     expect(screen.getByText('1.00 kWh/dia')).toBeInTheDocument();
   });
 
   it('keeps showing exactly what the user typed, instead of reformatting it into a lossy decimal on every keystroke', () => {
-    // requiredEnergyWh (Wh/dia) and the displayed kWh/mês only round-trip
+    // pontaEnergyWh (Wh/dia) and the displayed kWh/mês only round-trip
     // cleanly by coincidence (÷22 rarely lands on a round number) — the field
     // must echo the typed text, not a value recomputed from the rounded Wh
     // storage, or "100" would flicker into "99.99" as soon as it's typed.
@@ -1144,17 +1160,17 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       );
     }
 
-    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '1' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(1);
+    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(1);
 
-    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '10' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(10);
+    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(10);
 
-    fireEvent.change(screen.getByLabelText('Energia (kWh/mês)'), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '100' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Energia (kWh/mês)')).toHaveValue(100);
+    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(100);
   });
 
   it('updates microgrid power and phases (phase change auto-picks a valid voltage)', () => {
@@ -1711,7 +1727,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       batteryCatalog: [batteryWithImage, lvBattery],
       userStockItems: [{ id: 's1', productType: 'battery', productModel: batteryWithImage.model } as UserStockItem],
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     expect(screen.getByText('No catálogo')).toBeInTheDocument();
@@ -1729,7 +1745,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       documents: [{ name: 'Datasheet', url: 'https://cdn.example.com/doc.pdf' }],
     };
     setup({ batteryCatalog: [batteryWithDoc, lvBattery] });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Datasheet' }));
@@ -1741,7 +1757,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 
   it('selects a battery when no topology has been chosen yet', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     fireEvent.click(screen.getByText(battery.model));
@@ -1751,7 +1767,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 
   it('selects a battery via keyboard (Enter/Space) same as a click', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
 
     const card = screen.getByText(battery.model).closest('[role="button"]') as HTMLElement;
@@ -1768,7 +1784,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       inverterCatalog: [inverterWithImage],
       userStockItems: [{ id: 's2', productType: 'inverter', productModel: inverterWithImage.model } as UserStockItem],
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
 
     expect(screen.getByText('No catálogo')).toBeInTheDocument();
 
@@ -1785,7 +1801,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       documents: [{ name: 'Manual', url: 'https://cdn.example.com/manual.pdf' }],
     };
     setup({ inverterCatalog: [inverterWithDoc] });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Manual' }));
     expect(screen.getByRole('dialog', { name: 'Manual' })).toBeInTheDocument();
@@ -1796,7 +1812,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 
   it('selects "Todos" and an inverter via keyboard (Enter/Space), and via a plain click', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: inverter.model } });
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
 
     const allCard = screen.getByText('Todos').closest('[role="button"]') as HTMLElement;
     fireEvent.keyDown(allCard, { key: ' ' });
@@ -1835,22 +1851,62 @@ describe('SizingTab: Solução tab PV recommendation', () => {
   });
 });
 
+describe('SizingTab: PV recommendation above the inverter picker', () => {
+  // The sticky Resumo/Solução summary panel (a separate region of the page)
+  // already shows its own "FV recomendado" card whenever a solution exists,
+  // regardless of which config section is active — so these assertions are
+  // scoped to the Inversores Híbridos config section specifically, to tell
+  // "the new card next to the inverter picker" apart from that other one.
+  function inverterConfigSection() {
+    return screen.getByRole('radiogroup', { name: 'Tipo de rede' }).closest('.space-y-3.rounded-lg.border') as HTMLElement;
+  }
+
+  it('shows the FV recomendado card above Inversores Híbridos when pv is a desired feature', () => {
+    setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['pv'] },
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+
+    const section = inverterConfigSection();
+    expect(within(section).getByText('FV recomendado')).toBeInTheDocument();
+    expect(within(section).getByText('3.00 kWp')).toBeInTheDocument();
+  });
+
+  it('omits the card when pv is not a desired feature, even with a pvPowerKw estimate', () => {
+    setup({
+      residentialOptions: emptyResidentialOptions,
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+
+    const section = inverterConfigSection();
+    expect(within(section).queryByText('FV recomendado')).not.toBeInTheDocument();
+  });
+});
+
 describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
-  it('highlights the battery savings, leading with the annual figure and the monthly one de-emphasized', () => {
+  it('highlights the combined SolaX savings, leading with the annual figure and the monthly one de-emphasized', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
         whiteTariff: {
-          requiredPowerW: 0,
-          requiredEnergyWh: 0,
-          higherTariffPerKwh: 1.3,
-          lowerTariffPerKwh: 0.8,
-          includeBackupReserve: false,
-        },
+            requiredPowerW: 0,
+            pontaEnergyWh: 0,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
       },
       solution: fakeSolution,
     });
-    const heading = screen.getByText('Ganho com baterias (Tarifa Branca)');
+    const heading = screen.getByText('Ganho com SolaX');
     const card = heading.closest('div')!.parentElement!;
     expect(card).toHaveClass('border-primary/30', 'bg-primary/5');
     const value = within(card).getByText(/\/ano$/);
@@ -1863,12 +1919,14 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       residentialOptions: {
         ...emptyResidentialOptions,
         whiteTariff: {
-          requiredPowerW: 0,
-          requiredEnergyWh: 4000,
-          higherTariffPerKwh: 1.2,
-          lowerTariffPerKwh: 0.8,
-          includeBackupReserve: false,
-        },
+            requiredPowerW: 0,
+            pontaEnergyWh: 4000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.2,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
         pv: { monthlyConsumptionKwh: 400, hsp: 4.5 },
       },
       solution: fakeSolution,
@@ -1882,12 +1940,14 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       residentialOptions: {
         ...emptyResidentialOptions,
         whiteTariff: {
-          requiredPowerW: 0,
-          requiredEnergyWh: 4000,
-          higherTariffPerKwh: 1.2,
-          lowerTariffPerKwh: 0.8,
-          includeBackupReserve: false,
-        },
+            requiredPowerW: 0,
+            pontaEnergyWh: 4000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.2,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
       },
       solution: fakeSolution,
     });
@@ -1895,50 +1955,95 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
     expect(screen.queryByText(/Com SolaX/)).not.toBeInTheDocument();
   });
 
-  it('shows the estimated gain from PV generation, valued at the white tariff\'s off-peak rate', () => {
+  it('folds the PV generation gain into the combined SolaX figure, noting the solar-only portion', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
         whiteTariff: {
-          requiredPowerW: 0,
-          requiredEnergyWh: 0,
-          higherTariffPerKwh: 1.3,
-          lowerTariffPerKwh: 0.8,
-          includeBackupReserve: false,
-        },
+            requiredPowerW: 0,
+            pontaEnergyWh: 0,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
       },
+      // No ponta/intermediária need, so all PV generation is "excess", valued
+      // at fora ponta over the full 30 days: 450 kWh/mês * R$0.80/kWh = R$360/mês, R$4.320/ano.
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
-    const heading = screen.getByText('Ganho com geração solar');
+    const heading = screen.getByText('Ganho com SolaX');
     const card = heading.closest('div')!.parentElement!;
     expect(card).toHaveClass('border-primary/30', 'bg-primary/5');
-    // 450 kWh/month * R$0.80/kWh = R$360/month, R$4320/year.
-    expect(within(card).getByText(/4\.320,00\/ano/)).toBeInTheDocument();
-    expect(within(card).getByText(/360,00\/mês/)).toBeInTheDocument();
+    const paragraphs = Array.from(card.querySelectorAll('p')).map((p) => p.textContent);
+    expect(paragraphs.some((text) => text?.includes('4.320,00') && text?.includes('/ano'))).toBe(true);
+    expect(paragraphs.some((text) => text?.includes('360,00') && text?.includes('dias úteis/mês'))).toBe(true);
+    expect(paragraphs.some((text) => text?.includes('dos quais') && text?.includes('360,00') && text?.includes('de geração solar'))).toBe(true);
   });
 
-  it('omits the PV generation gain when white tariff is not configured', () => {
-    setup({
-      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
-    });
-    expect(screen.queryByText('Ganho com geração solar')).not.toBeInTheDocument();
-  });
-
-  it('omits the PV generation gain when the solution has no generation estimate', () => {
+  it('caps the PV generation credited at ponta/intermediária tariffs by the battery daily capacity', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
         whiteTariff: {
-          requiredPowerW: 0,
-          requiredEnergyWh: 0,
-          higherTariffPerKwh: 1.3,
-          lowerTariffPerKwh: 0.8,
-          includeBackupReserve: false,
-        },
+            requiredPowerW: 0,
+            pontaEnergyWh: 4000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
+      },
+      // Battery holds 3.24 kWh/dia (fakeSolution.availableEnergyWh); ponta needs 4 kWh/dia.
+      // PV generates 15 kWh/dia (450/30), far more than the battery can store, so only
+      // 3.24 kWh/dia gets credited at the ponta tariff, the rest at fora ponta.
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
+    });
+    const pontaShiftKwh = 3.24;
+    const remainingPontaGridKwh = 4 - pontaShiftKwh;
+    const dailyExcessSolarKwh = 15 - pontaShiftKwh;
+    const expectedPvMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * pontaShiftKwh * 1.3 + dailyExcessSolarKwh * 0.8 * 30;
+    const expectedMonthlySavings =
+      TARIFF_BUSINESS_DAYS_PER_MONTH * (pontaShiftKwh * 1.3 + remainingPontaGridKwh * (1.3 - 0.8)) + dailyExcessSolarKwh * 0.8 * 30;
+
+    const heading = screen.getByText('Ganho com SolaX');
+    const card = heading.closest('div')!.parentElement!;
+    const paragraphs = Array.from(card.querySelectorAll('p')).map((p) => p.textContent ?? '');
+    const monthlyText = formatCurrencyBRL(expectedMonthlySavings);
+    const pvText = formatCurrencyBRL(expectedPvMonthlySavings);
+    expect(paragraphs.some((text) => text.includes(monthlyText) && text.includes('dias úteis/mês'))).toBe(true);
+    expect(paragraphs.some((text) => text.includes('dos quais') && text.includes(pvText) && text.includes('de geração solar'))).toBe(
+      true
+    );
+  });
+
+  it('omits the combined SolaX card entirely when white tariff is not configured', () => {
+    setup({
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
+    });
+    expect(screen.queryByText('Ganho com SolaX')).not.toBeInTheDocument();
+  });
+
+  it('shows no solar-portion note when the solution has no generation estimate', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        whiteTariff: {
+            requiredPowerW: 0,
+            pontaEnergyWh: 0,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
       },
       solution: { ...fakeSolution, pvPowerKw: null, pvMonthlyGenerationKwh: null },
     });
-    expect(screen.queryByText('Ganho com geração solar')).not.toBeInTheDocument();
+    expect(screen.getByText('Ganho com SolaX')).toBeInTheDocument();
+    expect(screen.queryByText(/de geração solar/)).not.toBeInTheDocument();
   });
 });
 
@@ -2169,5 +2274,39 @@ describe('SizingTab: cargas', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 
     expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');
+  });
+});
+
+describe('SizingTab: Resumo tab "Copiar dados"', () => {
+  it('copies a WhatsApp-friendly summary of the current configuration and shows a preview of it', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    setup({
+      projectName: 'Casa de praia',
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        topology: 'HighVoltage',
+        gridType: 'singlePhase_220',
+        loads: [{ id: 'l1' }],
+      },
+      peakW: 3000,
+      dailyKwh: 12,
+      solution: fakeSolution,
+    });
+
+    // A fresh solution auto-jumps the summary panel to "Solução" — switch back to "Resumo".
+    fireEvent.click(screen.getByRole('tab', { name: /^Resumo/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copiedText = writeText.mock.calls[0][0] as string;
+    expect(copiedText).toContain('Casa de praia');
+    expect(copiedText).toContain('X1-Hybrid-5.0kW-G4');
+
+    expect(await screen.findByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+    expect(screen.getByText('Prévia do que foi copiado:')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === 'PRE' && element.textContent === copiedText)).toBeInTheDocument();
   });
 });

@@ -10,6 +10,8 @@ import {
   Calculator,
   Check,
   ChevronRight,
+  ClipboardCopy,
+  Clock,
   Eraser,
   FileText,
   FolderOpen,
@@ -19,6 +21,7 @@ import {
   Layers,
   ListChecks,
   Loader2,
+  Moon,
   Network,
   Package,
   Plug,
@@ -59,7 +62,7 @@ import { Tooltip, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip'
 import {
   batteryQuantityBreakdown,
   buildMarginSummary,
-  calculatePvGenerationSavings,
+  buildProjectShareText,
   calculateSystemCost,
   calculateTariffSavings,
   checkPhaseVoltageCompatibility,
@@ -202,6 +205,8 @@ export function SizingTab({
   const [activeFeatureTab, setActiveFeatureTab] = useState<DesiredFeatureId>('backup');
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
+  const [copied, setCopied] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const hasSecondaryBattery = Boolean(residentialOptions.secondaryBatteryModel);
   const effectiveBatteryTab = hasSecondaryBattery ? activeBatteryTab : 'primary';
@@ -293,6 +298,7 @@ export function SizingTab({
           desiredFeatures: residentialOptions.desiredFeatures,
           whiteTariff: residentialOptions.whiteTariff,
           microgrid: residentialOptions.microgrid,
+          pv: residentialOptions.pv,
           nominalW: backupNominalW,
           peakW: backupPeakW,
           dailyKwh: backupDailyKwh,
@@ -313,6 +319,7 @@ export function SizingTab({
     desiredFeatures: residentialOptions.desiredFeatures,
     whiteTariff: residentialOptions.whiteTariff,
     microgrid: residentialOptions.microgrid,
+    pv: residentialOptions.pv,
     nominalW: backupNominalW,
     peakW: backupPeakW,
     dailyKwh: backupDailyKwh,
@@ -469,16 +476,53 @@ export function SizingTab({
           <Separator />
         </div>
         {summaryTab === 'resumo' ? (
-          <ConfigurationSummary
-            residentialOptions={residentialOptions}
-            loadsCount={residentialOptions.loads.length}
-            onJumpToGridType={jumpToGridType}
-            onJumpToBattery={jumpToBattery}
-            onJumpToFeature={jumpToFeature}
-            peakW={peakW}
-            inverterCatalog={inverterCatalog}
-            availableInverterModels={availableInverterModels}
-          />
+          <div className="space-y-3">
+            <ConfigurationSummary
+              residentialOptions={residentialOptions}
+              loadsCount={residentialOptions.loads.length}
+              onJumpToGridType={jumpToGridType}
+              onJumpToBattery={jumpToBattery}
+              onJumpToFeature={jumpToFeature}
+              peakW={peakW}
+              inverterCatalog={inverterCatalog}
+              availableInverterModels={availableInverterModels}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={async () => {
+                const text = buildProjectShareText(
+                  {
+                    name: projectName || 'Sem nome',
+                    topology: residentialOptions.topology,
+                    gridType: residentialOptions.gridType,
+                    loadsCount: residentialOptions.loads.length,
+                    peakW,
+                    dailyKwh,
+                    solution,
+                  },
+                  undefined,
+                  batteryCatalog
+                );
+                await navigator.clipboard.writeText(text);
+                setCopiedText(text);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+              {copied ? 'Dados copiados!' : 'Copiar dados'}
+            </Button>
+            {copiedText && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Prévia do que foi copiado:</p>
+                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs text-muted-foreground">
+                  {copiedText}
+                </pre>
+              </div>
+            )}
+          </div>
         ) : (
           <>
             {activeError && (
@@ -556,7 +600,7 @@ export function SizingTab({
                   ) : (
                     <Settings className="h-5 w-5" aria-hidden="true" />
                   )}
-                  Configurações
+                  Armazenamento de Energia
                 </button>
               </div>
             </CardHeader>
@@ -670,6 +714,23 @@ export function SizingTab({
                         })}
                       </div>
 
+                      {residentialOptions.desiredFeatures.includes('pv') && activeSolution?.pvPowerKw != null && (
+                        <div className="rounded-lg border bg-background p-3">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Sun className="h-4 w-4 text-primary" />
+                            FV recomendado
+                          </div>
+                          <div className="mt-1 flex items-baseline gap-2">
+                            <p className="text-lg font-semibold">{activeSolution.pvPowerKw.toFixed(2)} kWp</p>
+                            {activeSolution.pvMonthlyGenerationKwh != null && (
+                              <p className="text-sm text-muted-foreground">
+                                · {activeSolution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <InverterModelPicker
                         inverters={inverterCatalog}
                         availableModels={availableInverterModels}
@@ -706,10 +767,12 @@ export function SizingTab({
 
 const emptyWhiteTariffConfig: WhiteTariffConfig = {
   requiredPowerW: 0,
-  requiredEnergyWh: 0,
+  pontaEnergyWh: 0,
+  intermediateEnergyWh: 0,
   includeBackupReserve: false,
-  higherTariffPerKwh: 0,
-  lowerTariffPerKwh: 0,
+  pontaTariffPerKwh: 0,
+  intermediateTariffPerKwh: 0,
+  foraPontaTariffPerKwh: 0,
 };
 
 const emptyMicrogridConfig: MicrogridConfig = {
@@ -1289,8 +1352,8 @@ function ConfigurationSummary({
       case 'external_generator':
         return generator?.apparentPowerVA ? `Ativado · ${generator.apparentPowerVA} VA` : 'Ativado';
       case 'white_tariff':
-        return whiteTariff?.higherTariffPerKwh || whiteTariff?.lowerTariffPerKwh
-          ? `Ativado · R$ ${whiteTariff.higherTariffPerKwh}/${whiteTariff.lowerTariffPerKwh} por kWh`
+        return whiteTariff?.pontaTariffPerKwh || whiteTariff?.intermediateTariffPerKwh || whiteTariff?.foraPontaTariffPerKwh
+          ? `Ativado · R$ ${whiteTariff.pontaTariffPerKwh}/${whiteTariff.intermediateTariffPerKwh}/${whiteTariff.foraPontaTariffPerKwh} por kWh`
           : 'Ativado';
       default:
         return 'Ativado';
@@ -1516,40 +1579,44 @@ const peakCalcModeLabels: Record<PeakCalcMode, string> = {
   select: 'Selecionar cargas',
 };
 
-function formatMonthlyKwh(requiredEnergyWh: number): string {
-  if (!requiredEnergyWh) return '';
-  return String(Math.round(((requiredEnergyWh * TARIFF_BUSINESS_DAYS_PER_MONTH) / 1000) * 100) / 100);
+function formatMonthlyKwh(energyWh: number): string {
+  if (!energyWh) return '';
+  return String(Math.round(((energyWh * TARIFF_BUSINESS_DAYS_PER_MONTH) / 1000) * 100) / 100);
 }
 
-/** Tarifa Branca's energy field takes kWh/mês from the user but the stored
- * value is Wh/dia (see TARIFF_BUSINESS_DAYS_PER_MONTH) — dividing by 22
- * doesn't round-trip to a clean number, so a naive `value={computed}` would
- * reformat what's on screen (e.g. "100" becoming "99.99") on every
- * keystroke. Buffers the raw text locally instead, only resyncing from
- * `requiredEnergyWh` when it changes for a reason other than this field's
- * own last edit (project load, feature reset, etc). */
+/** Tarifa Branca's energy fields (ponta, intermediária) take kWh/mês from the
+ * user but the stored value is Wh/dia (see TARIFF_BUSINESS_DAYS_PER_MONTH) —
+ * dividing by 22 doesn't round-trip to a clean number, so a naive
+ * `value={computed}` would reformat what's on screen (e.g. "100" becoming
+ * "99.99") on every keystroke. Buffers the raw text locally instead, only
+ * resyncing from `energyWh` when it changes for a reason other than this
+ * field's own last edit (project load, feature reset, etc). */
 function WhiteTariffEnergyField({
-  requiredEnergyWh,
+  id,
+  label,
+  energyWh,
   onChange,
 }: {
-  requiredEnergyWh: number;
-  onChange: (requiredEnergyWh: number) => void;
+  id: string;
+  label: string;
+  energyWh: number;
+  onChange: (energyWh: number) => void;
 }) {
-  const [text, setText] = useState(() => formatMonthlyKwh(requiredEnergyWh));
-  const lastEmittedRef = useRef(requiredEnergyWh);
+  const [text, setText] = useState(() => formatMonthlyKwh(energyWh));
+  const lastEmittedRef = useRef(energyWh);
 
   useEffect(() => {
-    if (requiredEnergyWh !== lastEmittedRef.current) {
-      lastEmittedRef.current = requiredEnergyWh;
-      setText(formatMonthlyKwh(requiredEnergyWh));
+    if (energyWh !== lastEmittedRef.current) {
+      lastEmittedRef.current = energyWh;
+      setText(formatMonthlyKwh(energyWh));
     }
-  }, [requiredEnergyWh]);
+  }, [energyWh]);
 
   return (
     <>
-      <Label htmlFor="whiteTariffEnergy">Energia (kWh/mês)</Label>
+      <Label htmlFor={id}>{label}</Label>
       <Input
-        id="whiteTariffEnergy"
+        id={id}
         type="number"
         min={0}
         step={0.01}
@@ -1563,7 +1630,7 @@ function WhiteTariffEnergyField({
           onChange(wh);
         }}
       />
-      {requiredEnergyWh ? <p className="text-xs text-muted-foreground">{(requiredEnergyWh / 1000).toFixed(2)} kWh/dia</p> : null}
+      {energyWh ? <p className="text-xs text-muted-foreground">{(energyWh / 1000).toFixed(2)} kWh/dia</p> : null}
     </>
   );
 }
@@ -1768,71 +1835,134 @@ function DesiredFeaturesPicker({
 
         {isActiveEnabled && activeTab === 'white_tariff' && (
           <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffPower">Potência (W)</Label>
-              <Input
-                id="whiteTariffPower"
-                type="number"
-                min={0}
-                placeholder="Ex.: 3000"
-                value={whiteTariff?.requiredPowerW || ''}
-                onChange={(event) =>
-                  onWhiteTariffChange({
-                    ...(whiteTariff ?? emptyWhiteTariffConfig),
-                    requiredPowerW: Number(event.target.value) || 0,
-                  })
-                }
-              />
+          <div className="space-y-1.5">
+            <Label htmlFor="whiteTariffPower">Potência (W)</Label>
+            <Input
+              id="whiteTariffPower"
+              type="number"
+              min={0}
+              placeholder="Ex.: 3000"
+              value={whiteTariff?.requiredPowerW || ''}
+              onChange={(event) =>
+                onWhiteTariffChange({
+                  ...(whiteTariff ?? emptyWhiteTariffConfig),
+                  requiredPowerW: Number(event.target.value) || 0,
+                })
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="rounded-lg border bg-background p-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Zap className="h-3.5 w-3.5 text-destructive" />
+                Ponta
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <WhiteTariffEnergyField
+                    id="whiteTariffPontaEnergy"
+                    label="Energia ponta (kWh/mês)"
+                    energyWh={whiteTariff?.pontaEnergyWh ?? 0}
+                    onChange={(pontaEnergyWh) =>
+                      onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), pontaEnergyWh })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="whiteTariffPonta">Tarifa ponta (R$/kWh)</Label>
+                  <Input
+                    id="whiteTariffPonta"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="Ex.: 1.20"
+                    value={whiteTariff?.pontaTariffPerKwh || ''}
+                    onChange={(event) =>
+                      onWhiteTariffChange({
+                        ...(whiteTariff ?? emptyWhiteTariffConfig),
+                        pontaTariffPerKwh: Number(event.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              {Boolean(whiteTariff?.pontaTariffPerKwh || whiteTariff?.foraPontaTariffPerKwh) && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Diferença para fora ponta: R${' '}
+                  {((whiteTariff?.pontaTariffPerKwh ?? 0) - (whiteTariff?.foraPontaTariffPerKwh ?? 0)).toFixed(2)}/kWh
+                </p>
+              )}
             </div>
-            <div className="space-y-1.5">
-              <WhiteTariffEnergyField
-                requiredEnergyWh={whiteTariff?.requiredEnergyWh ?? 0}
-                onChange={(requiredEnergyWh) =>
-                  onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), requiredEnergyWh })
-                }
-              />
+
+            <div className="rounded-lg border bg-background p-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Clock className="h-3.5 w-3.5 text-primary" />
+                Intermediária
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <WhiteTariffEnergyField
+                    id="whiteTariffIntermediateEnergy"
+                    label="Energia intermediária (kWh/mês)"
+                    energyWh={whiteTariff?.intermediateEnergyWh ?? 0}
+                    onChange={(intermediateEnergyWh) =>
+                      onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), intermediateEnergyWh })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="whiteTariffIntermediate">Tarifa intermediária (R$/kWh)</Label>
+                  <Input
+                    id="whiteTariffIntermediate"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="Ex.: 0.95"
+                    value={whiteTariff?.intermediateTariffPerKwh || ''}
+                    onChange={(event) =>
+                      onWhiteTariffChange({
+                        ...(whiteTariff ?? emptyWhiteTariffConfig),
+                        intermediateTariffPerKwh: Number(event.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              {Boolean(whiteTariff?.intermediateTariffPerKwh || whiteTariff?.foraPontaTariffPerKwh) && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Diferença para fora ponta: R${' '}
+                  {((whiteTariff?.intermediateTariffPerKwh ?? 0) - (whiteTariff?.foraPontaTariffPerKwh ?? 0)).toFixed(2)}/kWh
+                </p>
+              )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffHigher">Tarifa maior (R$/kWh)</Label>
-              <Input
-                id="whiteTariffHigher"
-                type="number"
-                min={0}
-                step={0.01}
-                placeholder="Ex.: 1.20"
-                value={whiteTariff?.higherTariffPerKwh || ''}
-                onChange={(event) =>
-                  onWhiteTariffChange({
-                    ...(whiteTariff ?? emptyWhiteTariffConfig),
-                    higherTariffPerKwh: Number(event.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="whiteTariffLower">Tarifa menor (R$/kWh)</Label>
-              <Input
-                id="whiteTariffLower"
-                type="number"
-                min={0}
-                step={0.01}
-                placeholder="Ex.: 0.75"
-                value={whiteTariff?.lowerTariffPerKwh || ''}
-                onChange={(event) =>
-                  onWhiteTariffChange({
-                    ...(whiteTariff ?? emptyWhiteTariffConfig),
-                    lowerTariffPerKwh: Number(event.target.value) || 0,
-                  })
-                }
-              />
+
+            <div className="rounded-lg border bg-background p-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Moon className="h-3.5 w-3.5 text-accent" />
+                Fora ponta
+              </p>
+              <div className="mt-2 max-w-[calc(50%-0.375rem)] space-y-1.5">
+                <Label htmlFor="whiteTariffForaPonta">Tarifa fora ponta (R$/kWh)</Label>
+                <Input
+                  id="whiteTariffForaPonta"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Ex.: 0.75"
+                  value={whiteTariff?.foraPontaTariffPerKwh || ''}
+                  onChange={(event) =>
+                    onWhiteTariffChange({
+                      ...(whiteTariff ?? emptyWhiteTariffConfig),
+                      foraPontaTariffPerKwh: Number(event.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Energia fora ponta é deduzida do consumo total informado em Fotovoltaico, descontando ponta e intermediária.
+              </p>
             </div>
           </div>
-          {Boolean(whiteTariff?.higherTariffPerKwh || whiteTariff?.lowerTariffPerKwh) && (
-            <p className="text-xs text-muted-foreground">
-              Diferença: R$ {((whiteTariff?.higherTariffPerKwh ?? 0) - (whiteTariff?.lowerTariffPerKwh ?? 0)).toFixed(2)}/kWh
-            </p>
-          )}
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -2636,8 +2766,11 @@ function ResultSummary({
   const totalBatteryPorts = (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1);
   const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog, totalBatteryPorts);
   const systemCost = calculateSystemCost(solution, userStockItems);
-  const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
-  const pvSavings = calculatePvGenerationSavings(whiteTariff, solution.pvMonthlyGenerationKwh);
+  const tariffSavings = calculateTariffSavings(whiteTariff, {
+    totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
+    availableEnergyWh: solution.availableEnergyWh ?? 0,
+    pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
+  });
 
   if (solution.microgridAlternative) {
     return (
@@ -2651,7 +2784,7 @@ function ResultSummary({
     );
   }
 
-  const marginRows = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, nominalW, peakW, dailyKwh, solution });
+  const marginRows = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
 
   return (
     <div className="space-y-3">
@@ -2777,7 +2910,7 @@ function ResultSummary({
         </div>
       )}
 
-      {(systemCost.pricedItemsCount > 0 || tariffSavings || pvSavings) && (
+      {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
         <div className="rounded-lg border bg-background p-3">
           <p className="text-sm font-medium">Análise econômica</p>
           <div className="mt-2 space-y-2 text-sm">
@@ -2796,30 +2929,23 @@ function ResultSummary({
               <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
                 <TrendingUp className="h-5 w-5 shrink-0 text-primary" />
                 <div>
-                  <p className="text-muted-foreground">Ganho com baterias (Tarifa Branca)</p>
+                  <p className="text-muted-foreground">Ganho com SolaX</p>
                   <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(tariffSavings.annualSavings)}/ano</p>
                   <p className="text-xs text-muted-foreground">
                     {formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · {tariffSavings.businessDaysPerMonth} dias úteis/mês
                   </p>
+                  {tariffSavings.pvMonthlySavings > 0 && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Sun className="h-3.5 w-3.5 shrink-0" />
+                      dos quais {formatCurrencyBRL(tariffSavings.pvMonthlySavings)}/mês de geração solar
+                    </p>
+                  )}
                   {tariffSavings.monthlyCostWithoutSolaxBrl != null && tariffSavings.monthlyCostWithSolaxBrl != null && (
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       Sem SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês · Com SolaX:{' '}
                       {formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês
                     </p>
                   )}
-                </div>
-              </div>
-            )}
-            {pvSavings && (
-              <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-                <Sun className="h-5 w-5 shrink-0 text-primary" />
-                <div>
-                  <p className="text-muted-foreground">Ganho com geração solar</p>
-                  <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(pvSavings.annualSavings)}/ano</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrencyBRL(pvSavings.monthlySavings)}/mês · {solution.pvMonthlyGenerationKwh?.toFixed(0)} kWh/mês a{' '}
-                    {formatCurrencyBRL(whiteTariff!.lowerTariffPerKwh)}/kWh
-                  </p>
                 </div>
               </div>
             )}

@@ -74,6 +74,19 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
 }
 
 describe('ProjectTab: empty and list states', () => {
+  it('shows a generic placeholder in the summary panel when no project is open or selected', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    expect(
+      screen.getByText('Selecione um projeto na lista para ver o resumo, ou clique em "Novo projeto" para começar.')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Configuração salva junto')).not.toBeInTheDocument();
+  });
+
+  it('shows the live "Configuração salva junto" summary while editing a project draft', () => {
+    setup({ projectDetailsVisible: true, currentProjectId: null });
+    expect(screen.getByText('Configuração salva junto')).toBeInTheDocument();
+  });
+
   it('shows the empty state and a "Novo projeto" button when there are no projects', () => {
     setup();
     expect(screen.getByText('Nenhum projeto salvo ainda. Clique em "Novo projeto" para começar.')).toBeInTheDocument();
@@ -133,9 +146,10 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
       ],
     });
 
-    expect(screen.getByText('2 projetos')).toBeInTheDocument();
-    expect(screen.getByText('1 com solução calculada')).toBeInTheDocument();
-    expect(screen.getByText(/R\$\s*8\.000,00/)).toBeInTheDocument();
+    expect(screen.getByText(/2 projetos/)).toBeInTheDocument();
+    expect(screen.getByText(/1 com solução calculada/)).toBeInTheDocument();
+    // One match in the aggregate stats line, one on the priced project's own card.
+    expect(screen.getAllByText(/R\$\s*8\.000,00/)).toHaveLength(2);
   });
 
   it('filters the list to only projects with (or without) a calculated solution', () => {
@@ -186,6 +200,38 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
 
     expect(screen.getByText('(11) 99999-0000')).toBeInTheDocument();
     expect(screen.getByText('ana@example.com')).toBeInTheDocument();
+  });
+
+  it("shows each project's own priced solution value on its card, flagging a partial total", () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      userStockItems: [
+        { id: 's1', productType: 'inverter', productModel: 'X1-Hybrid', unitValue: 8000, createdAt: '', updatedAt: '' },
+      ],
+    });
+
+    // One match in the aggregate stats line, one on the card itself.
+    expect(screen.getAllByText(/R\$\s*8\.000,00/)).toHaveLength(2);
+    expect(screen.getByText('(parcial)')).toBeInTheDocument();
+  });
+
+  it('omits the value line on the card when the project has no priced items', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    expect(screen.queryByText('Valor:')).not.toBeInTheDocument();
   });
 
   it('flags a project without a solution as stale once it has been idle for a week', () => {
@@ -354,6 +400,15 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Inversor')).toBeInTheDocument();
     expect(screen.getByText('X1-Hybrid')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+  });
+
+  it('"Ir para Dimensionamento" in the summary delegates to onOpenSizing with the selected project id', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Ir para Dimensionamento' }));
+
+    expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
   });
 
   it('shows the solution value priced from the user stock, flagging a partial total when an item has no price', () => {

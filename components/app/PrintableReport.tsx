@@ -41,7 +41,6 @@ import { desiredFeatureLabel } from '@/lib/desired-features';
 import {
   batteryQuantityBreakdown,
   buildMarginSummary,
-  calculatePvGenerationSavings,
   calculateSystemCost,
   calculateTariffSavings,
   formatCurrencyBRL,
@@ -91,10 +90,12 @@ function desiredFeatureDetails(
       if (!whiteTariff) return '-';
       return (
         `Potência ${(whiteTariff.requiredPowerW / 1000).toFixed(2)} kVA · ` +
-        `energia ${(whiteTariff.requiredEnergyWh / 1000).toFixed(2)} kWh · ` +
+        `energia ponta ${(whiteTariff.pontaEnergyWh / 1000).toFixed(2)} kWh · ` +
+        `energia intermediária ${(whiteTariff.intermediateEnergyWh / 1000).toFixed(2)} kWh · ` +
         `${whiteTariff.includeBackupReserve ? 'com' : 'sem'} reserva de backup · ` +
-        `tarifa maior ${formatCurrencyBRL(whiteTariff.higherTariffPerKwh)}/kWh · ` +
-        `tarifa menor ${formatCurrencyBRL(whiteTariff.lowerTariffPerKwh)}/kWh`
+        `tarifa ponta ${formatCurrencyBRL(whiteTariff.pontaTariffPerKwh)}/kWh · ` +
+        `tarifa intermediária ${formatCurrencyBRL(whiteTariff.intermediateTariffPerKwh)}/kWh · ` +
+        `tarifa fora ponta ${formatCurrencyBRL(whiteTariff.foraPontaTariffPerKwh)}/kWh`
       );
     case 'microgrid':
       if (!microgrid) return '-';
@@ -183,6 +184,7 @@ function ProductsList({
   desiredFeatures,
   whiteTariff,
   microgrid,
+  pv,
   nominalW,
   peakW,
   dailyKwh,
@@ -196,6 +198,7 @@ function ProductsList({
   desiredFeatures: DesiredFeatureId[];
   whiteTariff: WhiteTariffConfig | null;
   microgrid: MicrogridConfig | null;
+  pv: PvConfig | null;
   nominalW: number;
   peakW: number;
   dailyKwh: number;
@@ -210,7 +213,7 @@ function ProductsList({
   const metrics = solutionMetrics(solution, batteryCatalog);
   const marginRows = solution.microgridAlternative
     ? []
-    : buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, nominalW, peakW, dailyKwh, solution });
+    : buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
 
   return (
     <section className="mb-8">
@@ -401,8 +404,11 @@ export function PrintableReport({
 
   const loadEnergyKwh = (load: { powerW: number; qty: number }) => (operationHours * load.powerW * load.qty) / 1000;
 
-  const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
-  const pvSavings = calculatePvGenerationSavings(whiteTariff, solution.pvMonthlyGenerationKwh);
+  const tariffSavings = calculateTariffSavings(whiteTariff, {
+    totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
+    availableEnergyWh: solution.availableEnergyWh ?? 0,
+    pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
+  });
 
   // Margins must reflect what the loads actually require the same way the
   // Solução tab does: the registered loads only count toward the
@@ -516,6 +522,7 @@ export function PrintableReport({
         desiredFeatures={desiredFeatures ?? []}
         whiteTariff={whiteTariff}
         microgrid={microgrid ?? null}
+        pv={pv ?? null}
         nominalW={marginNominalW}
         peakW={marginPeakW}
         dailyKwh={marginDailyKwh}
@@ -532,6 +539,7 @@ export function PrintableReport({
           desiredFeatures={desiredFeatures ?? []}
           whiteTariff={whiteTariff}
           microgrid={microgrid ?? null}
+          pv={pv ?? null}
           nominalW={marginNominalW}
           peakW={marginPeakW}
           dailyKwh={marginDailyKwh}
@@ -574,43 +582,37 @@ export function PrintableReport({
         </section>
       )}
 
-      {(tariffSavings || pvSavings) && (
+      {tariffSavings && (
         <section className="mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <Wallet className="h-4 w-4 text-primary" aria-hidden="true" />
             Análise econômica
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            {tariffSavings && (
-              <ReportMetric
-                icon={TrendingUp}
-                label="Ganho estimado com baterias (Tarifa Branca)"
-                value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
-                note={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês`}
-                highlight
-              />
-            )}
-            {tariffSavings?.monthlyCostWithoutSolaxBrl != null && (
+            <ReportMetric
+              icon={TrendingUp}
+              label="Ganho estimado com SolaX"
+              value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
+              note={
+                `${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês` +
+                (tariffSavings.pvMonthlySavings > 0
+                  ? ` · dos quais ${formatCurrencyBRL(tariffSavings.pvMonthlySavings)}/mês de geração solar`
+                  : '')
+              }
+              highlight
+            />
+            {tariffSavings.monthlyCostWithoutSolaxBrl != null && (
               <ReportMetric
                 icon={Wallet}
                 label="Custo estimado sem SolaX"
                 value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês`}
               />
             )}
-            {tariffSavings?.monthlyCostWithSolaxBrl != null && (
+            {tariffSavings.monthlyCostWithSolaxBrl != null && (
               <ReportMetric
                 icon={Wallet}
                 label="Custo estimado com SolaX"
                 value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês`}
-              />
-            )}
-            {pvSavings && (
-              <ReportMetric
-                icon={Sun}
-                label="Ganho estimado com geração solar (FV)"
-                value={`${formatCurrencyBRL(pvSavings.annualSavings)}/ano`}
-                note={`${formatCurrencyBRL(pvSavings.monthlySavings)}/mês · ${solution.pvMonthlyGenerationKwh?.toFixed(0)} kWh/mês estimados a ${formatCurrencyBRL(whiteTariff!.lowerTariffPerKwh)}/kWh`}
-                highlight
               />
             )}
           </div>

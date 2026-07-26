@@ -28,10 +28,12 @@ import {
 function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {
   return {
     requiredPowerW: 2000,
-    requiredEnergyWh: 4000,
+    pontaEnergyWh: 4000,
+    intermediateEnergyWh: 0,
     includeBackupReserve: false,
-    higherTariffPerKwh: 1.2,
-    lowerTariffPerKwh: 0.8,
+    pontaTariffPerKwh: 1.2,
+    intermediateTariffPerKwh: 0.95,
+    foraPontaTariffPerKwh: 0.8,
     ...partial,
   };
 }
@@ -949,22 +951,22 @@ describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
     expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 6000 }), 1200)).toBe(6000);
   });
 
-  it('uses only the white-tariff energy when backup reserve is not requested', () => {
+  it('uses only the ponta + intermediária white-tariff energy when backup reserve is not requested', () => {
     const energy = effectiveTargetEnergyWh(
       ['white_tariff'],
-      makeWhiteTariff({ requiredEnergyWh: 4000, includeBackupReserve: false }),
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 1000, includeBackupReserve: false }),
       5000
     );
-    expect(energy).toBe(4000);
+    expect(energy).toBe(5000);
   });
 
   it('adds the base backup reserve on top of the white-tariff energy when requested', () => {
     const energy = effectiveTargetEnergyWh(
       ['white_tariff'],
-      makeWhiteTariff({ requiredEnergyWh: 4000, includeBackupReserve: true }),
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 1000, includeBackupReserve: true }),
       5000
     );
-    expect(energy).toBe(9000);
+    expect(energy).toBe(10000);
   });
 });
 
@@ -1080,10 +1082,12 @@ describe('validateResidentialOptions', () => {
       desiredFeatures: ['white_tariff'],
       whiteTariff: {
         requiredPowerW: 2000,
-        requiredEnergyWh: 4000,
+        pontaEnergyWh: 4000,
+        intermediateEnergyWh: 1000,
         includeBackupReserve: true,
-        higherTariffPerKwh: 1.2,
-        lowerTariffPerKwh: 0.8,
+        pontaTariffPerKwh: 1.2,
+        intermediateTariffPerKwh: 0.95,
+        foraPontaTariffPerKwh: 0.8,
       },
     });
     expect(valid).toEqual([]);
@@ -1093,17 +1097,21 @@ describe('validateResidentialOptions', () => {
       desiredFeatures: ['white_tariff'],
       whiteTariff: {
         requiredPowerW: -1,
-        requiredEnergyWh: 'lots',
+        pontaEnergyWh: 'lots',
+        intermediateEnergyWh: 'lots',
         includeBackupReserve: 'yes',
-        higherTariffPerKwh: -0.4,
-        lowerTariffPerKwh: -0.1,
+        pontaTariffPerKwh: -0.4,
+        intermediateTariffPerKwh: -0.2,
+        foraPontaTariffPerKwh: -0.1,
       },
     });
     expect(invalid.some((e) => e.includes('requiredPowerW'))).toBe(true);
-    expect(invalid.some((e) => e.includes('requiredEnergyWh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('pontaEnergyWh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('intermediateEnergyWh'))).toBe(true);
     expect(invalid.some((e) => e.includes('includeBackupReserve'))).toBe(true);
-    expect(invalid.some((e) => e.includes('higherTariffPerKwh'))).toBe(true);
-    expect(invalid.some((e) => e.includes('lowerTariffPerKwh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('pontaTariffPerKwh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('intermediateTariffPerKwh'))).toBe(true);
+    expect(invalid.some((e) => e.includes('foraPontaTariffPerKwh'))).toBe(true);
   });
 
   it('requires a well-formed microgrid config when microgrid is a desired feature', () => {

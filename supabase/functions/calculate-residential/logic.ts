@@ -128,24 +128,31 @@ export function effectiveTargetPowerW(
 
 /** Minimum battery energy the recommended solution must provide. When Tarifa
  * Branca is active this replaces the generic backup heuristic with the
- * energy the customer needs for the tariff window, optionally topped up with
- * that same backup reserve when includeBackupReserve is set. */
+ * energy the customer needs to cover both expensive windows (ponta +
+ * intermediária), optionally topped up with that same backup reserve when
+ * includeBackupReserve is set. */
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
   baseTargetEnergyWh: number
 ): number {
   if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
-  return whiteTariff.requiredEnergyWh + (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0);
+  return (
+    whiteTariff.pontaEnergyWh +
+    whiteTariff.intermediateEnergyWh +
+    (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0)
+  );
 }
 
 /** Mirrors lib/types.ts WhiteTariffConfig. */
 export interface WhiteTariffConfig {
   requiredPowerW: number;
-  requiredEnergyWh: number;
+  pontaEnergyWh: number;
+  intermediateEnergyWh: number;
   includeBackupReserve: boolean;
-  higherTariffPerKwh: number;
-  lowerTariffPerKwh: number;
+  pontaTariffPerKwh: number;
+  intermediateTariffPerKwh: number;
+  foraPontaTariffPerKwh: number;
 }
 
 /** Mirrors lib/types.ts MicrogridConfig. */
@@ -724,17 +731,23 @@ export function validateResidentialOptions(raw: unknown): string[] {
       if (typeof whiteTariff.requiredPowerW !== 'number' || whiteTariff.requiredPowerW < 0) {
         errors.push('whiteTariff.requiredPowerW must be a number >= 0');
       }
-      if (typeof whiteTariff.requiredEnergyWh !== 'number' || whiteTariff.requiredEnergyWh < 0) {
-        errors.push('whiteTariff.requiredEnergyWh must be a number >= 0');
+      if (typeof whiteTariff.pontaEnergyWh !== 'number' || whiteTariff.pontaEnergyWh < 0) {
+        errors.push('whiteTariff.pontaEnergyWh must be a number >= 0');
+      }
+      if (typeof whiteTariff.intermediateEnergyWh !== 'number' || whiteTariff.intermediateEnergyWh < 0) {
+        errors.push('whiteTariff.intermediateEnergyWh must be a number >= 0');
       }
       if (typeof whiteTariff.includeBackupReserve !== 'boolean') {
         errors.push('whiteTariff.includeBackupReserve must be a boolean');
       }
-      if (typeof whiteTariff.higherTariffPerKwh !== 'number' || whiteTariff.higherTariffPerKwh < 0) {
-        errors.push('whiteTariff.higherTariffPerKwh must be a number >= 0');
+      if (typeof whiteTariff.pontaTariffPerKwh !== 'number' || whiteTariff.pontaTariffPerKwh < 0) {
+        errors.push('whiteTariff.pontaTariffPerKwh must be a number >= 0');
       }
-      if (typeof whiteTariff.lowerTariffPerKwh !== 'number' || whiteTariff.lowerTariffPerKwh < 0) {
-        errors.push('whiteTariff.lowerTariffPerKwh must be a number >= 0');
+      if (typeof whiteTariff.intermediateTariffPerKwh !== 'number' || whiteTariff.intermediateTariffPerKwh < 0) {
+        errors.push('whiteTariff.intermediateTariffPerKwh must be a number >= 0');
+      }
+      if (typeof whiteTariff.foraPontaTariffPerKwh !== 'number' || whiteTariff.foraPontaTariffPerKwh < 0) {
+        errors.push('whiteTariff.foraPontaTariffPerKwh must be a number >= 0');
       }
     }
   }

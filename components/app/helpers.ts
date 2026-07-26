@@ -1,14 +1,13 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
-import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import type {
   AccessoryLine,
+  BatteryTopology,
   DesiredFeatureId,
   GeneratorConfig,
   MicrogridConfig,
   PvConfig,
   ResidentialGridType,
-  SavedProject,
   Solution,
   StockProductType,
   UserStockItem,
@@ -277,14 +276,19 @@ export function effectiveTargetPowerW(
   return Math.max(baseW, whiteTariff.requiredPowerW);
 }
 
-/** Mirrors effectiveTargetEnergyWh from the same Edge Function file. */
+/** Mirrors effectiveTargetEnergyWh from the same Edge Function file: the
+ * battery must cover both expensive windows (ponta + intermediária). */
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
   baseTargetEnergyWh: number
 ): number {
   if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
-  return whiteTariff.requiredEnergyWh + (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0);
+  return (
+    whiteTariff.pontaEnergyWh +
+    whiteTariff.intermediateEnergyWh +
+    (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0)
+  );
 }
 
 export interface MarginRow {
@@ -303,6 +307,7 @@ export function buildMarginSummary({
   desiredFeatures,
   whiteTariff,
   microgrid,
+  pv,
   nominalW,
   peakW,
   dailyKwh,
@@ -311,6 +316,7 @@ export function buildMarginSummary({
   desiredFeatures: DesiredFeatureId[];
   whiteTariff: WhiteTariffConfig | null;
   microgrid: MicrogridConfig | null;
+  pv: PvConfig | null;
   nominalW: number;
   peakW: number;
   dailyKwh: number;
@@ -339,6 +345,21 @@ export function buildMarginSummary({
       unit: 'Wh',
     },
   ];
+
+  // PV is sized (computePvPowerKw in the Edge Function) to cover the
+  // customer's own total monthly consumption, capped by the recommended
+  // inverter's pv_oversizing_percent — so the solution's own generation
+  // estimate can fall short of that target on a heavily-capped inverter,
+  // same spirit as the other margin rows.
+  if (desiredFeatures.includes('pv') && pv && pv.monthlyConsumptionKwh > 0) {
+    rows.push({
+      key: 'pv',
+      label: 'Geração FV',
+      requiredValue: pv.monthlyConsumptionKwh * 1000,
+      providedValue: (solution.pvMonthlyGenerationKwh ?? 0) * 1000,
+      unit: 'Wh',
+    });
+  }
 
   // Microgrid's on-grid power must stay under both the inverter's and the
   // battery bank's power (see solutionSupportsMicrogrid in the Edge
@@ -398,19 +419,31 @@ export function buildPdfFileName(projectName: string, date: Date = new Date()): 
 }
 
 /** Plain-text, WhatsApp-friendly (using its *bold* markup) summary of a
- * saved project — meant for the customer to copy from their project summary
- * and paste to their own salesperson when asking for a quote on that exact
- * configuration/solution, so it needs to stand on its own without the app
- * open (same spirit as PrintableReport, just as short-form text instead of
- * a full PDF). */
+ * project — meant for the customer to copy and paste to their own
+ * salesperson when asking for a quote on that exact configuration/solution,
+ * so it needs to stand on its own without the app open (same spirit as
+ * PrintableReport, just as short-form text instead of a full PDF).
+ *
+ * Takes already-derived topology/gridType/loadsCount/peakW/dailyKwh instead
+ * of a full ResidentialOptions/SavedProject so it can be called both from a
+ * SavedProject (Projeto tab) and from the live wizard state (Dimensionamento
+ * tab's Resumo, which already has peakW/dailyKwh precomputed and a narrower
+ * residentialOptions prop shape). */
 export function buildProjectShareText(
-  project: SavedProject,
+  project: {
+    name: string;
+    address?: string;
+    topology: BatteryTopology | null;
+    gridType: ResidentialGridType | null;
+    loadsCount: number;
+    peakW: number;
+    dailyKwh: number;
+    solution: Solution | null;
+  },
   clientName: string | undefined,
   batteryCatalog: { model: string; standardPowerKw: number | null; peakPowerKw: number | null; expansionModel?: string | null }[]
 ): string {
-  const { topology, gridType, loads, operationHours, peakCalcMode } = project.residentialOptions;
-  const peakW = totalPeakW(loads, peakCalcMode ?? 'sum');
-  const dailyKwh = totalDailyKwh(loads, operationHours);
+  const { topology, gridType, loadsCount, peakW, dailyKwh } = project;
 
   const lines: string[] = [`*Projeto: ${project.name || 'Sem nome'}*`];
   if (clientName) lines.push(`Cliente: ${clientName}`);
@@ -419,7 +452,7 @@ export function buildProjectShareText(
   lines.push('', '*Configuração:*');
   if (topology) lines.push(`- Topologia: ${topologyLabels[topology]}`);
   if (gridType) lines.push(`- Rede: ${gridLabels[gridType]}`);
-  lines.push(`- ${loads.length} carga(s) cadastrada(s)`);
+  lines.push(`- ${loadsCount} carga(s) cadastrada(s)`);
   lines.push(`- Pico: ${(peakW / 1000).toFixed(2)} kVA`);
   lines.push(`- Consumo: ${dailyKwh.toFixed(2)} kWh/dia`);
 
@@ -471,52 +504,109 @@ export interface TariffSavingsEstimate {
   businessDaysPerMonth: number;
   /** Absolute monthly bill estimates — only present when a total monthly
    * consumption was given (Fotovoltaico's monthlyConsumptionKwh, when that
-   * feature is also enabled) AND it's large enough to cover the higher-tariff
-   * energy on its own; otherwise these stay null and only the delta
-   * (monthlySavings/annualSavings) is shown, rather than a breakdown that
-   * would contradict the customer's own total. */
+   * feature is also enabled) AND it's large enough to cover the ponta +
+   * intermediária energy on its own; otherwise these stay null and only the
+   * delta (monthlySavings/annualSavings) is shown, rather than a breakdown
+   * that would contradict the customer's own total. */
   monthlyCostWithoutSolaxBrl: number | null;
   monthlyCostWithSolaxBrl: number | null;
+  /** Portion of monthlySavings contributed by PV generation — either shifted
+   * into the ponta/intermediária windows via the battery (capped by its
+   * daily capacity, see calculateTariffSavings) or self-consumed at the fora
+   * ponta rate. Zero when there's no PV generation estimate; always 0 <=
+   * pvMonthlySavings <= monthlySavings. */
+  pvMonthlySavings: number;
 }
 
 /** Tarifa Branca's peak surcharge applies on business days — used as the
  * standard monthly multiplier for the savings estimate. */
 export const TARIFF_BUSINESS_DAYS_PER_MONTH = 22;
 
-/** Estimated savings from shifting the white-tariff window's energy off the
- * grid, using the spread derived from the customer's two entered tariffs
- * (higherTariffPerKwh - lowerTariffPerKwh). Null when white_tariff isn't
- * configured.
+/** Calendar days per month used to spread PV's own monthly generation
+ * estimate (computePvMonthlyGenerationKwh in the Edge Function) back into a
+ * daily figure — solar generates every day, unlike the tariff windows above
+ * which only apply on business days. */
+const DAYS_PER_MONTH = 30;
+
+/** Combined estimate of "Ganho com SolaX" — battery-shift savings from
+ * Tarifa Branca plus PV generation savings, folded into a single figure
+ * (see pvMonthlySavings for the PV-only breakdown). Null when white_tariff
+ * isn't configured.
+ *
+ * Without PV, the saving is simply the ponta/intermediária energy shifted
+ * off the grid, valued at the spread against the fora ponta rate (the
+ * battery recharges at the cheap fora ponta rate to cover it). With PV, the
+ * portion of the battery's daily charge that comes from free solar instead
+ * of the grid saves the *full* ponta/intermediária tariff instead of just
+ * the spread — but that portion can never exceed the battery's own daily
+ * capacity (`availableEnergyWh`), and ponta gets first claim on it (the
+ * pricier window). Any solar left over (battery full, or ponta/intermediária
+ * already fully covered) still offsets grid consumption at the fora ponta
+ * rate, same as before PV was factored in.
  *
  * When `totalMonthlyConsumptionKwh` is given (Fotovoltaico's own
  * monthlyConsumptionKwh, when that feature is enabled too), also derives two
  * absolute monthly totals — what the bill would be without and with SolaX —
- * by splitting the total into higher-tariff-window energy (already known,
- * see requiredEnergyWh) and the remaining lower-tariff energy. Without
- * SolaX both portions get billed at their own tariff; with SolaX, the
- * higher-tariff portion is covered by the battery (recharged during the
- * cheaper window), so it's effectively billed at the lower tariff too. The
- * difference between the two totals always equals monthlySavings — this is
- * the same figure, just decomposed instead of shown as a bare delta. */
+ * by splitting the total into ponta energy, intermediária energy (both
+ * already known) and the remaining fora ponta energy (never stored
+ * directly, always derived as the leftover). The difference between the two
+ * totals always equals monthlySavings — this is the same figure, just
+ * decomposed instead of shown as a bare delta. */
 export function calculateTariffSavings(
   whiteTariff: WhiteTariffConfig | null,
-  totalMonthlyConsumptionKwh: number | null = null
+  options: {
+    totalMonthlyConsumptionKwh?: number | null;
+    /** The solution's battery capacity (Wh) — caps how much daily PV
+     * generation can be credited at the ponta/intermediária tariffs instead
+     * of fora ponta. */
+    availableEnergyWh?: number;
+    pvMonthlyGenerationKwh?: number | null;
+  } = {}
 ): TariffSavingsEstimate | null {
   if (!whiteTariff) return null;
+  const { totalMonthlyConsumptionKwh = null, availableEnergyWh = 0, pvMonthlyGenerationKwh = null } = options;
 
-  const spread = whiteTariff.higherTariffPerKwh - whiteTariff.lowerTariffPerKwh;
-  const monthlyEnergyHigherKwh = (whiteTariff.requiredEnergyWh / 1000) * TARIFF_BUSINESS_DAYS_PER_MONTH;
-  const monthlySavings = monthlyEnergyHigherKwh * spread;
+  const dailyPontaKwh = whiteTariff.pontaEnergyWh / 1000;
+  const dailyIntermediateKwh = whiteTariff.intermediateEnergyWh / 1000;
+  const dailyBatteryCapacityKwh = availableEnergyWh / 1000;
+  const dailySolarKwh = pvMonthlyGenerationKwh ? pvMonthlyGenerationKwh / DAYS_PER_MONTH : 0;
+
+  const dailySolarToBattery = Math.min(dailySolarKwh, dailyBatteryCapacityKwh);
+  const dailySolarToPonta = Math.min(dailySolarToBattery, dailyPontaKwh);
+  const dailySolarToIntermediate = Math.min(dailySolarToBattery - dailySolarToPonta, dailyIntermediateKwh);
+  const dailySolarExcessKwh = dailySolarKwh - dailySolarToPonta - dailySolarToIntermediate;
+
+  const pontaSpread = whiteTariff.pontaTariffPerKwh - whiteTariff.foraPontaTariffPerKwh;
+  const intermediateSpread = whiteTariff.intermediateTariffPerKwh - whiteTariff.foraPontaTariffPerKwh;
+
+  const monthlyPontaSavings =
+    TARIFF_BUSINESS_DAYS_PER_MONTH *
+    (dailySolarToPonta * whiteTariff.pontaTariffPerKwh + (dailyPontaKwh - dailySolarToPonta) * pontaSpread);
+  const monthlyIntermediateSavings =
+    TARIFF_BUSINESS_DAYS_PER_MONTH *
+    (dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh +
+      (dailyIntermediateKwh - dailySolarToIntermediate) * intermediateSpread);
+  const monthlyExcessSolarSavings = dailySolarExcessKwh * whiteTariff.foraPontaTariffPerKwh * DAYS_PER_MONTH;
+
+  const pvMonthlySavings =
+    TARIFF_BUSINESS_DAYS_PER_MONTH *
+      (dailySolarToPonta * whiteTariff.pontaTariffPerKwh + dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh) +
+    monthlyExcessSolarSavings;
+
+  const monthlySavings = monthlyPontaSavings + monthlyIntermediateSavings + monthlyExcessSolarSavings;
 
   let monthlyCostWithoutSolaxBrl: number | null = null;
   let monthlyCostWithSolaxBrl: number | null = null;
   if (totalMonthlyConsumptionKwh !== null) {
-    const monthlyEnergyLowerKwh = totalMonthlyConsumptionKwh - monthlyEnergyHigherKwh;
-    if (monthlyEnergyLowerKwh >= 0) {
+    const monthlyPontaKwh = dailyPontaKwh * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    const monthlyIntermediateKwh = dailyIntermediateKwh * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    const monthlyForaPontaKwh = totalMonthlyConsumptionKwh - monthlyPontaKwh - monthlyIntermediateKwh;
+    if (monthlyForaPontaKwh >= 0) {
       monthlyCostWithoutSolaxBrl =
-        monthlyEnergyLowerKwh * whiteTariff.lowerTariffPerKwh + monthlyEnergyHigherKwh * whiteTariff.higherTariffPerKwh;
-      monthlyCostWithSolaxBrl =
-        monthlyEnergyLowerKwh * whiteTariff.lowerTariffPerKwh + monthlyEnergyHigherKwh * whiteTariff.lowerTariffPerKwh;
+        monthlyPontaKwh * whiteTariff.pontaTariffPerKwh +
+        monthlyIntermediateKwh * whiteTariff.intermediateTariffPerKwh +
+        monthlyForaPontaKwh * whiteTariff.foraPontaTariffPerKwh;
+      monthlyCostWithSolaxBrl = monthlyCostWithoutSolaxBrl - monthlySavings;
     }
   }
 
@@ -526,27 +616,8 @@ export function calculateTariffSavings(
     businessDaysPerMonth: TARIFF_BUSINESS_DAYS_PER_MONTH,
     monthlyCostWithoutSolaxBrl,
     monthlyCostWithSolaxBrl,
+    pvMonthlySavings,
   };
-}
-
-export interface PvGenerationSavingsEstimate {
-  monthlySavings: number;
-  annualSavings: number;
-}
-
-/** Estimated savings from the PV array's own generation offsetting grid
- * consumption, valued at Tarifa Branca's off-peak tariff (the customer's
- * standard rate) since that's the only R$/kWh figure collected today. Null
- * when either white_tariff isn't configured (no tariff available) or the
- * solution has no PV generation estimate. */
-export function calculatePvGenerationSavings(
-  whiteTariff: WhiteTariffConfig | null,
-  pvMonthlyGenerationKwh: number | null | undefined
-): PvGenerationSavingsEstimate | null {
-  if (!whiteTariff || !pvMonthlyGenerationKwh) return null;
-
-  const monthlySavings = pvMonthlyGenerationKwh * whiteTariff.lowerTariffPerKwh;
-  return { monthlySavings, annualSavings: monthlySavings * 12 };
 }
 
 /** Turns a supabase.functions.invoke() error into a specific, actionable

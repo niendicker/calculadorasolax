@@ -61,7 +61,10 @@ export function useProjectActions({
   }
 
   function openProjectSizing(id: string) {
-    loadProject(id);
+    // showDetails: false — jumping to Dimensionamento shouldn't leave the
+    // project sitting in edit mode back on the Projeto tab (only "Editar"
+    // should do that).
+    loadProject(id, { showDetails: false });
     setActiveTab('sizing');
     setProjectStatus('Projeto carregado.');
   }

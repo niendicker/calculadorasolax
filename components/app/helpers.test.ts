@@ -4,7 +4,6 @@ import {
   batteryQuantityBreakdown,
   buildMarginSummary,
   buildPdfFileName,
-  calculatePvGenerationSavings,
   calculateSystemCost,
   calculateTariffSavings,
   checkPhaseVoltageCompatibility,
@@ -134,10 +133,12 @@ describe('expansionModelSet', () => {
 describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
   const whiteTariff: WhiteTariffConfig = {
     requiredPowerW: 4000,
-    requiredEnergyWh: 6000,
+    pontaEnergyWh: 6000,
+    intermediateEnergyWh: 2000,
     includeBackupReserve: false,
-    higherTariffPerKwh: 1.2,
-    lowerTariffPerKwh: 0.7,
+    pontaTariffPerKwh: 1.2,
+    intermediateTariffPerKwh: 0.95,
+    foraPontaTariffPerKwh: 0.7,
   };
 
   it('ignores white_tariff\'s power floor when the feature is not selected, even with a config present', () => {
@@ -152,12 +153,12 @@ describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
     expect(effectiveTargetPowerW(['white_tariff'], whiteTariff, 5000)).toBe(5000);
   });
 
-  it('replaces the base energy target with whiteTariff.requiredEnergyWh when includeBackupReserve is off', () => {
-    expect(effectiveTargetEnergyWh(['white_tariff'], whiteTariff, 3000)).toBe(6000);
+  it('replaces the base energy target with pontaEnergyWh + intermediateEnergyWh when includeBackupReserve is off', () => {
+    expect(effectiveTargetEnergyWh(['white_tariff'], whiteTariff, 3000)).toBe(8000);
   });
 
   it('adds the base energy target on top when includeBackupReserve is on', () => {
-    expect(effectiveTargetEnergyWh(['white_tariff'], { ...whiteTariff, includeBackupReserve: true }, 3000)).toBe(9000);
+    expect(effectiveTargetEnergyWh(['white_tariff'], { ...whiteTariff, includeBackupReserve: true }, 3000)).toBe(11000);
   });
 
   it('ignores whiteTariff entirely when the feature is not selected', () => {
@@ -177,6 +178,7 @@ describe('buildMarginSummary', () => {
       desiredFeatures: [],
       whiteTariff: null,
       microgrid: null,
+      pv: null,
       nominalW: 3000,
       peakW: 6000,
       dailyKwh: 3,
@@ -194,6 +196,7 @@ describe('buildMarginSummary', () => {
       desiredFeatures: ['microgrid'],
       whiteTariff: null,
       microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
+      pv: null,
       nominalW: 3000,
       peakW: 6000,
       dailyKwh: 3,
@@ -220,6 +223,7 @@ describe('buildMarginSummary', () => {
       desiredFeatures: [],
       whiteTariff: null,
       microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
+      pv: null,
       nominalW: 3000,
       peakW: 6000,
       dailyKwh: 3,
@@ -227,10 +231,44 @@ describe('buildMarginSummary', () => {
     });
     expect(rows.some((row) => row.key.startsWith('microgrid'))).toBe(false);
   });
+
+  it('adds a Geração FV row (monthly kWh) only when the feature is active with a positive consumption target', () => {
+    const rows = buildMarginSummary({
+      desiredFeatures: ['pv'],
+      whiteTariff: null,
+      microgrid: null,
+      pv: { monthlyConsumptionKwh: 400, hsp: 4.5 },
+      nominalW: 3000,
+      peakW: 6000,
+      dailyKwh: 3,
+      solution: { ...baseSolution, pvMonthlyGenerationKwh: 350 },
+    });
+    expect(rows).toContainEqual({
+      key: 'pv',
+      label: 'Geração FV',
+      requiredValue: 400000,
+      providedValue: 350000,
+      unit: 'Wh',
+    });
+  });
+
+  it('omits the Geração FV row when the feature is not active, even with a pv config present', () => {
+    const rows = buildMarginSummary({
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: null,
+      pv: { monthlyConsumptionKwh: 400, hsp: 4.5 },
+      nominalW: 3000,
+      peakW: 6000,
+      dailyKwh: 3,
+      solution: { ...baseSolution, pvMonthlyGenerationKwh: 350 },
+    });
+    expect(rows.some((row) => row.key === 'pv')).toBe(false);
+  });
 });
 
 describe('solutionHasInsufficientMargin', () => {
-  const params = { desiredFeatures: [], whiteTariff: null, microgrid: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
+  const params = { desiredFeatures: [], whiteTariff: null, microgrid: null, pv: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
 
   it('returns true when any margin row falls short of what is required', () => {
     const shortOnEnergy = makeSolution({ inverterRatedPowerW: 5000, inverterPeakPowerW: 7000, availableEnergyWh: 1000 });
@@ -304,25 +342,27 @@ describe('calculateSystemCost', () => {
   });
 });
 
-describe('calculateTariffSavings', () => {
-  function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {
-    return {
-      requiredPowerW: 2000,
-      requiredEnergyWh: 4000,
-      includeBackupReserve: false,
-      higherTariffPerKwh: 1.2,
-      lowerTariffPerKwh: 0.8,
-      ...partial,
-    };
-  }
+function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {
+  return {
+    requiredPowerW: 2000,
+    pontaEnergyWh: 4000,
+    intermediateEnergyWh: 0,
+    includeBackupReserve: false,
+    pontaTariffPerKwh: 1.2,
+    intermediateTariffPerKwh: 0.95,
+    foraPontaTariffPerKwh: 0.8,
+    ...partial,
+  };
+}
 
+describe('calculateTariffSavings', () => {
   it('returns null when there is no white tariff config', () => {
     expect(calculateTariffSavings(null)).toBeNull();
   });
 
-  it('computes monthly savings as energy (kWh) x spread (higher - lower) x business days', () => {
+  it('computes monthly savings as ponta energy (kWh) x spread (ponta - fora ponta) x business days', () => {
     const result = calculateTariffSavings(
-      makeWhiteTariff({ requiredEnergyWh: 4000, higherTariffPerKwh: 1.3, lowerTariffPerKwh: 0.8 })
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 0, pontaTariffPerKwh: 1.3, foraPontaTariffPerKwh: 0.8 })
     );
     expect(result).not.toBeNull();
     const expectedMonthly = 4 * 0.5 * TARIFF_BUSINESS_DAYS_PER_MONTH;
@@ -331,8 +371,25 @@ describe('calculateTariffSavings', () => {
     expect(result!.businessDaysPerMonth).toBe(TARIFF_BUSINESS_DAYS_PER_MONTH);
   });
 
-  it('returns zero savings when higher and lower tariffs are equal', () => {
-    const result = calculateTariffSavings(makeWhiteTariff({ higherTariffPerKwh: 0.8, lowerTariffPerKwh: 0.8 }));
+  it('adds the intermediária energy x spread (intermediária - fora ponta) on top of the ponta savings', () => {
+    const result = calculateTariffSavings(
+      makeWhiteTariff({
+        pontaEnergyWh: 4000,
+        intermediateEnergyWh: 2000,
+        pontaTariffPerKwh: 1.3,
+        intermediateTariffPerKwh: 1.0,
+        foraPontaTariffPerKwh: 0.8,
+      })
+    );
+    const pontaMonthly = 4 * 0.5 * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    const intermediateMonthly = 2 * 0.2 * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    expect(result!.monthlySavings).toBeCloseTo(pontaMonthly + intermediateMonthly);
+  });
+
+  it('returns zero savings when ponta, intermediária and fora ponta tariffs are all equal', () => {
+    const result = calculateTariffSavings(
+      makeWhiteTariff({ pontaTariffPerKwh: 0.8, intermediateTariffPerKwh: 0.8, foraPontaTariffPerKwh: 0.8 })
+    );
     expect(result!.monthlySavings).toBe(0);
     expect(result!.annualSavings).toBe(0);
   });
@@ -344,58 +401,82 @@ describe('calculateTariffSavings', () => {
   });
 
   it('computes absolute sem/com SolaX monthly costs when a consistent total consumption is given', () => {
-    // requiredEnergyWh = 4000 Wh/dia -> 4 kWh/dia x 22 = 88 kWh/mês na tarifa maior.
+    // pontaEnergyWh = 4000 Wh/dia -> 4 kWh/dia x 22 = 88 kWh/mês na ponta.
     const result = calculateTariffSavings(
-      makeWhiteTariff({ requiredEnergyWh: 4000, higherTariffPerKwh: 1.2, lowerTariffPerKwh: 0.8 }),
-      400
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 0, pontaTariffPerKwh: 1.2, foraPontaTariffPerKwh: 0.8 }),
+      { totalMonthlyConsumptionKwh: 400 }
     );
-    const monthlyEnergyHigherKwh = 4 * TARIFF_BUSINESS_DAYS_PER_MONTH;
-    const monthlyEnergyLowerKwh = 400 - monthlyEnergyHigherKwh;
-    const expectedWithout = monthlyEnergyLowerKwh * 0.8 + monthlyEnergyHigherKwh * 1.2;
-    const expectedWith = monthlyEnergyLowerKwh * 0.8 + monthlyEnergyHigherKwh * 0.8;
+    const monthlyPontaKwh = 4 * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    const monthlyForaPontaKwh = 400 - monthlyPontaKwh;
+    const expectedWithout = monthlyForaPontaKwh * 0.8 + monthlyPontaKwh * 1.2;
+    const expectedWith = 400 * 0.8;
     expect(result!.monthlyCostWithoutSolaxBrl).toBeCloseTo(expectedWithout);
     expect(result!.monthlyCostWithSolaxBrl).toBeCloseTo(expectedWith);
     // The delta between the two absolute totals always matches the plain savings figure.
     expect(result!.monthlyCostWithoutSolaxBrl! - result!.monthlyCostWithSolaxBrl!).toBeCloseTo(result!.monthlySavings);
   });
 
-  it('leaves the absolute cost fields null when the total consumption is smaller than the higher-tariff energy alone', () => {
-    // 4 kWh/dia x 22 = 88 kWh/mês na tarifa maior, mas o total informado é menor que isso.
-    const result = calculateTariffSavings(makeWhiteTariff({ requiredEnergyWh: 4000 }), 50);
+  it('leaves the absolute cost fields null when the total consumption is smaller than ponta + intermediária energy alone', () => {
+    // 4 kWh/dia x 22 = 88 kWh/mês na ponta, mas o total informado é menor que isso.
+    const result = calculateTariffSavings(makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 0 }), {
+      totalMonthlyConsumptionKwh: 50,
+    });
     expect(result!.monthlyCostWithoutSolaxBrl).toBeNull();
     expect(result!.monthlyCostWithSolaxBrl).toBeNull();
     // The plain delta still shows even when the breakdown doesn't.
     expect(result!.monthlySavings).toBeGreaterThan(0);
   });
-});
 
-describe('calculatePvGenerationSavings', () => {
-  function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {
-    return {
-      requiredPowerW: 2000,
-      requiredEnergyWh: 4000,
-      includeBackupReserve: false,
-      higherTariffPerKwh: 1.2,
-      lowerTariffPerKwh: 0.8,
-      ...partial,
-    };
-  }
-
-  it('returns null when there is no white tariff config', () => {
-    expect(calculatePvGenerationSavings(null, 450)).toBeNull();
+  it('has zero pvMonthlySavings and unchanged monthlySavings when there is no PV generation estimate', () => {
+    const result = calculateTariffSavings(makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 2000 }));
+    expect(result!.pvMonthlySavings).toBe(0);
   });
 
-  it('returns null when there is no PV generation estimate', () => {
-    expect(calculatePvGenerationSavings(makeWhiteTariff(), null)).toBeNull();
-    expect(calculatePvGenerationSavings(makeWhiteTariff(), undefined)).toBeNull();
-    expect(calculatePvGenerationSavings(makeWhiteTariff(), 0)).toBeNull();
+  it('values PV generation shifted into ponta at the full ponta tariff, up to the battery capacity, ponta getting first claim', () => {
+    // Battery holds 3 kWh/dia; ponta needs 4 kWh/dia, intermediária needs 2 kWh/dia; PV generates 5 kWh/dia (150/30).
+    // Ponta gets first claim: min(3, 4) = 3 kWh/dia shifted to ponta, nothing left over for intermediária.
+    const whiteTariff = makeWhiteTariff({
+      pontaEnergyWh: 4000,
+      intermediateEnergyWh: 2000,
+      pontaTariffPerKwh: 1.2,
+      intermediateTariffPerKwh: 1.0,
+      foraPontaTariffPerKwh: 0.8,
+    });
+    const result = calculateTariffSavings(whiteTariff, { availableEnergyWh: 3000, pvMonthlyGenerationKwh: 150 });
+
+    const pontaShiftKwh = 3; // capped by battery capacity
+    const remainingPontaGridKwh = 4 - pontaShiftKwh;
+    const intermediateShiftKwh = 0; // battery capacity already used up by ponta
+    const remainingIntermediateGridKwh = 2 - intermediateShiftKwh;
+    const dailyExcessSolarKwh = 5 - pontaShiftKwh - intermediateShiftKwh;
+
+    const expectedMonthlySavings =
+      TARIFF_BUSINESS_DAYS_PER_MONTH *
+        (pontaShiftKwh * 1.2 + remainingPontaGridKwh * (1.2 - 0.8) + intermediateShiftKwh * 1.0 + remainingIntermediateGridKwh * (1.0 - 0.8)) +
+      dailyExcessSolarKwh * 0.8 * 30;
+    const expectedPvMonthlySavings =
+      TARIFF_BUSINESS_DAYS_PER_MONTH * (pontaShiftKwh * 1.2 + intermediateShiftKwh * 1.0) + dailyExcessSolarKwh * 0.8 * 30;
+
+    expect(result!.monthlySavings).toBeCloseTo(expectedMonthlySavings);
+    expect(result!.pvMonthlySavings).toBeCloseTo(expectedPvMonthlySavings);
+    // pvMonthlySavings never exceeds the combined total.
+    expect(result!.pvMonthlySavings).toBeLessThanOrEqual(result!.monthlySavings);
   });
 
-  it('values the monthly PV generation at the white tariff\'s off-peak rate', () => {
-    const result = calculatePvGenerationSavings(makeWhiteTariff({ lowerTariffPerKwh: 0.8 }), 450);
-    expect(result).not.toBeNull();
-    expect(result!.monthlySavings).toBeCloseTo(450 * 0.8);
-    expect(result!.annualSavings).toBeCloseTo(450 * 0.8 * 12);
+  it('spills leftover battery capacity from ponta into intermediária once ponta is fully covered', () => {
+    // Battery holds 5 kWh/dia; ponta needs 2 kWh/dia (fully shiftable), leaving 3 kWh/dia for intermediária (needs 4).
+    const whiteTariff = makeWhiteTariff({
+      pontaEnergyWh: 2000,
+      intermediateEnergyWh: 4000,
+      pontaTariffPerKwh: 1.2,
+      intermediateTariffPerKwh: 1.0,
+      foraPontaTariffPerKwh: 0.8,
+    });
+    const result = calculateTariffSavings(whiteTariff, { availableEnergyWh: 5000, pvMonthlyGenerationKwh: 150 });
+
+    // Ponta fully shifted (2 kWh/dia) + intermediária shifted 3 kWh/dia (remaining battery capacity).
+    const expectedPvMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (2 * 1.2 + 3 * 1.0);
+    expect(result!.pvMonthlySavings).toBeCloseTo(expectedPvMonthlySavings);
   });
 });
 

@@ -606,7 +606,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
 
@@ -660,7 +660,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
 
@@ -698,7 +698,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
 
@@ -718,7 +718,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Configurações' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
 

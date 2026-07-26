@@ -316,10 +316,12 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
           desiredFeatures: ['backup', 'white_tariff', 'microgrid', 'external_generator', 'external_ats'],
           whiteTariff: {
             requiredPowerW: 3000,
-            requiredEnergyWh: 6000,
+            pontaEnergyWh: 6000,
+            intermediateEnergyWh: 2000,
             includeBackupReserve: true,
-            higherTariffPerKwh: 1.6,
-            lowerTariffPerKwh: 0.8,
+            pontaTariffPerKwh: 1.6,
+            intermediateTariffPerKwh: 1.0,
+            foraPontaTariffPerKwh: 0.8,
           },
           microgrid: {
             voltageV: 220,
@@ -348,7 +350,7 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
     expect(screen.getByText('Tarifa Branca')).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Potência 3.00 kVA · energia 6.00 kWh · com reserva de backup · tarifa maior R\$ 1,60\/kWh · tarifa menor R\$ 0,80\/kWh/
+        /Potência 3.00 kVA · energia ponta 6.00 kWh · energia intermediária 2.00 kWh · com reserva de backup · tarifa ponta R\$ 1,60\/kWh · tarifa intermediária R\$ 1,00\/kWh · tarifa fora ponta R\$ 0,80\/kWh/
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Microrrede')).toBeInTheDocument();
@@ -413,15 +415,17 @@ describe('PrintableReport: economic analysis section', () => {
         {...baseProps({
           whiteTariff: {
             requiredPowerW: 1000,
-            requiredEnergyWh: 2000,
+            pontaEnergyWh: 2000,
+            intermediateEnergyWh: 0,
             includeBackupReserve: false,
-            higherTariffPerKwh: 1.3,
-            lowerTariffPerKwh: 0.8,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
           },
         })}
       />
     );
-    expect(screen.getByText('Ganho estimado com baterias (Tarifa Branca)')).toBeInTheDocument();
+    expect(screen.getByText('Ganho estimado com SolaX')).toBeInTheDocument();
   });
 
   it('shows the absolute sem/com SolaX monthly costs when pv total consumption makes the breakdown consistent', () => {
@@ -430,10 +434,12 @@ describe('PrintableReport: economic analysis section', () => {
         {...baseProps({
           whiteTariff: {
             requiredPowerW: 1000,
-            requiredEnergyWh: 4000,
+            pontaEnergyWh: 4000,
+            intermediateEnergyWh: 0,
             includeBackupReserve: false,
-            higherTariffPerKwh: 1.2,
-            lowerTariffPerKwh: 0.8,
+            pontaTariffPerKwh: 1.2,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
           },
           pv: { monthlyConsumptionKwh: 400, hsp: 4.5 },
         })}
@@ -449,10 +455,12 @@ describe('PrintableReport: economic analysis section', () => {
         {...baseProps({
           whiteTariff: {
             requiredPowerW: 1000,
-            requiredEnergyWh: 2000,
+            pontaEnergyWh: 2000,
+            intermediateEnergyWh: 0,
             includeBackupReserve: false,
-            higherTariffPerKwh: 1.3,
-            lowerTariffPerKwh: 0.8,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
           },
         })}
       />
@@ -461,27 +469,32 @@ describe('PrintableReport: economic analysis section', () => {
     expect(screen.queryByText('Custo estimado com SolaX')).not.toBeInTheDocument();
   });
 
-  it('shows the estimated gain from PV generation, valued at the white tariff\'s off-peak rate', () => {
+  it('folds the PV generation gain into the combined SolaX figure, noting the solar-only portion', () => {
     render(
       <PrintableReport
         {...baseProps({
           whiteTariff: {
             requiredPowerW: 1000,
-            requiredEnergyWh: 2000,
+            // No ponta/intermediária need, so all PV generation is valued at the fora ponta rate.
+            pontaEnergyWh: 0,
+            intermediateEnergyWh: 0,
             includeBackupReserve: false,
-            higherTariffPerKwh: 1.3,
-            lowerTariffPerKwh: 0.8,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
           },
           solution: { ...solution, pvMonthlyGenerationKwh: 450 },
         })}
       />
     );
-    expect(screen.getByText('Ganho estimado com geração solar (FV)')).toBeInTheDocument();
+    expect(screen.getByText('Ganho estimado com SolaX')).toBeInTheDocument();
+    expect(screen.getByText(/de geração solar/)).toBeInTheDocument();
   });
 
-  it('omits the PV generation gain when there is no white tariff, even with a PV estimate', () => {
-    render(<PrintableReport {...baseProps({ solution: { ...solution, pvMonthlyGenerationKwh: 450 } })} />);
-    expect(screen.queryByText('Ganho estimado com geração solar (FV)')).not.toBeInTheDocument();
+  it('omits the "de geração solar" note when there is no PV estimate', () => {
+    render(<PrintableReport {...baseProps({ solution: { ...solution, pvMonthlyGenerationKwh: null } })} />);
+    expect(screen.queryByText('Ganho estimado com SolaX')).not.toBeInTheDocument();
+    expect(screen.queryByText(/de geração solar/)).not.toBeInTheDocument();
   });
 });
 
