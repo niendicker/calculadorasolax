@@ -62,10 +62,31 @@ function daysSince(dateStr: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000));
 }
 
-/** Product model plus its admin-set nickname (if any), for a friendlier
- * label than the bare model code — e.g. "Titan (T-BAT-SYS-HV-5.8)". */
-function productDisplayName(model: string, nickname?: string | null): string {
-  return nickname ? `${nickname} (${model})` : model;
+/** A product's category label, its nickname/model (with quantity, if any),
+ * and — only when a nickname is set — the bare model code as a small
+ * caption underneath, so a long nickname + model pair doesn't get crammed
+ * onto one line next to the category label. */
+function ProductNameLine({
+  category,
+  model,
+  nickname,
+  suffix,
+}: {
+  category: string;
+  model: string;
+  nickname?: string | null;
+  suffix?: string;
+}) {
+  return (
+    <div>
+      <p className="text-muted-foreground">{category}</p>
+      <p className="font-medium text-foreground">
+        {nickname || model}
+        {suffix}
+      </p>
+      {nickname && <p className="text-[0.7rem] text-muted-foreground">{model}</p>}
+    </div>
+  );
 }
 
 const STALE_AFTER_DAYS = 7;
@@ -999,24 +1020,20 @@ function SelectedProjectSummary({
             <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" />
           </div>
           <div className="space-y-2.5 rounded-lg border bg-background p-2.5 text-xs text-muted-foreground">
-            <div className="space-y-1">
-              <p>
-                Inversor{' '}
-                <span className="font-medium text-foreground">
-                  {productDisplayName(
-                    project.solution.inverterModel,
-                    inverterCatalog.find((item) => item.model === project.solution?.inverterModel)?.nickname
-                  )}
-                </span>
-              </p>
+            <div className="space-y-2.5">
+              <ProductNameLine
+                category="Inversor"
+                model={project.solution.inverterModel}
+                nickname={inverterCatalog.find((item) => item.model === project.solution?.inverterModel)?.nickname}
+              />
               {batteryParts.map((part, index) => (
-                <p key={part.model}>
-                  {index === 0 ? 'Bateria' : 'Bateria (expansão)'}{' '}
-                  <span className="font-medium text-foreground">
-                    {productDisplayName(part.model, batteryCatalog.find((item) => item.model === part.model)?.nickname)}{' '}
-                    × {part.qty}
-                  </span>
-                </p>
+                <ProductNameLine
+                  key={part.model}
+                  category={index === 0 ? 'Bateria' : 'Bateria (expansão)'}
+                  model={part.model}
+                  nickname={batteryCatalog.find((item) => item.model === part.model)?.nickname}
+                  suffix={` × ${part.qty}`}
+                />
               ))}
               {project.solution.pvPowerKw ? (
                 <p>
@@ -1028,16 +1045,20 @@ function SelectedProjectSummary({
             {project.solution.accessories.length > 0 && (
               <>
                 <Separator />
-                <div className="space-y-1">
+                <div className="space-y-2.5">
                   <p className="font-medium text-foreground">Acessórios</p>
                   {project.solution.accessories.map((accessory) => {
                     const { model, qty, optional, bundled, appliesTo } = normalizeAccessoryLine(accessory);
+                    const nickname = accessoryCatalog.find((item) => item.model === model)?.nickname;
                     return (
-                      <div key={model} className="flex items-center justify-between gap-2">
-                        <span className="truncate">
-                          {productDisplayName(model, accessoryCatalog.find((item) => item.model === model)?.nickname)}
-                          {qty !== 1 ? ` × ${qty}` : ''}
-                        </span>
+                      <div key={model} className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-foreground">
+                            {nickname || model}
+                            {qty !== 1 ? ` × ${qty}` : ''}
+                          </p>
+                          {nickname && <p className="truncate text-[0.7rem]">{model}</p>}
+                        </div>
                         <span className="shrink-0 text-[0.7rem]">
                           {bundled
                             ? appliesTo === 'inverter'

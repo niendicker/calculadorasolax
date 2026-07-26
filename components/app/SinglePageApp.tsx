@@ -765,17 +765,24 @@ export function SinglePageApp() {
               : 'hidden'
           )}
         >
-          <div className="flex items-center justify-end px-4 pt-5 xl:hidden">
-            <Button
-              variant="ghost"
-              size="icon-lg"
-              aria-label="Fechar resumo"
-              onClick={() => setSummaryDrawerOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div ref={setSummaryEl} className="space-y-4 px-4 py-5" />
+          {/* The Projeto tab's own summary content has its own close button
+           * (see SelectedProjectSummary) once a project is selected, so this
+           * shared header would be a second, redundant close affordance there
+           * — only render it for tabs whose summary has no close button of
+           * its own. */}
+          {activeTab !== 'project' && (
+            <div className="flex items-center justify-end px-4 pt-1 xl:hidden">
+              <Button
+                variant="ghost"
+                size="icon-lg"
+                aria-label="Fechar resumo"
+                onClick={() => setSummaryDrawerOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          <div ref={setSummaryEl} className="space-y-4 px-4 pt-4 pb-5" />
           {!summaryActive && (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
               <p>Nenhum resumo disponível para esta seção.</p>

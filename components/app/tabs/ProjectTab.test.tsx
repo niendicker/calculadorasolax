@@ -610,9 +610,15 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     clickCard('Casa de praia');
 
-    expect(screen.getByText('Titan 5kW (X1-Hybrid-5.0kW-G4)')).toBeInTheDocument();
-    expect(screen.getByText('Nova 3.6 (TP-HS3.6) × 2')).toBeInTheDocument();
-    expect(screen.getByText(/Medidor Inteligente \(Smart Meter\)/)).toBeInTheDocument();
+    // Nickname is the prominent line; the bare model code sits underneath as a caption.
+    const inverterNickname = screen.getByText('Titan 5kW');
+    expect(inverterNickname.nextElementSibling).toHaveTextContent('X1-Hybrid-5.0kW-G4');
+
+    const batteryNickname = screen.getByText('Nova 3.6 × 2');
+    expect(batteryNickname.nextElementSibling).toHaveTextContent('TP-HS3.6');
+
+    const accessoryNickname = screen.getByText('Medidor Inteligente');
+    expect(accessoryNickname.nextElementSibling).toHaveTextContent('Smart Meter');
   });
 
   it('marks bundled accessories as included with the inverter/battery in the summary', () => {

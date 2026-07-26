@@ -384,10 +384,10 @@ export function SizingTab({
         {/* Sticky within the summary aside (the only place this ever renders —
          * see PageSummary): the tab switcher plus whichever tab's top metric
          * cards are active stay pinned while everything below scrolls
-         * underneath. Negative margins cancel the aside's own px-4/py-5
+         * underneath. Negative margins cancel the aside's own px-4/pt-4
          * padding so the sticky background spans full width and touches the
          * top edge, then re-applies that padding inside. */}
-        <div className="sticky top-0 z-10 -mx-4 -mt-5 space-y-3 bg-card px-4 pt-5 pb-3">
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 space-y-3 bg-card px-4 pt-4 pb-3">
           <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções do resumo">
             <button
               type="button"
