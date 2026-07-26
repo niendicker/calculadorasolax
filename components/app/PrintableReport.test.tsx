@@ -460,6 +460,29 @@ describe('PrintableReport: economic analysis section', () => {
     expect(screen.queryByText('Custo estimado sem SolaX')).not.toBeInTheDocument();
     expect(screen.queryByText('Custo estimado com SolaX')).not.toBeInTheDocument();
   });
+
+  it('shows the estimated gain from PV generation, valued at the white tariff\'s off-peak rate', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          whiteTariff: {
+            requiredPowerW: 1000,
+            requiredEnergyWh: 2000,
+            includeBackupReserve: false,
+            higherTariffPerKwh: 1.3,
+            lowerTariffPerKwh: 0.8,
+          },
+          solution: { ...solution, pvMonthlyGenerationKwh: 450 },
+        })}
+      />
+    );
+    expect(screen.getByText('Ganho estimado com geração solar (FV)')).toBeInTheDocument();
+  });
+
+  it('omits the PV generation gain when there is no white tariff, even with a PV estimate', () => {
+    render(<PrintableReport {...baseProps({ solution: { ...solution, pvMonthlyGenerationKwh: 450 } })} />);
+    expect(screen.queryByText('Ganho estimado com geração solar (FV)')).not.toBeInTheDocument();
+  });
 });
 
 describe('PrintableReport: comments and footer', () => {

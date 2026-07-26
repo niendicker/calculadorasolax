@@ -59,6 +59,7 @@ import { Tooltip, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip'
 import {
   batteryQuantityBreakdown,
   buildMarginSummary,
+  calculatePvGenerationSavings,
   calculateSystemCost,
   calculateTariffSavings,
   checkPhaseVoltageCompatibility,
@@ -2636,6 +2637,7 @@ function ResultSummary({
   const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog, totalBatteryPorts);
   const systemCost = calculateSystemCost(solution, userStockItems);
   const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
+  const pvSavings = calculatePvGenerationSavings(whiteTariff, solution.pvMonthlyGenerationKwh);
 
   if (solution.microgridAlternative) {
     return (
@@ -2672,6 +2674,10 @@ function ResultSummary({
             {(solution.inverterQty ?? 1) !== 1 && (
               <p className="mt-2 text-sm text-muted-foreground">{solution.inverterQty} unidades</p>
             )}
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Plug className="h-3.5 w-3.5" />
+              {totalBatteryPorts} {totalBatteryPorts === 1 ? 'porta de bateria' : 'portas de bateria'}
+            </p>
             <ProductAttachments media={inverterMedia} onPreview={setPreviewDoc} />
           </div>
           <ProductImage media={inverterMedia} onPreviewImage={setPreviewImage} />
@@ -2700,7 +2706,7 @@ function ResultSummary({
                 {totalBatteryPorts > 1 && (
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <Plug className="h-3.5 w-3.5" />
-                    {totalBatteryPorts} portas · {part.qty / totalBatteryPorts} baterias/porta
+                    {part.qty / totalBatteryPorts} baterias/porta
                   </p>
                 )}
                 <ProductAttachments media={partMedia} onPreview={setPreviewDoc} />
@@ -2737,12 +2743,12 @@ function ResultSummary({
               return (
                 <div key={model} className="relative rounded-lg border bg-muted/30 p-3">
                   {bundled ? (
-                    <Badge variant="secondary" className="absolute right-2 top-2 z-10">
+                    <Badge variant="secondary" className="absolute right-2 top-2">
                       <Package className="h-3 w-3" />
                       Incluso
                     </Badge>
                   ) : (
-                    <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2 z-10">
+                    <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2">
                       {optional ? 'Opcional' : 'Obrigatório'}
                     </Badge>
                   )}
@@ -2771,7 +2777,7 @@ function ResultSummary({
         </div>
       )}
 
-      {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
+      {(systemCost.pricedItemsCount > 0 || tariffSavings || pvSavings) && (
         <div className="rounded-lg border bg-background p-3">
           <p className="text-sm font-medium">Análise econômica</p>
           <div className="mt-2 space-y-2 text-sm">
@@ -2804,6 +2810,19 @@ function ResultSummary({
                       Custo estimado com SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês
                     </p>
                   )}
+                </div>
+              </div>
+            )}
+            {pvSavings && (
+              <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <Sun className="h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-muted-foreground">Ganho estimado com geração solar (FV)</p>
+                  <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(pvSavings.annualSavings)}/ano</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrencyBRL(pvSavings.monthlySavings)}/mês · {solution.pvMonthlyGenerationKwh?.toFixed(0)} kWh/mês
+                    estimados a {formatCurrencyBRL(whiteTariff!.lowerTariffPerKwh)}/kWh
+                  </p>
                 </div>
               </div>
             )}

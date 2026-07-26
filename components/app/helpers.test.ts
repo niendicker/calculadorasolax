@@ -4,6 +4,7 @@ import {
   batteryQuantityBreakdown,
   buildMarginSummary,
   buildPdfFileName,
+  calculatePvGenerationSavings,
   calculateSystemCost,
   calculateTariffSavings,
   checkPhaseVoltageCompatibility,
@@ -365,6 +366,36 @@ describe('calculateTariffSavings', () => {
     expect(result!.monthlyCostWithSolaxBrl).toBeNull();
     // The plain delta still shows even when the breakdown doesn't.
     expect(result!.monthlySavings).toBeGreaterThan(0);
+  });
+});
+
+describe('calculatePvGenerationSavings', () => {
+  function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {
+    return {
+      requiredPowerW: 2000,
+      requiredEnergyWh: 4000,
+      includeBackupReserve: false,
+      higherTariffPerKwh: 1.2,
+      lowerTariffPerKwh: 0.8,
+      ...partial,
+    };
+  }
+
+  it('returns null when there is no white tariff config', () => {
+    expect(calculatePvGenerationSavings(null, 450)).toBeNull();
+  });
+
+  it('returns null when there is no PV generation estimate', () => {
+    expect(calculatePvGenerationSavings(makeWhiteTariff(), null)).toBeNull();
+    expect(calculatePvGenerationSavings(makeWhiteTariff(), undefined)).toBeNull();
+    expect(calculatePvGenerationSavings(makeWhiteTariff(), 0)).toBeNull();
+  });
+
+  it('values the monthly PV generation at the white tariff\'s off-peak rate', () => {
+    const result = calculatePvGenerationSavings(makeWhiteTariff({ lowerTariffPerKwh: 0.8 }), 450);
+    expect(result).not.toBeNull();
+    expect(result!.monthlySavings).toBeCloseTo(450 * 0.8);
+    expect(result!.annualSavings).toBeCloseTo(450 * 0.8 * 12);
   });
 });
 

@@ -380,7 +380,7 @@ describe('SizingTab: summary panel', () => {
     });
 
     const batteryCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
-    expect(batteryCard).toHaveTextContent('2 portas · 4 baterias/porta');
+    expect(batteryCard).toHaveTextContent('4 baterias/porta');
   });
 
   it('differentiates the per-port count between the Master and expansion cards', () => {
@@ -393,11 +393,11 @@ describe('SizingTab: summary panel', () => {
 
     const masterCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
     expect(masterCard).toHaveTextContent('2 unidades');
-    expect(masterCard).toHaveTextContent('2 portas · 1 baterias/porta');
+    expect(masterCard).toHaveTextContent('1 baterias/porta');
 
     const expansionCard = screen.getByText('Bateria (expansão)', { selector: 'div' }).parentElement;
     expect(expansionCard).toHaveTextContent('4 unidades');
-    expect(expansionCard).toHaveTextContent('2 portas · 2 baterias/porta');
+    expect(expansionCard).toHaveTextContent('2 baterias/porta');
   });
 
   it('hides the port breakdown on the battery card when only one port is in use', () => {
@@ -407,6 +407,24 @@ describe('SizingTab: summary panel', () => {
 
     const batteryCard = screen.getByText('Bateria', { selector: 'div' }).parentElement;
     expect(batteryCard).not.toHaveTextContent('porta');
+  });
+
+  it('always shows the battery port count on the inverter card, even with a single port', () => {
+    setup({
+      solution: { ...fakeSolution, batteryQty: 4, inverterQty: 1, batteryPortsUsed: 1 },
+    });
+
+    const inverterCard = screen.getByText('Inversor', { selector: 'div' }).parentElement;
+    expect(inverterCard).toHaveTextContent('1 porta de bateria');
+  });
+
+  it('shows the total battery port count on the inverter card across multiple inverters', () => {
+    setup({
+      solution: { ...fakeSolution, batteryQty: 8, inverterQty: 2, batteryPortsUsed: 1 },
+    });
+
+    const inverterCard = screen.getByText('Inversor', { selector: 'div' }).parentElement;
+    expect(inverterCard).toHaveTextContent('2 portas de bateria');
   });
 
   it('shows Nominal/Pico/Energia metrics from nominalW/peakW/dailyKwh on the Resumo tab, while Backup is enabled', () => {
@@ -1875,6 +1893,52 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
     });
     expect(screen.queryByText(/Custo estimado sem SolaX/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Custo estimado com SolaX/)).not.toBeInTheDocument();
+  });
+
+  it('shows the estimated gain from PV generation, valued at the white tariff\'s off-peak rate', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        whiteTariff: {
+          requiredPowerW: 0,
+          requiredEnergyWh: 0,
+          higherTariffPerKwh: 1.3,
+          lowerTariffPerKwh: 0.8,
+          includeBackupReserve: false,
+        },
+      },
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
+    });
+    const heading = screen.getByText('Ganho estimado com geração solar (FV)');
+    const card = heading.closest('div')!.parentElement!;
+    expect(card).toHaveClass('border-primary/30', 'bg-primary/5');
+    // 450 kWh/month * R$0.80/kWh = R$360/month, R$4320/year.
+    expect(within(card).getByText(/4\.320,00\/ano/)).toBeInTheDocument();
+    expect(within(card).getByText(/360,00\/mês/)).toBeInTheDocument();
+  });
+
+  it('omits the PV generation gain when white tariff is not configured', () => {
+    setup({
+      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
+    });
+    expect(screen.queryByText('Ganho estimado com geração solar (FV)')).not.toBeInTheDocument();
+  });
+
+  it('omits the PV generation gain when the solution has no generation estimate', () => {
+    setup({
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        whiteTariff: {
+          requiredPowerW: 0,
+          requiredEnergyWh: 0,
+          higherTariffPerKwh: 1.3,
+          lowerTariffPerKwh: 0.8,
+          includeBackupReserve: false,
+        },
+      },
+      solution: { ...fakeSolution, pvPowerKw: null, pvMonthlyGenerationKwh: null },
+    });
+    expect(screen.queryByText('Ganho estimado com geração solar (FV)')).not.toBeInTheDocument();
   });
 });
 

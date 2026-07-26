@@ -458,6 +458,26 @@ export function calculateTariffSavings(
   };
 }
 
+export interface PvGenerationSavingsEstimate {
+  monthlySavings: number;
+  annualSavings: number;
+}
+
+/** Estimated savings from the PV array's own generation offsetting grid
+ * consumption, valued at Tarifa Branca's off-peak tariff (the customer's
+ * standard rate) since that's the only R$/kWh figure collected today. Null
+ * when either white_tariff isn't configured (no tariff available) or the
+ * solution has no PV generation estimate. */
+export function calculatePvGenerationSavings(
+  whiteTariff: WhiteTariffConfig | null,
+  pvMonthlyGenerationKwh: number | null | undefined
+): PvGenerationSavingsEstimate | null {
+  if (!whiteTariff || !pvMonthlyGenerationKwh) return null;
+
+  const monthlySavings = pvMonthlyGenerationKwh * whiteTariff.lowerTariffPerKwh;
+  return { monthlySavings, annualSavings: monthlySavings * 12 };
+}
+
 /** Turns a supabase.functions.invoke() error into a specific, actionable
  * message using the Edge Function's stable error code, falling back to a
  * network-specific message when the request never reached the function. */

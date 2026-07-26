@@ -41,6 +41,7 @@ import { desiredFeatureLabel } from '@/lib/desired-features';
 import {
   batteryQuantityBreakdown,
   buildMarginSummary,
+  calculatePvGenerationSavings,
   calculateSystemCost,
   calculateTariffSavings,
   formatCurrencyBRL,
@@ -401,6 +402,7 @@ export function PrintableReport({
   const loadEnergyKwh = (load: { powerW: number; qty: number }) => (operationHours * load.powerW * load.qty) / 1000;
 
   const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
+  const pvSavings = calculatePvGenerationSavings(whiteTariff, solution.pvMonthlyGenerationKwh);
 
   // Margins must reflect what the loads actually require the same way the
   // Solução tab does: the registered loads only count toward the
@@ -572,32 +574,43 @@ export function PrintableReport({
         </section>
       )}
 
-      {tariffSavings && (
+      {(tariffSavings || pvSavings) && (
         <section className="mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <Wallet className="h-4 w-4 text-primary" aria-hidden="true" />
             Análise econômica
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            <ReportMetric
-              icon={TrendingUp}
-              label="Ganho estimado com baterias (Tarifa Branca)"
-              value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
-              note={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês`}
-              highlight
-            />
-            {tariffSavings.monthlyCostWithoutSolaxBrl != null && (
+            {tariffSavings && (
+              <ReportMetric
+                icon={TrendingUp}
+                label="Ganho estimado com baterias (Tarifa Branca)"
+                value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
+                note={`${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês`}
+                highlight
+              />
+            )}
+            {tariffSavings?.monthlyCostWithoutSolaxBrl != null && (
               <ReportMetric
                 icon={Wallet}
                 label="Custo estimado sem SolaX"
                 value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês`}
               />
             )}
-            {tariffSavings.monthlyCostWithSolaxBrl != null && (
+            {tariffSavings?.monthlyCostWithSolaxBrl != null && (
               <ReportMetric
                 icon={Wallet}
                 label="Custo estimado com SolaX"
                 value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês`}
+              />
+            )}
+            {pvSavings && (
+              <ReportMetric
+                icon={Sun}
+                label="Ganho estimado com geração solar (FV)"
+                value={`${formatCurrencyBRL(pvSavings.annualSavings)}/ano`}
+                note={`${formatCurrencyBRL(pvSavings.monthlySavings)}/mês · ${solution.pvMonthlyGenerationKwh?.toFixed(0)} kWh/mês estimados a ${formatCurrencyBRL(whiteTariff!.lowerTariffPerKwh)}/kWh`}
+                highlight
               />
             )}
           </div>
