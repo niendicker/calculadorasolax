@@ -430,6 +430,24 @@ describe('LoadSelector: blank load card', () => {
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
   });
 
+  it('opens the blank draft card already fully expanded, with every field editable before it has a name', () => {
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+
+    // Not gated behind an expand click: qty/IP-IN/usage and voltage/type fields
+    // are all visible right away, alongside Nome/Potência.
+    expect(screen.getByLabelText('Quantidade', { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText('IP/IN', { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText('Fator de uso', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('Tensão')).toBeInTheDocument();
+    expect(screen.getByText('Tipo')).toBeInTheDocument();
+
+    // Adjusting a field before naming the load already updates the store.
+    fireEvent.change(screen.getByLabelText('Quantidade', { exact: false }), { target: { value: '3' } });
+    expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(3);
+  });
+
   it('inserts the new blank card, and the resulting load, at the top of the existing list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
@@ -851,7 +869,7 @@ describe('LoadSelector: added loads list', () => {
     expect(useWizardStore.getState().residentialOptions.loads[0].ipInRatio).toBe(2.5);
   });
 
-  it('drags a mono load onto a phase tile to connect it, splitting a two-phase load across the dropped phase and the other one', () => {
+  it('drags a mono load onto a phase tile to connect it phase-to-neutral, converting a two-phase load back to single-phase', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -861,7 +879,7 @@ describe('LoadSelector: added loads list', () => {
           // so this load stays single-phase instead of the phase2-pairing
           // effect auto-assigning it a second phase.
           { id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, phase: 'L1', voltageV: 110 },
-          { id: 'l2', name: 'Forno', powerW: 2200, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' },
+          { id: 'l2', name: 'Forno', powerW: 2200, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2', voltageV: 220 },
         ],
       },
     }));
@@ -874,15 +892,19 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.dragOver(phaseL3, { dataTransfer });
     fireEvent.drop(phaseL3, { dataTransfer });
 
-    expect(useWizardStore.getState().residentialOptions.loads.find((l) => l.id === 'l1')).toMatchObject({ phase: 'L3' });
+    expect(useWizardStore.getState().residentialOptions.loads.find((l) => l.id === 'l1')).toMatchObject({
+      phase: 'L3',
+      phase2: null,
+      voltageV: 110,
+    });
 
-    // A two-phase load (phase2 set) dropped onto a tile is rewired to that
-    // phase plus whichever other phase isn't the drop target.
+    // A two-phase load (phase2 set, 220V phase-to-phase) dropped onto a tile
+    // becomes phase-neutral on that single phase: phase2 is cleared and its
+    // voltage snaps down to the grid's phase-neutral voltage (110V here).
     const dataTransfer2 = { getData: () => 'l2', setData: vi.fn(), effectAllowed: '' };
     fireEvent.drop(phaseL3, { dataTransfer: dataTransfer2 });
     const forno = useWizardStore.getState().residentialOptions.loads.find((l) => l.id === 'l2');
-    expect(forno?.phase).toBe('L3');
-    expect(forno?.phase2).not.toBe('L3');
+    expect(forno).toMatchObject({ phase: 'L3', phase2: null, voltageV: 110 });
 
     // Dropping an unknown/missing load id is a no-op.
     const dataTransfer3 = { getData: () => 'ghost-id', setData: vi.fn(), effectAllowed: '' };
