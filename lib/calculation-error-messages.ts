@@ -4,6 +4,7 @@
 // incompatibility, invalid input, and network/server errors all need
 // different guidance for the user.
 
+import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { desiredFeatureLabel } from './desired-features';
 import type { DesiredFeatureId } from './types';
 
@@ -46,4 +47,24 @@ export function getCalculationErrorMessage(
 
 export function getNetworkErrorMessage(): string {
   return NETWORK_ERROR_MESSAGE;
+}
+
+/** Turns a supabase.functions.invoke() error into a specific, actionable
+ * message using the Edge Function's stable error code, falling back to a
+ * network-specific message when the request never reached the function. */
+export async function resolveCalculationErrorMessage(functionError: unknown): Promise<string> {
+  if (functionError instanceof FunctionsHttpError) {
+    try {
+      const body = await functionError.context.json();
+      return getCalculationErrorMessage(body?.error, body?.blockingFeatures);
+    } catch {
+      return getCalculationErrorMessage(undefined);
+    }
+  }
+
+  if (functionError instanceof FunctionsFetchError) {
+    return getNetworkErrorMessage();
+  }
+
+  return getCalculationErrorMessage(undefined);
 }

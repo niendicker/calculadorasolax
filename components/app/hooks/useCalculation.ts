@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
-import { enqueuePendingSimulation } from '@/lib/metrics-queue';
-import { getNetworkErrorMessage } from '@/lib/calculation-error-messages';
+import { calculateResidentialSolution } from '@/lib/calculate-residential';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
 import {
   isGeneratorAtsUnacknowledged,
@@ -11,7 +10,6 @@ import {
   isMicrogridPowerNoticeUnacknowledged,
   isPvConfigIncomplete,
   normalizeAccessoryLine,
-  resolveCalculationErrorMessage,
 } from '../helpers';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
 
@@ -164,49 +162,23 @@ export function useCalculation({
     setResultSolution: (solution: Solution | null) => void,
     setResultError: (error: string | null) => void
   ) {
-    try {
-      const { data, error: functionError } = await supabase.functions.invoke('calculate-residential', {
-        body: { ...residentialOptions, batteryModel },
-      });
+    const result = await calculateResidentialSolution({
+      supabase,
+      residentialOptions,
+      batteryModel,
+      projectName: projectInfo.name || null,
+      peakW,
+      dailyKwh,
+    });
 
-      if (functionError || !data) {
-        setResultSolution(null);
-        setResultError(await resolveCalculationErrorMessage(functionError));
-        return;
-      }
-
-      const nextSolution = data as Solution;
-      setResultSolution(nextSolution);
-      setResultError(null);
-
-      const { data: userData } = await supabase.auth.getUser();
-      const simulationPayload = {
-        user_id: userData.user?.id ?? null,
-        project_name: projectInfo.name || null,
-        topology: residentialOptions.topology,
-        grid_type: residentialOptions.gridType,
-        peak_w: peakW,
-        daily_kwh: dailyKwh,
-        loads: residentialOptions.loads,
-        inverter_model: nextSolution.inverterModel,
-        battery_model: nextSolution.batteryModel,
-        // app_simulations is an analytics table keyed on plain accessory
-        // names (see admin DashboardPanels.tsx countAccessories) — keep it
-        // decoupled from the richer Solution.accessories shape used for display.
-        accessories: nextSolution.accessories.map((accessory) => accessory.model),
-        solution_code: nextSolution.solutionCode ?? null,
-      };
-      const { error: simulationError } = await supabase.from('app_simulations').insert(simulationPayload);
-
-      if (simulationError) {
-        console.error(simulationError);
-        enqueuePendingSimulation(simulationPayload);
-      }
-    } catch (err) {
-      console.error(err);
+    if ('error' in result) {
       setResultSolution(null);
-      setResultError(getNetworkErrorMessage());
+      setResultError(result.error);
+      return;
     }
+
+    setResultSolution(result.solution);
+    setResultError(null);
   }
 
   async function calculate() {

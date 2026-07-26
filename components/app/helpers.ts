@@ -1,5 +1,3 @@
-import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
-import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
 import type {
   AccessoryLine,
   BatteryTopology,
@@ -658,24 +656,4 @@ export function calculateTariffSavings(
     monthlyCostWithSolaxBrl,
     pvMonthlySavings,
   };
-}
-
-/** Turns a supabase.functions.invoke() error into a specific, actionable
- * message using the Edge Function's stable error code, falling back to a
- * network-specific message when the request never reached the function. */
-export async function resolveCalculationErrorMessage(functionError: unknown): Promise<string> {
-  if (functionError instanceof FunctionsHttpError) {
-    try {
-      const body = await functionError.context.json();
-      return getCalculationErrorMessage(body?.error, body?.blockingFeatures);
-    } catch {
-      return getCalculationErrorMessage(undefined);
-    }
-  }
-
-  if (functionError instanceof FunctionsFetchError) {
-    return getNetworkErrorMessage();
-  }
-
-  return getCalculationErrorMessage(undefined);
 }

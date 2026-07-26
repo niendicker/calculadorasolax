@@ -236,3 +236,70 @@ describe('useProjectActions: open/openSizing/delete', () => {
     expect(result.current.projectStatus).toBe('Não foi possível duplicar o projeto. Tente novamente.');
   });
 });
+
+describe('useProjectActions: refreshProjectSolution', () => {
+  it('reports success and tracks refreshingProjectId only while in flight', async () => {
+    const { result } = setup();
+    expect(result.current.refreshingProjectId).toBeNull();
+
+    const promise = act(async () => {
+      await result.current.refreshProjectSolution('p1');
+    });
+    await promise;
+
+    expect(result.current.projectStatus).toBe('Solução recalculada.');
+    expect(result.current.refreshingProjectId).toBeNull();
+  });
+
+  it('reports a friendly message for the internal project_not_found code', async () => {
+    const { result } = setup({
+      refreshProjectSolution: vi.fn().mockRejectedValue(new Error('project_not_found')),
+    });
+
+    await act(async () => {
+      await result.current.refreshProjectSolution('p1');
+    });
+
+    expect(result.current.projectStatus).toBe('Projeto não encontrado. Atualize a lista e tente novamente.');
+  });
+
+  it('reports a friendly message for the internal missing_battery_model code', async () => {
+    const { result } = setup({
+      refreshProjectSolution: vi.fn().mockRejectedValue(new Error('missing_battery_model')),
+    });
+
+    await act(async () => {
+      await result.current.refreshProjectSolution('p1');
+    });
+
+    expect(result.current.projectStatus).toBe(
+      'Este projeto não tem uma bateria selecionada. Abra-o no Dimensionamento antes de recalcular.'
+    );
+  });
+
+  it('surfaces a specific calculation error message verbatim instead of a generic fallback', async () => {
+    const { result } = setup({
+      refreshProjectSolution: vi.fn().mockRejectedValue(
+        new Error('Nenhuma combinação aprovada atende a essa carga, bateria e tipo de rede. Tente reduzir as cargas, aumentar a capacidade da bateria ou escolher outro modelo.')
+      ),
+    });
+
+    await act(async () => {
+      await result.current.refreshProjectSolution('p1');
+    });
+
+    expect(result.current.projectStatus).toBe(
+      'Nenhuma combinação aprovada atende a essa carga, bateria e tipo de rede. Tente reduzir as cargas, aumentar a capacidade da bateria ou escolher outro modelo.'
+    );
+  });
+
+  it('falls back to a generic message when the rejection has no message', async () => {
+    const { result } = setup({ refreshProjectSolution: vi.fn().mockRejectedValue('not an Error') });
+
+    await act(async () => {
+      await result.current.refreshProjectSolution('p1');
+    });
+
+    expect(result.current.projectStatus).toBe('Não foi possível recalcular a solução. Tente novamente.');
+  });
+});

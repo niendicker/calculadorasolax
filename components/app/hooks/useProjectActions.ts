@@ -112,11 +112,18 @@ export function useProjectActions({
       await refreshProjectSolution(id);
       report('Solução recalculada.');
     } catch (error) {
-      report(
-        error instanceof Error && error.message.startsWith('Não foi possível')
-          ? error.message
-          : 'Não foi possível recalcular a solução. Tente novamente.'
-      );
+      // Internal-only codes (not meant to reach the user as-is) get a
+      // friendly message; anything else is already a specific, user-facing
+      // message from calculateResidentialSolution or a Supabase error.
+      if (error instanceof Error && error.message === 'project_not_found') {
+        report('Projeto não encontrado. Atualize a lista e tente novamente.');
+      } else if (error instanceof Error && error.message === 'missing_battery_model') {
+        report('Este projeto não tem uma bateria selecionada. Abra-o no Dimensionamento antes de recalcular.');
+      } else if (error instanceof Error && error.message) {
+        report(error.message);
+      } else {
+        report('Não foi possível recalcular a solução. Tente novamente.');
+      }
     } finally {
       setRefreshingProjectId(null);
     }

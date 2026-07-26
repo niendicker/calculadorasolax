@@ -1,5 +1,6 @@
+import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { getCalculationErrorMessage, getNetworkErrorMessage } from './calculation-error-messages';
+import { getCalculationErrorMessage, getNetworkErrorMessage, resolveCalculationErrorMessage } from './calculation-error-messages';
 
 describe('getCalculationErrorMessage', () => {
   it('returns a distinct message per known error code', () => {
@@ -66,5 +67,36 @@ describe('getNetworkErrorMessage', () => {
     for (const code of knownCodes) {
       expect(getCalculationErrorMessage(code)).not.toBe(networkMessage);
     }
+  });
+});
+
+describe('resolveCalculationErrorMessage', () => {
+  it('resolves a FunctionsHttpError to the message for its JSON body\'s error code', async () => {
+    const functionError = new FunctionsHttpError({ json: () => Promise.resolve({ error: 'no_approved_solution' }) });
+    expect(await resolveCalculationErrorMessage(functionError)).toBe(getCalculationErrorMessage('no_approved_solution'));
+  });
+
+  it('passes blockingFeatures from the JSON body through for no_solution_matches_desired_features', async () => {
+    const functionError = new FunctionsHttpError({
+      json: () => Promise.resolve({ error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] }),
+    });
+    expect(await resolveCalculationErrorMessage(functionError)).toBe(
+      getCalculationErrorMessage('no_solution_matches_desired_features', ['microgrid'])
+    );
+  });
+
+  it('falls back to the generic code message when the JSON body fails to parse', async () => {
+    const functionError = new FunctionsHttpError({ json: () => Promise.reject(new Error('bad json')) });
+    expect(await resolveCalculationErrorMessage(functionError)).toBe(getCalculationErrorMessage(undefined));
+  });
+
+  it('resolves a FunctionsFetchError to the network message', async () => {
+    const functionError = new FunctionsFetchError({});
+    expect(await resolveCalculationErrorMessage(functionError)).toBe(getNetworkErrorMessage());
+  });
+
+  it('falls back to the generic code message for anything else (e.g. no error at all)', async () => {
+    expect(await resolveCalculationErrorMessage(undefined)).toBe(getCalculationErrorMessage(undefined));
+    expect(await resolveCalculationErrorMessage(new Error('unrelated'))).toBe(getCalculationErrorMessage(undefined));
   });
 });

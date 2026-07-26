@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import { createClient } from '@/lib/supabase/client';
+import { calculateResidentialSolution } from '@/lib/calculate-residential';
 import type {
   BatteryTopology,
   CatalogItem,
@@ -469,19 +470,23 @@ export const useWizardStore = create<WizardStore>()(
       refreshProjectSolution: async (id) => {
         const project = get().savedProjects.find((item) => item.id === id);
         if (!project) throw new Error('project_not_found');
-        if (!project.residentialOptions.batteryModel) throw new Error('missing_battery_model');
+        const batteryModel = project.residentialOptions.batteryModel;
+        if (!batteryModel) throw new Error('missing_battery_model');
 
         const supabase = createClient();
-        const { data, error: functionError } = await supabase.functions.invoke('calculate-residential', {
-          body: { ...project.residentialOptions, batteryModel: project.residentialOptions.batteryModel },
+        const result = await calculateResidentialSolution({
+          supabase,
+          residentialOptions: project.residentialOptions,
+          batteryModel,
+          projectName: project.name,
+          peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+          dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
         });
-        if (functionError || !data) {
-          throw new Error('Não foi possível recalcular a solução. Tente novamente.');
-        }
+        if ('error' in result) throw new Error(result.error);
 
         const { data: row, error } = await supabase
           .from('projects')
-          .update({ solution: data as Solution, updated_at: new Date().toISOString() })
+          .update({ solution: result.solution, updated_at: new Date().toISOString() })
           .eq('id', id)
           .select()
           .single();
