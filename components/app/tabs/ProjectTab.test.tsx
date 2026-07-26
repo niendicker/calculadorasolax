@@ -356,10 +356,12 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
   });
 
-  it('clicking Editar on a saved project delegates to onOpen with its id', () => {
+  it('clicking Editar on a saved project delegates to onOpen with its id and also opens its summary', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     expect(props.onOpen).toHaveBeenCalledWith('p1');
+    expect(props.onShowSummary).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
   });
 
   it('clicking Dimensionamento on a saved project delegates to onOpenSizing with its id', () => {
@@ -677,12 +679,12 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(props.onShowSummary).toHaveBeenCalledTimes(1);
   });
 
-  it('does not trigger selection when clicking the card action buttons', () => {
+  it('does not trigger selection when clicking the duplicate/remove card action buttons', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' }));
 
-    expect(props.onOpen).toHaveBeenCalledWith('p1');
+    expect(props.onDuplicate).toHaveBeenCalledWith('p1');
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
 });

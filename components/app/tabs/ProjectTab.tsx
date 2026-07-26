@@ -436,7 +436,11 @@ export function ProjectTab({
                         setSelectedProjectId(willSelect ? project.id : null);
                         if (willSelect) onShowSummary();
                       }}
-                      onOpen={() => onOpen(project.id)}
+                      onOpen={() => {
+                        setSelectedProjectId(project.id);
+                        onShowSummary();
+                        onOpen(project.id);
+                      }}
                       onOpenSizing={() => onOpenSizing(project.id)}
                       onRemove={() => onRemove(project.id)}
                       onDuplicate={() => onDuplicate(project.id)}
