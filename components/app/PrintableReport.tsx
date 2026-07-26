@@ -29,6 +29,7 @@ import type {
   Client,
   DesiredFeatureId,
   GeneratorConfig,
+  MarginSettings,
   MicrogridConfig,
   ProjectInfo,
   PvConfig,
@@ -180,6 +181,7 @@ function ProductsList({
   batteryCatalog,
   accessoryCatalog,
   userStockItems,
+  marginSettings,
   productMedia,
   desiredFeatures,
   whiteTariff,
@@ -194,6 +196,7 @@ function ProductsList({
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
+  marginSettings?: MarginSettings;
   productMedia: Record<string, ProductMedia>;
   desiredFeatures: DesiredFeatureId[];
   whiteTariff: WhiteTariffConfig | null;
@@ -203,7 +206,7 @@ function ProductsList({
   peakW: number;
   dailyKwh: number;
 }) {
-  const systemCost = calculateSystemCost(solution, userStockItems);
+  const systemCost = calculateSystemCost(solution, userStockItems, undefined, undefined, marginSettings);
   const batteryParts = batteryQuantityBreakdown(
     solution.batteryModel,
     solution.batteryQty,
@@ -360,6 +363,7 @@ export function PrintableReport({
   peakW,
   dailyKwh,
   userStockItems,
+  marginSettings,
   whiteTariff,
   pv,
   desiredFeatures,
@@ -386,6 +390,7 @@ export function PrintableReport({
   peakW: number;
   dailyKwh: number;
   userStockItems: UserStockItem[];
+  marginSettings?: MarginSettings;
   whiteTariff: WhiteTariffConfig | null;
   pv?: PvConfig | null;
   desiredFeatures?: DesiredFeatureId[];
@@ -518,6 +523,7 @@ export function PrintableReport({
         batteryCatalog={batteryCatalog}
         accessoryCatalog={accessoryCatalog ?? []}
         userStockItems={userStockItems}
+        marginSettings={marginSettings}
         productMedia={productMedia ?? {}}
         desiredFeatures={desiredFeatures ?? []}
         whiteTariff={whiteTariff}
@@ -535,6 +541,7 @@ export function PrintableReport({
           batteryCatalog={batteryCatalog}
           accessoryCatalog={accessoryCatalog ?? []}
           userStockItems={userStockItems}
+          marginSettings={marginSettings}
           productMedia={productMedia ?? {}}
           desiredFeatures={desiredFeatures ?? []}
           whiteTariff={whiteTariff}

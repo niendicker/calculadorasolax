@@ -48,6 +48,7 @@ import type {
   DesiredFeatureId,
   GeneratorConfig,
   InverterFlag,
+  MarginSettings,
   MicrogridConfig,
   PeakCalcMode,
   ProductDocument,
@@ -143,6 +144,7 @@ export function SizingTab({
   autosaveLastSavedAt,
   productMedia,
   userStockItems,
+  marginSettings,
   onChooseMicrogridVariant,
 }: {
   title: string;
@@ -199,6 +201,7 @@ export function SizingTab({
   autosaveLastSavedAt: Date | null;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
+  marginSettings: MarginSettings;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
   const [mainTab, setMainTab] = useState<'features' | 'config'>('features');
@@ -539,6 +542,7 @@ export function SizingTab({
                 canExport={canCalculate && !hasInsufficientSolution}
                 productMedia={productMedia}
                 userStockItems={userStockItems}
+                marginSettings={marginSettings}
                 whiteTariff={residentialOptions.whiteTariff}
                 pv={residentialOptions.pv}
                 onChooseMicrogridVariant={onChooseMicrogridVariant}
@@ -2731,6 +2735,7 @@ function ResultSummary({
   canExport,
   productMedia,
   userStockItems,
+  marginSettings,
   whiteTariff,
   pv,
   onChooseMicrogridVariant,
@@ -2746,6 +2751,7 @@ function ResultSummary({
   canExport: boolean;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
+  marginSettings: MarginSettings;
   whiteTariff: WhiteTariffConfig | null;
   pv: PvConfig | null;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
@@ -2760,7 +2766,7 @@ function ResultSummary({
   const inverterMedia = productMedia[solution.inverterModel];
   const totalBatteryPorts = (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1);
   const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog, totalBatteryPorts);
-  const systemCost = calculateSystemCost(solution, userStockItems);
+  const systemCost = calculateSystemCost(solution, userStockItems, undefined, undefined, marginSettings);
   const tariffSavings = calculateTariffSavings(whiteTariff, {
     totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
     availableEnergyWh: solution.availableEnergyWh ?? 0,

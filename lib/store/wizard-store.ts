@@ -15,6 +15,7 @@ import type {
   LoadPhase,
   LoadPresetItem,
   LoadPresetLoad,
+  MarginSettings,
   MicrogridConfig,
   PeakCalcMode,
   ProjectInfo,
@@ -45,6 +46,7 @@ interface WizardStore {
   userStockItems: UserStockItem[];
   userLoadPresets: UserLoadPresetItem[];
   userServices: UserServiceItem[];
+  marginSettings: MarginSettings;
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
@@ -94,6 +96,8 @@ interface WizardStore {
   updateServiceName: (id: string, name: string) => Promise<void>;
   updateServiceValue: (id: string, unitValue: number) => Promise<void>;
   removeService: (id: string) => Promise<void>;
+  fetchMarginSettings: () => Promise<void>;
+  updateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
   /** Adds a line for this service to the project currently being edited, at
    * qty 1 — a no-op if it's already on the list. */
   addServiceToProject: (serviceId: string) => void;
@@ -257,6 +261,7 @@ export const useWizardStore = create<WizardStore>()(
       userStockItems: [],
       userLoadPresets: [],
       userServices: [],
+      marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
@@ -803,6 +808,52 @@ export const useWizardStore = create<WizardStore>()(
         }));
       },
 
+      fetchMarginSettings: async () => {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('margin_inverter_percent, margin_battery_percent, margin_accessory_percent')
+          .eq('id', userData.user.id)
+          .maybeSingle();
+        if (error) throw error;
+
+        set({
+          marginSettings: {
+            inverterPercent: data?.margin_inverter_percent ?? 0,
+            batteryPercent: data?.margin_battery_percent ?? 0,
+            accessoryPercent: data?.margin_accessory_percent ?? 0,
+          },
+        });
+      },
+
+      updateMarginPercent: async (category, percent) => {
+        const column = {
+          inverter: 'margin_inverter_percent',
+          battery: 'margin_battery_percent',
+          accessory: 'margin_accessory_percent',
+        }[category];
+        const field = {
+          inverter: 'inverterPercent',
+          battery: 'batteryPercent',
+          accessory: 'accessoryPercent',
+        }[category] as keyof MarginSettings;
+
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error('not_authenticated');
+
+        const { error } = await supabase
+          .from('profiles')
+          .update({ [column]: percent, updated_at: new Date().toISOString() })
+          .eq('id', userData.user.id);
+        if (error) throw error;
+
+        set((s) => ({ marginSettings: { ...s.marginSettings, [field]: percent } }));
+      },
+
       addServiceToProject: (serviceId) =>
         set((s) => {
           if (s.services.some((line) => line.serviceId === serviceId)) return {};
@@ -827,6 +878,7 @@ export const useWizardStore = create<WizardStore>()(
           userStockItems: [],
           userLoadPresets: [],
           userServices: [],
+          marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
           currentProjectId: null,
           projectDetailsVisible: false,
         }),

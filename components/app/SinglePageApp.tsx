@@ -64,6 +64,7 @@ export function SinglePageApp() {
     clients,
     userStockItems,
     userServices,
+    marginSettings,
     services,
     residentialOptions,
     solution,
@@ -81,6 +82,8 @@ export function SinglePageApp() {
     fetchUserStockItems,
     fetchUserLoadPresets,
     fetchUserServices,
+    fetchMarginSettings,
+    updateMarginPercent,
     addClient,
     updateClient,
     removeClient,
@@ -164,6 +167,7 @@ export function SinglePageApp() {
     fetchUserStockItems,
     fetchUserLoadPresets,
     fetchUserServices,
+    fetchMarginSettings,
     setLoadCatalog,
     setLoadPresets,
   });
@@ -598,6 +602,7 @@ export function SinglePageApp() {
               batteryCatalog={batteryCatalog}
               userStockItems={userStockItems}
               userServices={userServices}
+              marginSettings={marginSettings}
               services={services}
               initialLoading={initialLoading}
               projectStatus={projectStatus}
@@ -648,6 +653,8 @@ export function SinglePageApp() {
               onUpdateServiceName={updateServiceName}
               onUpdateServiceValue={updateServiceValue}
               onRemoveService={removeService}
+              marginSettings={marginSettings}
+              onUpdateMarginPercent={updateMarginPercent}
             />
           ) : activeTab === 'clients' ? (
             <ClientsTab
@@ -717,6 +724,7 @@ export function SinglePageApp() {
               autosaveLastSavedAt={autosaveLastSavedAt}
               productMedia={productMedia}
               userStockItems={userStockItems}
+              marginSettings={marginSettings}
               onChooseMicrogridVariant={chooseMicrogridVariant}
             />
           )}
@@ -973,6 +981,7 @@ export function SinglePageApp() {
           peakW={peakW}
           dailyKwh={dailyKwh}
           userStockItems={userStockItems}
+          marginSettings={marginSettings}
           whiteTariff={residentialOptions.whiteTariff}
           pv={residentialOptions.pv}
           desiredFeatures={residentialOptions.desiredFeatures}

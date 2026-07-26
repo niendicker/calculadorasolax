@@ -32,6 +32,7 @@ import { Separator } from '@/components/ui/separator';
 import type {
   BatteryTopology,
   Client,
+  MarginSettings,
   ProjectInfo,
   ProjectServiceLine,
   ResidentialGridType,
@@ -129,6 +130,7 @@ export function ProjectTab({
   batteryCatalog,
   userStockItems,
   userServices,
+  marginSettings,
   services,
   initialLoading,
   projectStatus,
@@ -164,6 +166,7 @@ export function ProjectTab({
   batteryCatalog: BatteryCatalogOption[];
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
+  marginSettings: MarginSettings;
   services: ProjectServiceLine[];
   initialLoading: boolean;
   projectStatus: string | null;
@@ -209,7 +212,7 @@ export function ProjectTab({
   const projectsWithSolutionCount = savedProjects.filter((project) => project.solution).length;
   const solutionsValue = savedProjects.reduce((total, project) => {
     if (!project.solution && project.services.length === 0) return total;
-    const cost = calculateSystemCost(project.solution, userStockItems, project.services, userServices);
+    const cost = calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings);
     return cost.pricedItemsCount > 0 ? total + cost.totalCost : total;
   }, 0);
 
@@ -274,6 +277,7 @@ export function ProjectTab({
             batteryCatalog={batteryCatalog}
             userStockItems={userStockItems}
             userServices={userServices}
+            marginSettings={marginSettings}
             onClose={() => setSelectedProjectId(null)}
             onOpenSizing={() => onOpenSizing(selectedProject.id)}
           />
@@ -432,6 +436,7 @@ export function ProjectTab({
                       client={clients.find((client) => client.id === project.clientId)}
                       userStockItems={userStockItems}
                       userServices={userServices}
+                      marginSettings={marginSettings}
                       selected={project.id === selectedProjectId}
                       onSelect={() => {
                         const willSelect = selectedProjectId !== project.id;
@@ -640,6 +645,7 @@ function ProjectCard({
   client,
   userStockItems,
   userServices,
+  marginSettings,
   selected,
   onSelect,
   onOpen,
@@ -652,6 +658,7 @@ function ProjectCard({
   client: Client | undefined;
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
+  marginSettings: MarginSettings;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -665,7 +672,7 @@ function ProjectCard({
   const isStale = !hasSolution && idleDays >= STALE_AFTER_DAYS;
   const systemCost =
     project.solution || project.services.length > 0
-      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices)
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings)
       : null;
 
   function stopAnd(handler: () => void) {
@@ -806,6 +813,7 @@ function SelectedProjectSummary({
   batteryCatalog,
   userStockItems,
   userServices,
+  marginSettings,
   onClose,
   onOpenSizing,
 }: {
@@ -814,13 +822,14 @@ function SelectedProjectSummary({
   batteryCatalog: BatteryCatalogOption[];
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
+  marginSettings: MarginSettings;
   onClose: () => void;
   onOpenSizing: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
     project.solution || project.services.length > 0
-      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices)
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings)
       : null;
   const { batteryModel, gridType, loads } = project.residentialOptions;
   const batteryParts = project.solution

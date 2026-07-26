@@ -341,6 +341,40 @@ describe('calculateSystemCost', () => {
     expect(result.pricedItemsCount).toBe(0);
   });
 
+  it('marks up each product category by its own sell margin percentage', () => {
+    const stock = [
+      makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
+      makeStockItem({ id: '2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 8000 }),
+      makeStockItem({ id: '3', productType: 'accessory', productModel: 'Smart Meter - M1-40', unitValue: 300 }),
+    ];
+    const result = calculateSystemCost(
+      makeSolution({ accessories: [makeAccessory({ model: 'Smart Meter - M1-40' })] }),
+      stock,
+      undefined,
+      undefined,
+      { inverterPercent: 10, batteryPercent: 20, accessoryPercent: 0 }
+    );
+    // inverter marked up 10% (5000 -> 5500), battery 20% (8000 -> 9600), accessory unchanged.
+    expect(result.totalCost).toBe(5500 + 9600 + 300);
+  });
+
+  it('applies no margin by default, keeping the raw stock price', () => {
+    const stock = [makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 })];
+    const result = calculateSystemCost(makeSolution(), stock);
+    expect(result.totalCost).toBe(5000);
+  });
+
+  it('does not apply a product margin to services, which have no separate cost basis', () => {
+    const services = [{ serviceId: 's1', name: 'Instalação', qty: 1 }];
+    const userServices = [{ id: 's1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' }];
+    const result = calculateSystemCost(null, [], services, userServices, {
+      inverterPercent: 50,
+      batteryPercent: 50,
+      accessoryPercent: 50,
+    });
+    expect(result.totalCost).toBe(500);
+  });
+
   it('adds priced project services (by serviceId) on top of the solution cost', () => {
     const stock = [
       makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),

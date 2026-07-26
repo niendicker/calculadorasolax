@@ -49,6 +49,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     batteryCatalog: [],
     userStockItems: [],
     userServices: [],
+    marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
     services: [],
     initialLoading: false,
     projectStatus: null,

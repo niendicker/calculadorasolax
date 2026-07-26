@@ -202,6 +202,15 @@ export interface UserLoadCatalogItem {
 
 export type StockProductType = 'inverter' | 'battery' | 'accessory';
 
+/** Per-category sell margin (%), applied on top of the user's own stock
+ * price when computing a solution's total cost — see calculateSystemCost.
+ * Services have no separate cost basis, so they're not included here. */
+export interface MarginSettings {
+  inverterPercent: number;
+  batteryPercent: number;
+  accessoryPercent: number;
+}
+
 /** A catalog product the user added to their personal price list, with a
  * value they set themselves — not a physical stock (no quantity tracking). */
 export interface UserStockItem {

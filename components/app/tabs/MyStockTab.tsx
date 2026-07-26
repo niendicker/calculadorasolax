@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
-import type { ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
+import type { MarginSettings, ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
@@ -78,6 +78,8 @@ export function MyStockTab({
   onUpdateServiceName,
   onUpdateServiceValue,
   onRemoveService,
+  marginSettings,
+  onUpdateMarginPercent,
 }: {
   userStockItems: UserStockItem[];
   inverterCatalog: InverterCatalogOption[];
@@ -91,6 +93,8 @@ export function MyStockTab({
   onUpdateServiceName: (id: string, name: string) => Promise<void>;
   onUpdateServiceValue: (id: string, unitValue: number) => Promise<void>;
   onRemoveService: (id: string) => Promise<void>;
+  marginSettings: MarginSettings;
+  onUpdateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -221,31 +225,38 @@ export function MyStockTab({
                   )
               );
               return (
-                <div key={section.type} className="grid gap-3 lg:grid-cols-2">
-                  {items.map((item) => (
-                    <StockProductCard
-                      key={item.id}
-                      item={item}
-                      fallbackIcon={section.fallbackIcon}
-                      inverterCatalog={inverterCatalog}
-                      batteryCatalog={batteryCatalog}
-                      accessoryCatalog={accessoryCatalog}
-                      onPreviewImage={setPreviewImage}
-                      onPreviewDoc={setPreviewDoc}
-                      onUpdateValue={onUpdateValue}
-                      onRemove={onRemove}
-                    />
-                  ))}
-                  <AddProductCard
+                <div key={section.type} className="space-y-3">
+                  <CategoryMarginInline
                     productType={section.type}
-                    availableProducts={availableToAdd}
-                    groupTabs={section.groupTabs}
-                    smallIcon={section.smallIcon}
-                    atLimit={atLimit}
-                    stockCount={userStockItems.length}
-                    stockLimit={ACCOUNT_LIMITS.userStockItems}
-                    onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
+                    marginSettings={marginSettings}
+                    onUpdateMarginPercent={onUpdateMarginPercent}
                   />
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {items.map((item) => (
+                      <StockProductCard
+                        key={item.id}
+                        item={item}
+                        fallbackIcon={section.fallbackIcon}
+                        inverterCatalog={inverterCatalog}
+                        batteryCatalog={batteryCatalog}
+                        accessoryCatalog={accessoryCatalog}
+                        onPreviewImage={setPreviewImage}
+                        onPreviewDoc={setPreviewDoc}
+                        onUpdateValue={onUpdateValue}
+                        onRemove={onRemove}
+                      />
+                    ))}
+                    <AddProductCard
+                      productType={section.type}
+                      availableProducts={availableToAdd}
+                      groupTabs={section.groupTabs}
+                      smallIcon={section.smallIcon}
+                      atLimit={atLimit}
+                      stockCount={userStockItems.length}
+                      stockLimit={ACCOUNT_LIMITS.userStockItems}
+                      onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -265,6 +276,51 @@ export function MyStockTab({
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> = {
+  inverter: 'inverterPercent',
+  battery: 'batteryPercent',
+  accessory: 'accessoryPercent',
+};
+
+/** Sell margin (%) for one product category, applied on top of the stock
+ * price entered below — see calculateSystemCost, which every economic
+ * analysis (Resumo do projeto, Análise econômica, relatório PDF) goes
+ * through. Inline and compact (one line) since it sits inside the category's
+ * own tab, next to its product grid, rather than a separate settings card. */
+function CategoryMarginInline({
+  productType,
+  marginSettings,
+  onUpdateMarginPercent,
+}: {
+  productType: StockProductType;
+  marginSettings: MarginSettings;
+  onUpdateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
+}) {
+  const field = marginFieldByProductType[productType];
+  const value = marginSettings[field];
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <label htmlFor={`margin-${productType}`}>Margem de venda</label>
+      <input
+        key={value}
+        id={`margin-${productType}`}
+        type="number"
+        min={0}
+        step={0.1}
+        defaultValue={value}
+        onBlur={(event) => {
+          const parsed = Number(event.target.value);
+          const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+          if (nextValue !== value) onUpdateMarginPercent(productType, nextValue);
+        }}
+        className="h-7 w-16 rounded-md border border-input bg-background px-1.5 text-center text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      />
+      <span>%</span>
     </div>
   );
 }

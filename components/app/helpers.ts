@@ -5,6 +5,7 @@ import type {
   BatteryTopology,
   DesiredFeatureId,
   GeneratorConfig,
+  MarginSettings,
   MicrogridConfig,
   ProjectServiceLine,
   PvConfig,
@@ -153,23 +154,38 @@ export interface SystemCostEstimate {
   isComplete: boolean;
 }
 
+const noMargin: MarginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 };
+
+const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> = {
+  inverter: 'inverterPercent',
+  battery: 'batteryPercent',
+  accessory: 'accessoryPercent',
+};
+
 /** Sums the user's own stock price for every model in the solution (inverter,
- * battery, each accessory) by quantity, plus the project's own services
- * (priced from the user's services catalog by serviceId) — together, this is
- * the final cost of the solution shown to the customer. Items/services
- * missing a price are skipped — isComplete tells the caller whether the
- * total should be shown as partial. `solution` may be null (e.g. a project
- * with services added before a solution has been calculated), in which case
- * only the services are priced. */
+ * battery, each accessory) by quantity — marked up by the matching category's
+ * sell margin (see MarginSettings) — plus the project's own services (priced
+ * as-is from the user's services catalog by serviceId, no margin applied:
+ * services have no separate cost basis). Together, this is the final cost of
+ * the solution shown to the customer, i.e. what every economic analysis
+ * should display. Items/services missing a price are skipped — isComplete
+ * tells the caller whether the total should be shown as partial. `solution`
+ * may be null (e.g. a project with services added before a solution has been
+ * calculated), in which case only the services are priced. */
 export function calculateSystemCost(
   solution: Solution | null,
   userStockItems: UserStockItem[],
   services: ProjectServiceLine[] = [],
-  userServices: UserServiceItem[] = []
+  userServices: UserServiceItem[] = [],
+  marginSettings: MarginSettings = noMargin
 ): SystemCostEstimate {
   function priceFor(productType: StockProductType, model: string): number | undefined {
-    return userStockItems.find((item) => item.productType === productType && item.productModel === model)
-      ?.unitValue;
+    const unitValue = userStockItems.find(
+      (item) => item.productType === productType && item.productModel === model
+    )?.unitValue;
+    if (unitValue === undefined) return undefined;
+    const marginPercent = marginSettings[marginFieldByProductType[productType]];
+    return unitValue * (1 + marginPercent / 100);
   }
 
   const productItems: { productType: StockProductType; model: string; qty: number }[] = solution

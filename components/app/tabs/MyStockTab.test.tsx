@@ -64,6 +64,8 @@ function setup(overrides: Partial<Parameters<typeof MyStockTab>[0]> = {}) {
     onUpdateServiceName: vi.fn().mockResolvedValue(undefined),
     onUpdateServiceValue: vi.fn().mockResolvedValue(undefined),
     onRemoveService: vi.fn().mockResolvedValue(undefined),
+    marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
+    onUpdateMarginPercent: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
   const utils = renderWithShell(<MyStockTab {...props} />);
@@ -276,5 +278,39 @@ describe('MyStockTab: services', () => {
 
     expect(screen.getByText('Limite atingido')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Adicionar serviço ao catálogo' })).not.toBeInTheDocument();
+  });
+});
+
+describe('MyStockTab: sell margins', () => {
+  it('shows the margin inline within each product category tab, scoped to that category', () => {
+    setup({ marginSettings: { inverterPercent: 10, batteryPercent: 20, accessoryPercent: 5 } });
+
+    // "Inversores" is the default tab.
+    expect(screen.getByLabelText('Margem de venda')).toHaveValue(10);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+    expect(screen.getByLabelText('Margem de venda')).toHaveValue(20);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+    expect(screen.getByLabelText('Margem de venda')).toHaveValue(5);
+  });
+
+  it('saves a category margin on blur when it changes', () => {
+    const { props } = setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
+
+    const input = screen.getByLabelText('Margem de venda');
+    fireEvent.change(input, { target: { value: '15' } });
+    fireEvent.blur(input);
+
+    expect(props.onUpdateMarginPercent).toHaveBeenCalledWith('inverter', 15);
+  });
+
+  it('does not save on blur when the margin value is unchanged', () => {
+    const { props } = setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
+
+    const input = screen.getByLabelText('Margem de venda');
+    fireEvent.blur(input);
+
+    expect(props.onUpdateMarginPercent).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ import ptMessages from '@/messages/pt.json';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
-import type { Solution, UserStockItem } from '@/lib/types';
+import type { MarginSettings, Solution, UserStockItem } from '@/lib/types';
 import { formatCurrencyBRL, TARIFF_BUSINESS_DAYS_PER_MONTH } from '../helpers';
 import { renderWithShell, Shell } from '../test-helpers/render-with-shell';
 import type { BatteryCatalogOption, InverterCatalogOption } from '../types';
@@ -116,6 +116,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     autosaveLastSavedAt: null,
     productMedia: {},
     userStockItems: [] as UserStockItem[],
+    marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 } as MarginSettings,
     onChooseMicrogridVariant: vi.fn(),
     ...overrides,
   };

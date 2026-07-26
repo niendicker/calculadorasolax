@@ -73,6 +73,7 @@ function baseHookProps(overrides: Record<string, unknown> = {}) {
     fetchUserStockItems: vi.fn().mockResolvedValue(undefined),
     fetchUserLoadPresets: vi.fn().mockResolvedValue(undefined),
     fetchUserServices: vi.fn().mockResolvedValue(undefined),
+    fetchMarginSettings: vi.fn().mockResolvedValue(undefined),
     setLoadCatalog: vi.fn(),
     setLoadPresets: vi.fn(),
     ...overrides,
@@ -156,6 +157,7 @@ describe('useInitialData: logged-in user', () => {
     expect(props.fetchUserStockItems).toHaveBeenCalled();
     expect(props.fetchUserLoadPresets).toHaveBeenCalled();
     expect(props.fetchUserServices).toHaveBeenCalled();
+    expect(props.fetchMarginSettings).toHaveBeenCalled();
     expect(result.current.userDataError).toBeNull();
   });
 
