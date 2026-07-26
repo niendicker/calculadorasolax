@@ -27,7 +27,16 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import type { BatteryTopology, Client, ProjectInfo, ResidentialGridType, SavedProject, UserStockItem } from '@/lib/types';
+import type {
+  BatteryTopology,
+  Client,
+  ProjectInfo,
+  ProjectServiceLine,
+  ResidentialGridType,
+  SavedProject,
+  UserServiceItem,
+  UserStockItem,
+} from '@/lib/types';
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import {
@@ -57,6 +66,8 @@ export function ProjectTab({
   clients,
   batteryCatalog,
   userStockItems,
+  userServices,
+  services,
   initialLoading,
   projectStatus,
   topology,
@@ -77,6 +88,9 @@ export function ProjectTab({
   onDownloadPdf,
   onManageClients,
   onShowSummary,
+  onAddService,
+  onRemoveService,
+  onUpdateServiceQty,
 }: {
   projectInfo: ProjectInfo;
   projectDetailsVisible: boolean;
@@ -85,6 +99,8 @@ export function ProjectTab({
   clients: Client[];
   batteryCatalog: BatteryCatalogOption[];
   userStockItems: UserStockItem[];
+  userServices: UserServiceItem[];
+  services: ProjectServiceLine[];
   initialLoading: boolean;
   projectStatus: string | null;
   topology: BatteryTopology | null;
@@ -108,6 +124,9 @@ export function ProjectTab({
    * mobile/tablet) — selecting a project should surface its rich summary
    * immediately instead of waiting for the user to tap the nav badge. */
   onShowSummary: () => void;
+  onAddService: (serviceId: string) => void;
+  onRemoveService: (serviceId: string) => void;
+  onUpdateServiceQty: (serviceId: string, qty: number) => void;
 }) {
   const [search, setSearch] = useState('');
   const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false);
@@ -122,14 +141,11 @@ export function ProjectTab({
       : null;
 
   const projectsWithSolutionCount = savedProjects.filter((project) => project.solution).length;
-  const solutionsValue = savedProjects.reduce(
-    (total, project) => {
-      if (!project.solution) return total;
-      const cost = calculateSystemCost(project.solution, userStockItems);
-      return cost.pricedItemsCount > 0 ? total + cost.totalCost : total;
-    },
-    0
-  );
+  const solutionsValue = savedProjects.reduce((total, project) => {
+    if (!project.solution && project.services.length === 0) return total;
+    const cost = calculateSystemCost(project.solution, userStockItems, project.services, userServices);
+    return cost.pricedItemsCount > 0 ? total + cost.totalCost : total;
+  }, 0);
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredProjects = savedProjects
@@ -191,6 +207,7 @@ export function ProjectTab({
             client={clients.find((client) => client.id === selectedProject.clientId)}
             batteryCatalog={batteryCatalog}
             userStockItems={userStockItems}
+            userServices={userServices}
             onClose={() => setSelectedProjectId(null)}
             onOpenSizing={() => onOpenSizing(selectedProject.id)}
           />
@@ -314,6 +331,11 @@ export function ProjectTab({
                     onSave={handleSave}
                     onCancel={handleCancel}
                     nameError={nameError}
+                    userServices={userServices}
+                    services={services}
+                    onAddService={onAddService}
+                    onRemoveService={onRemoveService}
+                    onUpdateServiceQty={onUpdateServiceQty}
                   />
                 )}
                 {filteredProjects.map((project) =>
@@ -328,6 +350,11 @@ export function ProjectTab({
                       onSave={handleSave}
                       onCancel={handleCancel}
                       nameError={nameError}
+                      userServices={userServices}
+                      services={services}
+                      onAddService={onAddService}
+                      onRemoveService={onRemoveService}
+                      onUpdateServiceQty={onUpdateServiceQty}
                     />
                   ) : (
                     <ProjectCard
@@ -335,6 +362,7 @@ export function ProjectTab({
                       project={project}
                       client={clients.find((client) => client.id === project.clientId)}
                       userStockItems={userStockItems}
+                      userServices={userServices}
                       selected={project.id === selectedProjectId}
                       onSelect={() => {
                         const willSelect = selectedProjectId !== project.id;
@@ -384,6 +412,11 @@ function ProjectDraftCard({
   onSave,
   onCancel,
   nameError,
+  userServices,
+  services,
+  onAddService,
+  onRemoveService,
+  onUpdateServiceQty,
 }: {
   projectInfo: ProjectInfo;
   clients: Client[];
@@ -393,6 +426,11 @@ function ProjectDraftCard({
   onSave: () => void;
   onCancel: () => void;
   nameError: boolean;
+  userServices: UserServiceItem[];
+  services: ProjectServiceLine[];
+  onAddService: (serviceId: string) => void;
+  onRemoveService: (serviceId: string) => void;
+  onUpdateServiceQty: (serviceId: string, qty: number) => void;
 }) {
   return (
     <Card className="border-primary/40 bg-primary/5 sm:col-span-2">
@@ -457,6 +495,58 @@ function ProjectDraftCard({
             />
           </ProjectField>
         </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Serviços</Label>
+          {userServices.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+              Cadastre serviços (instalação, frete...) em Meu Catálogo para adicioná-los ao projeto.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {services.length > 0 && (
+                <div className="space-y-1.5">
+                  {services.map((line) => (
+                    <div key={line.serviceId} className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm">
+                      <span className="min-w-0 flex-1 truncate">{line.name}</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={line.qty}
+                        aria-label={`Quantidade de ${line.name}`}
+                        onChange={(event) => onUpdateServiceQty(line.serviceId, Number(event.target.value) || 1)}
+                        className="h-8 w-16 text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remover serviço ${line.name}`}
+                        onClick={() => onRemoveService(line.serviceId)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {userServices
+                  .filter((service) => !services.some((line) => line.serviceId === service.id))
+                  .map((service) => (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => onAddService(service.id)}
+                      className="flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground"
+                    >
+                      <Plus className="h-3 w-3" />
+                      {service.name} · {formatCurrencyBRL(service.unitValue)}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="flex justify-end gap-2 md:col-span-2">
           <Button type="button" variant="outline" onClick={onCancel}>
             <X className="h-4 w-4" />
@@ -476,6 +566,7 @@ function ProjectCard({
   project,
   client,
   userStockItems,
+  userServices,
   selected,
   onSelect,
   onOpen,
@@ -487,6 +578,7 @@ function ProjectCard({
   project: SavedProject;
   client: Client | undefined;
   userStockItems: UserStockItem[];
+  userServices: UserServiceItem[];
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -498,7 +590,10 @@ function ProjectCard({
   const hasSolution = Boolean(project.solution);
   const idleDays = daysSince(project.updatedAt);
   const isStale = !hasSolution && idleDays >= STALE_AFTER_DAYS;
-  const systemCost = project.solution ? calculateSystemCost(project.solution, userStockItems) : null;
+  const systemCost =
+    project.solution || project.services.length > 0
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices)
+      : null;
 
   function stopAnd(handler: () => void) {
     return (event: React.MouseEvent) => {
@@ -632,6 +727,7 @@ function SelectedProjectSummary({
   client,
   batteryCatalog,
   userStockItems,
+  userServices,
   onClose,
   onOpenSizing,
 }: {
@@ -639,11 +735,15 @@ function SelectedProjectSummary({
   client: Client | undefined;
   batteryCatalog: BatteryCatalogOption[];
   userStockItems: UserStockItem[];
+  userServices: UserServiceItem[];
   onClose: () => void;
   onOpenSizing: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
-  const systemCost = project.solution ? calculateSystemCost(project.solution, userStockItems) : null;
+  const systemCost =
+    project.solution || project.services.length > 0
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices)
+      : null;
   const { batteryModel, gridType, loads } = project.residentialOptions;
   const batteryParts = project.solution
     ? batteryQuantityBreakdown(
@@ -712,21 +812,25 @@ function SelectedProjectSummary({
         <Requirement done={loads.length > 0} label={`${loads.length} carga(s) cadastrada(s)`} />
       </ul>
 
+      {systemCost && systemCost.pricedItemsCount > 0 && (
+        <>
+          <Separator />
+          <div className="rounded-lg border bg-background p-2.5">
+            <p className="text-xs text-muted-foreground">Valor da solução</p>
+            <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
+            {!systemCost.isComplete && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
+                estoque.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
       {metrics && project.solution && (
         <>
           <Separator />
-          {systemCost && systemCost.pricedItemsCount > 0 && (
-            <div className="rounded-lg border bg-background p-2.5">
-              <p className="text-xs text-muted-foreground">Valor da solução</p>
-              <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
-              {!systemCost.isComplete && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
-                  estoque.
-                </p>
-              )}
-            </div>
-          )}
           <div className="grid grid-cols-3 gap-2">
             <Metric
               icon={Gauge}
@@ -800,6 +904,24 @@ function SelectedProjectSummary({
         <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
           Este projeto ainda não tem uma solução calculada.
         </p>
+      )}
+
+      {project.services.length > 0 && (
+        <div className="space-y-1 rounded-lg border bg-background p-2.5 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Serviços</p>
+          {project.services.map((line) => {
+            const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
+            return (
+              <div key={line.serviceId} className="flex items-center justify-between gap-2">
+                <span className="truncate">
+                  {line.name}
+                  {line.qty !== 1 ? ` × ${line.qty}` : ''}
+                </span>
+                <span className="shrink-0">{unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}</span>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <Separator />

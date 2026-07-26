@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   BatteryCharging,
   ChevronDown,
+  Clock,
   Copy,
   Layers,
   ListChecks,
@@ -123,6 +124,10 @@ export function NumberFieldWithClear({
 }
 
 const MINE_FILTER = '__mine__';
+
+/** Backup's shared operation-time field is capped at half a day — long
+ * enough for any realistic outage window this app sizes for. */
+const MAX_OPERATION_HOURS = 12;
 
 /** Native HTML5 drag renders a full screenshot of the dragged element by
  * default, which is a lot of visual noise for a small drag-to-reconnect
@@ -347,6 +352,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
   const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [selectedLoadIdsForPreset, setSelectedLoadIdsForPreset] = useState<Set<string>>(new Set());
   const [presetName, setPresetName] = useState('');
   const [dragOverPhase, setDragOverPhase] = useState<LoadPhase | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<LoadPhase | 'all'>('all');
@@ -440,14 +446,15 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   }
 
   async function handleSaveCurrentAsPreset() {
-    if (!presetName.trim() || residentialOptions.loads.length === 0) return;
+    const selectedLoads = residentialOptions.loads.filter((load) => selectedLoadIdsForPreset.has(load.id));
+    if (!presetName.trim() || selectedLoads.length === 0) return;
     setSavingPreset(true);
     setPresetSaveError(null);
     try {
       await saveLoadsAsPreset({
         name: presetName.trim(),
         description: presetDescription.trim(),
-        loads: residentialOptions.loads.map((load) => ({
+        loads: selectedLoads.map((load) => ({
           name: load.name,
           powerW: load.powerW,
           qty: load.qty,
@@ -457,6 +464,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       setSavePresetOpen(false);
       setPresetName('');
       setPresetDescription('');
+      setSelectedLoadIdsForPreset(new Set());
     } catch (error) {
       setPresetSaveError(
         error instanceof Error && error.message.startsWith('Limite de')
@@ -466,6 +474,15 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     } finally {
       setSavingPreset(false);
     }
+  }
+
+  function toggleLoadForPreset(loadId: string) {
+    setSelectedLoadIdsForPreset((current) => {
+      const next = new Set(current);
+      if (next.has(loadId)) next.delete(loadId);
+      else next.add(loadId);
+      return next;
+    });
   }
 
   const presetsSummary = `${loadPresets.length} do sistema · ${userLoadPresets.length} seu(s)`;
@@ -480,25 +497,33 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         </p>
       )}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="operationHours">
+      <div className="rounded-lg border bg-background p-3">
+        <Label htmlFor="operationHours" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Clock className="h-3.5 w-3.5 shrink-0" />
           <InfoLabel
-            label="Tempo de operação (h)"
+            label="Tempo de operação"
             tip="Tempo compartilhado por todas as cargas durante o backup. Cada carga usa o próprio percentual de uso para escalar sua energia dentro desse tempo."
           />
         </Label>
-        <Input
-          id="operationHours"
-          type="number"
-          min={0}
-          max={24}
-          step={0.5}
-          placeholder="Ex.: 4"
-          value={residentialOptions.operationHours || ''}
-          onChange={(event) => setOperationHours(Number(event.target.value) || 0)}
-        />
+        <div className="mt-2 flex items-center gap-2">
+          <Input
+            id="operationHours"
+            type="number"
+            min={0}
+            max={MAX_OPERATION_HOURS}
+            step={0.5}
+            placeholder="Ex.: 4"
+            className="max-w-28"
+            value={residentialOptions.operationHours || ''}
+            onChange={(event) => {
+              const value = Number(event.target.value) || 0;
+              setOperationHours(Math.min(MAX_OPERATION_HOURS, Math.max(0, value)));
+            }}
+          />
+          <span className="text-sm text-muted-foreground">horas (máx. {MAX_OPERATION_HOURS} h)</span>
+        </div>
         {!residentialOptions.operationHours && (
-          <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          <p className="mt-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Informe o tempo de operação para calcular a energia das cargas.
           </p>
@@ -604,86 +629,92 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
             {presetsSubTab === 'mine' && (
             <div className="space-y-2">
-              <div className="flex justify-end">
-                {!savePresetOpen && (
-                  <Button
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                {savePresetOpen ? (
+                  <div className="space-y-3 rounded-lg border bg-card p-3 lg:col-span-2">
+                    <p className="text-xs text-muted-foreground">
+                      Clique nas cargas cadastradas abaixo para incluí-las ou tirá-las da predefinição.
+                    </p>
+                    <Input
+                      aria-label="Nome da predefinição"
+                      placeholder="Nome da predefinição"
+                      value={presetName}
+                      onChange={(event) => setPresetName(event.target.value)}
+                    />
+                    <Input
+                      aria-label="Descrição da predefinição"
+                      placeholder="Descrição (opcional)"
+                      value={presetDescription}
+                      onChange={(event) => setPresetDescription(event.target.value)}
+                    />
+
+                    {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!presetName.trim() || selectedLoadIdsForPreset.size === 0 || savingPreset}
+                        onClick={handleSaveCurrentAsPreset}
+                      >
+                        {savingPreset ? 'Salvando...' : 'Salvar'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSavePresetOpen(false);
+                          setPresetSaveError(null);
+                          setSelectedLoadIdsForPreset(new Set());
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
                     disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
-                    onClick={() => setSavePresetOpen(true)}
+                    onClick={() => {
+                      const selectableLoadIds = residentialOptions.loads
+                        .filter((load) => load.name.trim() && load.powerW > 0)
+                        .map((load) => load.id);
+                      setSelectedLoadIdsForPreset(new Set(selectableLoadIds));
+                      setSavePresetOpen(true);
+                    }}
+                    className="flex min-h-[88px] flex-col items-center justify-center gap-1 self-start rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Salvar cargas atuais como predefinição
-                  </Button>
+                    <Plus className="h-5 w-5" />
+                    Adicionar predefinição
+                  </button>
                 )}
+
+                {userLoadPresets.map((preset) => (
+                  <div key={preset.id} className="relative">
+                    <PresetCard
+                      preset={preset}
+                      onAdd={() => handleAddPreset(preset)}
+                      withDeleteSpacing
+                      operationHours={residentialOptions.operationHours}
+                    />
+                    <div className="absolute right-2 top-2">
+                      <ConfirmDeleteButton
+                        ariaLabel={`Remover predefinição ${preset.name}`}
+                        title="Remover predefinição?"
+                        description={`A predefinição "${preset.name}" será removida definitivamente.`}
+                        confirmLabel="Remover"
+                        onConfirm={() => removeUserLoadPreset(preset.id)}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {savePresetOpen && (
-                <div className="space-y-2 rounded-lg border bg-card p-3">
-                  <Input
-                    aria-label="Nome da predefinição"
-                    placeholder="Nome da predefinição"
-                    value={presetName}
-                    onChange={(event) => setPresetName(event.target.value)}
-                  />
-                  <Input
-                    aria-label="Descrição da predefinição"
-                    placeholder="Descrição (opcional)"
-                    value={presetDescription}
-                    onChange={(event) => setPresetDescription(event.target.value)}
-                  />
-                  {presetSaveError && <p className="text-xs text-destructive">{presetSaveError}</p>}
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={!presetName.trim() || savingPreset}
-                      onClick={handleSaveCurrentAsPreset}
-                    >
-                      {savingPreset ? 'Salvando...' : 'Salvar'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSavePresetOpen(false);
-                        setPresetSaveError(null);
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {userLoadPresets.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+              {userLoadPresets.length === 0 && !savePresetOpen && (
+                <p className="text-xs text-muted-foreground">
                   Nenhuma predefinição pessoal ainda. Monte as cargas do projeto e salve como predefinição para reutilizar depois.
                 </p>
-              ) : (
-                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                  {userLoadPresets.map((preset) => (
-                    <div key={preset.id} className="relative">
-                      <PresetCard
-                        preset={preset}
-                        onAdd={() => handleAddPreset(preset)}
-                        withDeleteSpacing
-                        operationHours={residentialOptions.operationHours}
-                      />
-                      <div className="absolute right-2 top-2">
-                        <ConfirmDeleteButton
-                          ariaLabel={`Remover predefinição ${preset.name}`}
-                          title="Remover predefinição?"
-                          description={`A predefinição "${preset.name}" será removida definitivamente.`}
-                          confirmLabel="Remover"
-                          onConfirm={() => removeUserLoadPreset(preset.id)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
               )}
             </div>
             )}
@@ -945,6 +976,9 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
                 saveManualLoadToCatalog={saveManualLoadToCatalog}
                 onCatalogSaveWarning={setCatalogSaveWarning}
+                presetSelectionMode={savePresetOpen}
+                presetSelected={selectedLoadIdsForPreset.has(load.id)}
+                onTogglePresetSelected={() => toggleLoadForPreset(load.id)}
               />
             ))}
           </div>
@@ -1201,6 +1235,9 @@ function LoadCard({
   duplicateDisabled,
   saveManualLoadToCatalog,
   onCatalogSaveWarning,
+  presetSelectionMode,
+  presetSelected,
+  onTogglePresetSelected,
 }: {
   load: SingleLoad;
   gridType: ResidentialGridType | null;
@@ -1215,6 +1252,12 @@ function LoadCard({
   duplicateDisabled: boolean;
   saveManualLoadToCatalog: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
   onCatalogSaveWarning: (message: string | null) => void;
+  /** When set, clicking the card toggles it in/out of the predefinição being
+   * built instead of expanding it for editing — see "Adicionar predefinição"
+   * in the Minhas predefinições tab. */
+  presetSelectionMode?: boolean;
+  presetSelected?: boolean;
+  onTogglePresetSelected?: () => void;
 }) {
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
@@ -1764,10 +1807,14 @@ function LoadCard({
 
   return (
     <div
-      className={cn('relative rounded-lg border bg-card text-sm', canDragToPhase && 'cursor-grab active:cursor-grabbing')}
-      draggable={canDragToPhase}
+      className={cn(
+        'relative rounded-lg border bg-card text-sm',
+        canDragToPhase && !presetSelectionMode && 'cursor-grab active:cursor-grabbing',
+        presetSelectionMode && presetSelected && 'border-primary ring-2 ring-primary/30 bg-primary/5'
+      )}
+      draggable={canDragToPhase && !presetSelectionMode}
       onDragStart={
-        canDragToPhase
+        canDragToPhase && !presetSelectionMode
           ? (event) => {
               event.dataTransfer.setData('text/plain', load.id);
               event.dataTransfer.effectAllowed = 'move';
@@ -1779,17 +1826,30 @@ function LoadCard({
       <div
         role="button"
         tabIndex={0}
-        aria-expanded={expanded}
-        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={presetSelectionMode ? undefined : expanded}
+        aria-pressed={presetSelectionMode ? Boolean(presetSelected) : undefined}
+        onClick={() => (presetSelectionMode ? onTogglePresetSelected?.() : setExpanded((current) => !current))}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            setExpanded((current) => !current);
+            if (presetSelectionMode) onTogglePresetSelected?.();
+            else setExpanded((current) => !current);
           }
         }}
         className="flex w-full cursor-pointer items-start justify-between gap-2 p-3 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-2">
+          {presetSelectionMode && (
+            <input
+              type="checkbox"
+              checked={Boolean(presetSelected)}
+              readOnly
+              aria-hidden="true"
+              tabIndex={-1}
+              className="mt-1 h-4 w-4 shrink-0"
+            />
+          )}
+          <div className="min-w-0">
           <p className="font-medium truncate">{load.name}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span
@@ -1859,7 +1919,9 @@ function LoadCard({
               {!voltageValid && ' · tensão incompatível'}
             </span>
           </div>
+          </div>
         </div>
+        {!presetSelectionMode && (
         <div className="flex shrink-0 items-center gap-1">
           {peakCalcMode === 'select' && (
             <Button
@@ -1920,8 +1982,9 @@ function LoadCard({
             aria-hidden="true"
           />
         </div>
+        )}
       </div>
-      {expanded && extraFields}
+      {!presetSelectionMode && expanded && extraFields}
     </div>
   );
 }

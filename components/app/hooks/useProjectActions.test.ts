@@ -31,6 +31,7 @@ const fakeProject: SavedProject = {
     maxPowerPerPhaseW: null,
   },
   solution: null,
+  services: [],
 };
 
 function setup(overrides: Partial<Parameters<typeof useProjectActions>[0]> = {}) {

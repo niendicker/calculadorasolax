@@ -3,7 +3,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
-import type { UserStockItem } from '@/lib/types';
+import type { UserServiceItem, UserStockItem } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { MyStockTab } from './MyStockTab';
@@ -59,6 +59,11 @@ function setup(overrides: Partial<Parameters<typeof MyStockTab>[0]> = {}) {
     onAddToStock: vi.fn().mockResolvedValue(undefined),
     onUpdateValue: vi.fn().mockResolvedValue(undefined),
     onRemove: vi.fn().mockResolvedValue(undefined),
+    userServices: [] as UserServiceItem[],
+    onAddService: vi.fn().mockResolvedValue(undefined),
+    onUpdateServiceName: vi.fn().mockResolvedValue(undefined),
+    onUpdateServiceValue: vi.fn().mockResolvedValue(undefined),
+    onRemoveService: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
   const utils = renderWithShell(<MyStockTab {...props} />);
@@ -200,5 +205,76 @@ describe('MyStockTab: adding from the catalog', () => {
     fireEvent.click(within(dialog).getByText('Smart Meter'));
 
     await waitFor(() => expect(within(dialog).getByText('Limite de 14 itens no catálogo atingido.')).toBeInTheDocument());
+  });
+});
+
+const serviceItem: UserServiceItem = {
+  id: 'sv1',
+  name: 'Instalação',
+  unitValue: 500,
+  createdAt: '',
+  updatedAt: '',
+};
+
+describe('MyStockTab: services', () => {
+  it('switches to the Serviços section and lists existing services', () => {
+    setup({ userServices: [serviceItem] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    expect(screen.getByLabelText('Nome do serviço Instalação')).toHaveValue('Instalação');
+    expect(screen.getByLabelText('Preço do serviço Instalação')).toHaveValue(500);
+  });
+
+  it('adds a new service with name and price', async () => {
+    const onAddService = vi.fn().mockResolvedValue(undefined);
+    const { props } = setup({ onAddService });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
+    fireEvent.change(screen.getByLabelText('Preço do serviço'), { target: { value: '150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(props.onAddService).toHaveBeenCalledWith({ name: 'Frete', unitValue: 150 }));
+  });
+
+  it('updates a service name and price on blur', () => {
+    const { props } = setup({ userServices: [serviceItem] });
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    fireEvent.change(screen.getByLabelText('Nome do serviço Instalação'), { target: { value: 'Instalação completa' } });
+    fireEvent.blur(screen.getByLabelText('Nome do serviço Instalação'));
+    expect(props.onUpdateServiceName).toHaveBeenCalledWith('sv1', 'Instalação completa');
+
+    fireEvent.change(screen.getByLabelText('Preço do serviço Instalação'), { target: { value: '600' } });
+    fireEvent.blur(screen.getByLabelText('Preço do serviço Instalação'));
+    expect(props.onUpdateServiceValue).toHaveBeenCalledWith('sv1', 600);
+  });
+
+  it('removes a service via the confirm popover', async () => {
+    const { props } = setup({ userServices: [serviceItem] });
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover serviço Instalação' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(props.onRemoveService).toHaveBeenCalledWith('sv1'));
+  });
+
+  it('shows the limit-reached state once at ACCOUNT_LIMITS.userServices', () => {
+    const services = Array.from({ length: ACCOUNT_LIMITS.userServices }, (_, i) => ({
+      id: `sv${i}`,
+      name: `Serviço ${i}`,
+      unitValue: 10,
+      createdAt: '',
+      updatedAt: '',
+    }));
+    setup({ userServices: services });
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adicionar serviço ao catálogo' })).not.toBeInTheDocument();
   });
 });

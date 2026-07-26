@@ -16,6 +16,7 @@ describe('ACCOUNT_LIMITS', () => {
       loadsPerProject: 20,
       clients: 50,
       userPresets: 3,
+      userServices: 10,
     });
   });
 });

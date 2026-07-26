@@ -2,10 +2,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Battery, Boxes, Loader2, Lock, Plus, Zap } from 'lucide-react';
+import { Battery, Boxes, Loader2, Lock, Plus, Wrench, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
-import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
+import type { ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
@@ -71,6 +73,11 @@ export function MyStockTab({
   onAddToStock,
   onUpdateValue,
   onRemove,
+  userServices,
+  onAddService,
+  onUpdateServiceName,
+  onUpdateServiceValue,
+  onRemoveService,
 }: {
   userStockItems: UserStockItem[];
   inverterCatalog: InverterCatalogOption[];
@@ -79,11 +86,17 @@ export function MyStockTab({
   onAddToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  userServices: UserServiceItem[];
+  onAddService: (input: { name: string; unitValue: number }) => Promise<void>;
+  onUpdateServiceName: (id: string, name: string) => Promise<void>;
+  onUpdateServiceValue: (id: string, unitValue: number) => Promise<void>;
+  onRemoveService: (id: string) => Promise<void>;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState<StockProductType>('inverter');
+  const [activeMainSection, setActiveMainSection] = useState<'products' | 'services'>('products');
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredStockItems = userStockItems.filter((item) =>
@@ -123,87 +136,333 @@ export function MyStockTab({
         </div>
       </PageHeader>
 
-      {atLimit && (
-        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          Você atingiu o limite de {ACCOUNT_LIMITS.userStockItems} produtos no seu catálogo. Remova um item para
-          adicionar outro.
-        </p>
-      )}
-
-      {userStockItems.length > 0 && (
-        <div className="max-w-xs">
-          <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
-        </div>
-      )}
-
-      <div className="space-y-4">
-        <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
-          {sectionDefinitions.map((section) => {
-            const count = filteredStockItems.filter((item) => item.productType === section.type).length;
-            const active = activeSection === section.type;
-            return (
-              <button
-                key={section.type}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setActiveSection(section.type)}
-                className={cn(
-                  'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
-                  active
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                )}
-              >
-                {section.label}
-                <span className="text-xs text-muted-foreground">({count})</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {sectionDefinitions.map((section) => {
-          if (section.type !== activeSection) return null;
-          const items = filteredStockItems.filter((item) => item.productType === section.type);
-          const availableToAdd = catalogByType[section.type].filter(
-            (product) =>
-              !userStockItems.some(
-                (item) => item.productType === section.type && item.productModel === product.model
-              )
-          );
-          return (
-            <div key={section.type} className="grid gap-3 lg:grid-cols-2">
-              {items.map((item) => (
-                <StockProductCard
-                  key={item.id}
-                  item={item}
-                  fallbackIcon={section.fallbackIcon}
-                  inverterCatalog={inverterCatalog}
-                  batteryCatalog={batteryCatalog}
-                  accessoryCatalog={accessoryCatalog}
-                  onPreviewImage={setPreviewImage}
-                  onPreviewDoc={setPreviewDoc}
-                  onUpdateValue={onUpdateValue}
-                  onRemove={onRemove}
-                />
-              ))}
-              <AddProductCard
-                productType={section.type}
-                availableProducts={availableToAdd}
-                groupTabs={section.groupTabs}
-                smallIcon={section.smallIcon}
-                atLimit={atLimit}
-                stockCount={userStockItems.length}
-                stockLimit={ACCOUNT_LIMITS.userStockItems}
-                onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
-              />
-            </div>
-          );
-        })}
+      <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Seções do catálogo">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMainSection === 'products'}
+          onClick={() => setActiveMainSection('products')}
+          className={cn(
+            'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+            activeMainSection === 'products'
+              ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+              : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+          )}
+        >
+          Produtos
+          <span className="text-xs text-muted-foreground">({userStockItems.length})</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMainSection === 'services'}
+          onClick={() => setActiveMainSection('services')}
+          className={cn(
+            'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+            activeMainSection === 'services'
+              ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+              : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+          )}
+        >
+          <Wrench className="h-3.5 w-3.5" />
+          Serviços
+          <span className="text-xs text-muted-foreground">({userServices.length})</span>
+        </button>
       </div>
+
+      {activeMainSection === 'products' && (
+        <>
+          {atLimit && (
+            <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              Você atingiu o limite de {ACCOUNT_LIMITS.userStockItems} produtos no seu catálogo. Remova um item para
+              adicionar outro.
+            </p>
+          )}
+
+          {userStockItems.length > 0 && (
+            <div className="max-w-xs">
+              <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
+              {sectionDefinitions.map((section) => {
+                const count = filteredStockItems.filter((item) => item.productType === section.type).length;
+                const active = activeSection === section.type;
+                return (
+                  <button
+                    key={section.type}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveSection(section.type)}
+                    className={cn(
+                      'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+                      active
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                  >
+                    {section.label}
+                    <span className="text-xs text-muted-foreground">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {sectionDefinitions.map((section) => {
+              if (section.type !== activeSection) return null;
+              const items = filteredStockItems.filter((item) => item.productType === section.type);
+              const availableToAdd = catalogByType[section.type].filter(
+                (product) =>
+                  !userStockItems.some(
+                    (item) => item.productType === section.type && item.productModel === product.model
+                  )
+              );
+              return (
+                <div key={section.type} className="grid gap-3 lg:grid-cols-2">
+                  {items.map((item) => (
+                    <StockProductCard
+                      key={item.id}
+                      item={item}
+                      fallbackIcon={section.fallbackIcon}
+                      inverterCatalog={inverterCatalog}
+                      batteryCatalog={batteryCatalog}
+                      accessoryCatalog={accessoryCatalog}
+                      onPreviewImage={setPreviewImage}
+                      onPreviewDoc={setPreviewDoc}
+                      onUpdateValue={onUpdateValue}
+                      onRemove={onRemove}
+                    />
+                  ))}
+                  <AddProductCard
+                    productType={section.type}
+                    availableProducts={availableToAdd}
+                    groupTabs={section.groupTabs}
+                    smallIcon={section.smallIcon}
+                    atLimit={atLimit}
+                    stockCount={userStockItems.length}
+                    stockLimit={ACCOUNT_LIMITS.userStockItems}
+                    onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {activeMainSection === 'services' && (
+        <ServicesSection
+          userServices={userServices}
+          onAddService={onAddService}
+          onUpdateServiceName={onUpdateServiceName}
+          onUpdateServiceValue={onUpdateServiceValue}
+          onRemoveService={onRemoveService}
+        />
+      )}
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  );
+}
+
+function ServicesSection({
+  userServices,
+  onAddService,
+  onUpdateServiceName,
+  onUpdateServiceValue,
+  onRemoveService,
+}: {
+  userServices: UserServiceItem[];
+  onAddService: (input: { name: string; unitValue: number }) => Promise<void>;
+  onUpdateServiceName: (id: string, name: string) => Promise<void>;
+  onUpdateServiceValue: (id: string, unitValue: number) => Promise<void>;
+  onRemoveService: (id: string) => Promise<void>;
+}) {
+  const atLimit = userServices.length >= ACCOUNT_LIMITS.userServices;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Serviços que você presta (instalação, frete, mão de obra...), com o preço que você define — some ao custo
+        final da solução quando adicionados a um projeto.
+      </p>
+      {atLimit && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Você atingiu o limite de {ACCOUNT_LIMITS.userServices} serviços no seu catálogo. Remova um item para
+          adicionar outro.
+        </p>
+      )}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {userServices.map((service) => (
+          <ServiceCard
+            key={service.id}
+            service={service}
+            onUpdateName={onUpdateServiceName}
+            onUpdateValue={onUpdateServiceValue}
+            onRemove={onRemoveService}
+          />
+        ))}
+        <AddServiceCard atLimit={atLimit} stockCount={userServices.length} stockLimit={ACCOUNT_LIMITS.userServices} onAdd={onAddService} />
+      </div>
+    </div>
+  );
+}
+
+function ServiceCard({
+  service,
+  onUpdateName,
+  onUpdateValue,
+  onRemove,
+}: {
+  service: UserServiceItem;
+  onUpdateName: (id: string, name: string) => Promise<void>;
+  onUpdateValue: (id: string, unitValue: number) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3">
+      <div className="min-w-0 flex-1 space-y-2">
+        <Input
+          key={service.id}
+          defaultValue={service.name}
+          aria-label={`Nome do serviço ${service.name}`}
+          onBlur={(event) => {
+            const nextName = event.target.value.trim();
+            if (nextName && nextName !== service.name) onUpdateName(service.id, nextName);
+          }}
+        />
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">R$</span>
+          <input
+            key={`${service.id}-value`}
+            type="number"
+            min={0}
+            step={0.01}
+            defaultValue={service.unitValue}
+            aria-label={`Preço do serviço ${service.name}`}
+            onBlur={(event) => {
+              const parsed = Number(event.target.value);
+              const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+              if (nextValue !== service.unitValue) onUpdateValue(service.id, nextValue);
+            }}
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </div>
+      </div>
+      <ConfirmDeleteButton
+        ariaLabel={`Remover serviço ${service.name}`}
+        title="Remover serviço?"
+        description="Esse serviço sai do seu catálogo pessoal. Projetos que já o incluem deixam de ter o preço resolvido."
+        confirmLabel="Remover"
+        onConfirm={() => onRemove(service.id)}
+      />
+    </div>
+  );
+}
+
+function AddServiceCard({
+  atLimit,
+  stockCount,
+  stockLimit,
+  onAdd,
+}: {
+  atLimit: boolean;
+  stockCount: number;
+  stockLimit: number;
+  onAdd: (input: { name: string; unitValue: number }) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (atLimit) {
+    return (
+      <div
+        role="status"
+        className="grid min-h-[104px] place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground"
+      >
+        <Lock className="h-6 w-6" aria-hidden="true" />
+        <span className="text-sm font-medium">Limite atingido</span>
+        <span className="text-xs">{stockCount}/{stockLimit} serviços · remova um item para adicionar outro</span>
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Adicionar serviço ao catálogo"
+        className="grid min-h-[104px] cursor-pointer place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
+      >
+        <Plus className="h-6 w-6" />
+        <span className="text-sm font-medium">Adicionar serviço</span>
+      </button>
+    );
+  }
+
+  async function handleAdd() {
+    const trimmedName = name.trim();
+    const parsedValue = Number(value);
+    if (!trimmedName || !Number.isFinite(parsedValue) || parsedValue < 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onAdd({ name: trimmedName, unitValue: parsedValue });
+      setOpen(false);
+      setName('');
+      setValue('');
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message.startsWith('Limite de')
+          ? err.message
+          : 'Não foi possível adicionar o serviço. Tente novamente.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-card p-3">
+      <Input aria-label="Nome do serviço" placeholder="Ex.: Instalação" value={name} onChange={(event) => setName(event.target.value)} />
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-muted-foreground">R$</span>
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          placeholder="0,00"
+          aria-label="Preço do serviço"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="button" size="sm" disabled={!name.trim() || saving} onClick={handleAdd}>
+          {saving ? 'Salvando...' : 'Salvar'}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setOpen(false);
+            setError(null);
+          }}
+        >
+          Cancelar
+        </Button>
+      </div>
     </div>
   );
 }

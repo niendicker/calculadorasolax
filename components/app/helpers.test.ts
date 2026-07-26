@@ -340,6 +340,37 @@ describe('calculateSystemCost', () => {
     expect(result.totalCost).toBe(0);
     expect(result.pricedItemsCount).toBe(0);
   });
+
+  it('adds priced project services (by serviceId) on top of the solution cost', () => {
+    const stock = [
+      makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
+      makeStockItem({ id: '2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 8000 }),
+    ];
+    const services = [{ serviceId: 's1', name: 'Instalação', qty: 2 }];
+    const userServices = [{ id: 's1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' }];
+    const result = calculateSystemCost(makeSolution(), stock, services, userServices);
+    expect(result.totalCost).toBe(5000 + 8000 + 500 * 2);
+    expect(result.pricedItemsCount).toBe(3);
+    expect(result.totalItemsCount).toBe(3);
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('prices services even when there is no solution yet', () => {
+    const services = [{ serviceId: 's1', name: 'Frete', qty: 1 }];
+    const userServices = [{ id: 's1', name: 'Frete', unitValue: 150, createdAt: '', updatedAt: '' }];
+    const result = calculateSystemCost(null, [], services, userServices);
+    expect(result.totalCost).toBe(150);
+    expect(result.totalItemsCount).toBe(1);
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('leaves a service unpriced (and isComplete false) when it no longer resolves in userServices', () => {
+    const services = [{ serviceId: 'gone', name: 'Serviço removido', qty: 1 }];
+    const result = calculateSystemCost(makeSolution(), [], services, []);
+    expect(result.pricedItemsCount).toBe(0);
+    expect(result.totalItemsCount).toBe(3);
+    expect(result.isComplete).toBe(false);
+  });
 });
 
 function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffConfig {

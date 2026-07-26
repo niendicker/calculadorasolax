@@ -63,6 +63,8 @@ export function SinglePageApp() {
     savedProjects,
     clients,
     userStockItems,
+    userServices,
+    services,
     residentialOptions,
     solution,
     secondarySolution,
@@ -78,12 +80,20 @@ export function SinglePageApp() {
     fetchUserLoadCatalog,
     fetchUserStockItems,
     fetchUserLoadPresets,
+    fetchUserServices,
     addClient,
     updateClient,
     removeClient,
     addToStock,
     updateStockItemValue,
     removeFromStock,
+    addService,
+    updateServiceName,
+    updateServiceValue,
+    removeService,
+    addServiceToProject,
+    removeServiceFromProject,
+    updateProjectServiceQty,
     clearUserData,
     setTopology,
     setBatteryModel,
@@ -153,6 +163,7 @@ export function SinglePageApp() {
     fetchUserLoadCatalog,
     fetchUserStockItems,
     fetchUserLoadPresets,
+    fetchUserServices,
     setLoadCatalog,
     setLoadPresets,
   });
@@ -584,6 +595,8 @@ export function SinglePageApp() {
               clients={clients}
               batteryCatalog={batteryCatalog}
               userStockItems={userStockItems}
+              userServices={userServices}
+              services={services}
               initialLoading={initialLoading}
               projectStatus={projectStatus}
               topology={residentialOptions.topology}
@@ -604,6 +617,9 @@ export function SinglePageApp() {
               onDownloadPdf={downloadProjectPdf}
               onManageClients={openClientsManager}
               onShowSummary={() => setSummaryDrawerOpen(true)}
+              onAddService={addServiceToProject}
+              onRemoveService={removeServiceFromProject}
+              onUpdateServiceQty={updateProjectServiceQty}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab
@@ -623,6 +639,11 @@ export function SinglePageApp() {
               onAddToStock={addToStock}
               onUpdateValue={updateStockItemValue}
               onRemove={removeFromStock}
+              userServices={userServices}
+              onAddService={addService}
+              onUpdateServiceName={updateServiceName}
+              onUpdateServiceValue={updateServiceValue}
+              onRemoveService={removeService}
             />
           ) : activeTab === 'clients' ? (
             <ClientsTab

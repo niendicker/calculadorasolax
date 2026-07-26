@@ -213,6 +213,30 @@ export interface UserStockItem {
   updatedAt: string;
 }
 
+/** A freely-named service (e.g. "Instalação", "Frete") the user defines with
+ * their own price — unlike UserStockItem, not tied to any admin catalog
+ * product. Added to a project's `services` list to compose the final
+ * solution cost. */
+export interface UserServiceItem {
+  id: string;
+  name: string;
+  unitValue: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One service line on a saved project — references a UserServiceItem by id
+ * with the quantity chosen for this project, snapshotting the service's name
+ * at the time it was added so the line still reads sensibly even if the
+ * service is later renamed or removed from the user's catalog (its price
+ * then can't be resolved, same as an accessory/product missing from
+ * userStockItems). */
+export interface ProjectServiceLine {
+  serviceId: string;
+  name: string;
+  qty: number;
+}
+
 export interface ResidentialOptions {
   topology: BatteryTopology | null;
   batteryModel: string | null;
@@ -329,6 +353,7 @@ export interface SavedProject {
   updatedAt: string;
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
+  services: ProjectServiceLine[];
 }
 
 export interface SimulationNode {

@@ -43,6 +43,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
       maxPowerPerPhaseW: null,
     },
     solution: null,
+    services: [],
     ...partial,
   };
 }
@@ -878,6 +879,7 @@ describe('fetchProjects', () => {
         updatedAt: '2026-02-01T00:00:00.000Z',
         residentialOptions: projectRow.residential_options,
         solution: null,
+        services: [],
       },
     ]);
   });

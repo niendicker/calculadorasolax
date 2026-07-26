@@ -149,11 +149,11 @@ describe('LoadSelector: adding from a system preset', () => {
 });
 
 describe('LoadSelector: user presets', () => {
-  it('shows the empty state and disables "Salvar cargas atuais" with no loads yet', () => {
+  it('shows the empty state and disables "Adicionar predefinição" with no loads yet', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
     expect(screen.getByText('Nenhuma predefinição pessoal ainda. Monte as cargas do projeto e salve como predefinição para reutilizar depois.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Adicionar predefinição/ })).toBeDisabled();
   });
 
   it('lists a saved user preset and removes it via the confirm popover', async () => {
@@ -199,11 +199,94 @@ describe('LoadSelector: user presets', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
     fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Meu novo preset' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => expect(useWizardStore.getState().userLoadPresets).toHaveLength(1));
+  });
+
+  it('only saves the loads left checked in the picker, letting the user deselect some', async () => {
+    const supabase = createSupabaseMock({
+      tableResults: {
+        user_load_presets: { data: { id: 'new-preset', name: 'Parcial', description: '', loads: [] }, error: null },
+      },
+    });
+    let insertPayload: unknown;
+    const originalFrom = supabase.from;
+    supabase.from = vi.fn((table: string) => {
+      const builder = originalFrom(table) as unknown as { insert: (payload: unknown) => unknown };
+      if (table === 'user_load_presets') {
+        const originalInsert = builder.insert.bind(builder);
+        builder.insert = (payload: unknown) => {
+          insertPayload = payload;
+          return originalInsert(payload);
+        };
+      }
+      return builder;
+    }) as typeof supabase.from;
+    createClientMock.mockReturnValue(supabase);
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [
+          { id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 },
+          { id: 'l2', name: 'Geladeira', powerW: 150, qty: 1, ipInRatio: 1 },
+        ],
+      },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
+
+    // Both registered loads start selected (clicking a load card toggles it);
+    // deselect "Geladeira" so only "Chuveiro" is saved.
+    expect(screen.getByRole('button', { name: /Chuveiro/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Geladeira/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /Geladeira/ }));
+
+    fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Parcial' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(useWizardStore.getState().userLoadPresets).toHaveLength(1));
+    expect(insertPayload).toMatchObject({ loads: [{ name: 'Chuveiro', powerW: 5500 }] });
+  });
+
+  it('disables Salvar when every load has been deselected', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
+
+    fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Vazio' } });
+    fireEvent.click(screen.getByRole('button', { name: /Chuveiro/ }));
+
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+  });
+
+  it('clicking a registered load while adding a preset toggles selection instead of expanding it for editing', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
+
+    const loadCard = screen.getByRole('button', { name: /Chuveiro/ });
+    expect(loadCard).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(loadCard);
+    expect(loadCard).toHaveAttribute('aria-pressed', 'false');
+    // Toggling selection must not expand the card's own edit fields.
+    expect(screen.queryByLabelText('Quantidade')).not.toBeInTheDocument();
   });
 
   it('shows a limit-reached error verbatim when saving a preset fails', async () => {
@@ -220,8 +303,8 @@ describe('LoadSelector: user presets', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
-    // At the limit, the "Salvar cargas atuais" trigger itself is disabled...
-    expect(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ })).toBeDisabled();
+    // At the limit, the "Adicionar predefinição" trigger itself is disabled...
+    expect(screen.getByRole('button', { name: /Adicionar predefinição/ })).toBeDisabled();
   });
 
   it('shows a generic error, edits the description, and cancels out of the save-preset form', async () => {
@@ -235,7 +318,7 @@ describe('LoadSelector: user presets', () => {
     }));
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
 
     fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Meu preset' } });
     fireEvent.change(screen.getByLabelText('Descrição da predefinição'), { target: { value: 'Uso diário' } });
@@ -670,6 +753,18 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.change(operationHoursInput, { target: { value: '2' } });
 
     expect(useWizardStore.getState().residentialOptions.operationHours).toBe(2);
+  });
+
+  it('clamps "Tempo de operação" to 12 hours even when a larger value is typed', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: { ...s.residentialOptions, operationHours: 1 },
+    }));
+    renderLoadSelector();
+
+    const operationHoursInput = screen.getByLabelText('Tempo de operação', { exact: false });
+    fireEvent.change(operationHoursInput, { target: { value: '20' } });
+
+    expect(useWizardStore.getState().residentialOptions.operationHours).toBe(12);
   });
 
   it('warns when the shared operation time is not configured', () => {

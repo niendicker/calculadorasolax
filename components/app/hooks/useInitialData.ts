@@ -17,6 +17,7 @@ export function useInitialData({
   fetchUserLoadCatalog,
   fetchUserStockItems,
   fetchUserLoadPresets,
+  fetchUserServices,
   setLoadCatalog,
   setLoadPresets,
 }: {
@@ -26,6 +27,7 @@ export function useInitialData({
   fetchUserLoadCatalog: () => Promise<void>;
   fetchUserStockItems: () => Promise<void>;
   fetchUserLoadPresets: () => Promise<void>;
+  fetchUserServices: () => Promise<void>;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
   setLoadPresets: (presets: LoadPresetItem[]) => void;
 }) {
@@ -104,6 +106,7 @@ export function useInitialData({
             fetchUserLoadCatalog(),
             fetchUserStockItems(),
             fetchUserLoadPresets(),
+            fetchUserServices(),
           ]);
           setUserDataError(null);
         } catch {
@@ -208,6 +211,7 @@ export function useInitialData({
     fetchUserLoadCatalog,
     fetchUserStockItems,
     fetchUserLoadPresets,
+    fetchUserServices,
   ]);
 
   useEffect(() => {

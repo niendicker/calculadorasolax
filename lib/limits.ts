@@ -9,6 +9,7 @@ export const ACCOUNT_LIMITS = {
   loadsPerProject: 20,
   clients: 50,
   userPresets: 3,
+  userServices: 10,
 } as const;
 
 export function limitReachedMessage(resource: string, limit: number): string {

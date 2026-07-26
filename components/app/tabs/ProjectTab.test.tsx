@@ -32,6 +32,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
       maxPowerPerPhaseW: null,
     },
     solution: null,
+    services: [],
     ...partial,
   };
 }
@@ -47,6 +48,8 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     clients: [] as Client[],
     batteryCatalog: [],
     userStockItems: [],
+    userServices: [],
+    services: [],
     initialLoading: false,
     projectStatus: null,
     topology: null,
@@ -67,6 +70,9 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     onDownloadPdf: vi.fn(),
     onManageClients: vi.fn(),
     onShowSummary: vi.fn(),
+    onAddService: vi.fn(),
+    onRemoveService: vi.fn(),
+    onUpdateServiceQty: vi.fn(),
     ...overrides,
   };
   const utils = renderWithShell(<ProjectTab {...props} />);

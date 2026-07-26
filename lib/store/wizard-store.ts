@@ -18,6 +18,7 @@ import type {
   MicrogridConfig,
   PeakCalcMode,
   ProjectInfo,
+  ProjectServiceLine,
   PvConfig,
   ResidentialGridType,
   ResidentialOptions,
@@ -27,6 +28,7 @@ import type {
   StockProductType,
   UserLoadCatalogItem,
   UserLoadPresetItem,
+  UserServiceItem,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
@@ -42,9 +44,14 @@ interface WizardStore {
   userLoadCatalog: UserLoadCatalogItem[];
   userStockItems: UserStockItem[];
   userLoadPresets: UserLoadPresetItem[];
+  userServices: UserServiceItem[];
   residentialOptions: ResidentialOptions;
   industrialOptions: IndustrialOptions;
   solution: Solution | null;
+  /** Service lines (from userServices) added to the project currently being
+   * edited — saved/loaded alongside residentialOptions/solution as part of
+   * the project, see saveCurrentProject/loadProject. */
+  services: ProjectServiceLine[];
   /** Result for residentialOptions.secondaryBatteryModel, when set — a live
    * comparison aid, not part of what gets saved with the project (see
    * saveCurrentProject/loadProject, which only persist `solution`). */
@@ -82,6 +89,16 @@ interface WizardStore {
   addToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
   updateStockItemValue: (id: string, unitValue: number) => Promise<void>;
   removeFromStock: (id: string) => Promise<void>;
+  fetchUserServices: () => Promise<void>;
+  addService: (input: { name: string; unitValue: number }) => Promise<void>;
+  updateServiceName: (id: string, name: string) => Promise<void>;
+  updateServiceValue: (id: string, unitValue: number) => Promise<void>;
+  removeService: (id: string) => Promise<void>;
+  /** Adds a line for this service to the project currently being edited, at
+   * qty 1 — a no-op if it's already on the list. */
+  addServiceToProject: (serviceId: string) => void;
+  removeServiceFromProject: (serviceId: string) => void;
+  updateProjectServiceQty: (serviceId: string, qty: number) => void;
   clearUserData: () => void;
   setTopology: (topology: BatteryTopology) => void;
   setBatteryModel: (batteryModel: string | null) => void;
@@ -214,6 +231,17 @@ function projectFromRow(row: Record<string, unknown>): SavedProject {
     updatedAt: row.updated_at as string,
     residentialOptions: row.residential_options as ResidentialOptions,
     solution: (row.solution as Solution | null) ?? null,
+    services: Array.isArray(row.services) ? (row.services as ProjectServiceLine[]) : [],
+  };
+}
+
+function userServiceFromRow(row: Record<string, unknown>): UserServiceItem {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? '',
+    unitValue: Number(row.unit_value) || 0,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   };
 }
 
@@ -228,10 +256,12 @@ export const useWizardStore = create<WizardStore>()(
       userLoadCatalog: [],
       userStockItems: [],
       userLoadPresets: [],
+      userServices: [],
       residentialOptions: defaultResidential,
       industrialOptions: defaultIndustrial,
       solution: null,
       secondarySolution: null,
+      services: [],
       loadCatalog: [],
       loadPresets: [],
 
@@ -248,6 +278,7 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: defaultResidential,
           solution: null,
           secondarySolution: null,
+          services: [],
         }),
 
       // Discards an in-progress "Dados do projeto" card without saving. For a
@@ -268,11 +299,13 @@ export const useWizardStore = create<WizardStore>()(
               residentialOptions: defaultResidential,
               solution: null,
               secondarySolution: null,
+              services: [],
             };
           }
 
           return {
             projectDetailsVisible: false,
+            services: project.services ?? [],
             projectInfo: {
               name: project.name,
               clientId: project.clientId,
@@ -309,6 +342,7 @@ export const useWizardStore = create<WizardStore>()(
           notes: s.projectInfo.notes.trim() || null,
           residential_options: s.residentialOptions,
           solution: s.solution,
+          services: s.services,
           updated_at: new Date().toISOString(),
         };
 
@@ -352,6 +386,7 @@ export const useWizardStore = create<WizardStore>()(
             },
             solution: project.solution,
             secondarySolution: null,
+            services: project.services ?? [],
           };
         }),
 
@@ -376,6 +411,7 @@ export const useWizardStore = create<WizardStore>()(
                   residentialOptions: defaultResidential,
                   solution: null,
                   secondarySolution: null,
+                  services: [],
                 }
               : {}),
           };
@@ -403,6 +439,7 @@ export const useWizardStore = create<WizardStore>()(
           notes: source.notes || null,
           residential_options: source.residentialOptions,
           solution: source.solution,
+          services: source.services,
           updated_at: new Date().toISOString(),
         };
 
@@ -701,6 +738,87 @@ export const useWizardStore = create<WizardStore>()(
         }));
       },
 
+      fetchUserServices: async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase.from('user_services').select('*').order('name');
+        if (error) throw error;
+        set({ userServices: (data ?? []).map(userServiceFromRow) });
+      },
+
+      addService: async (input) => {
+        if (get().userServices.length >= ACCOUNT_LIMITS.userServices) {
+          throw new Error(limitReachedMessage('serviços no catálogo', ACCOUNT_LIMITS.userServices));
+        }
+
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error('not_authenticated');
+
+        const { data, error } = await supabase
+          .from('user_services')
+          .insert({ user_id: userData.user.id, name: input.name.trim(), unit_value: input.unitValue })
+          .select()
+          .single();
+        if (error) throw error;
+
+        const item = userServiceFromRow(data);
+        set((s) => ({ userServices: [...s.userServices, item].sort((a, b) => a.name.localeCompare(b.name)) }));
+      },
+
+      updateServiceName: async (id, name) => {
+        const trimmed = name.trim();
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('user_services')
+          .update({ name: trimmed, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userServices: s.userServices.map((item) => (item.id === id ? { ...item, name: trimmed } : item)),
+        }));
+      },
+
+      updateServiceValue: async (id, unitValue) => {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from('user_services')
+          .update({ unit_value: unitValue, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userServices: s.userServices.map((item) => (item.id === id ? { ...item, unitValue } : item)),
+        }));
+      },
+
+      removeService: async (id) => {
+        const supabase = createClient();
+        const { error } = await supabase.from('user_services').delete().eq('id', id);
+        if (error) throw error;
+
+        set((s) => ({
+          userServices: s.userServices.filter((item) => item.id !== id),
+          services: s.services.filter((line) => line.serviceId !== id),
+        }));
+      },
+
+      addServiceToProject: (serviceId) =>
+        set((s) => {
+          if (s.services.some((line) => line.serviceId === serviceId)) return {};
+          const service = s.userServices.find((item) => item.id === serviceId);
+          if (!service) return {};
+          return { services: [...s.services, { serviceId, name: service.name, qty: 1 }] };
+        }),
+
+      removeServiceFromProject: (serviceId) =>
+        set((s) => ({ services: s.services.filter((line) => line.serviceId !== serviceId) })),
+
+      updateProjectServiceQty: (serviceId, qty) =>
+        set((s) => ({
+          services: s.services.map((line) => (line.serviceId === serviceId ? { ...line, qty: Math.max(1, qty) } : line)),
+        })),
+
       clearUserData: () =>
         set({
           clients: [],
@@ -708,6 +826,7 @@ export const useWizardStore = create<WizardStore>()(
           userLoadCatalog: [],
           userStockItems: [],
           userLoadPresets: [],
+          userServices: [],
           currentProjectId: null,
           projectDetailsVisible: false,
         }),
@@ -864,6 +983,7 @@ export const useWizardStore = create<WizardStore>()(
         industrialOptions: state.industrialOptions,
         solution: state.solution,
         secondarySolution: state.secondarySolution,
+        services: state.services,
         loadCatalog: state.loadCatalog,
         loadPresets: state.loadPresets,
       }),

@@ -6,10 +6,12 @@ import type {
   DesiredFeatureId,
   GeneratorConfig,
   MicrogridConfig,
+  ProjectServiceLine,
   PvConfig,
   ResidentialGridType,
   Solution,
   StockProductType,
+  UserServiceItem,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
@@ -152,27 +154,39 @@ export interface SystemCostEstimate {
 }
 
 /** Sums the user's own stock price for every model in the solution (inverter,
- * battery, each accessory) by quantity. Items missing a price are skipped —
- * isComplete tells the caller whether the total should be shown as partial. */
-export function calculateSystemCost(solution: Solution, userStockItems: UserStockItem[]): SystemCostEstimate {
+ * battery, each accessory) by quantity, plus the project's own services
+ * (priced from the user's services catalog by serviceId) — together, this is
+ * the final cost of the solution shown to the customer. Items/services
+ * missing a price are skipped — isComplete tells the caller whether the
+ * total should be shown as partial. `solution` may be null (e.g. a project
+ * with services added before a solution has been calculated), in which case
+ * only the services are priced. */
+export function calculateSystemCost(
+  solution: Solution | null,
+  userStockItems: UserStockItem[],
+  services: ProjectServiceLine[] = [],
+  userServices: UserServiceItem[] = []
+): SystemCostEstimate {
   function priceFor(productType: StockProductType, model: string): number | undefined {
     return userStockItems.find((item) => item.productType === productType && item.productModel === model)
       ?.unitValue;
   }
 
-  const items: { productType: StockProductType; model: string; qty: number }[] = [
-    { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
-    { productType: 'battery', model: solution.batteryModel, qty: solution.batteryQty },
-    ...solution.accessories.map((accessory) => {
-      const { model, qty } = normalizeAccessoryLine(accessory);
-      return { productType: 'accessory' as const, model, qty };
-    }),
-  ];
+  const productItems: { productType: StockProductType; model: string; qty: number }[] = solution
+    ? [
+        { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
+        { productType: 'battery', model: solution.batteryModel, qty: solution.batteryQty },
+        ...solution.accessories.map((accessory) => {
+          const { model, qty } = normalizeAccessoryLine(accessory);
+          return { productType: 'accessory' as const, model, qty };
+        }),
+      ]
+    : [];
 
   let totalCost = 0;
   let pricedItemsCount = 0;
 
-  for (const item of items) {
+  for (const item of productItems) {
     const unitValue = priceFor(item.productType, item.model);
     if (unitValue !== undefined) {
       totalCost += unitValue * item.qty;
@@ -180,11 +194,21 @@ export function calculateSystemCost(solution: Solution, userStockItems: UserStoc
     }
   }
 
+  for (const line of services) {
+    const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
+    if (unitValue !== undefined) {
+      totalCost += unitValue * line.qty;
+      pricedItemsCount += 1;
+    }
+  }
+
+  const totalItemsCount = productItems.length + services.length;
+
   return {
     totalCost,
     pricedItemsCount,
-    totalItemsCount: items.length,
-    isComplete: pricedItemsCount === items.length,
+    totalItemsCount,
+    isComplete: pricedItemsCount === totalItemsCount,
   };
 }
 
