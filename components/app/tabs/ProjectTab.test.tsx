@@ -529,7 +529,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Obrigatório')).toBeInTheDocument();
   });
 
-  it('"Copiar dados" copies a WhatsApp-friendly summary to the clipboard', async () => {
+  it('"Copiar dados" shows a single-view preview of the WhatsApp-friendly summary, copying only when confirmed', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 
@@ -556,20 +556,20 @@ describe('ProjectTab: selecting a project without opening it', () => {
     clickCard('Casa de praia');
     fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    const copiedText = writeText.mock.calls[0][0] as string;
-    expect(copiedText).toContain('Casa de praia');
-    expect(copiedText).toContain('Ana Souza');
-    expect(copiedText).toContain('X1-Hybrid');
-    expect(copiedText).toContain('orçamento');
+    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(within(dialog).getByText(/Casa de praia/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Ana Souza/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/X1-Hybrid/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/orçamento/)).toBeInTheDocument();
 
-    expect(await screen.findByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(within(dialog).getByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
   });
 
-  it('"Copiar dados" omits bundled accessories from the copied text, keeping only quotable ones', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-
+  it('"Copiar dados" omits bundled accessories from the preview, keeping only quotable ones', () => {
     setup({
       savedProjects: [
         makeProject({
@@ -594,10 +594,9 @@ describe('ProjectTab: selecting a project without opening it', () => {
     clickCard('Casa de praia');
     fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    const copiedText = writeText.mock.calls[0][0] as string;
-    expect(copiedText).not.toContain('WiFi Dongle');
-    expect(copiedText).toContain('Disjuntor CA');
+    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
+    expect(within(dialog).queryByText(/WiFi Dongle/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/Disjuntor CA/)).toBeInTheDocument();
   });
 
   it('clicking the selected card again clears the selection', () => {

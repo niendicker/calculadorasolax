@@ -19,6 +19,7 @@ import {
   ReportMetric,
   Requirement,
   SearchInput,
+  SharePreviewModal,
   SolutionSkeleton,
 } from './shared-ui';
 
@@ -227,6 +228,44 @@ describe('ImagePreviewModal', () => {
     const dialog = screen.getByRole('dialog', { name: 'Bateria X' });
     expect(within(dialog).getByRole('img', { name: 'Bateria X' })).toHaveAttribute('src', image.url);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(dialog);
+    expect(onClose).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('SharePreviewModal', () => {
+  it('renders nothing when there is no text', () => {
+    render(<SharePreviewModal text={null} onClose={vi.fn()} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows the message and only copies it once the user confirms', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const onClose = vi.fn();
+    render(<SharePreviewModal text="Olá, segue o resumo do projeto." onClose={onClose} />);
+
+    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
+    expect(within(dialog).getByText('Olá, segue o resumo do projeto.')).toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar' }));
+
+    expect(writeText).toHaveBeenCalledWith('Olá, segue o resumo do projeto.');
+    expect(await within(dialog).findByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+  });
+
+  it('closes via the X button, the backdrop click, and Escape', () => {
+    const onClose = vi.fn();
+    render(<SharePreviewModal text="Mensagem" onClose={onClose} />);
+
+    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
     fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
     expect(onClose).toHaveBeenCalledTimes(1);
 

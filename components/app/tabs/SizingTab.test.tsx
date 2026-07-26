@@ -2278,7 +2278,7 @@ describe('SizingTab: cargas', () => {
 });
 
 describe('SizingTab: Resumo tab "Copiar dados"', () => {
-  it('copies a WhatsApp-friendly summary of the current configuration and shows a preview of it', async () => {
+  it('shows a single-view preview of the WhatsApp-friendly summary, copying only when confirmed', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 
@@ -2300,13 +2300,14 @@ describe('SizingTab: Resumo tab "Copiar dados"', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    const copiedText = writeText.mock.calls[0][0] as string;
-    expect(copiedText).toContain('Casa de praia');
-    expect(copiedText).toContain('X1-Hybrid-5.0kW-G4');
+    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(within(dialog).getByText(/Casa de praia/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/X1-Hybrid-5\.0kW-G4/)).toBeInTheDocument();
 
-    expect(await screen.findByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
-    expect(screen.getByText('Prévia do que foi copiado:')).toBeInTheDocument();
-    expect(screen.getByText((_, element) => element?.tagName === 'PRE' && element.textContent === copiedText)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(within(dialog).getByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
   });
 });

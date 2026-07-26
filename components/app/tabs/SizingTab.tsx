@@ -92,6 +92,7 @@ import {
   Metric,
   ProductAttachments,
   ProductImage,
+  SharePreviewModal,
   SolutionSkeleton,
 } from '../shared-ui';
 import {
@@ -205,8 +206,7 @@ export function SizingTab({
   const [activeFeatureTab, setActiveFeatureTab] = useState<DesiredFeatureId>('backup');
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
-  const [copied, setCopied] = useState(false);
-  const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
 
   const hasSecondaryBattery = Boolean(residentialOptions.secondaryBatteryModel);
   const effectiveBatteryTab = hasSecondaryBattery ? activeBatteryTab : 'primary';
@@ -491,7 +491,7 @@ export function SizingTab({
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={async () => {
+              onClick={() => {
                 const text = buildProjectShareText(
                   {
                     name: projectName || 'Sem nome',
@@ -505,23 +505,13 @@ export function SizingTab({
                   undefined,
                   batteryCatalog
                 );
-                await navigator.clipboard.writeText(text);
-                setCopiedText(text);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
+                setPreviewText(text);
               }}
             >
-              {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-              {copied ? 'Dados copiados!' : 'Copiar dados'}
+              <ClipboardCopy className="h-4 w-4" />
+              Copiar dados
             </Button>
-            {copiedText && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Prévia do que foi copiado:</p>
-                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs text-muted-foreground">
-                  {copiedText}
-                </pre>
-              </div>
-            )}
+            <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
           </div>
         ) : (
           <>

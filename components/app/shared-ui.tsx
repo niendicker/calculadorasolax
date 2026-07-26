@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, X, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ClipboardCopy, Search, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -387,6 +387,65 @@ export function ImagePreviewModal({
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-background p-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image.url} alt={image.alt} className="max-h-full max-w-full object-contain" />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/** Shows a share/report message as a single-view preview before it's copied,
+ * so the user reads exactly what will land on the clipboard instead of it
+ * being copied silently on click. */
+export function SharePreviewModal({ text, onClose }: { text: string | null; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setMounted(true); }, []);
+
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!text) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCopied(false);
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [text, onClose]);
+
+  if (!text || !mounted) return null;
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(text as string);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Prévia da mensagem"
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-lg border bg-card shadow-xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+          <p className="text-sm font-medium">Prévia da mensagem</p>
+          <Button variant="ghost" size="icon-sm" aria-label="Fechar pré-visualização" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <pre className="whitespace-pre-wrap text-xs text-muted-foreground">{text}</pre>
+        </div>
+        <div className="shrink-0 border-t p-3">
+          <Button size="sm" className="w-full" onClick={handleCopy}>
+            {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+            {copied ? 'Dados copiados!' : 'Copiar'}
+          </Button>
         </div>
       </div>
     </div>,

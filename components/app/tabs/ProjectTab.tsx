@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
   BatteryCharging,
   Calculator,
-  Check,
   ClipboardCopy,
   ClipboardList,
   Clock,
@@ -48,7 +47,7 @@ import {
   solutionMetrics,
 } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
-import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
+import { Metric, ProjectListSkeleton, Requirement, SearchInput, SharePreviewModal } from '../shared-ui';
 import type { BatteryCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 
@@ -758,9 +757,9 @@ function SelectedProjectSummary({
         (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
       )
     : [];
-  const [copied, setCopied] = useState(false);
+  const [previewText, setPreviewText] = useState<string | null>(null);
 
-  async function copyProjectData() {
+  function openProjectDataPreview() {
     const text = buildProjectShareText(
       {
         name: project.name,
@@ -775,9 +774,7 @@ function SelectedProjectSummary({
       client?.name,
       batteryCatalog
     );
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setPreviewText(text);
   }
 
   return (
@@ -936,13 +933,14 @@ function SelectedProjectSummary({
         Ir para Dimensionamento
       </Button>
 
-      <Button variant="outline" size="sm" className="w-full" onClick={copyProjectData}>
-        {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-        {copied ? 'Dados copiados!' : 'Copiar dados'}
+      <Button variant="outline" size="sm" className="w-full" onClick={openProjectDataPreview}>
+        <ClipboardCopy className="h-4 w-4" />
+        Copiar dados
       </Button>
       <p className="text-xs text-muted-foreground">
-        Copia um resumo do projeto para colar no WhatsApp e pedir um orçamento ao vendedor.
+        Mostra um resumo do projeto para revisar e copiar, e colar no WhatsApp para pedir um orçamento ao vendedor.
       </p>
+      <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
 
       <Separator />
       <p className="text-xs text-muted-foreground">
