@@ -2142,7 +2142,7 @@ describe('SizingTab: cargas', () => {
     );
     // rerender remounts (no Shell wrapper), so activeTab resets to its
     // 'backup' default and we land straight on the now-enabled panel.
-    expect(screen.getByText('Presets')).toBeInTheDocument();
+    expect(screen.getByText('Predefinições')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);

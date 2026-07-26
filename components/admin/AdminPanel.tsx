@@ -572,12 +572,12 @@ export function AdminPanel() {
 
   async function savePreset(afterPersist?: () => void) {
     setSaving(true);
-    setStatus(presetForm.id ? 'Atualizando preset...' : 'Salvando preset...');
+    setStatus(presetForm.id ? 'Atualizando predefinição...' : 'Salvando predefinição...');
     setError(null);
     const action: AdminLogAction = presetForm.id ? 'update' : 'create';
     const beforeData = presetForm.id ? presets.find((row) => row.id === presetForm.id) : null;
     const payload = {
-      name: presetForm.name?.trim() || 'Preset sem nome',
+      name: presetForm.name?.trim() || 'Predefinição sem nome',
       description: presetForm.description?.trim() ?? '',
       loads: presetForm.loads ?? [],
       display_order: presetForm.display_order ?? presets.length,
@@ -596,12 +596,12 @@ export function AdminPanel() {
       action,
       targetId: presetForm.id ?? null,
       targetLabel: payload.name,
-      summary: `${action === 'create' ? 'Criou' : 'Atualizou'} o preset ${payload.name}.`,
+      summary: `${action === 'create' ? 'Criou' : 'Atualizou'} a predefinição ${payload.name}.`,
       beforeData,
       afterData: payload,
     });
     setPresetForm(emptyPreset);
-    setSuccess('Preset salvo.');
+    setSuccess('Predefinição salva.');
     await loadResource('presets');
   }
 
@@ -866,7 +866,7 @@ export function AdminPanel() {
     }
     if (table === 'load_presets') {
       const row = presets.find((item) => item.id === id);
-      return { entityType: 'load_preset' as const, label: row?.name ?? 'Preset removido', beforeData: row };
+      return { entityType: 'load_preset' as const, label: row?.name ?? 'Predefinição removida', beforeData: row };
     }
     if (table === 'approved_solutions') {
       const row = solutions.find((item) => item.id === id);

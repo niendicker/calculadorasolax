@@ -326,7 +326,7 @@ export const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'accessories', label: 'Acessórios', icon: Cable },
   { key: 'rules', label: 'Regras', icon: ListChecks },
   { key: 'loads', label: 'Cargas', icon: Plug },
-  { key: 'presets', label: 'Presets', icon: Layers },
+  { key: 'presets', label: 'Predefinições', icon: Layers },
   { key: 'solutions', label: 'Combinações', icon: Boxes },
   { key: 'users', label: 'Usuários', icon: Users },
   { key: 'logs', label: 'Logs', icon: FileClock },

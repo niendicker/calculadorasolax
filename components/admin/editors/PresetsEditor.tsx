@@ -59,11 +59,11 @@ export function PresetsEditor(props: {
 
   return (
     <CatalogLayout
-      title="Presets de cargas"
+      title="Predefinições de cargas"
       count={props.rows.length}
       formOpen={formOpen}
-      formTitle={form.id ? `Editar "${form.name ?? ''}"` : 'Novo preset'}
-      newLabel="Novo preset"
+      formTitle={form.id ? `Editar "${form.name ?? ''}"` : 'Nova predefinição'}
+      newLabel="Nova predefinição"
       onNew={openNew}
       onClose={() => setFormOpen(false)}
       expandForm
@@ -81,7 +81,7 @@ export function PresetsEditor(props: {
           </Field>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium">Cargas do preset ({loads.length})</p>
+            <p className="text-sm font-medium">Cargas da predefinição ({loads.length})</p>
             {loads.length === 0 ? (
               <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
                 Nenhuma carga adicionada ainda. Use a busca abaixo para adicionar do catálogo.
@@ -161,7 +161,7 @@ export function PresetsEditor(props: {
         removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),
         onRemove: () => props.onRemove(row.id),
-        removeDescription: `O preset "${row.name}" será removido e deixará de aparecer para os usuários.`,
+        removeDescription: `A predefinição "${row.name}" será removida e deixará de aparecer para os usuários.`,
       }))}
     />
   );

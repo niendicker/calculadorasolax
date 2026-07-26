@@ -437,13 +437,13 @@ describe('AdminPanel: saving every entity type records the right activity log en
 
   it('saves a new preset', async () => {
     await openAdminPanel();
-    fireEvent.click(screen.getByRole('button', { name: /Presets/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Predefinições/ }));
     await waitFor(() => expect(screen.queryByLabelText('Carregando dados administrativos')).not.toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
     fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Preset salvo.'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Predefinição salva.'));
   });
 
   it('saves a new solution (combinação)', async () => {
@@ -559,7 +559,7 @@ describe('AdminPanel: removing every entity type resolves the right activity-log
 
   it('removes a preset', async () => {
     await openAdminPanel({ load_presets: { data: [presetRow], error: null } });
-    fireEvent.click(screen.getByRole('button', { name: /Presets/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Predefinições/ }));
     await waitFor(() => expect(screen.getByText('Residencial médio')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover Residencial médio' }));

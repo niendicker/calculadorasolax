@@ -321,7 +321,7 @@ function entityLabel(entityType: AdminLogEntity) {
     solution: 'Combinação',
     rule: 'Regra',
     load_catalog_item: 'Carga',
-    load_preset: 'Preset',
+    load_preset: 'Predefinição',
   };
   return labels[entityType];
 }

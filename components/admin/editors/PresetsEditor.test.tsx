@@ -73,12 +73,12 @@ describe('PresetsEditor: listing', () => {
 describe('PresetsEditor: building the load list', () => {
   it('shows the empty state, and adding from the catalog appends a load', () => {
     render(<ControlledEditor />);
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
     expect(screen.getByText('Nenhuma carga adicionada ainda. Use a busca abaixo para adicionar do catálogo.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Chuveiro'));
 
-    expect(screen.getByText('Cargas do preset (1)')).toBeInTheDocument();
+    expect(screen.getByText('Cargas da predefinição (1)')).toBeInTheDocument();
     expect(screen.getByText('5500 VA · IP/IN 1×')).toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe('PresetsEditor: building the load list', () => {
         loadCatalogItems={[catalogItem, { ...catalogItem, id: 'c2', name_pt: 'Ar-condicionado' }]}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
 
     fireEvent.change(screen.getByLabelText('Buscar carga no catálogo'), { target: { value: 'chuveiro' } });
 
@@ -98,7 +98,7 @@ describe('PresetsEditor: building the load list', () => {
 
   it('removes a load from the preset', () => {
     render(<ControlledEditor />);
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
     fireEvent.click(screen.getByText('Chuveiro'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover Chuveiro' }));
@@ -108,7 +108,7 @@ describe('PresetsEditor: building the load list', () => {
 
   it('edits qty on an added load', () => {
     render(<ControlledEditor />);
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
     fireEvent.click(screen.getByText('Chuveiro'));
 
     fireEvent.change(screen.getByLabelText('Qtd', { exact: false }), { target: { value: '3' } });
@@ -118,7 +118,7 @@ describe('PresetsEditor: building the load list', () => {
 
   it('edits the preset name and description', () => {
     render(<ControlledEditor />);
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
 
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Residencial' } });
     expect(screen.getByLabelText('Nome')).toHaveValue('Residencial');
@@ -129,10 +129,10 @@ describe('PresetsEditor: building the load list', () => {
 
   it('closes the form via the close button', () => {
     render(<ControlledEditor />);
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar Novo preset' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Nova predefinição' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
@@ -147,7 +147,7 @@ describe('PresetsEditor: form actions', () => {
   it('saves and closes the form', () => {
     const onSave = vi.fn((afterPersist?: () => void) => afterPersist?.());
     render(<ControlledEditor onSave={onSave} />);
-    fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
 
     fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
 
