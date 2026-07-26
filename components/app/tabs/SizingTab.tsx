@@ -488,30 +488,34 @@ export function SizingTab({
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                const text = buildProjectShareText(
-                  {
-                    name: projectName || 'Sem nome',
-                    topology: residentialOptions.topology,
-                    gridType: residentialOptions.gridType,
-                    loadsCount: residentialOptions.loads.length,
-                    peakW,
-                    dailyKwh,
-                    solution,
-                  },
-                  undefined,
-                  batteryCatalog
-                );
-                setPreviewText(text);
-              }}
-            >
-              <ClipboardCopy className="h-4 w-4" />
-              Copiar dados
-            </Button>
+            {/* Sticky to the bottom of the summary aside (same cancel-the-padding
+             * trick as the sticky header above — see its comment) so this stays
+             * an easy, always-visible tap target on mobile instead of requiring
+             * a scroll to the end of the summary. */}
+            <div className="sticky bottom-0 -mx-4 -mb-5 bg-card px-4 pb-5 pt-3">
+              <Button
+                className="h-12 w-full gap-2 text-base shadow-md md:h-9 md:text-sm"
+                onClick={() => {
+                  const text = buildProjectShareText(
+                    {
+                      name: projectName || 'Sem nome',
+                      topology: residentialOptions.topology,
+                      gridType: residentialOptions.gridType,
+                      loadsCount: residentialOptions.loads.length,
+                      peakW,
+                      dailyKwh,
+                      solution,
+                    },
+                    undefined,
+                    batteryCatalog
+                  );
+                  setPreviewText(text);
+                }}
+              >
+                <ClipboardCopy className="h-5 w-5 md:h-4 md:w-4" />
+                Copiar dados
+              </Button>
+            </div>
             <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
           </div>
         ) : (
