@@ -946,9 +946,6 @@ function SelectedProjectSummary({
         <ClipboardCopy className="h-4 w-4" />
         Copiar dados
       </Button>
-      <p className="text-xs text-muted-foreground">
-        Mostra um resumo do projeto para revisar e copiar, e colar no WhatsApp para pedir um orçamento ao vendedor.
-      </p>
       <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
 
       <Separator />
