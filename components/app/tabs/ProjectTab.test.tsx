@@ -47,6 +47,8 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     savedProjects: [] as SavedProject[],
     clients: [] as Client[],
     batteryCatalog: [],
+    inverterCatalog: [],
+    accessoryCatalog: [],
     userStockItems: [],
     userServices: [],
     marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
@@ -552,6 +554,64 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('T58 Master × 1')).toBeInTheDocument();
     expect(screen.getByText('Bateria (expansão)')).toBeInTheDocument();
     expect(screen.getByText('T58 Slave × 2')).toBeInTheDocument();
+  });
+
+  it('shows each product\'s nickname alongside its model/quantity when the catalog has one', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid-5.0kW-G4',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 2,
+            pvPowerKw: null,
+            accessories: [{ model: 'Smart Meter', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false }],
+          },
+        }),
+      ],
+      inverterCatalog: [
+        {
+          id: 'i1',
+          model: 'X1-Hybrid-5.0kW-G4',
+          nickname: 'Titan 5kW',
+          topology: 'HV',
+          phases: 1,
+          standardPowerKva: 5,
+          peakPowerKva: 7,
+          maxPowerPerPhaseW: null,
+          imageUrl: null,
+          documents: [],
+          flags: [],
+        },
+      ],
+      batteryCatalog: [
+        {
+          id: 'b1',
+          model: 'TP-HS3.6',
+          nickname: 'Nova 3.6',
+          capacityKwh: 3.6,
+          topology: 'HV',
+          standardPowerKw: 1.8,
+          peakPowerKw: 2.5,
+          minSocPercent: 10,
+          imageUrl: null,
+          documents: [],
+        },
+      ],
+      accessoryCatalog: [
+        { id: 'a1', model: 'Smart Meter', nickname: 'Medidor Inteligente', description: null, imageUrl: null, documents: [] },
+      ],
+    });
+
+    clickCard('Casa de praia');
+
+    expect(screen.getByText('Titan 5kW (X1-Hybrid-5.0kW-G4)')).toBeInTheDocument();
+    expect(screen.getByText('Nova 3.6 (TP-HS3.6) × 2')).toBeInTheDocument();
+    expect(screen.getByText(/Medidor Inteligente \(Smart Meter\)/)).toBeInTheDocument();
   });
 
   it('marks bundled accessories as included with the inverter/battery in the summary', () => {

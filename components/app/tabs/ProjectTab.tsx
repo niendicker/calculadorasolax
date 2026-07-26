@@ -55,11 +55,17 @@ import {
 } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput, SharePreviewModal } from '../shared-ui';
-import type { BatteryCatalogOption } from '../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 
 function daysSince(dateStr: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000));
+}
+
+/** Product model plus its admin-set nickname (if any), for a friendlier
+ * label than the bare model code — e.g. "Titan (T-BAT-SYS-HV-5.8)". */
+function productDisplayName(model: string, nickname?: string | null): string {
+  return nickname ? `${nickname} (${model})` : model;
 }
 
 const STALE_AFTER_DAYS = 7;
@@ -131,6 +137,8 @@ export function ProjectTab({
   savedProjects,
   clients,
   batteryCatalog,
+  inverterCatalog,
+  accessoryCatalog,
   userStockItems,
   userServices,
   marginSettings,
@@ -169,6 +177,8 @@ export function ProjectTab({
   savedProjects: SavedProject[];
   clients: Client[];
   batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog: InverterCatalogOption[];
+  accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
   marginSettings: MarginSettings;
@@ -284,6 +294,8 @@ export function ProjectTab({
             project={selectedProject}
             client={clients.find((client) => client.id === selectedProject.clientId)}
             batteryCatalog={batteryCatalog}
+            inverterCatalog={inverterCatalog}
+            accessoryCatalog={accessoryCatalog}
             userStockItems={userStockItems}
             userServices={userServices}
             marginSettings={marginSettings}
@@ -874,6 +886,8 @@ function SelectedProjectSummary({
   project,
   client,
   batteryCatalog,
+  inverterCatalog,
+  accessoryCatalog,
   userStockItems,
   userServices,
   marginSettings,
@@ -883,6 +897,8 @@ function SelectedProjectSummary({
   project: SavedProject;
   client: Client | undefined;
   batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog: InverterCatalogOption[];
+  accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
   marginSettings: MarginSettings;
@@ -977,13 +993,20 @@ function SelectedProjectSummary({
           <div className="space-y-2.5 rounded-lg border bg-background p-2.5 text-xs text-muted-foreground">
             <div className="space-y-1">
               <p>
-                Inversor <span className="font-medium text-foreground">{project.solution.inverterModel}</span>
+                Inversor{' '}
+                <span className="font-medium text-foreground">
+                  {productDisplayName(
+                    project.solution.inverterModel,
+                    inverterCatalog.find((item) => item.model === project.solution?.inverterModel)?.nickname
+                  )}
+                </span>
               </p>
               {batteryParts.map((part, index) => (
                 <p key={part.model}>
                   {index === 0 ? 'Bateria' : 'Bateria (expansão)'}{' '}
                   <span className="font-medium text-foreground">
-                    {part.model} × {part.qty}
+                    {productDisplayName(part.model, batteryCatalog.find((item) => item.model === part.model)?.nickname)}{' '}
+                    × {part.qty}
                   </span>
                 </p>
               ))}
@@ -1004,7 +1027,7 @@ function SelectedProjectSummary({
                     return (
                       <div key={model} className="flex items-center justify-between gap-2">
                         <span className="truncate">
-                          {model}
+                          {productDisplayName(model, accessoryCatalog.find((item) => item.model === model)?.nickname)}
                           {qty !== 1 ? ` × ${qty}` : ''}
                         </span>
                         <span className="shrink-0 text-[0.7rem]">

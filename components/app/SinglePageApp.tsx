@@ -604,6 +604,8 @@ export function SinglePageApp() {
               savedProjects={savedProjects}
               clients={clients}
               batteryCatalog={batteryCatalog}
+              inverterCatalog={inverterCatalog}
+              accessoryCatalog={accessoryCatalog}
               userStockItems={userStockItems}
               userServices={userServices}
               marginSettings={marginSettings}
