@@ -677,21 +677,23 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={residentialOptions.loads.length === 0 || userLoadPresets.length >= ACCOUNT_LIMITS.userPresets}
-                    onClick={() => {
-                      const selectableLoadIds = residentialOptions.loads
-                        .filter((load) => load.name.trim() && load.powerW > 0)
-                        .map((load) => load.id);
-                      setSelectedLoadIdsForPreset(new Set(selectableLoadIds));
-                      setSavePresetOpen(true);
-                    }}
-                    className="flex min-h-[88px] flex-col items-center justify-center gap-1 self-start rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Adicionar predefinição
-                  </button>
+                  userLoadPresets.length < ACCOUNT_LIMITS.userPresets && (
+                    <button
+                      type="button"
+                      disabled={residentialOptions.loads.length === 0}
+                      onClick={() => {
+                        const selectableLoadIds = residentialOptions.loads
+                          .filter((load) => load.name.trim() && load.powerW > 0)
+                          .map((load) => load.id);
+                        setSelectedLoadIdsForPreset(new Set(selectableLoadIds));
+                        setSavePresetOpen(true);
+                      }}
+                      className="flex min-h-[88px] flex-col items-center justify-center gap-1 self-start rounded-lg border border-dashed p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Plus className="h-5 w-5" />
+                      Adicionar predefinição
+                    </button>
+                  )
                 )}
 
                 {!savePresetOpen && userLoadPresets.map((preset) => (

@@ -312,7 +312,7 @@ describe('LoadSelector: user presets', () => {
     expect(screen.queryByLabelText('Quantidade')).not.toBeInTheDocument();
   });
 
-  it('shows a limit-reached error verbatim when saving a preset fails', async () => {
+  it('hides the "Adicionar predefinição" trigger once the preset limit is reached', () => {
     createClientMock.mockReturnValue(createSupabaseMock());
     useWizardStore.setState((s) => ({
       residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, qty: 1, ipInRatio: 1 }] },
@@ -326,8 +326,7 @@ describe('LoadSelector: user presets', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
-    // At the limit, the "Adicionar predefinição" trigger itself is disabled...
-    expect(screen.getByRole('button', { name: /Adicionar predefinição/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Adicionar predefinição/ })).not.toBeInTheDocument();
   });
 
   it('shows a generic error, edits the description, and cancels out of the save-preset form', async () => {
