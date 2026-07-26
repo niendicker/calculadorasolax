@@ -72,6 +72,12 @@ interface WizardStore {
   loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<SavedProject>;
+  /** Recalculates a saved project's solution from its own stored
+   * residentialOptions (same calculate-residential call the Dimensionamento
+   * tab's "Calcular" makes), then persists the refreshed solution — so a
+   * project's card can catch up a solution that's gone stale after the loads
+   * changed, without the user having to reopen it in Dimensionamento. */
+  refreshProjectSolution: (id: string) => Promise<SavedProject>;
   fetchProjects: () => Promise<void>;
   fetchClients: () => Promise<void>;
   addClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
@@ -458,6 +464,35 @@ export const useWizardStore = create<WizardStore>()(
         }));
 
         return duplicated;
+      },
+
+      refreshProjectSolution: async (id) => {
+        const project = get().savedProjects.find((item) => item.id === id);
+        if (!project) throw new Error('project_not_found');
+        if (!project.residentialOptions.batteryModel) throw new Error('missing_battery_model');
+
+        const supabase = createClient();
+        const { data, error: functionError } = await supabase.functions.invoke('calculate-residential', {
+          body: { ...project.residentialOptions, batteryModel: project.residentialOptions.batteryModel },
+        });
+        if (functionError || !data) {
+          throw new Error('Não foi possível recalcular a solução. Tente novamente.');
+        }
+
+        const { data: row, error } = await supabase
+          .from('projects')
+          .update({ solution: data as Solution, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+
+        const updated = projectFromRow(row);
+        set((s) => ({
+          savedProjects: s.savedProjects.map((item) => (item.id === id ? updated : item)),
+        }));
+
+        return updated;
       },
 
       fetchProjects: async () => {

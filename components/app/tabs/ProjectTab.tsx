@@ -11,11 +11,13 @@ import {
   Clock,
   Copy,
   Gauge,
+  Loader2,
   Mail,
   MapPin,
   Pencil,
   Phone,
   Plus,
+  RefreshCw,
   Save,
   Share2,
   Users,
@@ -40,7 +42,7 @@ import type {
   UserServiceItem,
   UserStockItem,
 } from '@/lib/types';
-import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
+import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import {
   batteryQuantityBreakdown,
@@ -48,6 +50,7 @@ import {
   calculateSystemCost,
   formatCurrencyBRL,
   normalizeAccessoryLine,
+  solutionHasInsufficientMargin,
   solutionMetrics,
 } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
@@ -151,6 +154,8 @@ export function ProjectTab({
   onOpenSizing,
   onRemove,
   onDuplicate,
+  onRefreshSolution,
+  refreshingProjectId,
   onDownloadPdf,
   onManageClients,
   onShowSummary,
@@ -187,6 +192,10 @@ export function ProjectTab({
   onOpenSizing: (id: string) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onRefreshSolution: (id: string) => void;
+  /** Id of the project currently being recalculated, if any — used to show a
+   * loading state on that project's "Atualizar" button specifically. */
+  refreshingProjectId: string | null;
   onDownloadPdf: (id: string) => void;
   onManageClients: () => void;
   /** Brings the shell's summary panel into view (a slide-in drawer on
@@ -449,6 +458,8 @@ export function ProjectTab({
                       onOpenSizing={() => onOpenSizing(project.id)}
                       onRemove={() => onRemove(project.id)}
                       onDuplicate={() => onDuplicate(project.id)}
+                      onRefreshSolution={() => onRefreshSolution(project.id)}
+                      refreshing={refreshingProjectId === project.id}
                       onDownloadPdf={() => onDownloadPdf(project.id)}
                     />
                   )
@@ -650,6 +661,8 @@ function ProjectCard({
   onOpenSizing,
   onRemove,
   onDuplicate,
+  onRefreshSolution,
+  refreshing,
   onDownloadPdf,
 }: {
   project: SavedProject;
@@ -663,6 +676,8 @@ function ProjectCard({
   onOpenSizing: () => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onRefreshSolution: () => void;
+  refreshing: boolean;
   onDownloadPdf: () => void;
 }) {
   const hasSolution = Boolean(project.solution);
@@ -672,6 +687,32 @@ function ProjectCard({
     project.solution || project.services.length > 0
       ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings)
       : null;
+
+  // "Atualizar" recalculates the solution from the project's own saved loads
+  // — only makes sense once a solution already exists. The alert badge
+  // reuses the same margin check the Dimensionamento tab itself relies on,
+  // read straight from the project's stored solution/loads (no need to
+  // recalculate just to know whether it's already insufficient).
+  const isBackupEnabled = project.residentialOptions.desiredFeatures.includes('backup');
+  const nominalW = isBackupEnabled ? totalNominalW(project.residentialOptions.loads) : 0;
+  const projectPeakW = isBackupEnabled
+    ? totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum')
+    : 0;
+  const projectDailyKwh = isBackupEnabled
+    ? totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours)
+    : 0;
+  const hasSolutionAlert =
+    project.solution && !project.solution.microgridAlternative
+      ? solutionHasInsufficientMargin(project.solution, {
+          desiredFeatures: project.residentialOptions.desiredFeatures,
+          whiteTariff: project.residentialOptions.whiteTariff,
+          microgrid: project.residentialOptions.microgrid,
+          pv: project.residentialOptions.pv,
+          nominalW,
+          peakW: projectPeakW,
+          dailyKwh: projectDailyKwh,
+        })
+      : false;
 
   function stopAnd(handler: () => void) {
     return (event: React.MouseEvent) => {
@@ -775,15 +816,37 @@ function ProjectCard({
         </div>
       </div>
       <div className="mt-auto space-y-2 pt-1">
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={stopAnd(onOpen)}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="min-w-[100px] flex-1" onClick={stopAnd(onOpen)}>
             <Pencil className="h-4 w-4" />
             Editar
           </Button>
-          <Button variant="outline" size="sm" className="flex-1" onClick={stopAnd(onOpenSizing)}>
+          <Button variant="outline" size="sm" className="min-w-[100px] flex-1" onClick={stopAnd(onOpenSizing)}>
             <Calculator className="h-4 w-4" />
             Dimensionamento
           </Button>
+          {hasSolution && (
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                'min-w-[100px] flex-1',
+                hasSolutionAlert && 'border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40'
+              )}
+              disabled={refreshing}
+              title={hasSolutionAlert ? 'A solução salva não atende 100% aos requisitos — recalcule para atualizar.' : undefined}
+              onClick={stopAnd(onRefreshSolution)}
+            >
+              {refreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : hasSolutionAlert ? (
+                <AlertTriangle className="h-4 w-4" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Atualizar
+            </Button>
+          )}
         </div>
         <Button
           variant="outline"

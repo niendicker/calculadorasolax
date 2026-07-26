@@ -859,6 +859,76 @@ describe('duplicateProject', () => {
   });
 });
 
+describe('refreshProjectSolution', () => {
+  beforeEach(() => resetStore());
+
+  it('throws project_not_found when the id is not in savedProjects', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    useWizardStore.setState({ savedProjects: [] });
+
+    await expect(useWizardStore.getState().refreshProjectSolution('missing')).rejects.toThrow('project_not_found');
+  });
+
+  it('throws missing_battery_model when the project has no battery selected', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    const source = makeSavedProject({ id: 'p1' });
+    source.residentialOptions.batteryModel = null;
+    useWizardStore.setState({ savedProjects: [source] });
+
+    await expect(useWizardStore.getState().refreshProjectSolution('p1')).rejects.toThrow('missing_battery_model');
+  });
+
+  it('calls calculate-residential with the project\'s own residentialOptions, persists and updates the solution', async () => {
+    const nextSolution = { inverterId: 'inv1', inverterModel: 'X1-Hybrid', batteryId: 'bat1', batteryModel: 'TP-HS3.6', batteryQty: 1, pvPowerKw: null, accessories: [] };
+    const supabase = createSupabaseMock({
+      tableResults: { projects: { data: { ...projectRow, id: 'p1', solution: nextSolution }, error: null } },
+    });
+    const invoke = vi.fn().mockResolvedValue({ data: nextSolution, error: null });
+    createClientMock.mockReturnValue({ ...supabase, functions: { invoke } });
+
+    const source = makeSavedProject({ id: 'p1' });
+    useWizardStore.setState({ savedProjects: [source] });
+
+    const updated = await useWizardStore.getState().refreshProjectSolution('p1');
+
+    expect(invoke).toHaveBeenCalledWith('calculate-residential', {
+      body: { ...source.residentialOptions, batteryModel: source.residentialOptions.batteryModel },
+    });
+    expect(updated.solution).toEqual(nextSolution);
+    expect(useWizardStore.getState().savedProjects.find((p) => p.id === 'p1')?.solution).toEqual(nextSolution);
+  });
+
+  it('throws when the calculate-residential call fails, without changing savedProjects', async () => {
+    const supabase = createSupabaseMock();
+    createClientMock.mockReturnValue({
+      ...supabase,
+      functions: { invoke: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }) },
+    });
+
+    const source = makeSavedProject({ id: 'p1' });
+    useWizardStore.setState({ savedProjects: [source] });
+
+    await expect(useWizardStore.getState().refreshProjectSolution('p1')).rejects.toThrow(/Não foi possível/);
+    expect(useWizardStore.getState().savedProjects).toEqual([source]);
+  });
+
+  it('propagates a Supabase update error instead of updating state', async () => {
+    const supabase = createSupabaseMock({
+      tableResults: { projects: { data: null, error: { message: 'db down' } } },
+    });
+    createClientMock.mockReturnValue({
+      ...supabase,
+      functions: { invoke: vi.fn().mockResolvedValue({ data: { inverterId: 'inv1' }, error: null }) },
+    });
+
+    const source = makeSavedProject({ id: 'p1' });
+    useWizardStore.setState({ savedProjects: [source] });
+
+    await expect(useWizardStore.getState().refreshProjectSolution('p1')).rejects.toBeTruthy();
+    expect(useWizardStore.getState().savedProjects).toEqual([source]);
+  });
+});
+
 describe('fetchProjects', () => {
   beforeEach(() => resetStore());
 

@@ -76,6 +76,7 @@ export function SinglePageApp() {
     loadProject,
     removeProject,
     duplicateProject,
+    refreshProjectSolution: refreshProjectSolutionAction,
     fetchProjects,
     fetchClients,
     fetchUserLoadCatalog,
@@ -200,6 +201,8 @@ export function SinglePageApp() {
     openProjectSizing,
     deleteProject,
     duplicateProject: duplicateExistingProject,
+    refreshProjectSolution,
+    refreshingProjectId,
   } = useProjectActions({
     profile,
     router,
@@ -210,6 +213,7 @@ export function SinglePageApp() {
     loadProject,
     removeProject,
     duplicateProject,
+    refreshProjectSolution: refreshProjectSolutionAction,
     setActiveTab,
   });
 
@@ -623,6 +627,8 @@ export function SinglePageApp() {
               onOpenSizing={openProjectSizing}
               onRemove={deleteProject}
               onDuplicate={duplicateExistingProject}
+              onRefreshSolution={refreshProjectSolution}
+              refreshingProjectId={refreshingProjectId}
               onDownloadPdf={downloadProjectPdf}
               onManageClients={openClientsManager}
               onShowSummary={() => setSummaryDrawerOpen(true)}

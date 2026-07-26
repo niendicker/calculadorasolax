@@ -13,6 +13,7 @@ export function useProjectActions({
   loadProject,
   removeProject,
   duplicateProject,
+  refreshProjectSolution,
   setActiveTab,
 }: {
   profile: InlineProfile | null;
@@ -24,12 +25,14 @@ export function useProjectActions({
   loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<SavedProject>;
+  refreshProjectSolution: (id: string) => Promise<SavedProject>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   // Bumped on every new status message (even repeats of the same text) so the
   // popup can key off it and restart its dismiss countdown reliably.
   const [statusId, setStatusId] = useState(0);
+  const [refreshingProjectId, setRefreshingProjectId] = useState<string | null>(null);
 
   function report(message: string | null) {
     setProjectStatus(message);
@@ -103,6 +106,22 @@ export function useProjectActions({
     }
   }
 
+  async function refreshSolution(id: string) {
+    setRefreshingProjectId(id);
+    try {
+      await refreshProjectSolution(id);
+      report('Solução recalculada.');
+    } catch (error) {
+      report(
+        error instanceof Error && error.message.startsWith('Não foi possível')
+          ? error.message
+          : 'Não foi possível recalcular a solução. Tente novamente.'
+      );
+    } finally {
+      setRefreshingProjectId(null);
+    }
+  }
+
   return {
     projectStatus,
     statusId,
@@ -114,5 +133,7 @@ export function useProjectActions({
     openProjectSizing,
     deleteProject,
     duplicateProject: duplicateExistingProject,
+    refreshProjectSolution: refreshSolution,
+    refreshingProjectId,
   };
 }

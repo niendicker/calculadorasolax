@@ -55,6 +55,7 @@ function setup(overrides: Partial<Parameters<typeof useProjectActions>[0]> = {})
     loadProject: vi.fn(),
     removeProject: vi.fn().mockResolvedValue(undefined),
     duplicateProject: vi.fn().mockResolvedValue(fakeProject),
+    refreshProjectSolution: vi.fn().mockResolvedValue(fakeProject),
     setActiveTab: vi.fn(),
     ...overrides,
   };

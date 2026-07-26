@@ -70,6 +70,8 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     onOpenSizing: vi.fn(),
     onRemove: vi.fn(),
     onDuplicate: vi.fn(),
+    onRefreshSolution: vi.fn(),
+    refreshingProjectId: null,
     onDownloadPdf: vi.fn(),
     onManageClients: vi.fn(),
     onShowSummary: vi.fn(),
@@ -687,6 +689,107 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     expect(props.onDuplicate).toHaveBeenCalledWith('p1');
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectTab: refreshing a project\'s solution from the card', () => {
+  it('shows no "Atualizar" button when the project has no solution yet', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', solution: null })] });
+    expect(screen.queryByRole('button', { name: /Atualizar/ })).not.toBeInTheDocument();
+  });
+
+  it('calls onRefreshSolution with the project id, without triggering card selection', () => {
+    const { props } = setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+
+    expect(props.onRefreshSolution).toHaveBeenCalledWith('p1');
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
+  });
+
+  it('shows a loading spinner and disables the button while this project is refreshing', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      refreshingProjectId: 'p1',
+    });
+
+    expect(screen.getByRole('button', { name: 'Atualizar' })).toBeDisabled();
+  });
+
+  it('flags the "Atualizar" button when the saved solution no longer meets its own requirements', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          residentialOptions: {
+            topology: 'HighVoltage',
+            batteryModel: 'TP-HS3.6',
+            secondaryBatteryModel: null,
+            inverterModel: null,
+            gridType: 'singlePhase_220',
+            loads: [{ id: 'l1', name: 'Chuveiro', powerW: 100000, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+            peakCalcMode: 'sum',
+            operationHours: 5,
+            desiredFeatures: ['backup'],
+            whiteTariff: null,
+            microgrid: null,
+            generator: null,
+            pv: null,
+            atsPhotoUrl: null,
+            atsBackupAcknowledged: false,
+            maxPowerPerPhaseW: null,
+          },
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            inverterRatedPowerW: 1000,
+            inverterPeakPowerW: 1000,
+            availableEnergyWh: 1000,
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByRole('button', { name: 'Atualizar' })).toHaveAttribute(
+      'title',
+      'A solução salva não atende 100% aos requisitos — recalcule para atualizar.'
+    );
   });
 });
 
