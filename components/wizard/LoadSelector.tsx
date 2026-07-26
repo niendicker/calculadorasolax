@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   BatteryCharging,
   ChevronDown,
+  Copy,
   Layers,
   ListChecks,
   MoreVertical,
@@ -311,35 +312,6 @@ function PeakModeButton({
   );
 }
 
-function CollapsibleSectionHeader({
-  title,
-  summary,
-  open,
-  onToggle,
-}: {
-  title: string;
-  summary: string;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      className="flex w-full items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <span className="flex items-center gap-2 text-sm font-semibold">
-        <ChevronDown
-          className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', !open && '-rotate-90')}
-        />
-        {title}
-      </span>
-      {!open && <span className="text-xs text-muted-foreground">{summary}</span>}
-    </button>
-  );
-}
-
 export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolean } = {}) {
   const t = useTranslations('loads');
   const locale = useLocale();
@@ -423,6 +395,11 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
   }
 
+  function handleDuplicateLoad(load: SingleLoad) {
+    const added = addLoad({ ...load, id: crypto.randomUUID() });
+    setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
+  }
+
   function handleAddFromCatalog(item: CatalogItem) {
     const added = addLoad(
       newLoad({
@@ -452,7 +429,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     if (preset.loads.length > remaining) {
       setLoadLimitMessage(
         remaining > 0
-          ? `Este preset tem ${preset.loads.length} cargas, mas só cabem mais ${remaining} neste projeto (limite de ${ACCOUNT_LIMITS.loadsPerProject}).`
+          ? `Esta predefinição tem ${preset.loads.length} cargas, mas só cabem mais ${remaining} neste projeto (limite de ${ACCOUNT_LIMITS.loadsPerProject}).`
           : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject)
       );
       return;
@@ -484,7 +461,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       setPresetSaveError(
         error instanceof Error && error.message.startsWith('Limite de')
           ? error.message
-          : 'Não foi possível salvar o preset. Tente novamente.'
+          : 'Não foi possível salvar a predefinição. Tente novamente.'
       );
     } finally {
       setSavingPreset(false);
@@ -529,20 +506,25 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       </div>
 
       <div className="space-y-2">
-        <CollapsibleSectionHeader
-          title="Cargas"
-          summary={sectionSummary}
-          open={sectionOpen}
-          onToggle={() => setSectionOpen((current) => !current)}
-        />
-        {sectionOpen && (
-        <div className="space-y-3">
-          <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Cargas">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSectionOpen((current) => !current)}
+            aria-expanded={sectionOpen}
+            aria-label={sectionOpen ? 'Recolher cargas' : 'Expandir cargas'}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:w-8"
+          >
+            <ChevronDown className={cn('h-4 w-4 transition-transform', !sectionOpen && '-rotate-90')} />
+          </button>
+          <div className="flex flex-1 gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Cargas">
             <button
               type="button"
               role="tab"
               aria-selected={activeSubTab === 'presets'}
-              onClick={() => setActiveSubTab('presets')}
+              onClick={() => {
+                setActiveSubTab('presets');
+                setSectionOpen(true);
+              }}
               className={cn(
                 'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 activeSubTab === 'presets'
@@ -550,13 +532,16 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
             >
-              Presets
+              Predefinições
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={activeSubTab === 'catalog'}
-              onClick={() => setActiveSubTab('catalog')}
+              onClick={() => {
+                setActiveSubTab('catalog');
+                setSectionOpen(true);
+              }}
               className={cn(
                 'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 activeSubTab === 'catalog'
@@ -567,10 +552,13 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               {t('catalog')}
             </button>
           </div>
-
+        </div>
+        {!sectionOpen && <p className="pl-10 text-xs text-muted-foreground md:pl-9">{sectionSummary}</p>}
+        {sectionOpen && (
+        <div className="space-y-3">
           {activeSubTab === 'presets' && (
           <div className="space-y-3">
-            <div className="flex gap-4 border-b" role="tablist" aria-label="Presets">
+            <div className="flex gap-4 border-b" role="tablist" aria-label="Predefinições">
               <button
                 type="button"
                 role="tab"
@@ -583,7 +571,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
-                Presets do sistema
+                Predefinições do sistema
               </button>
               <button
                 type="button"
@@ -597,7 +585,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
-                Meus presets ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
+                Minhas predefinições ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
               </button>
             </div>
 
@@ -626,7 +614,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                     onClick={() => setSavePresetOpen(true)}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Salvar cargas atuais como preset
+                    Salvar cargas atuais como predefinição
                   </Button>
                 )}
               </div>
@@ -634,13 +622,13 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               {savePresetOpen && (
                 <div className="space-y-2 rounded-lg border bg-card p-3">
                   <Input
-                    aria-label="Nome do preset"
-                    placeholder="Nome do preset"
+                    aria-label="Nome da predefinição"
+                    placeholder="Nome da predefinição"
                     value={presetName}
                     onChange={(event) => setPresetName(event.target.value)}
                   />
                   <Input
-                    aria-label="Descrição do preset"
+                    aria-label="Descrição da predefinição"
                     placeholder="Descrição (opcional)"
                     value={presetDescription}
                     onChange={(event) => setPresetDescription(event.target.value)}
@@ -672,7 +660,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
               {userLoadPresets.length === 0 ? (
                 <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                  Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.
+                  Nenhuma predefinição pessoal ainda. Monte as cargas do projeto e salve como predefinição para reutilizar depois.
                 </p>
               ) : (
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
@@ -686,9 +674,9 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                       />
                       <div className="absolute right-2 top-2">
                         <ConfirmDeleteButton
-                          ariaLabel={`Remover preset ${preset.name}`}
-                          title="Remover preset?"
-                          description={`O preset "${preset.name}" será removido definitivamente.`}
+                          ariaLabel={`Remover predefinição ${preset.name}`}
+                          title="Remover predefinição?"
+                          description={`A predefinição "${preset.name}" será removida definitivamente.`}
                           confirmLabel="Remover"
                           onConfirm={() => removeUserLoadPreset(preset.id)}
                         />
@@ -953,6 +941,8 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   removeLoad(id);
                   setLoadLimitMessage(null);
                 }}
+                onDuplicate={handleDuplicateLoad}
+                duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
                 saveManualLoadToCatalog={saveManualLoadToCatalog}
                 onCatalogSaveWarning={setCatalogSaveWarning}
               />
@@ -1207,6 +1197,8 @@ function LoadCard({
   operationHours,
   onUpdate,
   onRemove,
+  onDuplicate,
+  duplicateDisabled,
   saveManualLoadToCatalog,
   onCatalogSaveWarning,
 }: {
@@ -1219,6 +1211,8 @@ function LoadCard({
   operationHours: number;
   onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
   onRemove: (id: string) => void;
+  onDuplicate: (load: SingleLoad) => void;
+  duplicateDisabled: boolean;
   saveManualLoadToCatalog: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
   onCatalogSaveWarning: (message: string | null) => void;
 }) {
@@ -1896,6 +1890,19 @@ function LoadCard({
               </TooltipBubble>
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 md:h-7 md:w-7"
+            disabled={duplicateDisabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDuplicate(load);
+            }}
+            aria-label={`Duplicar ${load.name}`}
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"

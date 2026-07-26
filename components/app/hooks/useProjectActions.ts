@@ -12,6 +12,7 @@ export function useProjectActions({
   cancelProjectDraft,
   loadProject,
   removeProject,
+  duplicateProject,
   setActiveTab,
 }: {
   profile: InlineProfile | null;
@@ -22,6 +23,7 @@ export function useProjectActions({
   cancelProjectDraft: () => void;
   loadProject: (id: string) => void;
   removeProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<SavedProject>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
@@ -73,5 +75,27 @@ export function useProjectActions({
     }
   }
 
-  return { projectStatus, saveProject, startNewProject, cancelNewProject, openProject, openProjectSizing, deleteProject };
+  async function duplicateExistingProject(id: string) {
+    try {
+      const project = await duplicateProject(id);
+      setProjectStatus(`Projeto duplicado como "${project.name}".`);
+    } catch (error) {
+      setProjectStatus(
+        error instanceof Error && error.message.startsWith('Limite de')
+          ? error.message
+          : 'Não foi possível duplicar o projeto. Tente novamente.'
+      );
+    }
+  }
+
+  return {
+    projectStatus,
+    saveProject,
+    startNewProject,
+    cancelNewProject,
+    openProject,
+    openProjectSizing,
+    deleteProject,
+    duplicateProject: duplicateExistingProject,
+  };
 }

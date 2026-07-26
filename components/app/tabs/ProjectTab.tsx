@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, FolderOpen, Plus, Save, Users, X } from 'lucide-react';
+import { Calculator, Copy, FolderOpen, Plus, Save, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +36,7 @@ export function ProjectTab({
   onOpen,
   onOpenSizing,
   onRemove,
+  onDuplicate,
   onManageClients,
 }: {
   projectInfo: ProjectInfo;
@@ -59,6 +60,7 @@ export function ProjectTab({
   onOpen: (id: string) => void;
   onOpenSizing: (id: string) => void;
   onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
   onManageClients: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -96,6 +98,12 @@ export function ProjectTab({
             Escolha um cliente cadastrado e salve a configuração para reutilizar depois.
           </p>
         </div>
+        {!projectDetailsVisible && (
+          <Button variant="outline" size="sm" onClick={onNew}>
+            <Plus className="h-4 w-4" />
+            Novo projeto
+          </Button>
+        )}
       </PageHeader>
 
       <PageSummary>
@@ -123,14 +131,8 @@ export function ProjectTab({
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader>
           <CardTitle>Projetos salvos</CardTitle>
-          {!projectDetailsVisible && (
-            <Button variant="outline" size="sm" onClick={onNew}>
-              <Plus className="h-4 w-4" />
-              Novo projeto
-            </Button>
-          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {initialLoading ? (
@@ -186,6 +188,7 @@ export function ProjectTab({
                         onOpen={() => onOpen(project.id)}
                         onOpenSizing={() => onOpenSizing(project.id)}
                         onRemove={() => onRemove(project.id)}
+                        onDuplicate={() => onDuplicate(project.id)}
                       />
                     )
                   )}
@@ -301,7 +304,7 @@ function ProjectDraftCard({
         <div className="flex justify-end gap-2 md:col-span-2">
           <Button type="button" variant="outline" onClick={onCancel}>
             <X className="h-4 w-4" />
-            Cancelar
+            Fechar
           </Button>
           <Button type="button" onClick={onSave}>
             <Save className="h-4 w-4" />
@@ -319,16 +322,26 @@ function ProjectCard({
   onOpen,
   onOpenSizing,
   onRemove,
+  onDuplicate,
 }: {
   project: SavedProject;
   clientName: string | undefined;
   onOpen: () => void;
   onOpenSizing: () => void;
   onRemove: () => void;
+  onDuplicate: () => void;
 }) {
   return (
     <div className="relative flex h-full flex-col gap-3 rounded-lg border bg-card p-4">
-      <div className="absolute right-2 top-2">
+      <div className="absolute right-2 top-2 flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Duplicar projeto ${project.name}`}
+          onClick={onDuplicate}
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
         <ConfirmDeleteButton
           ariaLabel={`Remover projeto ${project.name}`}
           title="Remover projeto?"
@@ -337,7 +350,7 @@ function ProjectCard({
           onConfirm={onRemove}
         />
       </div>
-      <div className="min-w-0 pr-8">
+      <div className="min-w-0 pr-16">
         <p className="font-medium">{project.name}</p>
         <p className="text-xs text-muted-foreground">
           {clientName || 'Cliente não informado'} · Atualizado em{' '}

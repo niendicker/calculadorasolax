@@ -61,6 +61,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     onOpen: vi.fn(),
     onOpenSizing: vi.fn(),
     onRemove: vi.fn(),
+    onDuplicate: vi.fn(),
     onManageClients: vi.fn(),
     ...overrides,
   };
@@ -118,13 +119,13 @@ describe('ProjectTab: new project draft', () => {
     expect(screen.getByLabelText('Nome do projeto')).toHaveValue('');
   });
 
-  it('edits are reported via setProjectInfo and Cancelar calls onCancelNew', () => {
+  it('edits are reported via setProjectInfo and Fechar calls onCancelNew', () => {
     const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
 
     fireEvent.change(screen.getByLabelText('Nome do projeto'), { target: { value: 'Novo nome' } });
     expect(props.setProjectInfo).toHaveBeenCalledWith({ name: 'Novo nome' });
 
-    fireEvent.click(screen.getByRole('button', { name: /Cancelar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Fechar/ }));
     expect(props.onCancelNew).toHaveBeenCalled();
   });
 
@@ -194,6 +195,12 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
     expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
+  });
+
+  it('clicking the duplicate button on a saved project delegates to onDuplicate with its id', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' }));
+    expect(props.onDuplicate).toHaveBeenCalledWith('p1');
   });
 });
 

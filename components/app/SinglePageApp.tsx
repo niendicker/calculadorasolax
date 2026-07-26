@@ -72,6 +72,7 @@ export function SinglePageApp() {
     saveCurrentProject,
     loadProject,
     removeProject,
+    duplicateProject,
     fetchProjects,
     fetchClients,
     fetchUserLoadCatalog,
@@ -173,18 +174,27 @@ export function SinglePageApp() {
     deleteAccount,
   } = useProfileActions({ supabase, profile, setProfile, router, locale, clearUserData, setActiveTab });
 
-  const { projectStatus, saveProject, startNewProject, cancelNewProject, openProject, openProjectSizing, deleteProject } =
-    useProjectActions({
-      profile,
-      router,
-      locale,
-      saveCurrentProject,
-      newProjectDraft,
-      cancelProjectDraft,
-      loadProject,
-      removeProject,
-      setActiveTab,
-    });
+  const {
+    projectStatus,
+    saveProject,
+    startNewProject,
+    cancelNewProject,
+    openProject,
+    openProjectSizing,
+    deleteProject,
+    duplicateProject: duplicateExistingProject,
+  } = useProjectActions({
+    profile,
+    router,
+    locale,
+    saveCurrentProject,
+    newProjectDraft,
+    cancelProjectDraft,
+    loadProject,
+    removeProject,
+    duplicateProject,
+    setActiveTab,
+  });
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
   // only while actually viewing that tab, logged in, and once something is
@@ -564,6 +574,7 @@ export function SinglePageApp() {
               onOpen={openProject}
               onOpenSizing={openProjectSizing}
               onRemove={deleteProject}
+              onDuplicate={duplicateExistingProject}
               onManageClients={openClientsManager}
             />
           ) : activeTab === 'catalog' ? (

@@ -71,18 +71,31 @@ describe('LoadSelector: collapsible sections', () => {
   it('shows the Presets tab by default, with the outer section expanded', () => {
     renderLoadSelector();
 
-    expect(screen.getByRole('tab', { name: 'Presets' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 
-  it('toggles the whole Cargas section open and closed', () => {
+  it('toggles the whole Cargas section open and closed, keeping the Predefinições/Catálogo switcher visible', () => {
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('button', { name: /^Cargas/ }));
-    expect(screen.queryByRole('tab', { name: 'Presets' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher cargas' }));
+    // The switcher itself stays visible and clickable even when collapsed...
+    expect(screen.getByRole('tab', { name: 'Predefinições' })).toBeInTheDocument();
+    // ...but its content (the presets underneath) is hidden.
+    expect(screen.queryByText('Residencial essencial')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /^Cargas/ }));
-    expect(screen.getByRole('tab', { name: 'Presets' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir cargas' }));
+    expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
+  });
+
+  it('clicking a switcher tab while collapsed switches tabs and re-expands the section', () => {
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher cargas' }));
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+
+    expect(screen.getByRole('tab', { name: 'Catálogo' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Buscar equipamento...' })).toBeInTheDocument();
   });
 
   it('switches to the Catálogo tab', () => {
@@ -138,20 +151,20 @@ describe('LoadSelector: adding from a system preset', () => {
 describe('LoadSelector: user presets', () => {
   it('shows the empty state and disables "Salvar cargas atuais" with no loads yet', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
-    expect(screen.getByText('Nenhum preset pessoal ainda. Monte as cargas do projeto e salve como preset para reutilizar depois.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    expect(screen.getByText('Nenhuma predefinição pessoal ainda. Monte as cargas do projeto e salve como predefinição para reutilizar depois.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ })).toBeDisabled();
   });
 
   it('lists a saved user preset and removes it via the confirm popover', async () => {
     useWizardStore.setState({ userLoadPresets: [userPreset] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
     expect(screen.getByText('Meu preset')).toBeInTheDocument();
     expect(screen.getByText('1/3', { exact: false })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover preset Meu preset' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remover predefinição Meu preset' }));
     const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
     fireEvent.click(confirmButton);
 
@@ -161,7 +174,7 @@ describe('LoadSelector: user presets', () => {
   it('adds every load from a user preset', () => {
     useWizardStore.setState({ userLoadPresets: [userPreset] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
     fireEvent.click(screen.getByText('Meu preset').closest('button') as HTMLElement);
 
@@ -184,10 +197,10 @@ describe('LoadSelector: user presets', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ }));
-    fireEvent.change(screen.getByLabelText('Nome do preset'), { target: { value: 'Meu novo preset' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ }));
+    fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Meu novo preset' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => expect(useWizardStore.getState().userLoadPresets).toHaveLength(1));
@@ -205,10 +218,10 @@ describe('LoadSelector: user presets', () => {
       })),
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
 
     // At the limit, the "Salvar cargas atuais" trigger itself is disabled...
-    expect(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ })).toBeDisabled();
   });
 
   it('shows a generic error, edits the description, and cancels out of the save-preset form', async () => {
@@ -221,23 +234,23 @@ describe('LoadSelector: user presets', () => {
       residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, qty: 1, ipInRatio: 1 }] },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como preset/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Salvar cargas atuais como predefinição/ }));
 
-    fireEvent.change(screen.getByLabelText('Nome do preset'), { target: { value: 'Meu preset' } });
-    fireEvent.change(screen.getByLabelText('Descrição do preset'), { target: { value: 'Uso diário' } });
+    fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Meu preset' } });
+    fireEvent.change(screen.getByLabelText('Descrição da predefinição'), { target: { value: 'Uso diário' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
-    expect(await screen.findByText('Não foi possível salvar o preset. Tente novamente.')).toBeInTheDocument();
+    expect(await screen.findByText('Não foi possível salvar a predefinição. Tente novamente.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(screen.queryByLabelText('Nome do preset')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Nome da predefinição')).not.toBeInTheDocument();
   });
 
-  it('re-clicking the already-active Presets and Presets do sistema tabs is a no-op', () => {
+  it('re-clicking the already-active Predefinições and Predefinições do sistema tabs is a no-op', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Presets' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Presets do sistema' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Predefinições' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Predefinições do sistema' }));
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 });
@@ -741,6 +754,48 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remover Chuveiro' }));
 
     expect(useWizardStore.getState().residentialOptions.loads).toEqual([]);
+  });
+
+  it('duplicates a load, inserting an independent copy at the top of the list', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 2, ipInRatio: 1.5, usageFactor: 0.8 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicar Chuveiro' }));
+
+    const loads = useWizardStore.getState().residentialOptions.loads;
+    expect(loads).toHaveLength(2);
+    expect(loads[0]).toMatchObject({ name: 'Chuveiro', powerW: 5500, qty: 2, ipInRatio: 1.5, usageFactor: 0.8 });
+    expect(loads[0].id).not.toBe('l1');
+    expect(loads[1].id).toBe('l1');
+
+    // Editing the duplicate doesn't affect the original.
+    fireEvent.click(screen.getAllByText('Chuveiro')[0]);
+    fireEvent.change(screen.getByLabelText('Quantidade', { exact: false }), { target: { value: '9' } });
+    expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(9);
+    expect(useWizardStore.getState().residentialOptions.loads[1].qty).toBe(2);
+  });
+
+  it('disables duplicating once the project is at the per-project load cap', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: Array.from({ length: ACCOUNT_LIMITS.loadsPerProject }, (_, i) => ({
+          id: `l${i}`,
+          name: `Carga ${i}`,
+          powerW: 100,
+          qty: 1,
+          ipInRatio: 1,
+        })),
+      },
+    }));
+    renderLoadSelector();
+
+    expect(screen.getByRole('button', { name: 'Duplicar Carga 0' })).toBeDisabled();
   });
 
   it('shows the limit-reached message when adding past the per-project cap', () => {

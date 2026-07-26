@@ -58,6 +58,7 @@ interface WizardStore {
   saveCurrentProject: () => Promise<SavedProject>;
   loadProject: (id: string) => void;
   removeProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<SavedProject>;
   fetchProjects: () => Promise<void>;
   fetchClients: () => Promise<void>;
   addClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
@@ -377,6 +378,42 @@ export const useWizardStore = create<WizardStore>()(
         });
       },
 
+      duplicateProject: async (id) => {
+        const s = get();
+        const source = s.savedProjects.find((project) => project.id === id);
+        if (!source) throw new Error('project_not_found');
+
+        if (s.savedProjects.length >= ACCOUNT_LIMITS.projects) {
+          throw new Error(limitReachedMessage('projetos salvos', ACCOUNT_LIMITS.projects));
+        }
+
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error('not_authenticated');
+
+        const payload = {
+          user_id: userData.user.id,
+          client_id: source.clientId,
+          name: `${source.name} (cópia)`,
+          address: source.address || null,
+          notes: source.notes || null,
+          residential_options: source.residentialOptions,
+          solution: source.solution,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data, error } = await supabase.from('projects').insert(payload).select().single();
+        if (error) throw error;
+
+        const duplicated = projectFromRow(data);
+
+        set((st) => ({
+          savedProjects: [duplicated, ...st.savedProjects],
+        }));
+
+        return duplicated;
+      },
+
       fetchProjects: async () => {
         const supabase = createClient();
         const { data, error } = await supabase
@@ -565,7 +602,7 @@ export const useWizardStore = create<WizardStore>()(
         if (!userData.user) throw new Error('not_authenticated');
 
         if (get().userLoadPresets.length >= ACCOUNT_LIMITS.userPresets) {
-          throw new Error(limitReachedMessage('presets pessoais', ACCOUNT_LIMITS.userPresets));
+          throw new Error(limitReachedMessage('predefinições pessoais', ACCOUNT_LIMITS.userPresets));
         }
 
         const { data, error } = await supabase
