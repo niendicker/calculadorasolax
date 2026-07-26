@@ -167,6 +167,7 @@ export function ProjectTab({
   onDownloadPdf,
   onManageClients,
   onShowSummary,
+  onHideSummary,
   onAddService,
   onRemoveService,
   onUpdateServiceQty,
@@ -212,6 +213,10 @@ export function ProjectTab({
    * mobile/tablet) — selecting a project should surface its rich summary
    * immediately instead of waiting for the user to tap the nav badge. */
   onShowSummary: () => void;
+  /** Closes the shell's mobile summary drawer — used when the user explicitly
+   * dismisses the selected project's summary, so they land back on the list
+   * instead of an empty "select a project" drawer still open. */
+  onHideSummary: () => void;
   onAddService: (serviceId: string) => void;
   onRemoveService: (serviceId: string) => void;
   onUpdateServiceQty: (serviceId: string, qty: number) => void;
@@ -299,7 +304,10 @@ export function ProjectTab({
             userStockItems={userStockItems}
             userServices={userServices}
             marginSettings={marginSettings}
-            onClose={() => setSelectedProjectId(null)}
+            onClose={() => {
+              setSelectedProjectId(null);
+              onHideSummary();
+            }}
             onOpenSizing={() => onOpenSizing(selectedProject.id)}
           />
         ) : projectDetailsVisible ? (

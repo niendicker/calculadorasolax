@@ -634,6 +634,7 @@ export function SinglePageApp() {
               onDownloadPdf={downloadProjectPdf}
               onManageClients={openClientsManager}
               onShowSummary={() => setSummaryDrawerOpen(true)}
+              onHideSummary={() => setSummaryDrawerOpen(false)}
               onAddService={addServiceToProject}
               onRemoveService={removeServiceFromProject}
               onUpdateServiceQty={updateProjectServiceQty}
@@ -764,8 +765,7 @@ export function SinglePageApp() {
               : 'hidden'
           )}
         >
-          <div className="flex items-center justify-between px-4 pt-5 xl:hidden">
-            <p className="font-medium">Resumo</p>
+          <div className="flex items-center justify-end px-4 pt-5 xl:hidden">
             <Button
               variant="ghost"
               size="icon-lg"

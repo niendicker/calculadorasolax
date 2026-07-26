@@ -77,6 +77,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     onDownloadPdf: vi.fn(),
     onManageClients: vi.fn(),
     onShowSummary: vi.fn(),
+    onHideSummary: vi.fn(),
     onAddService: vi.fn(),
     onRemoveService: vi.fn(),
     onUpdateServiceQty: vi.fn(),
@@ -729,6 +730,16 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
 
     clickCard('Casa de praia');
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
+  });
+
+  it('clicking the summary\'s close (X) button clears the selection and hides the mobile drawer', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar resumo do projeto' }));
+
+    expect(props.onHideSummary).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
 
