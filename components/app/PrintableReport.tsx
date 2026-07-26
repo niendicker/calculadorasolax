@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import {
   AlertTriangle,
   Battery,
@@ -85,18 +86,31 @@ function desiredFeatureDetails(
     atsPhotoUrl: string | null;
     atsBackupAcknowledged: boolean;
   }
-): string {
+): ReactNode {
   switch (id) {
     case 'white_tariff':
       if (!whiteTariff) return '-';
       return (
-        `Potência ${(whiteTariff.requiredPowerW / 1000).toFixed(2)} kVA · ` +
-        `energia ponta ${(whiteTariff.pontaEnergyWh / 1000).toFixed(2)} kWh · ` +
-        `energia intermediária ${(whiteTariff.intermediateEnergyWh / 1000).toFixed(2)} kWh · ` +
-        `${whiteTariff.includeBackupReserve ? 'com' : 'sem'} reserva de backup · ` +
-        `tarifa ponta ${formatCurrencyBRL(whiteTariff.pontaTariffPerKwh)}/kWh · ` +
-        `tarifa intermediária ${formatCurrencyBRL(whiteTariff.intermediateTariffPerKwh)}/kWh · ` +
-        `tarifa fora ponta ${formatCurrencyBRL(whiteTariff.foraPontaTariffPerKwh)}/kWh`
+        <>
+          Potência {(whiteTariff.requiredPowerW / 1000).toFixed(2)} kVA · energia ponta{' '}
+          <span className="font-medium text-foreground">
+            {(whiteTariff.pontaEnergyWh / 1000).toFixed(2)} kWh
+          </span>{' '}
+          · energia intermediária{' '}
+          <span className="font-medium text-foreground">
+            {(whiteTariff.intermediateEnergyWh / 1000).toFixed(2)} kWh
+          </span>{' '}
+          · {whiteTariff.includeBackupReserve ? 'com' : 'sem'} reserva de backup · tarifa ponta{' '}
+          <span className="font-medium text-foreground">{formatCurrencyBRL(whiteTariff.pontaTariffPerKwh)}/kWh</span>{' '}
+          · tarifa intermediária{' '}
+          <span className="font-medium text-foreground">
+            {formatCurrencyBRL(whiteTariff.intermediateTariffPerKwh)}/kWh
+          </span>{' '}
+          · tarifa fora ponta{' '}
+          <span className="font-medium text-foreground">
+            {formatCurrencyBRL(whiteTariff.foraPontaTariffPerKwh)}/kWh
+          </span>
+        </>
       );
     case 'microgrid':
       if (!microgrid) return '-';

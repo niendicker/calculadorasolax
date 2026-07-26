@@ -348,9 +348,16 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
     expect(screen.getByText('Backup')).toBeInTheDocument();
     expect(screen.getByText('Todos os inversores híbridos suportam backup.')).toBeInTheDocument();
     expect(screen.getByText('Tarifa Branca')).toBeInTheDocument();
+    // The energy/tariff figures are wrapped in their own <span> for a light
+    // highlight, so the full sentence is split across multiple elements —
+    // match on the paragraph's full textContent instead of a single text node.
     expect(
       screen.getByText(
-        /Potência 3.00 kVA · energia ponta 6.00 kWh · energia intermediária 2.00 kWh · com reserva de backup · tarifa ponta R\$ 1,60\/kWh · tarifa intermediária R\$ 1,00\/kWh · tarifa fora ponta R\$ 0,80\/kWh/
+        (_, element) =>
+          element?.tagName === 'P' &&
+          /Potência 3.00 kVA · energia ponta 6.00 kWh · energia intermediária 2.00 kWh · com reserva de backup · tarifa ponta R\$\s*1,60\/kWh · tarifa intermediária R\$\s*1,00\/kWh · tarifa fora ponta R\$\s*0,80\/kWh/.test(
+            element?.textContent ?? ''
+          )
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Microrrede')).toBeInTheDocument();
