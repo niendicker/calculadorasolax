@@ -206,6 +206,30 @@ describe('LoadSelector: user presets', () => {
     await waitFor(() => expect(useWizardStore.getState().userLoadPresets).toHaveLength(1));
   });
 
+  it('hides the system presets and other saved presets while adding a new preset, to ease load selection', () => {
+    useWizardStore.setState({
+      userLoadPresets: [userPreset],
+      residentialOptions: {
+        ...useWizardStore.getState().residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
+      },
+    });
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    expect(screen.getByText('Meu preset')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
+
+    expect(screen.queryByText('Meu preset')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Predefinições do sistema' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Minhas predefinições/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.getByText('Meu preset')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Predefinições do sistema' })).toBeInTheDocument();
+  });
+
   it('only saves the loads left checked in the picker, letting the user deselect some', async () => {
     const supabase = createSupabaseMock({
       tableResults: {
@@ -330,11 +354,20 @@ describe('LoadSelector: user presets', () => {
     expect(screen.queryByLabelText('Nome da predefinição')).not.toBeInTheDocument();
   });
 
-  it('re-clicking the already-active Predefinições and Predefinições do sistema tabs is a no-op', () => {
+  it('re-clicking the already-active Predefinições do sistema tab is a no-op', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Predefinições' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Predefinições do sistema' }));
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
+  });
+
+  it('re-clicking the already-active Predefinições switcher tab collapses the Cargas section', () => {
+    renderLoadSelector();
+    expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Predefinições' }));
+
+    expect(screen.queryByText('Residencial essencial')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expandir cargas' })).toBeInTheDocument();
   });
 });
 

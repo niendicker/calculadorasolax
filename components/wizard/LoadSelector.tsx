@@ -357,6 +357,15 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   const [dragOverPhase, setDragOverPhase] = useState<LoadPhase | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<LoadPhase | 'all'>('all');
 
+  const handleSubTabClick = (tab: 'presets' | 'catalog') => {
+    if (activeSubTab === tab) {
+      setSectionOpen((current) => !current);
+      return;
+    }
+    setActiveSubTab(tab);
+    setSectionOpen(true);
+  };
+
   const visiblePhases = gridType ? loadPhases.slice(0, gridTypePhaseCount[gridType]) : [];
   const effectivePhaseFilter: LoadPhase | 'all' =
     phaseFilter !== 'all' && visiblePhases.includes(phaseFilter) ? phaseFilter : 'all';
@@ -546,10 +555,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               type="button"
               role="tab"
               aria-selected={activeSubTab === 'presets'}
-              onClick={() => {
-                setActiveSubTab('presets');
-                setSectionOpen(true);
-              }}
+              onClick={() => handleSubTabClick('presets')}
               className={cn(
                 'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 activeSubTab === 'presets'
@@ -563,10 +569,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               type="button"
               role="tab"
               aria-selected={activeSubTab === 'catalog'}
-              onClick={() => {
-                setActiveSubTab('catalog');
-                setSectionOpen(true);
-              }}
+              onClick={() => handleSubTabClick('catalog')}
               className={cn(
                 'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
                 activeSubTab === 'catalog'
@@ -583,6 +586,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         <div className="space-y-3">
           {activeSubTab === 'presets' && (
           <div className="space-y-3">
+            {!savePresetOpen && (
             <div className="flex gap-4 border-b" role="tablist" aria-label="Predefinições">
               <button
                 type="button"
@@ -613,8 +617,9 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 Minhas predefinições ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
               </button>
             </div>
+            )}
 
-            {presetsSubTab === 'system' && (
+            {!savePresetOpen && presetsSubTab === 'system' && (
               <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {loadPresets.map((preset) => (
                   <PresetCard
@@ -627,7 +632,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               </div>
             )}
 
-            {presetsSubTab === 'mine' && (
+            {(savePresetOpen || presetsSubTab === 'mine') && (
             <div className="space-y-2">
               <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {savePresetOpen ? (
@@ -690,7 +695,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   </button>
                 )}
 
-                {userLoadPresets.map((preset) => (
+                {!savePresetOpen && userLoadPresets.map((preset) => (
                   <div key={preset.id} className="relative">
                     <PresetCard
                       preset={preset}
