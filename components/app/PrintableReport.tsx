@@ -348,6 +348,7 @@ export function PrintableReport({
   secondarySolution,
   secondaryBatteryModel,
   loads,
+  operationHours,
   topology,
   selectedBatteryModel,
   gridType,
@@ -372,7 +373,8 @@ export function PrintableReport({
   solution: Solution;
   secondarySolution?: Solution | null;
   secondaryBatteryModel?: string | null;
-  loads: { id: string; name: string; powerW: number; hoursPerDay: number; qty: number }[];
+  loads: { id: string; name: string; powerW: number; qty: number }[];
+  operationHours: number;
   topology: BatteryTopology | null;
   selectedBatteryModel: string | null;
   gridType: ResidentialGridType | null;
@@ -396,8 +398,7 @@ export function PrintableReport({
     timeStyle: 'short',
   }).format(new Date());
 
-  const loadEnergyKwh = (load: { powerW: number; hoursPerDay: number; qty: number }) =>
-    (load.powerW * load.hoursPerDay * load.qty) / 1000;
+  const loadEnergyKwh = (load: { powerW: number; qty: number }) => (operationHours * load.powerW * load.qty) / 1000;
 
   const tariffSavings = calculateTariffSavings(whiteTariff, pv?.monthlyConsumptionKwh ?? null);
 
@@ -541,6 +542,7 @@ export function PrintableReport({
             <Gauge className="h-4 w-4 text-primary" aria-hidden="true" />
             Cargas informadas
           </h2>
+          <p className="mb-2 text-xs text-muted-foreground">Tempo de operação considerado: {operationHours} h</p>
           <div className="overflow-hidden rounded-xl border border-border/70">
             <table className="w-full text-sm">
               <thead>
@@ -548,7 +550,6 @@ export function PrintableReport({
                   <th className="px-4 py-2 font-medium">Carga</th>
                   <th className="px-4 py-2 text-right font-medium">Potência</th>
                   <th className="px-4 py-2 text-right font-medium">Qtd.</th>
-                  <th className="px-4 py-2 text-right font-medium">Uso diário</th>
                   <th className="px-4 py-2 text-right font-medium">Pico</th>
                   <th className="px-4 py-2 text-right font-medium">Consumo</th>
                 </tr>
@@ -559,10 +560,9 @@ export function PrintableReport({
                     <td className="px-4 py-2 font-medium text-foreground">{load.name}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.powerW} VA</td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.qty}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.hoursPerDay} h/dia</td>
                     <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{load.powerW * load.qty} VA</td>
                     <td className="px-4 py-2 text-right tabular-nums font-medium text-foreground">
-                      {loadEnergyKwh(load).toFixed(2)} kWh/dia
+                      {loadEnergyKwh(load).toFixed(2)} kWh
                     </td>
                   </tr>
                 ))}

@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     const nominalW = totalNominalW(options.loads);
     const peakW = totalPeakW(options.loads, options.peakCalcMode ?? 'sum');
-    const dailyKwh = totalDailyKwh(options.loads);
+    const dailyKwh = totalDailyKwh(options.loads, options.operationHours);
     const gridTopology = gridTopologyMap[options.gridType];
     const standardGridTopology = standardGridTopologyMap[options.gridType];
     const batteryTopology = batteryTopologyMap[options.topology];

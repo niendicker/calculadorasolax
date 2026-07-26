@@ -51,7 +51,6 @@ export function PresetsEditor(props: {
     const newLoad: PresetLoad = {
       name: item.name_pt,
       powerW: item.power_w,
-      hoursPerDay: 4,
       qty: 1,
       ipInRatio: item.ip_in_ratio ?? 1,
     };
@@ -107,15 +106,7 @@ export function PresetsEditor(props: {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <NumberWithUnitField
-                        label="Horas/dia"
-                        tip="Horas de uso por dia, usado para estimar o consumo diário."
-                        unit="h"
-                        step={0.5}
-                        value={load.hoursPerDay}
-                        onChange={(event) => updateLoad(index, { hoursPerDay: toNumber(event.target.value) })}
-                      />
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:w-1/2">
                       <NumberWithUnitField
                         label="Qtd"
                         tip="Quantidade de unidades desta carga."

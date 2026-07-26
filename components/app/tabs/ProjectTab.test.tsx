@@ -21,6 +21,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
       gridType: 'singlePhase_220',
       loads: [],
       peakCalcMode: 'sum',
+      operationHours: 0,
       desiredFeatures: [],
       whiteTariff: null,
       microgrid: null,

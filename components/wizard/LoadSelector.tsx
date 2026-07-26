@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
+  AlertTriangle,
   BatteryCharging,
   ChevronDown,
   Layers,
@@ -172,13 +173,15 @@ function PresetCard({
   preset,
   onAdd,
   withDeleteSpacing,
+  operationHours,
 }: {
   preset: { name: string; description: string; loads: LoadPresetLoad[] };
   onAdd: () => void;
   withDeleteSpacing?: boolean;
+  operationHours: number;
 }) {
   const peakKva = preset.loads.reduce((acc, load) => acc + load.powerW * (load.ipInRatio ?? 1) * load.qty, 0) / 1000;
-  const dailyKwh = preset.loads.reduce((acc, load) => acc + (load.powerW * load.hoursPerDay * load.qty) / 1000, 0);
+  const dailyKwh = (operationHours * preset.loads.reduce((acc, load) => acc + load.powerW * load.qty, 0)) / 1000;
   const {
     ref: loadsTipRef,
     openUp: loadsTipOpenUp,
@@ -350,6 +353,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     removeLoad,
     updateLoad,
     setPeakCalcMode,
+    setOperationHours,
     saveManualLoadToCatalog,
     updateUserLoadCatalogItem,
     removeUserLoadCatalogItem,
@@ -414,7 +418,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     // from the current filter the moment it's created.
     const phase = effectivePhaseFilter !== 'all' ? effectivePhaseFilter : undefined;
     const added = addLoad(
-      newLoad({ name: '', powerW: 0, hoursPerDay: 4, qty: 1, ipInRatio: 1, ...(phase ? { phase } : {}) })
+      newLoad({ name: '', powerW: 0, qty: 1, ipInRatio: 1, ...(phase ? { phase } : {}) })
     );
     setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
   }
@@ -424,7 +428,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       newLoad({
         name: item[nameKey as keyof CatalogItem] as string,
         powerW: item.powerW,
-        hoursPerDay: 4,
         qty: 1,
         ipInRatio: item.ipInRatio ?? 1,
       })
@@ -437,7 +440,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       newLoad({
         name: item.name,
         powerW: item.powerW,
-        hoursPerDay: 4,
         qty: 1,
         ipInRatio: item.ipInRatio,
       })
@@ -471,7 +473,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         loads: residentialOptions.loads.map((load) => ({
           name: load.name,
           powerW: load.powerW,
-          hoursPerDay: load.hoursPerDay,
           qty: load.qty,
           ipInRatio: load.ipInRatio,
         })),
@@ -501,6 +502,31 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           {loadLimitMessage}
         </p>
       )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor="operationHours">
+          <InfoLabel
+            label="Tempo de operação (h)"
+            tip="Tempo compartilhado por todas as cargas durante o backup. Cada carga usa o próprio percentual de uso para escalar sua energia dentro desse tempo."
+          />
+        </Label>
+        <Input
+          id="operationHours"
+          type="number"
+          min={0}
+          max={24}
+          step={0.5}
+          placeholder="Ex.: 4"
+          value={residentialOptions.operationHours || ''}
+          onChange={(event) => setOperationHours(Number(event.target.value) || 0)}
+        />
+        {!residentialOptions.operationHours && (
+          <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Informe o tempo de operação para calcular a energia das cargas.
+          </p>
+        )}
+      </div>
 
       <div className="space-y-2">
         <CollapsibleSectionHeader
@@ -578,7 +604,12 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             {presetsSubTab === 'system' && (
               <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {loadPresets.map((preset) => (
-                  <PresetCard key={preset.id} preset={preset} onAdd={() => handleAddPreset(preset)} />
+                  <PresetCard
+                    key={preset.id}
+                    preset={preset}
+                    onAdd={() => handleAddPreset(preset)}
+                    operationHours={residentialOptions.operationHours}
+                  />
                 ))}
               </div>
             )}
@@ -647,7 +678,12 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {userLoadPresets.map((preset) => (
                     <div key={preset.id} className="relative">
-                      <PresetCard preset={preset} onAdd={() => handleAddPreset(preset)} withDeleteSpacing />
+                      <PresetCard
+                        preset={preset}
+                        onAdd={() => handleAddPreset(preset)}
+                        withDeleteSpacing
+                        operationHours={residentialOptions.operationHours}
+                      />
                       <div className="absolute right-2 top-2">
                         <ConfirmDeleteButton
                           ariaLabel={`Remover preset ${preset.name}`}
@@ -904,6 +940,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 userLoadCatalog={userLoadCatalog}
                 nameKey={nameKey}
                 peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
+                operationHours={residentialOptions.operationHours}
                 onUpdate={updateLoad}
                 onRemove={(id) => {
                   removeLoad(id);
@@ -1160,6 +1197,7 @@ function LoadCard({
   userLoadCatalog,
   nameKey,
   peakCalcMode,
+  operationHours,
   onUpdate,
   onRemove,
   saveManualLoadToCatalog,
@@ -1171,12 +1209,12 @@ function LoadCard({
   userLoadCatalog: UserLoadCatalogItem[];
   nameKey: string;
   peakCalcMode: PeakCalcMode;
+  operationHours: number;
   onUpdate: (id: string, partial: Partial<SingleLoad>) => void;
   onRemove: (id: string) => void;
   saveManualLoadToCatalog: (input: { name: string; powerW: number; ipInRatio: number }) => Promise<void>;
   onCatalogSaveWarning: (message: string | null) => void;
 }) {
-  const [hours, setHours] = useState(String(load.hoursPerDay));
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
   const [usageFactor, setUsageFactor] = useState(String(load.usageFactor ?? 1));
@@ -1324,7 +1362,7 @@ function LoadCard({
   }, [needsTwoPhases, load.phase2, load.id, onUpdate]);
 
   function handleChange(
-    field: 'hoursPerDay' | 'qty' | 'ipInRatio' | 'usageFactor',
+    field: 'qty' | 'ipInRatio' | 'usageFactor',
     raw: string,
     setLocal: (value: string) => void
   ) {
@@ -1359,7 +1397,7 @@ function LoadCard({
   }
 
   const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
-  const loadEnergyKwh = (load.powerW * load.hoursPerDay * load.qty * (load.usageFactor ?? 1)) / 1000;
+  const loadEnergyKwh = (operationHours * load.powerW * load.qty * (load.usageFactor ?? 1)) / 1000;
   const includedInPeak = load.includedInPeak ?? true;
 
   if (isDraft) {
@@ -1670,25 +1708,6 @@ function LoadCard({
       </div>
       {expanded && (
       <div className="grid grid-cols-2 gap-2 border-t p-3">
-        <div>
-          <Label htmlFor={`hours-${load.id}`} className="text-xs font-normal text-muted-foreground">
-            <InfoLabel
-              label="Horas/dia"
-              tip="Tempo médio de uso diário desse equipamento. Usado para calcular o consumo em kWh/dia."
-            />
-          </Label>
-          <NumberFieldWithClear
-            id={`hours-${load.id}`}
-            value={hours}
-            placeholder="Ex.: 4"
-            min={0.5}
-            max={24}
-            step={0.5}
-            onChange={(value) => handleChange('hoursPerDay', value, setHours)}
-            onBlur={() => revertIfInvalid(hours, load.hoursPerDay, setHours)}
-            onClear={() => setHours('')}
-          />
-        </div>
         <div>
           <Label htmlFor={`qty-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel label="Quantidade" tip="Número de unidades desse equipamento na instalação." />

@@ -6,11 +6,11 @@
 
 export interface SingleLoad {
   powerW: number;
-  hoursPerDay: number;
   qty: number;
   ipInRatio?: number;
-  /** Fraction (0-1) of hoursPerDay this load is actually drawing power; scales
-   * energy (kWh/day), not peak power. Mirrors lib/types.ts SingleLoad. */
+  /** Fraction (0-1) of the shared operationHours this load is actually
+   * drawing power; scales energy (kWh), not peak power. Mirrors
+   * lib/types.ts SingleLoad. */
   usageFactor?: number;
   /** Whether this load counts toward peak power when peakCalcMode is
    * 'select'. Mirrors lib/types.ts SingleLoad. */
@@ -181,6 +181,7 @@ export interface ResidentialOptions {
   gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
   loads: SingleLoad[];
   peakCalcMode?: PeakCalcMode;
+  operationHours: number;
   desiredFeatures: DesiredFeatureId[];
   whiteTariff: WhiteTariffConfig | null;
   microgrid: MicrogridConfig | null;
@@ -383,8 +384,10 @@ export function totalNominalW(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
 }
 
-export function totalDailyKwh(loads: SingleLoad[]): number {
-  return loads.reduce((acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty * (l.usageFactor ?? 1)) / 1000, 0);
+/** operationHours is shared across every load (see ResidentialOptions) — each
+ * load's usageFactor still scales its own share of that shared time. */
+export function totalDailyKwh(loads: SingleLoad[], operationHours: number): number {
+  return (operationHours * loads.reduce((acc, l) => acc + l.powerW * l.qty * (l.usageFactor ?? 1), 0)) / 1000;
 }
 
 /** PV peak power sized from the customer's own average monthly consumption
@@ -694,6 +697,15 @@ export function validateResidentialOptions(raw: unknown): string[] {
     errors.push('peakCalcMode must be one of: ' + VALID_PEAK_CALC_MODES.join(', '));
   }
 
+  if (
+    typeof options.operationHours !== 'number' ||
+    !Number.isFinite(options.operationHours) ||
+    options.operationHours < 0 ||
+    options.operationHours > 24
+  ) {
+    errors.push('operationHours must be a number between 0 and 24');
+  }
+
   if (options.desiredFeatures !== undefined) {
     if (!Array.isArray(options.desiredFeatures)) {
       errors.push('desiredFeatures must be an array');
@@ -790,15 +802,6 @@ export function validateResidentialOptions(raw: unknown): string[] {
 
       if (typeof l.powerW !== 'number' || !Number.isFinite(l.powerW) || l.powerW <= 0) {
         errors.push(`loads[${index}].powerW must be a positive number`);
-      }
-
-      if (
-        typeof l.hoursPerDay !== 'number' ||
-        !Number.isFinite(l.hoursPerDay) ||
-        l.hoursPerDay < 0 ||
-        l.hoursPerDay > 24
-      ) {
-        errors.push(`loads[${index}].hoursPerDay must be a number between 0 and 24`);
       }
 
       if (typeof l.qty !== 'number' || !Number.isInteger(l.qty) || l.qty <= 0) {

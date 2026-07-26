@@ -92,6 +92,7 @@ interface WizardStore {
   setAtsPhotoUrl: (atsPhotoUrl: string | null) => void;
   setAtsBackupAcknowledged: (atsBackupAcknowledged: boolean) => void;
   setPeakCalcMode: (peakCalcMode: PeakCalcMode) => void;
+  setOperationHours: (operationHours: number) => void;
   /** Returns false (no-op) instead of adding when the project is already at ACCOUNT_LIMITS.loadsPerProject. */
   addLoad: (load: SingleLoad) => boolean;
   removeLoad: (id: string) => void;
@@ -135,6 +136,7 @@ const defaultResidential: ResidentialOptions = {
   gridType: 'singlePhase_220',
   loads: [],
   peakCalcMode: 'sum',
+  operationHours: 0,
   desiredFeatures: ['backup'],
   whiteTariff: null,
   microgrid: null,
@@ -755,6 +757,11 @@ export const useWizardStore = create<WizardStore>()(
           residentialOptions: { ...s.residentialOptions, peakCalcMode },
         })),
 
+      setOperationHours: (operationHours) =>
+        set((s) => ({
+          residentialOptions: { ...s.residentialOptions, operationHours },
+        })),
+
       addLoad: (load) => {
         if (get().residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject) return false;
         set((s) => ({
@@ -843,11 +850,10 @@ export function totalNominalW(loads: SingleLoad[]): number {
   return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
 }
 
-export function totalDailyKwh(loads: SingleLoad[]): number {
-  return loads.reduce(
-    (acc, l) => acc + (l.powerW * l.hoursPerDay * l.qty * (l.usageFactor ?? 1)) / 1000,
-    0
-  );
+/** operationHours is shared across every load — each load's usageFactor
+ * still scales its own share of that shared time. */
+export function totalDailyKwh(loads: SingleLoad[], operationHours: number): number {
+  return (operationHours * loads.reduce((acc, l) => acc + l.powerW * l.qty * (l.usageFactor ?? 1), 0)) / 1000;
 }
 
 export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {

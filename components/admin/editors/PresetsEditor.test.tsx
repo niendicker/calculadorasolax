@@ -46,7 +46,7 @@ function ControlledEditor(overrides: {
 
 describe('PresetsEditor: listing', () => {
   it('shows each preset with its load count badge', () => {
-    render(<ControlledEditor rows={[makePreset({ id: 'p1', name: 'Residencial', loads: [{ name: 'A', powerW: 1, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] })]} />);
+    render(<ControlledEditor rows={[makePreset({ id: 'p1', name: 'Residencial', loads: [{ name: 'A', powerW: 1, qty: 1, ipInRatio: 1 }] })]} />);
     expect(screen.getByText('Residencial')).toBeInTheDocument();
     expect(screen.getByText('1 carga')).toBeInTheDocument();
   });
@@ -59,8 +59,8 @@ describe('PresetsEditor: listing', () => {
             id: 'p1',
             name: 'Residencial',
             loads: [
-              { name: 'A', powerW: 1, hoursPerDay: 1, qty: 1, ipInRatio: 1 },
-              { name: 'B', powerW: 1, hoursPerDay: 1, qty: 1, ipInRatio: 1 },
+              { name: 'A', powerW: 1, qty: 1, ipInRatio: 1 },
+              { name: 'B', powerW: 1, qty: 1, ipInRatio: 1 },
             ],
           }),
         ]}
@@ -106,12 +106,11 @@ describe('PresetsEditor: building the load list', () => {
     expect(screen.getByText('Nenhuma carga adicionada ainda. Use a busca abaixo para adicionar do catálogo.')).toBeInTheDocument();
   });
 
-  it('edits hours/qty on an added load', () => {
+  it('edits qty on an added load', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Novo preset/ }));
     fireEvent.click(screen.getByText('Chuveiro'));
 
-    fireEvent.change(screen.getByLabelText('Horas/dia', { exact: false }), { target: { value: '6' } });
     fireEvent.change(screen.getByLabelText('Qtd', { exact: false }), { target: { value: '3' } });
 
     expect(screen.getByText('5500 VA · IP/IN 1×')).toBeInTheDocument(); // unaffected field stays

@@ -33,7 +33,7 @@ const solution: Solution = {
   comments: [],
 };
 
-const load = { id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1 };
+const load = { id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1 };
 
 function baseProps(overrides: Partial<Parameters<typeof PrintableReport>[0]> = {}) {
   return {
@@ -48,6 +48,7 @@ function baseProps(overrides: Partial<Parameters<typeof PrintableReport>[0]> = {
     nominalW: 3000,
     peakW: 5500,
     dailyKwh: 5.5,
+    operationHours: 4,
     userStockItems: [] as UserStockItem[],
     whiteTariff: null,
     batteryCatalog: [] as BatteryCatalogOption[],
@@ -376,9 +377,13 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
 
 describe('PrintableReport: loads table', () => {
   it('computes peak and daily energy per load row', () => {
-    render(<PrintableReport {...baseProps({ loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 2, qty: 2 }] })} />);
+    render(
+      <PrintableReport
+        {...baseProps({ operationHours: 2, loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 2 }] })}
+      />
+    );
     expect(screen.getByText('11000 VA')).toBeInTheDocument(); // peak = 5500 * 2
-    expect(screen.getByText('22.00 kWh/dia')).toBeInTheDocument(); // energy = 5500*2*2/1000
+    expect(screen.getByText('22.00 kWh')).toBeInTheDocument(); // energy = 2*5500*2/1000
   });
 });
 

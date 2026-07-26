@@ -7,7 +7,7 @@ import type { ProjectInfo, ResidentialOptions, Solution, SingleLoad } from '@/li
 import { useCalculation } from './useCalculation';
 
 function makeLoad(): SingleLoad {
-  return { id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 };
+  return { id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 };
 }
 
 const validResidentialOptions: ResidentialOptions = {
@@ -18,6 +18,7 @@ const validResidentialOptions: ResidentialOptions = {
   gridType: 'singlePhase_220',
   loads: [makeLoad()],
   peakCalcMode: 'sum',
+  operationHours: 4,
   desiredFeatures: [],
   whiteTariff: null,
   microgrid: null,

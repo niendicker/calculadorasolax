@@ -111,15 +111,15 @@ export interface SingleLoad {
   id: string;
   name: string;
   powerW: number;
-  hoursPerDay: number;
   qty: number;
   /** IP/IN: starting (peak) apparent power divided by nominal apparent power. */
   ipInRatio: number;
-  /** Fraction (0-1) of hoursPerDay this load is actually drawing power (e.g. a
-   * thermostat-cycled compressor). Scales the energy (kWh/day) consumed, not
-   * the peak power; only meaningful for loads added to a project's backup
-   * list, not for catalog entries. Defaults to 1 (runs the whole time) for
-   * loads saved before this field existed. */
+  /** Fraction (0-1) of the shared backup operation time (ResidentialOptions.
+   * operationHours) this load is actually drawing power (e.g. a
+   * thermostat-cycled compressor). Scales the energy (kWh) consumed, not the
+   * peak power; only meaningful for loads added to a project's backup list,
+   * not for catalog entries. Defaults to 1 (runs the whole time) for loads
+   * saved before this field existed. */
   usageFactor?: number;
   /** Operating voltage; defaults to 220V for loads saved before this field existed. */
   voltageV?: LoadVoltage;
@@ -157,7 +157,6 @@ export interface ProductDocument {
 export interface LoadPresetLoad {
   name: string;
   powerW: number;
-  hoursPerDay: number;
   qty: number;
   ipInRatio: number;
 }
@@ -214,6 +213,10 @@ export interface ResidentialOptions {
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];
   peakCalcMode: PeakCalcMode;
+  /** Shared operation time (h) applied equally to every load when computing
+   * backup energy — replaces each load's own hoursPerDay (removed). Each
+   * load's usageFactor still scales its share of that time. */
+  operationHours: number;
   desiredFeatures: DesiredFeatureId[];
   /** Only meaningful when 'white_tariff' is in desiredFeatures. */
   whiteTariff: WhiteTariffConfig | null;

@@ -198,7 +198,7 @@ export function SinglePageApp() {
     saveCurrentProject,
   });
 
-  const dailyKwh = totalDailyKwh(residentialOptions.loads);
+  const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
   const nominalW = totalNominalW(residentialOptions.loads);
 
@@ -901,6 +901,7 @@ export function SinglePageApp() {
           secondarySolution={secondarySolution}
           secondaryBatteryModel={residentialOptions.secondaryBatteryModel}
           loads={residentialOptions.loads}
+          operationHours={residentialOptions.operationHours}
           topology={residentialOptions.topology}
           selectedBatteryModel={residentialOptions.batteryModel}
           gridType={residentialOptions.gridType}

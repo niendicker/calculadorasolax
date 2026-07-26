@@ -84,25 +84,30 @@ function makeRule(partial: Partial<AccessoryRule> = {}): AccessoryRule {
 
 describe('totalNominalW / totalPeakW / totalDailyKwh', () => {
   const loads: SingleLoad[] = [
-    { powerW: 1000, hoursPerDay: 2, qty: 1, ipInRatio: 3 },
-    { powerW: 100, hoursPerDay: 5, qty: 4 },
+    { powerW: 1000, qty: 1, ipInRatio: 3 },
+    { powerW: 100, qty: 4 },
   ];
 
   it('totalNominalW sums powerW x qty, ignoring ipInRatio', () => {
     expect(totalNominalW(loads)).toBe(1000 * 1 + 100 * 4);
   });
 
-  it('totalDailyKwh sums powerW x hoursPerDay x qty in kWh', () => {
-    expect(totalDailyKwh(loads)).toBeCloseTo((1000 * 2 * 1 + 100 * 5 * 4) / 1000);
+  it('totalDailyKwh sums powerW x qty across loads, scaled by the shared operationHours, in kWh', () => {
+    // (1000 x 1 + 100 x 4) W x 2h / 1000 = 2.8 kWh
+    expect(totalDailyKwh(loads, 2)).toBeCloseTo(((1000 * 1 + 100 * 4) * 2) / 1000);
+  });
+
+  it('totalDailyKwh returns 0 when operationHours is 0', () => {
+    expect(totalDailyKwh(loads, 0)).toBe(0);
   });
 
   it('totalDailyKwh scales by usageFactor, defaulting to 1 when absent', () => {
-    const withUsageFactor: SingleLoad[] = [{ powerW: 1000, hoursPerDay: 2, qty: 1, usageFactor: 0.5 }];
-    expect(totalDailyKwh(withUsageFactor)).toBeCloseTo(1.0);
+    const withUsageFactor: SingleLoad[] = [{ powerW: 1000, qty: 1, usageFactor: 0.5 }];
+    expect(totalDailyKwh(withUsageFactor, 2)).toBeCloseTo(1.0);
   });
 
   it('totalPeakW ignores usageFactor (energy-only factor does not affect peak power)', () => {
-    const withUsageFactor: SingleLoad[] = [{ powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 2, usageFactor: 0.5 }];
+    const withUsageFactor: SingleLoad[] = [{ powerW: 1000, qty: 1, ipInRatio: 2, usageFactor: 0.5 }];
     expect(totalPeakW(withUsageFactor)).toBe(2000);
   });
 
@@ -117,8 +122,8 @@ describe('totalNominalW / totalPeakW / totalDailyKwh', () => {
 
   it('totalPeakW select mode only sums loads flagged includedInPeak', () => {
     const selectLoads: SingleLoad[] = [
-      { powerW: 1000, hoursPerDay: 1, qty: 3, ipInRatio: 1, includedInPeak: true },
-      { powerW: 100, hoursPerDay: 1, qty: 4, ipInRatio: 1, includedInPeak: false },
+      { powerW: 1000, qty: 3, ipInRatio: 1, includedInPeak: true },
+      { powerW: 100, qty: 4, ipInRatio: 1, includedInPeak: false },
     ];
     expect(totalPeakW(selectLoads, 'select')).toBe(1000 * 3);
   });
@@ -970,7 +975,8 @@ describe('validateResidentialOptions', () => {
       batteryModel: null,
       inverterModel: null,
       gridType: 'singlePhase_220',
-      loads: [{ powerW: 100, hoursPerDay: 2, qty: 1 }],
+      loads: [{ powerW: 100, qty: 1 }],
+      operationHours: 2,
       desiredFeatures: [],
       whiteTariff: null,
       microgrid: null,
@@ -1006,7 +1012,7 @@ describe('validateResidentialOptions', () => {
   it('rejects negative or zero powerW', () => {
     const errors = validateResidentialOptions({
       ...validPayload(),
-      loads: [{ powerW: -10, hoursPerDay: 1, qty: 1 }],
+      loads: [{ powerW: -10, qty: 1 }],
     });
     expect(errors.some((e) => e.includes('powerW'))).toBe(true);
   });
@@ -1014,29 +1020,35 @@ describe('validateResidentialOptions', () => {
   it('rejects qty zero or non-integer', () => {
     const zeroQty = validateResidentialOptions({
       ...validPayload(),
-      loads: [{ powerW: 100, hoursPerDay: 1, qty: 0 }],
+      loads: [{ powerW: 100, qty: 0 }],
     });
     expect(zeroQty.some((e) => e.includes('qty'))).toBe(true);
 
     const fractionalQty = validateResidentialOptions({
       ...validPayload(),
-      loads: [{ powerW: 100, hoursPerDay: 1, qty: 1.5 }],
+      loads: [{ powerW: 100, qty: 1.5 }],
     });
     expect(fractionalQty.some((e) => e.includes('qty'))).toBe(true);
   });
 
-  it('rejects hoursPerDay outside 0-24', () => {
-    const errors = validateResidentialOptions({
-      ...validPayload(),
-      loads: [{ powerW: 100, hoursPerDay: 25, qty: 1 }],
-    });
-    expect(errors.some((e) => e.includes('hoursPerDay'))).toBe(true);
+  it('rejects a missing or invalid operationHours', () => {
+    const missing = validateResidentialOptions({ ...validPayload(), operationHours: undefined });
+    expect(missing.some((e) => e.includes('operationHours'))).toBe(true);
+
+    const negative = validateResidentialOptions({ ...validPayload(), operationHours: -1 });
+    expect(negative.some((e) => e.includes('operationHours'))).toBe(true);
+
+    const tooHigh = validateResidentialOptions({ ...validPayload(), operationHours: 25 });
+    expect(tooHigh.some((e) => e.includes('operationHours'))).toBe(true);
+
+    const valid = validateResidentialOptions({ ...validPayload(), operationHours: 0 });
+    expect(valid.some((e) => e.includes('operationHours'))).toBe(false);
   });
 
   it('rejects an ipInRatio below 1 when provided', () => {
     const errors = validateResidentialOptions({
       ...validPayload(),
-      loads: [{ powerW: 100, hoursPerDay: 1, qty: 1, ipInRatio: 0.5 }],
+      loads: [{ powerW: 100, qty: 1, ipInRatio: 0.5 }],
     });
     expect(errors.some((e) => e.includes('ipInRatio'))).toBe(true);
   });

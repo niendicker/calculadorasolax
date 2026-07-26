@@ -18,14 +18,14 @@ const systemPreset: LoadPresetItem = {
   id: 'sp1',
   name: 'Residencial essencial',
   description: 'Cargas básicas',
-  loads: [{ name: 'Chuveiro elétrico', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+  loads: [{ name: 'Chuveiro elétrico', powerW: 5500, qty: 1, ipInRatio: 1 }],
 };
 
 const userPreset: UserLoadPresetItem = {
   id: 'up1',
   name: 'Meu preset',
   description: 'Descrição',
-  loads: [{ name: 'Bomba', powerW: 750, hoursPerDay: 2, qty: 1, ipInRatio: 3 }],
+  loads: [{ name: 'Bomba', powerW: 750, qty: 1, ipInRatio: 3 }],
 };
 
 const catalogItem: CatalogItem = {
@@ -118,7 +118,6 @@ describe('LoadSelector: adding from a system preset', () => {
           id: `l${i}`,
           name: `Carga ${i}`,
           powerW: 100,
-          hoursPerDay: 1,
           qty: 1,
           ipInRatio: 1,
         })),
@@ -181,7 +180,7 @@ describe('LoadSelector: user presets', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
       },
     }));
     renderLoadSelector();
@@ -197,7 +196,7 @@ describe('LoadSelector: user presets', () => {
   it('shows a limit-reached error verbatim when saving a preset fails', async () => {
     createClientMock.mockReturnValue(createSupabaseMock());
     useWizardStore.setState((s) => ({
-      residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] },
+      residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, qty: 1, ipInRatio: 1 }] },
       userLoadPresets: Array.from({ length: ACCOUNT_LIMITS.userPresets }, (_, i) => ({
         id: `up${i}`,
         name: `Preset ${i}`,
@@ -219,7 +218,7 @@ describe('LoadSelector: user presets', () => {
       })
     );
     useWizardStore.setState((s) => ({
-      residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] },
+      residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, qty: 1, ipInRatio: 1 }] },
     }));
     renderLoadSelector();
     fireEvent.click(screen.getByRole('tab', { name: /Meus presets/ }));
@@ -435,7 +434,7 @@ describe('LoadSelector: blank load card', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'existing', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        loads: [{ id: 'existing', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
       },
     }));
     renderLoadSelector();
@@ -598,7 +597,6 @@ describe('LoadSelector: blank load card', () => {
           id: `l${i}`,
           name: `Carga ${i}`,
           powerW: 100,
-          hoursPerDay: 1,
           qty: 1,
           ipInRatio: 1,
         })),
@@ -615,24 +613,51 @@ describe('LoadSelector: added loads list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
       },
     }));
     renderLoadSelector();
 
     fireEvent.click(screen.getByText('Chuveiro'));
-    // The label's accessible text includes its InfoLabel tooltip copy too, so match loosely.
-    const hoursInput = screen.getByLabelText('Horas/dia', { exact: false });
-    fireEvent.change(hoursInput, { target: { value: '3' } });
+    const qtyInput = screen.getByLabelText('Quantidade', { exact: false });
+    fireEvent.change(qtyInput, { target: { value: '3' } });
 
-    expect(useWizardStore.getState().residentialOptions.loads[0].hoursPerDay).toBe(3);
+    expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(3);
+  });
+
+  it('shows an editable shared "Tempo de operação" input, driving every load\'s daily energy', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        operationHours: 1,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    const operationHoursInput = screen.getByLabelText('Tempo de operação', { exact: false });
+    fireEvent.change(operationHoursInput, { target: { value: '2' } });
+
+    expect(useWizardStore.getState().residentialOptions.operationHours).toBe(2);
+  });
+
+  it('warns when the shared operation time is not configured', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: { ...s.residentialOptions, operationHours: 0 },
+    }));
+    renderLoadSelector();
+
+    expect(
+      screen.getByText('Informe o tempo de operação para calcular a energia das cargas.')
+    ).toBeInTheDocument();
   });
 
   it('shows an editable "Fator de uso" field on backup load cards, reducing the daily energy but not the peak', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+        operationHours: 1,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, usageFactor: 1 }],
       },
     }));
     renderLoadSelector();
@@ -655,7 +680,7 @@ describe('LoadSelector: added loads list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, usageFactor: 1 }],
       },
     }));
     renderLoadSelector();
@@ -672,7 +697,7 @@ describe('LoadSelector: added loads list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, usageFactor: 1 }],
       },
     }));
     renderLoadSelector();
@@ -690,7 +715,7 @@ describe('LoadSelector: added loads list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
       },
     }));
     renderLoadSelector();
@@ -708,7 +733,6 @@ describe('LoadSelector: added loads list', () => {
           id: `l${i}`,
           name: `Carga ${i}`,
           powerW: 100,
-          hoursPerDay: 1,
           qty: 1,
           ipInRatio: 1,
         })),
@@ -727,7 +751,7 @@ describe('LoadSelector: added loads list', () => {
       residentialOptions: {
         ...s.residentialOptions,
         gridType: 'threePhase_220',
-        loads: [{ id: 'l1', name: 'Forno', powerW: 2200, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' }],
+        loads: [{ id: 'l1', name: 'Forno', powerW: 2200, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' }],
       },
     }));
     renderLoadSelector();
@@ -741,7 +765,7 @@ describe('LoadSelector: added loads list', () => {
       residentialOptions: {
         ...s.residentialOptions,
         gridType: 'threePhase_220',
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1' }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, phase: 'L1' }],
       },
     }));
     renderLoadSelector();
@@ -759,7 +783,7 @@ describe('LoadSelector: added loads list', () => {
       residentialOptions: {
         ...s.residentialOptions,
         gridType: 'threePhase_380',
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1' }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, phase: 'L1' }],
       },
     }));
     renderLoadSelector();
@@ -783,7 +807,7 @@ describe('LoadSelector: added loads list', () => {
         ...s.residentialOptions,
         gridType: 'threePhase_220',
         peakCalcMode: 'select',
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
       },
     }));
     renderLoadSelector();
@@ -836,8 +860,8 @@ describe('LoadSelector: added loads list', () => {
           // 110V doesn't need a phase-to-phase (two-phase) hookup on this grid,
           // so this load stays single-phase instead of the phase2-pairing
           // effect auto-assigning it a second phase.
-          { id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1', voltageV: 110 },
-          { id: 'l2', name: 'Forno', powerW: 2200, hoursPerDay: 1, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' },
+          { id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, phase: 'L1', voltageV: 110 },
+          { id: 'l2', name: 'Forno', powerW: 2200, qty: 1, ipInRatio: 1, phase: 'L1', phase2: 'L2' },
         ],
       },
     }));
@@ -867,20 +891,15 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Todas/ }));
   });
 
-  it('clears and blur-reverts hours, qty, IP/IN and Fator de uso', () => {
+  it('clears and blur-reverts qty, IP/IN and Fator de uso', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 3, qty: 2, ipInRatio: 1.5, usageFactor: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 2, ipInRatio: 1.5, usageFactor: 1 }],
       },
     }));
     renderLoadSelector();
     fireEvent.click(screen.getByText('Chuveiro'));
-
-    const hoursInput = screen.getByLabelText('Horas/dia', { exact: false });
-    fireEvent.change(hoursInput, { target: { value: 'abc' } });
-    fireEvent.blur(hoursInput);
-    expect(hoursInput).toHaveValue(3);
 
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
     fireEvent.change(usageFactorInput, { target: { value: '' } });
@@ -898,7 +917,7 @@ describe('LoadSelector: added loads list', () => {
       fireEvent.mouseDown(clearButton);
       fireEvent.click(clearButton);
     }
-    expect(hoursInput).toHaveValue(null);
+    expect(ipInInput).toHaveValue(null);
   });
 
   it('expands/collapses a load card via keyboard, and drag-starts it when eligible for phase drag', () => {
@@ -906,7 +925,7 @@ describe('LoadSelector: added loads list', () => {
       residentialOptions: {
         ...s.residentialOptions,
         gridType: 'threePhase_220',
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1, voltageV: 110 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, voltageV: 110 }],
       },
     }));
     renderLoadSelector();
@@ -948,7 +967,7 @@ describe('LoadSelector: added loads list', () => {
         // Data that could only have arrived from an import/edit outside this UI:
         // trifásica on a 1-phase grid, and a mono 380V load left over from a
         // grid-type change away from threePhase_380.
-        loads: [{ id: 'l1', name: 'Trifásica órfã', powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 1, phaseType: 'trifasica' }],
+        loads: [{ id: 'l1', name: 'Trifásica órfã', powerW: 1000, qty: 1, ipInRatio: 1, phaseType: 'trifasica' }],
       },
     }));
     renderLoadSelector();
@@ -961,7 +980,7 @@ describe('LoadSelector: added loads list', () => {
       residentialOptions: {
         ...s.residentialOptions,
         gridType: 'threePhase_220',
-        loads: [{ id: 'l1', name: 'Trifásica 110V', powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 1, phaseType: 'trifasica', voltageV: 110 }],
+        loads: [{ id: 'l1', name: 'Trifásica 110V', powerW: 1000, qty: 1, ipInRatio: 1, phaseType: 'trifasica', voltageV: 110 }],
       },
     }));
     renderLoadSelector();
@@ -974,7 +993,7 @@ describe('LoadSelector: added loads list', () => {
       residentialOptions: {
         ...s.residentialOptions,
         gridType: 'threePhase_380',
-        loads: [{ id: 'l1', name: 'Mono 380V', powerW: 1000, hoursPerDay: 1, qty: 1, ipInRatio: 1, phaseType: 'mono', voltageV: 380 }],
+        loads: [{ id: 'l1', name: 'Mono 380V', powerW: 1000, qty: 1, ipInRatio: 1, phaseType: 'mono', voltageV: 380 }],
       },
     }));
     renderLoadSelector();
@@ -1010,7 +1029,7 @@ describe('LoadSelector: added loads list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
-        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
       },
     }));
     renderLoadSelector();

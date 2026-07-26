@@ -20,6 +20,7 @@ const fakeProject: SavedProject = {
     gridType: null,
     loads: [],
     peakCalcMode: 'sum',
+    operationHours: 0,
     desiredFeatures: [],
     whiteTariff: null,
     microgrid: null,

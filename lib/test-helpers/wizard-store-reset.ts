@@ -21,6 +21,7 @@ export function resetWizardStore() {
       gridType: null,
       loads: [],
       peakCalcMode: 'sum',
+      operationHours: 0,
       desiredFeatures: [],
       whiteTariff: null,
       microgrid: null,

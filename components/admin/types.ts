@@ -164,7 +164,6 @@ export interface LoadCatalogRow {
 export interface PresetLoad {
   name: string;
   powerW: number;
-  hoursPerDay: number;
   qty: number;
   ipInRatio: number;
 }
