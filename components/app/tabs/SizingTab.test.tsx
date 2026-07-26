@@ -2309,5 +2309,10 @@ describe('SizingTab: Resumo tab "Copiar dados"', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(within(dialog).getByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+
+    // The preview closes itself shortly after a successful copy.
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia da mensagem' })).not.toBeInTheDocument(), {
+      timeout: 2000,
+    });
   });
 });

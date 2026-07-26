@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProductDocument } from '@/lib/types';
 import type { ProductMedia } from './types';
@@ -259,6 +259,9 @@ describe('SharePreviewModal', () => {
 
     expect(writeText).toHaveBeenCalledWith('Olá, segue o resumo do projeto.');
     expect(await within(dialog).findByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+
+    // The preview closes itself shortly after a successful copy.
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1), { timeout: 2000 });
   });
 
   it('closes via the X button, the backdrop click, and Escape', () => {

@@ -420,7 +420,7 @@ export function SharePreviewModal({ text, onClose }: { text: string | null; onCl
   async function handleCopy() {
     await navigator.clipboard.writeText(text as string);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(onClose, 700);
   }
 
   return createPortal(

@@ -567,6 +567,11 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(within(dialog).getByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+
+    // The preview closes itself shortly after a successful copy.
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia da mensagem' })).not.toBeInTheDocument(), {
+      timeout: 2000,
+    });
   });
 
   it('"Copiar dados" omits bundled accessories from the preview, keeping only quotable ones', () => {
