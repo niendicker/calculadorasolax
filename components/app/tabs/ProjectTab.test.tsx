@@ -454,6 +454,57 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText(/Preço parcial: 1 de 2 itens/)).toBeInTheDocument();
   });
 
+  it('shows "Valor da solução" and "Serviços" in the same card, with the total already including the services', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+          services: [{ serviceId: 'srv1', name: 'Instalação', qty: 1 }],
+        }),
+      ],
+      userStockItems: [
+        {
+          id: 'stock1',
+          productType: 'inverter',
+          productModel: 'X1-Hybrid',
+          unitValue: 8000,
+          createdAt: '',
+          updatedAt: '',
+        },
+        {
+          id: 'stock2',
+          productType: 'battery',
+          productModel: 'TP-HS3.6',
+          unitValue: 2000,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+      userServices: [{ id: 'srv1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' }],
+    });
+
+    clickCard('Casa de praia');
+
+    const label = screen.getByText('Valor da solução');
+    const servicesLabel = screen.getByText('Serviços');
+    // Both live inside the very same bordered card.
+    expect(label.closest('.rounded-lg')).toBe(servicesLabel.closest('.rounded-lg'));
+
+    expect(within(label.parentElement!).getByText(/R\$\s*10\.500,00/)).toBeInTheDocument();
+    expect(screen.getByText(/Instalação/)).toBeInTheDocument();
+    expect(within(servicesLabel.parentElement!).getByText(/R\$\s*500,00/)).toBeInTheDocument();
+  });
+
   it('splits master and expansion battery units into separate lines', () => {
     setup({
       savedProjects: [
