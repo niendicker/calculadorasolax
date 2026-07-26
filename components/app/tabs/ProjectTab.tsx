@@ -894,7 +894,6 @@ function SelectedProjectSummary({
     project.solution || project.services.length > 0
       ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings)
       : null;
-  const { batteryModel, gridType, loads } = project.residentialOptions;
   const batteryParts = project.solution
     ? batteryQuantityBreakdown(
         project.solution.batteryModel,
@@ -956,14 +955,6 @@ function SelectedProjectSummary({
           <span className="truncate">{project.address}</span>
         </p>
       )}
-
-      <Separator />
-
-      <ul className="space-y-2 text-sm">
-        <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
-        <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
-        <Requirement done={loads.length > 0} label={`${loads.length} carga(s) cadastrada(s)`} />
-      </ul>
 
       {metrics && project.solution && (
         <>
