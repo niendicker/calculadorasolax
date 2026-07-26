@@ -107,6 +107,31 @@ describe('useProjectActions: saveProject', () => {
   });
 });
 
+describe('useProjectActions: statusId / dismissProjectStatus', () => {
+  it('bumps statusId on every new status, even repeated messages', () => {
+    const { result } = setup();
+    expect(result.current.statusId).toBe(0);
+
+    act(() => result.current.openProject('p1'));
+    expect(result.current.statusId).toBe(1);
+
+    act(() => result.current.openProjectSizing('p1'));
+    expect(result.current.projectStatus).toBe('Projeto carregado.');
+    expect(result.current.statusId).toBe(2);
+  });
+
+  it('dismissProjectStatus clears the status without touching statusId', () => {
+    const { result } = setup();
+    act(() => result.current.openProject('p1'));
+    expect(result.current.projectStatus).not.toBeNull();
+
+    act(() => result.current.dismissProjectStatus());
+
+    expect(result.current.projectStatus).toBeNull();
+    expect(result.current.statusId).toBe(1);
+  });
+});
+
 describe('useProjectActions: draft lifecycle', () => {
   it('startNewProject calls newProjectDraft and clears the status', async () => {
     const { result, props } = setup();

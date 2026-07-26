@@ -52,6 +52,8 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     services: [],
     initialLoading: false,
     projectStatus: null,
+    statusId: 0,
+    onDismissStatus: vi.fn(),
     topology: null,
     batteryModel: null,
     gridType: null,
@@ -731,5 +733,27 @@ describe('ProjectTab: status message', () => {
   it('shows the projectStatus text when present', () => {
     setup({ projectStatus: 'Projeto removido.' });
     expect(screen.getByRole('status')).toHaveTextContent('Projeto removido.');
+  });
+
+  it('dismisses via the close button', () => {
+    const { props } = setup({ projectStatus: 'Projeto removido.' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+
+    expect(props.onDismissStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto-dismisses after the countdown', () => {
+    vi.useFakeTimers();
+    try {
+      const { props } = setup({ projectStatus: 'Projeto removido.' });
+
+      expect(props.onDismissStatus).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(5000);
+
+      expect(props.onDismissStatus).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

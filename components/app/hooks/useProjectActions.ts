@@ -27,6 +27,18 @@ export function useProjectActions({
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
+  // Bumped on every new status message (even repeats of the same text) so the
+  // popup can key off it and restart its dismiss countdown reliably.
+  const [statusId, setStatusId] = useState(0);
+
+  function report(message: string | null) {
+    setProjectStatus(message);
+    setStatusId((id) => id + 1);
+  }
+
+  function dismissProjectStatus() {
+    setProjectStatus(null);
+  }
 
   async function saveProject() {
     if (!profile) {
@@ -35,9 +47,9 @@ export function useProjectActions({
     }
     try {
       const project = await saveCurrentProject();
-      setProjectStatus(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
+      report(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
     } catch (error) {
-      setProjectStatus(
+      report(
         error instanceof Error && error.message.startsWith('Limite de')
           ? error.message
           : 'Não foi possível salvar o projeto. Tente novamente.'
@@ -47,17 +59,17 @@ export function useProjectActions({
 
   function startNewProject() {
     newProjectDraft();
-    setProjectStatus(null);
+    report(null);
   }
 
   function cancelNewProject() {
     cancelProjectDraft();
-    setProjectStatus(null);
+    report(null);
   }
 
   function openProject(id: string) {
     loadProject(id);
-    setProjectStatus('Projeto carregado.');
+    report('Projeto carregado.');
   }
 
   function openProjectSizing(id: string) {
@@ -66,24 +78,24 @@ export function useProjectActions({
     // should do that).
     loadProject(id, { showDetails: false });
     setActiveTab('sizing');
-    setProjectStatus('Projeto carregado.');
+    report('Projeto carregado.');
   }
 
   async function deleteProject(id: string) {
     try {
       await removeProject(id);
-      setProjectStatus('Projeto removido.');
+      report('Projeto removido.');
     } catch {
-      setProjectStatus('Não foi possível remover o projeto.');
+      report('Não foi possível remover o projeto.');
     }
   }
 
   async function duplicateExistingProject(id: string) {
     try {
       const project = await duplicateProject(id);
-      setProjectStatus(`Projeto duplicado como "${project.name}".`);
+      report(`Projeto duplicado como "${project.name}".`);
     } catch (error) {
-      setProjectStatus(
+      report(
         error instanceof Error && error.message.startsWith('Limite de')
           ? error.message
           : 'Não foi possível duplicar o projeto. Tente novamente.'
@@ -93,6 +105,8 @@ export function useProjectActions({
 
   return {
     projectStatus,
+    statusId,
+    dismissProjectStatus,
     saveProject,
     startNewProject,
     cancelNewProject,

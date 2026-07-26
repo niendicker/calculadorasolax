@@ -187,6 +187,8 @@ export function SinglePageApp() {
 
   const {
     projectStatus,
+    statusId,
+    dismissProjectStatus,
     saveProject,
     startNewProject,
     cancelNewProject,
@@ -599,6 +601,8 @@ export function SinglePageApp() {
               services={services}
               initialLoading={initialLoading}
               projectStatus={projectStatus}
+              statusId={statusId}
+              onDismissStatus={dismissProjectStatus}
               topology={residentialOptions.topology}
               batteryModel={residentialOptions.batteryModel}
               gridType={residentialOptions.gridType}
