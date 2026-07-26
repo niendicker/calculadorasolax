@@ -13,6 +13,9 @@ export function resetWizardStore() {
     userLoadCatalog: [],
     userStockItems: [],
     userLoadPresets: [],
+    userServices: [],
+    marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
+    services: [],
     residentialOptions: {
       topology: null,
       batteryModel: null,

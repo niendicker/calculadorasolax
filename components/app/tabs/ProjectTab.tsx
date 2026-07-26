@@ -42,7 +42,7 @@ import type {
   UserServiceItem,
   UserStockItem,
 } from '@/lib/types';
-import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
+import { totalDailyKwh, totalNominalW, totalPeakW, useWizardStore } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import {
   batteryQuantityBreakdown,
@@ -152,18 +152,9 @@ function ProjectStatusToast({ message, onDismiss }: { message: string; onDismiss
 }
 
 export function ProjectTab({
-  projectInfo,
-  projectDetailsVisible,
-  currentProjectId,
-  savedProjects,
-  clients,
   batteryCatalog,
   inverterCatalog,
   accessoryCatalog,
-  userStockItems,
-  userServices,
-  marginSettings,
-  services,
   initialLoading,
   projectStatus,
   statusId,
@@ -175,7 +166,6 @@ export function ProjectTab({
   peakW,
   dailyKwh,
   hasSolution,
-  setProjectInfo,
   onSave,
   onNew,
   onCancelNew,
@@ -189,22 +179,10 @@ export function ProjectTab({
   onManageClients,
   onShowSummary,
   onHideSummary,
-  onAddService,
-  onRemoveService,
-  onUpdateServiceQty,
 }: {
-  projectInfo: ProjectInfo;
-  projectDetailsVisible: boolean;
-  currentProjectId: string | null;
-  savedProjects: SavedProject[];
-  clients: Client[];
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
-  userStockItems: UserStockItem[];
-  userServices: UserServiceItem[];
-  marginSettings: MarginSettings;
-  services: ProjectServiceLine[];
   initialLoading: boolean;
   projectStatus: string | null;
   statusId: number;
@@ -216,7 +194,6 @@ export function ProjectTab({
   peakW: number;
   dailyKwh: number;
   hasSolution: boolean;
-  setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onSave: () => void;
   onNew: () => void;
   onCancelNew: () => void;
@@ -238,10 +215,22 @@ export function ProjectTab({
    * dismisses the selected project's summary, so they land back on the list
    * instead of an empty "select a project" drawer still open. */
   onHideSummary: () => void;
-  onAddService: (serviceId: string) => void;
-  onRemoveService: (serviceId: string) => void;
-  onUpdateServiceQty: (serviceId: string, qty: number) => void;
 }) {
+  const {
+    projectInfo,
+    projectDetailsVisible,
+    currentProjectId,
+    savedProjects,
+    clients,
+    userStockItems,
+    userServices,
+    marginSettings,
+    services,
+    setProjectInfo,
+    addServiceToProject: onAddService,
+    removeServiceFromProject: onRemoveService,
+    updateProjectServiceQty: onUpdateServiceQty,
+  } = useWizardStore();
   const [search, setSearch] = useState('');
   const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false);
   const nameError = nameSubmitAttempted && !projectInfo.name.trim();

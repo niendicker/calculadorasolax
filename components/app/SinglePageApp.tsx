@@ -58,18 +58,14 @@ export function SinglePageApp() {
   const supabase = useMemo(() => createClient(), []);
   const {
     projectInfo,
-    projectDetailsVisible,
     currentProjectId,
-    savedProjects,
     clients,
     userStockItems,
     userServices,
     marginSettings,
-    services,
     residentialOptions,
     solution,
     secondarySolution,
-    setProjectInfo,
     newProjectDraft,
     cancelProjectDraft,
     saveCurrentProject,
@@ -95,9 +91,6 @@ export function SinglePageApp() {
     updateServiceName,
     updateServiceValue,
     removeService,
-    addServiceToProject,
-    removeServiceFromProject,
-    updateProjectServiceQty,
     clearUserData,
     setTopology,
     setBatteryModel,
@@ -598,18 +591,9 @@ export function SinglePageApp() {
                   )}
                   {activeTab === 'project' ? (
             <ProjectTab
-              projectInfo={projectInfo}
-              projectDetailsVisible={projectDetailsVisible}
-              currentProjectId={currentProjectId}
-              savedProjects={savedProjects}
-              clients={clients}
               batteryCatalog={batteryCatalog}
               inverterCatalog={inverterCatalog}
               accessoryCatalog={accessoryCatalog}
-              userStockItems={userStockItems}
-              userServices={userServices}
-              marginSettings={marginSettings}
-              services={services}
               initialLoading={initialLoading}
               projectStatus={projectStatus}
               statusId={statusId}
@@ -621,7 +605,6 @@ export function SinglePageApp() {
               peakW={peakW}
               dailyKwh={dailyKwh}
               hasSolution={Boolean(solution)}
-              setProjectInfo={setProjectInfo}
               onSave={saveProject}
               onNew={startNewProject}
               onCancelNew={cancelNewProject}
@@ -635,9 +618,6 @@ export function SinglePageApp() {
               onManageClients={openClientsManager}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}
-              onAddService={addServiceToProject}
-              onRemoveService={removeServiceFromProject}
-              onUpdateServiceQty={updateProjectServiceQty}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab

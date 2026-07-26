@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client, ProjectInfo, SavedProject } from '@/lib/types';
+import { useWizardStore } from '@/lib/store/wizard-store';
+import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import { ProjectTab } from './ProjectTab';
 
@@ -39,20 +41,60 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
 
 const emptyProjectInfo: ProjectInfo = { name: '', clientId: null, address: '', notes: '' };
 
-function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
+beforeEach(() => {
+  resetWizardStore();
+});
+
+/** projectInfo/projectDetailsVisible/currentProjectId/savedProjects/clients/
+ * userStockItems/userServices/marginSettings/services are real useWizardStore
+ * state now (ProjectTab reads them directly instead of receiving them as
+ * props — see ProjectTab.tsx) — seed the store instead of passing props for
+ * these, everything else still goes through props as before. */
+type StoreOverrides = Partial<
+  Pick<
+    ReturnType<typeof useWizardStore.getState>,
+    | 'projectInfo'
+    | 'projectDetailsVisible'
+    | 'currentProjectId'
+    | 'savedProjects'
+    | 'clients'
+    | 'userStockItems'
+    | 'userServices'
+    | 'marginSettings'
+    | 'services'
+  >
+>;
+
+function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverrides = {}) {
+  const {
+    projectInfo = emptyProjectInfo,
+    projectDetailsVisible = false,
+    currentProjectId = null,
+    savedProjects = [] as SavedProject[],
+    clients = [] as Client[],
+    userStockItems = [],
+    userServices = [],
+    marginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
+    services = [],
+    ...propOverrides
+  } = overrides;
+
+  useWizardStore.setState({
+    projectInfo,
+    projectDetailsVisible,
+    currentProjectId,
+    savedProjects,
+    clients,
+    userStockItems,
+    userServices,
+    marginSettings,
+    services,
+  });
+
   const props = {
-    projectInfo: emptyProjectInfo,
-    projectDetailsVisible: false,
-    currentProjectId: null,
-    savedProjects: [] as SavedProject[],
-    clients: [] as Client[],
     batteryCatalog: [],
     inverterCatalog: [],
     accessoryCatalog: [],
-    userStockItems: [],
-    userServices: [],
-    marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 },
-    services: [],
     initialLoading: false,
     projectStatus: null,
     statusId: 0,
@@ -64,7 +106,6 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     peakW: 0,
     dailyKwh: 0,
     hasSolution: false,
-    setProjectInfo: vi.fn(),
     onSave: vi.fn(),
     onNew: vi.fn(),
     onCancelNew: vi.fn(),
@@ -78,10 +119,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> = {}) {
     onManageClients: vi.fn(),
     onShowSummary: vi.fn(),
     onHideSummary: vi.fn(),
-    onAddService: vi.fn(),
-    onRemoveService: vi.fn(),
-    onUpdateServiceQty: vi.fn(),
-    ...overrides,
+    ...propOverrides,
   };
   const utils = renderWithShell(<ProjectTab {...props} />);
   return { ...utils, props };
@@ -300,7 +338,7 @@ describe('ProjectTab: new project draft', () => {
     const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
 
     fireEvent.change(screen.getByLabelText('Nome do projeto'), { target: { value: 'Novo nome' } });
-    expect(props.setProjectInfo).toHaveBeenCalledWith({ name: 'Novo nome' });
+    expect(useWizardStore.getState().projectInfo.name).toBe('Novo nome');
 
     fireEvent.click(screen.getByRole('button', { name: /Fechar/ }));
     expect(props.onCancelNew).toHaveBeenCalled();
@@ -314,13 +352,13 @@ describe('ProjectTab: new project draft', () => {
     });
 
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
-    expect(props.setProjectInfo).toHaveBeenCalledWith({ clientId: 'c1' });
+    expect(useWizardStore.getState().projectInfo.clientId).toBe('c1');
 
     fireEvent.change(screen.getByLabelText('Endereço'), { target: { value: 'Rua das Flores, 10' } });
-    expect(props.setProjectInfo).toHaveBeenCalledWith({ address: 'Rua das Flores, 10' });
+    expect(useWizardStore.getState().projectInfo.address).toBe('Rua das Flores, 10');
 
     fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'Instalação em telhado inclinado.' } });
-    expect(props.setProjectInfo).toHaveBeenCalledWith({ notes: 'Instalação em telhado inclinado.' });
+    expect(useWizardStore.getState().projectInfo.notes).toBe('Instalação em telhado inclinado.');
 
     fireEvent.click(screen.getByRole('button', { name: /Gerenciar clientes/ }));
     expect(props.onManageClients).toHaveBeenCalled();
