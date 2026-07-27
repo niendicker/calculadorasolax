@@ -33,9 +33,11 @@ import type {
   MarginSettings,
   MicrogridConfig,
   ProjectInfo,
+  ProjectServiceLine,
   PvConfig,
   ResidentialGridType,
   Solution,
+  UserServiceItem,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
@@ -196,6 +198,8 @@ function ProductsList({
   accessoryCatalog,
   userStockItems,
   marginSettings,
+  services,
+  userServices,
   productMedia,
   desiredFeatures,
   whiteTariff,
@@ -211,6 +215,12 @@ function ProductsList({
   accessoryCatalog: AccessoryCatalogOption[];
   userStockItems: UserStockItem[];
   marginSettings?: MarginSettings;
+  /** Only meaningful on the primary ProductsList — services (installation,
+   * freight, etc.) are a one-time project cost, not tied to whichever
+   * battery is being compared, so the secondary "comparação" variant omits
+   * them (pass [] there) to avoid double-counting. */
+  services?: ProjectServiceLine[];
+  userServices?: UserServiceItem[];
   productMedia: Record<string, ProductMedia>;
   desiredFeatures: DesiredFeatureId[];
   whiteTariff: WhiteTariffConfig | null;
@@ -220,7 +230,7 @@ function ProductsList({
   peakW: number;
   dailyKwh: number;
 }) {
-  const systemCost = calculateSystemCost(solution, userStockItems, undefined, undefined, marginSettings);
+  const systemCost = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings);
   const batteryParts = batteryQuantityBreakdown(
     solution.batteryModel,
     solution.batteryQty,
@@ -289,8 +299,10 @@ function ProductsList({
           />
         )}
         {solution.accessories.map((accessory) => {
-          const { model, qty, optional, comment } = normalizeAccessoryLine(accessory);
+          const { model, qty, optional, comment, bundled, appliesTo } = normalizeAccessoryLine(accessory);
           const description = accessoryCatalog.find((item) => item.model === model)?.description;
+          const bundledLabel =
+            appliesTo === 'inverter' ? 'Incluso no inversor' : appliesTo === 'battery' ? 'Incluso na bateria' : 'Incluso';
           return (
             <ProductLine
               key={model}
@@ -299,13 +311,40 @@ function ProductsList({
               nickname={productMedia[model]?.nickname}
               model={model}
               qty={`×${qty}`}
-              note={optional ? `Opcional${comment ? ` — ${comment}` : ''}` : (comment ?? undefined)}
-              alert={!optional ? 'Acessório obrigatório' : undefined}
+              note={bundled ? bundledLabel : optional ? `Opcional${comment ? ` — ${comment}` : ''}` : (comment ?? undefined)}
+              alert={!optional && !bundled ? 'Acessório obrigatório' : undefined}
               description={description}
             />
           );
         })}
       </div>
+      {services && services.length > 0 && (
+        <div className="mt-3 rounded-xl border border-border/70 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Package className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            Serviços
+          </p>
+          <div className="space-y-1">
+            {services.map((line) => {
+              const unitValue = userServices?.find((service) => service.id === line.serviceId)?.unitValue;
+              return (
+                <div
+                  key={line.serviceId}
+                  className="flex items-center justify-between gap-2 border-b border-border/40 py-1 text-sm last:border-0"
+                >
+                  <span className="text-foreground">
+                    {line.name}
+                    {line.qty !== 1 ? ` × ${line.qty}` : ''}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {marginRows.length > 0 && (
         <div className="mt-3 rounded-xl border border-border/70 p-3">
           <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -378,6 +417,8 @@ export function PrintableReport({
   dailyKwh,
   userStockItems,
   marginSettings,
+  services,
+  userServices,
   whiteTariff,
   pv,
   desiredFeatures,
@@ -405,6 +446,8 @@ export function PrintableReport({
   dailyKwh: number;
   userStockItems: UserStockItem[];
   marginSettings?: MarginSettings;
+  services?: ProjectServiceLine[];
+  userServices?: UserServiceItem[];
   whiteTariff: WhiteTariffConfig | null;
   pv?: PvConfig | null;
   desiredFeatures?: DesiredFeatureId[];
@@ -538,6 +581,8 @@ export function PrintableReport({
         accessoryCatalog={accessoryCatalog ?? []}
         userStockItems={userStockItems}
         marginSettings={marginSettings}
+        services={services}
+        userServices={userServices}
         productMedia={productMedia ?? {}}
         desiredFeatures={desiredFeatures ?? []}
         whiteTariff={whiteTariff}

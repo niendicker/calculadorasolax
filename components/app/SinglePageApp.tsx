@@ -63,6 +63,7 @@ export function SinglePageApp() {
     userStockItems,
     userServices,
     marginSettings,
+    services,
     residentialOptions,
     solution,
     secondarySolution,
@@ -977,6 +978,8 @@ export function SinglePageApp() {
           dailyKwh={dailyKwh}
           userStockItems={userStockItems}
           marginSettings={marginSettings}
+          services={services}
+          userServices={userServices}
           whiteTariff={residentialOptions.whiteTariff}
           pv={residentialOptions.pv}
           desiredFeatures={residentialOptions.desiredFeatures}

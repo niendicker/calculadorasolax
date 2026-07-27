@@ -205,6 +205,29 @@ describe('PrintableReport: recommended products', () => {
     expect(screen.getByText('Opcional — Instalar próximo ao quadro.')).toBeInTheDocument();
   });
 
+  it('shows a bundled accessory as included with the inverter/battery instead of "Acessório obrigatório"', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: {
+            ...solution,
+            accessories: [
+              { model: 'WiFi Dongle', qty: 1, optional: false, appliesTo: 'inverter', comment: null, bundled: true },
+              { model: 'CT Clamp', qty: 2, optional: false, appliesTo: 'battery', comment: null, bundled: true },
+              { model: 'Disjuntor CA', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false },
+            ],
+          },
+        })}
+      />
+    );
+    expect(screen.getByText('Incluso no inversor')).toBeInTheDocument();
+    expect(screen.getByText('Incluso na bateria')).toBeInTheDocument();
+    // The still-not-bundled accessory keeps its "obrigatório" alert — only the
+    // bundled ones are exempt from it.
+    expect(screen.getByText('Acessório obrigatório')).toBeInTheDocument();
+    expect(screen.queryAllByText('Acessório obrigatório')).toHaveLength(1);
+  });
+
   it('breaks down the battery model into Master + expansion units when the catalog defines one', () => {
     const batteryCatalog: BatteryCatalogOption[] = [
       {
@@ -300,6 +323,71 @@ describe('PrintableReport: secondary battery comparison', () => {
     expect(screen.getByText('Produtos recomendados — Bateria TP-HS7.2 (comparação)')).toBeInTheDocument();
     expect(screen.getByText('X1-Hybrid-8.0kW-G4')).toBeInTheDocument();
     expect(screen.getByText('TP-HS7.2')).toBeInTheDocument();
+  });
+});
+
+describe('PrintableReport: services', () => {
+  it('is hidden when the project has no services', () => {
+    render(<PrintableReport {...baseProps()} />);
+    expect(screen.queryByText('Serviços')).not.toBeInTheDocument();
+  });
+
+  it('lists each service line with its price, and unresolved ones as "sem preço"', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          services: [
+            { serviceId: 's1', name: 'Instalação', qty: 1 },
+            { serviceId: 's2', name: 'Frete', qty: 2 },
+            { serviceId: 'gone', name: 'Serviço removido', qty: 1 },
+          ],
+          userServices: [
+            { id: 's1', name: 'Instalação', unitValue: 800, createdAt: '', updatedAt: '' },
+            { id: 's2', name: 'Frete', unitValue: 150, createdAt: '', updatedAt: '' },
+          ],
+        })}
+      />
+    );
+    expect(screen.getByText('Serviços')).toBeInTheDocument();
+    expect(screen.getByText('Instalação')).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*800,00/)).toBeInTheDocument();
+    expect(screen.getByText('Frete × 2')).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*300,00/)).toBeInTheDocument();
+    expect(screen.getByText('Serviço removido')).toBeInTheDocument();
+    expect(screen.getByText('sem preço')).toBeInTheDocument();
+  });
+
+  it('includes the services cost in "Custo total do sistema"', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          userStockItems: [
+            { id: 'st1', productType: 'inverter', productModel: 'X1-Hybrid-5.0kW-G4', unitValue: 5000, createdAt: '', updatedAt: '' },
+            { id: 'st2', productType: 'battery', productModel: 'TP-HS3.6', unitValue: 2000, createdAt: '', updatedAt: '' },
+          ],
+          services: [{ serviceId: 's1', name: 'Instalação', qty: 1 }],
+          userServices: [{ id: 's1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' }],
+        })}
+      />
+    );
+    // 5000 (inverter) + 2000 (battery) + 500 (service) = 7500
+    expect(screen.getByText(/R\$\s*7\.500,00/)).toBeInTheDocument();
+  });
+
+  it('does not duplicate the services cost onto the secondary (comparison) products table', () => {
+    const secondarySolution: Solution = { ...solution, batteryModel: 'TP-HS7.2' };
+    render(
+      <PrintableReport
+        {...baseProps({
+          secondarySolution,
+          secondaryBatteryModel: 'TP-HS7.2',
+          services: [{ serviceId: 's1', name: 'Instalação', qty: 1 }],
+          userServices: [{ id: 's1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' }],
+        })}
+      />
+    );
+    // Only the primary table's "Serviços" block should render.
+    expect(screen.getAllByText('Serviços')).toHaveLength(1);
   });
 });
 
