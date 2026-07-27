@@ -80,6 +80,7 @@ export function NumberFieldWithClear({
   onChange,
   onBlur,
   onClear,
+  wrapperClassName = 'mt-1',
 }: {
   id?: string;
   value: string;
@@ -91,9 +92,13 @@ export function NumberFieldWithClear({
   onChange: (value: string) => void;
   onBlur?: () => void;
   onClear: () => void;
+  /** Defaults to a top margin, for the common case of sitting right below a
+   * Label on its own line. Pass e.g. "flex-1" (no margin) when placing this
+   * inline next to another control instead. */
+  wrapperClassName?: string;
 }) {
   return (
-    <div className="relative mt-1">
+    <div className={cn('relative', wrapperClassName)}>
       <Input
         id={id}
         aria-label={ariaLabel}
@@ -1520,20 +1525,20 @@ function LoadCard({
           />
         </div>
         <div>
-          <div className="flex items-center justify-between gap-2">
-            <Label
-              htmlFor={usageMode === 'fixed' ? `fixed-hours-${load.id}` : `usage-factor-${load.id}`}
-              className="text-xs font-normal text-muted-foreground"
-            >
-              <InfoLabel
-                label={usageMode === 'fixed' ? 'Horas fixas' : 'Fator de uso'}
-                tip={
-                  usageMode === 'fixed'
-                    ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h) — por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
-                    : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima.'
-                }
-              />
-            </Label>
+          <Label
+            htmlFor={usageMode === 'fixed' ? `fixed-hours-${load.id}` : `usage-factor-${load.id}`}
+            className="text-xs font-normal text-muted-foreground"
+          >
+            <InfoLabel
+              label={usageMode === 'fixed' ? 'Horas fixas' : 'Fator de uso'}
+              tip={
+                usageMode === 'fixed'
+                  ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h) — por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
+                  : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima.'
+              }
+            />
+          </Label>
+          <div className="mt-1 flex items-center gap-2">
             <div className="flex shrink-0 gap-0.5 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
               <button
                 type="button"
@@ -1564,32 +1569,34 @@ function LoadCard({
                 Horas
               </button>
             </div>
+            {usageMode === 'fixed' ? (
+              <NumberFieldWithClear
+                id={`fixed-hours-${load.id}`}
+                value={fixedHours}
+                placeholder="Ex.: 2"
+                min={0}
+                max={MAX_OPERATION_HOURS}
+                step={0.5}
+                onChange={(value) => handleChange('fixedHours', value, setFixedHours)}
+                onBlur={revertFixedHoursIfInvalid}
+                onClear={() => setFixedHours('')}
+                wrapperClassName="flex-1"
+              />
+            ) : (
+              <NumberFieldWithClear
+                id={`usage-factor-${load.id}`}
+                value={usageFactor}
+                placeholder="Ex.: 1"
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
+                onBlur={revertUsageFactorIfInvalid}
+                onClear={() => setUsageFactor('')}
+                wrapperClassName="flex-1"
+              />
+            )}
           </div>
-          {usageMode === 'fixed' ? (
-            <NumberFieldWithClear
-              id={`fixed-hours-${load.id}`}
-              value={fixedHours}
-              placeholder="Ex.: 2"
-              min={0}
-              max={MAX_OPERATION_HOURS}
-              step={0.5}
-              onChange={(value) => handleChange('fixedHours', value, setFixedHours)}
-              onBlur={revertFixedHoursIfInvalid}
-              onClear={() => setFixedHours('')}
-            />
-          ) : (
-            <NumberFieldWithClear
-              id={`usage-factor-${load.id}`}
-              value={usageFactor}
-              placeholder="Ex.: 1"
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
-              onBlur={revertUsageFactorIfInvalid}
-              onClear={() => setUsageFactor('')}
-            />
-          )}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
