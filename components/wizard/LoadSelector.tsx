@@ -1524,7 +1524,7 @@ function LoadCard({
             onClear={() => setIpIn('')}
           />
         </div>
-        <div>
+        <div className="col-span-2">
           <Label
             htmlFor={usageMode === 'fixed' ? `fixed-hours-${load.id}` : `usage-factor-${load.id}`}
             className="text-xs font-normal text-muted-foreground"
@@ -1534,19 +1534,19 @@ function LoadCard({
               tip={
                 usageMode === 'fixed'
                   ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h) — por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
-                  : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima.'
+                  : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período de operação compartilhado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima. Se a carga tiver um horário próprio de funcionamento, use "Horas" ao lado em vez de fração.'
               }
             />
           </Label>
           <div className="mt-1 flex items-center gap-2">
-            <div className="flex shrink-0 gap-0.5 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
+            <div className="flex flex-1 gap-0.5 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
               <button
                 type="button"
                 role="tab"
                 aria-selected={usageMode === 'fraction'}
                 onClick={() => setUsageMode('fraction')}
                 className={cn(
-                  'rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'flex-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   usageMode === 'fraction'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1560,7 +1560,7 @@ function LoadCard({
                 aria-selected={usageMode === 'fixed'}
                 onClick={() => setUsageMode('fixed')}
                 className={cn(
-                  'rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'flex-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   usageMode === 'fixed'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
