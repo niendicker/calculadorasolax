@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   BatteryCharging,
   Calculator,
+  ChevronRight,
   ClipboardCopy,
   ClipboardList,
   Clock,
@@ -1130,12 +1131,18 @@ function SelectedProjectSummary({
 
       <Separator />
 
-      <Button size="sm" className="w-full" onClick={onOpenSizing}>
+      <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenSizing}>
         <Calculator className="h-4 w-4" />
         Ir para Dimensionamento
+        <ChevronRight className="h-4 w-4" />
       </Button>
 
-      <Button variant="outline" size="sm" className="w-full" onClick={openProjectDataPreview}>
+      <Button
+        variant="outline"
+        size="lg"
+        className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+        onClick={openProjectDataPreview}
+      >
         <ClipboardCopy className="h-4 w-4" />
         Copiar dados
       </Button>
