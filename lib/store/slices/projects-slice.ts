@@ -1,0 +1,277 @@
+import type { StateCreator } from 'zustand';
+import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
+import { createClient } from '@/lib/supabase/client';
+import { calculateResidentialSolution } from '@/lib/calculate-residential';
+import type { ProjectInfo, SavedProject } from '@/lib/types';
+import { defaultProjectInfo, defaultResidential, sanitizeDesiredFeatures } from '../defaults';
+import { projectFromRow } from '../row-mappers';
+import { totalDailyKwh, totalPeakW } from '../wizard-calculations';
+import type { WizardStore } from '../wizard-store';
+
+export interface ProjectsSlice {
+  projectInfo: ProjectInfo;
+  currentProjectId: string | null;
+  /** Whether the "Dados do projeto" card should be shown on the Projeto tab: only after
+   *  starting a new draft or opening a saved project, not just from landing on the page. */
+  projectDetailsVisible: boolean;
+  savedProjects: SavedProject[];
+
+  setProjectInfo: (partial: Partial<ProjectInfo>) => void;
+  newProjectDraft: () => void;
+  cancelProjectDraft: () => void;
+  saveCurrentProject: () => Promise<SavedProject>;
+  /** `showDetails` (default true) controls whether this also opens the
+   * project-editing draft card — pass false for a "quiet" load that just
+   * brings the project's data into the live wizard state (e.g. to generate
+   * its PDF report) without switching the Projeto tab into edit mode. */
+  loadProject: (id: string, options?: { showDetails?: boolean }) => void;
+  removeProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<SavedProject>;
+  /** Recalculates a saved project's solution from its own stored
+   * residentialOptions (same calculate-residential call the Dimensionamento
+   * tab's "Calcular" makes), then persists the refreshed solution — so a
+   * project's card can catch up a solution that's gone stale after the loads
+   * changed, without the user having to reopen it in Dimensionamento. */
+  refreshProjectSolution: (id: string) => Promise<SavedProject>;
+  fetchProjects: () => Promise<void>;
+}
+
+export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlice> = (set, get) => ({
+  projectInfo: defaultProjectInfo,
+  currentProjectId: null,
+  projectDetailsVisible: false,
+  savedProjects: [],
+
+  setProjectInfo: (partial) =>
+    set((s) => ({
+      projectInfo: { ...s.projectInfo, ...partial },
+    })),
+
+  newProjectDraft: () =>
+    set({
+      projectInfo: defaultProjectInfo,
+      currentProjectId: null,
+      projectDetailsVisible: true,
+      residentialOptions: defaultResidential,
+      solution: null,
+      secondarySolution: null,
+      services: [],
+    }),
+
+  // Discards an in-progress "Dados do projeto" card without saving. For a
+  // brand-new draft this just clears it back to blank; for a project that
+  // was opened for editing, it reverts any unsaved edits back to the last
+  // saved values so the card behind it doesn't show stale changes.
+  cancelProjectDraft: () =>
+    set((s) => {
+      const project = s.currentProjectId
+        ? s.savedProjects.find((item) => item.id === s.currentProjectId)
+        : undefined;
+
+      if (!project) {
+        return {
+          projectInfo: defaultProjectInfo,
+          currentProjectId: null,
+          projectDetailsVisible: false,
+          residentialOptions: defaultResidential,
+          solution: null,
+          secondarySolution: null,
+          services: [],
+        };
+      }
+
+      return {
+        projectDetailsVisible: false,
+        services: project.services ?? [],
+        projectInfo: {
+          name: project.name,
+          clientId: project.clientId,
+          address: project.address,
+          notes: project.notes,
+        },
+        residentialOptions: {
+          ...defaultResidential,
+          ...project.residentialOptions,
+          loads: project.residentialOptions.loads.map((load) => ({ ...load })),
+          desiredFeatures: sanitizeDesiredFeatures(project.residentialOptions.desiredFeatures),
+        },
+        solution: project.solution,
+        secondarySolution: null,
+      };
+    }),
+
+  saveCurrentProject: async () => {
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('not_authenticated');
+
+    const s = get();
+    if (!s.currentProjectId && s.savedProjects.length >= ACCOUNT_LIMITS.projects) {
+      throw new Error(limitReachedMessage('projetos salvos', ACCOUNT_LIMITS.projects));
+    }
+
+    const name = s.projectInfo.name.trim() || `Projeto ${new Date().toLocaleDateString('pt-BR')}`;
+    const payload = {
+      user_id: userData.user.id,
+      client_id: s.projectInfo.clientId,
+      name,
+      address: s.projectInfo.address.trim() || null,
+      notes: s.projectInfo.notes.trim() || null,
+      residential_options: s.residentialOptions,
+      solution: s.solution,
+      services: s.services,
+      updated_at: new Date().toISOString(),
+    };
+
+    const request = s.currentProjectId
+      ? supabase.from('projects').update(payload).eq('id', s.currentProjectId).select().single()
+      : supabase.from('projects').insert(payload).select().single();
+
+    const { data, error } = await request;
+    if (error) throw error;
+
+    const saved = projectFromRow(data);
+
+    set((st) => ({
+      currentProjectId: saved.id,
+      projectInfo: { ...st.projectInfo, name: saved.name },
+      savedProjects: [saved, ...st.savedProjects.filter((project) => project.id !== saved.id)],
+    }));
+
+    return saved;
+  },
+
+  loadProject: (id, options) =>
+    set((s) => {
+      const project = s.savedProjects.find((item) => item.id === id);
+      if (!project) return {};
+
+      return {
+        currentProjectId: project.id,
+        projectDetailsVisible: options?.showDetails ?? true,
+        projectInfo: {
+          name: project.name,
+          clientId: project.clientId,
+          address: project.address,
+          notes: project.notes,
+        },
+        residentialOptions: {
+          ...defaultResidential,
+          ...project.residentialOptions,
+          loads: project.residentialOptions.loads.map((load) => ({ ...load })),
+          desiredFeatures: sanitizeDesiredFeatures(project.residentialOptions.desiredFeatures),
+        },
+        solution: project.solution,
+        secondarySolution: null,
+        services: project.services ?? [],
+      };
+    }),
+
+  removeProject: async (id) => {
+    const supabase = createClient();
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) throw error;
+
+    set((s) => {
+      const wasCurrent = s.currentProjectId === id;
+      return {
+        savedProjects: s.savedProjects.filter((project) => project.id !== id),
+        // Deleting the project currently loaded on screen must clear it the
+        // same way starting a new project draft does — otherwise its name
+        // (e.g. the badge on the Dimensionamento page) and configuration
+        // keep showing after the project itself no longer exists.
+        ...(wasCurrent
+          ? {
+              currentProjectId: null,
+              projectDetailsVisible: false,
+              projectInfo: defaultProjectInfo,
+              residentialOptions: defaultResidential,
+              solution: null,
+              secondarySolution: null,
+              services: [],
+            }
+          : {}),
+      };
+    });
+  },
+
+  duplicateProject: async (id) => {
+    const s = get();
+    const source = s.savedProjects.find((project) => project.id === id);
+    if (!source) throw new Error('project_not_found');
+
+    if (s.savedProjects.length >= ACCOUNT_LIMITS.projects) {
+      throw new Error(limitReachedMessage('projetos salvos', ACCOUNT_LIMITS.projects));
+    }
+
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('not_authenticated');
+
+    const payload = {
+      user_id: userData.user.id,
+      client_id: source.clientId,
+      name: `${source.name} (cópia)`,
+      address: source.address || null,
+      notes: source.notes || null,
+      residential_options: source.residentialOptions,
+      solution: source.solution,
+      services: source.services,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase.from('projects').insert(payload).select().single();
+    if (error) throw error;
+
+    const duplicated = projectFromRow(data);
+
+    set((st) => ({
+      savedProjects: [duplicated, ...st.savedProjects],
+    }));
+
+    return duplicated;
+  },
+
+  refreshProjectSolution: async (id) => {
+    const project = get().savedProjects.find((item) => item.id === id);
+    if (!project) throw new Error('project_not_found');
+    const batteryModel = project.residentialOptions.batteryModel;
+    if (!batteryModel) throw new Error('missing_battery_model');
+
+    const supabase = createClient();
+    const result = await calculateResidentialSolution({
+      supabase,
+      residentialOptions: project.residentialOptions,
+      batteryModel,
+      projectName: project.name,
+      peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+      dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
+    });
+    if ('error' in result) throw new Error(result.error);
+
+    const { data: row, error } = await supabase
+      .from('projects')
+      .update({ solution: result.solution, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    const updated = projectFromRow(row);
+    set((s) => ({
+      savedProjects: s.savedProjects.map((item) => (item.id === id ? updated : item)),
+    }));
+
+    return updated;
+  },
+
+  fetchProjects: async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    set({ savedProjects: (data ?? []).map(projectFromRow) });
+  },
+});
