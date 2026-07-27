@@ -1747,7 +1747,11 @@ function DesiredFeaturesPicker({
         ))}
       </div>
 
-      <div className="space-y-3 rounded-lg border bg-background p-3">
+      {/* The Backup tab's own content (LoadSelector) is already a rich set of
+       * bordered sections on its own — wrapping it in another card here just
+       * nests boxes. Every other feature tab is simple enough (description +
+       * toggle, maybe one config panel) to still want the card framing. */}
+      <div className={cn('space-y-3', !isBackupTab && 'rounded-lg border bg-background p-3')}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">{activeFeature.label}</p>
