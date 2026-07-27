@@ -113,4 +113,17 @@ describe('drift check: totalPeakW/totalNominalW/totalDailyKwh (logic.ts vs lib/s
   it.each(loadSets.map((loads) => [loads] as const))('totalDailyKwh matches for %j', (loads) => {
     expect(denoTotalDailyKwh(loads, 4)).toBe(nextTotalDailyKwh(loads, 4));
   });
+
+  it.each(
+    [
+      [makeLoad({ powerW: 1000, qty: 1, usageMode: 'fixed', fixedHours: 3 })],
+      [makeLoad({ powerW: 1000, qty: 1, usageMode: 'fixed' })],
+      [
+        makeLoad({ powerW: 1000, qty: 1 }),
+        makeLoad({ powerW: 500, qty: 1, usageMode: 'fixed', fixedHours: 2 }),
+      ],
+    ].map((loads) => [loads] as const)
+  )('totalDailyKwh (usageMode fixed) matches for %j', (loads) => {
+    expect(denoTotalDailyKwh(loads, 4)).toBe(nextTotalDailyKwh(loads, 4));
+  });
 });

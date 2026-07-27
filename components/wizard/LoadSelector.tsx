@@ -1268,6 +1268,8 @@ function LoadCard({
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
   const [usageFactor, setUsageFactor] = useState(String(load.usageFactor ?? 1));
+  const [fixedHours, setFixedHours] = useState(String(load.fixedHours ?? operationHours));
+  const usageMode = load.usageMode ?? 'fraction';
   const [expanded, setExpanded] = useState(false);
   const [draftName, setDraftName] = useState(load.name);
   const [draftPower, setDraftPower] = useState(load.powerW ? String(load.powerW) : '');
@@ -1412,7 +1414,7 @@ function LoadCard({
   }, [needsTwoPhases, load.phase2, load.id, onUpdate]);
 
   function handleChange(
-    field: 'qty' | 'ipInRatio' | 'usageFactor',
+    field: 'qty' | 'ipInRatio' | 'usageFactor' | 'fixedHours',
     raw: string,
     setLocal: (value: string) => void
   ) {
@@ -1421,7 +1423,11 @@ function LoadCard({
     const isValid =
       raw.trim() !== '' &&
       Number.isFinite(parsed) &&
-      (field === 'usageFactor' ? parsed >= 0 && parsed <= 1 : parsed > 0);
+      (field === 'usageFactor'
+        ? parsed >= 0 && parsed <= 1
+        : field === 'fixedHours'
+          ? parsed >= 0 && parsed <= MAX_OPERATION_HOURS
+          : parsed > 0);
     if (isValid) {
       onUpdate(load.id, { [field]: parsed } as Partial<SingleLoad>);
     }
@@ -1446,8 +1452,34 @@ function LoadCard({
     }
   }
 
+  function revertFixedHoursIfInvalid() {
+    const parsed = Number(fixedHours);
+    if (fixedHours.trim() === '' || !Number.isFinite(parsed) || parsed < 0) {
+      setFixedHours(String(load.fixedHours ?? 0));
+      return;
+    }
+    if (parsed > MAX_OPERATION_HOURS) {
+      setFixedHours(String(MAX_OPERATION_HOURS));
+      onUpdate(load.id, { fixedHours: MAX_OPERATION_HOURS });
+    }
+  }
+
+  function setUsageMode(mode: 'fraction' | 'fixed') {
+    if (mode === usageMode) return;
+    if (mode === 'fixed') {
+      const initialFixedHours = load.fixedHours ?? operationHours;
+      setFixedHours(String(initialFixedHours));
+      onUpdate(load.id, { usageMode: 'fixed', fixedHours: initialFixedHours });
+    } else {
+      onUpdate(load.id, { usageMode: 'fraction' });
+    }
+  }
+
   const loadPeakW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
-  const loadEnergyKwh = (operationHours * load.powerW * load.qty * (load.usageFactor ?? 1)) / 1000;
+  const loadEnergyKwh =
+    usageMode === 'fixed'
+      ? (load.powerW * load.qty * (load.fixedHours ?? 0)) / 1000
+      : (operationHours * load.powerW * load.qty * (load.usageFactor ?? 1)) / 1000;
   const includedInPeak = load.includedInPeak ?? true;
 
   // Shared between the freshly-added (draft) card, which shows every field right
@@ -1488,23 +1520,76 @@ function LoadCard({
           />
         </div>
         <div>
-          <Label htmlFor={`usage-factor-${load.id}`} className="text-xs font-normal text-muted-foreground">
-            <InfoLabel
-              label="Fator de uso"
-              tip="Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima."
+          <div className="flex items-center justify-between gap-2">
+            <Label
+              htmlFor={usageMode === 'fixed' ? `fixed-hours-${load.id}` : `usage-factor-${load.id}`}
+              className="text-xs font-normal text-muted-foreground"
+            >
+              <InfoLabel
+                label={usageMode === 'fixed' ? 'Horas fixas' : 'Fator de uso'}
+                tip={
+                  usageMode === 'fixed'
+                    ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h) — por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
+                    : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período diário informado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima.'
+                }
+              />
+            </Label>
+            <div className="flex shrink-0 gap-0.5 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={usageMode === 'fraction'}
+                onClick={() => setUsageMode('fraction')}
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  usageMode === 'fraction'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Fração
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={usageMode === 'fixed'}
+                onClick={() => setUsageMode('fixed')}
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  usageMode === 'fixed'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Horas
+              </button>
+            </div>
+          </div>
+          {usageMode === 'fixed' ? (
+            <NumberFieldWithClear
+              id={`fixed-hours-${load.id}`}
+              value={fixedHours}
+              placeholder="Ex.: 2"
+              min={0}
+              max={MAX_OPERATION_HOURS}
+              step={0.5}
+              onChange={(value) => handleChange('fixedHours', value, setFixedHours)}
+              onBlur={revertFixedHoursIfInvalid}
+              onClear={() => setFixedHours('')}
             />
-          </Label>
-          <NumberFieldWithClear
-            id={`usage-factor-${load.id}`}
-            value={usageFactor}
-            placeholder="Ex.: 1"
-            min={0}
-            max={1}
-            step={0.05}
-            onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
-            onBlur={revertUsageFactorIfInvalid}
-            onClear={() => setUsageFactor('')}
-          />
+          ) : (
+            <NumberFieldWithClear
+              id={`usage-factor-${load.id}`}
+              value={usageFactor}
+              placeholder="Ex.: 1"
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
+              onBlur={revertUsageFactorIfInvalid}
+              onClear={() => setUsageFactor('')}
+            />
+          )}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">

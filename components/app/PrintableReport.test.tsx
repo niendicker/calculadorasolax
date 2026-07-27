@@ -482,6 +482,32 @@ describe('PrintableReport: loads table', () => {
     expect(screen.getByText('11000 VA')).toBeInTheDocument(); // peak = 5500 * 2
     expect(screen.getByText('22.00 kWh')).toBeInTheDocument(); // energy = 2*5500*2/1000
   });
+
+  it('scales daily energy by usageFactor instead of assuming the load runs the whole time', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          operationHours: 4,
+          loads: [{ id: 'l1', name: 'Geladeira', powerW: 200, qty: 1, usageFactor: 0.5 }],
+        })}
+      />
+    );
+    // 200 W x 1 x (4h x 0.5) / 1000 = 0.40 kWh, not 0.80 kWh.
+    expect(screen.getByText('0.40 kWh')).toBeInTheDocument();
+  });
+
+  it('uses fixedHours instead of the shared operationHours when usageMode is fixed', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          operationHours: 10,
+          loads: [{ id: 'l1', name: 'Bomba', powerW: 1000, qty: 1, usageMode: 'fixed', fixedHours: 2 }],
+        })}
+      />
+    );
+    // 1000 W x 1 x 2h / 1000 = 2.00 kWh, ignoring the shared 10h.
+    expect(screen.getByText('2.00 kWh')).toBeInTheDocument();
+  });
 });
 
 describe('PrintableReport: economic analysis section', () => {

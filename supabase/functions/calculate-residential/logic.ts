@@ -9,9 +9,15 @@ export interface SingleLoad {
   qty: number;
   ipInRatio?: number;
   /** Fraction (0-1) of the shared operationHours this load is actually
-   * drawing power; scales energy (kWh), not peak power. Mirrors
-   * lib/types.ts SingleLoad. */
+   * drawing power; scales energy (kWh), not peak power. Only used when
+   * usageMode is 'fraction' (or unset). Mirrors lib/types.ts SingleLoad. */
   usageFactor?: number;
+  /** 'fraction' (default) scales the shared operationHours by usageFactor;
+   * 'fixed' uses fixedHours directly instead. Mirrors lib/types.ts SingleLoad. */
+  usageMode?: 'fraction' | 'fixed';
+  /** Hours/day this load runs, independent of the shared operationHours —
+   * only used when usageMode is 'fixed'. Mirrors lib/types.ts SingleLoad. */
+  fixedHours?: number;
   /** Whether this load counts toward peak power when peakCalcMode is
    * 'select'. Mirrors lib/types.ts SingleLoad. */
   includedInPeak?: boolean;
@@ -392,9 +398,14 @@ export function totalNominalW(loads: SingleLoad[]): number {
 }
 
 /** operationHours is shared across every load (see ResidentialOptions) — each
- * load's usageFactor still scales its own share of that shared time. */
+ * load's usageFactor still scales its own share of that shared time, unless
+ * the load opts out with usageMode 'fixed', which uses its own fixedHours
+ * instead of the shared time entirely. */
 export function totalDailyKwh(loads: SingleLoad[], operationHours: number): number {
-  return (operationHours * loads.reduce((acc, l) => acc + l.powerW * l.qty * (l.usageFactor ?? 1), 0)) / 1000;
+  return loads.reduce((acc, l) => {
+    const hours = l.usageMode === 'fixed' ? Math.max(0, l.fixedHours ?? 0) : operationHours * (l.usageFactor ?? 1);
+    return acc + (l.powerW * l.qty * hours) / 1000;
+  }, 0);
 }
 
 /** PV peak power sized from the customer's own average monthly consumption

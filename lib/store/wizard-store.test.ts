@@ -82,6 +82,25 @@ describe('totalDailyKwh', () => {
     const loads = [makeLoad({ powerW: 1000, qty: 1, usageFactor: 0.5 })];
     expect(totalDailyKwh(loads, 2)).toBeCloseTo(1.0);
   });
+
+  it('uses fixedHours instead of the shared operationHours when usageMode is fixed', () => {
+    const loads = [makeLoad({ powerW: 1000, qty: 1, usageMode: 'fixed', fixedHours: 3 })];
+    // 1000 W x 3h / 1000 = 3.0 kWh, regardless of the shared operationHours (10).
+    expect(totalDailyKwh(loads, 10)).toBeCloseTo(3.0);
+  });
+
+  it('treats a missing fixedHours as 0 when usageMode is fixed', () => {
+    const loads = [makeLoad({ powerW: 1000, qty: 1, usageMode: 'fixed' })];
+    expect(totalDailyKwh(loads, 10)).toBe(0);
+  });
+
+  it('mixes fraction-mode and fixed-mode loads in the same total', () => {
+    const loads = [
+      makeLoad({ powerW: 1000, qty: 1 }), // fraction mode (default): 1000 x 4h = 4.0 kWh
+      makeLoad({ powerW: 500, qty: 1, usageMode: 'fixed', fixedHours: 2 }), // fixed: 500 x 2h = 1.0 kWh
+    ];
+    expect(totalDailyKwh(loads, 4)).toBeCloseTo(5.0);
+  });
 });
 
 describe('totalPeakW', () => {

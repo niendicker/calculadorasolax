@@ -868,6 +868,73 @@ describe('LoadSelector: added loads list', () => {
     expect(usageFactorInput).toHaveValue(1);
   });
 
+  it('switches a load to fixed-hours mode, using its own hours instead of the shared operationHours', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        operationHours: 10,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 1000, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    const summary = screen.getByText('Chuveiro').closest('[role="button"]') as HTMLElement;
+    fireEvent.click(summary);
+    // Fraction mode (default): 1000 W x 10h shared / 1000 = 10.00 kWh.
+    expect(summary).toHaveTextContent('10.00 kWh');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Horas' }));
+    expect(useWizardStore.getState().residentialOptions.loads[0].usageMode).toBe('fixed');
+    // Switching pre-fills fixedHours from the shared operationHours (10), so
+    // the displayed energy doesn't jump until the user actually edits it.
+    expect(summary).toHaveTextContent('10.00 kWh');
+
+    const fixedHoursInput = screen.getByLabelText('Horas fixas', { exact: false });
+    fireEvent.change(fixedHoursInput, { target: { value: '2' } });
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].fixedHours).toBe(2);
+    // 1000 W x 2h / 1000 = 2.00 kWh, no longer scaled by the shared 10h.
+    expect(summary).toHaveTextContent('2.00 kWh');
+    expect(summary).toHaveTextContent('1000 VA');
+  });
+
+  it('clamps fixed hours typed above the shared max back down on blur', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 1000, qty: 1, ipInRatio: 1, usageMode: 'fixed', fixedHours: 2 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByText('Chuveiro'));
+    const fixedHoursInput = screen.getByLabelText('Horas fixas', { exact: false });
+    fireEvent.change(fixedHoursInput, { target: { value: '99' } });
+    fireEvent.blur(fixedHoursInput);
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].fixedHours).toBe(12);
+    expect(fixedHoursInput).toHaveValue(12);
+  });
+
+  it('switching back to fraction mode restores the "Fator de uso" field', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 1000, qty: 1, ipInRatio: 1, usageMode: 'fixed', fixedHours: 2 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByText('Chuveiro'));
+    expect(screen.getByLabelText('Horas fixas', { exact: false })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Fração' }));
+
+    expect(useWizardStore.getState().residentialOptions.loads[0].usageMode).toBe('fraction');
+    expect(screen.getByLabelText('Fator de uso', { exact: false })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Horas fixas', { exact: false })).not.toBeInTheDocument();
+  });
+
   it('removes a load from the list', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {

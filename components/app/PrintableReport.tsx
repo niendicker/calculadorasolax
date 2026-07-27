@@ -436,7 +436,15 @@ export function PrintableReport({
   solution: Solution;
   secondarySolution?: Solution | null;
   secondaryBatteryModel?: string | null;
-  loads: { id: string; name: string; powerW: number; qty: number }[];
+  loads: {
+    id: string;
+    name: string;
+    powerW: number;
+    qty: number;
+    usageFactor?: number;
+    usageMode?: 'fraction' | 'fixed';
+    fixedHours?: number;
+  }[];
   operationHours: number;
   topology: BatteryTopology | null;
   selectedBatteryModel: string | null;
@@ -464,7 +472,10 @@ export function PrintableReport({
     timeStyle: 'short',
   }).format(new Date());
 
-  const loadEnergyKwh = (load: { powerW: number; qty: number }) => (operationHours * load.powerW * load.qty) / 1000;
+  const loadEnergyKwh = (load: { powerW: number; qty: number; usageFactor?: number; usageMode?: 'fraction' | 'fixed'; fixedHours?: number }) => {
+    const hours = load.usageMode === 'fixed' ? Math.max(0, load.fixedHours ?? 0) : operationHours * (load.usageFactor ?? 1);
+    return (load.powerW * load.qty * hours) / 1000;
+  };
 
   const tariffSavings = calculateTariffSavings(whiteTariff, {
     totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,

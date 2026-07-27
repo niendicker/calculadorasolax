@@ -17,9 +17,14 @@ export function totalNominalW(loads: SingleLoad[]): number {
 }
 
 /** operationHours is shared across every load — each load's usageFactor
- * still scales its own share of that shared time. */
+ * still scales its own share of that shared time, unless the load opts out
+ * with usageMode 'fixed', which uses its own fixedHours instead of the
+ * shared time entirely (see SingleLoad). */
 export function totalDailyKwh(loads: SingleLoad[], operationHours: number): number {
-  return (operationHours * loads.reduce((acc, l) => acc + l.powerW * l.qty * (l.usageFactor ?? 1), 0)) / 1000;
+  return loads.reduce((acc, l) => {
+    const hours = l.usageMode === 'fixed' ? Math.max(0, l.fixedHours ?? 0) : operationHours * (l.usageFactor ?? 1);
+    return acc + (l.powerW * l.qty * hours) / 1000;
+  }, 0);
 }
 
 export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {

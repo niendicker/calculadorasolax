@@ -130,8 +130,19 @@ export interface SingleLoad {
    * thermostat-cycled compressor). Scales the energy (kWh) consumed, not the
    * peak power; only meaningful for loads added to a project's backup list,
    * not for catalog entries. Defaults to 1 (runs the whole time) for loads
-   * saved before this field existed. */
+   * saved before this field existed. Only used when usageMode is 'fraction'
+   * (or unset — the default). */
   usageFactor?: number;
+  /** How usageFactor/fixedHours is interpreted for this load's energy
+   * (kWh/day) calculation. 'fraction' (default, incl. when unset) scales the
+   * shared operationHours by usageFactor. 'fixed' ignores the shared
+   * operationHours entirely and uses fixedHours directly — for a load whose
+   * own run time is known and doesn't track the backup event's duration
+   * (e.g. a generator's own fixed daily runtime). */
+  usageMode?: 'fraction' | 'fixed';
+  /** Hours/day this load runs, independent of the shared operationHours —
+   * only used when usageMode is 'fixed'. */
+  fixedHours?: number;
   /** Operating voltage; defaults to 220V for loads saved before this field existed. */
   voltageV?: LoadVoltage;
   /** Single- or three-phase; defaults to 'mono' for loads saved before this field existed. */
