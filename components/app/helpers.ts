@@ -304,7 +304,9 @@ export function expansionModelSet(batteryCatalog: { expansionModel?: string | nu
  * when Tarifa Branca is active, the inverter's rated/peak power floor must
  * also cover the tariff window's required power, not just the loads'. Kept
  * in sync manually since the Edge Function runs on Deno and can't be
- * imported here — this is what the server actually gated the solution on. */
+ * imported here — this is what the server actually gated the solution on.
+ * If you change this, update the Deno copy too — mirrors.test.ts next to
+ * that file asserts both sides agree. */
 export function effectiveTargetPowerW(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
@@ -315,7 +317,8 @@ export function effectiveTargetPowerW(
 }
 
 /** Mirrors effectiveTargetEnergyWh from the same Edge Function file: the
- * battery must cover both expensive windows (ponta + intermediária). */
+ * battery must cover both expensive windows (ponta + intermediária). Same
+ * manual-sync caveat as effectiveTargetPowerW above — see mirrors.test.ts. */
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,

@@ -12,7 +12,9 @@ export interface DesiredFeatureDefinition {
 
 /** Add a new flag-based requirement by adding one entry here (plus the
  * matching InverterFlag in lib/types.ts and an admin editor option) — no
- * other filtering code needs to change. */
+ * other filtering code needs to change. Also has a manually-synced copy in
+ * supabase/functions/calculate-residential/logic.ts (Deno can't import this
+ * file); update both — mirrors.test.ts next to that copy asserts they agree. */
 export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
   {
     id: 'backup',

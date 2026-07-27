@@ -2,6 +2,11 @@
 // of wizard-store.ts since none of this needs `set`/`get`. Re-exported from
 // wizard-store.ts so existing `import { totalPeakW } from '@/lib/store/wizard-store'`
 // call sites don't need to change.
+//
+// totalPeakW/totalNominalW/totalDailyKwh also have a manually-synced copy in
+// supabase/functions/calculate-residential/logic.ts (Deno can't import this
+// file); update both if you change the math here — mirrors.test.ts next to
+// that copy asserts they agree.
 
 import type { LoadPhase, PeakCalcMode, ResidentialGridType, SingleLoad } from '@/lib/types';
 
