@@ -139,10 +139,10 @@ describe('ProjectTab: empty and list states', () => {
     expect(screen.getByText('Configuração salva junto')).toBeInTheDocument();
   });
 
-  it('shows the empty state and a "Novo projeto" button when there are no projects', () => {
+  it('shows just the "Novo projeto" trigger card when there are no projects yet', () => {
     setup();
-    expect(screen.getByText('Nenhum projeto salvo ainda. Clique em "Novo projeto" para começar.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Novo projeto/ })).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum projeto encontrado para essa pesquisa.')).not.toBeInTheDocument();
   });
 
   it('lists saved projects as cards with their badges', () => {
@@ -321,10 +321,15 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
 });
 
 describe('ProjectTab: new project draft', () => {
-  it('clicking "Novo projeto" (header) delegates to onNew', () => {
+  it('clicking the "Novo projeto" trigger card delegates to onNew', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Novo projeto' }));
+    fireEvent.click(screen.getByRole('button', { name: /Novo projeto/ }));
     expect(props.onNew).toHaveBeenCalled();
+  });
+
+  it('hides the "Novo projeto" trigger card while a draft is already open', () => {
+    setup({ projectDetailsVisible: true, currentProjectId: null });
+    expect(screen.queryByRole('button', { name: /Novo projeto/ })).not.toBeInTheDocument();
   });
 
   it('shows an inline draft card (not a separate list item) when starting a new project', () => {

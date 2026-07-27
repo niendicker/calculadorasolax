@@ -295,12 +295,6 @@ export function ProjectTab({
             Escolha um cliente cadastrado e salve a configuração para reutilizar depois.
           </p>
         </div>
-        {!projectDetailsVisible && (
-          <Button variant="outline" size="sm" onClick={onNew}>
-            <Plus className="h-4 w-4" />
-            Novo projeto
-          </Button>
-        )}
       </PageHeader>
 
       <PageSummary>
@@ -423,21 +417,32 @@ export function ProjectTab({
           <ProjectListSkeleton />
         ) : (
           <>
-            {!projectDetailsVisible && savedProjects.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Nenhum projeto salvo ainda. Clique em &quot;Novo projeto&quot; para começar.
-              </div>
-            ) : !projectDetailsVisible && filteredProjects.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Nenhum projeto encontrado para essa pesquisa.
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {projectDetailsVisible && !currentProjectId && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {!projectDetailsVisible && <NewProjectCard onClick={onNew} />}
+              {projectDetailsVisible && !currentProjectId && (
+                <ProjectDraftCard
+                  projectInfo={projectInfo}
+                  clients={clients}
+                  isNew
+                  setProjectInfo={setProjectInfo}
+                  onManageClients={onManageClients}
+                  onSave={handleSave}
+                  onCancel={handleCancel}
+                  nameError={nameError}
+                  userServices={userServices}
+                  services={services}
+                  onAddService={onAddService}
+                  onRemoveService={onRemoveService}
+                  onUpdateServiceQty={onUpdateServiceQty}
+                />
+              )}
+              {filteredProjects.map((project) =>
+                projectDetailsVisible && project.id === currentProjectId ? (
                   <ProjectDraftCard
+                    key={project.id}
                     projectInfo={projectInfo}
                     clients={clients}
-                    isNew
+                    isNew={false}
                     setProjectInfo={setProjectInfo}
                     onManageClients={onManageClients}
                     onSave={handleSave}
@@ -449,59 +454,64 @@ export function ProjectTab({
                     onRemoveService={onRemoveService}
                     onUpdateServiceQty={onUpdateServiceQty}
                   />
-                )}
-                {filteredProjects.map((project) =>
-                  projectDetailsVisible && project.id === currentProjectId ? (
-                    <ProjectDraftCard
-                      key={project.id}
-                      projectInfo={projectInfo}
-                      clients={clients}
-                      isNew={false}
-                      setProjectInfo={setProjectInfo}
-                      onManageClients={onManageClients}
-                      onSave={handleSave}
-                      onCancel={handleCancel}
-                      nameError={nameError}
-                      userServices={userServices}
-                      services={services}
-                      onAddService={onAddService}
-                      onRemoveService={onRemoveService}
-                      onUpdateServiceQty={onUpdateServiceQty}
-                    />
-                  ) : (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      client={clients.find((client) => client.id === project.clientId)}
-                      userStockItems={userStockItems}
-                      userServices={userServices}
-                      marginSettings={marginSettings}
-                      selected={project.id === selectedProjectId}
-                      onSelect={() => {
-                        const willSelect = selectedProjectId !== project.id;
-                        setSelectedProjectId(willSelect ? project.id : null);
-                        if (willSelect) onShowSummary();
-                      }}
-                      onOpen={() => {
-                        setSelectedProjectId(project.id);
-                        onShowSummary();
-                        onOpen(project.id);
-                      }}
-                      onOpenSizing={() => onOpenSizing(project.id)}
-                      onRemove={() => onRemove(project.id)}
-                      onDuplicate={() => onDuplicate(project.id)}
-                      onRefreshSolution={() => onRefreshSolution(project.id)}
-                      refreshing={refreshingProjectId === project.id}
-                      onDownloadPdf={() => onDownloadPdf(project.id)}
-                    />
-                  )
-                )}
-              </div>
+                ) : (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    client={clients.find((client) => client.id === project.clientId)}
+                    userStockItems={userStockItems}
+                    userServices={userServices}
+                    marginSettings={marginSettings}
+                    selected={project.id === selectedProjectId}
+                    onSelect={() => {
+                      const willSelect = selectedProjectId !== project.id;
+                      setSelectedProjectId(willSelect ? project.id : null);
+                      if (willSelect) onShowSummary();
+                    }}
+                    onOpen={() => {
+                      setSelectedProjectId(project.id);
+                      onShowSummary();
+                      onOpen(project.id);
+                    }}
+                    onOpenSizing={() => onOpenSizing(project.id)}
+                    onRemove={() => onRemove(project.id)}
+                    onDuplicate={() => onDuplicate(project.id)}
+                    onRefreshSolution={() => onRefreshSolution(project.id)}
+                    refreshing={refreshingProjectId === project.id}
+                    onDownloadPdf={() => onDownloadPdf(project.id)}
+                  />
+                )
+              )}
+            </div>
+            {!projectDetailsVisible && savedProjects.length > 0 && filteredProjects.length === 0 && (
+              <p className="mt-3 text-sm text-muted-foreground">Nenhum projeto encontrado para essa pesquisa.</p>
             )}
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/** Trigger for starting a new project — the first tile in the grid instead
+ * of a small header button, so it reads as the primary call-to-action on an
+ * otherwise list-only page (and doesn't fight for space with the title on
+ * narrow screens). Replaced in place by ProjectDraftCard once clicked. */
+function NewProjectCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary/30 bg-primary/[0.03] p-6 text-center transition-colors hover:border-primary/60 hover:bg-primary/[0.06] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Plus className="h-6 w-6" />
+      </span>
+      <span className="text-base font-semibold text-foreground">Novo projeto</span>
+      <span className="max-w-[220px] text-sm text-muted-foreground">
+        Cadastre um cliente e comece um novo dimensionamento
+      </span>
+    </button>
   );
 }
 
