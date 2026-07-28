@@ -1089,11 +1089,11 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff');
     fireEvent.change(screen.getByLabelText('Potência (W)'), { target: { value: '3000' } });
     // 22 kWh/mês ÷ 22 dias úteis/mês = 1000 Wh/dia, a clean value to assert on.
-    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '22' } });
-    fireEvent.change(screen.getByLabelText('Energia intermediária (kWh/mês)'), { target: { value: '11' } });
-    fireEvent.change(screen.getByLabelText('Tarifa ponta (R$/kWh)'), { target: { value: '1.35' } });
-    fireEvent.change(screen.getByLabelText('Tarifa intermediária (R$/kWh)'), { target: { value: '1.05' } });
-    fireEvent.change(screen.getByLabelText('Tarifa fora ponta (R$/kWh)'), { target: { value: '0.85' } });
+    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '22' } });
+    fireEvent.change(screen.getByLabelText('Intermediária · Energia (kWh/mês)'), { target: { value: '11' } });
+    fireEvent.change(screen.getByLabelText('Ponta · Tarifa (R$/kWh)'), { target: { value: '1.35' } });
+    fireEvent.change(screen.getByLabelText('Intermediária · Tarifa (R$/kWh)'), { target: { value: '1.05' } });
+    fireEvent.change(screen.getByLabelText('Fora ponta · Tarifa (R$/kWh)'), { target: { value: '0.85' } });
     fireEvent.click(screen.getByLabelText('Reservar para backup das cargas'));
 
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
@@ -1133,7 +1133,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
             foraPontaTariffPerKwh: 0,
           },
     });
-    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(22);
+    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(22);
     expect(screen.getByText('1.00 kWh/dia')).toBeInTheDocument();
   });
 
@@ -1161,17 +1161,17 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       );
     }
 
-    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '1' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(1);
+    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(1);
 
-    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '10' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(10);
+    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(10);
 
-    fireEvent.change(screen.getByLabelText('Energia ponta (kWh/mês)'), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '100' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Energia ponta (kWh/mês)')).toHaveValue(100);
+    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(100);
   });
 
   it('updates microgrid power and phases (phase change auto-picks a valid voltage)', () => {

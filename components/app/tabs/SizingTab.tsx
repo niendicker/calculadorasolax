@@ -1592,12 +1592,12 @@ function formatMonthlyKwh(energyWh: number): string {
  * field's own last edit (project load, feature reset, etc). */
 function WhiteTariffEnergyField({
   id,
-  label,
+  section,
   energyWh,
   onChange,
 }: {
   id: string;
-  label: string;
+  section: string;
   energyWh: number;
   onChange: (energyWh: number) => void;
 }) {
@@ -1613,7 +1613,9 @@ function WhiteTariffEnergyField({
 
   return (
     <>
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>
+        <span className="sr-only">{section} · </span>Energia (kWh/mês)
+      </Label>
       <Input
         id={id}
         type="number"
@@ -1693,6 +1695,7 @@ function DesiredFeaturesPicker({
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const isBackupTab = activeTab === 'backup';
   const isActiveEnabled = value.includes(activeTab);
+  const backupDailyKwh = value.includes('backup') ? dailyKwh : 0;
 
   function hasPendingIssue(id: DesiredFeatureId): boolean {
     return desiredFeatureHasPendingIssue(id, value, {
@@ -1839,6 +1842,54 @@ function DesiredFeaturesPicker({
         {isActiveEnabled && activeTab === 'white_tariff' && (
           <div className="space-y-3">
           <div className="space-y-1.5">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={whiteTariff?.includeBackupReserve ?? false}
+              aria-label="Reservar para backup das cargas"
+              onClick={() =>
+                onWhiteTariffChange({
+                  ...(whiteTariff ?? emptyWhiteTariffConfig),
+                  includeBackupReserve: !(whiteTariff?.includeBackupReserve ?? false),
+                })
+              }
+              className={cn(
+                'flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors',
+                whiteTariff?.includeBackupReserve
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-border bg-background hover:bg-muted/40'
+              )}
+            >
+              <span className="flex items-center gap-2">
+                {whiteTariff?.includeBackupReserve ? (
+                  <BatteryCharging className="h-4 w-4 shrink-0 text-primary" />
+                ) : (
+                  <Battery className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <span className="font-medium">Reservar para backup das cargas</span>
+              </span>
+              <span
+                className={cn(
+                  'flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+                  whiteTariff?.includeBackupReserve
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                )}
+              >
+                {whiteTariff?.includeBackupReserve && <Check className="h-3 w-3" />}
+                {whiteTariff?.includeBackupReserve ? 'Ativado' : 'Desativado'}
+              </span>
+            </button>
+            {whiteTariff?.includeBackupReserve && (
+              <p className="flex items-center gap-1.5 pl-1 text-xs text-muted-foreground">
+                <Zap className="h-3.5 w-3.5 shrink-0 text-primary" />
+                {backupDailyKwh > 0
+                  ? `+${backupDailyKwh.toFixed(1)} kWh/dia somados à energia exigida pela tarifa branca.`
+                  : 'Soma a energia das cargas de backup à energia exigida pela tarifa branca.'}
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="whiteTariffPower">Potência (W)</Label>
             <Input
               id="whiteTariffPower"
@@ -1864,7 +1915,7 @@ function DesiredFeaturesPicker({
                 <div className="space-y-1.5">
                   <WhiteTariffEnergyField
                     id="whiteTariffPontaEnergy"
-                    label="Energia ponta (kWh/mês)"
+                    section="Ponta"
                     energyWh={whiteTariff?.pontaEnergyWh ?? 0}
                     onChange={(pontaEnergyWh) =>
                       onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), pontaEnergyWh })
@@ -1872,14 +1923,16 @@ function DesiredFeaturesPicker({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="whiteTariffPonta">Tarifa ponta (R$/kWh)</Label>
+                  <Label htmlFor="whiteTariffPonta">
+                    <span className="sr-only">Ponta · </span>Tarifa (R$/kWh)
+                  </Label>
                   <Input
                     id="whiteTariffPonta"
                     type="number"
                     min={0}
                     step={0.01}
                     placeholder="Ex.: 1.20"
-                    value={whiteTariff?.pontaTariffPerKwh || ''}
+                    value={whiteTariff?.pontaTariffPerKwh ?? ''}
                     onChange={(event) =>
                       onWhiteTariffChange({
                         ...(whiteTariff ?? emptyWhiteTariffConfig),
@@ -1906,7 +1959,7 @@ function DesiredFeaturesPicker({
                 <div className="space-y-1.5">
                   <WhiteTariffEnergyField
                     id="whiteTariffIntermediateEnergy"
-                    label="Energia intermediária (kWh/mês)"
+                    section="Intermediária"
                     energyWh={whiteTariff?.intermediateEnergyWh ?? 0}
                     onChange={(intermediateEnergyWh) =>
                       onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), intermediateEnergyWh })
@@ -1914,14 +1967,16 @@ function DesiredFeaturesPicker({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="whiteTariffIntermediate">Tarifa intermediária (R$/kWh)</Label>
+                  <Label htmlFor="whiteTariffIntermediate">
+                    <span className="sr-only">Intermediária · </span>Tarifa (R$/kWh)
+                  </Label>
                   <Input
                     id="whiteTariffIntermediate"
                     type="number"
                     min={0}
                     step={0.01}
                     placeholder="Ex.: 0.95"
-                    value={whiteTariff?.intermediateTariffPerKwh || ''}
+                    value={whiteTariff?.intermediateTariffPerKwh ?? ''}
                     onChange={(event) =>
                       onWhiteTariffChange({
                         ...(whiteTariff ?? emptyWhiteTariffConfig),
@@ -1945,14 +2000,16 @@ function DesiredFeaturesPicker({
                 Fora ponta
               </p>
               <div className="mt-2 max-w-[calc(50%-0.375rem)] space-y-1.5">
-                <Label htmlFor="whiteTariffForaPonta">Tarifa fora ponta (R$/kWh)</Label>
+                <Label htmlFor="whiteTariffForaPonta">
+                  <span className="sr-only">Fora ponta · </span>Tarifa (R$/kWh)
+                </Label>
                 <Input
                   id="whiteTariffForaPonta"
                   type="number"
                   min={0}
                   step={0.01}
                   placeholder="Ex.: 0.75"
-                  value={whiteTariff?.foraPontaTariffPerKwh || ''}
+                  value={whiteTariff?.foraPontaTariffPerKwh ?? ''}
                   onChange={(event) =>
                     onWhiteTariffChange({
                       ...(whiteTariff ?? emptyWhiteTariffConfig),
@@ -1962,23 +2019,10 @@ function DesiredFeaturesPicker({
                 />
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Energia fora ponta é deduzida do consumo total informado em Fotovoltaico, descontando ponta e intermediária.
+                A energia fora ponta é calculada automaticamente: consumo total (Fotovoltaico) menos ponta e intermediária.
               </p>
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={whiteTariff?.includeBackupReserve ?? false}
-              onChange={(event) =>
-                onWhiteTariffChange({
-                  ...(whiteTariff ?? emptyWhiteTariffConfig),
-                  includeBackupReserve: event.target.checked,
-                })
-              }
-            />
-            Reservar para backup das cargas
-          </label>
           </div>
         )}
 
