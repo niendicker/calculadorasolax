@@ -106,8 +106,11 @@ export function BatteryModelPicker({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{summary}</p>
+    <div className="space-y-4">
+      <div>
+        <p className="text-sm font-semibold">Modelos de bateria</p>
+        <p className="mt-1 text-xs text-muted-foreground">{summary}</p>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">Selecione até 2 modelos para comparar soluções.</p>
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
@@ -167,10 +170,15 @@ export function BatteryModelPicker({
                 className={cn(
                   'relative grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
                   selected || selectedSecondary
-                    ? 'border-accent bg-primary/10 shadow-sm'
+                    ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
                     : 'hover:border-primary/50 hover:bg-muted/60'
                 )}
               >
+                {(selected || selectedSecondary) && (
+                  <span className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+                  </span>
+                )}
                 {secondarySelectedModel && (selected || selectedSecondary) && (
                   <span className="absolute -top-2 -left-2 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[0.7rem] font-semibold text-accent-foreground shadow-sm">
                     {selected ? '1' : '2'}
@@ -271,7 +279,7 @@ export function InverterModelPicker({
     : inverters;
 
   return (
-    <div className="space-y-3 border-t pt-3">
+    <div className="space-y-4 border-t pt-4">
       <div>
         <p className="text-sm font-medium">Modelo do inversor</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -295,10 +303,17 @@ export function InverterModelPicker({
               }
             }}
             className={cn(
-              'grid cursor-pointer place-items-center gap-2 rounded-lg border bg-card p-3 text-center transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-              selectedModel === null ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
+              'relative grid cursor-pointer place-items-center gap-2 rounded-lg border bg-card p-3 text-center transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              selectedModel === null
+                ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
+                : 'hover:border-primary/50 hover:bg-muted/60'
             )}
           >
+            {selectedModel === null && (
+              <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+              </span>
+            )}
             <Zap className="h-6 w-6 text-muted-foreground" />
             <div>
               <p className="text-sm font-semibold">Todos</p>
@@ -325,10 +340,17 @@ export function InverterModelPicker({
                   }
                 }}
                 className={cn(
-                  'grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
-                  selected ? 'border-accent bg-primary/10 shadow-sm' : 'hover:border-primary/50 hover:bg-muted/60'
+                  'relative grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
+                  selected
+                    ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
+                    : 'hover:border-primary/50 hover:bg-muted/60'
                 )}
               >
+                {selected && (
+                  <span className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+                  </span>
+                )}
                 <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background">
                   {inverter.imageUrl ? (
                     <button

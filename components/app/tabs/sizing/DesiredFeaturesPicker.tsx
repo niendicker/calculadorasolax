@@ -7,10 +7,16 @@ import {
   BatteryCharging,
   Check,
   Clock,
+  Fuel,
   Gauge,
+  HousePlug,
   Layers,
   Moon,
+  Network,
+  ShieldCheck,
+  Sun,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -82,7 +88,17 @@ const emptyPvConfig: PvConfig = {
   hsp: 0,
 };
 
+const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
+  backup: HousePlug,
+  external_ats: ShieldCheck,
+  microgrid: Network,
+  external_generator: Fuel,
+  pv: Sun,
+  white_tariff: Clock,
+};
+
 function FeatureTabButton({
+  id,
   label,
   description,
   enabled,
@@ -90,6 +106,7 @@ function FeatureTabButton({
   isActiveTab,
   onClick,
 }: {
+  id: DesiredFeatureId;
   label: string;
   description: string;
   enabled: boolean;
@@ -97,6 +114,7 @@ function FeatureTabButton({
   isActiveTab: boolean;
   onClick: () => void;
 }) {
+  const Icon = featureIcons[id];
   const { ref, openUp, visible, onMouseEnter, onMouseLeave, onFocus, onBlur } = useTooltipFlip<HTMLButtonElement>();
   const tooltip = hasIssue
     ? `${description ? `${description} ` : ''}Há algo pendente de revisão nesta aba — confira antes de calcular.`
@@ -113,22 +131,26 @@ function FeatureTabButton({
       onFocus={onFocus}
       onBlur={onBlur}
       className={cn(
-        'relative flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+        'group relative flex h-16 min-w-[7.5rem] flex-1 items-center justify-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-14',
         isActiveTab
-          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+          ? 'border-primary bg-primary/[0.06] text-foreground'
+          : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground',
         hasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
       )}
     >
-      {hasIssue ? (
-        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
-      ) : (
-        <span
-          aria-hidden="true"
-          className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-primary' : 'bg-transparent')}
-        />
-      )}
-      {label}
+      <Icon className={cn('h-4 w-4 shrink-0', isActiveTab && 'text-primary')} aria-hidden="true" />
+      <span className="whitespace-nowrap">{label}</span>
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+        {hasIssue ? (
+          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+        ) : enabled ? (
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="h-2.5 w-2.5" strokeWidth={3} />
+          </span>
+        ) : (
+          <span className="h-2 w-2 rounded-full border border-muted-foreground/40" />
+        )}
+      </span>
       {tooltip && (
         <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible}>
           {tooltip}
@@ -259,6 +281,7 @@ export function DesiredFeaturesPicker({
 }) {
   const tabs = DESIRED_FEATURE_DEFINITIONS;
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  const ActiveFeatureIcon = featureIcons[activeTab];
   const isBackupTab = activeTab === 'backup';
   const isActiveEnabled = value.includes(activeTab);
   const backupDailyKwh = value.includes('backup') ? dailyKwh : 0;
@@ -302,10 +325,15 @@ export function DesiredFeaturesPicker({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Funcionalidades desejadas">
+      <div
+        className="flex overflow-x-auto border-b bg-background/60"
+        role="tablist"
+        aria-label="Funcionalidades desejadas"
+      >
         {tabs.map((tab) => (
           <FeatureTabButton
             key={tab.id}
+            id={tab.id}
             label={tab.label}
             description={tab.description}
             enabled={value.includes(tab.id)}
@@ -320,10 +348,33 @@ export function DesiredFeaturesPicker({
        * bordered sections on its own — wrapping it in another card here just
        * nests boxes. Every other feature tab is simple enough (description +
        * toggle, maybe one config panel) to still want the card framing. */}
-      <div className={cn('space-y-3', !isBackupTab && 'rounded-lg border bg-background p-3')}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">{activeFeature.label}</p>
+      <div className={cn('space-y-4', !isBackupTab && 'rounded-xl border bg-background p-4')}>
+        <div className="flex items-start justify-between gap-3 border-b pb-4">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span
+              className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground',
+                isActiveEnabled && 'bg-primary/10 text-primary'
+              )}
+            >
+              <ActiveFeatureIcon className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-base font-semibold">{activeFeature.label}</p>
+              <Badge
+                variant="outline"
+                className={cn(
+                  hasPendingIssue(activeTab)
+                    ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                    : isActiveEnabled
+                      ? 'border-primary/30 bg-primary/5 text-primary'
+                      : 'text-muted-foreground'
+                )}
+              >
+                {hasPendingIssue(activeTab) ? 'Requer atenção' : isActiveEnabled ? 'Ativo' : 'Desativado'}
+              </Badge>
+            </div>
             {isBackupTab ? (
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Resumo das cargas cadastradas">
                 <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
@@ -336,6 +387,7 @@ export function DesiredFeaturesPicker({
                 <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
               )
             )}
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {isBackupTab && (
@@ -347,6 +399,7 @@ export function DesiredFeaturesPicker({
               type="button"
               variant={isActiveEnabled ? 'default' : 'outline'}
               size="sm"
+              className="min-w-28"
               onClick={() => toggle(activeTab)}
             >
               {isActiveEnabled ? (

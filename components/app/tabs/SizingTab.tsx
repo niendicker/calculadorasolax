@@ -7,6 +7,7 @@ import {
   Calculator,
   Check,
   ClipboardCopy,
+  CircleCheck,
   Eraser,
   FileText,
   FolderOpen,
@@ -337,14 +338,15 @@ export function SizingTab({
          * padding so the sticky background spans full width and touches the
          * top edge, then re-applies that padding inside. */}
         <div className="sticky top-0 z-10 -mx-4 -mt-4 space-y-3 bg-card px-4 pt-4 pb-3">
-          <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções do resumo">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1" role="tablist" aria-label="Seções do resumo">
             <button
               type="button"
               role="tab"
+              aria-label="Resumo"
               aria-selected={summaryTab === 'resumo'}
               onClick={() => setSummaryTab('resumo')}
               className={cn(
-                'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10',
+                'flex min-h-11 items-center justify-center gap-2 rounded-md px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-10',
                 summaryTab === 'resumo'
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -358,14 +360,27 @@ export function SizingTab({
                 )
               )}
               Resumo
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[0.65rem]',
+                  resumoTabCritical
+                    ? 'bg-destructive/10 text-destructive'
+                    : resumoTabWarning
+                      ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                      : 'bg-primary/10 text-primary'
+                )}
+              >
+                {resumoTabCritical ? 'Pendente' : resumoTabWarning ? 'Revisar' : 'Completo'}
+              </span>
             </button>
             <button
               type="button"
               role="tab"
+              aria-label="Solução"
               aria-selected={summaryTab === 'solucao'}
               onClick={() => setSummaryTab('solucao')}
               className={cn(
-                'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-10',
+                'flex min-h-11 items-center justify-center gap-2 rounded-md px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-10',
                 summaryTab === 'solucao'
                   ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
                   : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -383,6 +398,18 @@ export function SizingTab({
                 />
               )}
               Solução
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[0.65rem]',
+                  solutionTabHasIssue
+                    ? 'bg-destructive/10 text-destructive'
+                    : solution || secondarySolution
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-background text-muted-foreground'
+                )}
+              >
+                {solutionTabHasIssue ? 'Revisar' : solution || secondarySolution ? 'Disponível' : 'Aguardando'}
+              </span>
             </button>
           </div>
           {summaryTab === 'solucao' && hasSecondaryBattery && (
@@ -509,46 +536,62 @@ export function SizingTab({
       <div className="mt-4 space-y-4">
           <Card className="gap-3 rounded-none border-none bg-transparent p-0 shadow-none ring-0">
             <CardHeader className="px-0">
-              <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Seções de dimensionamento">
+              <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Seções de dimensionamento">
                 <button
                   type="button"
                   role="tab"
                   aria-selected={mainTab === 'features'}
+                  aria-label="Funcionalidades"
                   onClick={() => setMainTab('features')}
                   className={cn(
-                    'flex h-12 flex-1 items-center justify-center gap-2 rounded-md px-6 py-2.5 text-base font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-11',
+                    'relative flex min-h-20 items-center gap-3 border-b-2 px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5',
                     mainTab === 'features'
-                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+                      ? 'border-primary bg-primary/[0.05] text-foreground'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground',
                     featuresTabHasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
                   )}
                 >
-                  {featuresTabHasIssue ? (
-                    <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
-                  ) : (
-                    <ListChecks className="h-5 w-5" aria-hidden="true" />
-                  )}
-                  Funcionalidades
+                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted', mainTab === 'features' && 'bg-primary/15 text-primary')}>
+                    {featuresTabHasIssue ? (
+                      <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
+                    ) : (
+                      <ListChecks className="h-5 w-5" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold sm:text-base">Funcionalidades</span>
+                    <span className="mt-0.5 hidden text-xs font-normal text-muted-foreground sm:block">
+                      Defina o que o sistema deve atender
+                    </span>
+                  </span>
                 </button>
                 <button
                   type="button"
                   role="tab"
                   aria-selected={mainTab === 'config'}
+                  aria-label="Armazenamento de Energia"
                   onClick={() => setMainTab('config')}
                   className={cn(
-                    'flex h-12 flex-1 items-center justify-center gap-2 rounded-md px-6 py-2.5 text-base font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-11',
+                    'relative flex min-h-20 items-center gap-3 border-b-2 px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5',
                     mainTab === 'config'
-                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
-                    configTabHasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
+                      ? 'border-primary bg-primary/[0.05] text-foreground'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground',
+                    configTabHasIssue && 'tab-alert-pulse'
                   )}
                 >
-                  {configTabHasIssue ? (
-                    <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
-                  ) : (
-                    <Settings className="h-5 w-5" aria-hidden="true" />
-                  )}
-                  Armazenamento de Energia
+                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted', mainTab === 'config' && 'bg-primary/15 text-primary')}>
+                    {configTabHasIssue ? (
+                      <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
+                    ) : (
+                      <Settings className="h-5 w-5" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold sm:text-base">Configuração do sistema</span>
+                    <span className="mt-0.5 hidden text-xs font-normal text-muted-foreground sm:block">
+                      Selecione rede, inversor e baterias
+                    </span>
+                  </span>
                 </button>
               </div>
             </CardHeader>
@@ -586,54 +629,57 @@ export function SizingTab({
 
               {mainTab === 'config' && (
                 <>
-                  <div className="flex gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Seções de configuração">
+                  <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Seções de configuração">
                     <button
                       type="button"
                       role="tab"
+                      aria-label="Inversores Híbridos"
                       aria-selected={configTab === 'gridType'}
                       onClick={() => setConfigTab('gridType')}
                       className={cn(
-                        'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+                        'flex min-h-14 items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         configTab === 'gridType'
-                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                          ? 'border-primary bg-primary/[0.04] text-foreground'
+                          : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
                       )}
                     >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'h-1.5 w-1.5 shrink-0 rounded-full',
-                          residentialOptions.gridType ? 'bg-primary' : 'bg-transparent'
-                        )}
-                      />
-                      Inversores Híbridos
+                      {residentialOptions.gridType ? (
+                        <CircleCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      ) : (
+                        <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      )}
+                      Rede e inversor
                     </button>
                     <button
                       type="button"
                       role="tab"
+                      aria-label="Modelo bateria"
                       aria-selected={configTab === 'battery'}
                       onClick={() => setConfigTab('battery')}
                       className={cn(
-                        'flex h-11 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+                        'flex min-h-14 items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                         configTab === 'battery'
-                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                          ? 'border-primary bg-primary/[0.04] text-foreground'
+                          : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
                       )}
                     >
                       {residentialOptions.batteryModel ? (
-                        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                        <CircleCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                       ) : (
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
                       )}
-                      Modelo bateria
+                      Baterias
                     </button>
                   </div>
 
                   {configTab === 'gridType' && (
-                    <div className="space-y-3 rounded-lg border bg-background p-3">
-                      <p className="text-xs text-muted-foreground">{gridTypeSummary}</p>
+                    <div className="space-y-3 rounded-lg border border-transparent">
+                      <div>
+                        <p className="text-sm font-semibold">Tipo de rede</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{gridTypeSummary}</p>
+                      </div>
                       <div
-                        className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-4"
+                        className="grid grid-cols-2 gap-2 sm:grid-cols-4"
                         role="radiogroup"
                         aria-label="Tipo de rede"
                       >
@@ -647,23 +693,26 @@ export function SizingTab({
                               aria-checked={active}
                               onClick={() => setGridType(option.value)}
                               className={cn(
-                                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:text-xs',
+                                'relative flex min-h-20 flex-col items-start justify-center rounded-lg border bg-card px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                                 active
-                                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                                  ? 'border-primary bg-primary/[0.06] text-foreground shadow-sm ring-1 ring-primary/20'
+                                  : 'border-border text-muted-foreground hover:border-primary/50 hover:bg-muted/40 hover:text-foreground'
                               )}
                             >
-                              {option.label}
-                              <span className={cn('text-[0.7rem]', active ? 'text-primary' : 'text-muted-foreground/70')}>
-                                {option.detail}
+                              <span className="flex w-full items-center justify-between gap-2">
+                                <span className="text-sm font-semibold">{option.label}</span>
+                                <span className={cn('flex h-4 w-4 items-center justify-center rounded-full border', active ? 'border-primary bg-primary' : 'border-muted-foreground/40')}>
+                                  {active && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
+                                </span>
                               </span>
+                              <span className={cn('mt-1 text-xs', active ? 'text-primary' : 'text-muted-foreground/70')}>{option.detail}</span>
                             </button>
                           );
                         })}
                       </div>
 
                       {residentialOptions.desiredFeatures.includes('pv') && activeSolution?.pvPowerKw != null && (
-                        <div className="rounded-lg border bg-background p-3">
+                        <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Sun className="h-4 w-4 text-primary" />
                             FV recomendado

@@ -19,13 +19,13 @@ import { desiredFeatureHasPendingIssue } from './feature-status';
 
 function SummaryGroup({ title, icon: Icon, children }: { title: string; icon: typeof Boxes; children: ReactNode }) {
   return (
-    <div>
+    <section className="rounded-lg border bg-background/50 p-2">
       <p className="flex items-center gap-1.5 px-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {title}
       </p>
       <div className="mt-1 space-y-0.5">{children}</div>
-    </div>
+    </section>
   );
 }
 
@@ -72,7 +72,19 @@ function SummaryRow({
         />
       )}
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{label}</span>
-      <Badge variant={done ? 'secondary' : 'outline'} className="min-w-0 max-w-[55%] shrink">
+      <Badge
+        variant="outline"
+        className={cn(
+          'min-w-0 max-w-[55%] shrink',
+          alertLevel === 'critical' || hasIssue
+            ? 'border-destructive/30 bg-destructive/5 text-destructive'
+            : alertLevel === 'warning'
+              ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              : done
+                ? 'border-primary/30 bg-primary/5 text-primary'
+                : 'text-muted-foreground'
+        )}
+      >
         <span className="truncate">{value}</span>
       </Badge>
       <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
