@@ -1,5 +1,8 @@
 import type { createClient } from '@/lib/supabase/client';
-import { batteryQuantityBreakdown as sharedBatteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
+import {
+  batteryQuantityBreakdown as sharedBatteryQuantityBreakdown,
+  expansionModelSet as sharedExpansionModelSet,
+} from '@/lib/battery-quantity-breakdown';
 import {
   batteryFlagLabels,
   inverterFlagLabels,
@@ -87,9 +90,7 @@ export function batteryQuantityBreakdown(
  * model, so they must never be offered directly wherever an admin or user
  * picks a battery to build/configure a solution around. */
 export function expansionModelSet(batteries: Pick<BatteryRow, 'expansion_model'>[]): Set<string> {
-  return new Set(
-    batteries.map((battery) => battery.expansion_model).filter((model): model is string => Boolean(model))
-  );
+  return sharedExpansionModelSet(batteries.map((battery) => ({ expansionModel: battery.expansion_model })));
 }
 
 export function normalizeInverterGridType(value: string): InverterGridType | null {

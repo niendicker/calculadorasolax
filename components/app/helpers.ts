@@ -14,10 +14,10 @@ import type {
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
-import { batteryQuantityBreakdown, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
+import { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
 import { gridLabels, topologyLabels } from './types';
 
-export { batteryQuantityBreakdown, type BatteryQuantityPart };
+export { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart };
 
 /** Network phases/voltage implied by each ResidentialGridType, so the
  * Microrrede/Gerador Externo phase+voltage selection can be checked against
@@ -257,15 +257,6 @@ export function solutionMetrics(
     peakW: minOf(batteryPeakW, inverterPeakW),
     energyKwh: (solution.availableEnergyWh ?? 0) / 1000,
   };
-}
-
-/** Expansion/Slave models only ever exist as units 2..N of some other
- * "Master" battery's bank — they aren't a real standalone base model, so
- * they must never be offered directly in the battery picker. */
-export function expansionModelSet(batteryCatalog: { expansionModel?: string | null }[]): Set<string> {
-  return new Set(
-    batteryCatalog.map((battery) => battery.expansionModel).filter((model): model is string => Boolean(model))
-  );
 }
 
 /** Mirrors supabase/functions/calculate-residential/logic.ts's effectiveTargetPowerW:

@@ -37,3 +37,13 @@ export function batteryQuantityBreakdown(
     { model: expansionModel, qty: slaves },
   ];
 }
+
+/** Expansion/Slave models (e.g. "T58 Slave") only ever exist as units 2..N of
+ * some other "Master" battery's bank — they aren't a real standalone base
+ * model, so they must never be offered directly wherever an admin or user
+ * picks a battery to build/configure a solution around. */
+export function expansionModelSet(batteryCatalog: { expansionModel?: string | null }[]): Set<string> {
+  return new Set(
+    batteryCatalog.map((battery) => battery.expansionModel).filter((model): model is string => Boolean(model))
+  );
+}
