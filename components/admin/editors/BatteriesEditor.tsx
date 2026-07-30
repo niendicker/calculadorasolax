@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Battery, Search, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { normalizeBatteryFlags, selectClasses, toNullableNumber, toNumber } from '../helpers';
+import { useCatalogEditorForm } from '../hooks/useCatalogEditorForm';
 import {
   Actions,
   CatalogLayout,
@@ -11,12 +12,13 @@ import {
   InfoLabel,
   InlineOptionTabs,
   MediaSummary,
+  ModelNicknameFields,
   NumberWithUnitField,
   ProductMediaFields,
   SegmentedTabs,
   ToggleChipsInput,
 } from '../shared-ui';
-import { batteryFlagOptions, emptyBattery, productEditorTabOptions, type BatteryRow, type ProductEditorTab } from '../types';
+import { batteryFlagOptions, emptyBattery, productEditorTabOptions, type BatteryRow } from '../types';
 
 export function BatteriesEditor(props: {
   rows: BatteryRow[];
@@ -34,8 +36,10 @@ export function BatteriesEditor(props: {
   saving: boolean;
 }) {
   const { form, setForm } = props;
-  const [formOpen, setFormOpen] = useState(false);
-  const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
+  const { formOpen, activeFormTab, setActiveFormTab, openNew, openEdit, close } = useCatalogEditorForm<BatteryRow>(
+    emptyBattery,
+    setForm
+  );
   const [selectedTopology, setSelectedTopology] = useState<'all' | 'HV' | 'LV'>('all');
   const [query, setQuery] = useState('');
 
@@ -59,18 +63,6 @@ export function BatteriesEditor(props: {
     return byTopology.filter((row) => row.model.toLowerCase().includes(q));
   }, [props.rows, selectedTopology, query]);
 
-  function openNew() {
-    setForm(emptyBattery);
-    setActiveFormTab('general');
-    setFormOpen(true);
-  }
-
-  function openEdit(row: BatteryRow) {
-    setForm(row);
-    setActiveFormTab('general');
-    setFormOpen(true);
-  }
-
   return (
     <>
     <CatalogLayout
@@ -80,7 +72,7 @@ export function BatteriesEditor(props: {
       formTitle={form.id ? 'Editar bateria' : 'Nova bateria'}
       newLabel="Nova bateria"
       onNew={openNew}
-      onClose={() => setFormOpen(false)}
+      onClose={close}
       search={
         <label className="relative block sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -105,23 +97,12 @@ export function BatteriesEditor(props: {
       }
       form={
         <>
-          <Field label="Modelo">
-            <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
-          </Field>
-          <Field
-            label={
-              <InfoLabel
-                label="Apelido"
-                tip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico nos cards de bateria."
-              />
-            }
-          >
-            <Input
-              value={form.nickname ?? ''}
-              onChange={(event) => setForm({ ...form, nickname: event.target.value })}
-              placeholder="Ex.: Bateria Compacta"
-            />
-          </Field>
+          <ModelNicknameFields
+            form={form}
+            setForm={setForm}
+            nicknameTip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico nos cards de bateria."
+            nicknamePlaceholder="Ex.: Bateria Compacta"
+          />
           <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (
             <>
@@ -274,7 +255,7 @@ export function BatteriesEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
-          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
+          <Actions onSave={() => props.onSave(close)} saving={props.saving} />
         </>
       }
       items={visibleRows.map((row) => ({

@@ -43,6 +43,36 @@ export function Field({
   );
 }
 
+/** The "Modelo"/"Apelido" field pair every catalog editor (inverters,
+ * batteries, accessories) opens its form with — identical for Modelo, and
+ * differing only in the Apelido tooltip/placeholder text per entity. */
+export function ModelNicknameFields<Row extends { model?: string; nickname?: string | null }>({
+  form,
+  setForm,
+  nicknameTip,
+  nicknamePlaceholder,
+}: {
+  form: Partial<Row>;
+  setForm: (value: Partial<Row>) => void;
+  nicknameTip: string;
+  nicknamePlaceholder: string;
+}) {
+  return (
+    <>
+      <Field label="Modelo">
+        <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
+      </Field>
+      <Field label={<InfoLabel label="Apelido" tip={nicknameTip} />}>
+        <Input
+          value={form.nickname ?? ''}
+          onChange={(event) => setForm({ ...form, nickname: event.target.value })}
+          placeholder={nicknamePlaceholder}
+        />
+      </Field>
+    </>
+  );
+}
+
 export function AdminLoadingSkeleton() {
   return (
     <div className="space-y-4" aria-label="Carregando dados administrativos">

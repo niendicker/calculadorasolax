@@ -5,8 +5,9 @@ import { ListChecks, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { accessoryRuleInverterModels, textareaClasses } from '../helpers';
-import { Actions, CatalogLayout, Field, InfoLabel, InlineOptionTabs, MediaSummary, ProductMediaFields, SegmentedTabs } from '../shared-ui';
-import { emptyAccessory, productEditorTabOptions, type AccessoryRow, type AccessoryRuleRow, type ProductEditorTab } from '../types';
+import { useCatalogEditorForm } from '../hooks/useCatalogEditorForm';
+import { Actions, CatalogLayout, Field, InlineOptionTabs, MediaSummary, ModelNicknameFields, ProductMediaFields, SegmentedTabs } from '../shared-ui';
+import { emptyAccessory, productEditorTabOptions, type AccessoryRow, type AccessoryRuleRow } from '../types';
 
 type AccessoryCategory = 'all' | 'system' | 'inverter' | 'battery';
 
@@ -42,8 +43,10 @@ export function AccessoriesEditor(props: {
   onViewRules: (accessoryId: string, accessoryModel: string) => void;
 }) {
   const { form, setForm } = props;
-  const [formOpen, setFormOpen] = useState(false);
-  const [activeFormTab, setActiveFormTab] = useState<ProductEditorTab>('general');
+  const { formOpen, activeFormTab, setActiveFormTab, openNew, openEdit, close } = useCatalogEditorForm<AccessoryRow>(
+    emptyAccessory,
+    setForm
+  );
   const [selectedCategory, setSelectedCategory] = useState<AccessoryCategory>('all');
   const [query, setQuery] = useState('');
 
@@ -78,18 +81,6 @@ export function AccessoriesEditor(props: {
     return byCategory.filter((row) => row.model.toLowerCase().includes(q));
   }, [props.rows, props.rules, selectedCategory, query]);
 
-  function openNew() {
-    setForm(emptyAccessory);
-    setActiveFormTab('general');
-    setFormOpen(true);
-  }
-
-  function openEdit(row: AccessoryRow) {
-    setForm(row);
-    setActiveFormTab('general');
-    setFormOpen(true);
-  }
-
   return (
     <CatalogLayout
       title="Acessórios"
@@ -98,7 +89,7 @@ export function AccessoriesEditor(props: {
       formTitle={form.id ? 'Editar acessório' : 'Novo acessório'}
       newLabel="Novo acessório"
       onNew={openNew}
-      onClose={() => setFormOpen(false)}
+      onClose={close}
       search={
         <label className="relative block sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -125,23 +116,12 @@ export function AccessoriesEditor(props: {
       }
       form={
         <>
-          <Field label="Modelo">
-            <Input value={form.model ?? ''} onChange={(event) => setForm({ ...form, model: event.target.value })} />
-          </Field>
-          <Field
-            label={
-              <InfoLabel
-                label="Apelido"
-                tip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico."
-              />
-            }
-          >
-            <Input
-              value={form.nickname ?? ''}
-              onChange={(event) => setForm({ ...form, nickname: event.target.value })}
-              placeholder="Ex.: Kit de Fixação"
-            />
-          </Field>
+          <ModelNicknameFields
+            form={form}
+            setForm={setForm}
+            nicknameTip="Nome amigável opcional, mostrado ao usuário no lugar do modelo técnico."
+            nicknamePlaceholder="Ex.: Kit de Fixação"
+          />
           <InlineOptionTabs options={productEditorTabOptions} value={activeFormTab} onChange={setActiveFormTab} />
           {activeFormTab === 'general' ? (
             <>
@@ -178,7 +158,7 @@ export function AccessoriesEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
-          <Actions onSave={() => props.onSave(() => setFormOpen(false))} saving={props.saving} />
+          <Actions onSave={() => props.onSave(close)} saving={props.saving} />
         </>
       }
       items={visibleRows.map((row) => ({
