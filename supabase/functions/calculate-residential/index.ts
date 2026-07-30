@@ -33,7 +33,18 @@ function jsonResponse(body: unknown, init: { status?: number } = {}): Response {
   return Response.json(body, { ...init, headers: CORS_HEADERS });
 }
 
-Deno.serve(async (req) => {
+/** The full request→response orchestration (query cascade, flags/ESS/
+ * microgrid filtering, PV/accessory enrichment), separated from Deno.serve
+ * below so it can be exercised directly in tests with a fake `supabase`
+ * client instead of needing a live Supabase instance — see index.test.ts. */
+export async function handleCalculateResidential(
+  req: Request,
+  // createClient<any> (not the bare, untyped createClient) — an explicit
+  // ReturnType<typeof createClient> here loses the generic Database default
+  // supabase-js infers at a normal call site, which silently turns every
+  // .rpc(name, args) call's args parameter into `undefined`.
+  supabase: ReturnType<typeof createClient<any>>
+): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -63,11 +74,6 @@ Deno.serve(async (req) => {
     }
 
     const options = rawOptions as ResidentialOptions;
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
 
     const nominalW = totalNominalW(options.loads);
     const peakW = totalPeakW(options.loads, options.peakCalcMode ?? 'sum');
@@ -408,4 +414,15 @@ Deno.serve(async (req) => {
     console.error(err);
     return jsonResponse({ error: 'internal' }, { status: 500 });
   }
-});
+}
+
+// Guarded so importing this module (e.g. from index.test.ts) doesn't also
+// start a real HTTP listener — only the actual deployed entry point runs it.
+if (import.meta.main) {
+  Deno.serve((req) =>
+    handleCalculateResidential(
+      req,
+      createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    )
+  );
+}

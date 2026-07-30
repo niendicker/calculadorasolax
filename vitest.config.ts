@@ -14,7 +14,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     include: ['**/*.test.ts', '**/*.test.tsx'],
-    exclude: ['node_modules', '.next', '.claude'],
+    // index.test.ts exercises handleCalculateResidential (index.ts) with
+    // Deno's own test runner — it imports via `jsr:` specifiers Vitest/Node
+    // can't resolve. Run it with `deno test --allow-env
+    // calculate-residential/index.test.ts` from supabase/functions instead.
+    exclude: ['node_modules', '.next', '.claude', 'supabase/functions/calculate-residential/index.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
