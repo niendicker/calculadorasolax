@@ -29,11 +29,11 @@ import {
 } from '../shared-ui';
 import type {
   AccessoryRuleRow,
+  ApprovedGridTopology,
   BatteryRow,
   CatalogBatteryTopology,
   EssCompatibilityRuleRow,
   GeneratedSolutionPayload,
-  GridTopology,
   InverterRow,
   SolutionRow,
 } from '../types';
@@ -717,7 +717,7 @@ export function SolutionsEditor(props: {
               <select
                 className={selectClasses()}
                 value={form.grid_topology ?? '1p_220V'}
-                onChange={(event) => setForm({ ...form, grid_topology: event.target.value as GridTopology })}
+                onChange={(event) => setForm({ ...form, grid_topology: event.target.value as ApprovedGridTopology })}
               >
                 <option value="1p_220V">1p 220V</option>
                 <option value="2p_220V">2p 220V</option>

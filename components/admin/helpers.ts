@@ -9,13 +9,13 @@ import {
   inverterGridTypeLabels,
   legacyInverterGridTypeMap,
   type AccessoryRuleRow,
+  type ApprovedGridTopology,
   type BatteryFlag,
   type BatteryRow,
   type CatalogBatteryTopology,
   type EssBatteryConfig,
   type EssCompatibilityRuleRow,
   type GeneratedSolutionPayload,
-  type GridTopology,
   type InverterFlag,
   type InverterGridType,
   type InverterRow,
@@ -262,7 +262,7 @@ export function inverterSupportedBatteryTopologies(inverter: InverterRow | undef
   return [inverter.topology];
 }
 
-export function generatedGridToApprovedTopology(gridType: InverterGridType): Extract<GridTopology, '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V'> {
+export function generatedGridToApprovedTopology(gridType: InverterGridType): ApprovedGridTopology {
   if (gridType === '2P_220V') return '2p_220V';
   if (gridType === '3P_220V') return '3p_220V';
   if (gridType === '3P_380V') return '3p_380V';

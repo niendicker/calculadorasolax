@@ -28,7 +28,15 @@ export type TabKey =
   | 'logs';
 
 export type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
-export type GridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
+/** The lowercase legacy grid-topology format, still the only one stored on
+ * approved_solutions rows (see supabase/functions/calculate-residential/logic.ts
+ * ApprovedSolution.grid_topology) — never InverterGridType's uppercase form. */
+export type ApprovedGridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V';
+/** Accessory/ESS compatibility rules can still hold either casing — some
+ * rows predate the InverterGridType migration (see normalizeInverterGridType/
+ * legacyInverterGridTypeMap) — so this stays the wider union; only
+ * approved_solutions rows are guaranteed to be ApprovedGridTopology. */
+export type GridTopology = ApprovedGridTopology | InverterGridType;
 /** The catalog/DB storage format for battery topology — distinct from the
  * wizard-facing BatteryTopology in lib/types.ts ('HighVoltage' | 'LowVoltage'),
  * which describes the customer's *choice*, not how it's stored on
@@ -258,7 +266,7 @@ export interface SolutionRow {
   nominal_voltage_v: number;
   rated_power_w: number;
   peak_power_w: number;
-  grid_topology: GridTopology;
+  grid_topology: ApprovedGridTopology;
   battery_model: string;
   battery_topology: CatalogBatteryTopology;
   battery_quantity: number;
