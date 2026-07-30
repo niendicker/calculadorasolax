@@ -1658,26 +1658,27 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   });
 });
 
-describe('SizingTab: feature tab pending-issue styling', () => {
-  it('adds the destructive ring/pulse to a feature tab with a pending issue, and to the Funcionalidades tab', () => {
+describe('SizingTab: feature tab pending-issue indicator', () => {
+  it('uses icons and status tags without extra alert styling', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['external_ats'] } });
 
     const atsTab = screen.getByRole('tab', { name: /^Backup Total/ });
-    expect(atsTab.className).toContain('tab-alert-pulse');
-    expect(atsTab.className).toContain('ring-destructive/50');
+    expect(atsTab.querySelector('.lucide-triangle-alert')).toBeInTheDocument();
+    expect(atsTab.className).not.toContain('tab-alert');
 
     const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });
-    expect(funcionalidadesTab.className).toContain('tab-alert-pulse');
+    expect(funcionalidadesTab.querySelector('.lucide-triangle-alert')).toBeInTheDocument();
+    expect(funcionalidadesTab.className).not.toContain('tab-alert');
   });
 
   it('does not add the alert styling to a tab with no pending issue', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }] } });
 
     const backupTab = screen.getByRole('tab', { name: 'Backup' });
-    expect(backupTab.className).not.toContain('tab-alert-pulse');
+    expect(backupTab.className).not.toContain('tab-alert');
 
     const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });
-    expect(funcionalidadesTab.className).not.toContain('tab-alert-pulse');
+    expect(funcionalidadesTab.className).not.toContain('tab-alert');
   });
 });
 

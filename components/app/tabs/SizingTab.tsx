@@ -557,7 +557,6 @@ export function SizingTab({
                     mainTab === 'features'
                       ? 'border-primary bg-primary/[0.05] text-foreground'
                       : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground',
-                    featuresTabHasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
                   )}
                 >
                   <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted', mainTab === 'features' && 'bg-primary/15 text-primary')}>
@@ -585,7 +584,6 @@ export function SizingTab({
                     mainTab === 'config'
                       ? 'border-primary bg-primary/[0.05] text-foreground'
                       : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground',
-                    configTabHasIssue && 'tab-alert-pulse'
                   )}
                 >
                   <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted', mainTab === 'config' && 'bg-primary/15 text-primary')}>

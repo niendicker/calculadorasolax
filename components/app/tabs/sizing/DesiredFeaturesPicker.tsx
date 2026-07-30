@@ -134,7 +134,6 @@ function FeatureTabButton({
         isActiveTab
           ? 'border-primary bg-primary/[0.06] text-foreground'
           : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground',
-        hasIssue && 'tab-alert-pulse ring-1 ring-destructive/50'
       )}
     >
       <Icon className={cn('h-4 w-4 shrink-0', isActiveTab && 'text-primary')} aria-hidden="true" />
