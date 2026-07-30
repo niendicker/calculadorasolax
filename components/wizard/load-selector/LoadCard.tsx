@@ -331,6 +331,7 @@ export function LoadCard({
   const extraFields = (
     <>
       <div className="grid grid-cols-2 gap-2 border-t p-3">
+        <p className="col-span-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Uso e energia</p>
         <div>
           <Label htmlFor={`qty-${load.id}`} className="text-xs font-normal text-muted-foreground">
             <InfoLabel label="Quantidade" tip="Número de unidades desse equipamento na instalação." />
@@ -378,16 +379,16 @@ export function LoadCard({
             />
           </Label>
           <div className="mt-1 flex items-center gap-2">
-            <div className="flex flex-1 gap-0.5 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
+            <div className="flex flex-1 gap-1 rounded-md border bg-background p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
               <button
                 type="button"
                 role="tab"
                 aria-selected={usageMode === 'fraction'}
                 onClick={() => setUsageMode('fraction')}
                 className={cn(
-                  'flex-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'flex-1 rounded px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   usageMode === 'fraction'
-                    ? 'bg-background text-foreground shadow-sm'
+                    ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -399,9 +400,9 @@ export function LoadCard({
                 aria-selected={usageMode === 'fixed'}
                 onClick={() => setUsageMode('fixed')}
                 className={cn(
-                  'flex-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'flex-1 rounded px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   usageMode === 'fixed'
-                    ? 'bg-background text-foreground shadow-sm'
+                    ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -439,6 +440,7 @@ export function LoadCard({
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:col-span-3">Ligação elétrica</p>
         <div>
           <Label className="text-xs font-normal text-muted-foreground">
             <InfoLabel label="Tensão" tip="Tensão de operação da carga. Só mostra as tensões disponíveis na rede escolhida." />
@@ -798,7 +800,7 @@ export function LoadCard({
               className="relative flex items-center gap-1"
             >
               <Plug className="h-3.5 w-3.5" />
-              <span className="font-medium text-foreground">{load.powerW} VA</span>
+              <span className="font-medium text-foreground">{load.qty}× {load.powerW} VA</span>
               <TooltipBubble triggerRef={powerTipRef} openUp={powerTipOpenUp} visible={powerTipVisible}>
                 Potência nominal
               </TooltipBubble>
@@ -821,6 +823,11 @@ export function LoadCard({
                   ? 'Potência máxima (não contabilizada — carga desmarcada)'
                   : 'Potência máxima (nominal × IP/IN × quantidade)'}
               </TooltipBubble>
+            </span>
+            <span>
+              {usageMode === 'fixed'
+                ? `${load.fixedHours ?? 0} h/dia`
+                : `${Math.round((load.usageFactor ?? 1) * 100)}% de ${operationHours} h`}
             </span>
             <span
               ref={dailyTipRef}

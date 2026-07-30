@@ -473,14 +473,30 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
 });
 
 describe('PrintableReport: loads table', () => {
+  it('keeps a short loads table together on one printed page', () => {
+    render(<PrintableReport {...baseProps()} />);
+    expect(screen.getByRole('table').parentElement).toHaveClass('print-table-whole');
+  });
+
+  it('allows a long table to paginate between rows', () => {
+    const loads = Array.from({ length: 11 }, (_, index) => ({
+      id: `l${index}`,
+      name: `Carga ${index + 1}`,
+      powerW: 100,
+      qty: 1,
+    }));
+    render(<PrintableReport {...baseProps({ loads })} />);
+    expect(screen.getByRole('table').parentElement).not.toHaveClass('print-table-whole');
+  });
+
   it('computes peak and daily energy per load row', () => {
     render(
       <PrintableReport
         {...baseProps({ operationHours: 2, loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 2 }] })}
       />
     );
-    expect(screen.getByText('11000 VA')).toBeInTheDocument(); // peak = 5500 * 2
-    expect(screen.getByText('22.00 kWh')).toBeInTheDocument(); // energy = 2*5500*2/1000
+    expect(screen.getAllByText('11000 VA')).toHaveLength(2); // load row + total
+    expect(screen.getAllByText('22.00 kWh')).toHaveLength(2); // load row + total
   });
 
   it('scales daily energy by usageFactor instead of assuming the load runs the whole time', () => {
@@ -493,7 +509,7 @@ describe('PrintableReport: loads table', () => {
       />
     );
     // 200 W x 1 x (4h x 0.5) / 1000 = 0.40 kWh, not 0.80 kWh.
-    expect(screen.getByText('0.40 kWh')).toBeInTheDocument();
+    expect(screen.getAllByText('0.40 kWh')).toHaveLength(2);
   });
 
   it('uses fixedHours instead of the shared operationHours when usageMode is fixed', () => {
@@ -506,7 +522,7 @@ describe('PrintableReport: loads table', () => {
       />
     );
     // 1000 W x 1 x 2h / 1000 = 2.00 kWh, ignoring the shared 10h.
-    expect(screen.getByText('2.00 kWh')).toBeInTheDocument();
+    expect(screen.getAllByText('2.00 kWh')).toHaveLength(2);
   });
 });
 
@@ -516,7 +532,7 @@ describe('PrintableReport: economic analysis section', () => {
     expect(screen.queryByText('Análise econômica')).not.toBeInTheDocument();
   });
 
-  it('shows the system cost inline under the products table when stock items are priced', () => {
+  it('shows a partial investment in the economic section even without white tariff', () => {
     render(
       <PrintableReport
         {...baseProps({
@@ -526,8 +542,9 @@ describe('PrintableReport: economic analysis section', () => {
         })}
       />
     );
-    expect(screen.queryByText('Análise econômica')).not.toBeInTheDocument();
-    expect(screen.getByText(/parcial: 1 de 2 itens/)).toBeInTheDocument();
+    expect(screen.getByText('Análise econômica')).toBeInTheDocument();
+    expect(screen.getByText('Investimento parcial')).toBeInTheDocument();
+    expect(screen.getByText(/Falta precificar: TP-HS3.6/)).toBeInTheDocument();
   });
 
   it('shows white tariff savings when configured', () => {
@@ -547,6 +564,50 @@ describe('PrintableReport: economic analysis section', () => {
       />
     );
     expect(screen.getByText('Ganho estimado com SolaX')).toBeInTheDocument();
+  });
+
+  it('explains invalid tariff ordering instead of presenting misleading savings', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          whiteTariff: {
+            requiredPowerW: 1000,
+            pontaEnergyWh: 2000,
+            intermediateEnergyWh: 1000,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 0.7,
+            intermediateTariffPerKwh: 0.75,
+            foraPontaTariffPerKwh: 0.8,
+          },
+        })}
+      />
+    );
+    expect(screen.queryByText('Ganho estimado com SolaX')).not.toBeInTheDocument();
+    expect(screen.getByText(/Economia e retorno indisponíveis/)).toBeInTheDocument();
+  });
+
+  it('formats a payback shorter than one year using months only', () => {
+    render(
+      <PrintableReport
+        {...baseProps({
+          userStockItems: [
+            { id: 's1', productType: 'inverter', productModel: 'X1-Hybrid-5.0kW-G4', unitValue: 50, createdAt: '', updatedAt: '' },
+            { id: 's2', productType: 'battery', productModel: 'TP-HS3.6', unitValue: 50, createdAt: '', updatedAt: '' },
+          ],
+          whiteTariff: {
+            requiredPowerW: 1000,
+            pontaEnergyWh: 2000,
+            intermediateEnergyWh: 0,
+            includeBackupReserve: false,
+            pontaTariffPerKwh: 1.3,
+            intermediateTariffPerKwh: 0.95,
+            foraPontaTariffPerKwh: 0.8,
+          },
+        })}
+      />
+    );
+    expect(screen.getByText('Retorno simples estimado')).toBeInTheDocument();
+    expect(screen.getByText(/^\d+ meses$/)).toBeInTheDocument();
   });
 
   it('shows the absolute sem/com SolaX monthly costs when pv total consumption makes the breakdown consistent', () => {
@@ -628,11 +689,16 @@ describe('PrintableReport: comments and footer', () => {
     expect(screen.getByText('Opcional: kit de paralelo.')).toBeInTheDocument();
   });
 
-  it('shows the solution code in the footer, or a fallback', () => {
+  it('keeps the full solution code in a technical appendix and uses a short reference in the footer', () => {
     const { rerender } = render(<PrintableReport {...baseProps({ solution: { ...solution, solutionCode: 'code-123' } })} />);
-    expect(screen.getByText('Código: code-123')).toBeInTheDocument();
+    expect(screen.getByText('code-123')).not.toHaveClass('print-document-footer');
+    expect(screen.getByText('Referência técnica')).toBeInTheDocument();
+    expect(document.querySelector('footer')).toHaveTextContent(/^SolaX Power Brasil · Casa de praia · Ref\. SOL-[A-F0-9]{8}$/);
+    expect(document.querySelector('footer')).toHaveClass('print-document-footer');
+    expect(document.querySelector('footer')).not.toHaveClass('print-page-footer');
 
     rerender(<PrintableReport {...baseProps({ solution: { ...solution, solutionCode: undefined } })} />);
-    expect(document.querySelector('footer')).toHaveTextContent('Calculadora SolaX');
+    expect(screen.queryByText('Referência técnica')).not.toBeInTheDocument();
+    expect(document.querySelector('footer')).toHaveTextContent('SolaX Power Brasil · Casa de praia');
   });
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Battery, BatteryCharging, FileText, Gauge, Package, Plug, Sun, TrendingUp, Zap } from 'lucide-react';
+import { AlertTriangle, Battery, BatteryCharging, ChevronDown, FileText, Gauge, Package, Plug, Sun, TrendingUp, Wallet, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
@@ -9,16 +9,19 @@ import type {
   DesiredFeatureId,
   MarginSettings,
   MicrogridConfig,
+  ProjectServiceLine,
   ProductDocument,
   PvConfig,
   Solution,
   UserStockItem,
+  UserServiceItem,
   WhiteTariffConfig,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import {
   buildMarginSummary,
   calculateSystemCost,
+  calculateDegradedPaybackMonths,
   calculateTariffSavings,
   formatCurrencyBRL,
   normalizeAccessoryLine,
@@ -26,7 +29,7 @@ import {
   type MarginRow,
 } from '../../helpers';
 import { DocPreviewModal, ImagePreviewModal, Metric, ProductAttachments, ProductImage } from '../../shared-ui';
-import type { BatteryCatalogOption, ProductMedia } from '../../types';
+import type { BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../../types';
 
 /** The Solução tab's top metric cards — pulled out of ResultSummary so they
  * can be rendered in the sticky header above it, alongside the Resumo tab's
@@ -133,10 +136,13 @@ function MarginSummary({ rows }: { rows: MarginRow[] }) {
 export function ResultSummary({
   solution,
   batteryCatalog,
+  inverterCatalog,
   onExport,
   canExport,
   productMedia,
   userStockItems,
+  services,
+  userServices,
   marginSettings,
   whiteTariff,
   pv,
@@ -149,10 +155,13 @@ export function ResultSummary({
 }: {
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog: InverterCatalogOption[];
   onExport: () => void;
   canExport: boolean;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
+  services: ProjectServiceLine[];
+  userServices: UserServiceItem[];
   marginSettings: MarginSettings;
   whiteTariff: WhiteTariffConfig | null;
   pv: PvConfig | null;
@@ -165,15 +174,48 @@ export function ResultSummary({
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   const inverterMedia = productMedia[solution.inverterModel];
+  const batteryPerformance = batteryCatalog.find((item) => item.model === solution.batteryModel);
+  const inverterPerformance = inverterCatalog.find((item) => item.model === solution.inverterModel);
   const totalBatteryPorts = (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1);
   const batteryParts = batteryQuantityBreakdown(solution.batteryModel, solution.batteryQty, batteryCatalog, totalBatteryPorts);
-  const systemCost = calculateSystemCost(solution, userStockItems, undefined, undefined, marginSettings);
+  const systemCost = calculateSystemCost(
+    solution,
+    userStockItems,
+    services,
+    userServices,
+    marginSettings,
+    batteryCatalog
+  );
   const tariffSavings = calculateTariffSavings(whiteTariff, {
     totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
     availableEnergyWh: solution.availableEnergyWh ?? 0,
     pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
+    batteryRoundTripEfficiencyPercent: batteryPerformance?.roundTripEfficiencyPercent ?? 95,
+    inverterChargeEfficiencyPercent: inverterPerformance?.batteryChargeEfficiencyPercent ?? 97,
+    inverterDischargeEfficiencyPercent: inverterPerformance?.batteryDischargeEfficiencyPercent ?? 97,
+    initialSohPercent: batteryPerformance?.initialSohPercent ?? 100,
+    annualSohLossPercent: batteryPerformance?.annualSohLossPercent ?? 2,
+    standbyConsumptionW: inverterPerformance?.standbyConsumptionW ?? 0,
+    maxBatteryDischargePowerW: inverterPerformance?.maxBatteryDischargePowerW ?? null,
+    maxBatteryChargePowerW: inverterPerformance?.maxBatteryChargePowerW ?? null,
   });
+  const canShowPayback = Boolean(
+    systemCost.isComplete &&
+      systemCost.totalCost > 0 &&
+      tariffSavings &&
+      tariffSavings.tariffOrderValid &&
+      tariffSavings.annualSavings > 0
+  );
+  const paybackMonths = canShowPayback && tariffSavings
+    ? calculateDegradedPaybackMonths(systemCost.totalCost, tariffSavings)
+    : null;
+  const paybackLabel = paybackMonths
+    ? `${Math.floor(paybackMonths / 12)} ${Math.floor(paybackMonths / 12) === 1 ? 'ano' : 'anos'}${
+        paybackMonths % 12 ? ` e ${paybackMonths % 12} ${paybackMonths % 12 === 1 ? 'mês' : 'meses'}` : ''
+      }`
+    : null;
 
   if (solution.microgridAlternative) {
     return (
@@ -314,45 +356,119 @@ export function ResultSummary({
       )}
 
       {(systemCost.pricedItemsCount > 0 || tariffSavings) && (
-        <div className="rounded-lg border bg-background p-3">
-          <p className="text-sm font-medium">Análise econômica</p>
-          <div className="mt-2 space-y-2 text-sm">
+        <div className="rounded-xl border bg-background p-4">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-primary" aria-hidden="true" />
+            <p className="text-sm font-semibold">Análise financeira estimada</p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Investimento e economia projetados para o primeiro ano.</p>
+
+          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2">
             {systemCost.pricedItemsCount > 0 && (
-              <div>
-                <p className="text-muted-foreground">Custo total do sistema</p>
-                <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
+              <div className="min-w-0 overflow-hidden rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">Investimento estimado</p>
+                <p className="break-words text-base font-semibold leading-tight tabular-nums [overflow-wrap:anywhere] sm:text-lg">
+                  {formatCurrencyBRL(systemCost.totalCost)}
+                </p>
                 {!systemCost.isComplete && (
-                  <p className="text-xs text-muted-foreground">
-                    Preço parcial ({systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens no catálogo)
+                  <p className="mt-1 break-words text-xs text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
+                    Valor parcial · {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} modelos/serviços
                   </p>
                 )}
               </div>
             )}
-            {tariffSavings && (
-              <div className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-                <TrendingUp className="h-5 w-5 shrink-0 text-primary" />
-                <div>
-                  <p className="text-muted-foreground">Ganho com SolaX</p>
-                  <p className="text-lg font-semibold text-primary">{formatCurrencyBRL(tariffSavings.annualSavings)}/ano</p>
-                  <p className="text-xs text-muted-foreground">
+            {tariffSavings?.tariffOrderValid && (
+              <div className="flex min-w-0 items-start gap-2.5 overflow-hidden rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <TrendingUp className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Ganho com SolaX</p>
+                  <p className="break-words text-base font-semibold leading-tight text-primary tabular-nums [overflow-wrap:anywhere] sm:text-lg">
+                    {formatCurrencyBRL(tariffSavings.annualSavings)}/ano
+                  </p>
+                  <p className="mt-1 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     {formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · {tariffSavings.businessDaysPerMonth} dias úteis/mês
                   </p>
                   {tariffSavings.pvMonthlySavings > 0 && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                      <Sun className="h-3.5 w-3.5 shrink-0" />
+                    <p className="mt-1 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                       dos quais {formatCurrencyBRL(tariffSavings.pvMonthlySavings)}/mês de geração solar
-                    </p>
-                  )}
-                  {tariffSavings.monthlyCostWithoutSolaxBrl != null && tariffSavings.monthlyCostWithSolaxBrl != null && (
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      Sem SolaX: {formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês · Com SolaX:{' '}
-                      {formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês
                     </p>
                   )}
                 </div>
               </div>
             )}
+            <div className="min-w-0 overflow-hidden rounded-lg border bg-card p-3">
+              <p className="text-xs text-muted-foreground">Retorno simples estimado</p>
+              <p className="break-words text-base font-semibold leading-tight tabular-nums [overflow-wrap:anywhere] sm:text-lg">
+                {paybackLabel ?? 'Indisponível'}
+              </p>
+              {!canShowPayback && (
+                <p className="mt-1 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                  Exige orçamento completo e economia positiva.
+                </p>
+              )}
+            </div>
           </div>
+
+          {systemCost.missingItems.length > 0 && (
+            <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+              <p className="font-medium text-amber-800 dark:text-amber-300">Falta precificar</p>
+              <p className="mt-1 text-muted-foreground">{systemCost.missingItems.join(', ')}</p>
+            </div>
+          )}
+
+          {tariffSavings && !tariffSavings.tariffOrderValid && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              As tarifas de ponta e intermediária devem ser maiores ou iguais à tarifa fora de ponta para estimar economia.
+            </div>
+          )}
+
+          {tariffSavings && tariffSavings.tariffOrderValid && (
+            <div className="mt-3 rounded-lg border bg-muted/20 p-3 text-sm">
+              <p className="font-medium">Composição da economia mensal</p>
+              <div className="mt-2 space-y-1.5 text-xs">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Deslocamento com bateria</span>
+                  <span className="font-medium">{formatCurrencyBRL(tariffSavings.batteryMonthlySavings)}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">RTE efetivo do sistema</span>
+                  <span className="font-medium">{tariffSavings.effectiveRoundTripEfficiencyPct.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="flex items-center gap-1 text-muted-foreground"><Sun className="h-3.5 w-3.5" /> Geração fotovoltaica</span>
+                  <span className="font-medium">{formatCurrencyBRL(tariffSavings.pvMonthlySavings)}</span>
+                </div>
+              </div>
+              {tariffSavings.monthlyCostWithoutSolaxBrl != null && tariffSavings.monthlyCostWithSolaxBrl != null && (
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3 text-xs">
+                  <div><p className="text-muted-foreground">Sem SolaX</p><p className="font-semibold">{formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês</p></div>
+                  <div><p className="text-muted-foreground">Com SolaX</p><p className="font-semibold text-primary">{formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês</p></div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            aria-expanded={assumptionsOpen}
+            onClick={() => setAssumptionsOpen((current) => !current)}
+            className="mt-3 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs font-medium hover:bg-muted/40"
+          >
+            Premissas utilizadas
+            <ChevronDown className={cn('h-4 w-4 transition-transform', assumptionsOpen && 'rotate-180')} />
+          </button>
+          {assumptionsOpen && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+              <li>{tariffSavings?.businessDaysPerMonth ?? 22} dias úteis por mês para Tarifa Branca.</li>
+              <li>Tarifas e consumo informados pelo usuário.</li>
+              <li>Estimativa de primeiro ano, sem reajuste tarifário ou sazonalidade.</li>
+              <li>SOH inicial de {tariffSavings?.initialSohPercent.toFixed(0) ?? 100}% e redução anual de {tariffSavings?.annualSohLossPercent.toFixed(1) ?? '2,0'}% aplicada ao retorno.</li>
+              <li>RTE combinado da bateria e das conversões do inversor; consumo em espera descontado da economia.</li>
+              <li>Não considera manutenção, impostos, custo de disponibilidade ou perdas adicionais não cadastradas.</li>
+              <li>A geração solar considera aproveitamento ideal da energia disponível.</li>
+            </ul>
+          )}
         </div>
       )}
 

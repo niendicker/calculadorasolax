@@ -122,6 +122,11 @@ export interface InverterRow {
   battery_voltage_max_v: number | null;
   battery_current_max_a: number | null;
   max_power_per_phase_w: number | null;
+  battery_charge_efficiency_percent?: number;
+  battery_discharge_efficiency_percent?: number;
+  standby_consumption_w?: number;
+  max_battery_charge_power_w?: number | null;
+  max_battery_discharge_power_w?: number | null;
   flags: InverterFlag[];
   pv_oversizing_percent: number;
   image_url: string | null;
@@ -138,6 +143,10 @@ export interface BatteryRow {
   standard_power_kw: number | null;
   peak_power_kw: number | null;
   min_soc_percent: number;
+  round_trip_efficiency_percent?: number;
+  initial_soh_percent?: number;
+  annual_soh_loss_percent?: number;
+  warranty_end_soh_percent?: number | null;
   nominal_voltage_v: number | null;
   voltage_min_v: number | null;
   voltage_max_v: number | null;
@@ -363,6 +372,11 @@ export const emptyInverter: Partial<InverterRow> = {
   battery_voltage_max_v: null,
   battery_current_max_a: null,
   max_power_per_phase_w: null,
+  battery_charge_efficiency_percent: 97,
+  battery_discharge_efficiency_percent: 97,
+  standby_consumption_w: 0,
+  max_battery_charge_power_w: null,
+  max_battery_discharge_power_w: null,
   flags: [],
   pv_oversizing_percent: 100,
   image_url: '',
@@ -377,6 +391,10 @@ export const emptyBattery: Partial<BatteryRow> = {
   standard_power_kw: null,
   peak_power_kw: null,
   min_soc_percent: 10,
+  round_trip_efficiency_percent: 95,
+  initial_soh_percent: 100,
+  annual_soh_loss_percent: 2,
+  warranty_end_soh_percent: null,
   nominal_voltage_v: null,
   voltage_min_v: null,
   voltage_max_v: null,

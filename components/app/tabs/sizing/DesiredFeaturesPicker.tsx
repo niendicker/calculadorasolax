@@ -29,7 +29,6 @@ import type {
   DesiredFeatureId,
   GeneratorConfig,
   MicrogridConfig,
-  PeakCalcMode,
   PvConfig,
   ResidentialGridType,
   WhiteTariffConfig,
@@ -160,12 +159,6 @@ function FeatureTabButton({
   );
 }
 
-const peakCalcModeLabels: Record<PeakCalcMode, string> = {
-  sum: 'Soma de todas',
-  'largest-surge': 'Só a maior carga',
-  select: 'Selecionar cargas',
-};
-
 function formatMonthlyKwh(energyWh: number): string {
   if (!energyWh) return '';
   return String(Math.round(((energyWh * TARIFF_BUSINESS_DAYS_PER_MONTH) / 1000) * 100) / 100);
@@ -250,7 +243,6 @@ export function DesiredFeaturesPicker({
   peakW,
   nominalW,
   dailyKwh,
-  peakCalcMode,
 }: {
   activeTab: DesiredFeatureId;
   onActiveTabChange: (id: DesiredFeatureId) => void;
@@ -277,7 +269,6 @@ export function DesiredFeaturesPicker({
   peakW: number;
   nominalW: number;
   dailyKwh: number;
-  peakCalcMode: PeakCalcMode;
 }) {
   const tabs = DESIRED_FEATURE_DEFINITIONS;
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
@@ -376,12 +367,9 @@ export function DesiredFeaturesPicker({
               </Badge>
             </div>
             {isBackupTab ? (
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Resumo das cargas cadastradas">
-                <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
-                <Metric icon={Zap} label="Máxima" value={(peakW / 1000).toFixed(2)} unit="kVA" />
-                <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
-                <Metric icon={Layers} label="Modo de cálculo" value={peakCalcModeLabels[peakCalcMode]} />
-              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Selecione os equipamentos que precisam permanecer ligados durante uma falta de energia.
+              </p>
             ) : (
               activeFeature.description && (
                 <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
@@ -390,11 +378,6 @@ export function DesiredFeaturesPicker({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {isBackupTab && (
-              <Badge variant="secondary">
-                {loadsCount} {loadsCount === 1 ? 'carga' : 'cargas'}
-              </Badge>
-            )}
             <Button
               type="button"
               variant={isActiveEnabled ? 'default' : 'outline'}
@@ -413,6 +396,15 @@ export function DesiredFeaturesPicker({
             </Button>
           </div>
         </div>
+
+        {isBackupTab && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Resumo das cargas cadastradas">
+            <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
+            <Metric icon={Zap} label="Máxima" value={(peakW / 1000).toFixed(2)} unit="kVA" />
+            <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
+            <Metric icon={Layers} label="Cargas" value={String(loadsCount)} />
+          </div>
+        )}
 
         {isBackupTab && isActiveEnabled && <LoadSelector defaultToMine />}
 
@@ -641,6 +633,14 @@ export function DesiredFeaturesPicker({
                 A energia fora ponta é calculada automaticamente: consumo total (Fotovoltaico) menos ponta e intermediária.
               </p>
             </div>
+            {whiteTariff &&
+              (whiteTariff.pontaTariffPerKwh < whiteTariff.foraPontaTariffPerKwh ||
+                whiteTariff.intermediateTariffPerKwh < whiteTariff.foraPontaTariffPerKwh) && (
+                <p className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Para estimar economia, as tarifas de ponta e intermediária devem ser maiores ou iguais à tarifa fora de ponta.
+                </p>
+              )}
           </div>
           </div>
         )}

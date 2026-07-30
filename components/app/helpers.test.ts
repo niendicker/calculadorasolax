@@ -3,6 +3,7 @@ import {
   TARIFF_BUSINESS_DAYS_PER_MONTH,
   buildMarginSummary,
   buildPdfFileName,
+  calculateDegradedPaybackMonths,
   calculateSystemCost,
   calculateTariffSavings,
   checkPhaseVoltageCompatibility,
@@ -246,7 +247,7 @@ describe('calculateSystemCost', () => {
     expect(result.isComplete).toBe(true);
   });
 
-  it('includes accessories from the solution.accessories lines', () => {
+  it('includes required accessories and excludes optional recommendations from the investment', () => {
     const stock = [
       makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
       makeStockItem({ id: '2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 8000 }),
@@ -261,11 +262,44 @@ describe('calculateSystemCost', () => {
       }),
       stock
     );
-    // inverter (5000x1) + battery (8000x1) + Smart Meter (300x2) priced; Matebox unpriced
+    // inverter + battery + required Smart Meter; the optional Matebox is not
+    // part of the investment until the user explicitly opts into it.
     expect(result.totalCost).toBe(5000 + 8000 + 300 * 2);
     expect(result.pricedItemsCount).toBe(3);
-    expect(result.totalItemsCount).toBe(4);
-    expect(result.isComplete).toBe(false);
+    expect(result.totalItemsCount).toBe(3);
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('does not charge bundled accessories already included with a parent product', () => {
+    const stock = [
+      makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
+      makeStockItem({ id: '2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 8000 }),
+      makeStockItem({ id: '3', productType: 'accessory', productModel: 'WiFi Dongle', unitValue: 500 }),
+    ];
+    const result = calculateSystemCost(
+      makeSolution({ accessories: [makeAccessory({ model: 'WiFi Dongle', bundled: true })] }),
+      stock
+    );
+    expect(result.totalCost).toBe(5000 + 8000);
+    expect(result.totalItemsCount).toBe(2);
+  });
+
+  it('prices Master and expansion battery models independently', () => {
+    const stock = [
+      makeStockItem({ id: '1', productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 5000 }),
+      makeStockItem({ id: '2', productType: 'battery', productModel: 'Master', unitValue: 8000 }),
+      makeStockItem({ id: '3', productType: 'battery', productModel: 'Slave', unitValue: 6000 }),
+    ];
+    const result = calculateSystemCost(
+      makeSolution({ batteryModel: 'Master', batteryQty: 3, inverterQty: 1, batteryPortsUsed: 1 }),
+      stock,
+      [],
+      [],
+      undefined,
+      [{ model: 'Master', expansionModel: 'Slave' }]
+    );
+    expect(result.totalCost).toBe(5000 + 8000 + 6000 * 2);
+    expect(result.isComplete).toBe(true);
   });
 
   it('still prices accessories persisted in the legacy string format', () => {
@@ -403,6 +437,22 @@ describe('calculateTariffSavings', () => {
     );
     expect(result!.monthlySavings).toBe(0);
     expect(result!.annualSavings).toBe(0);
+    expect(result!.tariffOrderValid).toBe(true);
+  });
+
+  it('flags an invalid tariff order and never returns a negative absolute bill', () => {
+    const result = calculateTariffSavings(
+      makeWhiteTariff({
+        pontaEnergyWh: 4000,
+        intermediateEnergyWh: 2000,
+        pontaTariffPerKwh: 0.6,
+        intermediateTariffPerKwh: 0.7,
+        foraPontaTariffPerKwh: 0.8,
+      }),
+      { totalMonthlyConsumptionKwh: 400 }
+    );
+    expect(result!.tariffOrderValid).toBe(false);
+    expect(result!.monthlyCostWithSolaxBrl).toBeGreaterThanOrEqual(0);
   });
 
   it('leaves the absolute cost fields null when no total consumption is given', () => {
@@ -456,14 +506,12 @@ describe('calculateTariffSavings', () => {
     const result = calculateTariffSavings(whiteTariff, { availableEnergyWh: 3000, pvMonthlyGenerationKwh: 150 });
 
     const pontaShiftKwh = 3; // capped by battery capacity
-    const remainingPontaGridKwh = 4 - pontaShiftKwh;
     const intermediateShiftKwh = 0; // battery capacity already used up by ponta
-    const remainingIntermediateGridKwh = 2 - intermediateShiftKwh;
     const dailyExcessSolarKwh = 5 - pontaShiftKwh - intermediateShiftKwh;
 
     const expectedMonthlySavings =
       TARIFF_BUSINESS_DAYS_PER_MONTH *
-        (pontaShiftKwh * 1.2 + remainingPontaGridKwh * (1.2 - 0.8) + intermediateShiftKwh * 1.0 + remainingIntermediateGridKwh * (1.0 - 0.8)) +
+        (pontaShiftKwh * 1.2 + intermediateShiftKwh * 1.0) +
       dailyExcessSolarKwh * 0.8 * 30;
     const expectedPvMonthlySavings =
       TARIFF_BUSINESS_DAYS_PER_MONTH * (pontaShiftKwh * 1.2 + intermediateShiftKwh * 1.0) + dailyExcessSolarKwh * 0.8 * 30;
@@ -488,6 +536,44 @@ describe('calculateTariffSavings', () => {
     // Ponta fully shifted (2 kWh/dia) + intermediária shifted 3 kWh/dia (remaining battery capacity).
     const expectedPvMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (2 * 1.2 + 3 * 1.0);
     expect(result!.pvMonthlySavings).toBeCloseTo(expectedPvMonthlySavings);
+  });
+
+  it('applies the battery and inverter efficiencies to grid-charged arbitrage', () => {
+    const ideal = calculateTariffSavings(makeWhiteTariff({ pontaTariffPerKwh: 1.3, foraPontaTariffPerKwh: 0.8 }));
+    const realistic = calculateTariffSavings(
+      makeWhiteTariff({ pontaTariffPerKwh: 1.3, foraPontaTariffPerKwh: 0.8 }),
+      {
+        batteryRoundTripEfficiencyPercent: 95,
+        inverterChargeEfficiencyPercent: 97,
+        inverterDischargeEfficiencyPercent: 97,
+      }
+    );
+    expect(realistic!.effectiveRoundTripEfficiencyPct).toBeCloseTo(89.3855);
+    expect(realistic!.monthlySavings).toBeLessThan(ideal!.monthlySavings);
+  });
+
+  it('shares the usable battery energy between ponta and intermediária and respects initial SOH', () => {
+    const result = calculateTariffSavings(
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 4000 }),
+      { availableEnergyWh: 6000, initialSohPercent: 80 }
+    );
+    expect(result!.dailyPontaServedKwh).toBe(4);
+    expect(result!.dailyIntermediateServedKwh).toBeCloseTo(0.8);
+  });
+
+  it('extends projected payback as annual SOH loss reduces battery savings', () => {
+    const withoutFade = calculateDegradedPaybackMonths(1800, {
+      batteryMonthlySavings: 100,
+      pvMonthlySavings: 0,
+      annualSohLossPercent: 0,
+    });
+    const withFade = calculateDegradedPaybackMonths(1800, {
+      batteryMonthlySavings: 100,
+      pvMonthlySavings: 0,
+      annualSohLossPercent: 20,
+    });
+    expect(withoutFade).toBe(18);
+    expect(withFade).toBe(20);
   });
 });
 

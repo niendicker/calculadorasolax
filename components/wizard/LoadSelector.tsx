@@ -7,7 +7,7 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, ChevronDown, Clock, Plus } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Clock, ListPlus, Plus, SlidersHorizontal } from 'lucide-react';
 import { ACCOUNT_LIMITS, isLimitError, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPresetLoad, LoadPhase, LoadVoltage, SingleLoad } from '@/lib/types';
@@ -207,15 +207,39 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         </p>
       )}
 
-      <div className="rounded-lg border bg-background p-3">
-        <Label htmlFor="operationHours" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Clock className="h-3.5 w-3.5 shrink-0" />
-          <InfoLabel
-            label="Tempo de operação"
-            tip="Tempo compartilhado por todas as cargas durante o backup. Cada carga usa o próprio percentual de uso para escalar sua energia dentro desse tempo."
-          />
-        </Label>
-        <div className="mt-2 flex items-center gap-2">
+      <section className="rounded-xl border bg-background p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Clock className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <Label htmlFor="operationHours" className="text-sm font-semibold">
+              <InfoLabel
+                label="Por quanto tempo as cargas devem operar?"
+                tip="Tempo compartilhado por todas as cargas durante o backup. Cada carga usa o próprio percentual de uso para escalar sua energia dentro desse tempo."
+              />
+            </Label>
+            <p className="mt-1 text-xs text-muted-foreground">Escolha uma duração comum ou informe outro valor.</p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {[2, 4, 8, 12].map((hours) => (
+            <button
+              key={hours}
+              type="button"
+              aria-pressed={residentialOptions.operationHours === hours}
+              onClick={() => setOperationHours(hours)}
+              className={cn(
+                'h-9 min-w-14 rounded-lg border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                residentialOptions.operationHours === hours
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground'
+              )}
+            >
+              {hours} h
+            </button>
+          ))}
+          <span className="text-xs text-muted-foreground">ou</span>
           <Input
             id="operationHours"
             type="number"
@@ -223,24 +247,34 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
             max={MAX_OPERATION_HOURS}
             step={0.5}
             placeholder="Ex.: 4"
-            className="max-w-28"
+            aria-label="Tempo de operação personalizado"
+            className="max-w-24"
             value={residentialOptions.operationHours || ''}
             onChange={(event) => {
               const value = Number(event.target.value) || 0;
               setOperationHours(Math.min(MAX_OPERATION_HOURS, Math.max(0, value)));
             }}
           />
-          <span className="text-sm text-muted-foreground">horas (máx. {MAX_OPERATION_HOURS} h)</span>
+          <span className="text-sm text-muted-foreground">horas</span>
         </div>
         {!residentialOptions.operationHours && (
-          <p className="mt-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          <p className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Informe o tempo de operação para calcular a energia das cargas.
           </p>
         )}
-      </div>
+      </section>
 
-      <div className="space-y-2">
+      <section className="space-y-2 rounded-xl border bg-background p-3">
+        <div className="px-1 pb-1">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <ListPlus className="h-4 w-4 text-primary" aria-hidden="true" />
+              Adicionar cargas
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">Use uma predefinição, pesquise no catálogo ou crie uma carga personalizada.</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -524,9 +558,19 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
           )}
         </div>
         )}
-      </div>
+      </section>
 
-      <div className="space-y-3">
+      <div className="flex flex-col gap-4">
+          <section className="order-1 space-y-3 rounded-xl border bg-background p-4">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
+              Configurações avançadas
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ajuste como os picos de partida e a distribuição entre fases entram no dimensionamento.
+            </p>
+          </div>
           {residentialOptions.loads.length > 0 && (
           <div>
             <p className="text-xs font-medium">
@@ -535,7 +579,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 tip="Define como as cargas com maior corrente de partida somam na potência aparente máxima do sistema, usado para escolher o inversor."
               />
             </p>
-            <div className="mt-2 grid grid-cols-1 gap-1 rounded-lg bg-muted p-1 sm:grid-cols-3">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               {(
                 [
                   {
@@ -644,6 +688,14 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                       <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
                         {phaseW.toFixed(0)} VA
                       </p>
+                      {maxPowerPerPhaseW && (
+                        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                          <div
+                            className={cn('h-full rounded-full', overLimit ? 'bg-destructive' : 'bg-primary')}
+                            style={{ width: `${Math.min(100, (phaseW / maxPowerPerPhaseW) * 100)}%` }}
+                          />
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -655,6 +707,24 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               )}
             </div>
           )}
+          {residentialOptions.loads.length === 0 && (
+            <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+              Adicione ao menos uma carga para liberar estas configurações.
+            </p>
+          )}
+          </section>
+          <section className="order-2 space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold">Cargas do projeto</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Revise consumo, partida e ligação elétrica de cada equipamento.
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {residentialOptions.loads.length}/{ACCOUNT_LIMITS.loadsPerProject}
+            </Badge>
+          </div>
           {effectivePhaseFilter !== 'all' && visibleLoads.length === 0 && (
             <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
               Nenhuma carga conectada à fase {effectivePhaseFilter}.
@@ -690,6 +760,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
               />
             ))}
           </div>
+          </section>
         </div>
     </div>
   );

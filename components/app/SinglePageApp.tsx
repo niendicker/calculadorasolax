@@ -715,6 +715,8 @@ export function SinglePageApp() {
               autosaveLastSavedAt={autosaveLastSavedAt}
               productMedia={productMedia}
               userStockItems={userStockItems}
+              services={services}
+              userServices={userServices}
               marginSettings={marginSettings}
               onChooseMicrogridVariant={chooseMicrogridVariant}
             />
@@ -989,6 +991,7 @@ export function SinglePageApp() {
           atsPhotoUrl={residentialOptions.atsPhotoUrl}
           atsBackupAcknowledged={residentialOptions.atsBackupAcknowledged}
           batteryCatalog={batteryCatalog}
+          inverterCatalog={inverterCatalog}
           accessoryCatalog={accessoryCatalog}
           productMedia={productMedia}
         />

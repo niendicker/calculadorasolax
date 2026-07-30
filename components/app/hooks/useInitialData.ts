@@ -62,11 +62,11 @@ export function useInitialData({
           .order('category'),
         supabase
           .from('batteries')
-          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, expansion_model, image_url, documents')
+          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, round_trip_efficiency_percent, initial_soh_percent, annual_soh_loss_percent, warranty_end_soh_percent, expansion_model, image_url, documents')
           .order('model'),
         supabase
           .from('inverters')
-          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, image_url, documents, flags')
+          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, battery_charge_efficiency_percent, battery_discharge_efficiency_percent, standby_consumption_w, max_battery_charge_power_w, max_battery_discharge_power_w, image_url, documents, flags')
           .order('model'),
         supabase
           .from('accessories')
@@ -154,6 +154,10 @@ export function useInitialData({
             standardPowerKw: row.standard_power_kw === null ? null : Number(row.standard_power_kw),
             peakPowerKw: row.peak_power_kw === null ? null : Number(row.peak_power_kw),
             minSocPercent: Number(row.min_soc_percent ?? 10),
+            roundTripEfficiencyPercent: Number(row.round_trip_efficiency_percent ?? 95),
+            initialSohPercent: Number(row.initial_soh_percent ?? 100),
+            annualSohLossPercent: Number(row.annual_soh_loss_percent ?? 2),
+            warrantyEndSohPercent: row.warranty_end_soh_percent == null ? null : Number(row.warranty_end_soh_percent),
             expansionModel: row.expansion_model ?? null,
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
@@ -172,6 +176,11 @@ export function useInitialData({
             standardPowerKva: row.standard_power_kva === null ? null : Number(row.standard_power_kva),
             peakPowerKva: row.peak_power_kva === null ? null : Number(row.peak_power_kva),
             maxPowerPerPhaseW: row.max_power_per_phase_w === null ? null : Number(row.max_power_per_phase_w),
+            batteryChargeEfficiencyPercent: Number(row.battery_charge_efficiency_percent ?? 97),
+            batteryDischargeEfficiencyPercent: Number(row.battery_discharge_efficiency_percent ?? 97),
+            standbyConsumptionW: Number(row.standby_consumption_w ?? 0),
+            maxBatteryChargePowerW: row.max_battery_charge_power_w == null ? null : Number(row.max_battery_charge_power_w),
+            maxBatteryDischargePowerW: row.max_battery_discharge_power_w == null ? null : Number(row.max_battery_discharge_power_w),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
             flags: (row.flags ?? []) as InverterCatalogOption['flags'],

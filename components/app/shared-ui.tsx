@@ -188,16 +188,16 @@ export function ReportMetric({
   return (
     <div
       className={cn(
-        'rounded-xl border p-3.5',
+        'print-avoid-break min-w-0 overflow-hidden rounded-xl border p-3.5',
         highlight ? 'border-primary/30 bg-primary/5' : 'border-border/70 bg-muted/30'
       )}
     >
-      <p className={cn('flex items-center gap-1.5 text-xs', highlight ? 'text-primary/80' : 'text-muted-foreground')}>
-        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+      <p className={cn('flex min-w-0 items-start gap-1.5 text-xs', highlight ? 'text-primary/80' : 'text-muted-foreground')}>
+        {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
         {label}
       </p>
-      <p className={cn('mt-1.5 text-base font-semibold', highlight ? 'text-primary' : 'text-foreground')}>{value}</p>
-      {note && <p className="mt-0.5 text-[11px] text-muted-foreground">{note}</p>}
+      <p className={cn('mt-1.5 break-words text-base font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]', highlight ? 'text-primary' : 'text-foreground')}>{value}</p>
+      {note && <p className="mt-0.5 break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{note}</p>}
     </div>
   );
 }
@@ -208,12 +208,12 @@ export function ReportMetric({
  * "spreadsheet-y" instead of like a document meant to be read. */
 export function ReportInfoRow({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-2 text-sm last:border-0">
+    <div className="print-avoid-break flex items-start justify-between gap-4 border-b border-border/50 py-2 text-sm last:border-0">
       <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
         {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
         {label}
       </span>
-      <span className="min-w-0 truncate text-right font-medium text-foreground">{value}</span>
+      <span className="min-w-0 break-words text-right font-medium text-foreground [overflow-wrap:anywhere]">{value}</span>
     </div>
   );
 }

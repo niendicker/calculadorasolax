@@ -153,6 +153,7 @@ export interface SystemCostEstimate {
   totalItemsCount: number;
   /** false when at least one item in the solution has no price in the user's stock. */
   isComplete: boolean;
+  missingItems: string[];
 }
 
 const noMargin: MarginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 };
@@ -164,8 +165,8 @@ const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> =
 };
 
 /** Sums the user's own stock price for every model in the solution (inverter,
- * battery, each accessory) by quantity — marked up by the matching category's
- * sell margin (see MarginSettings) — plus the project's own services (priced
+ * battery parts and each required, non-bundled accessory) by quantity — marked
+ * up by the matching category's sell margin (see MarginSettings) — plus the project's own services (priced
  * as-is from the user's services catalog by serviceId, no margin applied:
  * services have no separate cost basis). Together, this is the final cost of
  * the solution shown to the customer, i.e. what every economic analysis
@@ -178,7 +179,8 @@ export function calculateSystemCost(
   userStockItems: UserStockItem[],
   services: ProjectServiceLine[] = [],
   userServices: UserServiceItem[] = [],
-  marginSettings: MarginSettings = noMargin
+  marginSettings: MarginSettings = noMargin,
+  batteryCatalog: { model: string; expansionModel?: string | null }[] = []
 ): SystemCostEstimate {
   function priceFor(productType: StockProductType, model: string): number | undefined {
     const unitValue = userStockItems.find(
@@ -189,25 +191,40 @@ export function calculateSystemCost(
     return unitValue * (1 + marginPercent / 100);
   }
 
+  const batteryItems = solution
+    ? batteryQuantityBreakdown(
+        solution.batteryModel,
+        solution.batteryQty,
+        batteryCatalog,
+        (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+      ).map((part) => ({ productType: 'battery' as const, model: part.model, qty: part.qty }))
+    : [];
+
   const productItems: { productType: StockProductType; model: string; qty: number }[] = solution
     ? [
         { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
-        { productType: 'battery', model: solution.batteryModel, qty: solution.batteryQty },
-        ...solution.accessories.map((accessory) => {
-          const { model, qty } = normalizeAccessoryLine(accessory);
-          return { productType: 'accessory' as const, model, qty };
+        ...batteryItems,
+        ...solution.accessories.flatMap((accessory) => {
+          const { model, qty, optional, bundled } = normalizeAccessoryLine(accessory);
+          // Bundled accessories are already included in their parent product's
+          // price. Optional accessories only join the investment once the app
+          // has an explicit opt-in state; today they are recommendations only.
+          return bundled || optional ? [] : [{ productType: 'accessory' as const, model, qty }];
         }),
       ]
     : [];
 
   let totalCost = 0;
   let pricedItemsCount = 0;
+  const missingItems: string[] = [];
 
   for (const item of productItems) {
     const unitValue = priceFor(item.productType, item.model);
     if (unitValue !== undefined) {
       totalCost += unitValue * item.qty;
       pricedItemsCount += 1;
+    } else {
+      missingItems.push(item.model);
     }
   }
 
@@ -216,6 +233,8 @@ export function calculateSystemCost(
     if (unitValue !== undefined) {
       totalCost += unitValue * line.qty;
       pricedItemsCount += 1;
+    } else {
+      missingItems.push(line.name);
     }
   }
 
@@ -226,6 +245,7 @@ export function calculateSystemCost(
     pricedItemsCount,
     totalItemsCount,
     isComplete: pricedItemsCount === totalItemsCount,
+    missingItems,
   };
 }
 
@@ -516,6 +536,18 @@ export interface TariffSavingsEstimate {
    * ponta rate. Zero when there's no PV generation estimate; always 0 <=
    * pvMonthlySavings <= monthlySavings. */
   pvMonthlySavings: number;
+  /** Savings produced by shifting energy with the battery, excluding the
+   * portion attributed to photovoltaic generation. */
+  batteryMonthlySavings: number;
+  /** False when ponta/intermediária are not actually more expensive than
+   * fora ponta, making the arbitrage estimate misleading or negative. */
+  tariffOrderValid: boolean;
+  effectiveRoundTripEfficiencyPct: number;
+  initialSohPercent: number;
+  annualSohLossPercent: number;
+  standbyMonthlyCost: number;
+  dailyPontaServedKwh: number;
+  dailyIntermediateServedKwh: number;
 }
 
 /** Tarifa Branca's peak surcharge applies on business days — used as the
@@ -527,6 +559,38 @@ export const TARIFF_BUSINESS_DAYS_PER_MONTH = 22;
  * daily figure — solar generates every day, unlike the tariff windows above
  * which only apply on business days. */
 const DAYS_PER_MONTH = 30;
+const PONTA_WINDOW_HOURS = 3;
+const INTERMEDIATE_WINDOW_HOURS = 2;
+
+export interface EnergyPerformanceOptions {
+  batteryRoundTripEfficiencyPercent?: number;
+  inverterChargeEfficiencyPercent?: number;
+  inverterDischargeEfficiencyPercent?: number;
+  initialSohPercent?: number;
+  annualSohLossPercent?: number;
+  standbyConsumptionW?: number;
+  maxBatteryDischargePowerW?: number | null;
+  maxBatteryChargePowerW?: number | null;
+}
+
+/** Simple payback with battery savings reduced by the catalogued SOH loss
+ * each year. PV savings remain independent from battery ageing. */
+export function calculateDegradedPaybackMonths(
+  investment: number,
+  savings: Pick<TariffSavingsEstimate, 'batteryMonthlySavings' | 'pvMonthlySavings' | 'annualSohLossPercent'>,
+  maxYears = 25
+) {
+  if (!(investment > 0)) return null;
+  let accumulated = 0;
+  const annualFade = Math.max(0, Math.min(0.99, savings.annualSohLossPercent / 100));
+  for (let month = 1; month <= maxYears * 12; month += 1) {
+    const yearIndex = Math.floor((month - 1) / 12);
+    const monthlyBatterySavings = Math.max(0, savings.batteryMonthlySavings) * (1 - annualFade) ** yearIndex;
+    accumulated += monthlyBatterySavings + Math.max(0, savings.pvMonthlySavings);
+    if (accumulated >= investment) return month;
+  }
+  return null;
+}
 
 /** Combined estimate of "Ganho com SolaX" — battery-shift savings from
  * Tarifa Branca plus PV generation savings, folded into a single figure
@@ -550,8 +614,9 @@ const DAYS_PER_MONTH = 30;
  * by splitting the total into ponta energy, intermediária energy (both
  * already known) and the remaining fora ponta energy (never stored
  * directly, always derived as the leftover). The difference between the two
- * totals always equals monthlySavings — this is the same figure, just
- * decomposed instead of shown as a bare delta. */
+ * totals normally equals monthlySavings — this is the same figure, just
+ * decomposed instead of shown as a bare delta. The projected bill is clamped
+ * at zero for pathological inputs where estimated savings exceed the bill. */
 export function calculateTariffSavings(
   whiteTariff: WhiteTariffConfig | null,
   options: {
@@ -561,31 +626,79 @@ export function calculateTariffSavings(
      * of fora ponta. */
     availableEnergyWh?: number;
     pvMonthlyGenerationKwh?: number | null;
-  } = {}
+  } & EnergyPerformanceOptions = {}
 ): TariffSavingsEstimate | null {
   if (!whiteTariff) return null;
-  const { totalMonthlyConsumptionKwh = null, availableEnergyWh = 0, pvMonthlyGenerationKwh = null } = options;
+  const {
+    totalMonthlyConsumptionKwh = null,
+    availableEnergyWh = 0,
+    pvMonthlyGenerationKwh = null,
+    batteryRoundTripEfficiencyPercent = 100,
+    inverterChargeEfficiencyPercent = 100,
+    inverterDischargeEfficiencyPercent = 100,
+    initialSohPercent = 100,
+    annualSohLossPercent = 0,
+    standbyConsumptionW = 0,
+    maxBatteryDischargePowerW = null,
+    maxBatteryChargePowerW = null,
+  } = options;
 
   const dailyPontaKwh = whiteTariff.pontaEnergyWh / 1000;
   const dailyIntermediateKwh = whiteTariff.intermediateEnergyWh / 1000;
-  const dailyBatteryCapacityKwh = availableEnergyWh / 1000;
+  const batteryRte = Math.max(0.01, Math.min(1, batteryRoundTripEfficiencyPercent / 100));
+  const chargeEfficiency = Math.max(0.01, Math.min(1, inverterChargeEfficiencyPercent / 100));
+  const dischargeEfficiency = Math.max(0.01, Math.min(1, inverterDischargeEfficiencyPercent / 100));
+  const effectiveRte = batteryRte * chargeEfficiency * dischargeEfficiency;
+  const sohFactor = Math.max(0.01, Math.min(1, initialSohPercent / 100));
+  const hasCapacityLimit = availableEnergyWh > 0;
+  const sohAdjustedCapacityKwh = hasCapacityLimit
+    ? (availableEnergyWh / 1000) * sohFactor * dischargeEfficiency
+    : Number.POSITIVE_INFINITY;
+  const maxChargeKw = maxBatteryChargePowerW && maxBatteryChargePowerW > 0
+    ? maxBatteryChargePowerW / 1000
+    : Number.POSITIVE_INFINITY;
+  const dailyBatteryCapacityKwh = Math.min(sohAdjustedCapacityKwh, maxChargeKw * 19 * effectiveRte);
   const dailySolarKwh = pvMonthlyGenerationKwh ? pvMonthlyGenerationKwh / DAYS_PER_MONTH : 0;
-
-  const dailySolarToBattery = Math.min(dailySolarKwh, dailyBatteryCapacityKwh);
-  const dailySolarToPonta = Math.min(dailySolarToBattery, dailyPontaKwh);
-  const dailySolarToIntermediate = Math.min(dailySolarToBattery - dailySolarToPonta, dailyIntermediateKwh);
-  const dailySolarExcessKwh = dailySolarKwh - dailySolarToPonta - dailySolarToIntermediate;
 
   const pontaSpread = whiteTariff.pontaTariffPerKwh - whiteTariff.foraPontaTariffPerKwh;
   const intermediateSpread = whiteTariff.intermediateTariffPerKwh - whiteTariff.foraPontaTariffPerKwh;
-
-  const monthlyPontaSavings =
-    TARIFF_BUSINESS_DAYS_PER_MONTH *
-    (dailySolarToPonta * whiteTariff.pontaTariffPerKwh + (dailyPontaKwh - dailySolarToPonta) * pontaSpread);
-  const monthlyIntermediateSavings =
-    TARIFF_BUSINESS_DAYS_PER_MONTH *
-    (dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh +
-      (dailyIntermediateKwh - dailySolarToIntermediate) * intermediateSpread);
+  const maxDischargeKw = maxBatteryDischargePowerW && maxBatteryDischargePowerW > 0
+    ? maxBatteryDischargePowerW / 1000
+    : Number.POSITIVE_INFINITY;
+  const gridPontaEconomical = whiteTariff.pontaTariffPerKwh > whiteTariff.foraPontaTariffPerKwh / effectiveRte;
+  const gridIntermediateEconomical = whiteTariff.intermediateTariffPerKwh > whiteTariff.foraPontaTariffPerKwh / effectiveRte;
+  const dailyPontaServedKwh = Math.min(
+    dailyPontaKwh,
+    dailyBatteryCapacityKwh,
+    maxDischargeKw * PONTA_WINDOW_HOURS
+  );
+  const capacityAfterPonta = Math.max(0, dailyBatteryCapacityKwh - dailyPontaServedKwh);
+  const dailyIntermediateServedKwh = Math.min(
+    dailyIntermediateKwh,
+    capacityAfterPonta,
+    maxDischargeKw * INTERMEDIATE_WINDOW_HOURS
+  );
+  const dailyDeliveredKwh = dailyPontaServedKwh + dailyIntermediateServedKwh;
+  const dailyPvDeliveredKwh = Math.min(dailyDeliveredKwh, dailySolarKwh * effectiveRte);
+  const dailySolarToPonta = Math.min(dailyPvDeliveredKwh, dailyPontaServedKwh);
+  const dailySolarToIntermediate = Math.min(
+    dailyPvDeliveredKwh - dailySolarToPonta,
+    dailyIntermediateServedKwh
+  );
+  const dailyGridToPonta = gridPontaEconomical ? dailyPontaServedKwh - dailySolarToPonta : 0;
+  const dailyGridToIntermediate = gridIntermediateEconomical
+    ? dailyIntermediateServedKwh - dailySolarToIntermediate
+    : 0;
+  const dailySolarInputUsedKwh = dailyPvDeliveredKwh / effectiveRte;
+  const dailySolarExcessKwh = Math.max(0, dailySolarKwh - dailySolarInputUsedKwh);
+  const monthlyPontaSavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (
+    dailySolarToPonta * whiteTariff.pontaTariffPerKwh +
+    dailyGridToPonta * (whiteTariff.pontaTariffPerKwh - whiteTariff.foraPontaTariffPerKwh / effectiveRte)
+  );
+  const monthlyIntermediateSavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (
+    dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh +
+    dailyGridToIntermediate * (whiteTariff.intermediateTariffPerKwh - whiteTariff.foraPontaTariffPerKwh / effectiveRte)
+  );
   const monthlyExcessSolarSavings = dailySolarExcessKwh * whiteTariff.foraPontaTariffPerKwh * DAYS_PER_MONTH;
 
   const pvMonthlySavings =
@@ -593,7 +706,10 @@ export function calculateTariffSavings(
       (dailySolarToPonta * whiteTariff.pontaTariffPerKwh + dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh) +
     monthlyExcessSolarSavings;
 
-  const monthlySavings = monthlyPontaSavings + monthlyIntermediateSavings + monthlyExcessSolarSavings;
+  const standbyMonthlyCost = Math.max(0, standbyConsumptionW) * 24 * DAYS_PER_MONTH / 1000 * whiteTariff.foraPontaTariffPerKwh;
+  const batteryMonthlySavings = Math.max(0, monthlyPontaSavings + monthlyIntermediateSavings - pvMonthlySavings - standbyMonthlyCost);
+  const monthlySavings = batteryMonthlySavings + pvMonthlySavings;
+  const tariffOrderValid = pontaSpread >= 0 && intermediateSpread >= 0;
 
   let monthlyCostWithoutSolaxBrl: number | null = null;
   let monthlyCostWithSolaxBrl: number | null = null;
@@ -606,7 +722,7 @@ export function calculateTariffSavings(
         monthlyPontaKwh * whiteTariff.pontaTariffPerKwh +
         monthlyIntermediateKwh * whiteTariff.intermediateTariffPerKwh +
         monthlyForaPontaKwh * whiteTariff.foraPontaTariffPerKwh;
-      monthlyCostWithSolaxBrl = monthlyCostWithoutSolaxBrl - monthlySavings;
+      monthlyCostWithSolaxBrl = Math.max(0, monthlyCostWithoutSolaxBrl - Math.max(0, monthlySavings));
     }
   }
 
@@ -617,5 +733,13 @@ export function calculateTariffSavings(
     monthlyCostWithoutSolaxBrl,
     monthlyCostWithSolaxBrl,
     pvMonthlySavings,
+    batteryMonthlySavings,
+    tariffOrderValid,
+    effectiveRoundTripEfficiencyPct: effectiveRte * 100,
+    initialSohPercent: sohFactor * 100,
+    annualSohLossPercent: Math.max(0, annualSohLossPercent),
+    standbyMonthlyCost,
+    dailyPontaServedKwh,
+    dailyIntermediateServedKwh,
   };
 }

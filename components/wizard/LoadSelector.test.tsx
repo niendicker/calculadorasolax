@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { NextIntlClientProvider } from 'next-intl';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
@@ -550,7 +550,12 @@ describe('LoadSelector: blank load card', () => {
   it('shows the "Adicionar carga" tile even with no loads yet, and adds a blank draft card on click', () => {
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
+    const projectLoads = screen.getByRole('heading', { name: 'Cargas do projeto' }).closest('section');
+    expect(projectLoads).not.toBeNull();
+    const addLoadCard = within(projectLoads as HTMLElement).getByRole('button', { name: 'Adicionar carga' });
+    expect(addLoadCard).toHaveClass('h-full', 'min-h-0');
+    expect(addLoadCard.parentElement?.firstElementChild).toBe(addLoadCard);
+    fireEvent.click(addLoadCard);
 
     expect(screen.getByLabelText('Nome')).toBeInTheDocument();
     expect(screen.getByLabelText('Potência (VA)')).toBeInTheDocument();

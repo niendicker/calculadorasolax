@@ -31,6 +31,10 @@ export interface BatteryCatalogOption {
   standardPowerKw: number | null;
   peakPowerKw: number | null;
   minSocPercent: number;
+  roundTripEfficiencyPercent?: number;
+  initialSohPercent?: number;
+  annualSohLossPercent?: number;
+  warrantyEndSohPercent?: number | null;
   /** Model shown for units 2..N when this is a "Master" battery that scales via
    * electrically-identical expansion/"Slave" units instead of more of itself. */
   expansionModel?: string | null;
@@ -48,6 +52,11 @@ export interface InverterCatalogOption {
   standardPowerKva: number | null;
   peakPowerKva: number | null;
   maxPowerPerPhaseW: number | null;
+  batteryChargeEfficiencyPercent?: number;
+  batteryDischargeEfficiencyPercent?: number;
+  standbyConsumptionW?: number;
+  maxBatteryChargePowerW?: number | null;
+  maxBatteryDischargePowerW?: number | null;
   imageUrl: string | null;
   documents: ProductDocument[];
   flags: InverterFlag[];

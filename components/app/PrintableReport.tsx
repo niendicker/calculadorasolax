@@ -46,6 +46,7 @@ import {
   batteryQuantityBreakdown,
   buildMarginSummary,
   calculateSystemCost,
+  calculateDegradedPaybackMonths,
   calculateTariffSavings,
   formatCurrencyBRL,
   normalizeAccessoryLine,
@@ -57,6 +58,7 @@ import {
   topologyLabels,
   type AccessoryCatalogOption,
   type BatteryCatalogOption,
+  type InverterCatalogOption,
   type InlineProfile,
   type ProductMedia,
 } from './types';
@@ -69,6 +71,18 @@ const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   pv: SolarPanel,
   white_tariff: Receipt,
 };
+
+/** Produces a compact, stable reference for customer-facing areas while the
+ * complete rule identifier remains available in the technical appendix. */
+function shortSolutionReference(solutionCode?: string) {
+  if (!solutionCode) return null;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < solutionCode.length; index += 1) {
+    hash ^= solutionCode.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `SOL-${(hash >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
+}
 
 /** Renders the detail line for one selected feature in "Funcionalidades
  * selecionadas" — every relevant config value the user entered for that
@@ -167,15 +181,15 @@ function ProductLine({
   description?: string | null;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-border/50 py-3 last:border-0">
+    <div className="print-avoid-break flex items-start justify-between gap-4 border-b border-border/50 py-3 last:border-0">
       <div className="flex min-w-0 items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">{category}</p>
-          <p className="text-sm font-semibold text-foreground">{nickname || model}</p>
-          {nickname && <p className="text-xs text-muted-foreground">{model}</p>}
+          <p className="break-words text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{nickname || model}</p>
+          {nickname && <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{model}</p>}
           {alert && (
             <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-destructive">
               <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -196,8 +210,6 @@ function ProductsList({
   solution,
   batteryCatalog,
   accessoryCatalog,
-  userStockItems,
-  marginSettings,
   services,
   userServices,
   productMedia,
@@ -213,8 +225,6 @@ function ProductsList({
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
-  userStockItems: UserStockItem[];
-  marginSettings?: MarginSettings;
   /** Only meaningful on the primary ProductsList — services (installation,
    * freight, etc.) are a one-time project cost, not tied to whichever
    * battery is being compared, so the secondary "comparação" variant omits
@@ -230,7 +240,6 @@ function ProductsList({
   peakW: number;
   dailyKwh: number;
 }) {
-  const systemCost = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings);
   const batteryParts = batteryQuantityBreakdown(
     solution.batteryModel,
     solution.batteryQty,
@@ -243,7 +252,7 @@ function ProductsList({
     : buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
 
   return (
-    <section className="mb-8">
+    <section className="print-section mb-8">
       <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
         <Boxes className="h-4 w-4 text-primary" aria-hidden="true" />
         {title}
@@ -377,13 +386,6 @@ function ProductsList({
           </div>
         </div>
       )}
-      {systemCost.pricedItemsCount > 0 && (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Custo total do sistema: <span className="font-medium text-foreground">{formatCurrencyBRL(systemCost.totalCost)}</span>
-          {!systemCost.isComplete &&
-            ` (parcial: ${systemCost.pricedItemsCount} de ${systemCost.totalItemsCount} itens com valor cadastrado)`}
-        </p>
-      )}
       {(() => {
         const visibleComments = (solution.comments ?? []).filter((comment) => !comment.startsWith('Gerada por regra ESS'));
         return (
@@ -427,6 +429,7 @@ export function PrintableReport({
   atsPhotoUrl,
   atsBackupAcknowledged,
   batteryCatalog,
+  inverterCatalog = [],
   accessoryCatalog,
   productMedia,
 }: {
@@ -464,6 +467,7 @@ export function PrintableReport({
   atsPhotoUrl?: string | null;
   atsBackupAcknowledged?: boolean;
   batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog?: InverterCatalogOption[];
   accessoryCatalog?: AccessoryCatalogOption[];
   productMedia?: Record<string, ProductMedia>;
 }) {
@@ -471,17 +475,49 @@ export function PrintableReport({
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date());
+  const documentReference = shortSolutionReference(solution.solutionCode);
 
   const loadEnergyKwh = (load: { powerW: number; qty: number; usageFactor?: number; usageMode?: 'fraction' | 'fixed'; fixedHours?: number }) => {
     const hours = load.usageMode === 'fixed' ? Math.max(0, load.fixedHours ?? 0) : operationHours * (load.usageFactor ?? 1);
     return (load.powerW * load.qty * hours) / 1000;
   };
 
+  const batteryPerformance = batteryCatalog.find((item) => item.model === solution.batteryModel);
+  const inverterPerformance = inverterCatalog.find((item) => item.model === solution.inverterModel);
   const tariffSavings = calculateTariffSavings(whiteTariff, {
     totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
     availableEnergyWh: solution.availableEnergyWh ?? 0,
     pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
+    batteryRoundTripEfficiencyPercent: batteryPerformance?.roundTripEfficiencyPercent ?? 95,
+    inverterChargeEfficiencyPercent: inverterPerformance?.batteryChargeEfficiencyPercent ?? 97,
+    inverterDischargeEfficiencyPercent: inverterPerformance?.batteryDischargeEfficiencyPercent ?? 97,
+    initialSohPercent: batteryPerformance?.initialSohPercent ?? 100,
+    annualSohLossPercent: batteryPerformance?.annualSohLossPercent ?? 2,
+    standbyConsumptionW: inverterPerformance?.standbyConsumptionW ?? 0,
+    maxBatteryDischargePowerW: inverterPerformance?.maxBatteryDischargePowerW ?? null,
+    maxBatteryChargePowerW: inverterPerformance?.maxBatteryChargePowerW ?? null,
   });
+  const reportSystemCost = calculateSystemCost(
+    solution,
+    userStockItems,
+    services,
+    userServices,
+    marginSettings,
+    batteryCatalog
+  );
+  const reportPaybackMonths =
+    tariffSavings?.tariffOrderValid && tariffSavings.annualSavings > 0 && reportSystemCost.isComplete
+      ? calculateDegradedPaybackMonths(reportSystemCost.totalCost, tariffSavings)
+      : null;
+  const reportPaybackLabel = reportPaybackMonths == null
+    ? null
+    : reportPaybackMonths < 12
+      ? `${reportPaybackMonths} ${reportPaybackMonths === 1 ? 'mês' : 'meses'}`
+      : reportPaybackMonths % 12 === 0
+        ? `${reportPaybackMonths / 12} ${reportPaybackMonths === 12 ? 'ano' : 'anos'}`
+        : `${Math.floor(reportPaybackMonths / 12)} ${Math.floor(reportPaybackMonths / 12) === 1 ? 'ano' : 'anos'} e ${reportPaybackMonths % 12} ${reportPaybackMonths % 12 === 1 ? 'mês' : 'meses'}`;
+  const totalLoadPowerW = loads.reduce((total, load) => total + load.powerW * load.qty, 0);
+  const totalLoadEnergyKwh = loads.reduce((total, load) => total + loadEnergyKwh(load), 0);
 
   // Margins must reflect what the loads actually require the same way the
   // Solução tab does: the registered loads only count toward the
@@ -521,7 +557,7 @@ export function PrintableReport({
         </div>
       </header>
 
-      <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="print-section mb-8 grid grid-cols-3 gap-3">
         <ReportMetric icon={Gauge} label="Pico de carga" value={`${(peakW / 1000).toFixed(2)} kVA`} />
         <ReportMetric icon={BatteryCharging} label="Consumo diário" value={`${dailyKwh.toFixed(2)} kWh/dia`} />
         <ReportMetric icon={Boxes} label="Topologia" value={topology ? topologyLabels[topology] : '-'} />
@@ -533,7 +569,7 @@ export function PrintableReport({
         <ReportMetric icon={Network} label="Rede" value={gridType ? gridLabels[gridType] : '-'} />
       </section>
 
-      <section className="mb-8">
+      <section className="print-section mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
           <User className="h-4 w-4 text-primary" aria-hidden="true" />
           Dados do projeto
@@ -550,7 +586,7 @@ export function PrintableReport({
       </section>
 
       {desiredFeatures && desiredFeatures.length > 0 && (
-        <section className="mb-8">
+        <section className="print-section mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <ListChecks className="h-4 w-4 text-primary" aria-hidden="true" />
             Funcionalidades selecionadas
@@ -590,8 +626,6 @@ export function PrintableReport({
         solution={solution}
         batteryCatalog={batteryCatalog}
         accessoryCatalog={accessoryCatalog ?? []}
-        userStockItems={userStockItems}
-        marginSettings={marginSettings}
         services={services}
         userServices={userServices}
         productMedia={productMedia ?? {}}
@@ -610,8 +644,6 @@ export function PrintableReport({
           solution={secondarySolution}
           batteryCatalog={batteryCatalog}
           accessoryCatalog={accessoryCatalog ?? []}
-          userStockItems={userStockItems}
-          marginSettings={marginSettings}
           productMedia={productMedia ?? {}}
           desiredFeatures={desiredFeatures ?? []}
           whiteTariff={whiteTariff}
@@ -624,13 +656,15 @@ export function PrintableReport({
       )}
 
       {(!desiredFeatures || desiredFeatures.includes('backup')) && (
-        <section className="mb-8">
+        <section className="print-section mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <Gauge className="h-4 w-4 text-primary" aria-hidden="true" />
             Cargas informadas
           </h2>
           <p className="mb-2 text-xs text-muted-foreground">Tempo de operação considerado: {operationHours} h</p>
-          <div className="overflow-hidden rounded-xl border border-border/70">
+          <div
+            className={`print-table-container overflow-hidden rounded-xl border border-border/70 ${loads.length <= 10 ? 'print-table-whole' : ''}`}
+          >
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
@@ -654,38 +688,67 @@ export function PrintableReport({
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t border-border/70 bg-muted/30 font-semibold text-foreground">
+                  <td className="px-4 py-2" colSpan={3}>Total</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{totalLoadPowerW} VA</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{totalLoadEnergyKwh.toFixed(2)} kWh</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>
       )}
 
-      {tariffSavings && (
-        <section className="mb-8">
+      {(reportSystemCost.pricedItemsCount > 0 || tariffSavings) && (
+        <section className="print-section mb-8">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
             <Wallet className="h-4 w-4 text-primary" aria-hidden="true" />
             Análise econômica
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            <ReportMetric
-              icon={TrendingUp}
-              label="Ganho estimado com SolaX"
-              value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
-              note={
-                `${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês` +
-                (tariffSavings.pvMonthlySavings > 0
-                  ? ` · dos quais ${formatCurrencyBRL(tariffSavings.pvMonthlySavings)}/mês de geração solar`
-                  : '')
-              }
-              highlight
-            />
-            {tariffSavings.monthlyCostWithoutSolaxBrl != null && (
+            {reportSystemCost.pricedItemsCount > 0 && (
+              <ReportMetric
+                icon={Wallet}
+                label={reportSystemCost.isComplete ? 'Investimento estimado' : 'Investimento parcial'}
+                value={formatCurrencyBRL(reportSystemCost.totalCost)}
+                note={
+                  reportSystemCost.isComplete
+                    ? undefined
+                    : `Falta precificar: ${reportSystemCost.missingItems.join(', ')}`
+                }
+              />
+            )}
+            {tariffSavings?.tariffOrderValid && (
+              <ReportMetric
+                icon={TrendingUp}
+                label="Ganho estimado com SolaX"
+                value={`${formatCurrencyBRL(tariffSavings.annualSavings)}/ano`}
+                note={
+                  `${formatCurrencyBRL(tariffSavings.monthlySavings)}/mês · considerando ${tariffSavings.businessDaysPerMonth} dias úteis/mês` +
+                  ` · bateria ${formatCurrencyBRL(tariffSavings.batteryMonthlySavings)}/mês` +
+                  (tariffSavings.pvMonthlySavings > 0
+                    ? ` · dos quais ${formatCurrencyBRL(tariffSavings.pvMonthlySavings)}/mês de geração solar`
+                    : '')
+                }
+                highlight
+              />
+            )}
+            {reportPaybackMonths != null && (
+              <ReportMetric
+                icon={TrendingUp}
+                label="Retorno simples estimado"
+                value={reportPaybackLabel ?? '-'}
+              />
+            )}
+            {tariffSavings?.tariffOrderValid && tariffSavings.monthlyCostWithoutSolaxBrl != null && (
               <ReportMetric
                 icon={Wallet}
                 label="Custo estimado sem SolaX"
                 value={`${formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês`}
               />
             )}
-            {tariffSavings.monthlyCostWithSolaxBrl != null && (
+            {tariffSavings?.tariffOrderValid && tariffSavings.monthlyCostWithSolaxBrl != null && (
               <ReportMetric
                 icon={Wallet}
                 label="Custo estimado com SolaX"
@@ -693,11 +756,34 @@ export function PrintableReport({
               />
             )}
           </div>
+          {tariffSavings && !tariffSavings.tariffOrderValid && (
+            <div className="print-avoid-break mt-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <p>Economia e retorno indisponíveis: as tarifas de ponta e intermediária devem ser maiores ou iguais à tarifa fora de ponta.</p>
+            </div>
+          )}
+          {tariffSavings?.tariffOrderValid && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Premissas: RTE efetivo de {tariffSavings.effectiveRoundTripEfficiencyPct.toFixed(1)}%, SOH inicial de{' '}
+              {tariffSavings.initialSohPercent.toFixed(0)}%, redução de SOH de{' '}
+              {tariffSavings.annualSohLossPercent.toFixed(1)}%/ano e {tariffSavings.businessDaysPerMonth} dias úteis/mês.
+              Sem reajuste tarifário, sazonalidade, manutenção, impostos, custo de disponibilidade ou perdas adicionais.
+            </p>
+          )}
         </section>
       )}
 
-      <footer className="mt-8 border-t pt-3 text-right text-xs text-muted-foreground">
-        {solution.solutionCode ? `Código: ${solution.solutionCode}` : 'Calculadora SolaX'}
+      {solution.solutionCode && (
+        <section className="print-section print-avoid-break mb-8 border-t border-border/60 pt-3 text-[10px] text-muted-foreground">
+          <p className="font-medium text-foreground">Referência técnica</p>
+          <p className="mt-1 break-words font-mono [overflow-wrap:anywhere]">{solution.solutionCode}</p>
+          <p className="mt-1">Identificador interno da regra utilizada no dimensionamento.</p>
+        </section>
+      )}
+
+      <footer className="print-document-footer border-t pt-2 text-xs text-muted-foreground">
+        {profile?.companyName || 'SolaX Power Brasil'} · {projectInfo.name || 'Projeto'}
+        {documentReference ? ` · Ref. ${documentReference}` : ''}
       </footer>
     </div>
   );

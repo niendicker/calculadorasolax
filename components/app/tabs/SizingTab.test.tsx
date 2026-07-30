@@ -8,7 +8,7 @@ import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { MarginSettings, Solution, UserStockItem } from '@/lib/types';
-import { formatCurrencyBRL, TARIFF_BUSINESS_DAYS_PER_MONTH } from '../helpers';
+import { calculateTariffSavings, formatCurrencyBRL } from '../helpers';
 import { renderWithShell, Shell } from '../test-helpers/render-with-shell';
 import type { BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { SizingTab } from './SizingTab';
@@ -1984,36 +1984,40 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
   });
 
   it('caps the PV generation credited at ponta/intermediária tariffs by the battery daily capacity', () => {
+    const whiteTariff = {
+      requiredPowerW: 0,
+      pontaEnergyWh: 4000,
+      intermediateEnergyWh: 0,
+      includeBackupReserve: false,
+      pontaTariffPerKwh: 1.3,
+      intermediateTariffPerKwh: 0.95,
+      foraPontaTariffPerKwh: 0.8,
+    };
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
-        whiteTariff: {
-            requiredPowerW: 0,
-            pontaEnergyWh: 4000,
-            intermediateEnergyWh: 0,
-            includeBackupReserve: false,
-            pontaTariffPerKwh: 1.3,
-            intermediateTariffPerKwh: 0.95,
-            foraPontaTariffPerKwh: 0.8,
-          },
+        whiteTariff,
       },
       // Battery holds 3.24 kWh/dia (fakeSolution.availableEnergyWh); ponta needs 4 kWh/dia.
       // PV generates 15 kWh/dia (450/30), far more than the battery can store, so only
       // 3.24 kWh/dia gets credited at the ponta tariff, the rest at fora ponta.
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
-    const pontaShiftKwh = 3.24;
-    const remainingPontaGridKwh = 4 - pontaShiftKwh;
-    const dailyExcessSolarKwh = 15 - pontaShiftKwh;
-    const expectedPvMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * pontaShiftKwh * 1.3 + dailyExcessSolarKwh * 0.8 * 30;
-    const expectedMonthlySavings =
-      TARIFF_BUSINESS_DAYS_PER_MONTH * (pontaShiftKwh * 1.3 + remainingPontaGridKwh * (1.3 - 0.8)) + dailyExcessSolarKwh * 0.8 * 30;
+    const estimate = calculateTariffSavings(whiteTariff, {
+      availableEnergyWh: fakeSolution.availableEnergyWh,
+      pvMonthlyGenerationKwh: 450,
+      batteryRoundTripEfficiencyPercent: 95,
+      inverterChargeEfficiencyPercent: 97,
+      inverterDischargeEfficiencyPercent: 97,
+      initialSohPercent: 100,
+      annualSohLossPercent: 2,
+    })!;
 
     const heading = screen.getByText('Ganho com SolaX');
     const card = heading.closest('div')!.parentElement!;
     const paragraphs = Array.from(card.querySelectorAll('p')).map((p) => p.textContent ?? '');
-    const monthlyText = formatCurrencyBRL(expectedMonthlySavings);
-    const pvText = formatCurrencyBRL(expectedPvMonthlySavings);
+    const monthlyText = formatCurrencyBRL(estimate.monthlySavings);
+    const pvText = formatCurrencyBRL(estimate.pvMonthlySavings);
     expect(paragraphs.some((text) => text.includes(monthlyText) && text.includes('dias úteis/mês'))).toBe(true);
     expect(paragraphs.some((text) => text.includes('dos quais') && text.includes(pvText) && text.includes('de geração solar'))).toBe(
       true

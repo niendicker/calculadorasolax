@@ -187,6 +187,44 @@ export function BatteriesEditor(props: {
                 </div>
               </div>
               <div className="space-y-3 rounded-lg border bg-background p-3">
+                <div>
+                  <p className="text-sm font-semibold">Desempenho energético</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Dados usados na projeção de economia e envelhecimento.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <NumberWithUnitField
+                    label="RTE da bateria"
+                    tip="Eficiência energética DC→DC do ciclo completo de carga e descarga, conforme dados do fabricante."
+                    unit="%"
+                    value={form.round_trip_efficiency_percent ?? 95}
+                    onChange={(event) => setForm({ ...form, round_trip_efficiency_percent: toNumber(event.target.value, 95) })}
+                  />
+                  <NumberWithUnitField
+                    label="SOH inicial"
+                    tip="Estado de saúde considerado no início da projeção. Para produtos novos, normalmente 100%."
+                    unit="%"
+                    value={form.initial_soh_percent ?? 100}
+                    onChange={(event) => setForm({ ...form, initial_soh_percent: toNumber(event.target.value, 100) })}
+                  />
+                  <NumberWithUnitField
+                    label="Redução do SOH"
+                    tip="Perda média de capacidade por ano aplicada ao fluxo de caixa da bateria."
+                    unit="%/ano"
+                    value={form.annual_soh_loss_percent ?? 2}
+                    onChange={(event) => setForm({ ...form, annual_soh_loss_percent: toNumber(event.target.value, 2) })}
+                  />
+                  <NumberWithUnitField
+                    label="SOH na garantia"
+                    tip="Percentual mínimo garantido ao fim da garantia. Campo informativo opcional."
+                    unit="%"
+                    placeholder="—"
+                    value={form.warranty_end_soh_percent ?? undefined}
+                    onChange={(event) => setForm({ ...form, warranty_end_soh_percent: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, warranty_end_soh_percent: null })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Elétricas</p>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                   <NumberWithUnitField
@@ -265,6 +303,7 @@ export function BatteriesEditor(props: {
         details: [
           ['Capacidade / Útil', `${row.capacity_kwh} / ${(Number(row.capacity_kwh || 0) * (1 - Number(row.min_soc_percent ?? 10) / 100)).toFixed(2)} kWh`],
           ['Potência', `${row.standard_power_kw ?? '—'} / ${row.peak_power_kw ?? '—'} kW`],
+          ['RTE / SOH', `${row.round_trip_efficiency_percent ?? 95}% · −${row.annual_soh_loss_percent ?? 2}%/ano`],
           ['Tensão', `${row.nominal_voltage_v ?? '—'} V (${row.voltage_min_v ?? '—'} – ${row.voltage_max_v ?? '—'} V)`],
           ['Corrente', `${row.recommended_current_a ?? '—'} / ${row.max_current_a ?? '—'} A`],
         ],

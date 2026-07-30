@@ -247,7 +247,14 @@ export function ProjectTab({
   const projectsWithSolutionCount = savedProjects.filter((project) => project.solution).length;
   const solutionsValue = savedProjects.reduce((total, project) => {
     if (!project.solution && project.services.length === 0) return total;
-    const cost = calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings);
+    const cost = calculateSystemCost(
+      project.solution,
+      userStockItems,
+      project.services,
+      userServices,
+      marginSettings,
+      batteryCatalog
+    );
     return cost.pricedItemsCount > 0 ? total + cost.totalCost : total;
   }, 0);
 
@@ -463,6 +470,7 @@ export function ProjectTab({
                     userStockItems={userStockItems}
                     userServices={userServices}
                     marginSettings={marginSettings}
+                    batteryCatalog={batteryCatalog}
                     selected={project.id === selectedProjectId}
                     onSelect={() => {
                       const willSelect = selectedProjectId !== project.id;
@@ -698,6 +706,7 @@ function ProjectCard({
   userStockItems,
   userServices,
   marginSettings,
+  batteryCatalog,
   selected,
   onSelect,
   onOpen,
@@ -713,6 +722,7 @@ function ProjectCard({
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
   marginSettings: MarginSettings;
+  batteryCatalog: BatteryCatalogOption[];
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -728,7 +738,7 @@ function ProjectCard({
   const isStale = !hasSolution && idleDays >= STALE_AFTER_DAYS;
   const systemCost =
     project.solution || project.services.length > 0
-      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings)
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog)
       : null;
 
   // "Atualizar" recalculates the solution from the project's own saved loads
@@ -937,7 +947,7 @@ function SelectedProjectSummary({
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
     project.solution || project.services.length > 0
-      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings)
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog)
       : null;
   const batteryParts = project.solution
     ? batteryQuantityBreakdown(

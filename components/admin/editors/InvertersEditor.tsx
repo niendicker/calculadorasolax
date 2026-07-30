@@ -307,6 +307,47 @@ export function InvertersEditor(props: {
                     onClear={() => setForm({ ...form, battery_current_max_a: null })}
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <NumberWithUnitField
+                    label="Eficiência de carga"
+                    tip="Eficiência de conversão do inversor ao carregar a bateria."
+                    unit="%"
+                    value={form.battery_charge_efficiency_percent ?? 97}
+                    onChange={(event) => setForm({ ...form, battery_charge_efficiency_percent: toNumber(event.target.value, 97) })}
+                  />
+                  <NumberWithUnitField
+                    label="Eficiência de descarga"
+                    tip="Eficiência de conversão da bateria para a saída CA."
+                    unit="%"
+                    value={form.battery_discharge_efficiency_percent ?? 97}
+                    onChange={(event) => setForm({ ...form, battery_discharge_efficiency_percent: toNumber(event.target.value, 97) })}
+                  />
+                  <NumberWithUnitField
+                    label="Consumo em espera"
+                    tip="Consumo próprio do inversor enquanto permanece ligado."
+                    unit="W"
+                    value={form.standby_consumption_w ?? 0}
+                    onChange={(event) => setForm({ ...form, standby_consumption_w: toNumber(event.target.value) })}
+                  />
+                  <NumberWithUnitField
+                    label="Potência máx. de carga"
+                    tip="Limite opcional de potência para carregar a bateria."
+                    unit="W"
+                    placeholder="—"
+                    value={form.max_battery_charge_power_w ?? undefined}
+                    onChange={(event) => setForm({ ...form, max_battery_charge_power_w: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, max_battery_charge_power_w: null })}
+                  />
+                  <NumberWithUnitField
+                    label="Potência máx. de descarga"
+                    tip="Limite opcional de potência entregue pela bateria através do inversor."
+                    unit="W"
+                    placeholder="—"
+                    value={form.max_battery_discharge_power_w ?? undefined}
+                    onChange={(event) => setForm({ ...form, max_battery_discharge_power_w: toNullableNumber(event.target.value) })}
+                    onClear={() => setForm({ ...form, max_battery_discharge_power_w: null })}
+                  />
+                </div>
               </div>
               <Field asDiv label="Funcionalidades">
                 <ToggleChipsInput
@@ -343,6 +384,7 @@ export function InvertersEditor(props: {
         details: [
           ['Potência', `${row.standard_power_kva ?? row.power_kw} / ${row.peak_power_kva ?? '—'} kVA`],
           ['Portas bat.', `${row.battery_ports ?? 1}× · ${row.battery_current_max_a ?? '—'} A`],
+          ['Eficiência bat.', `${row.battery_charge_efficiency_percent ?? 97}% carga · ${row.battery_discharge_efficiency_percent ?? 97}% descarga`],
           ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '—'],
           ['Tensão bat.', `${row.battery_voltage_min_v ?? '—'} – ${row.battery_voltage_max_v ?? '—'} V`],
           ['Sobredim. FV', `${row.pv_oversizing_percent ?? 100}%`],

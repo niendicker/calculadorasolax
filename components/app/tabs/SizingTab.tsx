@@ -34,7 +34,9 @@ import type {
   PvConfig,
   ResidentialGridType,
   Solution,
+  ProjectServiceLine,
   UserStockItem,
+  UserServiceItem,
   WhiteTariffConfig,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -94,6 +96,8 @@ export function SizingTab({
   autosaveLastSavedAt,
   productMedia,
   userStockItems,
+  services = [],
+  userServices = [],
   marginSettings,
   onChooseMicrogridVariant,
 }: {
@@ -151,6 +155,8 @@ export function SizingTab({
   autosaveLastSavedAt: Date | null;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
+  services?: ProjectServiceLine[];
+  userServices?: UserServiceItem[];
   marginSettings: MarginSettings;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
@@ -514,10 +520,13 @@ export function SizingTab({
               <ResultSummary
                 solution={activeSolution}
                 batteryCatalog={batteryCatalog}
+                inverterCatalog={inverterCatalog}
                 onExport={exportPdf}
                 canExport={canCalculate && !hasInsufficientSolution}
                 productMedia={productMedia}
                 userStockItems={userStockItems}
+                services={services}
+                userServices={userServices}
                 marginSettings={marginSettings}
                 whiteTariff={residentialOptions.whiteTariff}
                 pv={residentialOptions.pv}
@@ -623,7 +632,6 @@ export function SizingTab({
                   peakW={peakW}
                   nominalW={nominalW}
                   dailyKwh={dailyKwh}
-                  peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
                 />
               )}
 
