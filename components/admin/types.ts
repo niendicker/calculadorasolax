@@ -11,7 +11,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import type { BatteryFlag, InverterFlag, ProductDocument } from '@/lib/types';
+import type { BatteryFlag, BatteryTopology, InverterFlag, ProductDocument } from '@/lib/types';
 
 export type { BatteryFlag, InverterFlag };
 
@@ -29,7 +29,12 @@ export type TabKey =
 
 export type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
 export type GridTopology = '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V' | InverterGridType;
-export type BatteryTopology = 'HV' | 'LV';
+/** The catalog/DB storage format for battery topology — distinct from the
+ * wizard-facing BatteryTopology in lib/types.ts ('HighVoltage' | 'LowVoltage'),
+ * which describes the customer's *choice*, not how it's stored on
+ * battery/inverter/solution rows. Convert between the two with
+ * lib/types.ts's batteryTopologyToCatalog/catalogToBatteryTopology. */
+export type CatalogBatteryTopology = 'HV' | 'LV';
 export type Inclusion = 'required' | 'optional';
 export type TriggerMetric =
   | 'per_solution'
@@ -121,7 +126,7 @@ export interface BatteryRow {
   /** Optional friendly name, shown to end users more prominently than `model` when set. */
   nickname?: string | null;
   capacity_kwh: number;
-  topology: BatteryTopology;
+  topology: CatalogBatteryTopology;
   standard_power_kw: number | null;
   peak_power_kw: number | null;
   min_soc_percent: number;
@@ -187,7 +192,7 @@ export interface AccessoryRuleRow {
   inverter_models: string[] | null;
   battery_model: string | null;
   grid_topology: GridTopology | null;
-  battery_topology: BatteryTopology | null;
+  battery_topology: CatalogBatteryTopology | null;
   quantity_per_match: number;
   /** When true, the applied quantity is quantity_per_match multiplied by
    * ceil(trigger_metric's live value / metric_divisor) instead of a flat
@@ -221,7 +226,7 @@ export interface AccessoryRuleRow {
 
 export interface EssBatteryConfig {
   battery_model: string;
-  battery_topology: BatteryTopology;
+  battery_topology: CatalogBatteryTopology;
   min_battery_qty: number;
   max_battery_qty: number;
 }
@@ -231,7 +236,7 @@ export interface EssCompatibilityRuleRow {
   name: string | null;
   inverter_model: string;
   battery_model: string;
-  battery_topology: BatteryTopology | null;
+  battery_topology: CatalogBatteryTopology | null;
   grid_topology: GridTopology | null;
   max_parallel_inverters: number;
   min_battery_qty: number;
@@ -255,7 +260,7 @@ export interface SolutionRow {
   peak_power_w: number;
   grid_topology: GridTopology;
   battery_model: string;
-  battery_topology: BatteryTopology;
+  battery_topology: CatalogBatteryTopology;
   battery_quantity: number;
   battery_power_w: number;
   available_energy_wh: number;
@@ -283,7 +288,10 @@ export interface SimulationRow {
   user_id: string | null;
   project_name: string | null;
   client_name: string | null;
-  topology: string | null;
+  /** Snapshots ResidentialOptions.topology (lib/types.ts BatteryTopology,
+   * 'HighVoltage' | 'LowVoltage') as logged by calculateResidentialSolution —
+   * the wizard-facing domain, not the catalog's CatalogBatteryTopology. */
+  topology: BatteryTopology | null;
   grid_type: string | null;
   peak_w: number;
   daily_kwh: number;

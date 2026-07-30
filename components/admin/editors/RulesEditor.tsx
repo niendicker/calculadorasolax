@@ -31,7 +31,7 @@ import {
   type AccessoryRow,
   type AccessoryRuleRow,
   type BatteryRow,
-  type BatteryTopology,
+  type CatalogBatteryTopology,
   inverterGridTypeOptions,
   type EssBatteryConfig,
   type EssCompatibilityRuleRow,
@@ -798,7 +798,7 @@ function EssBatteryConfigsInput({
 }: {
   batteries: BatteryRow[];
   inverter: InverterRow | undefined;
-  supportedTopologies: BatteryTopology[];
+  supportedTopologies: CatalogBatteryTopology[];
   value: Partial<EssCompatibilityRuleRow>;
   onChange: (configs: EssBatteryConfig[]) => void;
 }) {

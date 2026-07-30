@@ -7,7 +7,7 @@ import {
   type AccessoryRuleRow,
   type BatteryFlag,
   type BatteryRow,
-  type BatteryTopology,
+  type CatalogBatteryTopology,
   type EssBatteryConfig,
   type EssCompatibilityRuleRow,
   type GeneratedSolutionPayload,
@@ -255,7 +255,7 @@ export function normalizeEssBatteryConfigs(rule: Partial<EssCompatibilityRuleRow
   ];
 }
 
-export function inverterSupportedBatteryTopologies(inverter: InverterRow | undefined): BatteryTopology[] {
+export function inverterSupportedBatteryTopologies(inverter: InverterRow | undefined): CatalogBatteryTopology[] {
   if (!inverter) return [];
   if (inverter.topology === 'BOTH') return ['HV', 'LV'];
   return [inverter.topology];

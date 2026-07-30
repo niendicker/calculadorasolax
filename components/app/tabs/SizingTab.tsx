@@ -58,6 +58,7 @@ import type {
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
+import { batteryTopologyToCatalog, catalogToBatteryTopology } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import {
@@ -2326,7 +2327,7 @@ function BatteryModelPicker({
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
-  const activeTopology = topology === 'LowVoltage' ? 'LV' : 'HV';
+  const activeTopology = topology ? batteryTopologyToCatalog[topology] : 'HV';
   const slaveModels = expansionModelSet(batteries);
   const selectableBatteries = batteries.filter((battery) => !slaveModels.has(battery.model));
   const visibleBatteries = selectableBatteries.filter((battery) => battery.topology === activeTopology);
@@ -2346,12 +2347,12 @@ function BatteryModelPicker({
       : 'Nenhuma seleção';
 
   function selectTab(nextTopology: 'HV' | 'LV') {
-    setTopology(nextTopology === 'HV' ? 'HighVoltage' : 'LowVoltage');
+    setTopology(catalogToBatteryTopology[nextTopology]);
   }
 
   function selectBattery(battery: BatteryCatalogOption) {
     if (battery.topology !== activeTopology || !topology) {
-      setTopology(battery.topology === 'HV' ? 'HighVoltage' : 'LowVoltage');
+      setTopology(catalogToBatteryTopology[battery.topology]);
     }
 
     if (battery.model === selectedModel) {

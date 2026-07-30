@@ -30,7 +30,7 @@ import {
 import type {
   AccessoryRuleRow,
   BatteryRow,
-  BatteryTopology,
+  CatalogBatteryTopology,
   EssCompatibilityRuleRow,
   GeneratedSolutionPayload,
   GridTopology,
@@ -737,7 +737,7 @@ export function SolutionsEditor(props: {
               <select
                 className={selectClasses()}
                 value={form.battery_topology ?? 'HV'}
-                onChange={(event) => setForm({ ...form, battery_topology: event.target.value as BatteryTopology })}
+                onChange={(event) => setForm({ ...form, battery_topology: event.target.value as CatalogBatteryTopology })}
               >
                 <option value="HV">HV</option>
                 <option value="LV">LV</option>

@@ -37,6 +37,7 @@ import { MyStockTab } from './tabs/MyStockTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { ProjectTab } from './tabs/ProjectTab';
 import { SizingTab } from './tabs/SizingTab';
+import { batteryTopologyToCatalog } from '@/lib/types';
 import { gridTypeToApprovedTopology } from './types';
 
 /** Marks the active bottom-nav tab as having a summary — purely decorative
@@ -283,7 +284,7 @@ export function SinglePageApp() {
   const availableInverterModels = useMemo(() => {
     if (!residentialOptions.gridType) return null;
     const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
-    const batteryTopology = residentialOptions.topology === 'LowVoltage' ? 'LV' : 'HV';
+    const batteryTopology = residentialOptions.topology ? batteryTopologyToCatalog[residentialOptions.topology] : 'HV';
     return new Set(
       approvedInverterCombos
         .filter(

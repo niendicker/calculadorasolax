@@ -1,5 +1,21 @@
 export type BatteryTopology = 'HighVoltage' | 'LowVoltage';
 
+/** Converts the wizard-facing BatteryTopology to the catalog/DB storage
+ * format used by battery/inverter/solution rows (see admin/types.ts
+ * CatalogBatteryTopology and supabase/functions/calculate-residential/logic.ts
+ * batteryTopologyMap, which mirrors this exact mapping on the Deno side). */
+export const batteryTopologyToCatalog: Record<BatteryTopology, 'HV' | 'LV'> = {
+  HighVoltage: 'HV',
+  LowVoltage: 'LV',
+};
+
+/** Inverse of batteryTopologyToCatalog — converts a catalog/DB 'HV' | 'LV'
+ * value back to the wizard-facing BatteryTopology. */
+export const catalogToBatteryTopology: Record<'HV' | 'LV', BatteryTopology> = {
+  HV: 'HighVoltage',
+  LV: 'LowVoltage',
+};
+
 export type ResidentialGridType =
   | 'singlePhase_220'
   | 'splitPhase_220'
