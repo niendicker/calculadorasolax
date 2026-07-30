@@ -58,6 +58,30 @@ describe('getCalculationErrorMessage', () => {
       getCalculationErrorMessage('no_approved_solution')
     );
   });
+
+  it('turns invalid Tarifa Branca validator details into actionable field names', () => {
+    const message = getCalculationErrorMessage('invalid_payload', undefined, [
+      'whiteTariff.pontaEnergyWh must be a number >= 0',
+      'whiteTariff.intermediateTariffPerKwh must be a number >= 0',
+    ]);
+
+    expect(message).toBe(
+      'Revise os seguintes campos antes de calcular: Tarifa Branca — energia na ponta, Tarifa Branca — tarifa intermediária.'
+    );
+  });
+
+  it('deduplicates invalid fields and falls back safely for unknown validator details', () => {
+    expect(
+      getCalculationErrorMessage('invalid_payload', undefined, [
+        'operationHours must be a number between 0 and 24',
+        'operationHours must be finite',
+      ])
+    ).toBe('Revise os seguintes campos antes de calcular: tempo de operação.');
+
+    expect(getCalculationErrorMessage('invalid_payload', undefined, ['internalSecret must be present'])).toBe(
+      getCalculationErrorMessage('invalid_payload')
+    );
+  });
 });
 
 describe('getNetworkErrorMessage', () => {
@@ -82,6 +106,17 @@ describe('resolveCalculationErrorMessage', () => {
     });
     expect(await resolveCalculationErrorMessage(functionError)).toBe(
       getCalculationErrorMessage('no_solution_matches_desired_features', ['microgrid'])
+    );
+  });
+
+  it('passes invalid payload details through to the field-aware message', async () => {
+    const details = ['whiteTariff.requiredPowerW must be a number >= 0'];
+    const functionError = new FunctionsHttpError({
+      json: () => Promise.resolve({ error: 'invalid_payload', details }),
+    });
+
+    expect(await resolveCalculationErrorMessage(functionError)).toBe(
+      getCalculationErrorMessage('invalid_payload', undefined, details)
     );
   });
 

@@ -28,13 +28,61 @@ const MESSAGES: Record<string, string> = {
 const NETWORK_ERROR_MESSAGE = 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
 const FALLBACK_MESSAGE = 'Não foi possível encontrar uma solução compatível.';
 
+const INVALID_FIELD_LABELS: Record<string, string> = {
+  topology: 'topologia da bateria',
+  batteryModel: 'modelo da bateria',
+  inverterModel: 'modelo do inversor',
+  gridType: 'tipo de rede',
+  loads: 'cargas',
+  operationHours: 'tempo de operação',
+  peakCalcMode: 'modo de cálculo da potência máxima',
+  desiredFeatures: 'funcionalidades desejadas',
+  whiteTariff: 'configuração da Tarifa Branca',
+  'whiteTariff.requiredPowerW': 'Tarifa Branca — potência',
+  'whiteTariff.pontaEnergyWh': 'Tarifa Branca — energia na ponta',
+  'whiteTariff.intermediateEnergyWh': 'Tarifa Branca — energia intermediária',
+  'whiteTariff.includeBackupReserve': 'Tarifa Branca — reserva de backup',
+  'whiteTariff.pontaTariffPerKwh': 'Tarifa Branca — tarifa de ponta',
+  'whiteTariff.intermediateTariffPerKwh': 'Tarifa Branca — tarifa intermediária',
+  'whiteTariff.foraPontaTariffPerKwh': 'Tarifa Branca — tarifa fora de ponta',
+  microgrid: 'configuração da microrrede',
+  generator: 'configuração do gerador',
+  pv: 'configuração fotovoltaica',
+};
+
+/** Converts the Edge Function's validator details into field names a user can
+ * act on. Raw validator strings stay internal: they are useful to developers,
+ * but expose implementation names and English diagnostics in the UI. */
+function invalidPayloadMessage(details: unknown): string | null {
+  if (!Array.isArray(details)) return null;
+
+  const labels = details
+    .filter((detail): detail is string => typeof detail === 'string')
+    .map((detail) => {
+      const field = Object.keys(INVALID_FIELD_LABELS)
+        .sort((a, b) => b.length - a.length)
+        .find((candidate) => detail === candidate || detail.startsWith(`${candidate} `));
+      return field ? INVALID_FIELD_LABELS[field] : null;
+    })
+    .filter((label): label is string => Boolean(label));
+
+  const uniqueLabels = [...new Set(labels)];
+  if (!uniqueLabels.length) return null;
+
+  return `Revise os seguintes campos antes de calcular: ${uniqueLabels.join(', ')}.`;
+}
+
 /** Message for a known Edge Function error code (the `error` field of its JSON body).
  * `blockingFeatures` — present only on `no_solution_matches_desired_features` — names which
  * desired feature(s) have no available inverter, so the message can be specific instead of generic. */
 export function getCalculationErrorMessage(
   code: string | null | undefined,
-  blockingFeatures?: DesiredFeatureId[] | null
+  blockingFeatures?: DesiredFeatureId[] | null,
+  details?: unknown
 ): string {
+  if (code === 'invalid_payload') {
+    return invalidPayloadMessage(details) ?? MESSAGES.invalid_payload;
+  }
   if (code === 'no_solution_matches_desired_features' && blockingFeatures && blockingFeatures.length > 0) {
     const labels = blockingFeatures.map((feature) => desiredFeatureLabel(feature));
     const featureList = labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
@@ -56,7 +104,7 @@ export async function resolveCalculationErrorMessage(functionError: unknown): Pr
   if (functionError instanceof FunctionsHttpError) {
     try {
       const body = await functionError.context.json();
-      return getCalculationErrorMessage(body?.error, body?.blockingFeatures);
+      return getCalculationErrorMessage(body?.error, body?.blockingFeatures, body?.details);
     } catch {
       return getCalculationErrorMessage(undefined);
     }
