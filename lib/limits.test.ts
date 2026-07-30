@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { ACCOUNT_LIMITS, limitReachedMessage } from './limits';
+import { ACCOUNT_LIMITS, isLimitError, limitReachedMessage } from './limits';
 
 describe('limitReachedMessage', () => {
   it('formats a message with the resource name and limit', () => {
     expect(limitReachedMessage('projetos salvos', 15)).toBe('Limite de 15 projetos salvos atingido.');
+  });
+});
+
+describe('isLimitError', () => {
+  it('matches an Error whose message was produced by limitReachedMessage', () => {
+    expect(isLimitError(new Error(limitReachedMessage('projetos salvos', 15)))).toBe(true);
+  });
+
+  it('rejects an Error with an unrelated message', () => {
+    expect(isLimitError(new Error('network error'))).toBe(false);
+  });
+
+  it('rejects non-Error values', () => {
+    expect(isLimitError('Limite de 15 projetos salvos atingido.')).toBe(false);
+    expect(isLimitError(null)).toBe(false);
+    expect(isLimitError(undefined)).toBe(false);
   });
 });
 

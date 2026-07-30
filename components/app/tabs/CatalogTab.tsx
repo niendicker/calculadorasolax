@@ -5,6 +5,7 @@ import { Battery, Boxes, Check, Plus, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProductDocument, StockProductType, UserStockItem } from '@/lib/types';
+import { isLimitError } from '@/lib/limits';
 import { cn } from '@/lib/utils';
 import { expansionModelSet } from '../helpers';
 import { PageHeader } from '../shell/slots';
@@ -267,11 +268,7 @@ function StockControl({
           try {
             await onAdd({ productType, productModel, unitValue: 0 });
           } catch (err) {
-            setError(
-              err instanceof Error && err.message.startsWith('Limite de')
-                ? err.message
-                : 'Não foi possível adicionar ao catálogo. Tente novamente.'
-            );
+            setError(isLimitError(err) ? err.message : 'Não foi possível adicionar ao catálogo. Tente novamente.');
           } finally {
             setSaving(false);
           }

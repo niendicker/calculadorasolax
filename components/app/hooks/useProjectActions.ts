@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { useRouter } from 'next/navigation';
+import { isLimitError } from '@/lib/limits';
 import type { SavedProject } from '@/lib/types';
 import type { InlineProfile } from '../types';
 
@@ -52,11 +53,7 @@ export function useProjectActions({
       const project = await saveCurrentProject();
       report(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
     } catch (error) {
-      report(
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Não foi possível salvar o projeto. Tente novamente.'
-      );
+      report(isLimitError(error) ? error.message : 'Não foi possível salvar o projeto. Tente novamente.');
     }
   }
 
@@ -98,11 +95,7 @@ export function useProjectActions({
       const project = await duplicateProject(id);
       report(`Projeto duplicado como "${project.name}".`);
     } catch (error) {
-      report(
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Não foi possível duplicar o projeto. Tente novamente.'
-      );
+      report(isLimitError(error) ? error.message : 'Não foi possível duplicar o projeto. Tente novamente.');
     }
   }
 

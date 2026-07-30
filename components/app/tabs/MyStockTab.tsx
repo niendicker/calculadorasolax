@@ -6,7 +6,7 @@ import { Battery, Boxes, Loader2, Lock, Plus, Wrench, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
-import { ACCOUNT_LIMITS } from '@/lib/limits';
+import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import type { MarginSettings, ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
@@ -476,11 +476,7 @@ function AddServiceCard({
       setName('');
       setValue('');
     } catch (err) {
-      setError(
-        err instanceof Error && err.message.startsWith('Limite de')
-          ? err.message
-          : 'Não foi possível adicionar o serviço. Tente novamente.'
-      );
+      setError(isLimitError(err) ? err.message : 'Não foi possível adicionar o serviço. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -614,11 +610,7 @@ function AddProductCard({
       await onAdd(model);
       setOpen(false);
     } catch (error) {
-      setAddError(
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Não foi possível adicionar ao catálogo. Tente novamente.'
-      );
+      setAddError(isLimitError(error) ? error.message : 'Não foi possível adicionar ao catálogo. Tente novamente.');
     } finally {
       setAddingModel(null);
     }

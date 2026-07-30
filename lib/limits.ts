@@ -15,3 +15,11 @@ export const ACCOUNT_LIMITS = {
 export function limitReachedMessage(resource: string, limit: number): string {
   return `Limite de ${limit} ${resource} atingido.`;
 }
+
+/** Whether `error` is a limitReachedMessage error — callers use this to show
+ * the limit message as-is instead of falling back to a generic failure
+ * message. Matched by prefix (not equality) since the message also carries
+ * the resource name/count, which varies per call site. */
+export function isLimitError(error: unknown): error is Error {
+  return error instanceof Error && error.message.startsWith('Limite de');
+}

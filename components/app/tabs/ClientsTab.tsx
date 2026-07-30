@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { isLimitError } from '@/lib/limits';
 import type { Client } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
@@ -78,9 +79,7 @@ export function ClientsTab({
       setFormOpen(false);
     } catch (error) {
       setActionError(
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Não foi possível salvar o cliente. Verifique sua conexão e tente novamente.'
+        isLimitError(error) ? error.message : 'Não foi possível salvar o cliente. Verifique sua conexão e tente novamente.'
       );
     } finally {
       setSaving(false);

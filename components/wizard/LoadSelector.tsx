@@ -24,7 +24,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
+import { ACCOUNT_LIMITS, isLimitError, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPhase, LoadPresetLoad, LoadVoltage, PeakCalcMode, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -479,11 +479,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
       setPresetDescription('');
       setSelectedLoadIdsForPreset(new Set());
     } catch (error) {
-      setPresetSaveError(
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Não foi possível salvar a predefinição. Tente novamente.'
-      );
+      setPresetSaveError(isLimitError(error) ? error.message : 'Não foi possível salvar a predefinição. Tente novamente.');
     } finally {
       setSavingPreset(false);
     }
@@ -1360,10 +1356,9 @@ function LoadCard({
     // suggestion) is a genuinely new load, so save it for reuse next time.
     onCatalogSaveWarning(null);
     saveManualLoadToCatalog({ name, powerW: parsedPower, ipInRatio: 1 }).catch((error) => {
-      const message =
-        error instanceof Error && error.message.startsWith('Limite de')
-          ? error.message
-          : 'Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.';
+      const message = isLimitError(error)
+        ? error.message
+        : 'Carga adicionada ao cálculo, mas não foi possível salvá-la em "Minhas Cargas" para reutilizar depois.';
       onCatalogSaveWarning(message);
     });
   }
