@@ -14,6 +14,7 @@ import { LoadCatalogEditor } from './editors/LoadCatalogEditor';
 import { PresetsEditor } from './editors/PresetsEditor';
 import { RulesEditor, type RulesJumpTarget } from './editors/RulesEditor';
 import { SolutionsEditor } from './editors/SolutionsEditor';
+import { SuppliersEditor } from './editors/SuppliersEditor';
 import {
   accessoryRuleDesiredFeatures,
   accessoryRuleInverterModels,
@@ -1039,6 +1040,7 @@ export function AdminPanel() {
                     onLoadMore={loadMoreActivityLogs}
                   />
                 )}
+                {activeTab === 'suppliers' && <SuppliersEditor />}
               </>
             )}
           </section>

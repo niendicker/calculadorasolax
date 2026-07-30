@@ -8,6 +8,7 @@ import {
   Layers,
   ListChecks,
   Plug,
+  ShoppingCart,
   Users,
   Zap,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ export type TabKey =
   | 'rules'
   | 'loads'
   | 'presets'
+  | 'suppliers'
   | 'logs';
 
 export type InverterGridType = '1P_220V' | '2P_220V' | '3P_220V' | '3P_380V';
@@ -353,6 +355,7 @@ export const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'loads', label: 'Cargas', icon: Plug },
   { key: 'presets', label: 'Predefinições', icon: Layers },
   { key: 'solutions', label: 'Combinações', icon: Boxes },
+  { key: 'suppliers', label: 'Fornecedores', icon: ShoppingCart },
   { key: 'users', label: 'Usuários', icon: Users },
   { key: 'logs', label: 'Logs', icon: FileClock },
 ];

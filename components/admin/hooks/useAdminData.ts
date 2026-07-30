@@ -50,6 +50,7 @@ export const TAB_RESOURCES: Record<TabKey, ResourceKey[]> = {
   rules: ['accessories', 'rules', 'inverters', 'batteries', 'essRules'],
   loads: ['loadCatalog'],
   presets: ['presets', 'loadCatalog'],
+  suppliers: [],
   logs: ['activityLogs'],
 };
 
