@@ -407,7 +407,12 @@ export function SolutionsEditor(props: {
                             label="Bateria"
                             model={solution.battery_model}
                             quantity={solution.battery_quantity}
-                            breakdown={batteryQuantityBreakdown(solution.battery_model, solution.battery_quantity, props.batteries)}
+                            breakdown={batteryQuantityBreakdown(
+                              solution.battery_model,
+                              solution.battery_quantity,
+                              props.batteries,
+                              solutionTotalBatteryPorts(solution)
+                            )}
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-3">

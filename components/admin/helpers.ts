@@ -1,4 +1,5 @@
 import type { createClient } from '@/lib/supabase/client';
+import { batteryQuantityBreakdown as sharedBatteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
 import {
   batteryFlagLabels,
   inverterFlagLabels,
@@ -62,24 +63,23 @@ export function clampNumber(value: unknown, min: number, max: number, fallback =
   return Math.min(max, Math.max(min, parsed));
 }
 
-/** Some battery lines scale via a "Master" unit plus electrically-identical
- * "Slave"/expansion units instead of more of the same model (e.g. "T58 V2
- * Master" + "T58 Slave"). Energy/power math already treats battery_quantity
- * as N identical units, which holds true either way — this only changes what's
- * displayed for units 2..N, using the Master row's expansion_model. */
+/** Thin adapter over the shared batteryQuantityBreakdown (see
+ * lib/battery-quantity-breakdown.ts) for admin's snake_case BatteryRow shape.
+ * mastersNeeded defaults to 1 — pass solutionTotalBatteryPorts(solution) at
+ * call sites that have a solution row, so multi-port/multi-inverter
+ * solutions get one Master per string instead of a single flat Master. */
 export function batteryQuantityBreakdown(
   model: string,
   quantity: number,
-  batteries: Pick<BatteryRow, 'model' | 'expansion_model'>[]
+  batteries: Pick<BatteryRow, 'model' | 'expansion_model'>[],
+  mastersNeeded = 1
 ): { model: string; qty: number }[] {
-  const expansionModel = batteries.find((battery) => battery.model === model)?.expansion_model;
-  if (expansionModel && quantity > 1) {
-    return [
-      { model, qty: 1 },
-      { model: expansionModel, qty: quantity - 1 },
-    ];
-  }
-  return [{ model, qty: quantity }];
+  return sharedBatteryQuantityBreakdown(
+    model,
+    quantity,
+    batteries.map((battery) => ({ model: battery.model, expansionModel: battery.expansion_model })),
+    mastersNeeded
+  );
 }
 
 /** Expansion/Slave models (e.g. "T58 Slave") only ever exist as units 2..N of
