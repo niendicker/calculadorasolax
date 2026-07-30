@@ -45,7 +45,7 @@ describe('useAdminData: initial load', () => {
 
 describe('useAdminData: ensureTabData lazy loading', () => {
   it('only fetches a tab´s resources once, skipping already-loaded ones on a later call', async () => {
-    const fromSpy = vi.fn(() => ({
+    const fromSpy = vi.fn<(table: string) => unknown>(() => ({
       select: () => ({
         order: () => ({
           order: () => Promise.resolve({ data: [], error: null }),
