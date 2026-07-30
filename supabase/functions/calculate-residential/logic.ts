@@ -118,6 +118,87 @@ export function solutionSupportsMicrogrid(
   return true;
 }
 
+/** The subset of an `inverters` row index.ts needs for flag/microgrid
+ * compatibility checks. */
+export interface InverterCapabilities {
+  model: string;
+  flags: string[] | null;
+  max_power_per_phase_w: number | null;
+}
+
+/** Whether microgrid should be enforced as a hard filter on the baseline
+ * recommendation, or left out of it (to be offered as a separate
+ * microgridAlternative by resolveMicrogridSelection instead). Only relevant
+ * when 'microgrid' is actually a desired feature — otherwise it's a no-op. */
+export function computeHardFilterFeatures(
+  desiredFeatures: DesiredFeatureId[],
+  microgridIsFundamental: boolean
+): DesiredFeatureId[] {
+  const microgridSelected = desiredFeatures.includes('microgrid');
+  return microgridSelected && !microgridIsFundamental
+    ? desiredFeatures.filter((feature) => feature !== 'microgrid')
+    : desiredFeatures;
+}
+
+/** Narrows compatibleSolutions to those whose inverter satisfies every
+ * requiredFlags entry. `blocked` is true when that leaves nothing — the
+ * caller is expected to then compute blockingDesiredFeatures for the error
+ * response using the same candidateInverters list. A no-op (never blocks)
+ * when requiredFlags is empty. */
+export function filterSolutionsByRequiredFlags(
+  compatibleSolutions: ApprovedSolution[],
+  requiredFlags: InverterFlag[],
+  candidateInverters: InverterCapabilities[]
+): { compatibleSolutions: ApprovedSolution[]; blocked: boolean } {
+  if (requiredFlags.length === 0) return { compatibleSolutions, blocked: false };
+
+  const matchingModels = new Set(
+    candidateInverters
+      .filter((inverter) => inverterSatisfiesRequiredFlags(inverter.flags, requiredFlags))
+      .map((inverter) => inverter.model)
+  );
+  const filtered = compatibleSolutions.filter((solution) => matchingModels.has(solution.inverter_model));
+  return { compatibleSolutions: filtered, blocked: filtered.length === 0 };
+}
+
+/** Decides how microgrid compatibility affects the final solution set, given
+ * compatibleSolutions already ranked best-first by every other requirement:
+ * - When microgrid is a hard requirement, it's enforced directly — the
+ *   returned compatibleSolutions become the microgrid-compatible subset
+ *   (`blocked: true` when that subset is empty, meaning no solution can
+ *   satisfy it at all).
+ * - Otherwise compatibleSolutions is left untouched (microgrid was excluded
+ *   from the baseline's hard filters upstream, by computeHardFilterFeatures)
+ *   and, if the best microgrid-compatible candidate differs from the best
+ *   overall one, it's surfaced separately as microgridAlternativeSolution —
+ *   never blocking in this branch. */
+export function resolveMicrogridSelection(
+  compatibleSolutions: ApprovedSolution[],
+  microgridConfig: MicrogridConfig,
+  microgridIsFundamental: boolean,
+  candidateInverters: InverterCapabilities[]
+): { compatibleSolutions: ApprovedSolution[]; microgridAlternativeSolution: ApprovedSolution | null; blocked: boolean } {
+  const inverterByModel = new Map(candidateInverters.map((inverter) => [inverter.model, inverter]));
+  const microgridCompatibleSolutions = compatibleSolutions.filter((candidate) => {
+    const inverter = inverterByModel.get(candidate.inverter_model);
+    if (!inverter) return false;
+    if (!inverterSatisfiesRequiredFlags(inverter.flags, ['microgrid'])) return false;
+    return solutionSupportsMicrogrid(candidate, inverter.max_power_per_phase_w, microgridConfig);
+  });
+
+  if (microgridIsFundamental) {
+    if (!microgridCompatibleSolutions.length) {
+      return { compatibleSolutions, microgridAlternativeSolution: null, blocked: true };
+    }
+    return { compatibleSolutions: microgridCompatibleSolutions, microgridAlternativeSolution: null, blocked: false };
+  }
+
+  const economicTop = compatibleSolutions[0];
+  const microgridTop = microgridCompatibleSolutions[0] ?? null;
+  const microgridAlternativeSolution = microgridTop && microgridTop.id !== economicTop.id ? microgridTop : null;
+  return { compatibleSolutions, microgridAlternativeSolution, blocked: false };
+}
+
 /** Raises a power floor (continuous/rated or surge/peak) to also cover the
  * white-tariff window's required power when that's higher. Used for both:
  * the inverter's rated_power_w must sustain requiredPowerW for the whole

@@ -3,13 +3,14 @@ import {
   batteryTopologyMap,
   blockingDesiredFeatures,
   buildSolutionPayload,
+  computeHardFilterFeatures,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  filterSolutionsByRequiredFlags,
   gridTopologyMap,
-  inverterSatisfiesRequiredFlags,
   rankByLeastShortfall,
   requiredInverterFlags,
-  solutionSupportsMicrogrid,
+  resolveMicrogridSelection,
   standardGridTopologyMap,
   totalDailyKwh,
   totalNominalW,
@@ -18,14 +19,9 @@ import {
   type AccessoryRule,
   type ApprovedSolution,
   type BatteryCatalogRow,
+  type InverterCapabilities,
   type ResidentialOptions,
 } from './logic.ts';
-
-interface InverterCapabilities {
-  model: string;
-  flags: string[] | null;
-  max_power_per_phase_w: number | null;
-}
 
 // Every response — success or error — must carry this header: the browser
 // enforces CORS on the actual response, not just the OPTIONS preflight, so
@@ -226,10 +222,7 @@ Deno.serve(async (req) => {
     // ("economic") recommendation below is computed without it — the
     // dedicated microgrid block further down decides whether to also offer
     // a microgrid-compatible alternative on top of this baseline.
-    const hardFilterFeatures =
-      microgridSelected && !microgridIsFundamental
-        ? desiredFeatures.filter((feature) => feature !== 'microgrid')
-        : desiredFeatures;
+    const hardFilterFeatures = computeHardFilterFeatures(desiredFeatures, microgridIsFundamental);
 
     const requiredFlags = requiredInverterFlags(hardFilterFeatures);
 
@@ -248,15 +241,14 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
       }
 
-      const matchingModels = new Set(
-        ((candidateInverters ?? []) as InverterCapabilities[])
-          .filter((inverter) => inverterSatisfiesRequiredFlags(inverter.flags, requiredFlags))
-          .map((inverter) => inverter.model)
+      const flagsResult = filterSolutionsByRequiredFlags(
+        compatibleSolutions,
+        requiredFlags,
+        (candidateInverters ?? []) as InverterCapabilities[]
       );
+      compatibleSolutions = flagsResult.compatibleSolutions;
 
-      compatibleSolutions = compatibleSolutions.filter((solution) => matchingModels.has(solution.inverter_model));
-
-      if (!compatibleSolutions.length) {
+      if (flagsResult.blocked) {
         return jsonResponse(
           {
             error: 'no_solution_matches_desired_features',
@@ -313,32 +305,22 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
       }
 
-      const inverterByModel = new Map(
-        ((microgridInverters ?? []) as InverterCapabilities[]).map((inverter) => [inverter.model, inverter])
+      const microgridResult = resolveMicrogridSelection(
+        compatibleSolutions,
+        microgridConfig,
+        microgridIsFundamental,
+        (microgridInverters ?? []) as InverterCapabilities[]
       );
 
-      const microgridCompatibleSolutions = compatibleSolutions.filter((candidate) => {
-        const inverter = inverterByModel.get(candidate.inverter_model);
-        if (!inverter) return false;
-        if (!inverterSatisfiesRequiredFlags(inverter.flags, ['microgrid'])) return false;
-        return solutionSupportsMicrogrid(candidate, inverter.max_power_per_phase_w, microgridConfig);
-      });
-
-      if (microgridIsFundamental) {
-        if (!microgridCompatibleSolutions.length) {
-          return jsonResponse(
-            { error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] },
-            { status: 422 }
-          );
-        }
-        compatibleSolutions = microgridCompatibleSolutions;
-      } else {
-        const economicTop = compatibleSolutions[0];
-        const microgridTop = microgridCompatibleSolutions[0] ?? null;
-        if (microgridTop && microgridTop.id !== economicTop.id) {
-          microgridAlternativeSolution = microgridTop;
-        }
+      if (microgridResult.blocked) {
+        return jsonResponse(
+          { error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] },
+          { status: 422 }
+        );
       }
+
+      compatibleSolutions = microgridResult.compatibleSolutions;
+      microgridAlternativeSolution = microgridResult.microgridAlternativeSolution;
     }
 
     const solution = compatibleSolutions[0] as ApprovedSolution;

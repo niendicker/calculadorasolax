@@ -2,15 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   blockingDesiredFeatures,
   buildSolutionPayload,
+  computeHardFilterFeatures,
   computePvMonthlyGenerationKwh,
   computePvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  filterSolutionsByRequiredFlags,
   inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
   normalizeStandardGridTopology,
   rankByLeastShortfall,
   requiredInverterFlags,
+  resolveMicrogridSelection,
   ruleMatches,
   solutionSupportsMicrogrid,
   totalDailyKwh,
@@ -20,6 +23,7 @@ import {
   type AccessoryRule,
   type ApprovedSolution,
   type EssCompatibilityRule,
+  type InverterCapabilities,
   type MicrogridConfig,
   type SingleLoad,
   type WhiteTariffConfig,
@@ -810,6 +814,65 @@ describe('blockingDesiredFeatures', () => {
   });
 });
 
+describe('computeHardFilterFeatures', () => {
+  it('leaves desiredFeatures untouched when microgrid is not selected', () => {
+    expect(computeHardFilterFeatures(['backup', 'pv'], false)).toEqual(['backup', 'pv']);
+  });
+
+  it('drops microgrid when it is selected but not a fundamental requirement', () => {
+    expect(computeHardFilterFeatures(['backup', 'microgrid'], false)).toEqual(['backup']);
+  });
+
+  it('keeps microgrid when it is a fundamental requirement', () => {
+    expect(computeHardFilterFeatures(['backup', 'microgrid'], true)).toEqual(['backup', 'microgrid']);
+  });
+
+  it('is a no-op when microgrid is fundamental but not actually selected', () => {
+    expect(computeHardFilterFeatures(['backup'], true)).toEqual(['backup']);
+  });
+});
+
+describe('filterSolutionsByRequiredFlags', () => {
+  function makeInverter(partial: Partial<InverterCapabilities> = {}): InverterCapabilities {
+    return { model: 'X1-Hybrid-5.0-D', flags: [], max_power_per_phase_w: null, ...partial };
+  }
+
+  it('is a no-op that never blocks when requiredFlags is empty', () => {
+    const solutions = [makeSolution({ id: 's1' })];
+    expect(filterSolutionsByRequiredFlags(solutions, [], [])).toEqual({ compatibleSolutions: solutions, blocked: false });
+  });
+
+  it('keeps only solutions whose inverter satisfies every required flag', () => {
+    const withFlag = makeSolution({ id: 's1', inverter_model: 'has-flag' });
+    const withoutFlag = makeSolution({ id: 's2', inverter_model: 'no-flag' });
+    const inverters = [
+      makeInverter({ model: 'has-flag', flags: ['external_ats'] }),
+      makeInverter({ model: 'no-flag', flags: [] }),
+    ];
+    expect(filterSolutionsByRequiredFlags([withFlag, withoutFlag], ['external_ats'], inverters)).toEqual({
+      compatibleSolutions: [withFlag],
+      blocked: false,
+    });
+  });
+
+  it('reports blocked when no solution survives the flag filter', () => {
+    const solution = makeSolution({ id: 's1', inverter_model: 'no-flag' });
+    const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
+    expect(filterSolutionsByRequiredFlags([solution], ['microgrid'], inverters)).toEqual({
+      compatibleSolutions: [],
+      blocked: true,
+    });
+  });
+
+  it('treats a solution with no matching candidate inverter row as unsatisfied', () => {
+    const solution = makeSolution({ id: 's1', inverter_model: 'unknown-model' });
+    expect(filterSolutionsByRequiredFlags([solution], ['microgrid'], [])).toEqual({
+      compatibleSolutions: [],
+      blocked: true,
+    });
+  });
+});
+
 describe('solutionSupportsMicrogrid', () => {
   function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig {
     return {
@@ -848,6 +911,95 @@ describe('solutionSupportsMicrogrid', () => {
     expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }))).toBe(false);
     // 2999 VA / 3 phases < 1000 W limit
     expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2999, onGridPhases: 3 }))).toBe(true);
+  });
+});
+
+describe('resolveMicrogridSelection', () => {
+  function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig {
+    return {
+      onGridPhases: 1,
+      onGridApparentPowerVA: 1000,
+      isFundamentalRequirement: false,
+      ...partial,
+    };
+  }
+
+  function makeInverter(partial: Partial<InverterCapabilities> = {}): InverterCapabilities {
+    return { model: 'X1-Hybrid-5.0-D', flags: ['microgrid'], max_power_per_phase_w: null, ...partial };
+  }
+
+  describe('when microgrid is a fundamental requirement', () => {
+    it('narrows compatibleSolutions to the microgrid-compatible subset', () => {
+      const compatible = makeSolution({ id: 's1', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
+      const incompatible = makeSolution({ id: 's2', inverter_model: 'no-flag', rated_power_w: 8000, battery_power_w: 8000 });
+      const inverters = [makeInverter({ model: 'ok' }), makeInverter({ model: 'no-flag', flags: [] })];
+      const microgrid = makeMicrogrid({ isFundamentalRequirement: true, onGridApparentPowerVA: 1000 });
+
+      expect(resolveMicrogridSelection([compatible, incompatible], microgrid, true, inverters)).toEqual({
+        compatibleSolutions: [compatible],
+        microgridAlternativeSolution: null,
+        blocked: false,
+      });
+    });
+
+    it('reports blocked when nothing satisfies microgrid, instead of falling back silently', () => {
+      const solution = makeSolution({ id: 's1', inverter_model: 'no-flag' });
+      const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
+      const microgrid = makeMicrogrid({ isFundamentalRequirement: true });
+
+      expect(resolveMicrogridSelection([solution], microgrid, true, inverters)).toEqual({
+        compatibleSolutions: [solution],
+        microgridAlternativeSolution: null,
+        blocked: true,
+      });
+    });
+  });
+
+  describe('when microgrid is optional', () => {
+    it('leaves compatibleSolutions untouched and never blocks', () => {
+      const economicTop = makeSolution({ id: 's1', inverter_model: 'no-flag' });
+      const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
+      const microgrid = makeMicrogrid({ isFundamentalRequirement: false });
+
+      expect(resolveMicrogridSelection([economicTop], microgrid, false, inverters)).toEqual({
+        compatibleSolutions: [economicTop],
+        microgridAlternativeSolution: null,
+        blocked: false,
+      });
+    });
+
+    it('surfaces the best microgrid-compatible solution as an alternative when it differs from the top pick', () => {
+      const economicTop = makeSolution({ id: 's1', inverter_model: 'no-flag', rated_power_w: 5000, battery_power_w: 5000 });
+      const microgridCandidate = makeSolution({ id: 's2', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
+      const inverters = [makeInverter({ model: 'no-flag', flags: [] }), makeInverter({ model: 'ok' })];
+      const microgrid = makeMicrogrid({ isFundamentalRequirement: false, onGridApparentPowerVA: 1000 });
+
+      expect(resolveMicrogridSelection([economicTop, microgridCandidate], microgrid, false, inverters)).toEqual({
+        compatibleSolutions: [economicTop, microgridCandidate],
+        microgridAlternativeSolution: microgridCandidate,
+        blocked: false,
+      });
+    });
+
+    it('does not surface an alternative when the best microgrid-compatible solution is already the top pick', () => {
+      const economicTop = makeSolution({ id: 's1', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
+      const inverters = [makeInverter({ model: 'ok' })];
+      const microgrid = makeMicrogrid({ isFundamentalRequirement: false, onGridApparentPowerVA: 1000 });
+
+      expect(resolveMicrogridSelection([economicTop], microgrid, false, inverters)).toEqual({
+        compatibleSolutions: [economicTop],
+        microgridAlternativeSolution: null,
+        blocked: false,
+      });
+    });
+
+    it('does not surface an alternative when no candidate is microgrid-compatible', () => {
+      const economicTop = makeSolution({ id: 's1', inverter_model: 'no-flag' });
+      const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
+      const microgrid = makeMicrogrid({ isFundamentalRequirement: false });
+
+      expect(resolveMicrogridSelection([economicTop], microgrid, false, inverters).microgridAlternativeSolution).toBeNull();
+    });
   });
 });
 
