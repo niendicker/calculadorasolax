@@ -40,15 +40,18 @@ function makeQueryBuilder(result: TableResult) {
  * `{ data, error }` its query should resolve with — pass an array to return
  * a different result on each successive `.from(table)` call for that table
  * (e.g. approved_solutions: [strictResult, relaxedResult]), repeating the
- * last entry once exhausted. */
+ * last entry once exhausted. `rpcResult` supports the same array form, for
+ * simulating the ESS rule RPC rejecting the strict pool's ids on the first
+ * call but accepting the relaxed pool's ids on a retry. */
 function makeFakeSupabase({
   tableResults = {},
   rpcResult = { data: [], error: null },
 }: {
   tableResults?: Record<string, TableResult | TableResult[]>;
-  rpcResult?: TableResult;
+  rpcResult?: TableResult | TableResult[];
 }) {
   const callCounts: Record<string, number> = {};
+  let rpcCallCount = 0;
   return {
     from(table: string) {
       const entry = tableResults[table];
@@ -63,7 +66,11 @@ function makeFakeSupabase({
       return makeQueryBuilder(result);
     },
     rpc() {
-      return Promise.resolve(rpcResult);
+      const result = Array.isArray(rpcResult)
+        ? rpcResult[Math.min(rpcCallCount, rpcResult.length - 1)]
+        : rpcResult;
+      rpcCallCount += 1;
+      return Promise.resolve(result);
     },
     // deno-lint-ignore no-explicit-any
   } as any;
@@ -206,16 +213,16 @@ Deno.test('a desired feature with no supporting inverter returns 422 no_solution
   assertEquals(body.blockingFeatures, ['external_ats']);
 });
 
-Deno.test('a battery model with no compatible ESS rule returns 422 no_compatible_ess_rule', async () => {
+Deno.test('a battery model with no compatible ESS rule anywhere (not even in the relaxed pool) returns 422 no_compatible_ess_rule', async () => {
   const supabase = makeFakeSupabase({
     tableResults: {
       batteries: { data: { capacity_kwh: 5.8, min_soc_percent: 10 }, error: null },
+      // Same single row on every .from('approved_solutions') call (strict,
+      // and the retry's relaxed fetch) — there's genuinely no wider
+      // candidate, so this must still be a real dead end even with the
+      // relaxed-pool retry in place.
       approved_solutions: { data: [makeSolutionRow()], error: null },
     },
-    // The RPC finding no compatible solution ids for this battery model is
-    // exactly the "strict query non-empty but ESS rule rejects everything"
-    // dead end the relaxed fallback (wired only to the strict query) doesn't
-    // cover — see the earlier Tarifa Branca investigation this test guards.
     rpcResult: { data: [], error: null },
   });
   const req = postRequest(makeOptions({ batteryModel: 'T-BAT-SYS HV 5.8 V2' }));
@@ -223,6 +230,37 @@ Deno.test('a battery model with no compatible ESS rule returns 422 no_compatible
   assertEquals(res.status, 422);
   const body = await res.json();
   assertEquals(body.error, 'no_compatible_ess_rule');
+});
+
+Deno.test('retries with the relaxed pool when the ESS rule rejects the strict pool, and succeeds if a wider solution passes — regression test for the original Tarifa Branca "no solution found" bug', async () => {
+  const strictOnly = makeSolutionRow({ id: 'sol-strict-only', battery_quantity: 2 });
+  const relaxedOnly = makeSolutionRow({ id: 'sol-relaxed-only', battery_quantity: 6 });
+  const supabase = makeFakeSupabase({
+    tableResults: {
+      batteries: { data: { capacity_kwh: 5.8, min_soc_percent: 10 }, error: null },
+      // Strict query only turns up the small-battery-quantity solution (the
+      // one Tarifa Branca's inflated power/energy floor would actually
+      // match); the relaxed (topology-only) query also has the
+      // larger-battery-quantity one that the ESS rule actually allows.
+      approved_solutions: [
+        { data: [strictOnly], error: null },
+        { data: [strictOnly, relaxedOnly], error: null },
+      ],
+    },
+    // First RPC call (strict pool, just sol-strict-only) rejects everything;
+    // second call (relaxed pool, both ids) accepts only sol-relaxed-only —
+    // simulating an ESS rule whose battery-quantity range the strict pool's
+    // solution falls outside of, but the relaxed pool's doesn't.
+    rpcResult: [
+      { data: [], error: null },
+      { data: ['sol-relaxed-only'], error: null },
+    ],
+  });
+  const req = postRequest(makeOptions({ batteryModel: 'T-BAT-SYS HV 5.8 V2' }));
+  const res = await handleCalculateResidential(req, supabase);
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.solutionId, 'sol-relaxed-only');
 });
 
 Deno.test('microgrid as a fundamental requirement with no compatible solution returns 422 blocking microgrid', async () => {

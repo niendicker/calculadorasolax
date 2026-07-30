@@ -180,6 +180,30 @@ export async function handleCalculateResidential(
       );
     }
 
+    // The relaxed (topology/pinned-model-only) candidate pool, fetched at
+    // most once and reused by every fallback below — not just the strict
+    // power/energy shortfall case, but also when a downstream filter (flags,
+    // ESS rule, microgrid) empties the strict-derived pool. Lazy: most
+    // requests never need it, since the strict pool already survives every
+    // stage.
+    let relaxedRowsCache: ApprovedSolution[] | undefined;
+    async function getRelaxedRows(): Promise<{ rows: ApprovedSolution[] } | { error: unknown }> {
+      if (relaxedRowsCache) return { rows: relaxedRowsCache };
+      let relaxedQuery = supabase
+        .from('approved_solutions')
+        .select(solutionColumns)
+        .eq('active', true)
+        .eq('grid_topology', gridTopology)
+        .eq('battery_topology', batteryTopology)
+        .limit(500);
+      if (options.batteryModel) relaxedQuery = relaxedQuery.eq('battery_model', options.batteryModel);
+      if (options.inverterModel) relaxedQuery = relaxedQuery.eq('inverter_model', options.inverterModel);
+      const { data, error } = await relaxedQuery;
+      if (error) return { error };
+      relaxedRowsCache = (data ?? []) as ApprovedSolution[];
+      return { rows: relaxedRowsCache };
+    }
+
     // Nothing fully satisfies every power/energy requirement — rather than a
     // dead-end error, fall back to the largest available combination for the
     // selected grid/battery topology and (if pinned) inverter/battery model,
@@ -189,35 +213,24 @@ export async function handleCalculateResidential(
     // — this is the intentional "show what's available, not just a wall"
     // path, not an error condition. Identity/compatibility filters (grid and
     // battery topology, pinned models) stay exactly as strict.
+    let usedRelaxedFallback = false;
+
     if (!compatibleSolutions.length) {
-      let relaxedQuery = supabase
-        .from('approved_solutions')
-        .select(solutionColumns)
-        .eq('active', true)
-        .eq('grid_topology', gridTopology)
-        .eq('battery_topology', batteryTopology)
-        .limit(500);
-
-      if (options.batteryModel) relaxedQuery = relaxedQuery.eq('battery_model', options.batteryModel);
-      if (options.inverterModel) relaxedQuery = relaxedQuery.eq('inverter_model', options.inverterModel);
-
-      const { data: relaxedRows, error: relaxedErr } = await relaxedQuery;
-
-      if (relaxedErr) {
-        console.error(relaxedErr);
+      const relaxed = await getRelaxedRows();
+      if ('error' in relaxed) {
+        console.error(relaxed.error);
         return jsonResponse({ error: 'solution_lookup_failed' }, { status: 500 });
       }
-
-      if (!relaxedRows?.length) {
+      if (!relaxed.rows.length) {
         return jsonResponse({ error: 'no_approved_solution' }, { status: 422 });
       }
-
-      compatibleSolutions = rankByLeastShortfall(relaxedRows as ApprovedSolution[], {
+      compatibleSolutions = rankByLeastShortfall(relaxed.rows, {
         minRatedPowerW,
         targetPowerW,
         targetEnergyWh,
         usefulEnergyWhPerBattery,
       });
+      usedRelaxedFallback = true;
     }
 
     const microgridSelected = desiredFeatures.includes('microgrid');
@@ -229,105 +242,160 @@ export async function handleCalculateResidential(
     // dedicated microgrid block further down decides whether to also offer
     // a microgrid-compatible alternative on top of this baseline.
     const hardFilterFeatures = computeHardFilterFeatures(desiredFeatures, microgridIsFundamental);
-
     const requiredFlags = requiredInverterFlags(hardFilterFeatures);
 
-    if (requiredFlags.length > 0) {
-      const candidateInverterModels = Array.from(
-        new Set(compatibleSolutions.map((solution) => solution.inverter_model))
-      );
+    type PipelineResult =
+      | { ok: true; compatibleSolutions: ApprovedSolution[]; microgridAlternativeSolution: ApprovedSolution | null }
+      | { ok: false; response: Response };
 
-      const { data: candidateInverters, error: inverterErr } = await supabase
-        .from('inverters')
-        .select('model, flags, max_power_per_phase_w')
-        .in('model', candidateInverterModels);
+    // Runs the flags → ESS rule → microgrid gates against a given candidate
+    // pool. Pulled out so it can run twice: once against the strict-derived
+    // (or already-relaxed, if the strict query itself came back empty) pool,
+    // and — only if that's blocked by one of these gates rather than an
+    // outright missing catalog — once more against the full relaxed pool, so
+    // a solution that only a downstream gate (not the power/energy filter)
+    // would have rejected still gets a fair shot instead of a dead end.
+    async function runPipeline(candidates: ApprovedSolution[]): Promise<PipelineResult> {
+      let pool = candidates;
 
-      if (inverterErr) {
-        console.error(inverterErr);
-        return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
-      }
+      if (requiredFlags.length > 0) {
+        const candidateInverterModels = Array.from(new Set(pool.map((solution) => solution.inverter_model)));
 
-      const flagsResult = filterSolutionsByRequiredFlags(
-        compatibleSolutions,
-        requiredFlags,
-        (candidateInverters ?? []) as InverterCapabilities[]
-      );
-      compatibleSolutions = flagsResult.compatibleSolutions;
+        const { data: candidateInverters, error: inverterErr } = await supabase
+          .from('inverters')
+          .select('model, flags, max_power_per_phase_w')
+          .in('model', candidateInverterModels);
 
-      if (flagsResult.blocked) {
-        return jsonResponse(
-          {
-            error: 'no_solution_matches_desired_features',
-            blockingFeatures: blockingDesiredFeatures(hardFilterFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
-          },
-          { status: 422 }
+        if (inverterErr) {
+          console.error(inverterErr);
+          return { ok: false, response: jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 }) };
+        }
+
+        const flagsResult = filterSolutionsByRequiredFlags(
+          pool,
+          requiredFlags,
+          (candidateInverters ?? []) as InverterCapabilities[]
         );
+        pool = flagsResult.compatibleSolutions;
+
+        if (flagsResult.blocked) {
+          return {
+            ok: false,
+            response: jsonResponse(
+              {
+                error: 'no_solution_matches_desired_features',
+                blockingFeatures: blockingDesiredFeatures(hardFilterFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
+              },
+              { status: 422 }
+            ),
+          };
+        }
       }
+
+      if (options.batteryModel) {
+        // The scaled min/max-battery-quantity-per-inverter check lives in the
+        // database (see migration 0052_ess_compatible_solution_ids.sql) — it's
+        // the one place both this Edge Function and the admin's solution
+        // generator (components/admin/helpers.ts) can read the same rule
+        // without re-deriving the inverterQty/battery_ports_used scaling twice.
+        const { data: compatibleIds, error: essErr } = await supabase.rpc('ess_compatible_solution_ids', {
+          p_battery_model: options.batteryModel,
+          p_battery_topology: batteryTopology,
+          p_grid_topology: gridTopology,
+          p_solution_ids: pool.map((solution) => solution.id),
+        });
+
+        if (essErr) {
+          console.error(essErr);
+          return { ok: false, response: jsonResponse({ error: 'ess_rules_lookup_failed' }, { status: 500 }) };
+        }
+
+        const compatibleIdSet = new Set(compatibleIds as string[]);
+        pool = pool.filter((solution) => compatibleIdSet.has(solution.id));
+
+        if (!pool.length) {
+          return { ok: false, response: jsonResponse({ error: 'no_compatible_ess_rule' }, { status: 422 }) };
+        }
+      }
+
+      // Microgrid compatibility is checked last, against whatever already
+      // satisfies every other requirement — it needs the inverter's own
+      // max_power_per_phase_w, which the generic flag-filter above may not
+      // have fetched (e.g. when microgrid was excluded from
+      // hardFilterFeatures, or when it's the only flag-based feature
+      // selected).
+      let microgridAlternativeSolution: ApprovedSolution | null = null;
+
+      if (microgridConfig) {
+        const candidateModels = Array.from(new Set(pool.map((solution) => solution.inverter_model)));
+
+        const { data: microgridInverters, error: microgridInverterErr } = await supabase
+          .from('inverters')
+          .select('model, flags, max_power_per_phase_w')
+          .in('model', candidateModels);
+
+        if (microgridInverterErr) {
+          console.error(microgridInverterErr);
+          return { ok: false, response: jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 }) };
+        }
+
+        const microgridResult = resolveMicrogridSelection(
+          pool,
+          microgridConfig,
+          microgridIsFundamental,
+          (microgridInverters ?? []) as InverterCapabilities[]
+        );
+
+        if (microgridResult.blocked) {
+          return {
+            ok: false,
+            response: jsonResponse(
+              { error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] },
+              { status: 422 }
+            ),
+          };
+        }
+
+        pool = microgridResult.compatibleSolutions;
+        microgridAlternativeSolution = microgridResult.microgridAlternativeSolution;
+      }
+
+      return { ok: true, compatibleSolutions: pool, microgridAlternativeSolution };
     }
 
-    if (options.batteryModel) {
-      // The scaled min/max-battery-quantity-per-inverter check lives in the
-      // database (see migration 0052_ess_compatible_solution_ids.sql) — it's
-      // the one place both this Edge Function and the admin's solution
-      // generator (components/admin/helpers.ts) can read the same rule
-      // without re-deriving the inverterQty/battery_ports_used scaling twice.
-      const { data: compatibleIds, error: essErr } = await supabase.rpc('ess_compatible_solution_ids', {
-        p_battery_model: options.batteryModel,
-        p_battery_topology: batteryTopology,
-        p_grid_topology: gridTopology,
-        p_solution_ids: compatibleSolutions.map((solution) => solution.id),
+    let pipelineResult = await runPipeline(compatibleSolutions);
+
+    if (!pipelineResult.ok) {
+      // Already the widest possible pool (strict was empty, so this is the
+      // relaxed one) — the block is real, nothing broader to try.
+      if (usedRelaxedFallback) {
+        return pipelineResult.response;
+      }
+
+      const relaxed = await getRelaxedRows();
+      if ('error' in relaxed) {
+        console.error(relaxed.error);
+        return jsonResponse({ error: 'solution_lookup_failed' }, { status: 500 });
+      }
+      if (!relaxed.rows.length) {
+        return pipelineResult.response;
+      }
+
+      const relaxedRanked = rankByLeastShortfall(relaxed.rows, {
+        minRatedPowerW,
+        targetPowerW,
+        targetEnergyWh,
+        usefulEnergyWhPerBattery,
       });
-
-      if (essErr) {
-        console.error(essErr);
-        return jsonResponse({ error: 'ess_rules_lookup_failed' }, { status: 500 });
+      const retryResult = await runPipeline(relaxedRanked);
+      if (!retryResult.ok) {
+        return retryResult.response;
       }
-
-      const compatibleIdSet = new Set(compatibleIds as string[]);
-      compatibleSolutions = compatibleSolutions.filter((solution) => compatibleIdSet.has(solution.id));
+      pipelineResult = retryResult;
     }
 
-    if (!compatibleSolutions.length) {
-      return jsonResponse({ error: 'no_compatible_ess_rule' }, { status: 422 });
-    }
-
-    // Microgrid compatibility is checked last, against whatever already
-    // satisfies every other requirement — it needs the inverter's own
-    // max_power_per_phase_w, which the generic flag-filter above may not have
-    // fetched (e.g. when microgrid was excluded from hardFilterFeatures, or
-    // when it's the only flag-based feature selected).
-    let microgridAlternativeSolution: ApprovedSolution | null = null;
-
-    if (microgridConfig) {
-      const candidateModels = Array.from(new Set(compatibleSolutions.map((solution) => solution.inverter_model)));
-
-      const { data: microgridInverters, error: microgridInverterErr } = await supabase
-        .from('inverters')
-        .select('model, flags, max_power_per_phase_w')
-        .in('model', candidateModels);
-
-      if (microgridInverterErr) {
-        console.error(microgridInverterErr);
-        return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
-      }
-
-      const microgridResult = resolveMicrogridSelection(
-        compatibleSolutions,
-        microgridConfig,
-        microgridIsFundamental,
-        (microgridInverters ?? []) as InverterCapabilities[]
-      );
-
-      if (microgridResult.blocked) {
-        return jsonResponse(
-          { error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] },
-          { status: 422 }
-        );
-      }
-
-      compatibleSolutions = microgridResult.compatibleSolutions;
-      microgridAlternativeSolution = microgridResult.microgridAlternativeSolution;
-    }
+    compatibleSolutions = pipelineResult.compatibleSolutions;
+    const microgridAlternativeSolution = pipelineResult.microgridAlternativeSolution;
 
     const solution = compatibleSolutions[0] as ApprovedSolution;
 
