@@ -109,7 +109,7 @@ describe('useCalculation: canCalculate', () => {
     expect(result.current.canCalculate).toBe(true);
   });
 
-  it('is false when Gerador Externo is selected but its power is below the loads peak power', () => {
+  it('is false when Gerador is selected but its power is below the loads peak power', () => {
     const { result } = renderCalculation(
       baseProps({
         residentialOptions: {
@@ -123,13 +123,13 @@ describe('useCalculation: canCalculate', () => {
     expect(result.current.canCalculate).toBe(false);
   });
 
-  it('is true when Gerador Externo power covers the loads peak power and the ATS notice is acknowledged', () => {
+  it('is true when Gerador power covers the loads plus margin and the ATS notice is acknowledged', () => {
     const { result } = renderCalculation(
       baseProps({
         residentialOptions: {
           ...validResidentialOptions,
           desiredFeatures: ['external_generator'],
-          generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: true },
+          generator: { voltageV: 220, phases: 1, apparentPowerVA: 9000, photoUrl: null, ownAtsAcknowledged: true },
         },
         peakW: 5500,
       })
@@ -137,13 +137,13 @@ describe('useCalculation: canCalculate', () => {
     expect(result.current.canCalculate).toBe(true);
   });
 
-  it('is false when Gerador Externo power is sufficient but the own-ATS notice is not acknowledged', () => {
+  it('is false when Gerador power is sufficient but the own-ATS notice is not acknowledged', () => {
     const { result } = renderCalculation(
       baseProps({
         residentialOptions: {
           ...validResidentialOptions,
           desiredFeatures: ['external_generator'],
-          generator: { voltageV: 220, phases: 1, apparentPowerVA: 6000, photoUrl: null, ownAtsAcknowledged: false },
+          generator: { voltageV: 220, phases: 1, apparentPowerVA: 9000, photoUrl: null, ownAtsAcknowledged: false },
         },
         peakW: 5500,
       })
@@ -151,7 +151,7 @@ describe('useCalculation: canCalculate', () => {
     expect(result.current.canCalculate).toBe(false);
   });
 
-  it('is false when Microrrede is selected but the power notice is not acknowledged', () => {
+  it('does not require a manual power acknowledgement when Microrrede data is valid', () => {
     const { result } = renderCalculation(
       baseProps({
         residentialOptions: {
@@ -168,7 +168,7 @@ describe('useCalculation: canCalculate', () => {
         },
       })
     );
-    expect(result.current.canCalculate).toBe(false);
+    expect(result.current.canCalculate).toBe(true);
   });
 
   it('is true when Microrrede is selected and the power notice is acknowledged', () => {
@@ -212,7 +212,7 @@ describe('useCalculation: canCalculate', () => {
     expect(result.current.canCalculate).toBe(false);
   });
 
-  it('is false when Gerador Externo is acknowledged and its power is sufficient but its phases/voltage are incompatible with the grid type', () => {
+  it('is false when Gerador is acknowledged and its power is sufficient but its phases/voltage are incompatible with the grid type', () => {
     const { result } = renderCalculation(
       baseProps({
         residentialOptions: {

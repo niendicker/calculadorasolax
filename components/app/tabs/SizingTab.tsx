@@ -205,6 +205,7 @@ export function SizingTab({
       microgrid: residentialOptions.microgrid,
       generator: residentialOptions.generator,
       pv: residentialOptions.pv,
+      whiteTariff: residentialOptions.whiteTariff,
       atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
       gridType: residentialOptions.gridType,
       peakW,

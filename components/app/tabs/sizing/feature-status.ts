@@ -1,12 +1,12 @@
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import type { DesiredFeatureId, GeneratorConfig, MicrogridConfig, PvConfig, ResidentialGridType } from '@/lib/types';
+import type { DesiredFeatureId, GeneratorConfig, MicrogridConfig, PvConfig, ResidentialGridType, WhiteTariffConfig } from '@/lib/types';
 import {
   isGeneratorAtsUnacknowledged,
   isGeneratorPhaseVoltageIncompatible,
   isGeneratorPowerInsufficient,
   isMicrogridPhaseVoltageIncompatible,
-  isMicrogridPowerNoticeUnacknowledged,
   isPvConfigIncomplete,
+  isWhiteTariffConfigIncomplete,
 } from '../../helpers';
 import type { InverterCatalogOption } from '../../types';
 
@@ -25,6 +25,7 @@ export function desiredFeatureHasPendingIssue(
     microgrid,
     generator,
     pv,
+    whiteTariff,
     atsBackupAcknowledged,
     gridType,
     peakW,
@@ -36,6 +37,7 @@ export function desiredFeatureHasPendingIssue(
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
     pv: PvConfig | null;
+    whiteTariff: WhiteTariffConfig | null;
     atsBackupAcknowledged: boolean;
     gridType: ResidentialGridType | null;
     peakW: number;
@@ -65,10 +67,7 @@ export function desiredFeatureHasPendingIssue(
     case 'external_ats':
       return !atsBackupAcknowledged;
     case 'microgrid':
-      return (
-        isMicrogridPowerNoticeUnacknowledged(value, microgrid) ||
-        isMicrogridPhaseVoltageIncompatible(value, microgrid, gridType)
-      );
+      return !microgrid?.onGridApparentPowerVA || isMicrogridPhaseVoltageIncompatible(value, microgrid, gridType);
     case 'external_generator':
       return (
         isGeneratorPowerInsufficient(value, generator, peakW) ||
@@ -77,6 +76,8 @@ export function desiredFeatureHasPendingIssue(
       );
     case 'pv':
       return isPvConfigIncomplete(value, pv);
+    case 'white_tariff':
+      return isWhiteTariffConfigIncomplete(value, whiteTariff);
     default:
       return false;
   }

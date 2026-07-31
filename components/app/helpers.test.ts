@@ -10,12 +10,14 @@ import {
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   expansionModelSet,
+  generatorActivePowerW,
   isGeneratorAtsUnacknowledged,
   isGeneratorPhaseVoltageIncompatible,
   isGeneratorPowerInsufficient,
   isMicrogridPhaseVoltageIncompatible,
-  isMicrogridPowerNoticeUnacknowledged,
+  isWhiteTariffConfigIncomplete,
   normalizeAccessoryLine,
+  recommendedGeneratorApparentPowerVA,
   solutionHasInsufficientMargin,
 } from './helpers';
 import type { AccessoryLine, GeneratorConfig, MicrogridConfig, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
@@ -538,6 +540,27 @@ describe('calculateTariffSavings', () => {
     expect(result!.pvMonthlySavings).toBeCloseTo(expectedPvMonthlySavings);
   });
 
+  it('prioritizes the intermediate period when it has the greater tariff benefit', () => {
+    const result = calculateTariffSavings(
+      makeWhiteTariff({
+        pontaEnergyWh: 4000,
+        intermediateEnergyWh: 4000,
+        pontaTariffPerKwh: 1,
+        intermediateTariffPerKwh: 1.5,
+      }),
+      { availableEnergyWh: 3000 }
+    );
+    expect(result!.dailyIntermediateServedKwh).toBe(3);
+    expect(result!.dailyPontaServedKwh).toBe(0);
+  });
+
+  it('validates all fields needed for a meaningful white-tariff estimate', () => {
+    expect(isWhiteTariffConfigIncomplete([], null)).toBe(false);
+    expect(isWhiteTariffConfigIncomplete(['white_tariff'], makeWhiteTariff())).toBe(true);
+    expect(isWhiteTariffConfigIncomplete(['white_tariff'], makeWhiteTariff({ totalMonthlyConsumptionKwh: 400 }))).toBe(false);
+    expect(isWhiteTariffConfigIncomplete(['white_tariff'], makeWhiteTariff({ totalMonthlyConsumptionKwh: 20 }))).toBe(true);
+  });
+
   it('applies the battery and inverter efficiencies to grid-charged arbitrage', () => {
     const ideal = calculateTariffSavings(makeWhiteTariff({ pontaTariffPerKwh: 1.3, foraPontaTariffPerKwh: 0.8 }));
     const realistic = calculateTariffSavings(
@@ -629,6 +652,10 @@ describe('normalizeAccessoryLine', () => {
 });
 
 describe('isGeneratorPowerInsufficient', () => {
+  it('converts nameplate kVA to active power and recommends headroom for charging', () => {
+    expect(generatorActivePowerW(makeGenerator({ apparentPowerVA: 10000, powerFactor: 0.8 }))).toBe(8000);
+    expect(recommendedGeneratorApparentPowerVA(5000, 0.8, 20)).toBe(7500);
+  });
   it('is false when external_generator is not selected, regardless of power', () => {
     expect(isGeneratorPowerInsufficient([], makeGenerator({ apparentPowerVA: 100 }), 5000)).toBe(false);
   });
@@ -643,11 +670,11 @@ describe('isGeneratorPowerInsufficient', () => {
     );
   });
 
-  it('is false when the generator power meets or exceeds the loads peak power', () => {
-    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 5000 }), 5000)).toBe(
+  it('is false when active generator power covers the loads plus operating margin', () => {
+    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 7500 }), 5000)).toBe(
       false
     );
-    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 6000 }), 5000)).toBe(
+    expect(isGeneratorPowerInsufficient(['external_generator'], makeGenerator({ apparentPowerVA: 8000 }), 5000)).toBe(
       false
     );
   });
@@ -672,28 +699,6 @@ describe('isGeneratorAtsUnacknowledged', () => {
     expect(isGeneratorAtsUnacknowledged(['external_generator'], makeGenerator({ ownAtsAcknowledged: true }))).toBe(
       false
     );
-  });
-});
-
-describe('isMicrogridPowerNoticeUnacknowledged', () => {
-  it('is false when microgrid is not selected', () => {
-    expect(isMicrogridPowerNoticeUnacknowledged([], makeMicrogrid({ powerNoticeAcknowledged: false }))).toBe(false);
-  });
-
-  it('is true when microgrid is selected but no config exists yet', () => {
-    expect(isMicrogridPowerNoticeUnacknowledged(['microgrid'], null)).toBe(true);
-  });
-
-  it('is true when the acknowledgement checkbox has not been checked', () => {
-    expect(
-      isMicrogridPowerNoticeUnacknowledged(['microgrid'], makeMicrogrid({ powerNoticeAcknowledged: false }))
-    ).toBe(true);
-  });
-
-  it('is false once the acknowledgement checkbox is checked', () => {
-    expect(
-      isMicrogridPowerNoticeUnacknowledged(['microgrid'], makeMicrogrid({ powerNoticeAcknowledged: true }))
-    ).toBe(false);
   });
 });
 

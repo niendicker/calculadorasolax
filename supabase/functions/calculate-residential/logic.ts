@@ -109,11 +109,12 @@ export function solutionSupportsMicrogrid(
   inverterMaxPowerPerPhaseW: number | null,
   microgrid: MicrogridConfig
 ): boolean {
-  if (microgrid.onGridApparentPowerVA >= solution.rated_power_w) return false;
-  if (microgrid.onGridApparentPowerVA >= solution.battery_power_w) return false;
+  const requiredPowerW = microgrid.onGridApparentPowerVA * 1.2;
+  if (requiredPowerW > solution.rated_power_w) return false;
+  if (requiredPowerW > solution.battery_power_w) return false;
   if (inverterMaxPowerPerPhaseW !== null) {
-    const perPhaseVA = microgrid.onGridApparentPowerVA / microgrid.onGridPhases;
-    if (perPhaseVA >= inverterMaxPowerPerPhaseW) return false;
+    const requiredPerPhaseW = requiredPowerW / microgrid.onGridPhases;
+    if (requiredPerPhaseW > inverterMaxPowerPerPhaseW) return false;
   }
   return true;
 }
@@ -221,18 +222,26 @@ export function effectiveTargetPowerW(
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
-  baseTargetEnergyWh: number
+  baseTargetEnergyWh: number,
+  roundTripEfficiencyPercent = 100
 ): number {
   if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
+  const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
   return (
-    whiteTariff.pontaEnergyWh +
-    whiteTariff.intermediateEnergyWh +
+    (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency +
     (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0)
   );
 }
 
 /** Mirrors lib/types.ts WhiteTariffConfig. */
 export interface WhiteTariffConfig {
+  inputMode?: 'basic' | 'advanced';
+  totalMonthlyConsumptionKwh?: number;
+  pontaConsumptionPercent?: number;
+  intermediateConsumptionPercent?: number;
+  businessDaysPerMonth?: number;
+  pontaWindowHours?: number;
+  intermediateWindowHours?: number;
   requiredPowerW: number;
   pontaEnergyWh: number;
   intermediateEnergyWh: number;
@@ -258,6 +267,8 @@ export interface GeneratorConfig {
   voltageV: number;
   phases: 1 | 2 | 3;
   apparentPowerVA: number;
+  powerFactor?: number;
+  safetyMarginPercent?: number;
   photoUrl?: string | null;
   ownAtsAcknowledged?: boolean;
 }
@@ -410,6 +421,7 @@ export interface EssCompatibilityRule {
 export interface BatteryCatalogRow {
   capacity_kwh: number;
   min_soc_percent: number | null;
+  round_trip_efficiency_percent?: number | null;
 }
 
 export const batteryTopologyMap: Record<ResidentialOptions['topology'], 'HV' | 'LV'> = {
@@ -841,6 +853,36 @@ export function validateResidentialOptions(raw: unknown): string[] {
       if (typeof whiteTariff.foraPontaTariffPerKwh !== 'number' || whiteTariff.foraPontaTariffPerKwh < 0) {
         errors.push('whiteTariff.foraPontaTariffPerKwh must be a number >= 0');
       }
+      if (whiteTariff.requiredPowerW === 0) errors.push('whiteTariff.requiredPowerW must be greater than 0');
+      if (whiteTariff.pontaEnergyWh === 0 && whiteTariff.intermediateEnergyWh === 0) {
+        errors.push('whiteTariff must include energy in ponta or intermediate period');
+      }
+      if (whiteTariff.pontaTariffPerKwh === 0 || whiteTariff.intermediateTariffPerKwh === 0 || whiteTariff.foraPontaTariffPerKwh === 0) {
+        errors.push('whiteTariff tariffs must be greater than 0');
+      }
+      if (
+        typeof whiteTariff.pontaTariffPerKwh === 'number' &&
+        typeof whiteTariff.intermediateTariffPerKwh === 'number' &&
+        typeof whiteTariff.foraPontaTariffPerKwh === 'number' &&
+        (whiteTariff.pontaTariffPerKwh < whiteTariff.foraPontaTariffPerKwh ||
+          whiteTariff.intermediateTariffPerKwh < whiteTariff.foraPontaTariffPerKwh)
+      ) errors.push('whiteTariff expensive tariffs must be >= off-peak tariff');
+      if (whiteTariff.totalMonthlyConsumptionKwh !== undefined &&
+        (typeof whiteTariff.totalMonthlyConsumptionKwh !== 'number' || whiteTariff.totalMonthlyConsumptionKwh < 0)) {
+        errors.push('whiteTariff.totalMonthlyConsumptionKwh must be a number >= 0');
+      }
+      if (!(typeof whiteTariff.totalMonthlyConsumptionKwh === 'number' && whiteTariff.totalMonthlyConsumptionKwh > 0)) {
+        errors.push('whiteTariff.totalMonthlyConsumptionKwh must be greater than 0');
+      }
+      for (const field of ['businessDaysPerMonth', 'pontaWindowHours', 'intermediateWindowHours'] as const) {
+        if (whiteTariff[field] !== undefined &&
+          (typeof whiteTariff[field] !== 'number' || !Number.isFinite(whiteTariff[field]) || whiteTariff[field] <= 0)) {
+          errors.push(`whiteTariff.${field} must be a number > 0`);
+        }
+      }
+      if (whiteTariff.inputMode !== undefined && !['basic', 'advanced'].includes(whiteTariff.inputMode as string)) {
+        errors.push('whiteTariff.inputMode must be basic or advanced');
+      }
     }
   }
 
@@ -855,8 +897,8 @@ export function validateResidentialOptions(raw: unknown): string[] {
       if (![1, 2, 3].includes(microgrid.onGridPhases as number)) {
         errors.push('microgrid.onGridPhases must be 1, 2, or 3');
       }
-      if (typeof microgrid.onGridApparentPowerVA !== 'number' || microgrid.onGridApparentPowerVA < 0) {
-        errors.push('microgrid.onGridApparentPowerVA must be a number >= 0');
+      if (typeof microgrid.onGridApparentPowerVA !== 'number' || microgrid.onGridApparentPowerVA <= 0) {
+        errors.push('microgrid.onGridApparentPowerVA must be a number > 0');
       }
       if (typeof microgrid.isFundamentalRequirement !== 'boolean') {
         errors.push('microgrid.isFundamentalRequirement must be a boolean');
@@ -877,6 +919,26 @@ export function validateResidentialOptions(raw: unknown): string[] {
       }
       if (typeof generator.apparentPowerVA !== 'number' || generator.apparentPowerVA < 0) {
         errors.push('generator.apparentPowerVA must be a number >= 0');
+      }
+      if (generator.powerFactor !== undefined &&
+        (typeof generator.powerFactor !== 'number' || generator.powerFactor < 0.1 || generator.powerFactor > 1)) {
+        errors.push('generator.powerFactor must be a number between 0.1 and 1');
+      }
+      if (generator.safetyMarginPercent !== undefined &&
+        (typeof generator.safetyMarginPercent !== 'number' || generator.safetyMarginPercent < 0 || generator.safetyMarginPercent > 100)) {
+        errors.push('generator.safetyMarginPercent must be a number between 0 and 100');
+      }
+      if (
+        typeof generator.apparentPowerVA === 'number' &&
+        typeof generator.powerFactor !== 'string' &&
+        Array.isArray(options.loads)
+      ) {
+        const factor = typeof generator.powerFactor === 'number' ? generator.powerFactor : 0.8;
+        const margin = typeof generator.safetyMarginPercent === 'number' ? generator.safetyMarginPercent : 20;
+        const peak = totalPeakW(options.loads as SingleLoad[], (options.peakCalcMode as PeakCalcMode | undefined) ?? 'sum');
+        if (generator.apparentPowerVA * factor < peak * (1 + margin / 100)) {
+          errors.push('generator.apparentPowerVA is insufficient for loads and charging margin');
+        }
       }
     }
   }

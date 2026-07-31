@@ -108,7 +108,9 @@ function desiredFeatureDetails(
       if (!whiteTariff) return '-';
       return (
         <>
-          Potência {(whiteTariff.requiredPowerW / 1000).toFixed(2)} kVA · energia ponta{' '}
+          Potência {(whiteTariff.requiredPowerW / 1000).toFixed(2)} kW
+          {whiteTariff.totalMonthlyConsumptionKwh ? ` · consumo ${whiteTariff.totalMonthlyConsumptionKwh.toFixed(1)} kWh/mês` : ''}
+          {' '}· energia ponta{' '}
           <span className="font-medium text-foreground">
             {(whiteTariff.pontaEnergyWh / 1000).toFixed(2)} kWh
           </span>{' '}
@@ -131,15 +133,14 @@ function desiredFeatureDetails(
     case 'microgrid':
       if (!microgrid) return '-';
       return (
-        `Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · ${microgrid.onGridApparentPowerVA} VA · ` +
-        `${microgrid.isFundamentalRequirement ? 'requisito fundamental' : 'não fundamental'} · ` +
-        `aviso de potência ${microgrid.powerNoticeAcknowledged ? 'confirmado' : 'pendente'}` +
+        `Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · ${(microgrid.onGridApparentPowerVA / 1000).toFixed(1)} kW · ` +
+        `margem de potência 20%` +
         (microgrid.photoUrl ? ' · foto anexada' : '')
       );
     case 'external_generator':
       if (!generator) return '-';
       return (
-        `Gerador ${generator.voltageV}V · ${generator.phases}F · ${generator.apparentPowerVA} VA · ` +
+        `Gerador ${generator.voltageV}V · ${generator.phases}F · ${(generator.apparentPowerVA / 1000).toFixed(1)} kVA · FP ${(generator.powerFactor ?? 0.8).toFixed(2)} · margem ${generator.safetyMarginPercent ?? 20}% · ` +
         `chave ATS própria ${generator.ownAtsAcknowledged ? 'confirmada' : 'pendente'}` +
         (generator.photoUrl ? ' · foto anexada' : '')
       );
@@ -485,7 +486,7 @@ export function PrintableReport({
   const batteryPerformance = batteryCatalog.find((item) => item.model === solution.batteryModel);
   const inverterPerformance = inverterCatalog.find((item) => item.model === solution.inverterModel);
   const tariffSavings = calculateTariffSavings(whiteTariff, {
-    totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
+    totalMonthlyConsumptionKwh: whiteTariff?.totalMonthlyConsumptionKwh || pv?.monthlyConsumptionKwh || null,
     availableEnergyWh: solution.availableEnergyWh ?? 0,
     pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
     batteryRoundTripEfficiencyPercent: batteryPerformance?.roundTripEfficiencyPercent ?? 95,

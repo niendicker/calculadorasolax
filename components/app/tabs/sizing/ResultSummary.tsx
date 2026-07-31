@@ -189,7 +189,7 @@ export function ResultSummary({
     batteryCatalog
   );
   const tariffSavings = calculateTariffSavings(whiteTariff, {
-    totalMonthlyConsumptionKwh: pv?.monthlyConsumptionKwh ?? null,
+    totalMonthlyConsumptionKwh: whiteTariff?.totalMonthlyConsumptionKwh || pv?.monthlyConsumptionKwh || null,
     availableEnergyWh: solution.availableEnergyWh ?? 0,
     pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
     batteryRoundTripEfficiencyPercent: batteryPerformance?.roundTripEfficiencyPercent ?? 95,
@@ -461,6 +461,7 @@ export function ResultSummary({
           {assumptionsOpen && (
             <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
               <li>{tariffSavings?.businessDaysPerMonth ?? 22} dias úteis por mês para Tarifa Branca.</li>
+              <li>Janelas de {whiteTariff?.pontaWindowHours ?? 3} h na ponta e {whiteTariff?.intermediateWindowHours ?? 2} h no período intermediário.</li>
               <li>Tarifas e consumo informados pelo usuário.</li>
               <li>Estimativa de primeiro ano, sem reajuste tarifário ou sazonalidade.</li>
               <li>SOH inicial de {tariffSavings?.initialSohPercent.toFixed(0) ?? 100}% e redução anual de {tariffSavings?.annualSohLossPercent.toFixed(1) ?? '2,0'}% aplicada ao retorno.</li>

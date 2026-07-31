@@ -20,7 +20,7 @@ import { gridLabels, topologyLabels } from './types';
 export { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart };
 
 /** Network phases/voltage implied by each ResidentialGridType, so the
- * Microrrede/Gerador Externo phase+voltage selection can be checked against
+ * Microrrede/Gerador phase+voltage selection can be checked against
  * whatever grid type is chosen in Configurações. */
 export const gridTypePhaseVoltage: Record<ResidentialGridType, { phases: 1 | 2 | 3; voltage: 220 | 380 }> = {
   singlePhase_220: { phases: 1, voltage: 220 },
@@ -68,7 +68,7 @@ export function isMicrogridPhaseVoltageIncompatible(
   );
 }
 
-/** True when Gerador Externo is selected and its phases/voltage don't match
+/** True when Gerador is selected and its phases/voltage don't match
  * the grid type chosen in Configurações — same blocking behavior as
  * isMicrogridPhaseVoltageIncompatible, no exception for the generator. */
 export function isGeneratorPhaseVoltageIncompatible(
@@ -105,20 +105,40 @@ export function normalizeAccessoryLine(raw: string | AccessoryLine): AccessoryLi
   };
 }
 
-/** True when Gerador Externo is selected and its rated power can't cover the
+/** True when Gerador is selected and its rated power can't cover the
  * registered loads' peak power — the wizard blocks calculating in this case
  * (see canCalculate in useCalculation.ts) and shows a matching warning in
- * SizingTab's Gerador Externo panel, both driven by this single check. */
+ * SizingTab's Gerador panel, both driven by this single check. */
 export function isGeneratorPowerInsufficient(
   desiredFeatures: DesiredFeatureId[],
   generator: GeneratorConfig | null,
   peakW: number
 ): boolean {
   if (!desiredFeatures.includes('external_generator') || !generator) return false;
-  return generator.apparentPowerVA < peakW;
+  return generatorActivePowerW(generator) < recommendedGeneratorActivePowerW(peakW, generator.safetyMarginPercent);
 }
 
-/** True when Gerador Externo is selected and the user hasn't yet confirmed
+export function generatorActivePowerW(generator: GeneratorConfig | null): number {
+  if (!generator) return 0;
+  const powerFactor = Math.max(0.1, Math.min(1, generator.powerFactor ?? 0.8));
+  return generator.apparentPowerVA * powerFactor;
+}
+
+export function recommendedGeneratorActivePowerW(peakW: number, safetyMarginPercent = 20): number {
+  const margin = Math.max(0, Math.min(100, safetyMarginPercent ?? 20)) / 100;
+  return Math.max(0, peakW) * (1 + margin);
+}
+
+export function recommendedGeneratorApparentPowerVA(
+  peakW: number,
+  powerFactor = 0.8,
+  safetyMarginPercent = 20
+): number {
+  const normalizedPowerFactor = Math.max(0.1, Math.min(1, powerFactor));
+  return recommendedGeneratorActivePowerW(peakW, safetyMarginPercent) / normalizedPowerFactor;
+}
+
+/** True when Gerador is selected and the user hasn't yet confirmed
  * they're aware the generator needs its own ATS switch — the wizard blocks
  * calculating until this is checked (see canCalculate in useCalculation.ts). */
 export function isGeneratorAtsUnacknowledged(desiredFeatures: DesiredFeatureId[], generator: GeneratorConfig | null): boolean {
@@ -130,12 +150,10 @@ export function isGeneratorAtsUnacknowledged(desiredFeatures: DesiredFeatureId[]
  * they're aware the on-grid system's power must stay below the solution's
  * inverter/battery power — the wizard blocks calculating until this is
  * checked (see canCalculate in useCalculation.ts). */
-export function isMicrogridPowerNoticeUnacknowledged(
-  desiredFeatures: DesiredFeatureId[],
-  microgrid: MicrogridConfig | null
-): boolean {
-  if (!desiredFeatures.includes('microgrid')) return false;
-  return !microgrid?.powerNoticeAcknowledged;
+export const MICROGRID_POWER_MARGIN_PERCENT = 20;
+
+export function recommendedMicrogridSupportPowerW(onGridPowerW: number): number {
+  return Math.max(0, onGridPowerW) * (1 + MICROGRID_POWER_MARGIN_PERCENT / 100);
 }
 
 /** True when Fotovoltaico is selected but the customer hasn't yet entered
@@ -301,12 +319,13 @@ export function effectiveTargetPowerW(
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
-  baseTargetEnergyWh: number
+  baseTargetEnergyWh: number,
+  roundTripEfficiencyPercent = 100
 ): number {
   if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
+  const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
   return (
-    whiteTariff.pontaEnergyWh +
-    whiteTariff.intermediateEnergyWh +
+    (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency +
     (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0)
   );
 }
@@ -562,6 +581,29 @@ const DAYS_PER_MONTH = 30;
 const PONTA_WINDOW_HOURS = 3;
 const INTERMEDIATE_WINDOW_HOURS = 2;
 
+export function isWhiteTariffConfigIncomplete(
+  desiredFeatures: DesiredFeatureId[],
+  whiteTariff: WhiteTariffConfig | null
+) {
+  if (!desiredFeatures.includes('white_tariff')) return false;
+  if (!whiteTariff) return true;
+  const total = whiteTariff.totalMonthlyConsumptionKwh ?? 0;
+  const expensiveMonthlyKwh =
+    ((whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / 1000) *
+    (whiteTariff.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH);
+  return !(
+    whiteTariff.requiredPowerW > 0 &&
+    (whiteTariff.pontaEnergyWh > 0 || whiteTariff.intermediateEnergyWh > 0) &&
+    whiteTariff.pontaTariffPerKwh > 0 &&
+    whiteTariff.intermediateTariffPerKwh > 0 &&
+    whiteTariff.foraPontaTariffPerKwh > 0 &&
+    whiteTariff.pontaTariffPerKwh >= whiteTariff.foraPontaTariffPerKwh &&
+    whiteTariff.intermediateTariffPerKwh >= whiteTariff.foraPontaTariffPerKwh &&
+    total > 0 &&
+    expensiveMonthlyKwh <= total
+  );
+}
+
 export interface EnergyPerformanceOptions {
   batteryRoundTripEfficiencyPercent?: number;
   inverterChargeEfficiencyPercent?: number;
@@ -645,6 +687,9 @@ export function calculateTariffSavings(
 
   const dailyPontaKwh = whiteTariff.pontaEnergyWh / 1000;
   const dailyIntermediateKwh = whiteTariff.intermediateEnergyWh / 1000;
+  const businessDays = whiteTariff.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH;
+  const pontaWindowHours = whiteTariff.pontaWindowHours ?? PONTA_WINDOW_HOURS;
+  const intermediateWindowHours = whiteTariff.intermediateWindowHours ?? INTERMEDIATE_WINDOW_HOURS;
   const batteryRte = Math.max(0.01, Math.min(1, batteryRoundTripEfficiencyPercent / 100));
   const chargeEfficiency = Math.max(0.01, Math.min(1, inverterChargeEfficiencyPercent / 100));
   const dischargeEfficiency = Math.max(0.01, Math.min(1, inverterDischargeEfficiencyPercent / 100));
@@ -667,42 +712,44 @@ export function calculateTariffSavings(
     : Number.POSITIVE_INFINITY;
   const gridPontaEconomical = whiteTariff.pontaTariffPerKwh > whiteTariff.foraPontaTariffPerKwh / effectiveRte;
   const gridIntermediateEconomical = whiteTariff.intermediateTariffPerKwh > whiteTariff.foraPontaTariffPerKwh / effectiveRte;
-  const dailyPontaServedKwh = Math.min(
-    dailyPontaKwh,
-    dailyBatteryCapacityKwh,
-    maxDischargeKw * PONTA_WINDOW_HOURS
+  const pontaPotentialKwh = Math.min(dailyPontaKwh, maxDischargeKw * pontaWindowHours);
+  const intermediatePotentialKwh = Math.min(dailyIntermediateKwh, maxDischargeKw * intermediateWindowHours);
+  const pontaFirst = whiteTariff.pontaTariffPerKwh >= whiteTariff.intermediateTariffPerKwh;
+  const firstPotential = pontaFirst ? pontaPotentialKwh : intermediatePotentialKwh;
+  const firstServed = Math.min(firstPotential, dailyBatteryCapacityKwh);
+  const secondServed = Math.min(
+    pontaFirst ? intermediatePotentialKwh : pontaPotentialKwh,
+    Math.max(0, dailyBatteryCapacityKwh - firstServed)
   );
-  const capacityAfterPonta = Math.max(0, dailyBatteryCapacityKwh - dailyPontaServedKwh);
-  const dailyIntermediateServedKwh = Math.min(
-    dailyIntermediateKwh,
-    capacityAfterPonta,
-    maxDischargeKw * INTERMEDIATE_WINDOW_HOURS
-  );
+  const dailyPontaServedKwh = pontaFirst ? firstServed : secondServed;
+  const dailyIntermediateServedKwh = pontaFirst ? secondServed : firstServed;
   const dailyDeliveredKwh = dailyPontaServedKwh + dailyIntermediateServedKwh;
   const dailyPvDeliveredKwh = Math.min(dailyDeliveredKwh, dailySolarKwh * effectiveRte);
-  const dailySolarToPonta = Math.min(dailyPvDeliveredKwh, dailyPontaServedKwh);
-  const dailySolarToIntermediate = Math.min(
-    dailyPvDeliveredKwh - dailySolarToPonta,
-    dailyIntermediateServedKwh
+  const solarFirst = Math.min(dailyPvDeliveredKwh, pontaFirst ? dailyPontaServedKwh : dailyIntermediateServedKwh);
+  const solarSecond = Math.min(
+    dailyPvDeliveredKwh - solarFirst,
+    pontaFirst ? dailyIntermediateServedKwh : dailyPontaServedKwh
   );
+  const dailySolarToPonta = pontaFirst ? solarFirst : solarSecond;
+  const dailySolarToIntermediate = pontaFirst ? solarSecond : solarFirst;
   const dailyGridToPonta = gridPontaEconomical ? dailyPontaServedKwh - dailySolarToPonta : 0;
   const dailyGridToIntermediate = gridIntermediateEconomical
     ? dailyIntermediateServedKwh - dailySolarToIntermediate
     : 0;
   const dailySolarInputUsedKwh = dailyPvDeliveredKwh / effectiveRte;
   const dailySolarExcessKwh = Math.max(0, dailySolarKwh - dailySolarInputUsedKwh);
-  const monthlyPontaSavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (
+  const monthlyPontaSavings = businessDays * (
     dailySolarToPonta * whiteTariff.pontaTariffPerKwh +
     dailyGridToPonta * (whiteTariff.pontaTariffPerKwh - whiteTariff.foraPontaTariffPerKwh / effectiveRte)
   );
-  const monthlyIntermediateSavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (
+  const monthlyIntermediateSavings = businessDays * (
     dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh +
     dailyGridToIntermediate * (whiteTariff.intermediateTariffPerKwh - whiteTariff.foraPontaTariffPerKwh / effectiveRte)
   );
   const monthlyExcessSolarSavings = dailySolarExcessKwh * whiteTariff.foraPontaTariffPerKwh * DAYS_PER_MONTH;
 
   const pvMonthlySavings =
-    TARIFF_BUSINESS_DAYS_PER_MONTH *
+    businessDays *
       (dailySolarToPonta * whiteTariff.pontaTariffPerKwh + dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh) +
     monthlyExcessSolarSavings;
 
@@ -714,8 +761,8 @@ export function calculateTariffSavings(
   let monthlyCostWithoutSolaxBrl: number | null = null;
   let monthlyCostWithSolaxBrl: number | null = null;
   if (totalMonthlyConsumptionKwh !== null) {
-    const monthlyPontaKwh = dailyPontaKwh * TARIFF_BUSINESS_DAYS_PER_MONTH;
-    const monthlyIntermediateKwh = dailyIntermediateKwh * TARIFF_BUSINESS_DAYS_PER_MONTH;
+    const monthlyPontaKwh = dailyPontaKwh * businessDays;
+    const monthlyIntermediateKwh = dailyIntermediateKwh * businessDays;
     const monthlyForaPontaKwh = totalMonthlyConsumptionKwh - monthlyPontaKwh - monthlyIntermediateKwh;
     if (monthlyForaPontaKwh >= 0) {
       monthlyCostWithoutSolaxBrl =
@@ -729,7 +776,7 @@ export function calculateTariffSavings(
   return {
     monthlySavings,
     annualSavings: monthlySavings * 12,
-    businessDaysPerMonth: TARIFF_BUSINESS_DAYS_PER_MONTH,
+    businessDaysPerMonth: businessDays,
     monthlyCostWithoutSolaxBrl,
     monthlyCostWithSolaxBrl,
     pvMonthlySavings,

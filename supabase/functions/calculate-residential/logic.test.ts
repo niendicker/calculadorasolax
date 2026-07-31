@@ -905,12 +905,12 @@ describe('solutionSupportsMicrogrid', () => {
     expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 4000, onGridPhases: 1 }))).toBe(true);
   });
 
-  it('rejects when the on-grid power divided by phases is at or above max_power_per_phase_w', () => {
+  it('rejects when the on-grid power plus margin exceeds max_power_per_phase_w', () => {
     const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
-    // 3000 VA / 3 phases = 1000 VA per phase, right at the 1000 W limit
-    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }))).toBe(false);
-    // 2999 VA / 3 phases < 1000 W limit
-    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2999, onGridPhases: 3 }))).toBe(true);
+    // 2501 W * 1.2 / 3 phases exceeds the 1000 W per-phase limit.
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2501, onGridPhases: 3 }))).toBe(false);
+    // Equality is accepted: 2500 W * 1.2 / 3 phases = 1000 W per phase.
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2500, onGridPhases: 3 }))).toBe(true);
   });
 });
 
@@ -1233,6 +1233,7 @@ describe('validateResidentialOptions', () => {
       ...validPayload(),
       desiredFeatures: ['white_tariff'],
       whiteTariff: {
+        totalMonthlyConsumptionKwh: 200,
         requiredPowerW: 2000,
         pontaEnergyWh: 4000,
         intermediateEnergyWh: 1000,

@@ -19,35 +19,35 @@ export const DESIRED_FEATURE_DEFINITIONS: DesiredFeatureDefinition[] = [
   {
     id: 'backup',
     label: 'Backup',
-    description: 'Todos os inversores híbridos suportam a funcionalidade de backup.',
+    description: 'Mantém as cargas selecionadas funcionando durante uma falta de energia.',
   },
   {
     id: 'external_ats',
     label: 'Backup Total',
-    description: 'Exige um inversor compatível com chave de transferência automática externa.',
+    description: 'Mantém toda a instalação alimentada durante uma falta de energia.',
     requiresInverterFlag: 'external_ats',
   },
   {
     id: 'microgrid',
     label: 'Microrrede',
-    description: '',
+    description: 'Permite manter a geração fotovoltaica existente operando mesmo quando a rede elétrica está indisponível.',
     requiresInverterFlag: 'microgrid',
   },
   {
     id: 'external_generator',
-    label: 'Gerador Externo',
-    description: 'Exige um inversor compatível com integração de gerador externo.',
+    label: 'Gerador',
+    description: 'Integra um gerador externo ao sistema para ampliar a autonomia durante interrupções.',
     requiresInverterFlag: 'external_generator',
   },
   {
     id: 'pv',
     label: 'Fotovoltaico',
-    description: 'Ao habilitar, o dimensionamento recomenda um arranjo fotovoltaico.',
+    description: 'Inclui a recomendação de um arranjo fotovoltaico adequado ao consumo informado.',
   },
   {
     id: 'white_tariff',
     label: 'Tarifa Branca',
-    description: 'Reserva potência e energia para o período de tarifa branca, com economia estimada no relatório.',
+    description: 'Usa a bateria nos horários mais caros da Tarifa Branca e estima a economia no relatório.',
   },
 ];
 

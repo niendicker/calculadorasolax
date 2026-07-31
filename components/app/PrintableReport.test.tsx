@@ -443,17 +443,17 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
       screen.getByText(
         (_, element) =>
           element?.tagName === 'P' &&
-          /Potência 3.00 kVA · energia ponta 6.00 kWh · energia intermediária 2.00 kWh · com reserva de backup · tarifa ponta R\$\s*1,60\/kWh · tarifa intermediária R\$\s*1,00\/kWh · tarifa fora ponta R\$\s*0,80\/kWh/.test(
+          /Potência 3.00 kW · energia ponta 6.00 kWh · energia intermediária 2.00 kWh · com reserva de backup · tarifa ponta R\$\s*1,60\/kWh · tarifa intermediária R\$\s*1,00\/kWh · tarifa fora ponta R\$\s*0,80\/kWh/.test(
             element?.textContent ?? ''
           )
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Microrrede')).toBeInTheDocument();
     expect(
-      screen.getByText(/Rede existente 220V · 3F · 5000 VA · requisito fundamental · aviso de potência confirmado/)
+      screen.getByText(/Rede existente 220V · 3F · 5.0 kW · margem de potência 20%/)
     ).toBeInTheDocument();
-    expect(screen.getByText('Gerador Externo')).toBeInTheDocument();
-    expect(screen.getByText(/Gerador 220V · 1F · 8000 VA · chave ATS própria confirmada · foto anexada/)).toBeInTheDocument();
+    expect(screen.getByText('Gerador')).toBeInTheDocument();
+    expect(screen.getByText(/Gerador 220V · 1F · 8.0 kVA · FP 0.80 · margem 20% · chave ATS própria confirmada · foto anexada/)).toBeInTheDocument();
     expect(screen.getByText('Backup Total')).toBeInTheDocument();
     expect(screen.getByText(/Uso para backup completo confirmado · foto anexada/)).toBeInTheDocument();
   });

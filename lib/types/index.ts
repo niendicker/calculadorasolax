@@ -50,6 +50,17 @@ export type DesiredFeatureId =
  * consumption − ponta − intermediária) wherever it's needed (see
  * calculateTariffSavings in helpers.ts). */
 export interface WhiteTariffConfig {
+  /** Input experience. Missing on legacy projects and therefore treated as advanced. */
+  inputMode?: 'basic' | 'advanced';
+  /** Total bill consumption, independent from the optional photovoltaic feature. */
+  totalMonthlyConsumptionKwh?: number;
+  /** Basic-mode allocation of total monthly consumption to each expensive window. */
+  pontaConsumptionPercent?: number;
+  intermediateConsumptionPercent?: number;
+  /** Editable calculation assumptions; legacy projects use 22/3/2. */
+  businessDaysPerMonth?: number;
+  pontaWindowHours?: number;
+  intermediateWindowHours?: number;
   /** Power the system must sustain during the white-tariff peak (ponta) window (W). */
   requiredPowerW: number;
   /** Energy the battery must supply during the ponta window (Wh). */
@@ -92,12 +103,16 @@ export interface MicrogridConfig {
   powerNoticeAcknowledged: boolean;
 }
 
-/** Extra report inputs only used when 'external_generator' is a desired feature.
- * Informational only — does not affect which solution gets recommended. */
+/** Inputs used to verify the generator can feed the loads while retaining
+ * an operating margin for battery charging. */
 export interface GeneratorConfig {
   voltageV: number;
   phases: 1 | 2 | 3;
   apparentPowerVA: number;
+  /** Nameplate power factor used to convert kVA into usable kW. */
+  powerFactor?: number;
+  /** Headroom above peak loads, reserved primarily for battery charging. */
+  safetyMarginPercent?: number;
   /** Optional reference photo of the generator, uploaded by the user. */
   photoUrl: string | null;
   /** User confirms they're aware the external generator needs its own ATS switch. */

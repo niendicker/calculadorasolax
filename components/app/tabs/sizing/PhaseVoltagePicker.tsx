@@ -126,7 +126,7 @@ export function VoltagePicker({
   );
 }
 
-/** Phases/voltage to seed Microrrede/Gerador Externo with when the feature is
+/** Phases/voltage to seed Microrrede/Gerador with when the feature is
  * first enabled — matching whatever grid type is already chosen in
  * Configurações (always a valid, compatible starting point) instead of
  * always defaulting to monofásico 220V regardless of context. Falls back to
@@ -135,7 +135,7 @@ export function defaultPhaseVoltageForGridType(gridType: ResidentialGridType | n
   return gridType ? gridTypePhaseVoltage[gridType] : { phases: 1, voltage: 220 };
 }
 
-/** Which phase count(s) would fix the current Microrrede/Gerador Externo
+/** Which phase count(s) would fix the current Microrrede/Gerador
  * selection — the network's own phase count, plus (microgrid only) 1-phase
  * when the documented exception applies. Empty once the current phase/voltage
  * is already compatible. When the current phase is already one of the valid

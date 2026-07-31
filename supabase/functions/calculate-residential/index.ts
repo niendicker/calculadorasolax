@@ -88,7 +88,7 @@ export async function handleCalculateResidential(
     // must cover at least what's consumed in a day. When Tarifa Branca is
     // active, this (and minRatedPowerW/targetPowerW below) is combined with
     // the customer's tariff-window requirements instead of used as-is.
-    const targetEnergyWh = effectiveTargetEnergyWh(desiredFeatures, options.whiteTariff, dailyKwh * 1000);
+    let targetEnergyWh = effectiveTargetEnergyWh(desiredFeatures, options.whiteTariff, dailyKwh * 1000);
     // The white-tariff window's required power must be *sustained*, so it has
     // to raise the inverter's continuous rating (rated_power_w), not just its
     // brief-surge rating (peak_power_w) — otherwise an inverter that can only
@@ -101,7 +101,7 @@ export async function handleCalculateResidential(
     if (options.batteryModel) {
       const { data: batterySpec, error: batterySpecErr } = await supabase
         .from('batteries')
-        .select('capacity_kwh, min_soc_percent')
+        .select('capacity_kwh, min_soc_percent, round_trip_efficiency_percent')
         .eq('model', options.batteryModel)
         .maybeSingle();
 
@@ -114,6 +114,12 @@ export async function handleCalculateResidential(
         const spec = batterySpec as BatteryCatalogRow;
         const minSocPercent = Number(spec.min_soc_percent ?? 10);
         usefulEnergyWhPerBattery = Number(spec.capacity_kwh) * (1 - minSocPercent / 100) * 1000;
+        targetEnergyWh = effectiveTargetEnergyWh(
+          desiredFeatures,
+          options.whiteTariff,
+          dailyKwh * 1000,
+          Number(spec.round_trip_efficiency_percent ?? 100)
+        );
       }
     }
 

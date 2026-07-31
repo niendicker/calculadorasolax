@@ -7,8 +7,8 @@ import {
   isGeneratorPhaseVoltageIncompatible,
   isGeneratorPowerInsufficient,
   isMicrogridPhaseVoltageIncompatible,
-  isMicrogridPowerNoticeUnacknowledged,
   isPvConfigIncomplete,
+  isWhiteTariffConfigIncomplete,
   normalizeAccessoryLine,
 } from '../helpers';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
@@ -152,9 +152,9 @@ export function useCalculation({
     !isGeneratorPowerInsufficient(residentialOptions.desiredFeatures, residentialOptions.generator, peakW) &&
     !isGeneratorAtsUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.generator) &&
     !isGeneratorPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.generator, residentialOptions.gridType) &&
-    !isMicrogridPowerNoticeUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.microgrid) &&
     !isMicrogridPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.microgrid, residentialOptions.gridType) &&
     !isPvConfigIncomplete(residentialOptions.desiredFeatures, residentialOptions.pv)
+    && !isWhiteTariffConfigIncomplete(residentialOptions.desiredFeatures, residentialOptions.whiteTariff)
   );
 
   async function runCalculation(

@@ -159,9 +159,9 @@ export function ConfigurationSummary({
       case 'external_ats':
         return atsPhotoUrl ? 'Ativado · foto anexada' : 'Ativado · sem foto';
       case 'microgrid':
-        return microgrid?.onGridApparentPowerVA ? `Ativado · ${microgrid.onGridApparentPowerVA} VA` : 'Ativado';
+        return microgrid?.onGridApparentPowerVA ? `Ativado · ${(microgrid.onGridApparentPowerVA / 1000).toFixed(1)} kW` : 'Ativado';
       case 'external_generator':
-        return generator?.apparentPowerVA ? `Ativado · ${generator.apparentPowerVA} VA` : 'Ativado';
+        return generator?.apparentPowerVA ? `Ativado · ${(generator.apparentPowerVA / 1000).toFixed(1)} kVA` : 'Ativado';
       case 'white_tariff':
         return whiteTariff?.pontaTariffPerKwh || whiteTariff?.intermediateTariffPerKwh || whiteTariff?.foraPontaTariffPerKwh
           ? `Ativado · R$ ${whiteTariff.pontaTariffPerKwh}/${whiteTariff.intermediateTariffPerKwh}/${whiteTariff.foraPontaTariffPerKwh} por kWh`
@@ -219,6 +219,7 @@ export function ConfigurationSummary({
               microgrid,
               generator,
               pv,
+              whiteTariff,
               atsBackupAcknowledged,
               gridType,
               peakW,

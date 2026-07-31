@@ -86,7 +86,7 @@ export const inverterFlagOptions: { value: InverterFlag; label: string }[] = [
   { value: 'super_backup', label: 'Super-Backup' },
   { value: 'dual_voltage', label: 'Dual Voltage' },
   { value: 'external_ats', label: 'ATS Externo' },
-  { value: 'external_generator', label: 'Gerador Externo' },
+  { value: 'external_generator', label: 'Gerador' },
 ];
 
 export const inverterFlagLabels = new Map(
