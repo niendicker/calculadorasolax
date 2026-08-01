@@ -311,9 +311,13 @@ describe('SuppliersEditor: integration form', () => {
     expect(global.fetch).toHaveBeenCalledWith('/api/admin/suppliers/sup-1/sync', { method: 'POST' });
   });
 
-  it('populates the supplier SKU datalist with the SKUs returned by a successful sync', async () => {
+  it('populates the supplier SKU datalist with the items returned by a successful sync', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true, json: () => Promise.resolve({ updated: 2, skus: ['SKU-A', 'SKU-B', 'SKU-A'] }),
+      ok: true,
+      json: () => Promise.resolve({
+        updated: 2,
+        items: [{ sku: 'SKU-A', price: 100, stock: 5 }, { sku: 'SKU-B', price: 200, stock: null }],
+      }),
     });
     await renderEditor();
     fireEvent.click(screen.getByText('Acme Solar'));
@@ -323,6 +327,24 @@ describe('SuppliersEditor: integration form', () => {
     const datalist = document.getElementById('supplier-skus') as HTMLDataListElement;
     expect(datalist.querySelectorAll('option')).toHaveLength(2);
     expect(within(datalist).getByText((_, el) => el?.getAttribute('value') === 'SKU-A')).toBeInTheDocument();
+  });
+
+  it('auto-fills unit price and stock when picking a SKU synced from the supplier catalog', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        updated: 1,
+        items: [{ sku: 'SKU-A', price: 149.9, stock: 12 }],
+      }),
+    });
+    await renderEditor();
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    fireEvent.click(screen.getByText('Sincronizar'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('1 ofertas atualizadas.'));
+    fireEvent.change(screen.getByPlaceholderText('SKU do fornecedor'), { target: { value: 'SKU-A' } });
+    expect(screen.getByLabelText('Preço manual')).toHaveValue(149.9);
+    expect(screen.getByLabelText('Estoque manual')).toHaveValue(12);
   });
 
   it('shows the sync error message when the sync endpoint fails', async () => {
