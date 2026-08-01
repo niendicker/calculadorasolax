@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupplierOfferView } from '@/lib/procurement/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import { SupplyTab } from './SupplyTab';
@@ -10,7 +10,7 @@ const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 
 type QueryResult<T = unknown> = { data: T; error: null } | { data: null; error: { message: string } };
-type SupplierRow = { id: string; name?: string; description?: string | null; order_mode?: string; is_default_for_all?: boolean };
+type SupplierRow = { id: string; name?: string; description?: string | null; order_mode?: string; is_default_for_all?: boolean; supports_partner_orders?: boolean };
 
 function makeQueryBuilder(result: QueryResult) {
   const builder: Record<string, unknown> = {
@@ -82,6 +82,7 @@ function makeOrder(partial: Record<string, unknown> = {}) {
     currency: 'BRL',
     subtotal: 100,
     total_amount: null,
+    external_order_id: null,
     suppliers: { name: 'Fornecedor A' },
     purchase_order_items: [{ id: 'item-1', product_model: 'X1-Hybrid-5.0kW', supplier_sku: 'SKU-1', quantity: 1, unit_price: 100, line_total: 100 }],
     ...partial,
@@ -118,7 +119,7 @@ function setupSupabase({
   overrideFrom?: (table: string, builder: Record<string, unknown>) => Record<string, unknown>;
 } = {}) {
   const supplierRows = (suppliers ?? [...new Set(offers.map((offer) => offer.supplier_id))].map((id) => ({ id })))
-    .map((row) => ({ name: `Fornecedor ${row.id}`, description: null, order_mode: 'both', is_default_for_all: true, ...row }));
+    .map((row) => ({ name: `Fornecedor ${row.id}`, description: null, order_mode: 'both', is_default_for_all: true, supports_partner_orders: false, ...row }));
 
   // Toggling a preference triggers a reload of this same table, so the mock
   // needs to actually remember inserts/deletes rather than always resolving
@@ -158,10 +159,15 @@ function setupSupabase({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal('fetch', vi.fn());
   if (!global.crypto || !global.crypto.randomUUID) {
     // @ts-expect-error -- test polyfill
     global.crypto = { randomUUID: () => 'test-uuid-1234' };
   }
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('SupplyTab: loading and empty states', () => {
@@ -629,5 +635,103 @@ describe('SupplyTab: existing orders and cancellation', () => {
 
     await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
+  });
+});
+
+describe('SupplyTab: submitting an order to the partner API', () => {
+  it('does not show "Enviar ao fornecedor" when the supplier does not support partner orders', async () => {
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: false }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Enviar ao fornecedor' })).not.toBeInTheDocument();
+  });
+
+  it('does not show "Enviar ao fornecedor" once the order already has an external_order_id', async () => {
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested', external_order_id: 'SAL-1' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Nº SAL-1')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Enviar ao fornecedor' })).not.toBeInTheDocument();
+  });
+
+  it('blocks submission when the delivery address is incomplete', async () => {
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Preencha o endereço de entrega completo.'));
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('submits the delivery address and shows the returned sale number on success', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true, json: () => Promise.resolve({ saleNumber: 'SAL-2026-000042', status: 'submitted' }),
+    });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    fireEvent.change(screen.getByPlaceholderText('CEP'), { target: { value: '01310930' } });
+    fireEvent.change(screen.getByPlaceholderText('Endereço'), { target: { value: 'Av. Paulista' } });
+    fireEvent.change(screen.getByPlaceholderText('Número'), { target: { value: '1000' } });
+    fireEvent.change(screen.getByPlaceholderText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByPlaceholderText('UF'), { target: { value: 'sp' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Pedido enviado ao fornecedor. Nº SAL-2026-000042.'));
+    expect(global.fetch).toHaveBeenCalledWith('/api/purchase-orders/ord-1/submit-to-partner', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('"state":"SP"'),
+    }));
+  });
+
+  it('shows the error message returned by the submit endpoint', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false, json: () => Promise.resolve({ error: 'Produto ainda não sincronizado.' }),
+    });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    fireEvent.change(screen.getByPlaceholderText('CEP'), { target: { value: '01310930' } });
+    fireEvent.change(screen.getByPlaceholderText('Endereço'), { target: { value: 'Av. Paulista' } });
+    fireEvent.change(screen.getByPlaceholderText('Número'), { target: { value: '1000' } });
+    fireEvent.change(screen.getByPlaceholderText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByPlaceholderText('UF'), { target: { value: 'SP' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Produto ainda não sincronizado.'));
+  });
+
+  it('closes the delivery form when "Cancelar" is clicked', async () => {
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    expect(screen.getByPlaceholderText('CEP')).toBeInTheDocument();
+    const cancelButtons = screen.getAllByRole('button', { name: 'Cancelar' });
+    fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+    expect(screen.queryByPlaceholderText('CEP')).not.toBeInTheDocument();
   });
 });

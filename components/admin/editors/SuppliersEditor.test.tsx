@@ -41,7 +41,7 @@ function withMappingInsertResult(supabase: SupabaseMock, insertResult: { data: u
 const supplierRow = {
   id: 'sup-1', name: 'Acme Solar', slug: 'acme-solar', active: true, ordering_enabled: true,
   order_mode: 'quote', currency: 'BRL', minimum_order_value: 500, description: 'Fornecedor principal',
-  is_default_for_all: false,
+  is_default_for_all: false, supports_partner_orders: false,
 };
 
 const integrationRow = {
@@ -194,6 +194,7 @@ describe('SuppliersEditor: selecting a supplier', () => {
     expect(screen.getByText('Caminho: price').parentElement?.querySelector('input')).toHaveValue('price');
     expect(screen.getByText('Caminho: stock').parentElement?.querySelector('input')).toHaveValue('stock');
     expect(screen.getByText('Caminho: lead_days').parentElement?.querySelector('input')).toHaveValue('lead_days');
+    expect(screen.getByText('Caminho: catalog_id').parentElement?.querySelector('input')).toHaveValue('id');
   });
 
   it('returns to the "new supplier" blank form', async () => {
@@ -267,6 +268,24 @@ describe('SuppliersEditor: saving a supplier', () => {
   it('shows a "Padrão" badge for suppliers marked as default for all users', async () => {
     await renderEditor({ suppliers: { data: [{ ...supplierRow, is_default_for_all: true }], error: null } });
     expect(screen.getByText('Padrão')).toBeInTheDocument();
+  });
+
+  it('toggles the "supports partner orders" checkbox and includes it when saving', async () => {
+    const supabase = await renderEditor();
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    const checkbox = screen.getByLabelText(/Aceita receber pedidos automaticamente via Partner API/);
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    fireEvent.click(screen.getByText('Salvar fornecedor'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Fornecedor salvo.'));
+    expect(supabase.from).toHaveBeenCalledWith('suppliers');
+  });
+
+  it('shows a "Partner API" badge for suppliers that support partner order push', async () => {
+    await renderEditor({ suppliers: { data: [{ ...supplierRow, supports_partner_orders: true }], error: null } });
+    expect(screen.getByText('Partner API')).toBeInTheDocument();
   });
 });
 

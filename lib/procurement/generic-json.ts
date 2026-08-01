@@ -12,6 +12,11 @@ export interface NormalizedSupplierItem {
   price: number;
   stock: number | null;
   leadDays: number | null;
+  /** The supplier's own catalog identifier for this item, if the mapping
+   *  configures one — required to place an order through a supplier whose
+   *  Partner API identifies products by id rather than by sku (see
+   *  supports_partner_orders). Absent for suppliers that don't expose one. */
+  externalId: string | null;
 }
 
 export function normalizeSupplierPayload(payload: unknown, mapping: JsonRecord): NormalizedSupplierItem[] {
@@ -23,6 +28,7 @@ export function normalizeSupplierPayload(payload: unknown, mapping: JsonRecord):
     const price = Number(atPath(raw, String(mapping.price ?? 'price')));
     const rawStock = atPath(raw, String(mapping.stock ?? 'stock'));
     const rawLead = atPath(raw, String(mapping.lead_days ?? 'lead_days'));
+    const rawExternalId = atPath(raw, String(mapping.catalog_id ?? 'id'));
     if (!sku || !Number.isFinite(price) || price < 0) continue;
     const stock = rawStock == null || rawStock === '' ? null : Number(rawStock);
     const leadDays = rawLead == null || rawLead === '' ? null : Number(rawLead);
@@ -31,6 +37,7 @@ export function normalizeSupplierPayload(payload: unknown, mapping: JsonRecord):
       price,
       stock: stock !== null && Number.isInteger(stock) && stock >= 0 ? stock : null,
       leadDays: leadDays !== null && Number.isInteger(leadDays) && leadDays >= 0 ? leadDays : null,
+      externalId: rawExternalId == null || rawExternalId === '' ? null : String(rawExternalId),
     });
   }
   return output;

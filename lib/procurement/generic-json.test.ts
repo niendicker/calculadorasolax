@@ -7,7 +7,20 @@ describe('generic supplier JSON connector', () => {
       { code: 'BAT-1', commercial: { value: '1234.50' }, available: 4, delivery: 2 },
       { code: '', commercial: { value: 10 } },
     ] } }, { items: 'data.rows', sku: 'code', price: 'commercial.value', stock: 'available', lead_days: 'delivery' })).toEqual([
-      { sku: 'BAT-1', price: 1234.5, stock: 4, leadDays: 2 },
+      { sku: 'BAT-1', price: 1234.5, stock: 4, leadDays: 2, externalId: null },
+    ]);
+  });
+
+  it('captures the supplier catalog id from the configured field, defaulting to "id"', () => {
+    expect(normalizeSupplierPayload({ items: [
+      { id: 'ext-1', sku: 'BAT-1', price: 100 },
+    ] }, {})).toEqual([
+      { sku: 'BAT-1', price: 100, stock: null, leadDays: null, externalId: 'ext-1' },
+    ]);
+    expect(normalizeSupplierPayload({ items: [
+      { catalogId: 'ext-2', sku: 'BAT-2', price: 200 },
+    ] }, { catalog_id: 'catalogId' })).toEqual([
+      { sku: 'BAT-2', price: 200, stock: null, leadDays: null, externalId: 'ext-2' },
     ]);
   });
 

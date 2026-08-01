@@ -43,6 +43,22 @@ export async function POST(_request: Request, { params }: { params: Promise<{ su
       const { error: upsertError } = await service.from('supplier_offers').upsert(rows, { onConflict: 'mapping_id' });
       if (upsertError) throw upsertError;
     }
+
+    // Captures the supplier's own catalog id per product, needed later to
+    // place an order through a supplier whose Partner API identifies
+    // products by id rather than by sku (see supports_partner_orders).
+    const externalIdUpdates = items.flatMap((item) => {
+      const mappingId = mappingBySku.get(item.sku);
+      return mappingId && item.externalId ? [{ mappingId, externalId: item.externalId }] : [];
+    });
+    if (externalIdUpdates.length) {
+      const results = await Promise.all(externalIdUpdates.map(({ mappingId, externalId }) =>
+        service.from('supplier_product_mappings').update({ external_product_id: externalId }).eq('id', mappingId)
+      ));
+      const updateError = results.find((result) => result.error)?.error;
+      if (updateError) throw updateError;
+    }
+
     const status = rows.length === items.length ? 'success' : 'partial';
     const message = `${rows.length} de ${items.length} itens vinculados foram atualizados.`;
     await Promise.all([

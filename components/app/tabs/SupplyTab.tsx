@@ -11,8 +11,10 @@ import { orderStatusLabels, type SupplierOfferView } from '@/lib/procurement/typ
 import { PageHeader, PageSummary } from '../shell/slots';
 
 type Cart = Record<string, number>;
-type Order = { id: string; supplier_id: string; created_at: string; request_type: string; status: string; currency: string; subtotal: number; total_amount: number | null; suppliers: { name: string }; purchase_order_items: { id: string; product_model: string; supplier_sku: string; quantity: number; unit_price: number; line_total: number }[] };
-type Supplier = { id: string; name: string; description: string | null; order_mode: string; is_default_for_all: boolean };
+type Order = { id: string; supplier_id: string; created_at: string; request_type: string; status: string; currency: string; subtotal: number; total_amount: number | null; external_order_id: string | null; suppliers: { name: string }; purchase_order_items: { id: string; product_model: string; supplier_sku: string; quantity: number; unit_price: number; line_total: number }[] };
+type Supplier = { id: string; name: string; description: string | null; order_mode: string; is_default_for_all: boolean; supports_partner_orders: boolean };
+type DeliveryForm = { name: string; postal_code: string; address: string; number: string; complement: string; district: string; city: string; state: string };
+const emptyDelivery: DeliveryForm = { name: '', postal_code: '', address: '', number: '', complement: '', district: '', city: '', state: '' };
 const money = (value: number, currency = 'BRL') => new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(value);
 const orderModeLabels: Record<string, string> = { quote: 'Cotação', direct: 'Pedido direto', both: 'Cotação e pedido direto' };
 
@@ -30,6 +32,9 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [partnerOrderId, setPartnerOrderId] = useState<string | null>(null);
+  const [deliveryForm, setDeliveryForm] = useState<DeliveryForm>(emptyDelivery);
+  const [submittingPartner, setSubmittingPartner] = useState(false);
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -40,12 +45,12 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     // account, plus whichever suppliers this user picked below — see
     // supabase/migrations/0064_user_supplier_preferences.sql.
     const [supplierResult, settingsResult, preferencesResult, orderResult] = await Promise.all([
-      supabase.from('suppliers').select('id, name, description, order_mode, is_default_for_all').eq('active', true).eq('ordering_enabled', true).order('name'),
+      supabase.from('suppliers').select('id, name, description, order_mode, is_default_for_all, supports_partner_orders').eq('active', true).eq('ordering_enabled', true).order('name'),
       supabase.from('app_settings').select('max_user_suppliers').eq('id', true).single(),
       uid
         ? supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', uid)
         : Promise.resolve({ data: [] as { supplier_id: string }[], error: null }),
-      supabase.from('purchase_orders').select('id, supplier_id, created_at, request_type, status, currency, subtotal, total_amount, suppliers(name), purchase_order_items(id, product_model, supplier_sku, quantity, unit_price, line_total)').order('created_at', { ascending: false }).limit(50),
+      supabase.from('purchase_orders').select('id, supplier_id, created_at, request_type, status, currency, subtotal, total_amount, external_order_id, suppliers(name), purchase_order_items(id, product_model, supplier_sku, quantity, unit_price, line_total)').order('created_at', { ascending: false }).limit(50),
     ]);
     const supplierList = (supplierResult.data ?? []) as Supplier[];
     const preferredSupplierIds = ((preferencesResult.data ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id);
@@ -125,6 +130,23 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     setMessage(error?.message ?? 'Pedido cancelado.'); await load();
   }
 
+  function openPartnerForm(orderId: string) {
+    setPartnerOrderId(orderId); setDeliveryForm(emptyDelivery); setMessage(null);
+  }
+
+  async function submitToPartner(orderId: string) {
+    const missing = (['postal_code', 'address', 'number', 'city', 'state'] as const).find((field) => !deliveryForm[field].trim());
+    if (missing) return setMessage('Preencha o endereço de entrega completo.');
+    setSubmittingPartner(true); setMessage(null);
+    const response = await fetch(`/api/purchase-orders/${orderId}/submit-to-partner`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(deliveryForm),
+    });
+    const result = await response.json();
+    if (response.ok) { setMessage(`Pedido enviado ao fornecedor. Nº ${result.saleNumber}.`); setPartnerOrderId(null); await load(); }
+    else setMessage(result.error);
+    setSubmittingPartner(false);
+  }
+
   return <div className="space-y-5 py-5">
     <PageHeader><div><h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Fornecedores e Compras</h1><p className="text-sm text-muted-foreground">Escolha seus fornecedores preferidos, compare ofertas e acompanhe seus pedidos.</p></div></PageHeader>
     {message && <div role="status" className="rounded-lg border px-3 py-2 text-sm">{message}</div>}
@@ -163,6 +185,34 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
       <h2 className="flex items-center gap-2 text-base font-semibold"><ShoppingCart className="h-4 w-4"/>Carrinho</h2>
       <div className="space-y-3">{cartOffers.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Adicione produtos de um fornecedor.</p> : <>{cartOffers.map((offer) => <div key={offer.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><span>{cart[offer.id]}× {offer.supplier_product_mappings.product_model}</span><strong>{money(offer.unit_price * cart[offer.id], offer.suppliers.currency)}</strong></div>)}<div className="flex justify-between"><span>Subtotal</span><strong>{money(subtotal, cartSupplier?.currency)}</strong></div>{subtotal < Number(cartSupplier?.minimum_order_value ?? 0) && <p className="text-xs text-destructive">Pedido mínimo: {money(Number(cartSupplier?.minimum_order_value), cartSupplier?.currency)}</p>}<textarea className="min-h-20 w-full rounded-md border bg-background p-2 text-sm" placeholder="Observações para o fornecedor" value={notes} maxLength={2000} onChange={(e) => setNotes(e.target.value)}/><div className="grid gap-2">{['quote','both'].includes(cartSupplier?.order_mode ?? '') && <Button disabled={busy || subtotal < Number(cartSupplier?.minimum_order_value ?? 0)} onClick={() => createOrder('quote')}>Solicitar cotação</Button>}{['direct','both'].includes(cartSupplier?.order_mode ?? '') && <Button variant="outline" disabled={busy || subtotal < Number(cartSupplier?.minimum_order_value ?? 0)} onClick={() => createOrder('direct')}>Criar pedido</Button>}<Button variant="ghost" onClick={() => setCart({})}>Limpar carrinho</Button></div></>}</div>
     </PageSummary>
-    <section className="space-y-3"><h2 className="flex items-center gap-2 font-semibold"><PackageCheck className="h-4 w-4"/>Meus pedidos</h2>{orders.length === 0 ? <p className="text-sm text-muted-foreground">Você ainda não fez pedidos.</p> : orders.map((order) => <Card key={order.id}><CardContent className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><strong>{order.suppliers.name}</strong><Badge variant="outline">{orderStatusLabels[order.status] ?? order.status}</Badge><Badge variant="secondary">{order.request_type === 'quote' ? 'Cotação' : 'Pedido direto'}</Badge></div><p className="mt-1 text-xs text-muted-foreground">#{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleString('pt-BR')}</p><p className="mt-2 text-sm">{order.purchase_order_items.map((item) => `${item.quantity}× ${item.product_model}`).join(' · ')}</p></div><div className="text-right"><p className="font-semibold">{money(order.total_amount ?? order.subtotal, order.currency)}</p>{['requested','under_review','quoted'].includes(order.status) && <Button variant="ghost" size="sm" className="mt-1" onClick={() => cancelOrder(order.id)}>Cancelar</Button>}</div></CardContent></Card>)}</section>
+    <section className="space-y-3"><h2 className="flex items-center gap-2 font-semibold"><PackageCheck className="h-4 w-4"/>Meus pedidos</h2>{orders.length === 0 ? <p className="text-sm text-muted-foreground">Você ainda não fez pedidos.</p> : orders.map((order) => {
+      const canSubmitToPartner = order.status === 'requested' && !order.external_order_id && suppliers.find((s) => s.id === order.supplier_id)?.supports_partner_orders;
+      return <Card key={order.id}>
+        <CardContent className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div>
+            <div className="flex flex-wrap items-center gap-2"><strong>{order.suppliers.name}</strong><Badge variant="outline">{orderStatusLabels[order.status] ?? order.status}</Badge><Badge variant="secondary">{order.request_type === 'quote' ? 'Cotação' : 'Pedido direto'}</Badge>{order.external_order_id && <Badge variant="outline">Nº {order.external_order_id}</Badge>}</div>
+            <p className="mt-1 text-xs text-muted-foreground">#{order.id.slice(0,8)} · {new Date(order.created_at).toLocaleString('pt-BR')}</p>
+            <p className="mt-2 text-sm">{order.purchase_order_items.map((item) => `${item.quantity}× ${item.product_model}`).join(' · ')}</p>
+          </div>
+          <div className="text-right">
+            <p className="font-semibold">{money(order.total_amount ?? order.subtotal, order.currency)}</p>
+            {['requested','under_review','quoted'].includes(order.status) && <Button variant="ghost" size="sm" className="mt-1" onClick={() => cancelOrder(order.id)}>Cancelar</Button>}
+            {canSubmitToPartner && <Button variant="outline" size="sm" className="mt-1" onClick={() => openPartnerForm(order.id)}>Enviar ao fornecedor</Button>}
+          </div>
+        </CardContent>
+        {partnerOrderId === order.id && <CardContent className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+          <p className="text-xs text-muted-foreground sm:col-span-2">Endereço de entrega para o fornecedor processar o pedido.</p>
+          <Input placeholder="Destinatário (opcional)" value={deliveryForm.name} onChange={(e) => setDeliveryForm({ ...deliveryForm, name: e.target.value })}/>
+          <Input placeholder="CEP" value={deliveryForm.postal_code} onChange={(e) => setDeliveryForm({ ...deliveryForm, postal_code: e.target.value })}/>
+          <Input placeholder="Endereço" value={deliveryForm.address} onChange={(e) => setDeliveryForm({ ...deliveryForm, address: e.target.value })}/>
+          <Input placeholder="Número" value={deliveryForm.number} onChange={(e) => setDeliveryForm({ ...deliveryForm, number: e.target.value })}/>
+          <Input placeholder="Complemento (opcional)" value={deliveryForm.complement} onChange={(e) => setDeliveryForm({ ...deliveryForm, complement: e.target.value })}/>
+          <Input placeholder="Bairro (opcional)" value={deliveryForm.district} onChange={(e) => setDeliveryForm({ ...deliveryForm, district: e.target.value })}/>
+          <Input placeholder="Cidade" value={deliveryForm.city} onChange={(e) => setDeliveryForm({ ...deliveryForm, city: e.target.value })}/>
+          <Input placeholder="UF" maxLength={2} value={deliveryForm.state} onChange={(e) => setDeliveryForm({ ...deliveryForm, state: e.target.value.toUpperCase() })}/>
+          <div className="flex gap-2 sm:col-span-2"><Button size="sm" disabled={submittingPartner} onClick={() => submitToPartner(order.id)}>Confirmar envio</Button><Button size="sm" variant="ghost" onClick={() => setPartnerOrderId(null)}>Cancelar</Button></div>
+        </CardContent>}
+      </Card>;
+    })}</section>
   </div>;
 }
