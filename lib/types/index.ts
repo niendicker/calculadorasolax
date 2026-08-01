@@ -111,8 +111,8 @@ export interface GeneratorConfig {
   apparentPowerVA: number;
   /** Nameplate power factor used to convert kVA into usable kW. */
   powerFactor?: number;
-  /** Headroom above peak loads, reserved primarily for battery charging. */
-  safetyMarginPercent?: number;
+  /** Headroom above peak loads (in watts), reserved primarily for battery charging. */
+  safetyMarginW?: number;
   /** Optional reference photo of the generator, uploaded by the user. */
   photoUrl: string | null;
   /** User confirms they're aware the external generator needs its own ATS switch. */

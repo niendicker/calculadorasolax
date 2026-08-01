@@ -1211,14 +1211,14 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       residentialOptions: {
         ...emptyResidentialOptions,
         desiredFeatures: ['external_generator'],
-        generator: { voltageV: 220, phases: 1, apparentPowerVA: 10000, powerFactor: 0.8, safetyMarginPercent: 20, photoUrl: null, ownAtsAcknowledged: false },
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 10000, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: false },
       },
     });
     fireEvent.click(screen.getByRole('tab', { name: /^Gerador/ }));
     expect(screen.getByText(/alimenta as cargas e usa a potência restante para carregar as baterias/i)).toBeInTheDocument();
     expect(screen.getAllByText('8.00 kW').length).toBeGreaterThan(0);
     expect(screen.getByText('2.50 kW')).toBeInTheDocument();
-    expect(screen.getByText('8.3 kVA')).toBeInTheDocument();
+    expect(screen.getByText('8.1 kVA')).toBeInTheDocument();
     expect(screen.getByText('Dentro do limite')).toBeInTheDocument();
   });
 

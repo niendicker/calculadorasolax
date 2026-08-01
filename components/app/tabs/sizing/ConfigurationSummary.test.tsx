@@ -155,7 +155,7 @@ describe('ConfigurationSummary', () => {
       residentialOptions: {
         ...baseResidentialOptions,
         desiredFeatures: ['external_generator'],
-        generator: { voltageV: 220, phases: 1, apparentPowerVA: 8000, powerFactor: 0.8, safetyMarginPercent: 20, photoUrl: null, ownAtsAcknowledged: true },
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 8000, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: true },
       },
     });
     expect(screen.getByText('Ativado · 8.0 kVA')).toBeInTheDocument();

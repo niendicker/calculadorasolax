@@ -453,7 +453,7 @@ describe('PrintableReport: funcionalidades selecionadas', () => {
       screen.getByText(/Rede existente 220V · 3F · 5.0 kW · margem de potência 20%/)
     ).toBeInTheDocument();
     expect(screen.getByText('Gerador')).toBeInTheDocument();
-    expect(screen.getByText(/Gerador 220V · 1F · 8.0 kVA · FP 0.80 · margem 20% · chave ATS própria confirmada · foto anexada/)).toBeInTheDocument();
+    expect(screen.getByText(/Gerador 220V · 1F · 8.0 kVA · FP 0.80 · margem 1.00 kW · chave ATS própria confirmada · foto anexada/)).toBeInTheDocument();
     expect(screen.getByText('Backup Total')).toBeInTheDocument();
     expect(screen.getByText(/Uso para backup completo confirmado · foto anexada/)).toBeInTheDocument();
   });

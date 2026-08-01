@@ -90,7 +90,7 @@ const emptyGeneratorConfig: GeneratorConfig = {
   phases: 1,
   apparentPowerVA: 0,
   powerFactor: 0.8,
-  safetyMarginPercent: 20,
+  safetyMarginW: 1000,
   photoUrl: null,
   ownAtsAcknowledged: false,
 };
@@ -243,7 +243,7 @@ export function DesiredFeaturesPicker({
     totalMonthlyConsumptionKwh: whiteTotalMonthlyKwh || null,
   });
   const generatorPowerFactor = generator?.powerFactor ?? 0.8;
-  const generatorSafetyMargin = generator?.safetyMarginPercent ?? 20;
+  const generatorSafetyMargin = generator?.safetyMarginW ?? 1000;
   const generatorAvailableW = generatorActivePowerW(generator);
   const generatorRecommendedW = recommendedGeneratorActivePowerW(peakW, generatorSafetyMargin);
   const generatorRecommendedVA = recommendedGeneratorApparentPowerVA(peakW, generatorPowerFactor, generatorSafetyMargin);
@@ -878,11 +878,11 @@ export function DesiredFeaturesPicker({
               <p className="text-xs text-muted-foreground">Use o valor da placa; quando desconhecido, adota-se 0,80.</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="generatorMargin">Margem para recarga e operação (%)</Label>
-              <Input id="generatorMargin" type="number" min={0} max={100} step={1}
-                value={generatorSafetyMargin}
-                onChange={(event) => onGeneratorChange({ ...(generator ?? emptyGeneratorConfig), safetyMarginPercent: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })}/>
-              <p className="text-xs text-muted-foreground">Reserva acima do pico das cargas; recomendação padrão de 20%.</p>
+              <Label htmlFor="generatorMargin">Margem para recarga e operação (kW)</Label>
+              <Input id="generatorMargin" type="number" min={0} step={0.1}
+                value={generatorSafetyMargin / 1000}
+                onChange={(event) => onGeneratorChange({ ...(generator ?? emptyGeneratorConfig), safetyMarginW: Math.max(0, (Number(event.target.value) || 0) * 1000) })}/>
+              <p className="text-xs text-muted-foreground">Reserva acima do pico das cargas; recomendação padrão de 1,0 kW.</p>
             </div>
           </div>
           {isGeneratorPowerInsufficient(value, generator, peakW) && (

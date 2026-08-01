@@ -140,7 +140,7 @@ function desiredFeatureDetails(
     case 'external_generator':
       if (!generator) return '-';
       return (
-        `Gerador ${generator.voltageV}V · ${generator.phases}F · ${(generator.apparentPowerVA / 1000).toFixed(1)} kVA · FP ${(generator.powerFactor ?? 0.8).toFixed(2)} · margem ${generator.safetyMarginPercent ?? 20}% · ` +
+        `Gerador ${generator.voltageV}V · ${generator.phases}F · ${(generator.apparentPowerVA / 1000).toFixed(1)} kVA · FP ${(generator.powerFactor ?? 0.8).toFixed(2)} · margem ${((generator.safetyMarginW ?? 1000) / 1000).toFixed(2)} kW · ` +
         `chave ATS própria ${generator.ownAtsAcknowledged ? 'confirmada' : 'pendente'}` +
         (generator.photoUrl ? ' · foto anexada' : '')
       );

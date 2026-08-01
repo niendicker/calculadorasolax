@@ -268,7 +268,7 @@ export interface GeneratorConfig {
   phases: 1 | 2 | 3;
   apparentPowerVA: number;
   powerFactor?: number;
-  safetyMarginPercent?: number;
+  safetyMarginW?: number;
   photoUrl?: string | null;
   ownAtsAcknowledged?: boolean;
 }
@@ -924,9 +924,9 @@ export function validateResidentialOptions(raw: unknown): string[] {
         (typeof generator.powerFactor !== 'number' || generator.powerFactor < 0.1 || generator.powerFactor > 1)) {
         errors.push('generator.powerFactor must be a number between 0.1 and 1');
       }
-      if (generator.safetyMarginPercent !== undefined &&
-        (typeof generator.safetyMarginPercent !== 'number' || generator.safetyMarginPercent < 0 || generator.safetyMarginPercent > 100)) {
-        errors.push('generator.safetyMarginPercent must be a number between 0 and 100');
+      if (generator.safetyMarginW !== undefined &&
+        (typeof generator.safetyMarginW !== 'number' || generator.safetyMarginW < 0)) {
+        errors.push('generator.safetyMarginW must be a number >= 0');
       }
       if (
         typeof generator.apparentPowerVA === 'number' &&
@@ -934,9 +934,9 @@ export function validateResidentialOptions(raw: unknown): string[] {
         Array.isArray(options.loads)
       ) {
         const factor = typeof generator.powerFactor === 'number' ? generator.powerFactor : 0.8;
-        const margin = typeof generator.safetyMarginPercent === 'number' ? generator.safetyMarginPercent : 20;
+        const margin = typeof generator.safetyMarginW === 'number' ? generator.safetyMarginW : 1000;
         const peak = totalPeakW(options.loads as SingleLoad[], (options.peakCalcMode as PeakCalcMode | undefined) ?? 'sum');
-        if (generator.apparentPowerVA * factor < peak * (1 + margin / 100)) {
+        if (generator.apparentPowerVA * factor < peak + margin) {
           errors.push('generator.apparentPowerVA is insufficient for loads and charging margin');
         }
       }

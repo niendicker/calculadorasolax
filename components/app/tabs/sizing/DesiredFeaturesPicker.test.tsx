@@ -139,7 +139,7 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
       activeTab: 'external_generator',
       value: ['external_generator'],
       onGeneratorChange,
-      generator: { voltageV: 220, phases: 1, apparentPowerVA: 0, powerFactor: 0.8, safetyMarginPercent: 20, photoUrl: null, ownAtsAcknowledged: false },
+      generator: { voltageV: 220, phases: 1, apparentPowerVA: 0, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: false },
     });
     fireEvent.click(screen.getByText('Habilitado'));
     expect(onGeneratorChange).toHaveBeenCalledWith(null);
@@ -470,7 +470,7 @@ describe('DesiredFeaturesPicker: external_generator tab', () => {
     phases: 1,
     apparentPowerVA: 100,
     powerFactor: 0.8,
-    safetyMarginPercent: 20,
+    safetyMarginW: 1000,
     photoUrl: null,
     ownAtsAcknowledged: false,
   };
@@ -488,8 +488,8 @@ describe('DesiredFeaturesPicker: external_generator tab', () => {
     fireEvent.change(screen.getByLabelText('Fator de potência'), { target: { value: '0.9' } });
     expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ powerFactor: 0.9 }));
 
-    fireEvent.change(screen.getByLabelText('Margem para recarga e operação (%)'), { target: { value: '30' } });
-    expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ safetyMarginPercent: 30 }));
+    fireEvent.change(screen.getByLabelText('Margem para recarga e operação (kW)'), { target: { value: '3' } });
+    expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ safetyMarginW: 3000 }));
   });
 
   it('clamps power factor and safety margin to their valid ranges on invalid input', () => {
@@ -497,8 +497,8 @@ describe('DesiredFeaturesPicker: external_generator tab', () => {
     renderPicker({ activeTab: 'external_generator', value: ['external_generator'], generator, onGeneratorChange });
     fireEvent.change(screen.getByLabelText('Fator de potência'), { target: { value: '5' } });
     expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ powerFactor: 1 }));
-    fireEvent.change(screen.getByLabelText('Margem para recarga e operação (%)'), { target: { value: '-5' } });
-    expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ safetyMarginPercent: 0 }));
+    fireEvent.change(screen.getByLabelText('Margem para recarga e operação (kW)'), { target: { value: '-5' } });
+    expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ safetyMarginW: 0 }));
   });
 
   it('shows the insufficient-power warning when generator power is inadequate', () => {

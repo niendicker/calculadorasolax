@@ -654,7 +654,7 @@ describe('normalizeAccessoryLine', () => {
 describe('isGeneratorPowerInsufficient', () => {
   it('converts nameplate kVA to active power and recommends headroom for charging', () => {
     expect(generatorActivePowerW(makeGenerator({ apparentPowerVA: 10000, powerFactor: 0.8 }))).toBe(8000);
-    expect(recommendedGeneratorApparentPowerVA(5000, 0.8, 20)).toBe(7500);
+    expect(recommendedGeneratorApparentPowerVA(5000, 0.8, 1000)).toBe(7500);
   });
   it('is false when external_generator is not selected, regardless of power', () => {
     expect(isGeneratorPowerInsufficient([], makeGenerator({ apparentPowerVA: 100 }), 5000)).toBe(false);

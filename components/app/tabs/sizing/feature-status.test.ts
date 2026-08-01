@@ -119,7 +119,7 @@ describe('desiredFeatureHasPendingIssue', () => {
       phases: 1,
       apparentPowerVA: 100,
       powerFactor: 0.8,
-      safetyMarginPercent: 20,
+      safetyMarginW: 1000,
       photoUrl: null,
       ownAtsAcknowledged: true,
     };

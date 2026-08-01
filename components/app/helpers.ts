@@ -115,7 +115,7 @@ export function isGeneratorPowerInsufficient(
   peakW: number
 ): boolean {
   if (!desiredFeatures.includes('external_generator') || !generator) return false;
-  return generatorActivePowerW(generator) < recommendedGeneratorActivePowerW(peakW, generator.safetyMarginPercent);
+  return generatorActivePowerW(generator) < recommendedGeneratorActivePowerW(peakW, generator.safetyMarginW);
 }
 
 export function generatorActivePowerW(generator: GeneratorConfig | null): number {
@@ -124,18 +124,17 @@ export function generatorActivePowerW(generator: GeneratorConfig | null): number
   return generator.apparentPowerVA * powerFactor;
 }
 
-export function recommendedGeneratorActivePowerW(peakW: number, safetyMarginPercent = 20): number {
-  const margin = Math.max(0, Math.min(100, safetyMarginPercent ?? 20)) / 100;
-  return Math.max(0, peakW) * (1 + margin);
+export function recommendedGeneratorActivePowerW(peakW: number, safetyMarginW = 1000): number {
+  return Math.max(0, peakW) + Math.max(0, safetyMarginW ?? 1000);
 }
 
 export function recommendedGeneratorApparentPowerVA(
   peakW: number,
   powerFactor = 0.8,
-  safetyMarginPercent = 20
+  safetyMarginW = 1000
 ): number {
   const normalizedPowerFactor = Math.max(0.1, Math.min(1, powerFactor));
-  return recommendedGeneratorActivePowerW(peakW, safetyMarginPercent) / normalizedPowerFactor;
+  return recommendedGeneratorActivePowerW(peakW, safetyMarginW) / normalizedPowerFactor;
 }
 
 /** True when Gerador is selected and the user hasn't yet confirmed

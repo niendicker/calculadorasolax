@@ -47,7 +47,7 @@ const INVALID_FIELD_LABELS: Record<string, string> = {
   'whiteTariff.pontaWindowHours': 'Tarifa Branca — duração da ponta',
   'whiteTariff.intermediateWindowHours': 'Tarifa Branca — duração intermediária',
   'generator.powerFactor': 'Gerador — fator de potência',
-  'generator.safetyMarginPercent': 'Gerador — margem operacional',
+  'generator.safetyMarginW': 'Gerador — margem operacional',
   'microgrid.onGridApparentPowerVA': 'Microrrede — potência nominal AC',
   'whiteTariff.pontaTariffPerKwh': 'Tarifa Branca — tarifa de ponta',
   'whiteTariff.intermediateTariffPerKwh': 'Tarifa Branca — tarifa intermediária',
