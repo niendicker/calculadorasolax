@@ -400,7 +400,8 @@ function ProductsList({
                   </span>
                   <span className={`text-xs ${insufficient ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
                     Necessário {toKilo(row.requiredValue)} {unitLabel} · Solução oferece {toKilo(row.providedValue)} {unitLabel}
-                    {marginPct !== null && ` (${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(0)}%)`}
+                    {marginPct !== null &&
+                      ` (${row.providedValue - row.requiredValue >= 0 ? '+' : '-'}${toKilo(Math.abs(row.providedValue - row.requiredValue))} ${unitLabel})`}
                   </span>
                 </div>
               );

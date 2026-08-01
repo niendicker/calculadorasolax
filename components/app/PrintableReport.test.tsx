@@ -312,9 +312,11 @@ describe('PrintableReport: solution metrics and operating margins', () => {
     expect(screen.getByText('3.20 kWh')).toBeInTheDocument();
 
     expect(screen.getByText('Margens operacionais')).toBeInTheDocument();
-    expect(screen.getByText(/Necessário 1\.00 kVA · Solução oferece 5\.00 kVA/)).toBeInTheDocument();
-    expect(screen.getByText(/Necessário 2\.00 kVA · Solução oferece 8\.00 kVA/)).toBeInTheDocument();
-    expect(screen.getByText(/Necessário 2\.00 kWh · Solução oferece 3\.20 kWh/)).toBeInTheDocument();
+    // Shown as absolute headroom (+delta), not a percentage — same as the Solução tab.
+    expect(screen.getByText(/Necessário 1\.00 kVA · Solução oferece 5\.00 kVA \(\+4\.00 kVA\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Necessário 2\.00 kVA · Solução oferece 8\.00 kVA \(\+6\.00 kVA\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Necessário 2\.00 kWh · Solução oferece 3\.20 kWh \(\+1\.20 kWh\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/%\)/)).not.toBeInTheDocument();
   });
 
   it('zeroes the margin requirement when Backup is disabled, even with loads still registered — same gating as the Solução tab', () => {
