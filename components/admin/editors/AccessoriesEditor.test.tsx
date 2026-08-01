@@ -7,7 +7,7 @@ import type { AccessoryRow, AccessoryRuleRow } from '../types';
 import { AccessoriesEditor, accessoryCategories } from './AccessoriesEditor';
 
 function makeAccessory(partial: Partial<AccessoryRow> & Pick<AccessoryRow, 'id' | 'model'>): AccessoryRow {
-  return { description: '', active: true, image_url: null, documents: [], ...partial };
+  return { description: '', active: true, warranty_years: 2, image_url: null, documents: [], ...partial };
 }
 
 function makeRule(partial: Partial<AccessoryRuleRow> & Pick<AccessoryRuleRow, 'id' | 'accessory_id'>): AccessoryRuleRow {

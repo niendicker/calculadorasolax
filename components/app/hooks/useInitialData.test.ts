@@ -121,6 +121,8 @@ describe('useInitialData: logged-out visitor', () => {
         annualSohLossPercent: 2,
         warrantyEndSohPercent: null,
         expansionModel: null,
+        warrantyYears: 10,
+        warrantyCycles: 6000,
         imageUrl: null,
         documents: [],
       },

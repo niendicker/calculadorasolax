@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Activity, Cable, ListChecks, Search, Zap } from 'lucide-react';
+import { Activity, Cable, ListChecks, Search, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -250,6 +250,14 @@ export function InvertersEditor(props: {
                     onChange={(pv_oversizing_percent) => setForm({ ...form, pv_oversizing_percent })}
                   />
                 </Field>
+                <NumberWithUnitField
+                  label="Garantia"
+                  tip="Duração da garantia de fábrica do inversor."
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                  unit="anos"
+                  value={form.warranty_years ?? 10}
+                  onChange={(event) => setForm({ ...form, warranty_years: Math.max(1, toNumber(event.target.value, 10)) })}
+                />
               </div>
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Bateria</p>
@@ -388,6 +396,7 @@ export function InvertersEditor(props: {
           ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '—'],
           ['Tensão bat.', `${row.battery_voltage_min_v ?? '—'} – ${row.battery_voltage_max_v ?? '—'} V`],
           ['Sobredim. FV', `${row.pv_oversizing_percent ?? 100}%`],
+          ['Garantia', `${row.warranty_years ?? 10} anos`],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
         removing: props.removingIds.has(row.id),

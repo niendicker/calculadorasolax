@@ -129,6 +129,7 @@ export function CatalogTab({
                             'Potência',
                             `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`,
                           ],
+                          ['Garantia', `${inverter.warrantyYears ?? 10} anos`],
                         ]}
                         onPreviewImage={setPreviewImage}
                         onPreviewDoc={setPreviewDoc}
@@ -173,6 +174,7 @@ export function CatalogTab({
                   specs={[
                     ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
                     ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
+                    ['Garantia', `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos`],
                     ...(battery.expansionModel ? [['Expansão', battery.expansionModel] as [string, string]] : []),
                   ]}
                   onPreviewImage={setPreviewImage}
@@ -205,6 +207,7 @@ export function CatalogTab({
                 imageUrl={accessory.imageUrl}
                 documents={accessory.documents}
                 description={accessory.description}
+                specs={[['Garantia', `${accessory.warrantyYears ?? 2} anos`]]}
                 onPreviewImage={setPreviewImage}
                 onPreviewDoc={setPreviewDoc}
                 stockControl={

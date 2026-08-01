@@ -131,6 +131,8 @@ export interface InverterRow {
   max_battery_discharge_power_w?: number | null;
   flags: InverterFlag[];
   pv_oversizing_percent: number;
+  /** Manufacturer warranty duration, in years. */
+  warranty_years: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -159,6 +161,11 @@ export interface BatteryRow {
   /** Model shown for units 2..N when this is a "Master" battery that scales via
    * electrically-identical expansion/"Slave" units instead of more of itself. */
   expansion_model?: string | null;
+  /** Manufacturer warranty duration, in years. */
+  warranty_years: number;
+  /** Manufacturer warranty throughput, in charge/discharge cycles — whichever
+   * of years or cycles is reached first ends the warranty. */
+  warranty_cycles: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -170,6 +177,8 @@ export interface AccessoryRow {
   nickname?: string | null;
   description: string | null;
   active: boolean;
+  /** Manufacturer warranty duration, in years. */
+  warranty_years: number;
   image_url: string | null;
   documents: ProductDocument[];
 }
@@ -382,6 +391,7 @@ export const emptyInverter: Partial<InverterRow> = {
   max_battery_discharge_power_w: null,
   flags: [],
   pv_oversizing_percent: 100,
+  warranty_years: 10,
   image_url: '',
   documents: [],
 };
@@ -406,6 +416,8 @@ export const emptyBattery: Partial<BatteryRow> = {
   flags: [],
   max_association_qty: 15,
   expansion_model: '',
+  warranty_years: 10,
+  warranty_cycles: 6000,
   image_url: '',
   documents: [],
 };
@@ -415,6 +427,7 @@ export const emptyAccessory: Partial<AccessoryRow> = {
   nickname: '',
   description: '',
   active: true,
+  warranty_years: 2,
   image_url: '',
   documents: [],
 };

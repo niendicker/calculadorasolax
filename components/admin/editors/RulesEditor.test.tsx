@@ -7,7 +7,7 @@ import type { AccessoryRow, AccessoryRuleRow, BatteryRow, EssCompatibilityRuleRo
 import { RulesEditor, type RulesJumpTarget } from './RulesEditor';
 
 function makeAccessory(partial: Partial<AccessoryRow> & Pick<AccessoryRow, 'id' | 'model'>): AccessoryRow {
-  return { description: '', active: true, image_url: null, documents: [], ...partial };
+  return { description: '', active: true, warranty_years: 2, image_url: null, documents: [], ...partial };
 }
 
 function makeInverter(partial: Partial<InverterRow> & Pick<InverterRow, 'id' | 'model'>): InverterRow {
@@ -26,6 +26,7 @@ function makeInverter(partial: Partial<InverterRow> & Pick<InverterRow, 'id' | '
     max_power_per_phase_w: null,
     flags: [],
     pv_oversizing_percent: 100,
+    warranty_years: 10,
     image_url: null,
     documents: [],
     ...partial,
@@ -47,6 +48,8 @@ const battery: BatteryRow = {
   max_current_a: null,
   flags: [],
   max_association_qty: 15,
+  warranty_years: 10,
+  warranty_cycles: 6000,
   image_url: null,
   documents: [],
 };

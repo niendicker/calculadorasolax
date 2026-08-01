@@ -38,6 +38,11 @@ export interface BatteryCatalogOption {
   /** Model shown for units 2..N when this is a "Master" battery that scales via
    * electrically-identical expansion/"Slave" units instead of more of itself. */
   expansionModel?: string | null;
+  /** Manufacturer warranty duration, in years. */
+  warrantyYears?: number;
+  /** Manufacturer warranty throughput, in charge/discharge cycles — whichever
+   * of years or cycles is reached first ends the warranty. */
+  warrantyCycles?: number;
   imageUrl: string | null;
   documents: ProductDocument[];
 }
@@ -57,6 +62,8 @@ export interface InverterCatalogOption {
   standbyConsumptionW?: number;
   maxBatteryChargePowerW?: number | null;
   maxBatteryDischargePowerW?: number | null;
+  /** Manufacturer warranty duration, in years. */
+  warrantyYears?: number;
   imageUrl: string | null;
   documents: ProductDocument[];
   flags: InverterFlag[];
@@ -68,6 +75,8 @@ export interface AccessoryCatalogOption {
   /** Optional friendly name set by the admin; shown to users more prominently than `model` when set. */
   nickname?: string | null;
   description: string | null;
+  /** Manufacturer warranty duration, in years. */
+  warrantyYears?: number;
   imageUrl: string | null;
   documents: ProductDocument[];
 }

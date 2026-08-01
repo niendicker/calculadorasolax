@@ -62,15 +62,15 @@ export function useInitialData({
           .order('category'),
         supabase
           .from('batteries')
-          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, round_trip_efficiency_percent, initial_soh_percent, annual_soh_loss_percent, warranty_end_soh_percent, expansion_model, image_url, documents')
+          .select('id, model, nickname, capacity_kwh, topology, standard_power_kw, peak_power_kw, min_soc_percent, round_trip_efficiency_percent, initial_soh_percent, annual_soh_loss_percent, warranty_end_soh_percent, expansion_model, warranty_years, warranty_cycles, image_url, documents')
           .order('model'),
         supabase
           .from('inverters')
-          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, battery_charge_efficiency_percent, battery_discharge_efficiency_percent, standby_consumption_w, max_battery_charge_power_w, max_battery_discharge_power_w, image_url, documents, flags')
+          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, battery_charge_efficiency_percent, battery_discharge_efficiency_percent, standby_consumption_w, max_battery_charge_power_w, max_battery_discharge_power_w, warranty_years, image_url, documents, flags')
           .order('model'),
         supabase
           .from('accessories')
-          .select('id, model, nickname, description, image_url, documents')
+          .select('id, model, nickname, description, warranty_years, image_url, documents')
           .eq('active', true)
           .order('model'),
         supabase
@@ -159,6 +159,8 @@ export function useInitialData({
             annualSohLossPercent: Number(row.annual_soh_loss_percent ?? 2),
             warrantyEndSohPercent: row.warranty_end_soh_percent == null ? null : Number(row.warranty_end_soh_percent),
             expansionModel: row.expansion_model ?? null,
+            warrantyYears: Number(row.warranty_years ?? 10),
+            warrantyCycles: Number(row.warranty_cycles ?? 6000),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
           }))
@@ -181,6 +183,7 @@ export function useInitialData({
             standbyConsumptionW: Number(row.standby_consumption_w ?? 0),
             maxBatteryChargePowerW: row.max_battery_charge_power_w == null ? null : Number(row.max_battery_charge_power_w),
             maxBatteryDischargePowerW: row.max_battery_discharge_power_w == null ? null : Number(row.max_battery_discharge_power_w),
+            warrantyYears: Number(row.warranty_years ?? 10),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
             flags: (row.flags ?? []) as InverterCatalogOption['flags'],
@@ -195,6 +198,7 @@ export function useInitialData({
             model: row.model,
             nickname: row.nickname ?? null,
             description: row.description,
+            warrantyYears: Number(row.warranty_years ?? 2),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
           }))

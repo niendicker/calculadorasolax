@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ListChecks, Search } from 'lucide-react';
+import { ListChecks, Search, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { accessoryRuleInverterModels, textareaClasses } from '../helpers';
+import { accessoryRuleInverterModels, textareaClasses, toNumber } from '../helpers';
 import { useCatalogEditorForm } from '../hooks/useCatalogEditorForm';
-import { Actions, CatalogLayout, Field, InlineOptionTabs, MediaSummary, ModelNicknameFields, ProductMediaFields, SegmentedTabs } from '../shared-ui';
+import { Actions, CatalogLayout, Field, InlineOptionTabs, MediaSummary, ModelNicknameFields, NumberWithUnitField, ProductMediaFields, SegmentedTabs } from '../shared-ui';
 import { emptyAccessory, productEditorTabOptions, type AccessoryRow, type AccessoryRuleRow } from '../types';
 
 type AccessoryCategory = 'all' | 'system' | 'inverter' | 'battery';
@@ -140,6 +140,14 @@ export function AccessoriesEditor(props: {
                 />
                 Ativo
               </label>
+              <NumberWithUnitField
+                label="Garantia"
+                tip="Duração da garantia de fábrica do acessório."
+                icon={<ShieldCheck className="h-4 w-4" />}
+                unit="anos"
+                value={form.warranty_years ?? 2}
+                onChange={(event) => setForm({ ...form, warranty_years: Math.max(1, toNumber(event.target.value, 2)) })}
+              />
               {form.id && (
                 <Button type="button" variant="outline" size="sm" onClick={() => props.onViewRules(form.id!, form.model ?? '')}>
                   <ListChecks className="h-4 w-4" />
@@ -166,7 +174,7 @@ export function AccessoriesEditor(props: {
         title: row.model,
         badges: [row.active ? 'ativo' : 'inativo'],
         description: row.description ?? undefined,
-        details: [],
+        details: [['Garantia', `${row.warranty_years ?? 2} anos`]],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
         removing: props.removingIds.has(row.id),
         onEdit: () => openEdit(row),

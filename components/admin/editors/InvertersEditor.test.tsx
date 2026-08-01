@@ -22,6 +22,7 @@ function makeInverter(partial: Partial<InverterRow> & Pick<InverterRow, 'id' | '
     max_power_per_phase_w: null,
     flags: [],
     pv_oversizing_percent: 100,
+    warranty_years: 10,
     image_url: null,
     documents: [],
     ...partial,

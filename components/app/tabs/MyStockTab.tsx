@@ -764,7 +764,10 @@ function StockProductCard({
       imageUrl = inverter.imageUrl;
       documents = inverter.documents;
       badges = [inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`];
-      specs = [['Potência', `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`]];
+      specs = [
+        ['Potência', `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`],
+        ['Garantia', `${inverter.warrantyYears ?? 10} anos`],
+      ];
     }
   } else if (item.productType === 'battery') {
     const battery = batteryCatalog.find((option) => option.model === item.productModel);
@@ -776,6 +779,7 @@ function StockProductCard({
       specs = [
         ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
         ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
+        ['Garantia', `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos`],
       ];
     }
   } else {
@@ -784,6 +788,7 @@ function StockProductCard({
       imageUrl = accessory.imageUrl;
       documents = accessory.documents;
       description = accessory.description;
+      specs = [['Garantia', `${accessory.warrantyYears ?? 2} anos`]];
     }
   }
 

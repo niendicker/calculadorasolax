@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Battery, Search, Zap } from 'lucide-react';
+import { Activity, Battery, Search, ShieldCheck, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { normalizeBatteryFlags, selectClasses, toNullableNumber, toNumber } from '../helpers';
 import { useCatalogEditorForm } from '../hooks/useCatalogEditorForm';
@@ -222,6 +222,22 @@ export function BatteriesEditor(props: {
                     onChange={(event) => setForm({ ...form, warranty_end_soh_percent: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, warranty_end_soh_percent: null })}
                   />
+                  <NumberWithUnitField
+                    label="Garantia"
+                    tip="Duração da garantia de fábrica, em anos."
+                    icon={<ShieldCheck className="h-4 w-4" />}
+                    unit="anos"
+                    value={form.warranty_years ?? 10}
+                    onChange={(event) => setForm({ ...form, warranty_years: Math.max(1, toNumber(event.target.value, 10)) })}
+                  />
+                  <NumberWithUnitField
+                    label="Garantia por ciclos"
+                    tip="Limite de ciclos de carga/descarga cobertos pela garantia — o que ocorrer primeiro entre anos e ciclos encerra a garantia."
+                    icon={<Activity className="h-4 w-4" />}
+                    unit="ciclos"
+                    value={form.warranty_cycles ?? 6000}
+                    onChange={(event) => setForm({ ...form, warranty_cycles: Math.max(1, toNumber(event.target.value, 6000)) })}
+                  />
                 </div>
               </div>
               <div className="space-y-3 rounded-lg border bg-background p-3">
@@ -306,6 +322,7 @@ export function BatteriesEditor(props: {
           ['RTE / SOH', `${row.round_trip_efficiency_percent ?? 95}% · −${row.annual_soh_loss_percent ?? 2}%/ano`],
           ['Tensão', `${row.nominal_voltage_v ?? '—'} V (${row.voltage_min_v ?? '—'} – ${row.voltage_max_v ?? '—'} V)`],
           ['Corrente', `${row.recommended_current_a ?? '—'} / ${row.max_current_a ?? '—'} A`],
+          ['Garantia', `${row.warranty_years ?? 10} anos ou ${row.warranty_cycles ?? 6000} ciclos`],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,
         removing: props.removingIds.has(row.id),

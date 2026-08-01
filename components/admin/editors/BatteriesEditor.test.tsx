@@ -19,6 +19,8 @@ function makeBattery(partial: Partial<BatteryRow> & Pick<BatteryRow, 'id' | 'mod
     max_current_a: null,
     flags: [],
     max_association_qty: 15,
+    warranty_years: 10,
+    warranty_cycles: 6000,
     image_url: null,
     documents: [],
     ...partial,
