@@ -111,25 +111,7 @@ describe('MyStockTab: listing', () => {
     expect(screen.getByText(`${ACCOUNT_LIMITS.userStockItems}/${ACCOUNT_LIMITS.userStockItems} produtos`, { exact: false })).toBeInTheDocument();
   });
 
-  it('hides the search box when there is nothing in stock yet', () => {
-    setup();
-    expect(screen.queryByPlaceholderText('Pesquisar modelo...')).not.toBeInTheDocument();
-  });
-
-  it('filters stock items by search within the active section', () => {
-    const secondItem: UserStockItem = { ...stockItem, id: 's2', productType: 'battery', productModel: 'TP-HS3.6' };
-    setup({ userStockItems: [stockItem, secondItem] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
-    fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'TP-HS3.6' } });
-    // Inverters is the active section by default, and the search excludes it.
-    expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
-    expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
-  });
-
-  it('shows an item count on each section tab, reflecting the active search filter', () => {
+  it('shows an item count on each section tab', () => {
     const secondItem: UserStockItem = { ...stockItem, id: 's2', productType: 'battery', productModel: 'TP-HS3.6' };
     setup({ userStockItems: [stockItem, secondItem] });
 

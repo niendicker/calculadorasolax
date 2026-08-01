@@ -10,7 +10,7 @@ import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import type { MarginSettings, ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
-import { CatalogProductCard, DocPreviewModal, ImagePreviewModal, SearchInput } from '../shared-ui';
+import { CatalogProductCard, DocPreviewModal, ImagePreviewModal } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
 interface CatalogEntry {
@@ -98,14 +98,8 @@ export function MyStockTab({
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
-  const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState<StockProductType>('inverter');
   const [activeMainSection, setActiveMainSection] = useState<'products' | 'services'>('products');
-
-  const normalizedSearch = search.trim().toLowerCase();
-  const filteredStockItems = userStockItems.filter((item) =>
-    item.productModel.toLowerCase().includes(normalizedSearch)
-  );
 
   const atLimit = userStockItems.length >= ACCOUNT_LIMITS.userStockItems;
 
@@ -183,16 +177,10 @@ export function MyStockTab({
             </p>
           )}
 
-          {userStockItems.length > 0 && (
-            <div className="max-w-xs">
-              <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar modelo..." />
-            </div>
-          )}
-
           <div className="space-y-4">
             <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
               {sectionDefinitions.map((section) => {
-                const count = filteredStockItems.filter((item) => item.productType === section.type).length;
+                const count = userStockItems.filter((item) => item.productType === section.type).length;
                 const active = activeSection === section.type;
                 return (
                   <button
@@ -217,7 +205,7 @@ export function MyStockTab({
 
             {sectionDefinitions.map((section) => {
               if (section.type !== activeSection) return null;
-              const items = filteredStockItems.filter((item) => item.productType === section.type);
+              const items = userStockItems.filter((item) => item.productType === section.type);
               const availableToAdd = catalogByType[section.type].filter(
                 (product) =>
                   !userStockItems.some(

@@ -113,18 +113,6 @@ describe('CatalogTab: sections', () => {
     expect(screen.getByText('Nenhum acessório cadastrado.')).toBeInTheDocument();
   });
 
-  it('shows a search-specific empty state for batteries and accessories', () => {
-    setup();
-
-    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
-    fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'inexistente' } });
-    expect(screen.getByText('Nenhuma bateria encontrada para essa pesquisa.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
-    expect(screen.getByText('Nenhum acessório encontrado para essa pesquisa.')).toBeInTheDocument();
-  });
-
   it('marks a battery with an expansion model as Master and its expansion as Expansão', () => {
     setup({ batteryCatalog: [masterBattery, expansionBattery] });
     fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
@@ -133,27 +121,9 @@ describe('CatalogTab: sections', () => {
     expect(screen.getByText('Expansão')).toBeInTheDocument();
   });
 
-  it('shows the loading skeleton and hides the search input while loading', () => {
+  it('shows the loading skeleton while loading', () => {
     setup({ initialLoading: true });
     expect(screen.getByLabelText('Carregando baterias')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Pesquisar modelo...' })).not.toBeInTheDocument();
-  });
-
-  it('filters the active section by search', () => {
-    setup({ inverterCatalog: [inverter, { ...inverter, id: 'i2', model: 'X3-Hybrid-10.0kW-G4' }] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
-    fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'X1' } });
-
-    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
-    expect(screen.queryByText('X3-Hybrid-10.0kW-G4')).not.toBeInTheDocument();
-  });
-
-  it('shows a search-specific empty state when nothing matches', () => {
-    setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
-    fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'inexistente' } });
-    expect(screen.getByText('Nenhum inversor encontrado para essa pesquisa.')).toBeInTheDocument();
   });
 });
 
