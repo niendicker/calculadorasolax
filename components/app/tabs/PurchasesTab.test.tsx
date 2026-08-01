@@ -15,10 +15,32 @@ function makeQueryBuilder(result: QueryResult) {
   const builder: Record<string, unknown> = {
     select: () => builder,
     eq: () => builder,
+    in: () => builder,
     order: () => builder,
     limit: () => builder,
     then: (resolve: (value: QueryResult) => void, reject: (reason: unknown) => void) =>
       Promise.resolve(result).then(resolve, reject),
+  };
+  return builder;
+}
+
+/** Unlike `makeQueryBuilder`, this actually honors `.in('supplier_id', ids)`
+ *  by filtering the fixture data at resolution time — used for `supplier_offers`
+ *  so scoping tests can assert on the resulting offer list, not just on which
+ *  table got queried. */
+function makeOffersBuilder(offers: SupplierOfferView[] | null, error: { message: string } | null) {
+  let filterIds: string[] | null = null;
+  const builder: Record<string, unknown> = {
+    select: () => builder,
+    eq: () => builder,
+    order: () => builder,
+    in: (_column: string, values: string[]) => { filterIds = values; return builder; },
+    then: (resolve: (value: QueryResult) => void, reject: (reason: unknown) => void) => {
+      const result: QueryResult = error
+        ? { data: null, error }
+        : { data: (offers ?? []).filter((offer) => !filterIds || filterIds.includes(offer.supplier_id)), error: null };
+      return Promise.resolve(result).then(resolve, reject);
+    },
   };
   return builder;
 }
@@ -62,24 +84,40 @@ function makeOrder(partial: Record<string, unknown> = {}) {
   };
 }
 
+/** Offers are scoped server-side to "default for all" + user-preferred
+ *  suppliers (see PurchasesTab's load()). Tests that don't care about that
+ *  scoping just pass `offers` — by default every supplier referenced by
+ *  those fixtures is treated as a default, so nothing is filtered out and
+ *  existing assertions keep working unchanged. Tests exercising the scoping
+ *  itself pass `defaultSupplierIds`/`preferenceSupplierIds` explicitly. */
 function setupSupabase({
   offers = [] as SupplierOfferView[],
   offersError = null as { message: string } | null,
   orders = [] as ReturnType<typeof makeOrder>[],
   ordersError = null as { message: string } | null,
   rpcResult = { data: 'order-id-12345678', error: null as { message: string } | null },
+  user = { id: 'user-1' } as { id: string } | null,
+  defaultSupplierIds = undefined as string[] | undefined,
+  preferenceSupplierIds = [] as string[],
 } = {}) {
+  const allowedSupplierIds = defaultSupplierIds ?? [...new Set(offers.map((offer) => offer.supplier_id))];
   const rpc = vi.fn().mockResolvedValue(rpcResult);
   const from = vi.fn((table: string) => {
     if (table === 'supplier_offers') {
-      return makeQueryBuilder(offersError ? { data: null, error: offersError } : { data: offers, error: null });
+      return makeOffersBuilder(offersError ? null : offers, offersError);
     }
     if (table === 'purchase_orders') {
       return makeQueryBuilder(ordersError ? { data: null, error: ordersError } : { data: orders, error: null });
     }
+    if (table === 'suppliers') {
+      return makeQueryBuilder({ data: allowedSupplierIds.map((id) => ({ id })), error: null });
+    }
+    if (table === 'user_supplier_preferences') {
+      return makeQueryBuilder({ data: preferenceSupplierIds.map((id) => ({ supplier_id: id })), error: null });
+    }
     return makeQueryBuilder({ data: null, error: null });
   });
-  const supabase = { from, rpc };
+  const supabase = { from, rpc, auth: { getUser: vi.fn().mockResolvedValue({ data: { user } }) } };
   createClientMock.mockReturnValue(supabase);
   return supabase;
 }
@@ -158,6 +196,59 @@ describe('PurchasesTab: offers list and search', () => {
     renderWithShell(<PurchasesTab />);
 
     await waitFor(() => expect(screen.getByText('7 em estoque · 3 dias')).toBeInTheDocument());
+  });
+});
+
+describe('PurchasesTab: supplier scoping (defaults + user preferences)', () => {
+  it('filters out offers from suppliers that are neither a default nor a user preference', async () => {
+    setupSupabase({
+      offers: [
+        makeOffer({ id: 'o1', supplier_id: 's1', suppliers: { name: 'Fornecedor A', currency: 'BRL', order_mode: 'both', minimum_order_value: 0 } }),
+        makeOffer({ id: 'o2', supplier_id: 's2', supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 }, suppliers: { name: 'Fornecedor B', currency: 'BRL', order_mode: 'both', minimum_order_value: 0 } }),
+      ],
+      defaultSupplierIds: ['s1'],
+      preferenceSupplierIds: [],
+    });
+    renderWithShell(<PurchasesTab />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(screen.queryByText('TP-HS3.6')).not.toBeInTheDocument();
+  });
+
+  it('includes a supplier the user explicitly picked in "Meus Fornecedores"', async () => {
+    const supabase = setupSupabase({
+      offers: [makeOffer({ id: 'o1', supplier_id: 's2' })],
+      defaultSupplierIds: ['s1'],
+      preferenceSupplierIds: ['s2'],
+    });
+    renderWithShell(<PurchasesTab />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(supabase.from).toHaveBeenCalledWith('user_supplier_preferences');
+  });
+
+  it('skips the user preferences lookup when signed out, relying only on admin defaults', async () => {
+    const supabase = setupSupabase({
+      offers: [makeOffer({ id: 'o1', supplier_id: 's1' })],
+      defaultSupplierIds: ['s1'],
+      user: null,
+    });
+    renderWithShell(<PurchasesTab />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(supabase.from).not.toHaveBeenCalledWith('user_supplier_preferences');
+  });
+
+  it('shows the load error message when fetching default suppliers fails', async () => {
+    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    const original = supabase.from;
+    supabase.from = vi.fn((table: string) => {
+      if (table === 'suppliers') return makeQueryBuilder({ data: null, error: { message: 'defaults failed' } });
+      return original(table);
+    });
+    renderWithShell(<PurchasesTab />);
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('defaults failed'));
   });
 });
 
@@ -390,7 +481,7 @@ describe('PurchasesTab: existing orders and cancellation', () => {
       if (table === 'purchase_orders') return makeQueryBuilder({ data: [makeOrder({ id: 'ord-1', status: 'requested' })], error: null });
       return makeQueryBuilder({ data: [], error: null });
     });
-    createClientMock.mockReturnValue({ from, rpc });
+    createClientMock.mockReturnValue({ from, rpc, auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) } });
     renderWithShell(<PurchasesTab />);
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument());
