@@ -294,6 +294,8 @@ export function SizingTab({
     },
   ];
 
+  const isConfigItem = activeItem === 'gridType' || activeItem === 'battery';
+
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
   // floor (with or without a backup reserve on top), same targets the
@@ -618,42 +620,40 @@ export function SizingTab({
         {activeItem === null ? (
           <div className="space-y-6">
             <PickerGroup
-              label="Funcionalidades"
-              hint="Defina o que o sistema deve atender"
-              items={featureItems}
-              onSelect={setActiveItem}
-            />
-            <PickerGroup
               label="Configuração do sistema"
               hint="Selecione rede, inversor e baterias"
               items={configItems}
               onSelect={setActiveItem}
             />
+            <PickerGroup
+              label="Funcionalidades"
+              hint="Defina o que o sistema deve atender"
+              items={featureItems}
+              onSelect={setActiveItem}
+            />
           </div>
         ) : (
           <Card className="gap-3 rounded-none border-none bg-transparent p-0 shadow-none ring-0">
-            <CardHeader className="gap-2 px-0">
-              <button
+            <CardHeader className="flex flex-row flex-wrap items-start gap-2 px-0">
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Voltar à visão geral"
+                className="shrink-0"
                 onClick={() => setActiveItem(null)}
-                className="inline-flex w-fit items-center gap-1.5 rounded text-sm font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                Voltar à visão geral
-              </button>
-              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Itens de dimensionamento">
-                {featureItems.map((item) => (
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </Button>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="tablist" aria-label="Itens de dimensionamento">
+                {/* Contextual, not a fixed set of 8: showing every item at
+                 * once was what forced the wrapping/grouping workarounds.
+                 * While a feature is open, only the other features are
+                 * useful alternatives; while a config item is open, only
+                 * the other config item is. */}
+                {(isConfigItem ? configItems : featureItems).map((item) => (
                   <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
                 ))}
-                {/* Wrapped in their own flex item so "Rede e inversor" and
-                 * "Baterias" wrap to the next line together — they're one
-                 * category (Configuração), splitting them across two lines
-                 * reads as if they'd wrapped by accident. */}
-                <div className="flex gap-1.5">
-                  {configItems.map((item) => (
-                    <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
-                  ))}
-                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 px-0">
