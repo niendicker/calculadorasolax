@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BatteryCharging, ChevronDown, Copy, Plug, Trash2, X, Zap } from 'lucide-react';
+import { AlertTriangle, BatteryCharging, ChevronDown, Copy, Plug, Trash2, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,11 @@ import type { CatalogItem, LoadPhase, PeakCalcMode, ResidentialGridType, SingleL
 import { cn } from '@/lib/utils';
 import { MAX_OPERATION_HOURS, setDragPreview } from './load-selector-utils';
 import { PhaseTag, TriPhaseDots } from './phase-indicators';
+
+/** Above this IP/IN, the inrush current is high enough that a soft starter
+ * or VFD is worth suggesting to smooth the motor's startup — purely an
+ * informational nudge, it doesn't change the load's own peak-power math. */
+const SOFT_STARTER_IP_IN_THRESHOLD = 3;
 
 function NumberFieldWithClear({
   id,
@@ -439,6 +444,12 @@ export function LoadCard({
           </div>
         </div>
       </div>
+      {(load.ipInRatio ?? 1) > SOFT_STARTER_IP_IN_THRESHOLD && (
+        <p className="flex items-start gap-1.5 border-t bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          IP/IN alto — considere um inversor de frequência (VFD) ou softstarter para suavizar a partida deste motor e reduzir o pico de corrente.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:col-span-3">Ligação elétrica</p>
         <div>

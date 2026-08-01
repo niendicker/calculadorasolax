@@ -398,6 +398,18 @@ describe('LoadCard: expanded fields', () => {
     expect(ipInInput).toHaveValue(1.5);
   });
 
+  it('suggests a soft starter/VFD when IP/IN is above the threshold', () => {
+    render(<LoadCard {...baseProps({ load: fullLoad({ ipInRatio: 3.5 }) })} />);
+    expand();
+    expect(screen.getByText(/inversor de frequência.*softstarter/i)).toBeInTheDocument();
+  });
+
+  it('does not suggest a soft starter/VFD at or below the IP/IN threshold', () => {
+    render(<LoadCard {...baseProps({ load: fullLoad({ ipInRatio: 3 }) })} />);
+    expand();
+    expect(screen.queryByText(/inversor de frequência.*softstarter/i)).not.toBeInTheDocument();
+  });
+
   it('rejects a usageFactor above 1 (no update) and accepts 0', () => {
     const onUpdate = vi.fn();
     render(<LoadCard {...baseProps({ load: fullLoad({ usageFactor: 1 }), onUpdate })} />);
