@@ -27,6 +27,7 @@ const baseArgs = {
   gridType: null,
   peakW: 0,
   loadsCount: 0,
+  operationHours: 4,
   inverterCatalog: [inverter],
   availableInverterModels: null as Set<string> | null,
   selectedInverterModel: null as string | null,
@@ -44,6 +45,11 @@ describe('desiredFeatureHasPendingIssue', () => {
   it('returns true for backup when there are no loads', () => {
     expect(call('backup', ['backup'], { loadsCount: 0 })).toBe(true);
     expect(call('backup', ['backup'], { loadsCount: 2 })).toBe(false);
+  });
+
+  it('returns true for backup when the operation duration is not configured, even with loads registered', () => {
+    expect(call('backup', ['backup'], { loadsCount: 2, operationHours: 0 })).toBe(true);
+    expect(call('backup', ['backup'], { loadsCount: 2, operationHours: 4 })).toBe(false);
   });
 
   it('returns true for external_ats when unacknowledged, and honors required flag narrowing', () => {

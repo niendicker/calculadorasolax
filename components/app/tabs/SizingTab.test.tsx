@@ -66,6 +66,7 @@ const emptyResidentialOptions = {
   gridType: null,
   loads: [] as unknown[],
   desiredFeatures: [] as never[],
+  operationHours: 4,
   whiteTariff: null,
   microgrid: null,
   generator: null,

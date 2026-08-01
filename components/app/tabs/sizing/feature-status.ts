@@ -30,6 +30,7 @@ export function desiredFeatureHasPendingIssue(
     gridType,
     peakW,
     loadsCount,
+    operationHours,
     inverterCatalog,
     availableInverterModels,
     selectedInverterModel,
@@ -42,6 +43,7 @@ export function desiredFeatureHasPendingIssue(
     gridType: ResidentialGridType | null;
     peakW: number;
     loadsCount: number;
+    operationHours: number;
     inverterCatalog: InverterCatalogOption[];
     availableInverterModels: Set<string> | null;
     selectedInverterModel: string | null;
@@ -63,7 +65,10 @@ export function desiredFeatureHasPendingIssue(
 
   switch (id) {
     case 'backup':
-      return loadsCount === 0;
+      // Without a configured duration every load's daily energy is 0 —
+      // "complete" would be misleading since the backup sizing is a no-op
+      // until this is set (see LoadSelector's own inline warning).
+      return loadsCount === 0 || !operationHours;
     case 'external_ats':
       return !atsBackupAcknowledged;
     case 'microgrid':

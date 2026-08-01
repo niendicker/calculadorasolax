@@ -186,6 +186,7 @@ export function DesiredFeaturesPicker({
   onAtsBackupAcknowledgedChange,
   onUploadPhoto,
   loadsCount,
+  operationHours,
   inverterCatalog,
   availableInverterModels,
   selectedInverterModel,
@@ -211,6 +212,7 @@ export function DesiredFeaturesPicker({
   onAtsBackupAcknowledgedChange: (atsBackupAcknowledged: boolean) => void;
   onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
   loadsCount: number;
+  operationHours: number;
   inverterCatalog: InverterCatalogOption[];
   availableInverterModels: Set<string> | null;
   selectedInverterModel: string | null;
@@ -276,6 +278,7 @@ export function DesiredFeaturesPicker({
       gridType,
       peakW,
       loadsCount,
+      operationHours,
       inverterCatalog,
       availableInverterModels,
       selectedInverterModel,

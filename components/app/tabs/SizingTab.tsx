@@ -129,6 +129,7 @@ export function SizingTab({
     inverterModel: string | null;
     gridType: ResidentialGridType | null;
     loads: unknown[];
+    operationHours: number;
     desiredFeatures: DesiredFeatureId[];
     whiteTariff: WhiteTariffConfig | null;
     microgrid: MicrogridConfig | null;
@@ -221,6 +222,7 @@ export function SizingTab({
       gridType: residentialOptions.gridType,
       peakW,
       loadsCount: residentialOptions.loads.length,
+      operationHours: residentialOptions.operationHours,
       inverterCatalog,
       availableInverterModels,
       selectedInverterModel: residentialOptions.inverterModel,
@@ -248,6 +250,7 @@ export function SizingTab({
       gridType: residentialOptions.gridType,
       peakW,
       loadsCount: residentialOptions.loads.length,
+      operationHours: residentialOptions.operationHours,
       inverterCatalog,
       availableInverterModels,
       selectedInverterModel: residentialOptions.inverterModel,
@@ -749,6 +752,7 @@ export function SizingTab({
                   onAtsBackupAcknowledgedChange={setAtsBackupAcknowledged}
                   onUploadPhoto={onUploadFeaturePhoto}
                   loadsCount={residentialOptions.loads.length}
+                  operationHours={residentialOptions.operationHours}
                   inverterCatalog={inverterCatalog}
                   availableInverterModels={availableInverterModels}
                   selectedInverterModel={residentialOptions.inverterModel}

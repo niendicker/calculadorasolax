@@ -33,6 +33,7 @@ const baseResidentialOptions = {
   pv: null as PvConfig | null,
   atsPhotoUrl: null as string | null,
   atsBackupAcknowledged: false,
+  operationHours: 4,
 };
 
 function renderSummary(props: Partial<React.ComponentProps<typeof ConfigurationSummary>> = {}) {

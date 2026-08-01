@@ -46,6 +46,7 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof DesiredFeature
     onAtsBackupAcknowledgedChange: vi.fn(),
     onUploadPhoto: vi.fn().mockResolvedValue('https://example.com/photo.png'),
     loadsCount: 0,
+    operationHours: 4,
     inverterCatalog: [inverter],
     availableInverterModels: null as Set<string> | null,
     selectedInverterModel: null as string | null,
@@ -154,6 +155,16 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
   it('shows the "Requer atenção" badge when the active feature has a pending issue', () => {
     renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 0 });
     expect(screen.getByText('Requer atenção')).toBeInTheDocument();
+  });
+
+  it('keeps backup as "Requer atenção" when loads exist but the operation duration is not configured', () => {
+    renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 2, operationHours: 0 });
+    expect(screen.getByText('Requer atenção')).toBeInTheDocument();
+  });
+
+  it('shows backup as "Ativo" once loads and the operation duration are both configured', () => {
+    renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 2, operationHours: 4 });
+    expect(screen.getByText('Ativo')).toBeInTheDocument();
   });
 
   it('does not seed a new config when the feature already has one set', () => {

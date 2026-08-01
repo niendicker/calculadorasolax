@@ -128,6 +128,7 @@ export function ConfigurationSummary({
     pv: PvConfig | null;
     atsPhotoUrl: string | null;
     atsBackupAcknowledged: boolean;
+    operationHours: number;
   };
   loadsCount: number;
   onJumpToGridType: () => void;
@@ -149,6 +150,7 @@ export function ConfigurationSummary({
     pv,
     atsPhotoUrl,
     atsBackupAcknowledged,
+    operationHours,
   } = residentialOptions;
 
   function featureValue(id: DesiredFeatureId): string {
@@ -224,6 +226,7 @@ export function ConfigurationSummary({
               gridType,
               peakW,
               loadsCount,
+              operationHours,
               inverterCatalog,
               availableInverterModels,
               selectedInverterModel: inverterModel,
