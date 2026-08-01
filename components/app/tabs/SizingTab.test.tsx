@@ -524,6 +524,7 @@ describe('SizingTab: summary panel', () => {
   it('shows a margin summary that highlights the tightest constraint as the decisive factor', () => {
     // nominal margin: (5000-3000)/3000 = +67%; peak margin: (7000-6000)/6000 = +17%;
     // energy margin: (3240-3000)/3000 = +8% — energy is the tightest, so it's decisive.
+    // Displayed as absolute headroom instead: peak +1000W = +1.00 kVA; energy +240Wh = +0.24 kWh.
     setup({
       solution: fakeSolution,
       nominalW: 3000,
@@ -535,11 +536,11 @@ describe('SizingTab: summary panel', () => {
     const marginCard = screen.getByText('Margem sobre a necessidade do cliente').closest('.rounded-lg') as HTMLElement;
     const energyRow = within(marginCard).getByText('Energia', { selector: 'span' }).closest('.px-2');
     expect(energyRow).toHaveTextContent('Fator decisivo');
-    expect(energyRow).toHaveTextContent('+8%');
+    expect(energyRow).toHaveTextContent('+0.24 kWh');
 
     const peakRow = within(marginCard).getByText('Potência máxima').closest('.px-2');
     expect(peakRow).not.toHaveTextContent('Fator decisivo');
-    expect(peakRow).toHaveTextContent('+17%');
+    expect(peakRow).toHaveTextContent('+1.00 kVA');
   });
 
   it('flags a margin as "Insuficiente" instead of "Fator decisivo" when the solution falls short', () => {

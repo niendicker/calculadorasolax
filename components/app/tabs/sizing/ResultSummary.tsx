@@ -69,6 +69,15 @@ function formatMarginValue(value: number, unit: 'W' | 'Wh') {
   return unit === 'W' ? `${kiloValue.toFixed(2)} kVA` : `${kiloValue.toFixed(2)} kWh`;
 }
 
+/** Signed headroom in the row's own unit (e.g. "+0.85 kVA") — shown instead of
+ * a relative percentage so the number reads as a concrete amount of slack
+ * rather than an abstract ratio that's hard to compare against the
+ * "Necessário"/"Solução oferece" values right below it. */
+function formatMarginDelta(value: number, unit: 'W' | 'Wh') {
+  const formatted = formatMarginValue(Math.abs(value), unit);
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+}
+
 /** Shows how much slack the recommended solution has over what the customer
  * actually needs on each gating dimension, highlighting whichever one has
  * the least slack — the real reason a bigger/smaller solution wasn't picked
@@ -118,7 +127,7 @@ function MarginSummary({ rows }: { rows: MarginRow[] }) {
                   )}
                 </span>
                 <span className={cn('text-sm font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
-                  {row.marginPct !== null ? `${row.marginPct >= 0 ? '+' : ''}${row.marginPct.toFixed(0)}%` : '—'}
+                  {row.marginPct !== null ? formatMarginDelta(row.providedValue - row.requiredValue, row.unit) : '—'}
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">

@@ -374,6 +374,18 @@ describe('ResultSummary: margin summary', () => {
     expect(screen.getByText('Insuficiente')).toBeInTheDocument();
   });
 
+  it('shows the margin as absolute headroom in the row\'s own unit, not a percentage', () => {
+    renderResult({
+      solution: { ...baseSolution, inverterRatedPowerW: 6000, inverterPeakPowerW: 20000, availableEnergyWh: 20000 },
+      nominalW: 5000,
+      peakW: 7000,
+      dailyKwh: 5,
+    });
+    // Potência padrão: providedValue 6000W - requiredValue 5000W = +1.00 kVA.
+    expect(screen.getByText('+1.00 kVA')).toBeInTheDocument();
+    expect(screen.queryByText(/^[+-]\d+%$/)).not.toBeInTheDocument();
+  });
+
   it('shows the decisive-factor badge for the tightest positive margin', () => {
     renderResult({
       solution: { ...baseSolution, inverterRatedPowerW: 6000, inverterPeakPowerW: 20000, availableEnergyWh: 20000 },
