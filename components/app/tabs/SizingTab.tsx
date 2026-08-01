@@ -294,8 +294,6 @@ export function SizingTab({
     },
   ];
 
-  const allPickerItems = [...featureItems, ...configItems];
-
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
   // floor (with or without a backup reserve on top), same targets the
@@ -644,9 +642,18 @@ export function SizingTab({
                 Voltar à visão geral
               </button>
               <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Itens de dimensionamento">
-                {allPickerItems.map((item) => (
+                {featureItems.map((item) => (
                   <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
                 ))}
+                {/* Wrapped in their own flex item so "Rede e inversor" and
+                 * "Baterias" wrap to the next line together — they're one
+                 * category (Configuração), splitting them across two lines
+                 * reads as if they'd wrapped by accident. */}
+                <div className="flex gap-1.5">
+                  {configItems.map((item) => (
+                    <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
+                  ))}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 px-0">
