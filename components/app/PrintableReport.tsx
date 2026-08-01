@@ -158,6 +158,18 @@ function desiredFeatureDetails(
   }
 }
 
+/** Formats a catalog product's warranty terms for the report — batteries pair
+ * years with a cycle throughput limit (whichever is reached first ends the
+ * warranty); inverters/accessories are duration-only. Returns null when the
+ * product isn't found in the catalog (e.g. removed after the solution was
+ * generated), since showing a fabricated default would be misleading. */
+function formatWarranty(product?: { warrantyYears?: number; warrantyCycles?: number } | null): string | null {
+  if (!product?.warrantyYears) return null;
+  return product.warrantyCycles
+    ? `${product.warrantyYears} anos ou ${product.warrantyCycles} ciclos`
+    : `${product.warrantyYears} anos`;
+}
+
 /** One product/accessory line in a ProductsTable — icon, name (+ nickname-less
  * model as a caption when it needs one), a right-aligned quantity, and an
  * optional note underneath. Shared shape for the inverter, battery, PV and
@@ -171,6 +183,7 @@ function ProductLine({
   note,
   alert,
   description,
+  warranty,
 }: {
   icon: LucideIcon;
   category: string;
@@ -180,6 +193,8 @@ function ProductLine({
   note?: string;
   alert?: string;
   description?: string | null;
+  /** Warranty terms, formatted for display (e.g. "10 anos" or "10 anos ou 6000 ciclos"). */
+  warranty?: string | null;
 }) {
   return (
     <div className="print-avoid-break flex items-start justify-between gap-4 border-b border-border/50 py-3 last:border-0">
@@ -199,6 +214,7 @@ function ProductLine({
           )}
           {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
           {description && <p className="mt-0.5 text-xs text-muted-foreground/80 italic">{description}</p>}
+          {warranty && <p className="mt-0.5 text-xs text-muted-foreground">Garantia: {warranty}</p>}
         </div>
       </div>
       <p className="shrink-0 text-sm font-semibold text-foreground">{qty}</p>
@@ -210,6 +226,7 @@ function ProductsList({
   title,
   solution,
   batteryCatalog,
+  inverterCatalog,
   accessoryCatalog,
   services,
   userServices,
@@ -225,6 +242,7 @@ function ProductsList({
   title: string;
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
   /** Only meaningful on the primary ProductsList — services (installation,
    * freight, etc.) are a one-time project cost, not tied to whichever
@@ -279,6 +297,7 @@ function ProductsList({
           model={solution.inverterModel}
           qty={`×${solution.inverterQty ?? 1}`}
           note={solution.inverterRatedPowerW ? `${solution.inverterRatedPowerW} VA nominal` : undefined}
+          warranty={formatWarranty(inverterCatalog.find((item) => item.model === solution.inverterModel))}
         />
         {batteryParts.map((part, index) => (
           <ProductLine
@@ -293,6 +312,7 @@ function ProductsList({
                 ? `${(solution.availableEnergyWh / 1000).toFixed(2)} kWh disponíveis`
                 : undefined
             }
+            warranty={formatWarranty(batteryCatalog.find((item) => item.model === part.model))}
           />
         ))}
         {solution.pvPowerKw !== null && (
@@ -310,7 +330,7 @@ function ProductsList({
         )}
         {solution.accessories.map((accessory) => {
           const { model, qty, optional, comment, bundled, appliesTo } = normalizeAccessoryLine(accessory);
-          const description = accessoryCatalog.find((item) => item.model === model)?.description;
+          const catalogAccessory = accessoryCatalog.find((item) => item.model === model);
           const bundledLabel =
             appliesTo === 'inverter' ? 'Incluso no inversor' : appliesTo === 'battery' ? 'Incluso na bateria' : 'Incluso';
           return (
@@ -323,7 +343,8 @@ function ProductsList({
               qty={`×${qty}`}
               note={bundled ? bundledLabel : optional ? `Opcional${comment ? ` — ${comment}` : ''}` : (comment ?? undefined)}
               alert={!optional && !bundled ? 'Acessório obrigatório' : undefined}
-              description={description}
+              description={catalogAccessory?.description}
+              warranty={formatWarranty(catalogAccessory)}
             />
           );
         })}
@@ -626,6 +647,7 @@ export function PrintableReport({
         title={secondarySolution ? `Produtos recomendados — Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
         solution={solution}
         batteryCatalog={batteryCatalog}
+        inverterCatalog={inverterCatalog}
         accessoryCatalog={accessoryCatalog ?? []}
         services={services}
         userServices={userServices}
@@ -644,6 +666,7 @@ export function PrintableReport({
           title={`Produtos recomendados — Bateria ${secondaryBatteryModel ?? secondarySolution.batteryModel} (comparação)`}
           solution={secondarySolution}
           batteryCatalog={batteryCatalog}
+          inverterCatalog={inverterCatalog}
           accessoryCatalog={accessoryCatalog ?? []}
           productMedia={productMedia ?? {}}
           desiredFeatures={desiredFeatures ?? []}

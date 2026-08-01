@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Client, ProjectInfo, Solution, UserStockItem } from '@/lib/types';
-import type { BatteryCatalogOption, InlineProfile } from './types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from './types';
 import { PrintableReport } from './PrintableReport';
 
 const projectInfo: ProjectInfo = { name: 'Casa de praia', clientId: 'c1', address: 'Rua X, 1', notes: '' };
@@ -226,6 +226,39 @@ describe('PrintableReport: recommended products', () => {
     // bundled ones are exempt from it.
     expect(screen.getByText('Acessório obrigatório')).toBeInTheDocument();
     expect(screen.queryAllByText('Acessório obrigatório')).toHaveLength(1);
+  });
+
+  it('shows each product line\'s warranty terms when the catalog has a match, and omits it otherwise', () => {
+    const inverterCatalog: InverterCatalogOption[] = [
+      { id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV', phases: 1, standardPowerKva: 5, peakPowerKva: 7, maxPowerPerPhaseW: null, warrantyYears: 10, imageUrl: null, documents: [], flags: [] },
+    ];
+    const batteryCatalog: BatteryCatalogOption[] = [
+      { id: 'b1', model: 'TP-HS3.6', capacityKwh: 3.6, topology: 'HV', standardPowerKw: 1.8, peakPowerKw: 2.5, minSocPercent: 10, warrantyYears: 10, warrantyCycles: 6000, imageUrl: null, documents: [] },
+    ];
+    const accessoryCatalog: AccessoryCatalogOption[] = [
+      { id: 'a1', model: 'Smart Meter', description: null, warrantyYears: 2, imageUrl: null, documents: [] },
+    ];
+    render(
+      <PrintableReport
+        {...baseProps({
+          solution: {
+            ...solution,
+            accessories: [{ model: 'Smart Meter', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false }],
+          },
+          inverterCatalog,
+          batteryCatalog,
+          accessoryCatalog,
+        })}
+      />
+    );
+    expect(screen.getByText('Garantia: 10 anos')).toBeInTheDocument();
+    expect(screen.getByText('Garantia: 10 anos ou 6000 ciclos')).toBeInTheDocument();
+    expect(screen.getByText('Garantia: 2 anos')).toBeInTheDocument();
+  });
+
+  it('omits the warranty line for a product with no catalog match', () => {
+    render(<PrintableReport {...baseProps()} />);
+    expect(screen.queryByText(/^Garantia:/)).not.toBeInTheDocument();
   });
 
   it('breaks down the battery model into Master + expansion units when the catalog defines one', () => {
