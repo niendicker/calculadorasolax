@@ -22,7 +22,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import type {
@@ -102,7 +101,7 @@ const emptyPvConfig: PvConfig = {
   hsp: 0,
 };
 
-const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
+export const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   backup: HousePlug,
   external_ats: ShieldCheck,
   microgrid: Network,
@@ -110,68 +109,6 @@ const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   pv: Sun,
   white_tariff: Clock,
 };
-
-function FeatureTabButton({
-  id,
-  label,
-  description,
-  enabled,
-  hasIssue,
-  isActiveTab,
-  onClick,
-}: {
-  id: DesiredFeatureId;
-  label: string;
-  description: string;
-  enabled: boolean;
-  hasIssue: boolean;
-  isActiveTab: boolean;
-  onClick: () => void;
-}) {
-  const Icon = featureIcons[id];
-  const { ref, openUp, visible, onMouseEnter, onMouseLeave, onFocus, onBlur } = useTooltipFlip<HTMLButtonElement>();
-  const tooltip = hasIssue
-    ? `${description ? `${description} ` : ''}Há algo pendente de revisão nesta aba — confira antes de calcular.`
-    : description;
-  return (
-    <button
-      ref={ref}
-      type="button"
-      role="tab"
-      aria-selected={isActiveTab}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onFocus={onFocus}
-      onBlur={onBlur}
-      className={cn(
-        'group relative flex h-16 min-w-[7.5rem] flex-1 items-center justify-center gap-2 border-b-2 px-3 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-14',
-        isActiveTab
-          ? 'border-primary bg-primary/[0.06] text-foreground'
-          : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground',
-      )}
-    >
-      <Icon className={cn('h-4 w-4 shrink-0', isActiveTab && 'text-primary')} aria-hidden="true" />
-      <span className="whitespace-nowrap">{label}</span>
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
-        {hasIssue ? (
-          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-        ) : enabled ? (
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Check className="h-2.5 w-2.5" strokeWidth={3} />
-          </span>
-        ) : (
-          <span className="h-2 w-2 rounded-full border border-muted-foreground/40" />
-        )}
-      </span>
-      {tooltip && (
-        <TooltipBubble triggerRef={ref} openUp={openUp} visible={visible}>
-          {tooltip}
-        </TooltipBubble>
-      )}
-    </button>
-  );
-}
 
 /** Tarifa Branca's energy fields (ponta, intermediária) take kWh/mês from the
  * user but the stored value is Wh/dia (see TARIFF_BUSINESS_DAYS_PER_MONTH) —
@@ -233,7 +170,6 @@ function WhiteTariffEnergyField({
 
 export function DesiredFeaturesPicker({
   activeTab,
-  onActiveTabChange,
   value,
   onChange,
   whiteTariff,
@@ -259,7 +195,6 @@ export function DesiredFeaturesPicker({
   dailyKwh,
 }: {
   activeTab: DesiredFeatureId;
-  onActiveTabChange: (id: DesiredFeatureId) => void;
   value: DesiredFeatureId[];
   onChange: (value: DesiredFeatureId[]) => void;
   whiteTariff: WhiteTariffConfig | null;
@@ -371,25 +306,6 @@ export function DesiredFeaturesPicker({
 
   return (
     <div className="space-y-3">
-      <div
-        className="flex overflow-x-auto border-b bg-background/60"
-        role="tablist"
-        aria-label="Funcionalidades desejadas"
-      >
-        {tabs.map((tab) => (
-          <FeatureTabButton
-            key={tab.id}
-            id={tab.id}
-            label={tab.label}
-            description={tab.description}
-            enabled={value.includes(tab.id)}
-            hasIssue={hasPendingIssue(tab.id)}
-            isActiveTab={activeTab === tab.id}
-            onClick={() => onActiveTabChange(tab.id)}
-          />
-        ))}
-      </div>
-
       {/* The Backup tab's own content (LoadSelector) is already a rich set of
        * bordered sections on its own — wrapping it in another card here just
        * nests boxes. Every other feature tab is simple enough (description +

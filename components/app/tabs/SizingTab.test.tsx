@@ -558,7 +558,7 @@ describe('SizingTab: summary panel', () => {
 describe('SizingTab: rede e configuração', () => {
   it('selects a grid type', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     const radiogroup = screen.getByRole('radiogroup', { name: 'Tipo de rede' });
     fireEvent.click(within(radiogroup).getByRole('radio', { name: 'Monofásico220V' }));
     expect(props.setGridType).toHaveBeenCalledWith('singlePhase_220');
@@ -566,16 +566,14 @@ describe('SizingTab: rede e configuração', () => {
 
   it('clicking the LV tab requests a topology switch (battery visibility follows the topology prop from the parent)', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(screen.getByRole('button', { name: /^LV/ }));
     expect(props.setTopology).toHaveBeenCalledWith('LowVoltage');
   });
 
   it('selects a battery already matching the active topology without re-requesting it', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, topology: 'LowVoltage' } });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     fireEvent.click(screen.getByText('TP-LD53'));
 
@@ -588,8 +586,7 @@ describe('SizingTab: rede e configuração', () => {
       batteryCatalog: [battery, battery2, lvBattery],
       residentialOptions: { ...emptyResidentialOptions, topology: 'HighVoltage', batteryModel: 'TP-HS3.6' },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     fireEvent.click(screen.getByText('TP-HS7.2'));
 
@@ -607,8 +604,7 @@ describe('SizingTab: rede e configuração', () => {
         secondaryBatteryModel: 'TP-HS7.2',
       },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     const card = screen.getAllByText('TP-HS3.6').find((el) => el.closest('[role="button"]'));
     fireEvent.click(card as HTMLElement);
@@ -627,8 +623,7 @@ describe('SizingTab: rede e configuração', () => {
         secondaryBatteryModel: 'TP-HS7.2',
       },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     fireEvent.click(screen.getByText('TP-HS7.2'));
 
@@ -647,8 +642,7 @@ describe('SizingTab: rede e configuração', () => {
         secondaryBatteryModel: 'TP-HS7.2',
       },
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     fireEvent.click(screen.getByText('TP-HS9.0'));
 
@@ -660,8 +654,7 @@ describe('SizingTab: rede e configuração', () => {
     const master: BatteryCatalogOption = { ...battery, model: 'T58 V2 Master', expansionModel: 'T58 Slave' };
     const slave: BatteryCatalogOption = { ...battery, id: 'b-slave', model: 'T58 Slave' };
     setup({ batteryCatalog: [master, slave, lvBattery] });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     expect(screen.getByText('T58 V2 Master')).toBeInTheDocument();
     expect(screen.queryByText('T58 Slave')).not.toBeInTheDocument();
@@ -671,7 +664,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('selects an inverter model, and falls back to "Todos"', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: 'X1-Hybrid-5.0kW-G4' } });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     fireEvent.click(screen.getByText('Todos'));
     expect(props.setInverterModel).toHaveBeenCalledWith(null);
@@ -679,7 +672,7 @@ describe('SizingTab: rede e configuração', () => {
 
   it('restricts inverter choices to availableInverterModels when given', () => {
     setup({ availableInverterModels: new Set(['some-other-model']) });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
     expect(screen.getByText('Nenhum inversor com solução aprovada para este tipo de rede.')).toBeInTheDocument();
   });
@@ -941,41 +934,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
   });
 });
 
-describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling', () => {
-  it('shows a warning icon on the Funcionalidades main tab when Backup is enabled with no loads registered', () => {
-    setup({
-      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [] },
-    });
-    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
-  });
-
-  it('shows a warning icon on the Funcionalidades main tab when an enabled feature has a pending issue', () => {
-    setup({
-      residentialOptions: {
-        ...emptyResidentialOptions,
-        desiredFeatures: ['external_ats'],
-        atsBackupAcknowledged: false,
-      },
-    });
-    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
-  });
-
-  it('does not show a warning icon on Funcionalidades when every enabled feature is fully acknowledged', () => {
-    setup({
-      residentialOptions: {
-        ...emptyResidentialOptions,
-        desiredFeatures: ['external_ats'],
-        atsBackupAcknowledged: true,
-      },
-    });
-    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
-  });
-
-  it('does not show a warning icon on Funcionalidades when no feature is enabled', () => {
-    setup();
-    expect(screen.getByRole('tab', { name: 'Funcionalidades' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
-  });
-
+describe('SizingTab: Resumo panel warning bubbling', () => {
   it('turns the feature icon red in the Resumo panel when the feature has a pending issue, without swapping it for a triangle', () => {
     setup({
       residentialOptions: {
@@ -1006,17 +965,17 @@ describe('SizingTab: main tab (Funcionalidades/Configurações) warning bubbling
 
   it('shows a warning icon on the Configurações main tab when no inverter is available for the current grid/battery combo', () => {
     setup({ availableInverterModels: new Set() });
-    expect(screen.getByRole('tab', { name: 'Armazenamento de Energia' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Rede e inversor' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
   it('does not show a warning icon on Configurações when there is at least one available inverter', () => {
     setup({ availableInverterModels: new Set(['X1-Hybrid-5.0kW-G4']) });
-    expect(screen.getByRole('tab', { name: 'Armazenamento de Energia' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Rede e inversor' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 
   it('does not show a warning icon on Configurações before any grid/battery combo has narrowed the inverters down', () => {
     setup({ availableInverterModels: null });
-    expect(screen.getByRole('tab', { name: 'Armazenamento de Energia' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Rede e inversor' }).querySelector('svg.lucide-triangle-alert')).not.toBeInTheDocument();
   });
 });
 
@@ -1030,27 +989,25 @@ describe('SizingTab: configuration summary row jumps', () => {
   it('jumps to Configurações → Modelo bateria when the "Bateria" row is clicked', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: /^Bateria/ }));
-    expect(screen.getByRole('tab', { name: 'Modelo bateria' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Baterias' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('jumps to Funcionalidades with the clicked feature as the active tab', () => {
+  it('jumps to the clicked feature as the active item', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: /^Backup(?!\s*Total)/ }));
-    expect(screen.getByRole('tab', { name: 'Funcionalidades' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Backup' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('re-clicking an already-active tab (Resumo, Funcionalidades, Tipo de rede) is a no-op', () => {
+  it('re-clicking an already-active tab (Resumo, Backup) is a no-op', () => {
     setup();
     fireEvent.click(screen.getByRole('tab', { name: /^Resumo/ }));
     expect(screen.getByRole('tab', { name: /^Resumo/ })).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Funcionalidades' }));
-    expect(screen.getByRole('tab', { name: 'Funcionalidades' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+    expect(screen.getByRole('tab', { name: 'Backup' })).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
-    expect(screen.getByRole('tab', { name: 'Inversores Híbridos' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+    expect(screen.getByRole('tab', { name: 'Backup' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('shows the external_generator, white_tariff and pv summary values', () => {
@@ -1681,10 +1638,6 @@ describe('SizingTab: feature tab pending-issue indicator', () => {
     const atsTab = screen.getByRole('tab', { name: /^Backup Total/ });
     expect(atsTab.querySelector('.lucide-triangle-alert')).toBeInTheDocument();
     expect(atsTab.className).not.toContain('tab-alert');
-
-    const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });
-    expect(funcionalidadesTab.querySelector('.lucide-triangle-alert')).toBeInTheDocument();
-    expect(funcionalidadesTab.className).not.toContain('tab-alert');
   });
 
   it('does not add the alert styling to a tab with no pending issue', () => {
@@ -1692,9 +1645,6 @@ describe('SizingTab: feature tab pending-issue indicator', () => {
 
     const backupTab = screen.getByRole('tab', { name: 'Backup' });
     expect(backupTab.className).not.toContain('tab-alert');
-
-    const funcionalidadesTab = screen.getByRole('tab', { name: /^Funcionalidades/ });
-    expect(funcionalidadesTab.className).not.toContain('tab-alert');
   });
 });
 
@@ -1745,8 +1695,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       batteryCatalog: [batteryWithImage, lvBattery],
       userStockItems: [{ id: 's1', productType: 'battery', productModel: batteryWithImage.model } as UserStockItem],
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     expect(screen.getByText('No catálogo')).toBeInTheDocument();
 
@@ -1763,8 +1712,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       documents: [{ name: 'Datasheet', url: 'https://cdn.example.com/doc.pdf' }],
     };
     setup({ batteryCatalog: [batteryWithDoc, lvBattery] });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Datasheet' }));
     expect(screen.getByRole('dialog', { name: 'Datasheet' })).toBeInTheDocument();
@@ -1775,8 +1723,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 
   it('selects a battery when no topology has been chosen yet', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     fireEvent.click(screen.getByText(battery.model));
     expect(props.setTopology).toHaveBeenCalledWith('HighVoltage');
@@ -1785,8 +1732,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 
   it('selects a battery via keyboard (Enter/Space) same as a click', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Modelo bateria' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
 
     const card = screen.getByText(battery.model).closest('[role="button"]') as HTMLElement;
     fireEvent.keyDown(card, { key: 'Enter' });
@@ -1802,7 +1748,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       inverterCatalog: [inverterWithImage],
       userStockItems: [{ id: 's2', productType: 'inverter', productModel: inverterWithImage.model } as UserStockItem],
     });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     expect(screen.getByText('No catálogo')).toBeInTheDocument();
 
@@ -1819,7 +1765,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
       documents: [{ name: 'Manual', url: 'https://cdn.example.com/manual.pdf' }],
     };
     setup({ inverterCatalog: [inverterWithDoc] });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Manual' }));
     expect(screen.getByRole('dialog', { name: 'Manual' })).toBeInTheDocument();
@@ -1830,7 +1776,7 @@ describe('SizingTab: battery/inverter picker image and document previews', () =>
 
   it('selects "Todos" and an inverter via keyboard (Enter/Space), and via a plain click', () => {
     const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, inverterModel: inverter.model } });
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     const allCard = screen.getByText('Todos').closest('[role="button"]') as HTMLElement;
     fireEvent.keyDown(allCard, { key: ' ' });
@@ -1885,8 +1831,7 @@ describe('SizingTab: PV recommendation above the inverter picker', () => {
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     const section = inverterConfigSection();
     expect(within(section).getByText('FV recomendado')).toBeInTheDocument();
@@ -1899,8 +1844,7 @@ describe('SizingTab: PV recommendation above the inverter picker', () => {
       solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
     });
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Armazenamento de Energia' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Inversores Híbridos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     const section = inverterConfigSection();
     expect(within(section).queryByText('FV recomendado')).not.toBeInTheDocument();
@@ -2246,9 +2190,10 @@ describe('SizingTab: comparação de duas baterias', () => {
 describe('SizingTab: cargas', () => {
   it('collapses the Backup tab like any other feature tab until it is enabled', () => {
     setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
-    // Backup is the default active tab but starts disabled, so — same as
-    // every other feature tab — its content (the loads UI) stays collapsed.
+    // Backup starts disabled, so — same as every other feature tab — its
+    // content (the loads UI) stays collapsed.
     expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
     expect(screen.queryByText('Presets')).not.toBeInTheDocument();
     const disabledHeader = screen.getByRole('button', { name: 'Habilitar' }).parentElement?.parentElement;
@@ -2271,6 +2216,7 @@ describe('SizingTab: cargas', () => {
 
   it('reveals the LoadSelector under the Backup tab once enabled, and hides it again when disabled', () => {
     const { rerender, props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith(['backup']);
@@ -2283,8 +2229,9 @@ describe('SizingTab: cargas', () => {
         />
       </NextIntlClientProvider>
     );
-    // rerender remounts (no Shell wrapper), so activeTab resets to its
-    // 'backup' default and we land straight on the now-enabled panel.
+    // rerender remounts (no Shell wrapper), so activeItem resets to the
+    // overview grid — reopen Backup to land on the now-enabled panel.
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
     expect(screen.getByText('Predefinições')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
@@ -2295,6 +2242,7 @@ describe('SizingTab: cargas', () => {
         <SizingTab {...(props as Parameters<typeof SizingTab>[0])} residentialOptions={emptyResidentialOptions} />
       </NextIntlClientProvider>
     );
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
     expect(screen.queryByText('Presets')).not.toBeInTheDocument();
   });
 
@@ -2308,6 +2256,7 @@ describe('SizingTab: cargas', () => {
       ],
     });
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 

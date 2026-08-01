@@ -3,21 +3,22 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
+  Battery,
   BatteryCharging,
   Calculator,
   Check,
+  ChevronLeft,
   ClipboardCopy,
   CircleCheck,
   Eraser,
   FileText,
   FolderOpen,
   Gauge,
-  ListChecks,
   Loader2,
   Save,
-  Settings,
   Sun,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -52,10 +53,28 @@ import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, SharePreviewModal, SolutionSkeleton } from '../shared-ui';
 import { gridLabels, gridOptions, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
 import { ConfigurationSummary } from './sizing/ConfigurationSummary';
-import { DesiredFeaturesPicker } from './sizing/DesiredFeaturesPicker';
+import { DesiredFeaturesPicker, featureIcons } from './sizing/DesiredFeaturesPicker';
 import { desiredFeatureHasPendingIssue } from './sizing/feature-status';
 import { BatteryModelPicker, InverterModelPicker } from './sizing/ModelPickers';
 import { ResultSummary, SolutionMetricCards } from './sizing/ResultSummary';
+
+/** The unified overview grid mixes the 6 desired-feature ids with two
+ * config items that aren't features at all (grid/inverter, battery) — this
+ * widens the id space just enough to let one card grid + one strip + one
+ * "active item" state cover both, instead of a separate tab layer per
+ * concern (see the removed mainTab/configTab split this replaced). */
+type PickerItemId = DesiredFeatureId | 'gridType' | 'battery';
+
+type PickerItemState = 'on' | 'warn' | 'off';
+
+interface PickerItem {
+  id: PickerItemId;
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  state: PickerItemState;
+  meta: string;
+}
 
 export function SizingTab({
   title,
@@ -160,9 +179,7 @@ export function SizingTab({
   marginSettings: MarginSettings;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
 }) {
-  const [mainTab, setMainTab] = useState<'features' | 'config'>('features');
-  const [configTab, setConfigTab] = useState<'gridType' | 'battery'>('gridType');
-  const [activeFeatureTab, setActiveFeatureTab] = useState<DesiredFeatureId>('backup');
+  const [activeItem, setActiveItem] = useState<PickerItemId | null>(null);
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
   const [previewText, setPreviewText] = useState<string | null>(null);
@@ -183,23 +200,19 @@ export function SizingTab({
   }, [solution, error, secondarySolution, secondaryError]);
 
   function jumpToGridType() {
-    setMainTab('config');
-    setConfigTab('gridType');
+    setActiveItem('gridType');
   }
 
   function jumpToBattery() {
-    setMainTab('config');
-    setConfigTab('battery');
+    setActiveItem('battery');
   }
 
   function jumpToFeature(id: DesiredFeatureId) {
-    setMainTab('features');
-    setActiveFeatureTab(id);
+    setActiveItem(id);
   }
 
-  // Bubbles the same per-tab warning up to the "Funcionalidades"/"Configurações"
-  // main tabs, so a pending issue is visible even while the user is looking
-  // at the other section — no need to click through every feature tab first.
+  // Bubbles up to the Resumo tab's own status pill, so a pending issue is
+  // visible from the summary without opening every feature card first.
   const featuresTabHasIssue = DESIRED_FEATURE_DEFINITIONS.some((feature) =>
     desiredFeatureHasPendingIssue(feature.id, residentialOptions.desiredFeatures, {
       microgrid: residentialOptions.microgrid,
@@ -222,6 +235,66 @@ export function SizingTab({
         residentialOptions.inverterModel ? ` · ${residentialOptions.inverterModel}` : ' · inversor pendente'
       }`
     : 'Nenhuma seleção';
+
+  // Overview grid: the 6 desired features plus the two config items, all in
+  // one flat list of cards (see PickerItem) — replaces the old main-tab/
+  // sub-tab split with a single level, grouped visually but not navigationally.
+  const featureItems: PickerItem[] = DESIRED_FEATURE_DEFINITIONS.map((feature) => {
+    const enabled = residentialOptions.desiredFeatures.includes(feature.id);
+    const hasIssue = desiredFeatureHasPendingIssue(feature.id, residentialOptions.desiredFeatures, {
+      microgrid: residentialOptions.microgrid,
+      generator: residentialOptions.generator,
+      pv: residentialOptions.pv,
+      whiteTariff: residentialOptions.whiteTariff,
+      atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
+      gridType: residentialOptions.gridType,
+      peakW,
+      loadsCount: residentialOptions.loads.length,
+      inverterCatalog,
+      availableInverterModels,
+      selectedInverterModel: residentialOptions.inverterModel,
+    });
+    return {
+      id: feature.id,
+      icon: featureIcons[feature.id],
+      label: feature.label,
+      description: feature.description,
+      state: hasIssue ? 'warn' : enabled ? 'on' : 'off',
+      meta:
+        feature.id === 'backup'
+          ? enabled
+            ? `${residentialOptions.loads.length} carga${residentialOptions.loads.length === 1 ? '' : 's'} selecionada${residentialOptions.loads.length === 1 ? '' : 's'}`
+            : 'Nenhuma carga selecionada'
+          : hasIssue
+            ? 'Requer atenção'
+            : enabled
+              ? 'Configurado'
+              : 'Não usado neste projeto',
+    };
+  });
+
+  const configItems: PickerItem[] = [
+    {
+      id: 'gridType',
+      icon: Zap,
+      label: 'Rede e inversor',
+      description: 'Tipo de rede elétrica do cliente e o inversor usado na instalação.',
+      state: configTabHasIssue ? 'warn' : residentialOptions.gridType ? 'on' : 'off',
+      meta: gridTypeSummary,
+    },
+    {
+      id: 'battery',
+      icon: Battery,
+      label: 'Baterias',
+      description: 'Topologia e modelo do banco de baterias que atende os requisitos definidos.',
+      state: residentialOptions.batteryModel ? 'on' : 'warn',
+      meta: residentialOptions.batteryModel
+        ? `${residentialOptions.batteryModel}${residentialOptions.secondaryBatteryModel ? ` + ${residentialOptions.secondaryBatteryModel}` : ''}`
+        : 'Modelo ainda não escolhido',
+    },
+  ];
+
+  const allPickerItems = [...featureItems, ...configItems];
 
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
@@ -544,70 +617,120 @@ export function SizingTab({
       </PageSummary>
 
       <div className="mt-4 space-y-4">
+        {activeItem === null ? (
+          <div className="space-y-6">
+            <PickerGroup
+              label="Funcionalidades"
+              hint="Defina o que o sistema deve atender"
+              items={featureItems}
+              onSelect={setActiveItem}
+            />
+            <PickerGroup
+              label="Configuração do sistema"
+              hint="Selecione rede, inversor e baterias"
+              items={configItems}
+              onSelect={setActiveItem}
+            />
+          </div>
+        ) : (
           <Card className="gap-3 rounded-none border-none bg-transparent p-0 shadow-none ring-0">
-            <CardHeader className="px-0">
-              <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Seções de dimensionamento">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mainTab === 'features'}
-                  aria-label="Funcionalidades"
-                  onClick={() => setMainTab('features')}
-                  className={cn(
-                    'relative flex min-h-20 items-center gap-3 border-b-2 px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5',
-                    mainTab === 'features'
-                      ? 'border-primary bg-primary/[0.05] text-foreground'
-                      : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground',
-                  )}
-                >
-                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted', mainTab === 'features' && 'bg-primary/15 text-primary')}>
-                    {featuresTabHasIssue ? (
-                      <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
-                    ) : (
-                      <ListChecks className="h-5 w-5" aria-hidden="true" />
-                    )}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold sm:text-base">Funcionalidades</span>
-                    <span className="mt-0.5 hidden text-xs font-normal text-muted-foreground sm:block">
-                      Defina o que o sistema deve atender
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mainTab === 'config'}
-                  aria-label="Armazenamento de Energia"
-                  onClick={() => setMainTab('config')}
-                  className={cn(
-                    'relative flex min-h-20 items-center gap-3 border-b-2 px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5',
-                    mainTab === 'config'
-                      ? 'border-primary bg-primary/[0.05] text-foreground'
-                      : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground',
-                  )}
-                >
-                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted', mainTab === 'config' && 'bg-primary/15 text-primary')}>
-                    {configTabHasIssue ? (
-                      <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
-                    ) : (
-                      <Settings className="h-5 w-5" aria-hidden="true" />
-                    )}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold sm:text-base">Configuração do sistema</span>
-                    <span className="mt-0.5 hidden text-xs font-normal text-muted-foreground sm:block">
-                      Selecione rede, inversor e baterias
-                    </span>
-                  </span>
-                </button>
+            <CardHeader className="gap-2 px-0">
+              <button
+                type="button"
+                onClick={() => setActiveItem(null)}
+                className="inline-flex w-fit items-center gap-1.5 rounded text-sm font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Voltar à visão geral
+              </button>
+              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Itens de dimensionamento">
+                {allPickerItems.map((item) => (
+                  <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
+                ))}
               </div>
             </CardHeader>
-            <CardContent className={cn('px-0', mainTab === 'config' && 'space-y-4')}>
-              {mainTab === 'features' && (
+            <CardContent className="space-y-4 px-0">
+              {activeItem === 'gridType' ? (
+                <div className="space-y-3 rounded-lg border border-transparent">
+                  <div>
+                    <p className="text-sm font-semibold">Tipo de rede</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{gridTypeSummary}</p>
+                  </div>
+                  <div
+                    className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                    role="radiogroup"
+                    aria-label="Tipo de rede"
+                  >
+                    {gridOptions.map((option) => {
+                      const active = residentialOptions.gridType === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => setGridType(option.value)}
+                          className={cn(
+                            'relative flex min-h-20 flex-col items-start justify-center rounded-lg border bg-card px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                            active
+                              ? 'border-primary bg-primary/[0.06] text-foreground shadow-sm ring-1 ring-primary/20'
+                              : 'border-border text-muted-foreground hover:border-primary/50 hover:bg-muted/40 hover:text-foreground'
+                          )}
+                        >
+                          <span className="flex w-full items-center justify-between gap-2">
+                            <span className="text-sm font-semibold">{option.label}</span>
+                            <span className={cn('flex h-4 w-4 items-center justify-center rounded-full border', active ? 'border-primary bg-primary' : 'border-muted-foreground/40')}>
+                              {active && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
+                            </span>
+                          </span>
+                          <span className={cn('mt-1 text-xs', active ? 'text-primary' : 'text-muted-foreground/70')}>{option.detail}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {residentialOptions.desiredFeatures.includes('pv') && activeSolution?.pvPowerKw != null && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Sun className="h-4 w-4 text-primary" />
+                        FV recomendado
+                      </div>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <p className="text-lg font-semibold">{activeSolution.pvPowerKw.toFixed(2)} kWp</p>
+                        {activeSolution.pvMonthlyGenerationKwh != null && (
+                          <p className="text-sm text-muted-foreground">
+                            · {activeSolution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <InverterModelPicker
+                    inverters={inverterCatalog}
+                    availableModels={availableInverterModels}
+                    selectedModel={residentialOptions.inverterModel}
+                    loading={initialLoading}
+                    setInverterModel={setInverterModel}
+                    userStockItems={userStockItems}
+                  />
+                </div>
+              ) : activeItem === 'battery' ? (
+                <BatteryModelPicker
+                  batteries={batteryCatalog}
+                  topology={residentialOptions.topology}
+                  selectedModel={residentialOptions.batteryModel}
+                  secondarySelectedModel={residentialOptions.secondaryBatteryModel}
+                  loading={initialLoading}
+                  setTopology={setTopology}
+                  setBatteryModel={setBatteryModel}
+                  setSecondaryBatteryModel={setSecondaryBatteryModel}
+                  userStockItems={userStockItems}
+                  solution={solution}
+                />
+              ) : (
                 <DesiredFeaturesPicker
-                  activeTab={activeFeatureTab}
-                  onActiveTabChange={setActiveFeatureTab}
+                  activeTab={activeItem}
                   value={residentialOptions.desiredFeatures}
                   onChange={setDesiredFeatures}
                   whiteTariff={residentialOptions.whiteTariff}
@@ -633,139 +756,124 @@ export function SizingTab({
                   dailyKwh={dailyKwh}
                 />
               )}
-
-              {mainTab === 'config' && (
-                <>
-                  <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Seções de configuração">
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-label="Inversores Híbridos"
-                      aria-selected={configTab === 'gridType'}
-                      onClick={() => setConfigTab('gridType')}
-                      className={cn(
-                        'flex min-h-14 items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                        configTab === 'gridType'
-                          ? 'border-primary bg-primary/[0.04] text-foreground'
-                          : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
-                      )}
-                    >
-                      {residentialOptions.gridType ? (
-                        <CircleCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                      ) : (
-                        <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
-                      )}
-                      Rede e inversor
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-label="Modelo bateria"
-                      aria-selected={configTab === 'battery'}
-                      onClick={() => setConfigTab('battery')}
-                      className={cn(
-                        'flex min-h-14 items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                        configTab === 'battery'
-                          ? 'border-primary bg-primary/[0.04] text-foreground'
-                          : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
-                      )}
-                    >
-                      {residentialOptions.batteryModel ? (
-                        <CircleCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                      ) : (
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
-                      )}
-                      Baterias
-                    </button>
-                  </div>
-
-                  {configTab === 'gridType' && (
-                    <div className="space-y-3 rounded-lg border border-transparent">
-                      <div>
-                        <p className="text-sm font-semibold">Tipo de rede</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{gridTypeSummary}</p>
-                      </div>
-                      <div
-                        className="grid grid-cols-2 gap-2 sm:grid-cols-4"
-                        role="radiogroup"
-                        aria-label="Tipo de rede"
-                      >
-                        {gridOptions.map((option) => {
-                          const active = residentialOptions.gridType === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              onClick={() => setGridType(option.value)}
-                              className={cn(
-                                'relative flex min-h-20 flex-col items-start justify-center rounded-lg border bg-card px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                                active
-                                  ? 'border-primary bg-primary/[0.06] text-foreground shadow-sm ring-1 ring-primary/20'
-                                  : 'border-border text-muted-foreground hover:border-primary/50 hover:bg-muted/40 hover:text-foreground'
-                              )}
-                            >
-                              <span className="flex w-full items-center justify-between gap-2">
-                                <span className="text-sm font-semibold">{option.label}</span>
-                                <span className={cn('flex h-4 w-4 items-center justify-center rounded-full border', active ? 'border-primary bg-primary' : 'border-muted-foreground/40')}>
-                                  {active && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
-                                </span>
-                              </span>
-                              <span className={cn('mt-1 text-xs', active ? 'text-primary' : 'text-muted-foreground/70')}>{option.detail}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {residentialOptions.desiredFeatures.includes('pv') && activeSolution?.pvPowerKw != null && (
-                        <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Sun className="h-4 w-4 text-primary" />
-                            FV recomendado
-                          </div>
-                          <div className="mt-1 flex items-baseline gap-2">
-                            <p className="text-lg font-semibold">{activeSolution.pvPowerKw.toFixed(2)} kWp</p>
-                            {activeSolution.pvMonthlyGenerationKwh != null && (
-                              <p className="text-sm text-muted-foreground">
-                                · {activeSolution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <InverterModelPicker
-                        inverters={inverterCatalog}
-                        availableModels={availableInverterModels}
-                        selectedModel={residentialOptions.inverterModel}
-                        loading={initialLoading}
-                        setInverterModel={setInverterModel}
-                        userStockItems={userStockItems}
-                      />
-                    </div>
-                  )}
-
-                  {configTab === 'battery' && (
-                    <BatteryModelPicker
-                      batteries={batteryCatalog}
-                      topology={residentialOptions.topology}
-                      selectedModel={residentialOptions.batteryModel}
-                      secondarySelectedModel={residentialOptions.secondaryBatteryModel}
-                      loading={initialLoading}
-                      setTopology={setTopology}
-                      setBatteryModel={setBatteryModel}
-                      setSecondaryBatteryModel={setSecondaryBatteryModel}
-                      userStockItems={userStockItems}
-                      solution={solution}
-                    />
-                  )}
-                </>
-              )}
             </CardContent>
           </Card>
+        )}
       </div>
     </>
+  );
+}
+
+/** One labeled section of the overview grid (see PickerItem) — the label is
+ * a category heading, not a tab: nothing here is clickable except the cards
+ * themselves, and every card across every group is reachable by scrolling. */
+function PickerGroup({
+  label,
+  hint,
+  items,
+  onSelect,
+}: {
+  label: string;
+  hint: string;
+  items: PickerItem[];
+  onSelect: (id: PickerItemId) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="tablist" aria-label={label}>
+        {items.map((item) => (
+          <PickerCard key={item.id} item={item} onClick={() => onSelect(item.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A card is functionally the same choice as the compact PickerPill it turns
+ * into once opened (see below) — both pick one of the 8 items and reveal its
+ * panel — so both share the tab/tabpanel pattern instead of a plain button.
+ * `aria-selected` is always false here: nothing is "current" while the
+ * overview grid itself is showing (there's no panel open yet). */
+function PickerCard({ item, onClick }: { item: PickerItem; onClick: () => void }) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={false}
+      aria-label={item.label}
+      onClick={onClick}
+      className={cn(
+        'flex min-h-[8.5rem] flex-col items-start gap-2 rounded-lg border bg-card px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        item.state === 'on'
+          ? 'border-primary/40 bg-primary/[0.04]'
+          : item.state === 'warn'
+            ? 'border-destructive/30 hover:bg-muted/40'
+            : 'border-border hover:border-primary/40 hover:bg-muted/40'
+      )}
+    >
+      <div className="flex w-full items-start justify-between gap-2">
+        <span
+          className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground',
+            item.state === 'on' && 'bg-primary/15 text-primary',
+            item.state === 'warn' && 'bg-destructive/10 text-destructive'
+          )}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        {item.state === 'warn' ? (
+          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+        ) : item.state === 'on' ? (
+          <CircleCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+        ) : null}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{item.label}</p>
+        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
+      </div>
+      <p
+        className={cn(
+          'mt-auto pt-1 text-xs font-medium',
+          item.state === 'warn' ? 'text-destructive' : item.state === 'on' ? 'text-primary' : 'text-muted-foreground'
+        )}
+      >
+        {item.meta}
+      </p>
+    </button>
+  );
+}
+
+/** The compact strip shown once an item is open — every item from both
+ * groups in one row, so switching from a feature straight to "Baterias"
+ * doesn't require going back to the overview first. */
+function PickerPill({ item, active, onClick }: { item: PickerItem; active: boolean; onClick: () => void }) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        active
+          ? 'border-primary bg-primary/[0.08] text-foreground'
+          : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/40 hover:text-foreground'
+      )}
+    >
+      <Icon className={cn('h-3.5 w-3.5 shrink-0', active && 'text-primary')} aria-hidden="true" />
+      {item.label}
+      {item.state === 'warn' ? (
+        <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" />
+      ) : item.state === 'on' ? (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+      ) : null}
+    </button>
   );
 }
 

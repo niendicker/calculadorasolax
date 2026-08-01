@@ -30,7 +30,6 @@ const inverter: InverterCatalogOption = {
 function baseProps(overrides: Partial<React.ComponentProps<typeof DesiredFeaturesPicker>> = {}) {
   return {
     activeTab: 'backup' as DesiredFeatureId,
-    onActiveTabChange: vi.fn(),
     value: [] as DesiredFeatureId[],
     onChange: vi.fn(),
     whiteTariff: null as WhiteTariffConfig | null,
@@ -69,11 +68,9 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof DesiredFeat
 }
 
 describe('DesiredFeaturesPicker: tabs and toggling', () => {
-  it('renders tabs and switches active tab on click', () => {
-    const onActiveTabChange = vi.fn();
-    renderPicker({ onActiveTabChange });
-    fireEvent.click(screen.getByRole('tab', { name: /Tarifa Branca/ }));
-    expect(onActiveTabChange).toHaveBeenCalledWith('white_tariff');
+  it('renders the content for whichever activeTab is passed in', () => {
+    renderPicker({ activeTab: 'white_tariff' });
+    expect(screen.getByText('Usa a bateria nos horários mais caros da Tarifa Branca e estima a economia no relatório.')).toBeInTheDocument();
   });
 
   it('toggles a feature on, seeding the default config for white_tariff', () => {
@@ -157,13 +154,6 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
   it('shows the "Requer atenção" badge when the active feature has a pending issue', () => {
     renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 0 });
     expect(screen.getByText('Requer atenção')).toBeInTheDocument();
-  });
-
-  it('shows tooltip on the tab button when it has a pending issue', () => {
-    renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 0 });
-    const backupTab = screen.getByRole('tab', { name: 'Backup' });
-    fireEvent.mouseEnter(backupTab);
-    expect(screen.getByText(/Há algo pendente de revisão nesta aba/)).toBeInTheDocument();
   });
 
   it('does not seed a new config when the feature already has one set', () => {
