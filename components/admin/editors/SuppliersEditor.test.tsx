@@ -422,6 +422,31 @@ describe('SuppliersEditor: SKU mapping', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Produto vinculado e oferta publicada.'));
     expect(supabase.from).toHaveBeenCalledWith('supplier_offers');
   });
+
+  it('removes a mapping after confirming deletion', async () => {
+    const supabase = await renderEditor();
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    fireEvent.click(screen.getByRole('button', { name: 'Remover vínculo X1-5K' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }, { timeout: 1000 }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Vínculo removido.'));
+    expect(supabase.from).toHaveBeenCalledWith('supplier_product_mappings');
+  });
+
+  it('shows the error message when removing a mapping fails', async () => {
+    const supabase = await renderEditor();
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    const original = supabase.from;
+    supabase.from = vi.fn((table: string) => {
+      const builder = original(table) as Record<string, unknown>;
+      if (table === 'supplier_product_mappings') builder.delete = () => ({ eq: () => Promise.resolve({ error: { message: 'delete failed' } }) });
+      return builder;
+    }) as typeof supabase.from;
+    fireEvent.click(screen.getByRole('button', { name: 'Remover vínculo X1-5K' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }, { timeout: 1000 }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('delete failed'));
+  });
 });
 
 describe('SuppliersEditor: order status transitions', () => {
