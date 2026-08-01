@@ -481,18 +481,6 @@ export function SinglePageApp() {
             </button>
             <button
               type="button"
-              aria-current={activeTab === 'purchases' ? 'page' : undefined}
-              onClick={() => setActiveTab('purchases')}
-              className={cn(
-                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                activeTab === 'purchases' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-              )}
-            >
-              <ShoppingCart className="h-4 w-4" />
-              Fornecedores e Compras
-            </button>
-            <button
-              type="button"
               aria-current={activeTab === 'myStock' ? 'page' : undefined}
               onClick={() => setActiveTab('myStock')}
               className={cn(
@@ -503,6 +491,18 @@ export function SinglePageApp() {
             >
               <Wallet className="h-3.5 w-3.5" />
               Meu Catálogo
+            </button>
+            <button
+              type="button"
+              aria-current={activeTab === 'purchases' ? 'page' : undefined}
+              onClick={() => setActiveTab('purchases')}
+              className={cn(
+                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                activeTab === 'purchases' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
+              )}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Fornecedores e Compras
             </button>
             <button
               type="button"
