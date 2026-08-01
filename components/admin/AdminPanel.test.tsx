@@ -816,6 +816,108 @@ describe('AdminPanel: recordActivityLog failure', () => {
   });
 });
 
+describe('AdminPanel: recordActivityLog with no authenticated user', () => {
+  it('still saves successfully when auth.getUser resolves no user (actor fields fall back to null)', async () => {
+    const getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    const supabase = await openAdminPanel({}, { getUser });
+    fireEvent.click(screen.getByRole('button', { name: /Baterias/ }));
+    await waitFor(() => expect(screen.getByText('TP-HS3.6')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Nova bateria/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Bateria salva.'));
+    expect(supabase.from).toHaveBeenCalledWith('admin_activity_logs');
+  });
+});
+
+describe('AdminPanel: refreshAllSolutions ("Atualizar todas as combinações")', () => {
+  const essRuleWithConfig = {
+    ...essRuleRow,
+    battery_configs: [{ battery_model: 'TP-HS3.6', battery_topology: 'HV', min_battery_qty: 1, max_battery_qty: 1 }],
+  };
+
+  it('regenerates from active rules, replacing previously approved solutions', async () => {
+    const supabase = await openAdminPanel({
+      ess_compatibility_rules: { data: [essRuleWithConfig], error: null },
+      approved_solutions: { data: [solutionRow], error: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Combinações/ }));
+    await waitFor(() => expect(screen.getByText('code-1')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar todas as combinações' }));
+    const refreshAllDialog = await screen.findByRole('dialog', { name: 'Atualizar todas as combinações?' }, { timeout: 1000 });
+    fireEvent.click(within(refreshAllDialog).getByRole('button', { name: 'Atualizar' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/regenerada.*aprovada/i));
+    expect(supabase.from).toHaveBeenCalledWith('admin_activity_logs');
+  });
+
+  it('skips the cleanup delete when there are no previously approved solutions', async () => {
+    await openAdminPanel({
+      ess_compatibility_rules: { data: [essRuleWithConfig], error: null },
+      approved_solutions: { data: [], error: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Combinações/ }));
+    await waitFor(() => expect(screen.queryByLabelText('Carregando dados administrativos')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar todas as combinações' }));
+    const refreshAllDialog = await screen.findByRole('dialog', { name: 'Atualizar todas as combinações?' }, { timeout: 1000 });
+    fireEvent.click(within(refreshAllDialog).getByRole('button', { name: 'Atualizar' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/regenerada.*aprovada/i));
+  });
+
+  it('shows a failure message when there are no active rules to regenerate from', async () => {
+    await openAdminPanel({
+      ess_compatibility_rules: { data: [], error: null },
+      accessory_rules: { data: [], error: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Combinações/ }));
+    await waitFor(() => expect(screen.queryByLabelText('Carregando dados administrativos')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar todas as combinações' }));
+    const refreshAllDialog = await screen.findByRole('dialog', { name: 'Atualizar todas as combinações?' }, { timeout: 1000 });
+    fireEvent.click(within(refreshAllDialog).getByRole('button', { name: 'Atualizar' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Nenhuma combinação gerada a partir das regras.')
+    );
+  });
+
+  it('surfaces the error alert when deleting previous solutions fails', async () => {
+    const supabase = await openAdminPanel({
+      ess_compatibility_rules: { data: [essRuleWithConfig], error: null },
+      approved_solutions: { data: [solutionRow], error: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Combinações/ }));
+    await waitFor(() => expect(screen.getByText('code-1')).toBeInTheDocument());
+
+    makeFromFailOnce(supabase, 'approved_solutions', 'cannot delete previous solutions');
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar todas as combinações' }));
+    const refreshAllDialog = await screen.findByRole('dialog', { name: 'Atualizar todas as combinações?' }, { timeout: 1000 });
+    fireEvent.click(within(refreshAllDialog).getByRole('button', { name: 'Atualizar' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('cannot delete previous solutions'));
+  });
+
+  it('surfaces the error alert when the regenerated upsert fails', async () => {
+    const supabase = await openAdminPanel({
+      ess_compatibility_rules: { data: [essRuleWithConfig], error: null },
+      approved_solutions: { data: [], error: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Combinações/ }));
+    await waitFor(() => expect(screen.queryByLabelText('Carregando dados administrativos')).not.toBeInTheDocument());
+
+    makeFromFailOnce(supabase, 'approved_solutions', 'regenerated upsert rejected');
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar todas as combinações' }));
+    const refreshAllDialog = await screen.findByRole('dialog', { name: 'Atualizar todas as combinações?' }, { timeout: 1000 });
+    fireEvent.click(within(refreshAllDialog).getByRole('button', { name: 'Atualizar' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('regenerated upsert rejected'));
+  });
+});
+
 describe('AdminPanel: uploading a product image', () => {
   it('uploads to the product-assets bucket and fills the image URL field with the public URL', async () => {
     const supabase = await openAdminPanel();

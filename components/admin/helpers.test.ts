@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import type { AccessoryRuleRow, BatteryRow, EssCompatibilityRuleRow, GeneratedSolutionPayload, InverterRow } from './types';
 import {
+  accessoryRuleDesiredFeatures,
   accessoryRuleInverterModels,
   accessoryRuleMatches,
   applyAccessoryRules,
   batteryAssociationMax,
+  batteryQuantityBreakdown,
   buildRuleGeneratedSolutions,
   clampNumber,
   essPortMismatch,
@@ -23,8 +25,10 @@ import {
   normalizeInverterGridTypes,
   phasesFromInverterGridTypes,
   sanitizePathPart,
+  selectClasses,
   slugPart,
   solutionRuleMetricValue,
+  textareaClasses,
   toNullableNumber,
   toNumber,
 } from './helpers';
@@ -73,6 +77,7 @@ describe('grid type normalization', () => {
   it('phasesFromInverterGridTypes picks the highest phase count present, else falls back', () => {
     expect(phasesFromInverterGridTypes(['1P_220V', '3P_380V'])).toBe(3);
     expect(phasesFromInverterGridTypes(['2P_220V'])).toBe(2);
+    expect(phasesFromInverterGridTypes(['1P_220V'])).toBe(1);
     expect(phasesFromInverterGridTypes([], 2)).toBe(2);
     expect(phasesFromInverterGridTypes([], 99)).toBe(3);
   });
@@ -96,9 +101,19 @@ describe('flag normalization', () => {
     expect(normalizeInverterFlags(['microgrid', 'bogus', 'external_ats'])).toEqual(['microgrid', 'external_ats']);
   });
 
+  it('normalizeInverterFlags falls back to splitting a comma-separated string when not given an array', () => {
+    expect(normalizeInverterFlags('microgrid,external_ats')).toEqual(['microgrid', 'external_ats']);
+    expect(normalizeInverterFlags(undefined)).toEqual([]);
+  });
+
   it('normalizeBatteryFlags keeps only recognized flags', () => {
     expect(normalizeBatteryFlags(['ip65', 'ip99'])).toEqual(['ip65']);
     expect(normalizeBatteryFlags('ip65,ip66')).toEqual(['ip65', 'ip66']);
+  });
+
+  it('normalizeBatteryFlags falls back to [] for nullish, non-array input', () => {
+    expect(normalizeBatteryFlags(null)).toEqual([]);
+    expect(normalizeBatteryFlags(undefined)).toEqual([]);
   });
 });
 
@@ -108,6 +123,16 @@ describe('formatTriggerMetric', () => {
     expect(formatTriggerMetric('inverter_quantity')).toBe('Qtd. inversores');
     expect(formatTriggerMetric('battery_quantity')).toBe('Qtd. baterias');
     expect(formatTriggerMetric('battery_ports_used')).toBe('Portas de bateria');
+    expect(formatTriggerMetric('battery_quantity_per_port')).toBe('Baterias por porta');
+  });
+});
+
+describe('selectClasses / textareaClasses', () => {
+  it('build a base class string and append an optional extra class', () => {
+    expect(selectClasses()).toContain('rounded-lg');
+    expect(selectClasses('extra-class')).toContain('extra-class');
+    expect(textareaClasses()).toContain('rounded-lg');
+    expect(textareaClasses('extra-class')).toContain('extra-class');
   });
 });
 
@@ -119,6 +144,32 @@ describe('accessoryRuleInverterModels', () => {
   it('falls back to the single inverter_model, or an empty array', () => {
     expect(accessoryRuleInverterModels({ inverter_models: [], inverter_model: 'C' })).toEqual(['C']);
     expect(accessoryRuleInverterModels({ inverter_models: null, inverter_model: null })).toEqual([]);
+  });
+});
+
+describe('accessoryRuleDesiredFeatures', () => {
+  it('filters a desired_features array, or returns [] when it is not an array', () => {
+    expect(accessoryRuleDesiredFeatures({ desired_features: ['external_ats', ''] })).toEqual(['external_ats']);
+    expect(accessoryRuleDesiredFeatures({ desired_features: undefined })).toEqual([]);
+  });
+});
+
+describe('batteryQuantityBreakdown', () => {
+  it('delegates to the shared battery-quantity-breakdown helper, adapting the snake_case BatteryRow shape', () => {
+    const batteries = [
+      { model: 'T58 V2 Master', expansion_model: 'T58 Slave' },
+      { model: 'T58 Slave', expansion_model: undefined },
+    ];
+    // No explicit mastersNeeded -> exercises the default parameter.
+    const breakdown = batteryQuantityBreakdown('T58 V2 Master', 3, batteries);
+    expect(breakdown.length).toBeGreaterThan(0);
+    expect(breakdown.some((entry) => entry.model === 'T58 V2 Master')).toBe(true);
+  });
+
+  it('accepts an explicit mastersNeeded to split multiple strings', () => {
+    const batteries = [{ model: 'TP-HS3.6', expansion_model: undefined }];
+    const breakdown = batteryQuantityBreakdown('TP-HS3.6', 4, batteries, 2);
+    expect(breakdown.length).toBeGreaterThan(0);
   });
 });
 
@@ -281,6 +332,15 @@ describe('normalizeEssBatteryConfigs', () => {
   it('returns [] when there is neither battery_configs nor a legacy battery_model', () => {
     expect(normalizeEssBatteryConfigs({}, batteries)).toEqual([]);
   });
+
+  it('returns [] for the legacy battery_model fallback when the battery is unknown and there is no topology fallback', () => {
+    const rule: Partial<EssCompatibilityRuleRow> = {
+      battery_model: 'ghost-model',
+      battery_topology: undefined as never,
+      battery_configs: [],
+    };
+    expect(normalizeEssBatteryConfigs(rule, batteries)).toEqual([]);
+  });
 });
 
 describe('solutionRuleMetricValue', () => {
@@ -377,6 +437,40 @@ describe('accessoryRuleMatches', () => {
     // Otherwise-unconstrained rule that would normally match everything.
     const rule = makeAccessoryRule({ id: 'r1', desired_features: ['external_ats'] });
     expect(accessoryRuleMatches(makeGeneratedSolution(), rule)).toBe(false);
+  });
+
+  it('rejects when the battery_topology does not match', () => {
+    const rule = makeAccessoryRule({ id: 'r1', battery_topology: 'LV' });
+    expect(accessoryRuleMatches(makeGeneratedSolution({ battery_topology: 'HV' }), rule)).toBe(false);
+  });
+
+  describe('grid_topology filter', () => {
+    it('matches when the rule grid_topology normalizes to the same grid as the solution', () => {
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: '1p_220V' });
+      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: '1p_220V' }), rule)).toBe(true);
+    });
+
+    it('rejects when the rule grid_topology normalizes to a different grid than the solution', () => {
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: '3p_380V' });
+      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: '1p_220V' }), rule)).toBe(false);
+    });
+
+    it('uses the explicit generatedGridType override instead of the solution field when provided', () => {
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: '3P_380V' });
+      // solution.grid_topology says 1p_220V, but the caller (bulk generator) passes the
+      // authoritative gridType being generated — that one must win.
+      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: '1p_220V' }), rule, '3P_380V')).toBe(true);
+    });
+
+    it('falls back to an exact raw-string match when the rule grid_topology is not a recognized value', () => {
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: 'custom-legacy-value' });
+      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: 'custom-legacy-value' }), rule)).toBe(true);
+    });
+
+    it('rejects an unrecognized rule grid_topology that does not exactly match the solution string', () => {
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: 'custom-legacy-value' });
+      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: 'other-value' }), rule)).toBe(false);
+    });
   });
 });
 
@@ -553,6 +647,12 @@ describe('applyAccessoryRules', () => {
     expect(result.accessories).toEqual([{ model: 'ATS Enclosure', quantity: 1 }]);
   });
 
+  it('tolerates a rule with no excludes_accessory_models field at all', () => {
+    const solution = makeGeneratedSolution();
+    const rule = makeAccessoryRule({ id: 'r1', accessories: { model: 'Smart Meter' }, excludes_accessory_models: undefined as never });
+    expect(applyAccessoryRules(solution, [rule]).accessories).toEqual([{ model: 'Smart Meter', quantity: 1 }]);
+  });
+
   it('keeps the excluded accessory when the excluding rule does not match', () => {
     const solution = makeGeneratedSolution({ inverter_quantity: 2 });
     const rules = [
@@ -638,6 +738,125 @@ describe('buildRuleGeneratedSolutions', () => {
       filterInverterModels: new Set(['some-other-model']),
     });
     expect(solutions).toEqual([]);
+
+    const solutions2 = buildRuleGeneratedSolutions({
+      inverters: [inverter],
+      batteries: [battery],
+      accessoryRules: [],
+      essRules: [essRule],
+      filterBatteryModels: new Set(['some-other-battery']),
+    });
+    expect(solutions2).toEqual([]);
+  });
+
+  it('skips a rule whose normalized battery_configs end up empty (e.g. no battery_model and no legacy fallback)', () => {
+    const solutions = buildRuleGeneratedSolutions({
+      inverters: [inverter],
+      batteries: [battery],
+      accessoryRules: [],
+      essRules: [{ ...essRule, battery_model: '', battery_topology: null, battery_configs: [] }],
+    });
+    expect(solutions).toEqual([]);
+  });
+
+  it('skips a battery_configs entry whose battery model is not in the batteries list', () => {
+    const solutions = buildRuleGeneratedSolutions({
+      inverters: [inverter],
+      batteries: [battery],
+      accessoryRules: [],
+      essRules: [
+        {
+          ...essRule,
+          battery_model: undefined as never,
+          battery_configs: [{ battery_model: 'unknown-battery', battery_topology: 'HV', min_battery_qty: 1, max_battery_qty: 1 }],
+        },
+      ],
+    });
+    expect(solutions).toEqual([]);
+  });
+
+  it('dedupes identical generated solution codes across overlapping rules', () => {
+    const solutions = buildRuleGeneratedSolutions({
+      inverters: [inverter],
+      batteries: [battery],
+      accessoryRules: [],
+      essRules: [essRule, { ...essRule, id: 'rule-2', name: 'Regra duplicada' }],
+    });
+    // Even though two rules target the same inverter/battery/range, each unique
+    // combination code is only generated once.
+    expect(solutions).toHaveLength(2);
+    expect(new Set(solutions.map((s) => s.solution_code)).size).toBe(2);
+  });
+
+  it('restricts generation to the grid_topology pinned on the rule, when set', () => {
+    const multiGridInverter = makeInverter({
+      model: 'X3-Hybrid-10.0kW-G4',
+      grid_types: ['1P_220V', '3P_380V'],
+      battery_ports: 1,
+    });
+    const solutions = buildRuleGeneratedSolutions({
+      inverters: [multiGridInverter],
+      batteries: [battery],
+      accessoryRules: [],
+      essRules: [{ ...essRule, id: 'rule-pinned', inverter_model: multiGridInverter.model, grid_topology: '3P_380V' }],
+    });
+    expect(solutions.every((s) => s.grid_topology === '3p_380V')).toBe(true);
+    expect(solutions.length).toBeGreaterThan(0);
+  });
+
+  it('breaks ties in the final sort by inverter, then battery, then inverter qty, then ports active', () => {
+    const invA = makeInverter({ model: 'A-Inv', grid_types: ['1P_220V'], battery_ports: 2 });
+    const invB = makeInverter({ model: 'B-Inv', grid_types: ['1P_220V'], battery_ports: 1 });
+    const batX = makeBattery({ model: 'X-Batt', topology: 'HV', max_association_qty: 3 });
+    const batY = makeBattery({ model: 'Y-Batt', topology: 'HV', max_association_qty: 3 });
+
+    const ruleA: EssCompatibilityRuleRow = {
+      ...essRule,
+      id: 'rule-a',
+      inverter_model: invA.model,
+      max_parallel_inverters: 2,
+      battery_configs: [
+        { battery_model: batX.model, battery_topology: 'HV', min_battery_qty: 1, max_battery_qty: 1 },
+        { battery_model: batY.model, battery_topology: 'HV', min_battery_qty: 1, max_battery_qty: 1 },
+      ],
+    };
+    const ruleB: EssCompatibilityRuleRow = {
+      ...essRule,
+      id: 'rule-b',
+      inverter_model: invB.model,
+      max_parallel_inverters: 1,
+      battery_configs: [{ battery_model: batX.model, battery_topology: 'HV', min_battery_qty: 1, max_battery_qty: 1 }],
+    };
+
+    const solutions = buildRuleGeneratedSolutions({
+      inverters: [invA, invB],
+      batteries: [batX, batY],
+      accessoryRules: [],
+      essRules: [ruleA, ruleB],
+    });
+
+    // Sorted primarily by inverter model, so every A-Inv solution precedes every B-Inv one.
+    const modelOrder = solutions.map((s) => s.inverter_model);
+    const firstBIndex = modelOrder.indexOf('B-Inv');
+    expect(modelOrder.slice(0, firstBIndex).every((m) => m === 'A-Inv')).toBe(true);
+
+    // Within A-Inv, sorted by battery model next (X-Batt before Y-Batt).
+    const aInvBatteries = solutions.filter((s) => s.inverter_model === 'A-Inv').map((s) => s.battery_model);
+    const firstYIndex = aInvBatteries.indexOf('Y-Batt');
+    expect(aInvBatteries.slice(0, firstYIndex).every((m) => m === 'X-Batt')).toBe(true);
+
+    // Within A-Inv + X-Batt, sorted by inverter_quantity then battery_ports_used ascending.
+    const aInvX = solutions.filter((s) => s.inverter_model === 'A-Inv' && s.battery_model === 'X-Batt');
+    expect(aInvX.length).toBeGreaterThan(1);
+    for (let i = 1; i < aInvX.length; i++) {
+      const prev = aInvX[i - 1];
+      const cur = aInvX[i];
+      const cmp =
+        prev.inverter_quantity !== cur.inverter_quantity
+          ? prev.inverter_quantity - cur.inverter_quantity
+          : prev.battery_ports_used - cur.battery_ports_used;
+      expect(cmp).toBeLessThanOrEqual(0);
+    }
   });
 
   it('applies matching accessory rules onto each generated solution', () => {

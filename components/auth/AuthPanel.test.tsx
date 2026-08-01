@@ -181,6 +181,40 @@ describe('AuthPanel: password recovery', () => {
   });
 });
 
+describe('AuthPanel: toast dismissal', () => {
+  it('closes the toast when the close button is clicked', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ auth: { signInWithPassword: vi.fn().mockResolvedValue({ error: { message: 'invalid' } }) } })
+    );
+    setup();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@x.com' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /Login/ }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
+  it('automatically dismisses the toast a few seconds after it appears', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ auth: { signInWithPassword: vi.fn().mockResolvedValue({ error: { message: 'invalid' } }) } })
+    );
+    setup();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@x.com' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /Login/ }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument(), { timeout: 6500 });
+  }, 8000);
+});
+
 describe('AuthPanel: password visibility toggle', () => {
   it('toggles the password field between hidden and visible', () => {
     setup();

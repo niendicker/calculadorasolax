@@ -131,6 +131,22 @@ describe('calculateResidentialSolution', () => {
     expect(result).toEqual({ error: getCalculationErrorMessage(undefined) });
   });
 
+  it('logs a simulation with user_id null when there is no authenticated user', async () => {
+    const supabase = makeSupabase();
+    supabase.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+
+    await calculateResidentialSolution({
+      supabase: supabase as never,
+      residentialOptions,
+      batteryModel: 'TP-HS3.6',
+      projectName: 'Casa de praia',
+      peakW: 5500,
+      dailyKwh: 3.5,
+    });
+
+    expect(supabase.__insertMock).toHaveBeenCalledWith(expect.objectContaining({ user_id: null }));
+  });
+
   it('falls back to the network error message when the invoke call throws', async () => {
     const supabase = makeSupabase();
     supabase.functions.invoke = vi.fn().mockRejectedValue(new Error('network down'));

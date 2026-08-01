@@ -15,9 +15,16 @@ const inverter: InverterCatalogOption = {
   standardPowerKva: 5,
   peakPowerKva: 7,
   maxPowerPerPhaseW: null,
-  imageUrl: null,
-  documents: [],
+  imageUrl: 'https://example.com/inverter.png',
+  documents: [{ name: 'Manual', url: 'https://example.com/manual.pdf' }],
   flags: [],
+};
+
+const threePhaseInverter: InverterCatalogOption = {
+  ...inverter,
+  id: 'i3',
+  model: 'X3-Hybrid-10.0kW-G4',
+  phases: 3,
 };
 
 const battery: BatteryCatalogOption = {
@@ -30,6 +37,19 @@ const battery: BatteryCatalogOption = {
   minSocPercent: 10,
   imageUrl: null,
   documents: [],
+};
+
+const masterBattery: BatteryCatalogOption = {
+  ...battery,
+  id: 'b2',
+  model: 'TP-HS5.8',
+  expansionModel: 'TP-HS5.8-EXP',
+};
+
+const expansionBattery: BatteryCatalogOption = {
+  ...battery,
+  id: 'b3',
+  model: 'TP-HS5.8-EXP',
 };
 
 const accessory: AccessoryCatalogOption = {
@@ -61,6 +81,14 @@ describe('CatalogTab: sections', () => {
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
   });
 
+  it('groups multiple inverter phase counts and singularizes "1 fase"', () => {
+    setup({ inverterCatalog: [inverter, threePhaseInverter] });
+    expect(screen.getByText('Monofásico')).toBeInTheDocument();
+    expect(screen.getByText('Trifásico')).toBeInTheDocument();
+    expect(screen.getByText('1 fase')).toBeInTheDocument();
+    expect(screen.getByText('3 fases')).toBeInTheDocument();
+  });
+
   it('switches to batteries and accessories', () => {
     setup();
     fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
@@ -73,6 +101,42 @@ describe('CatalogTab: sections', () => {
   it('shows an empty state per section when the catalog is empty', () => {
     setup({ inverterCatalog: [] });
     expect(screen.getByText('Nenhum inversor cadastrado.')).toBeInTheDocument();
+  });
+
+  it('shows empty states for batteries and accessories when empty', () => {
+    setup({ batteryCatalog: [], accessoryCatalog: [] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+    expect(screen.getByText('Nenhuma bateria cadastrada.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+    expect(screen.getByText('Nenhum acessório cadastrado.')).toBeInTheDocument();
+  });
+
+  it('shows a search-specific empty state for batteries and accessories', () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
+    fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'inexistente' } });
+    expect(screen.getByText('Nenhuma bateria encontrada para essa pesquisa.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+    expect(screen.getByText('Nenhum acessório encontrado para essa pesquisa.')).toBeInTheDocument();
+  });
+
+  it('marks a battery with an expansion model as Master and its expansion as Expansão', () => {
+    setup({ batteryCatalog: [masterBattery, expansionBattery] });
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+
+    expect(screen.getByText('Master')).toBeInTheDocument();
+    expect(screen.getByText('Expansão')).toBeInTheDocument();
+  });
+
+  it('shows the loading skeleton and hides the search input while loading', () => {
+    setup({ initialLoading: true });
+    expect(screen.getByLabelText('Carregando baterias')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pesquisar modelo...' })).not.toBeInTheDocument();
   });
 
   it('filters the active section by search', () => {
@@ -90,6 +154,30 @@ describe('CatalogTab: sections', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pesquisar modelo...' }));
     fireEvent.change(screen.getByPlaceholderText('Pesquisar modelo...'), { target: { value: 'inexistente' } });
     expect(screen.getByText('Nenhum inversor encontrado para essa pesquisa.')).toBeInTheDocument();
+  });
+});
+
+describe('CatalogTab: preview modals', () => {
+  it('opens and closes the image preview for a product with an image', () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' }));
+    const dialog = screen.getByRole('dialog', { name: 'X1-Hybrid-5.0kW-G4' });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens and closes the document preview for a product with attachments', () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manual' }));
+    const dialog = screen.getByRole('dialog', { name: 'Manual' });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 
@@ -122,5 +210,29 @@ describe('CatalogTab: stock control', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu catálogo' }));
 
     await waitFor(() => expect(screen.getByText('Limite de 14 itens no catálogo atingido.')).toBeInTheDocument());
+  });
+
+  it('shows a generic error message for any other failure', async () => {
+    const onAddToStock = vi.fn().mockRejectedValue(new Error('boom'));
+    setup({ onAddToStock });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu catálogo' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Não foi possível adicionar ao catálogo. Tente novamente.')).toBeInTheDocument()
+    );
+  });
+});
+
+describe('CatalogTab: missing power specs', () => {
+  it('falls back to "-" when inverter power specs are null', () => {
+    setup({ inverterCatalog: [{ ...inverter, standardPowerKva: null, peakPowerKva: null }] });
+    expect(screen.getByText('Potência: - kVA · pico - kVA')).toBeInTheDocument();
+  });
+
+  it('falls back to "-" when battery power specs are null', () => {
+    setup({ batteryCatalog: [{ ...battery, standardPowerKw: null, peakPowerKw: null }] });
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+    expect(screen.getByText('Potência: - kW · pico - kW')).toBeInTheDocument();
   });
 });

@@ -136,4 +136,44 @@ describe('ClientsTab: remove flow', () => {
 
     await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('c1'));
   });
+
+  it('shows a generic error and re-enables actions when onRemove fails', async () => {
+    const onRemove = vi.fn().mockRejectedValue(new Error('boom'));
+    const client = makeClient({ id: 'c1', name: 'Ana' });
+    setup({ clients: [client], onRemove });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover cliente Ana' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Não foi possível remover o cliente. Verifique sua conexão e tente novamente.')
+      ).toBeInTheDocument()
+    );
+    // Once the failed removal settles, the edit button is enabled again.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Editar' })).toBeEnabled());
+  });
+});
+
+describe('ClientsTab: form fields', () => {
+  it('updates email, phone, document and notes fields', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'a@b.com' } });
+    fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '11999999999' } });
+    fireEvent.change(screen.getByLabelText('CPF/CNPJ'), { target: { value: '123.456.789-00' } });
+    fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'nota qualquer' } });
+
+    expect(screen.getByLabelText('Email')).toHaveValue('a@b.com');
+    expect(screen.getByLabelText('Telefone')).toHaveValue('11999999999');
+    expect(screen.getByLabelText('CPF/CNPJ')).toHaveValue('123.456.789-00');
+    expect(screen.getByLabelText('Observações')).toHaveValue('nota qualquer');
+  });
+
+  it('shows a placeholder when a client has no contact info', () => {
+    setup({ clients: [makeClient({ id: 'c1', name: 'Sem Contato' })] });
+    expect(screen.getByText('Sem dados de contato')).toBeInTheDocument();
+  });
 });

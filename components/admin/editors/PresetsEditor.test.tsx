@@ -116,6 +116,37 @@ describe('PresetsEditor: building the load list', () => {
     expect(screen.getByText('5500 VA · IP/IN 1×')).toBeInTheDocument(); // unaffected field stays
   });
 
+  it('edits qty on a specific load while leaving other loads untouched', () => {
+    render(
+      <ControlledEditor
+        loadCatalogItems={[catalogItem, { ...catalogItem, id: 'c2', name_pt: 'Ar-condicionado', power_w: 1200 }]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
+    fireEvent.click(screen.getByText('Chuveiro'));
+    fireEvent.click(screen.getByText('Ar-condicionado'));
+
+    expect(screen.getByText('Cargas da predefinição (2)')).toBeInTheDocument();
+
+    const qtyInputs = screen.getAllByLabelText('Qtd', { exact: false });
+    fireEvent.change(qtyInputs[1], { target: { value: '5' } });
+
+    expect(screen.getByText('5500 VA · IP/IN 1×')).toBeInTheDocument();
+    expect(screen.getByText('1200 VA · IP/IN 1×')).toBeInTheDocument();
+  });
+
+  it('defaults ipInRatio to 1 when the catalog item has none set', () => {
+    render(
+      <ControlledEditor
+        loadCatalogItems={[{ ...catalogItem, ip_in_ratio: null as unknown as number }]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
+    fireEvent.click(screen.getByText('Chuveiro'));
+
+    expect(screen.getByText('5500 VA · IP/IN 1×')).toBeInTheDocument();
+  });
+
   it('edits the preset name and description', () => {
     render(<ControlledEditor />);
     fireEvent.click(screen.getByRole('button', { name: /Nova predefinição/ }));
@@ -142,6 +173,16 @@ describe('PresetsEditor: form actions', () => {
     render(<ControlledEditor rows={[makePreset({ id: 'p1', name: 'Residencial' })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     expect(screen.getByRole('dialog', { name: 'Editar "Residencial"' })).toBeInTheDocument();
+  });
+
+  it('titles the form with an empty name when editing a preset without a name', () => {
+    render(
+      <ControlledEditor
+        rows={[makePreset({ id: 'p1', name: undefined as unknown as string })]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    expect(screen.getByRole('dialog', { name: 'Editar ""' })).toBeInTheDocument();
   });
 
   it('saves and closes the form', () => {

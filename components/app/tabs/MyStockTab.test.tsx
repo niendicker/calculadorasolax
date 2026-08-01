@@ -281,6 +281,186 @@ describe('MyStockTab: services', () => {
   });
 });
 
+describe('MyStockTab: main section tabs', () => {
+  it('switches back to Produtos after visiting Serviços', () => {
+    setup({ userStockItems: [stockItem] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+    expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Produtos/ }));
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+  });
+});
+
+describe('MyStockTab: image and document preview', () => {
+  const inverterWithMedia: InverterCatalogOption = {
+    ...inverter,
+    imageUrl: 'https://example.com/inverter.png',
+    documents: [{ name: 'Manual', url: 'https://example.com/manual.pdf' }],
+  };
+
+  it('opens the image preview modal and closes it', () => {
+    setup({ userStockItems: [stockItem], inverterCatalog: [inverterWithMedia] });
+
+    fireEvent.click(screen.getByAltText('X1-Hybrid-5.0kW-G4').closest('button')!);
+
+    const dialog = screen.getByRole('dialog', { name: 'X1-Hybrid-5.0kW-G4' });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog', { name: 'X1-Hybrid-5.0kW-G4' })).not.toBeInTheDocument();
+  });
+
+  it('opens the document preview modal and closes it', () => {
+    setup({ userStockItems: [stockItem], inverterCatalog: [inverterWithMedia] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manual' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Manual' });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fechar pré-visualização' }));
+    expect(screen.queryByRole('dialog', { name: 'Manual' })).not.toBeInTheDocument();
+  });
+});
+
+describe('MyStockTab: accessory stock card', () => {
+  const accessoryStockItem: UserStockItem = {
+    id: 'sa1',
+    productType: 'accessory',
+    productModel: 'Smart Meter',
+    unitValue: 300,
+    createdAt: '',
+    updatedAt: '',
+  };
+
+  it('shows the accessory description, image and documents on its card', () => {
+    const accessoryWithMedia: AccessoryCatalogOption = {
+      ...accessory,
+      imageUrl: 'https://example.com/accessory.png',
+      documents: [{ name: 'Ficha técnica', url: 'https://example.com/ficha.pdf' }],
+    };
+    setup({ userStockItems: [accessoryStockItem], accessoryCatalog: [accessoryWithMedia] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+
+    expect(screen.getByText('Medidor inteligente')).toBeInTheDocument();
+    expect(screen.getByAltText('Smart Meter')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ficha técnica' })).toBeInTheDocument();
+  });
+});
+
+describe('MyStockTab: adding a service', () => {
+  it('does not submit when the value entered is invalid', async () => {
+    const onAddService = vi.fn().mockResolvedValue(undefined);
+    setup({ onAddService });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
+    fireEvent.change(screen.getByLabelText('Preço do serviço'), { target: { value: '-5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(onAddService).not.toHaveBeenCalled();
+  });
+
+  it('shows a generic error message when adding a service fails for a non-limit reason', async () => {
+    const onAddService = vi.fn().mockRejectedValue(new Error('boom'));
+    setup({ onAddService });
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
+    fireEvent.change(screen.getByLabelText('Preço do serviço'), { target: { value: '100' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Não foi possível adicionar o serviço. Tente novamente.')).toBeInTheDocument()
+    );
+  });
+
+  it('closes the add-service form via Cancelar', () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByLabelText('Nome do serviço')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' })).toBeInTheDocument();
+  });
+});
+
+describe('MyStockTab: adding a product from the picker', () => {
+  it('shows a generic error message when adding fails for a non-limit reason', async () => {
+    const onAddToStock = vi.fn().mockRejectedValue(new Error('boom'));
+    setup({ onAddToStock });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    fireEvent.click(within(dialog).getByText('X1-Hybrid-5.0kW-G4'));
+
+    await waitFor(() =>
+      expect(within(dialog).getByText('Não foi possível adicionar ao catálogo. Tente novamente.')).toBeInTheDocument()
+    );
+  });
+
+  it('switches between group tabs in the picker', async () => {
+    const twoPhaseInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X3-Hybrid-8.0kW', phases: 3 };
+    setup({ inverterCatalog: [inverter, twoPhaseInverter] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+
+    expect(within(dialog).queryByText('X3-Hybrid-8.0kW')).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Trifásico' }));
+
+    expect(within(dialog).getByRole('tab', { name: 'Trifásico' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByText('X3-Hybrid-8.0kW')).toBeInTheDocument();
+    expect(within(dialog).queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
+  });
+
+  it('closes the picker when clicking outside of it', async () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+
+    fireEvent.mouseDown(document.body);
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Escolha um produto do catálogo' })).not.toBeInTheDocument()
+    );
+  });
+
+  it('closes the picker when pressing Escape', async () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Escolha um produto do catálogo' })).not.toBeInTheDocument()
+    );
+  });
+
+  it('does not close the picker when clicking inside it', async () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+
+    fireEvent.mouseDown(dialog);
+
+    expect(screen.getByRole('dialog', { name: 'Escolha um produto do catálogo' })).toBeInTheDocument();
+  });
+});
+
 describe('MyStockTab: sell margins', () => {
   it('shows the margin inline within each product category tab, scoped to that category', () => {
     setup({ marginSettings: { inverterPercent: 10, batteryPercent: 20, accessoryPercent: 5 } });

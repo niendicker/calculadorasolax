@@ -139,6 +139,22 @@ describe('ProjectTab: empty and list states', () => {
     expect(screen.getByText('Configuração salva junto')).toBeInTheDocument();
   });
 
+  it('shows filled-in requirements in the live summary panel once topology/battery/grid/loads/solution are set', () => {
+    setup({
+      projectDetailsVisible: true,
+      currentProjectId: null,
+      topology: 'HighVoltage',
+      batteryModel: 'TP-HS3.6',
+      gridType: 'singlePhase_220',
+      loadsCount: 3,
+      hasSolution: true,
+    });
+
+    expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
+    expect(screen.getByText('Solução calculada')).toBeInTheDocument();
+    expect(screen.getByText('3 carga(s) cadastrada(s)')).toBeInTheDocument();
+  });
+
   it('shows just the "Novo projeto" trigger card when there are no projects yet', () => {
     setup();
     expect(screen.getByRole('button', { name: /Novo projeto/ })).toBeInTheDocument();
@@ -254,6 +270,24 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
     expect(screen.getByText('ana@example.com')).toBeInTheDocument();
   });
 
+  it('sorts the list by client name when "Cliente (A-Z)" is chosen', () => {
+    setup({
+      savedProjects: [
+        makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c2' }),
+        makeProject({ id: 'p2', name: 'Escritório', clientId: 'c1' }),
+      ],
+      clients: [
+        { id: 'c1', name: 'Alpha Cliente' } as Client,
+        { id: 'c2', name: 'Zebra Cliente' } as Client,
+      ],
+    });
+
+    fireEvent.change(screen.getByLabelText('Ordenar projetos'), { target: { value: 'client' } });
+
+    const names = screen.getAllByText(/^(Casa de praia|Escritório)$/).map((el) => el.textContent);
+    expect(names).toEqual(['Escritório', 'Casa de praia']);
+  });
+
   it("shows each project's own priced solution value on its card, flagging a partial total", () => {
     setup({
       savedProjects: [
@@ -279,6 +313,39 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
     // One match in the aggregate stats line, one on the card itself.
     expect(screen.getAllByText(/R\$\s*8\.000,00/)).toHaveLength(2);
     expect(screen.getByText('(parcial)')).toBeInTheDocument();
+  });
+
+  it('shows placeholder badges when the project has no topology/battery/grid set', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          residentialOptions: {
+            topology: null,
+            batteryModel: null,
+            secondaryBatteryModel: null,
+            inverterModel: null,
+            gridType: null,
+            loads: [],
+            peakCalcMode: 'sum',
+            operationHours: 0,
+            desiredFeatures: [],
+            whiteTariff: null,
+            microgrid: null,
+            generator: null,
+            pv: null,
+            atsPhotoUrl: null,
+            atsBackupAcknowledged: false,
+            maxPowerPerPhaseW: null,
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByText('Sem topologia')).toBeInTheDocument();
+    expect(screen.getByText('Sem bateria')).toBeInTheDocument();
+    expect(screen.getByText('Sem rede')).toBeInTheDocument();
   });
 
   it('omits the value line on the card when the project has no priced items', () => {
@@ -384,6 +451,47 @@ describe('ProjectTab: new project draft', () => {
     fireEvent.click(screen.getByRole('button', { name: /Salvar projeto/ }));
     expect(props.onSave).not.toHaveBeenCalled();
     expect(screen.getByText('Informe um nome para o projeto.')).toBeInTheDocument();
+  });
+
+  it('shows a placeholder when there are no user services registered yet', () => {
+    setup({ projectDetailsVisible: true, currentProjectId: null, userServices: [] });
+    expect(
+      screen.getByText('Cadastre serviços (instalação, frete...) em Meu Catálogo para adicioná-los ao projeto.')
+    ).toBeInTheDocument();
+  });
+
+  it('adds a service to the draft, updates its quantity, and removes it', () => {
+    setup({
+      projectDetailsVisible: true,
+      currentProjectId: null,
+      userServices: [{ id: 'srv1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' }],
+      services: [],
+    });
+
+    // Each control below goes through the real store actions, and the tab re-renders off the store.
+    fireEvent.click(screen.getByRole('button', { name: /Instalação · R\$/ }));
+    expect(useWizardStore.getState().services).toEqual([{ serviceId: 'srv1', name: 'Instalação', qty: 1 }]);
+
+    fireEvent.change(screen.getByLabelText('Quantidade de Instalação'), { target: { value: '3' } });
+    expect(useWizardStore.getState().services[0]).toEqual({ serviceId: 'srv1', name: 'Instalação', qty: 3 });
+
+    fireEvent.click(screen.getByLabelText('Remover serviço Instalação'));
+    expect(useWizardStore.getState().services).toEqual([]);
+  });
+
+  it('only offers services not already added to the draft', () => {
+    setup({
+      projectDetailsVisible: true,
+      currentProjectId: null,
+      userServices: [
+        { id: 'srv1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' },
+        { id: 'srv2', name: 'Frete', unitValue: 100, createdAt: '', updatedAt: '' },
+      ],
+      services: [{ serviceId: 'srv1', name: 'Instalação', qty: 1 }],
+    });
+
+    expect(screen.queryByRole('button', { name: /^Instalação · R\$/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Frete · R\$/ })).toBeInTheDocument();
   });
 });
 

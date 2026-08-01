@@ -1,3 +1,8 @@
+// @vitest-environment jsdom
+// jsdom (not the default node env) so zustand's persist middleware finds a
+// `window.localStorage` to attach to — needed to exercise `useWizardStore.persist`
+// (partialize/merge) below; every other test in this file works the same either way.
+
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
@@ -557,6 +562,31 @@ describe('setPeakCalcMode', () => {
   });
 });
 
+describe('setPvConfig', () => {
+  beforeEach(() => resetStore());
+
+  it('sets the pv config', () => {
+    const pv = { arrayPowerKwp: 5, panelCount: 12 } as never;
+    useWizardStore.getState().setPvConfig(pv);
+    expect(useWizardStore.getState().residentialOptions.pv).toEqual(pv);
+  });
+
+  it('clears the pv config back to null', () => {
+    useWizardStore.getState().setPvConfig({ arrayPowerKwp: 5 } as never);
+    useWizardStore.getState().setPvConfig(null);
+    expect(useWizardStore.getState().residentialOptions.pv).toBeNull();
+  });
+});
+
+describe('setOperationHours', () => {
+  beforeEach(() => resetStore());
+
+  it('sets the shared operation hours', () => {
+    useWizardStore.getState().setOperationHours(6);
+    expect(useWizardStore.getState().residentialOptions.operationHours).toBe(6);
+  });
+});
+
 describe('removeLoad / updateLoad', () => {
   beforeEach(() => resetStore());
 
@@ -649,6 +679,77 @@ describe('resetResidential / resetIndustrial', () => {
     const s = useWizardStore.getState();
     expect(s.industrialOptions.gridPowerKw).toBeNull();
     expect(s.solution).toBeNull();
+  });
+});
+
+describe('persist partialize/merge (localStorage rehydration)', () => {
+  beforeEach(() => resetStore());
+
+  it('partialize keeps only the persisted-scoped fields', () => {
+    const { partialize } = useWizardStore.persist.getOptions();
+    const state = useWizardStore.getState();
+
+    const persisted = partialize!(state);
+
+    expect(persisted).toEqual({
+      projectInfo: state.projectInfo,
+      currentProjectId: state.currentProjectId,
+      residentialOptions: state.residentialOptions,
+      industrialOptions: state.industrialOptions,
+      solution: state.solution,
+      secondarySolution: state.secondarySolution,
+      services: state.services,
+      loadCatalog: state.loadCatalog,
+      loadPresets: state.loadPresets,
+    });
+    // Deliberately not persisted (see the comment in wizard-store.ts).
+    expect((persisted as Record<string, unknown>).projectDetailsVisible).toBeUndefined();
+    expect((persisted as Record<string, unknown>).clients).toBeUndefined();
+  });
+
+  it('merge fills in a persisted residentialOptions/industrialOptions missing newer fields with the current defaults', () => {
+    const { merge } = useWizardStore.persist.getOptions();
+    const currentState = useWizardStore.getState();
+
+    const merged = merge!(
+      {
+        currentProjectId: 'p1',
+        // Legacy persisted shape: missing desiredFeatures/whiteTariff/etc entirely.
+        residentialOptions: { topology: 'LowVoltage', batteryModel: 'TP-HS3.6' },
+      },
+      currentState
+    ) as typeof currentState;
+
+    expect(merged.currentProjectId).toBe('p1');
+    expect(merged.residentialOptions.topology).toBe('LowVoltage');
+    expect(merged.residentialOptions.batteryModel).toBe('TP-HS3.6');
+    // Falls back to the current (default) state for fields the persisted blob never had.
+    expect(merged.residentialOptions.desiredFeatures).toEqual([]);
+    expect(merged.industrialOptions).toEqual(currentState.industrialOptions);
+  });
+
+  it('merge sanitizes a stale/unrecognized desiredFeatures id from the persisted blob', () => {
+    const { merge } = useWizardStore.persist.getOptions();
+    const currentState = useWizardStore.getState();
+
+    const merged = merge!(
+      {
+        residentialOptions: { desiredFeatures: ['backup', 'no_pv'] },
+      },
+      currentState
+    ) as typeof currentState;
+
+    expect(merged.residentialOptions.desiredFeatures).toEqual(['backup']);
+  });
+
+  it('merge handles a null/undefined persistedState by falling back to current state', () => {
+    const { merge } = useWizardStore.persist.getOptions();
+    const currentState = useWizardStore.getState();
+
+    const merged = merge!(null, currentState) as typeof currentState;
+
+    expect(merged.residentialOptions).toEqual(currentState.residentialOptions);
+    expect(merged.industrialOptions).toEqual(currentState.industrialOptions);
   });
 });
 
@@ -982,6 +1083,14 @@ describe('fetchProjects', () => {
 
     expect(useWizardStore.getState().savedProjects).toEqual([]);
   });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { projects: { data: null, error: { message: 'db down' } } } })
+    );
+
+    await expect(useWizardStore.getState().fetchProjects()).rejects.toBeTruthy();
+  });
 });
 
 const clientRow = {
@@ -1015,6 +1124,14 @@ describe('fetchClients', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { clients: { data: null, error: { message: 'db down' } } } })
+    );
+
+    await expect(useWizardStore.getState().fetchClients()).rejects.toBeTruthy();
   });
 });
 
@@ -1065,6 +1182,18 @@ describe('addClient', () => {
     expect(client.id).toBe('row-c1');
     expect(useWizardStore.getState().clients.map((c) => c.name)).toEqual(['Cliente Teste', 'Zeta']);
   });
+
+  it('propagates a Supabase error instead of updating state', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { clients: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({ clients: [] });
+
+    await expect(
+      useWizardStore.getState().addClient({ name: 'Novo', email: '', phone: '', document: '', notes: '' })
+    ).rejects.toBeTruthy();
+    expect(useWizardStore.getState().clients).toEqual([]);
+  });
 });
 
 describe('updateClient', () => {
@@ -1084,6 +1213,40 @@ describe('updateClient', () => {
 
     expect(useWizardStore.getState().clients.map((c) => c.name)).toEqual(['Bruno', 'Zeta']);
   });
+
+  it('updates email/phone/document/notes when given, trimming and nulling blanks', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock({ tableResults: { clients: { data: null, error: null } } }));
+    useWizardStore.setState({
+      clients: [{ id: 'c1', name: 'Ana', email: 'old@x.com', phone: '111', document: '222', notes: 'old', createdAt: '', updatedAt: '' }],
+    });
+
+    await useWizardStore.getState().updateClient('c1', {
+      email: '  new@x.com  ',
+      phone: '  ',
+      document: '333',
+      notes: '',
+    });
+
+    // The local state merge stores `partial` as given (untrimmed) — only the Supabase
+    // payload trims/nulls blanks — so this asserts every branch of the `!== undefined`
+    // guards ran (email/phone/document/notes), not the Supabase-side normalization.
+    const client = useWizardStore.getState().clients[0];
+    expect(client.email).toBe('  new@x.com  ');
+    expect(client.phone).toBe('  ');
+    expect(client.document).toBe('333');
+    expect(client.notes).toBe('');
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { clients: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      clients: [{ id: 'c1', name: 'Ana', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(useWizardStore.getState().updateClient('c1', { name: 'Zeta' })).rejects.toBeTruthy();
+  });
 });
 
 describe('removeClient', () => {
@@ -1101,6 +1264,17 @@ describe('removeClient', () => {
     const s = useWizardStore.getState();
     expect(s.clients).toEqual([]);
     expect(s.savedProjects[0].clientId).toBeNull();
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { clients: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      clients: [{ id: 'c1', name: 'Ana', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(useWizardStore.getState().removeClient('c1')).rejects.toBeTruthy();
   });
 });
 
@@ -1127,6 +1301,14 @@ describe('fetchUserLoadCatalog', () => {
       { id: 'row-u1', name: 'Chuveiro', powerW: 5500, ipInRatio: 1, createdAt: userLoadRow.created_at, updatedAt: userLoadRow.updated_at },
     ]);
   });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'db down' } } } })
+    );
+
+    await expect(useWizardStore.getState().fetchUserLoadCatalog()).rejects.toBeTruthy();
+  });
 });
 
 describe('saveManualLoadToCatalog', () => {
@@ -1152,6 +1334,49 @@ describe('saveManualLoadToCatalog', () => {
     const s = useWizardStore.getState();
     expect(s.userLoadCatalog).toHaveLength(1);
     expect(s.userLoadCatalog[0]).toMatchObject({ id: 'u1', powerW: 5500, ipInRatio: 2 });
+  });
+
+  it('propagates a Supabase error when updating an existing item by name', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      userLoadCatalog: [{ id: 'u1', name: 'chuveiro', powerW: 4000, ipInRatio: 1, createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(
+      useWizardStore.getState().saveManualLoadToCatalog({ name: 'Chuveiro', powerW: 5500, ipInRatio: 2 })
+    ).rejects.toBeTruthy();
+  });
+
+  it('propagates a Supabase error when the FIFO eviction delete fails', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'delete failed' } } } })
+    );
+    const existing = Array.from({ length: ACCOUNT_LIMITS.userLoadCatalog }, (_, i) => ({
+      id: `u${i}`,
+      name: `Carga ${i}`,
+      powerW: 100,
+      ipInRatio: 1,
+      createdAt: new Date(2026, 0, i + 1).toISOString(),
+      updatedAt: '',
+    }));
+    useWizardStore.setState({ userLoadCatalog: existing });
+
+    await expect(
+      useWizardStore.getState().saveManualLoadToCatalog({ name: 'Nova carga', powerW: 100, ipInRatio: 1 })
+    ).rejects.toBeTruthy();
+  });
+
+  it('propagates a Supabase error on the final insert', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'insert failed' } } } })
+    );
+    useWizardStore.setState({ userLoadCatalog: [] });
+
+    await expect(
+      useWizardStore.getState().saveManualLoadToCatalog({ name: 'Chuveiro', powerW: 5500, ipInRatio: 1 })
+    ).rejects.toBeTruthy();
   });
 
   it('evicts the oldest item (by createdAt) instead of throwing once at ACCOUNT_LIMITS.userLoadCatalog', async () => {
@@ -1212,6 +1437,30 @@ describe('updateUserLoadCatalogItem', () => {
     expect(s.userLoadCatalog.map((item) => item.name)).toEqual(['Ventilador', 'Zorra']);
     expect(s.userLoadCatalog[1].powerW).toBe(6000);
   });
+
+  it('updates ipInRatio when given', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: null } } })
+    );
+    useWizardStore.setState({
+      userLoadCatalog: [{ id: 'u1', name: 'Chuveiro', powerW: 4000, ipInRatio: 1, createdAt: '', updatedAt: '' }],
+    });
+
+    await useWizardStore.getState().updateUserLoadCatalogItem('u1', { ipInRatio: 3 });
+
+    expect(useWizardStore.getState().userLoadCatalog[0].ipInRatio).toBe(3);
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      userLoadCatalog: [{ id: 'u1', name: 'Chuveiro', powerW: 4000, ipInRatio: 1, createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(useWizardStore.getState().updateUserLoadCatalogItem('u1', { powerW: 1 })).rejects.toBeTruthy();
+  });
 });
 
 describe('removeUserLoadCatalogItem', () => {
@@ -1229,6 +1478,17 @@ describe('removeUserLoadCatalogItem', () => {
 
     expect(useWizardStore.getState().userLoadCatalog).toEqual([]);
   });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_catalog: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      userLoadCatalog: [{ id: 'u1', name: 'Chuveiro', powerW: 4000, ipInRatio: 1, createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(useWizardStore.getState().removeUserLoadCatalogItem('u1')).rejects.toBeTruthy();
+  });
 });
 
 const presetRow = { id: 'row-pr1', name: 'Meu preset', description: 'Descrição', loads: [] };
@@ -1244,6 +1504,14 @@ describe('fetchUserLoadPresets', () => {
     await useWizardStore.getState().fetchUserLoadPresets();
 
     expect(useWizardStore.getState().userLoadPresets).toEqual([presetRow]);
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_presets: { data: null, error: { message: 'db down' } } } })
+    );
+
+    await expect(useWizardStore.getState().fetchUserLoadPresets()).rejects.toBeTruthy();
   });
 });
 
@@ -1283,6 +1551,17 @@ describe('saveLoadsAsPreset', () => {
 
     expect(useWizardStore.getState().userLoadPresets).toEqual([presetRow]);
   });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_presets: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({ userLoadPresets: [] });
+
+    await expect(
+      useWizardStore.getState().saveLoadsAsPreset({ name: 'Meu preset', description: '', loads: [] })
+    ).rejects.toBeTruthy();
+  });
 });
 
 describe('removeUserLoadPreset', () => {
@@ -1297,6 +1576,15 @@ describe('removeUserLoadPreset', () => {
     await useWizardStore.getState().removeUserLoadPreset('row-pr1');
 
     expect(useWizardStore.getState().userLoadPresets).toEqual([]);
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_load_presets: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({ userLoadPresets: [presetRow] });
+
+    await expect(useWizardStore.getState().removeUserLoadPreset('row-pr1')).rejects.toBeTruthy();
   });
 });
 
@@ -1329,6 +1617,14 @@ describe('fetchUserStockItems', () => {
         updatedAt: stockRow.updated_at,
       },
     ]);
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_stock_items: { data: null, error: { message: 'db down' } } } })
+    );
+
+    await expect(useWizardStore.getState().fetchUserStockItems()).rejects.toBeTruthy();
   });
 });
 
@@ -1388,6 +1684,17 @@ describe('addToStock', () => {
     expect(useWizardStore.getState().userStockItems).toHaveLength(1);
     expect(useWizardStore.getState().userStockItems[0].id).toBe('row-st1');
   });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_stock_items: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({ userStockItems: [] });
+
+    await expect(
+      useWizardStore.getState().addToStock({ productType: 'inverter', productModel: 'X1', unitValue: 100 })
+    ).rejects.toBeTruthy();
+  });
 });
 
 describe('updateStockItemValue', () => {
@@ -1405,6 +1712,17 @@ describe('updateStockItemValue', () => {
 
     expect(useWizardStore.getState().userStockItems[0].unitValue).toBe(999);
   });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_stock_items: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      userStockItems: [{ id: 'st1', productType: 'inverter', productModel: 'X1', unitValue: 100, createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(useWizardStore.getState().updateStockItemValue('st1', 999)).rejects.toBeTruthy();
+  });
 });
 
 describe('removeFromStock', () => {
@@ -1421,5 +1739,16 @@ describe('removeFromStock', () => {
     await useWizardStore.getState().removeFromStock('st1');
 
     expect(useWizardStore.getState().userStockItems).toEqual([]);
+  });
+
+  it('propagates a Supabase error', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { user_stock_items: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({
+      userStockItems: [{ id: 'st1', productType: 'inverter', productModel: 'X1', unitValue: 100, createdAt: '', updatedAt: '' }],
+    });
+
+    await expect(useWizardStore.getState().removeFromStock('st1')).rejects.toBeTruthy();
   });
 });

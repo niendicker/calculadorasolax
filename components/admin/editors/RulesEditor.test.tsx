@@ -498,3 +498,329 @@ describe('RulesEditor: ESS compatibility', () => {
     expect(screen.queryByText('Compat X1 sem rede fixa')).not.toBeInTheDocument();
   });
 });
+
+describe('RulesEditor: closing the modal via the close button', () => {
+  it('closes the accessory rule form dialog', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    expect(screen.getByRole('dialog', { name: /Nova regra/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Nova regra' }));
+    expect(screen.queryByRole('dialog', { name: /Nova regra/ })).not.toBeInTheDocument();
+  });
+
+  it('closes the ESS compatibility form dialog', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Compatibilidade ESS/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    expect(screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Nova compatibilidade ESS' }));
+    expect(screen.queryByRole('dialog', { name: /Nova compatibilidade ESS/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('RulesEditor: search filters', () => {
+  it('filters accessory rules by rule name, not just by accessory model', () => {
+    render(
+      <ControlledEditor
+        rules={[
+          makeRule({ id: 'r1', accessory_id: 'a1', name: 'Regra especial', accessories: { model: 'Smart Meter' } }),
+          makeRule({ id: 'r2', accessory_id: 'a2', name: 'Outra regra', accessories: { model: 'Matebox' } }),
+        ]}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Buscar regra por acessório ou nome'), { target: { value: 'especial' } });
+    expect(screen.getByText('Regra especial')).toBeInTheDocument();
+    expect(screen.queryByText('Outra regra')).not.toBeInTheDocument();
+  });
+
+  it('filters ESS rows by name, not just by inverter model', () => {
+    render(
+      <ControlledEditor
+        essRows={[
+          makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat especial' }),
+          makeEssRule({ id: 'e2', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Outra compat' }),
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Compatibilidade ESS/ }));
+    fireEvent.change(screen.getByLabelText('Buscar compatibilidade por inversor ou nome'), { target: { value: 'especial' } });
+    expect(screen.getByText('Compat especial')).toBeInTheDocument();
+    expect(screen.queryByText('Outra compat')).not.toBeInTheDocument();
+  });
+});
+
+describe('RulesEditor: editing an existing accessory rule', () => {
+  it('edits every field of an existing rule and saves', () => {
+    const onSaveRule = vi.fn((afterPersist?: () => void) => afterPersist?.());
+    render(
+      <ControlledEditor
+        accessories={[makeAccessory({ id: 'a1', model: 'Smart Meter' }), makeAccessory({ id: 'a2', model: 'Matebox' })]}
+        batteries={[battery]}
+        rules={[
+          makeRule({
+            id: 'r1',
+            accessory_id: 'a1',
+            name: 'Regra A',
+            accessories: { model: 'Smart Meter' },
+            bundled: false,
+            active: true,
+          }),
+        ]}
+        onSaveRule={onSaveRule}
+      />
+    );
+
+    const card = screen.getByText('Regra A').closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: /Editar/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Editar regra' });
+
+    fireEvent.change(within(dialog).getByLabelText('Nome da regra'), { target: { value: 'Regra A editada' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Quantidade do acessório/), { target: { value: '3' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Quantidade mínima/), { target: { value: '2' } });
+
+    const batterySelect = within(dialog).getByLabelText('Bateria');
+    fireEvent.change(batterySelect, { target: { value: battery.model } });
+    expect(batterySelect).toHaveValue(battery.model);
+    fireEvent.change(batterySelect, { target: { value: '' } });
+    expect(batterySelect).toHaveValue('');
+
+    fireEvent.change(within(dialog).getByLabelText('Comentário automático'), { target: { value: 'Comentário X' } });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Vem na caixa/ }));
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Ativa' }));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /Salvar/ }));
+    expect(onSaveRule).toHaveBeenCalled();
+  });
+
+  it('toggles the desired-features filter on and off', () => {
+    render(<ControlledEditor />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova regra/ });
+
+    expect(within(dialog).getByText('Qualquer funcionalidade.')).toBeInTheDocument();
+    // Desired-feature buttons live in the section right above the "Qualquer funcionalidade." caption.
+    const featuresSection = within(dialog).getByText('Qualquer funcionalidade.').parentElement as HTMLElement;
+    const anyFeatureButton = within(featuresSection).getAllByRole('button')[0];
+    expect(anyFeatureButton).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(anyFeatureButton);
+    expect(anyFeatureButton).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByText('1 funcionalidade(s) selecionada(s).')).toBeInTheDocument();
+    fireEvent.click(anyFeatureButton);
+    expect(anyFeatureButton).toHaveAttribute('aria-pressed', 'false');
+    expect(within(dialog).getByText('Qualquer funcionalidade.')).toBeInTheDocument();
+  });
+
+  it('toggles an inverter model filter on and off', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4' }), makeInverter({ id: 'i2', model: 'X3-Hybrid-10.0kW-G4' })]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova regra/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova regra/ });
+
+    expect(within(dialog).getByText('Qualquer inversor.')).toBeInTheDocument();
+    const inverterButton = within(dialog).getByRole('button', { name: 'X1-Hybrid-5.0kW-G4' });
+    fireEvent.click(inverterButton);
+    expect(inverterButton).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByText('1 inversor(es) selecionado(s).')).toBeInTheDocument();
+
+    fireEvent.click(inverterButton);
+    expect(inverterButton).toHaveAttribute('aria-pressed', 'false');
+    expect(within(dialog).getByText('Qualquer inversor.')).toBeInTheDocument();
+  });
+});
+
+describe('RulesEditor: display fallbacks and edge cases', () => {
+  it('shows "inativa" badge and "Qualquer" inverters for a rule with no inverter filter, when inactive', () => {
+    render(
+      <ControlledEditor
+        rules={[
+          makeRule({
+            id: 'r1',
+            accessory_id: 'a1',
+            name: 'Regra inativa',
+            accessories: { model: 'Smart Meter' },
+            active: false,
+            inverter_model: null,
+            inverter_models: [],
+          }),
+        ]}
+      />
+    );
+    const card = screen.getByText('Regra inativa').closest('[data-slot="card"]') as HTMLElement;
+    expect(within(card).getByText('inativa')).toBeInTheDocument();
+    expect(within(card).getByText('Qualquer')).toBeInTheDocument();
+  });
+
+  it('shows "inativa" badge, falls back the title to inverter_model, and shows "—" for baterias/max paralelo defaults on an ESS row', () => {
+    render(
+      <ControlledEditor
+        essRows={[
+          makeEssRule({
+            id: 'e1',
+            inverter_model: 'X1-Hybrid-5.0kW-G4',
+            name: null,
+            active: false,
+            battery_configs: [],
+            battery_model: '',
+            battery_topology: null,
+            max_parallel_inverters: null as never,
+          }),
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Compatibilidade ESS/ }));
+    const card = screen.getByText('X1-Hybrid-5.0kW-G4', { selector: '[data-slot="card-title"]' }).closest(
+      '[data-slot="card"]'
+    ) as HTMLElement;
+    expect(within(card).getByText('inativa')).toBeInTheDocument();
+    expect(within(card).getByText('—')).toBeInTheDocument();
+    expect(within(card).getByText('1')).toBeInTheDocument();
+  });
+
+  it('renders "Redes: —" when the selected inverter has no recognized grid types', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'Custom-Inv', grid_types: ['unrecognized'] })]}
+        jumpTarget={{ scope: 'ess', inverterModel: 'Custom-Inv' }}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+    expect(within(dialog).getByText('Redes: —')).toBeInTheDocument();
+  });
+
+  it('shows "Nenhuma bateria compatível" when the inverter topology has no matching, non-expansion batteries', () => {
+    render(
+      <ControlledEditor
+        inverters={[makeInverter({ id: 'i1', model: 'X1-Hybrid-5.0kW-G4', topology: 'HV' })]}
+        batteries={[{ ...battery, topology: 'LV' }]}
+        jumpTarget={{ scope: 'ess', inverterModel: 'X1-Hybrid-5.0kW-G4' }}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+    expect(within(dialog).getByText('Nenhuma bateria compatível com a topologia do inversor.')).toBeInTheDocument();
+  });
+
+  it('leaves other battery configs untouched when editing one of several', () => {
+    const secondBattery: BatteryRow = { ...battery, id: 'b2', model: 'TP-HS5.0' };
+    render(
+      <ControlledEditor
+        batteries={[battery, secondBattery]}
+        jumpTarget={{ scope: 'ess', inverterModel: 'X1-Hybrid-5.0kW-G4' }}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /TP-HS3.6/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /TP-HS5.0/ }));
+
+    const minSelects = within(dialog).getAllByLabelText('Min/porta');
+    fireEvent.change(minSelects[0], { target: { value: '2' } });
+
+    expect(minSelects[0]).toHaveValue('2');
+    // The second battery's own config is untouched by editing the first.
+    expect(minSelects[1]).toHaveValue('1');
+  });
+
+  it('shows both a voltage and a current mismatch warning at once', () => {
+    const inverter = makeInverter({
+      id: 'i1',
+      model: 'X1-Hybrid-5.0kW-G4',
+      battery_voltage_min_v: 40,
+      battery_voltage_max_v: 60,
+      battery_current_max_a: 10,
+    });
+    const hvBattery: BatteryRow = { ...battery, nominal_voltage_v: 51.2, recommended_current_a: 25 };
+    render(
+      <ControlledEditor
+        inverters={[inverter]}
+        batteries={[hvBattery]}
+        jumpTarget={{ scope: 'ess', inverterModel: 'X1-Hybrid-5.0kW-G4' }}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+    fireEvent.click(within(dialog).getByRole('button', { name: /TP-HS3.6/ }));
+    fireEvent.change(within(dialog).getByLabelText('Max/porta'), { target: { value: '2' } });
+
+    expect(within(dialog).getByText(/ultrapassa o máximo aceito pelo inversor/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/ultrapassa a corrente máxima da porta do inversor/)).toBeInTheDocument();
+  });
+
+  it('falls back to an empty excludes_accessory_models list when editing a rule that has none set', () => {
+    render(
+      <ControlledEditor
+        accessories={[makeAccessory({ id: 'a1', model: 'Smart Meter' }), makeAccessory({ id: 'a2', model: 'Matebox' })]}
+        rules={[
+          makeRule({
+            id: 'r1',
+            accessory_id: 'a1',
+            name: 'Regra sem exclusões',
+            accessories: { model: 'Smart Meter' },
+            excludes_accessory_models: undefined as never,
+          }),
+        ]}
+      />
+    );
+    const card = screen.getByText('Regra sem exclusões').closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: /Editar/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Editar regra' });
+    expect(within(dialog).getByText('Nenhum acessório excluído.')).toBeInTheDocument();
+  });
+});
+
+describe('RulesEditor: editing an existing ESS row', () => {
+  it('opens the edit dialog for an ESS row, edits fields, and saves', () => {
+    const onSaveEss = vi.fn((afterPersist?: () => void) => afterPersist?.());
+    render(
+      <ControlledEditor
+        essRows={[makeEssRule({ id: 'e1', inverter_model: 'X1-Hybrid-5.0kW-G4', name: 'Compat X1' })]}
+        onSaveEss={onSaveEss}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Compatibilidade ESS/ }));
+
+    const card = screen.getByText('Compat X1').closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: /Editar/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Editar compatibilidade ESS' });
+    expect(within(dialog).getByLabelText('Modelo')).toHaveValue('X1-Hybrid-5.0kW-G4');
+
+    fireEvent.change(within(dialog).getByLabelText('Nome da regra'), { target: { value: 'Compat X1 editada' } });
+    fireEvent.change(within(dialog).getByLabelText('Máximo paralelo'), { target: { value: '3' } });
+    fireEvent.change(within(dialog).getByLabelText('Comentário'), { target: { value: 'Comentário ESS' } });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Ativa' }));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /Salvar/ }));
+    expect(onSaveEss).toHaveBeenCalled();
+  });
+
+  it('removes a battery config by clicking its toggle button again', () => {
+    render(<ControlledEditor jumpTarget={{ scope: 'ess', inverterModel: 'X1-Hybrid-5.0kW-G4' }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+
+    const batteryButton = within(dialog).getByRole('button', { name: /TP-HS3.6/ });
+    fireEvent.click(batteryButton);
+    expect(batteryButton).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByLabelText('Min/porta')).toBeInTheDocument();
+
+    fireEvent.click(batteryButton);
+    expect(batteryButton).toHaveAttribute('aria-pressed', 'false');
+    expect(within(dialog).queryByLabelText('Min/porta')).not.toBeInTheDocument();
+  });
+
+  it('edits the Min/porta select for a configured battery', () => {
+    render(<ControlledEditor jumpTarget={{ scope: 'ess', inverterModel: 'X1-Hybrid-5.0kW-G4' }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
+    const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /TP-HS3.6/ }));
+    const minSelect = within(dialog).getByLabelText('Min/porta');
+    fireEvent.change(minSelect, { target: { value: '2' } });
+    expect(minSelect).toHaveValue('2');
+  });
+});
