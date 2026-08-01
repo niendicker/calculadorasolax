@@ -14,7 +14,6 @@ import {
   ShieldUser,
   ShoppingCart,
   Sun,
-  Truck,
   UserRound,
   Users,
   Wallet,
@@ -36,9 +35,8 @@ import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider
 import { CatalogTab } from './tabs/CatalogTab';
 import { ClientsTab } from './tabs/ClientsTab';
 import { MyStockTab } from './tabs/MyStockTab';
-import { MySuppliersTab } from './tabs/MySuppliersTab';
 import { ProfileTab } from './tabs/ProfileTab';
-import { PurchasesTab } from './tabs/PurchasesTab';
+import { SupplyTab } from './tabs/SupplyTab';
 import { ProjectTab } from './tabs/ProjectTab';
 import { SizingTab } from './tabs/SizingTab';
 import { batteryTopologyToCatalog } from '@/lib/types';
@@ -120,7 +118,7 @@ export function SinglePageApp() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'mySuppliers' | 'myStock' | 'clients' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
 
@@ -412,7 +410,7 @@ export function SinglePageApp() {
     setSummaryDrawerOpen(true);
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'purchases' | 'mySuppliers' | 'myStock' | 'clients') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }
@@ -491,19 +489,7 @@ export function SinglePageApp() {
               )}
             >
               <ShoppingCart className="h-4 w-4" />
-              Compras
-            </button>
-            <button
-              type="button"
-              aria-current={activeTab === 'mySuppliers' ? 'page' : undefined}
-              onClick={() => setActiveTab('mySuppliers')}
-              className={cn(
-                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                activeTab === 'mySuppliers' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
-              )}
-            >
-              <Truck className="h-4 w-4" />
-              Meus Fornecedores
+              Fornecedores e Compras
             </button>
             <button
               type="button"
@@ -676,9 +662,7 @@ export function SinglePageApp() {
               onUpdateMarginPercent={updateMarginPercent}
             />
           ) : activeTab === 'purchases' ? (
-            <PurchasesTab />
-          ) : activeTab === 'mySuppliers' ? (
-            <MySuppliersTab />
+            <SupplyTab />
           ) : activeTab === 'clients' ? (
             <ClientsTab
               clients={clients}
@@ -876,7 +860,7 @@ export function SinglePageApp() {
             onClick={() => setMobileMenuOpen(true)}
             className={cn(
               'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
-              (activeTab === 'purchases' || activeTab === 'mySuppliers' || activeTab === 'myStock' || activeTab === 'clients' || activeTab === 'profile') && 'font-medium text-primary'
+              (activeTab === 'purchases' || activeTab === 'myStock' || activeTab === 'clients' || activeTab === 'profile') && 'font-medium text-primary'
             )}
           >
             <Menu className="h-5 w-5" />
@@ -929,19 +913,7 @@ export function SinglePageApp() {
                 )}
               >
                 <ShoppingCart className="h-4 w-4" />
-                Compras
-              </button>
-              <button
-                type="button"
-                aria-current={activeTab === 'mySuppliers' ? 'page' : undefined}
-                onClick={() => openMobileTab('mySuppliers')}
-                className={cn(
-                  'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'mySuppliers' && 'bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <Truck className="h-4 w-4" />
-                Meus Fornecedores
+                Fornecedores e Compras
               </button>
               <button
                 type="button"
