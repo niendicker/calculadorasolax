@@ -8,7 +8,7 @@ import { SuppliersEditor } from './SuppliersEditor';
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 
-type Table = 'suppliers' | 'supplier_integrations' | 'supplier_product_mappings' | 'purchase_orders' | 'supplier_offers';
+type Table = 'suppliers' | 'supplier_integrations' | 'supplier_product_mappings' | 'purchase_orders' | 'supplier_offers' | 'inverters' | 'batteries' | 'accessories';
 
 /** Extends the shared query-builder mock with `.limit()` (used by the orders
  *  query) and attaches an `rpc` mock, neither of which the shared helper models. */
@@ -65,6 +65,9 @@ function setupSupabase(overrides: Partial<Record<Table, { data: unknown; error: 
       supplier_product_mappings: { data: [mappingRow], error: null },
       purchase_orders: { data: [orderRow], error: null },
       supplier_offers: { data: null, error: null },
+      inverters: { data: [{ model: 'X1-5K' }, { model: 'X3-8K' }], error: null },
+      batteries: { data: [{ model: 'BAT-5' }], error: null },
+      accessories: { data: [{ model: 'ACC-1' }], error: null },
       ...overrides,
     } as Record<string, { data: unknown; error: unknown }>,
   });
@@ -308,6 +311,20 @@ describe('SuppliersEditor: integration form', () => {
     expect(global.fetch).toHaveBeenCalledWith('/api/admin/suppliers/sup-1/sync', { method: 'POST' });
   });
 
+  it('populates the supplier SKU datalist with the SKUs returned by a successful sync', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true, json: () => Promise.resolve({ updated: 2, skus: ['SKU-A', 'SKU-B', 'SKU-A'] }),
+    });
+    await renderEditor();
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    fireEvent.click(screen.getByText('Sincronizar'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('2 ofertas atualizadas.'));
+    const datalist = document.getElementById('supplier-skus') as HTMLDataListElement;
+    expect(datalist.querySelectorAll('option')).toHaveLength(2);
+    expect(within(datalist).getByText((_, el) => el?.getAttribute('value') === 'SKU-A')).toBeInTheDocument();
+  });
+
   it('shows the sync error message when the sync endpoint fails', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false, json: () => Promise.resolve({ error: 'sync broke' }),
@@ -325,7 +342,7 @@ describe('SuppliersEditor: SKU mapping', () => {
     await renderEditor();
     fireEvent.click(screen.getByText('Acme Solar'));
     await screen.findByDisplayValue('Acme Solar');
-    expect(screen.getByText('X1-5K')).toBeInTheDocument();
+    expect(screen.getAllByText('X1-5K').length).toBeGreaterThan(0);
     expect(screen.getByText('SKU-1')).toBeInTheDocument();
   });
 
@@ -341,7 +358,7 @@ describe('SuppliersEditor: SKU mapping', () => {
     const supabase = await renderEditor();
     fireEvent.click(screen.getByText('Acme Solar'));
     await screen.findByDisplayValue('Acme Solar');
-    fireEvent.change(screen.getByPlaceholderText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
+    fireEvent.change(screen.getByLabelText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
     fireEvent.change(screen.getByPlaceholderText('SKU do fornecedor'), { target: { value: 'SKU-2' } });
     fireEvent.click(screen.getByText('Vincular'));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Produto vinculado e oferta publicada.'));
@@ -355,14 +372,14 @@ describe('SuppliersEditor: SKU mapping', () => {
     await screen.findByText('Acme Solar');
     fireEvent.click(screen.getByText('Acme Solar'));
     await screen.findByDisplayValue('Acme Solar');
-    fireEvent.change(screen.getByPlaceholderText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
+    fireEvent.change(screen.getByLabelText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
     fireEvent.change(screen.getByPlaceholderText('SKU do fornecedor'), { target: { value: 'SKU-2' } });
     fireEvent.change(screen.getByLabelText('Preço manual'), { target: { value: '199.9' } });
     fireEvent.change(screen.getByLabelText('Estoque manual'), { target: { value: '10' } });
     fireEvent.click(screen.getByText('Vincular'));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Produto vinculado e oferta publicada.'));
     expect(supabase.from).toHaveBeenCalledWith('supplier_offers');
-    expect(screen.getByPlaceholderText('Modelo na plataforma')).toHaveValue('');
+    expect(screen.getByLabelText('Modelo na plataforma')).toHaveValue('');
   });
 
   it('shows the mapping error message and skips the offer insert when the mapping insert fails', async () => {
@@ -371,7 +388,7 @@ describe('SuppliersEditor: SKU mapping', () => {
     });
     fireEvent.click(screen.getByText('Acme Solar'));
     await screen.findByDisplayValue('Acme Solar');
-    fireEvent.change(screen.getByPlaceholderText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
+    fireEvent.change(screen.getByLabelText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
     fireEvent.change(screen.getByPlaceholderText('SKU do fornecedor'), { target: { value: 'SKU-2' } });
     fireEvent.click(screen.getByText('Vincular'));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('mapping failed'));
@@ -384,7 +401,7 @@ describe('SuppliersEditor: SKU mapping', () => {
     await screen.findByText('Acme Solar');
     fireEvent.click(screen.getByText('Acme Solar'));
     await screen.findByDisplayValue('Acme Solar');
-    fireEvent.change(screen.getByPlaceholderText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
+    fireEvent.change(screen.getByLabelText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
     fireEvent.change(screen.getByPlaceholderText('SKU do fornecedor'), { target: { value: 'SKU-2' } });
     fireEvent.change(screen.getByLabelText('Preço manual'), { target: { value: '10' } });
     fireEvent.click(screen.getByText('Vincular'));
@@ -398,7 +415,7 @@ describe('SuppliersEditor: SKU mapping', () => {
     await screen.findByText('Acme Solar');
     fireEvent.click(screen.getByText('Acme Solar'));
     await screen.findByDisplayValue('Acme Solar');
-    fireEvent.change(screen.getByPlaceholderText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
+    fireEvent.change(screen.getByLabelText('Modelo na plataforma'), { target: { value: 'X3-8K' } });
     fireEvent.change(screen.getByPlaceholderText('SKU do fornecedor'), { target: { value: 'SKU-2' } });
     fireEvent.change(screen.getByLabelText('Preço manual'), { target: { value: '10' } });
     fireEvent.click(screen.getByText('Vincular'));

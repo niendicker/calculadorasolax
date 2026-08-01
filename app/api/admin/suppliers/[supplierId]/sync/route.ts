@@ -49,7 +49,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ su
       service.from('supplier_integrations').update({ last_sync_at: new Date().toISOString(), last_sync_status: status, last_sync_message: message }).eq('supplier_id', supplierId),
       run?.id ? service.from('supplier_sync_runs').update({ status, items_received: items.length, items_updated: rows.length, message, finished_at: new Date().toISOString() }).eq('id', run.id) : Promise.resolve(),
     ]);
-    return NextResponse.json({ received: items.length, updated: rows.length, status });
+    return NextResponse.json({ received: items.length, updated: rows.length, status, skus: items.map((item) => item.sku) });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'Falha inesperada na sincronização.';
     await Promise.all([
