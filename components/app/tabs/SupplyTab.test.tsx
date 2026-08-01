@@ -167,7 +167,7 @@ beforeEach(() => {
 describe('SupplyTab: loading and empty states', () => {
   it('shows the empty offers and orders messages when nothing is returned', async () => {
     setupSupabase();
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText(/Ainda não há ofertas disponíveis/)).toBeInTheDocument());
     expect(screen.getByText('Você ainda não fez pedidos.')).toBeInTheDocument();
@@ -176,14 +176,14 @@ describe('SupplyTab: loading and empty states', () => {
 
   it('shows the load error message when offers fail to load', async () => {
     setupSupabase({ offersError: { message: 'Falha ao carregar ofertas' } });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Falha ao carregar ofertas'));
   });
 
   it('shows the load error message when orders fail to load (offer error takes precedence)', async () => {
     setupSupabase({ ordersError: { message: 'Falha ao carregar pedidos' } });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Falha ao carregar pedidos'));
   });
@@ -198,7 +198,7 @@ describe('SupplyTab: offers list and search', () => {
         makeOffer({ id: 'o3', supplier_id: 's3', supplier_product_mappings: { product_type: 'accessory', product_model: 'Cabo', supplier_sku: 'SKU-3', pack_quantity: 1 }, suppliers: { name: 'Fornecedor C', currency: 'BRL', order_mode: 'both', minimum_order_value: 0 } }),
       ],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
@@ -220,14 +220,14 @@ describe('SupplyTab: offers list and search', () => {
     setupSupabase({
       offers: [makeOffer({ id: 'o1', supplier_id: 's1', stock_quantity: null, lead_time_days: null })],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('Estoque sob consulta')).toBeInTheDocument());
   });
 
   it('shows the stock count and lead time when present', async () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1', stock_quantity: 7, lead_time_days: 3 })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('7 em estoque · 3 dias')).toBeInTheDocument());
   });
@@ -242,7 +242,7 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
       ],
       suppliers: [{ id: 's1', is_default_for_all: true }, { id: 's2', is_default_for_all: false }],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(screen.queryByText('TP-HS3.6')).not.toBeInTheDocument();
@@ -254,7 +254,7 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
       suppliers: [{ id: 's1', is_default_for_all: true }, { id: 's2', is_default_for_all: false }],
       preferenceSupplierIds: ['s2'],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(supabase.from).toHaveBeenCalledWith('user_supplier_preferences');
@@ -266,7 +266,7 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
       suppliers: [{ id: 's1', is_default_for_all: true }],
       user: null,
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(supabase.from).not.toHaveBeenCalledWith('user_supplier_preferences');
@@ -280,7 +280,7 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
         return builder;
       },
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('suppliers failed'));
   });
@@ -289,7 +289,7 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
 describe('SupplyTab: "Meus fornecedores" picker', () => {
   it('lists default suppliers separately as locked/non-selectable', async () => {
     setupSupabase({ suppliers: [{ id: 's1', name: 'Fornecedor Padrão', is_default_for_all: true }, { id: 's2', name: 'Fornecedor B', is_default_for_all: false }] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await screen.findByText('Fornecedor Padrão');
     expect(screen.getByText('Padrão')).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
       maxUserSuppliers: 3,
       preferenceSupplierIds: ['s1'],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     expect(await screen.findByText('Meus fornecedores (1/3)')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /Fornecedor A/ })).toBeChecked();
@@ -311,7 +311,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
 
   it('adds a supplier preference when checked', async () => {
     const supabase = setupSupabase({ suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     const checkbox = await screen.findByRole('checkbox', { name: /Fornecedor A/ });
     fireEvent.click(checkbox);
@@ -321,7 +321,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
 
   it('removes a supplier preference when unchecked', async () => {
     setupSupabase({ suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }], preferenceSupplierIds: ['s1'] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     const checkbox = await screen.findByRole('checkbox', { name: /Fornecedor A/ });
     expect(checkbox).toBeChecked();
@@ -335,7 +335,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
       maxUserSuppliers: 1,
       preferenceSupplierIds: ['s1'],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     const otherCheckbox = await screen.findByRole('checkbox', { name: /Fornecedor B/ });
     expect(otherCheckbox).toBeDisabled();
@@ -352,7 +352,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
         return builder;
       },
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     const checkbox = await screen.findByRole('checkbox', { name: /Fornecedor A/ });
     fireEvent.click(checkbox);
@@ -361,10 +361,34 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
   });
 });
 
+describe('SupplyTab: mobile cart access', () => {
+  it('shows no "Ver carrinho" button when the cart is empty', async () => {
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Ver carrinho/ })).not.toBeInTheDocument();
+  });
+
+  it('shows a "Ver carrinho" button with item count and subtotal once something is added, and it opens the summary drawer', async () => {
+    const onShowSummary = vi.fn();
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1', unit_price: 50 })] });
+    renderWithShell(<SupplyTab onShowSummary={onShowSummary} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+
+    const viewCartButton = await screen.findByRole('button', { name: /Ver carrinho \(1\)/ });
+    expect(viewCartButton).toHaveTextContent('R$ 50,00');
+    fireEvent.click(viewCartButton);
+    expect(onShowSummary).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('SupplyTab: cart quantity controls', () => {
   it('increments and decrements quantity, clamped between 0 and stock', async () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1', stock_quantity: 2, minimum_quantity: 1 })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
 
@@ -392,7 +416,7 @@ describe('SupplyTab: cart quantity controls', () => {
         makeOffer({ id: 'o2', supplier_id: 's2', supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 }, suppliers: { name: 'Fornecedor B', currency: 'BRL', order_mode: 'both', minimum_order_value: 0 } }),
       ],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
 
@@ -411,7 +435,7 @@ describe('SupplyTab: cart quantity controls', () => {
 
   it('respects the offer minimum_quantity floor when incrementing from zero', async () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1', minimum_quantity: 3, stock_quantity: 10 })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
 
@@ -422,7 +446,7 @@ describe('SupplyTab: cart quantity controls', () => {
 
   it('clears the cart via "Limpar carrinho"', async () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -438,7 +462,7 @@ describe('SupplyTab: minimum order value and order-mode buttons', () => {
     setupSupabase({
       offers: [makeOffer({ id: 'o1', supplier_id: 's1', unit_price: 10, suppliers: { name: 'Fornecedor A', currency: 'BRL', order_mode: 'both', minimum_order_value: 500 } })],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -452,7 +476,7 @@ describe('SupplyTab: minimum order value and order-mode buttons', () => {
     setupSupabase({
       offers: [makeOffer({ id: 'o1', supplier_id: 's1', suppliers: { name: 'Fornecedor A', currency: 'BRL', order_mode: 'quote', minimum_order_value: 0 } })],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -465,7 +489,7 @@ describe('SupplyTab: minimum order value and order-mode buttons', () => {
     setupSupabase({
       offers: [makeOffer({ id: 'o1', supplier_id: 's1', suppliers: { name: 'Fornecedor A', currency: 'BRL', order_mode: 'direct', minimum_order_value: 0 } })],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -478,7 +502,7 @@ describe('SupplyTab: minimum order value and order-mode buttons', () => {
 describe('SupplyTab: creating orders', () => {
   it('creates a quote order, resets the cart and notes, and reloads', async () => {
     const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -503,7 +527,7 @@ describe('SupplyTab: creating orders', () => {
 
   it('creates a direct order and reports success', async () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1', suppliers: { name: 'Fornecedor A', currency: 'BRL', order_mode: 'direct', minimum_order_value: 0 } })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -514,7 +538,7 @@ describe('SupplyTab: creating orders', () => {
 
   it('sends null customer notes when the notes field is left blank', async () => {
     const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -528,7 +552,7 @@ describe('SupplyTab: creating orders', () => {
       offers: [makeOffer({ id: 'o1', supplier_id: 's1' })],
       rpcResult: { data: null, error: { message: 'Estoque insuficiente' } },
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
@@ -543,7 +567,7 @@ describe('SupplyTab: creating orders', () => {
     // guards the `!cartSupplierId` early return by ensuring no order buttons
     // render and no rpc call happens when the cart is empty.
     const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Solicitar cotação' })).not.toBeInTheDocument();
@@ -556,7 +580,7 @@ describe('SupplyTab: existing orders and cancellation', () => {
     setupSupabase({
       orders: [makeOrder({ id: 'ord-abcdefgh', status: 'approved', request_type: 'direct', total_amount: 250 })],
     });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
     expect(screen.getByText('Aprovado')).toBeInTheDocument();
@@ -567,14 +591,14 @@ describe('SupplyTab: existing orders and cancellation', () => {
 
   it('falls back to subtotal when total_amount is null, and to the raw status when unmapped', async () => {
     setupSupabase({ orders: [makeOrder({ status: 'weird_status', total_amount: null, subtotal: 75 })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('weird_status')).toBeInTheDocument());
   });
 
   it('shows a cancel button for cancellable statuses and calls cancel_purchase_order', async () => {
     const supabase = setupSupabase({ orders: [makeOrder({ id: 'ord-1', status: 'requested' })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
@@ -591,7 +615,7 @@ describe('SupplyTab: existing orders and cancellation', () => {
       return makeQueryBuilder({ data: [], error: null });
     });
     createClientMock.mockReturnValue({ from, rpc, auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) } });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
@@ -601,7 +625,7 @@ describe('SupplyTab: existing orders and cancellation', () => {
 
   it('does not show a cancel button for non-cancellable statuses', async () => {
     setupSupabase({ orders: [makeOrder({ id: 'ord-1', status: 'fulfilled' })] });
-    renderWithShell(<SupplyTab />);
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
