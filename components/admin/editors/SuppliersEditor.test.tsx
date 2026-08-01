@@ -8,7 +8,7 @@ import { SuppliersEditor } from './SuppliersEditor';
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 
-type Table = 'suppliers' | 'supplier_integrations' | 'supplier_product_mappings' | 'purchase_orders' | 'supplier_offers' | 'inverters' | 'batteries' | 'accessories';
+type Table = 'suppliers' | 'supplier_integrations' | 'supplier_product_mappings' | 'purchase_orders' | 'supplier_offers' | 'inverters' | 'batteries' | 'accessories' | 'app_settings';
 
 /** Extends the shared query-builder mock with `.limit()` (used by the orders
  *  query) and attaches an `rpc` mock, neither of which the shared helper models. */
@@ -41,6 +41,7 @@ function withMappingInsertResult(supabase: SupabaseMock, insertResult: { data: u
 const supplierRow = {
   id: 'sup-1', name: 'Acme Solar', slug: 'acme-solar', active: true, ordering_enabled: true,
   order_mode: 'quote', currency: 'BRL', minimum_order_value: 500, description: 'Fornecedor principal',
+  is_default_for_all: false,
 };
 
 const integrationRow = {
@@ -68,6 +69,7 @@ function setupSupabase(overrides: Partial<Record<Table, { data: unknown; error: 
       inverters: { data: [{ model: 'X1-5K' }, { model: 'X3-8K' }], error: null },
       batteries: { data: [{ model: 'BAT-5' }], error: null },
       accessories: { data: [{ model: 'ACC-1' }], error: null },
+      app_settings: { data: { max_user_suppliers: 2 }, error: null },
       ...overrides,
     } as Record<string, { data: unknown; error: unknown }>,
   });
@@ -247,6 +249,48 @@ describe('SuppliersEditor: saving a supplier', () => {
     const modeSelect = fieldNear('Modalidade');
     fireEvent.change(modeSelect, { target: { value: 'direct' } });
     expect(modeSelect).toHaveValue('direct');
+  });
+
+  it('toggles the "default for all users" checkbox and includes it when saving', async () => {
+    const supabase = await renderEditor();
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    const checkbox = screen.getByLabelText(/Fornecedor padrão para todos os usuários/);
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    fireEvent.click(screen.getByText('Salvar fornecedor'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Fornecedor salvo.'));
+    expect(supabase.from).toHaveBeenCalledWith('suppliers');
+  });
+
+  it('shows a "Padrão" badge for suppliers marked as default for all users', async () => {
+    await renderEditor({ suppliers: { data: [{ ...supplierRow, is_default_for_all: true }], error: null } });
+    expect(screen.getByText('Padrão')).toBeInTheDocument();
+  });
+});
+
+describe('SuppliersEditor: preferred supplier quota', () => {
+  it('loads the current limit and saves an updated value', async () => {
+    const supabase = await renderEditor({ app_settings: { data: { max_user_suppliers: 3 }, error: null } });
+    const input = fieldNear('Quantos fornecedores cada usuário pode escolher');
+    expect(input).toHaveValue(3);
+    fireEvent.change(input, { target: { value: '5' } });
+    fireEvent.click(screen.getByText('Salvar limite'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Limite de fornecedores preferidos salvo.'));
+    expect(supabase.from).toHaveBeenCalledWith('app_settings');
+  });
+
+  it('shows the error message when saving the limit fails', async () => {
+    const supabase = await renderEditor();
+    const original = supabase.from;
+    supabase.from = vi.fn((table: string) => {
+      const builder = original(table) as Record<string, unknown>;
+      if (table === 'app_settings') builder.eq = () => Promise.resolve({ error: { message: 'settings save failed' } });
+      return builder;
+    }) as typeof supabase.from;
+    fireEvent.click(screen.getByText('Salvar limite'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('settings save failed'));
   });
 });
 
