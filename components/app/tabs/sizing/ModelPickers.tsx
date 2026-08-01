@@ -180,7 +180,7 @@ export function BatteryModelPicker({
                   </span>
                 )}
                 {secondarySelectedModel && (selected || selectedSecondary) && (
-                  <span className="absolute -top-2 -left-2 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[0.7rem] font-semibold text-accent-foreground shadow-sm">
+                  <span className="absolute top-2 left-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[0.7rem] font-semibold text-accent-foreground shadow-sm">
                     {selected ? '1' : '2'}
                   </span>
                 )}
@@ -213,7 +213,7 @@ export function BatteryModelPicker({
                         <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
                       )}
                     </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                    <div className={cn('flex shrink-0 flex-wrap justify-end gap-1', (selected || selectedSecondary) && 'pr-6')}>
                       {inStock && (
                         <InStockBadge />
                       )}
@@ -380,7 +380,7 @@ export function InverterModelPicker({
                         <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
                       )}
                     </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                    <div className={cn('flex shrink-0 flex-wrap justify-end gap-1', selected && 'pr-6')}>
                       {inStock && (
                         <InStockBadge />
                       )}
