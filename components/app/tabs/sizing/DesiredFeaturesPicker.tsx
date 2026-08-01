@@ -43,7 +43,6 @@ import {
   recommendedGeneratorApparentPowerVA,
   recommendedMicrogridSupportPowerW,
 } from '../../helpers';
-import { Metric } from '../../shared-ui';
 import type { InverterCatalogOption } from '../../types';
 import { desiredFeatureHasPendingIssue } from './feature-status';
 import { InverterSupportSummary } from './InverterSupportSummary';
@@ -372,11 +371,34 @@ export function DesiredFeaturesPicker({
         </div>
 
         {isBackupTab && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Resumo das cargas cadastradas">
-            <Metric icon={Gauge} label="Nominal" value={(nominalW / 1000).toFixed(2)} unit="kVA" />
-            <Metric icon={Zap} label="Máxima" value={(peakW / 1000).toFixed(2)} unit="kVA" />
-            <Metric icon={BatteryCharging} label="Energia" value={dailyKwh.toFixed(2)} unit="kWh/dia" />
-            <Metric icon={Layers} label="Cargas" value={String(loadsCount)} />
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-background px-3 py-2 text-sm"
+            role="group"
+            aria-label="Resumo das cargas cadastradas"
+          >
+            <span className="flex items-baseline gap-1.5">
+              <Gauge className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+              <strong className="tabular-nums">{(nominalW / 1000).toFixed(2)}</strong>
+              <span className="text-xs text-muted-foreground">kVA nominal</span>
+            </span>
+            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+            <span className="flex items-baseline gap-1.5">
+              <Zap className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+              <strong className="tabular-nums">{(peakW / 1000).toFixed(2)}</strong>
+              <span className="text-xs text-muted-foreground">kVA máxima</span>
+            </span>
+            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+            <span className="flex items-baseline gap-1.5">
+              <BatteryCharging className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+              <strong className="tabular-nums">{dailyKwh.toFixed(2)}</strong>
+              <span className="text-xs text-muted-foreground">kWh/dia</span>
+            </span>
+            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+            <span className="flex items-baseline gap-1.5">
+              <Layers className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+              <strong className="tabular-nums">{loadsCount}</strong>
+              <span className="text-xs text-muted-foreground">{loadsCount === 1 ? 'carga' : 'cargas'}</span>
+            </span>
           </div>
         )}
 
