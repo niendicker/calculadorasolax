@@ -550,15 +550,20 @@ export function CatalogProductCard({
   return (
     <div className="relative grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[112px_1fr]">
       {topRightAction && <div className="absolute right-2 top-2 z-10">{topRightAction}</div>}
-      <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border bg-background">
+      <div
+        className={cn(
+          'flex h-28 items-center justify-center overflow-hidden rounded-lg',
+          imageUrl ? 'bg-background' : 'border bg-background'
+        )}
+      >
         {imageUrl ? (
           <button
             type="button"
-            className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:bg-muted/70"
+            className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:opacity-90"
             onClick={() => onPreviewImage({ url: imageUrl, alt: model })}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt={model} className="h-full w-full object-contain p-2" />
+            <img src={imageUrl} alt={model} className="h-full w-full object-contain" />
           </button>
         ) : (
           fallbackIcon
