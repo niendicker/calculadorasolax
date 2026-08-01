@@ -77,7 +77,6 @@ interface PickerItem {
 }
 
 export function SizingTab({
-  title,
   projectName,
   loadingLabel,
   calculateLabel,
@@ -120,7 +119,6 @@ export function SizingTab({
   marginSettings,
   onChooseMicrogridVariant,
 }: {
-  title: string;
   projectName: string;
   loadingLabel: string;
   calculateLabel: string;
@@ -365,15 +363,12 @@ export function SizingTab({
     <>
       <PageHeader>
         <div>
-          {projectName ? (
-            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-              <FolderOpen className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          <h1 className="text-2xl font-semibold tracking-tight">Dimensionamento</h1>
+          {projectName && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {projectName}
-            </h1>
-          ) : (
-            // No project loaded/named yet — keep a heading for screen readers
-            // without showing the app/section name visually in the title bar.
-            <h1 className="sr-only">{title}</h1>
+            </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -388,21 +383,21 @@ export function SizingTab({
             onConfirm={() => resetResidential()}
             triggerVariant="outline"
           />
-          {solution && (
-            <Button
-              variant="outline"
-              onClick={exportPdf}
-              disabled={!canCalculate || loading || hasInsufficientSolution}
-              title={
-                hasInsufficientSolution
+          <Button
+            variant="outline"
+            onClick={exportPdf}
+            disabled={!solution || !canCalculate || loading || hasInsufficientSolution}
+            title={
+              !solution
+                ? 'Calcule uma solução antes de baixar o relatório.'
+                : hasInsufficientSolution
                   ? 'A solução encontrada não atende 100% aos requisitos de potência/energia — ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
                   : undefined
-              }
-            >
-              <FileText className="h-4 w-4" />
-              Baixar relatório
-            </Button>
-          )}
+            }
+          >
+            <FileText className="h-4 w-4" />
+            Baixar relatório
+          </Button>
           <Button onClick={calculate} disabled={!canCalculate || loading}>
             <Calculator className="h-4 w-4" />
             {loading ? loadingLabel : calculateLabel}

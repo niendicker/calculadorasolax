@@ -114,7 +114,7 @@ describe('SinglePageApp: initial load and navigation', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
   });
 
   it('shows an "Administração" link only for admin profiles', async () => {
@@ -203,7 +203,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument();
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
   });
 
   it('opens the summary drawer by tapping the already-active tab again', async () => {
@@ -223,7 +223,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
@@ -292,7 +292,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular solução' }));
     expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 });
@@ -372,7 +372,7 @@ describe('SinglePageApp: full mobile menu navigation', () => {
     }
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Clientes' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
@@ -534,7 +534,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     renderApp();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
   });
 
   it('derives maxPowerPerPhaseW from the selected inverter on a multi-phase grid', async () => {
@@ -568,7 +568,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     renderApp();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     await waitFor(() => expect(useWizardStore.getState().residentialOptions.maxPowerPerPhaseW).toBeCloseTo(3333.33, 1));
   });
@@ -604,7 +604,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
 
     renderApp();
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
@@ -657,7 +657,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
 
     renderApp();
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
@@ -694,7 +694,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
 
     renderApp();
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
@@ -713,7 +713,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
 
     renderApp();
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
@@ -755,7 +755,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     setupSupabase({ batteries: { data: batteryRows, error: null } });
     renderApp();
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
@@ -796,7 +796,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     setupSupabase({ batteries: { data: batteryRows, error: null } });
     renderApp();
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
@@ -818,7 +818,7 @@ describe('SinglePageApp: uploading a feature photo', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Calculadora SolaX' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));

@@ -2,8 +2,8 @@
   "common": {
     "back": "Voltar",
     "next": "Próximo",
-    "calculate": "Calcular",
-    "loading": "Calculando...",
+    "calculate": "Calcular solução",
+    "loading": "Calculando solução...",
     "error": "Erro",
     "retry": "Tentar novamente",
     "print": "Imprimir"

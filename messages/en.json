@@ -2,8 +2,8 @@
   "common": {
     "back": "Back",
     "next": "Next",
-    "calculate": "Calculate",
-    "loading": "Calculating...",
+    "calculate": "Calculate solution",
+    "loading": "Calculating solution...",
     "error": "Error",
     "retry": "Try again",
     "print": "Print"

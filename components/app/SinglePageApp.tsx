@@ -56,7 +56,6 @@ function BottomNavSummaryBadge() {
 export function SinglePageApp() {
   const router = useRouter();
   const locale = useLocale();
-  const t = useTranslations('home');
   const tc = useTranslations('common');
   const supabase = useMemo(() => createClient(), []);
   const {
@@ -693,7 +692,6 @@ export function SinglePageApp() {
             )
           ) : (
             <SizingTab
-              title={t('title')}
               projectName={projectInfo.name}
               loadingLabel={tc('loading')}
               calculateLabel={tc('calculate')}

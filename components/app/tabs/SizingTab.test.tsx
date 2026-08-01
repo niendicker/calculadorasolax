@@ -78,7 +78,6 @@ const emptyResidentialOptions = {
 
 function setup(overrides: Record<string, unknown> = {}) {
   const props = {
-    title: 'Cargas',
     projectName: '',
     loadingLabel: 'Calculando...',
     calculateLabel: 'Calcular',
@@ -136,16 +135,20 @@ beforeEach(() => {
 });
 
 describe('SizingTab: title bar', () => {
-  it('shows the project name as the heading when a project is loaded, instead of the generic app title', () => {
-    setup({ projectName: 'Casa de praia' });
-    expect(screen.getByRole('heading', { name: 'Casa de praia' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Cargas' })).not.toBeInTheDocument();
+  it('always shows "Dimensionamento" as the visible heading', () => {
+    setup({ projectName: '' });
+    expect(screen.getByRole('heading', { name: 'Dimensionamento' })).toBeInTheDocument();
   });
 
-  it('keeps a screen-reader-only heading with the generic title when no project is loaded yet', () => {
+  it('shows the project name as a subtitle under the heading when a project is loaded', () => {
+    setup({ projectName: 'Casa de praia' });
+    expect(screen.getByRole('heading', { name: 'Dimensionamento' })).toBeInTheDocument();
+    expect(screen.getByText('Casa de praia')).toBeInTheDocument();
+  });
+
+  it('omits the subtitle when no project is loaded yet', () => {
     setup({ projectName: '' });
-    const heading = screen.getByRole('heading', { name: 'Cargas' });
-    expect(heading).toHaveClass('sr-only');
+    expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
   });
 
   it('wires Calcular to its callback', () => {
@@ -220,11 +223,11 @@ describe('SizingTab: title bar', () => {
   // auto-jumps the summary to the Solução tab (see the effect watching
   // `solution`), so both can be on screen at once. getAllByRole disambiguates
   // instead of relying on the two buttons having different text.
-  it('only shows Baixar relatório once a solution exists', () => {
-    setup({ solution: null });
-    expect(screen.queryByRole('button', { name: /Baixar relatório/ })).not.toBeInTheDocument();
+  it('shows Baixar relatório disabled (not hidden) before a solution exists, and enabled once one does', () => {
+    setup({ solution: null, canCalculate: true });
+    expect(screen.getByRole('button', { name: /Baixar relatório/ })).toBeDisabled();
 
-    setup({ solution: fakeSolution });
+    setup({ solution: fakeSolution, canCalculate: true });
     expect(screen.getAllByRole('button', { name: /Baixar relatório/ }).length).toBeGreaterThan(0);
   });
 
