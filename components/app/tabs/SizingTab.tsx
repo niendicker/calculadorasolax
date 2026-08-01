@@ -643,7 +643,7 @@ export function SizingTab({
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 Voltar à visão geral
               </button>
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Itens de dimensionamento">
+              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Itens de dimensionamento">
                 {allPickerItems.map((item) => (
                   <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
                 ))}
