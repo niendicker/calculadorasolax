@@ -79,6 +79,9 @@ function setupSupabase(
       user_load_catalog: { data: [], error: null },
       user_load_presets: { data: [], error: null },
       user_stock_items: { data: [], error: null },
+      suppliers: { data: [], error: null },
+      supplier_offers: { data: [], error: null },
+      purchase_orders: { data: [], error: null },
       ...overrides,
     },
   });
@@ -145,6 +148,16 @@ describe('SinglePageApp: login-gated navigation', () => {
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
   });
 
+  it('redirects to login when opening Compras without a profile', async () => {
+    setupSupabase();
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Compras' }));
+
+    expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
+  });
+
   it('redirects to login when opening Perfil without a profile', async () => {
     setupSupabase();
     renderApp();
@@ -163,6 +176,10 @@ describe('SinglePageApp: login-gated navigation', () => {
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument());
+    expect(routerMock.push).not.toHaveBeenCalled();
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Compras' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Compras' })).toBeInTheDocument());
     expect(routerMock.push).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));

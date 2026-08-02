@@ -17,6 +17,7 @@ function makeQueryBuilder(result: QueryResult) {
     eq: () => builder,
     in: () => builder,
     range: () => builder,
+    limit: () => builder,
     single: () => Promise.resolve(result),
     maybeSingle: () => Promise.resolve(result),
     then: (resolve: (value: QueryResult) => void, reject: (reason: unknown) => void) =>

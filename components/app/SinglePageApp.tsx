@@ -341,6 +341,14 @@ export function SinglePageApp() {
     setActiveTab('clients');
   }
 
+  function openPurchasesTab() {
+    if (!profile) {
+      router.push(`/${locale}/login?redirect=/${locale}`);
+      return;
+    }
+    setActiveTab('purchases');
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setProfile(null);
@@ -428,9 +436,14 @@ export function SinglePageApp() {
     setSummaryDrawerOpen(true);
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients') {
+  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'myStock' | 'clients') {
     setActiveTab(tab);
     setMobileMenuOpen(false);
+  }
+
+  function openMobilePurchasesTab() {
+    setMobileMenuOpen(false);
+    openPurchasesTab();
   }
 
   function openMobileProfile() {
@@ -513,7 +526,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'purchases' ? 'page' : undefined}
-              onClick={() => setActiveTab('purchases')}
+              onClick={openPurchasesTab}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'purchases' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
@@ -923,7 +936,7 @@ export function SinglePageApp() {
               <button
                 type="button"
                 aria-current={activeTab === 'purchases' ? 'page' : undefined}
-                onClick={() => openMobileTab('purchases')}
+                onClick={openMobilePurchasesTab}
                 className={cn(
                   'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                   activeTab === 'purchases' && 'bg-primary/10 font-medium text-foreground'

@@ -38,6 +38,7 @@ function makeOffersBuilder(offers: SupplierOfferView[] | null, error: { message:
     select: () => builder,
     eq: () => builder,
     order: () => builder,
+    limit: () => builder,
     in: (_column: string, values: string[]) => { filterIds = values; return builder; },
     then: (resolve: (value: QueryResult) => void, reject: (reason: unknown) => void) => {
       const result: QueryResult = error
@@ -171,6 +172,17 @@ afterEach(() => {
 });
 
 describe('SupplyTab: loading and empty states', () => {
+  it('shows a loading skeleton before data arrives, instead of the empty-state messages', async () => {
+    setupSupabase();
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    expect(screen.getByLabelText('Carregando fornecedores e ofertas')).toBeInTheDocument();
+    expect(screen.queryByText(/Ainda não há ofertas disponíveis/)).not.toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText(/Ainda não há ofertas disponíveis/)).toBeInTheDocument());
+    expect(screen.queryByLabelText('Carregando fornecedores e ofertas')).not.toBeInTheDocument();
+  });
+
   it('shows the empty offers and orders messages when nothing is returned', async () => {
     setupSupabase();
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
@@ -184,14 +196,14 @@ describe('SupplyTab: loading and empty states', () => {
     setupSupabase({ offersError: { message: 'Falha ao carregar ofertas' } });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Falha ao carregar ofertas'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao carregar ofertas'));
   });
 
   it('shows the load error message when orders fail to load (offer error takes precedence)', async () => {
     setupSupabase({ ordersError: { message: 'Falha ao carregar pedidos' } });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Falha ao carregar pedidos'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao carregar pedidos'));
   });
 });
 
@@ -278,6 +290,26 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
     expect(supabase.from).not.toHaveBeenCalledWith('user_supplier_preferences');
   });
 
+  it('skips the app_settings lookup when signed out, instead of surfacing its RLS "no rows" error', async () => {
+    const supabase = setupSupabase({
+      offers: [makeOffer({ id: 'o1', supplier_id: 's1' })],
+      suppliers: [{ id: 's1', is_default_for_all: true }],
+      user: null,
+      overrideFrom: (table, builder) => {
+        // app_settings is RLS-restricted to authenticated users — simulates
+        // Postgrest's real "Cannot coerce the result to a single JSON object"
+        // error a signed-out .single() call would get back.
+        if (table === 'app_settings') return makeQueryBuilder({ data: null, error: { message: 'Cannot coerce the result to a single JSON object' } });
+        return builder;
+      },
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(supabase.from).not.toHaveBeenCalledWith('app_settings');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows the load error message when fetching suppliers fails', async () => {
     setupSupabase({
       offers: [makeOffer({ id: 'o1', supplier_id: 's1' })],
@@ -288,7 +320,7 @@ describe('SupplyTab: offer scoping (defaults + user preferences)', () => {
     });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('suppliers failed'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('suppliers failed'));
   });
 });
 
@@ -346,7 +378,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     const otherCheckbox = await screen.findByRole('checkbox', { name: /Fornecedor B/ });
     expect(otherCheckbox).toBeDisabled();
     fireEvent.click(otherCheckbox);
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Limite de 1 fornecedores atingido.'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Limite de 1 fornecedores atingido.'));
     expect(otherCheckbox).not.toBeChecked();
   });
 
@@ -362,7 +394,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
 
     const checkbox = await screen.findByRole('checkbox', { name: /Fornecedor A/ });
     fireEvent.click(checkbox);
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('insert failed'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('insert failed'));
     expect(checkbox).not.toBeChecked();
   });
 });
@@ -433,7 +465,7 @@ describe('SupplyTab: cart quantity controls', () => {
 
     fireEvent.click(increaseButtons[1]);
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Finalize ou limpe o carrinho atual antes de escolher outro fornecedor.'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Finalize ou limpe o carrinho atual antes de escolher outro fornecedor.'));
     // The battery offer card is still listed (offers aren't filtered by
     // supplier), but it must not have been added to the cart.
     expect(screen.queryByText(/1× TP-HS3.6/)).not.toBeInTheDocument();
@@ -564,7 +596,7 @@ describe('SupplyTab: creating orders', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Estoque insuficiente'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Estoque insuficiente'));
     expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument();
   });
 
@@ -602,12 +634,14 @@ describe('SupplyTab: existing orders and cancellation', () => {
     await waitFor(() => expect(screen.getByText('weird_status')).toBeInTheDocument());
   });
 
-  it('shows a cancel button for cancellable statuses and calls cancel_purchase_order', async () => {
+  it('shows a cancel button for cancellable statuses and calls cancel_purchase_order after confirming', async () => {
     const supabase = setupSupabase({ orders: [makeOrder({ id: 'ord-1', status: 'requested' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    const trigger = await screen.findByRole('button', { name: 'Cancelar pedido de Fornecedor A' });
+    fireEvent.click(trigger);
+    const confirmButton = await screen.findByRole('button', { name: 'Cancelar pedido' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
 
     await waitFor(() => expect(supabase.rpc).toHaveBeenCalledWith('cancel_purchase_order', { p_order_id: 'ord-1' }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Pedido cancelado.'));
@@ -623,10 +657,12 @@ describe('SupplyTab: existing orders and cancellation', () => {
     createClientMock.mockReturnValue({ from, rpc, auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) } });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    const trigger = await screen.findByRole('button', { name: 'Cancelar pedido de Fornecedor A' });
+    fireEvent.click(trigger);
+    const confirmButton = await screen.findByRole('button', { name: 'Cancelar pedido' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Falha ao cancelar'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao cancelar'));
   });
 
   it('does not show a cancel button for non-cancellable statuses', async () => {
@@ -634,7 +670,7 @@ describe('SupplyTab: existing orders and cancellation', () => {
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Cancelar pedido/ })).not.toBeInTheDocument();
   });
 });
 
@@ -671,7 +707,7 @@ describe('SupplyTab: submitting an order to the partner API', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Preencha o endereço de entrega completo.'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Preencha o endereço de entrega completo.'));
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -718,7 +754,7 @@ describe('SupplyTab: submitting an order to the partner API', () => {
     fireEvent.change(screen.getByPlaceholderText('UF'), { target: { value: 'SP' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Produto ainda não sincronizado.'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Produto ainda não sincronizado.'));
   });
 
   it('closes the delivery form when "Cancelar" is clicked', async () => {
