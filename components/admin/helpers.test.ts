@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
-import type { AccessoryRuleRow, BatteryRow, EssCompatibilityRuleRow, GeneratedSolutionPayload, InverterRow } from './types';
+import type {
+  AccessoryRuleRow,
+  ApprovedGridTopology,
+  BatteryRow,
+  EssCompatibilityRuleRow,
+  GeneratedSolutionPayload,
+  GridTopology,
+  InverterRow,
+} from './types';
 import {
   accessoryRuleDesiredFeatures,
   accessoryRuleInverterModels,
@@ -466,13 +474,22 @@ describe('accessoryRuleMatches', () => {
     });
 
     it('falls back to an exact raw-string match when the rule grid_topology is not a recognized value', () => {
-      const rule = makeAccessoryRule({ id: 'r1', grid_topology: 'custom-legacy-value' });
-      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: 'custom-legacy-value' }), rule)).toBe(true);
+      // Deliberately not a real GridTopology — exercises the raw-string fallback
+      // for legacy/malformed DB values that predate the recognized union.
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: 'custom-legacy-value' as GridTopology });
+      expect(
+        accessoryRuleMatches(
+          makeGeneratedSolution({ grid_topology: 'custom-legacy-value' as ApprovedGridTopology }),
+          rule
+        )
+      ).toBe(true);
     });
 
     it('rejects an unrecognized rule grid_topology that does not exactly match the solution string', () => {
-      const rule = makeAccessoryRule({ id: 'r1', grid_topology: 'custom-legacy-value' });
-      expect(accessoryRuleMatches(makeGeneratedSolution({ grid_topology: 'other-value' }), rule)).toBe(false);
+      const rule = makeAccessoryRule({ id: 'r1', grid_topology: 'custom-legacy-value' as GridTopology });
+      expect(
+        accessoryRuleMatches(makeGeneratedSolution({ grid_topology: 'other-value' as ApprovedGridTopology }), rule)
+      ).toBe(false);
     });
   });
 });

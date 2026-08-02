@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DesiredFeatureId, GeneratorConfig, MicrogridConfig, PvConfig, WhiteTariffConfig } from '@/lib/types';
+import type { DesiredFeatureId, GeneratorConfig, MicrogridConfig, PvConfig, ResidentialGridType, WhiteTariffConfig } from '@/lib/types';
 import type { InverterCatalogOption } from '../../types';
 import { desiredFeatureHasPendingIssue } from './feature-status';
 
@@ -24,7 +24,7 @@ const baseArgs = {
   pv: null as PvConfig | null,
   whiteTariff: null as WhiteTariffConfig | null,
   atsBackupAcknowledged: false,
-  gridType: null,
+  gridType: null as ResidentialGridType | null,
   peakW: 0,
   loadsCount: 0,
   operationHours: 4,

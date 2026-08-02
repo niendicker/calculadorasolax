@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CatalogItem, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { LoadCard } from './LoadCard';
 

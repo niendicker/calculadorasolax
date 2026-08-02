@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-type QueryResult<T = unknown> = { data: T; error: null } | { data: null; error: { message: string } };
+export type QueryResult<T = unknown> = { data: T; error: null } | { data: null; error: { message: string } };
 
 /** A fake Supabase query builder: every chain method (`select`, `order`, `insert`,
  *  `update`, `delete`, `upsert`, `eq`, `in`) returns itself, `single()`/`maybeSingle()`

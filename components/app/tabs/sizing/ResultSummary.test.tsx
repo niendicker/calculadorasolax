@@ -9,7 +9,6 @@ import type {
   MarginSettings,
   MicrogridConfig,
   ProjectServiceLine,
-  PvConfig,
   Solution,
   UserServiceItem,
   UserStockItem,
@@ -199,7 +198,11 @@ describe('ResultSummary: accessories', () => {
   });
 
   it('normalizes legacy string accessory lines', () => {
-    renderResult({ solution: { ...baseSolution, accessories: ['Smart Meter - M1-40 x2 (opcional)'] } });
+    // Deliberately a raw string, not a structured AccessoryLine — this exercises
+    // normalizeAccessoryLine's backward-compat parsing of the pre-migration format.
+    renderResult({
+      solution: { ...baseSolution, accessories: ['Smart Meter - M1-40 x2 (opcional)'] as unknown as Solution['accessories'] },
+    });
     expect(screen.getByText('Opcional')).toBeInTheDocument();
     expect(screen.getByText('2 unidades')).toBeInTheDocument();
   });

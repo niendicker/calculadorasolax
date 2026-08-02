@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSupabaseMock, type SupabaseMock } from '@/lib/test-helpers/supabase-mock';
+import { createSupabaseMock, type QueryResult, type SupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { SuppliersEditor } from './SuppliersEditor';
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
@@ -58,7 +58,7 @@ const orderRow = {
   subtotal: 1234.5, currency: 'BRL', suppliers: { name: 'Acme Solar' },
 };
 
-function setupSupabase(overrides: Partial<Record<Table, { data: unknown; error: unknown }>> = {}) {
+function setupSupabase(overrides: Partial<Record<Table, QueryResult>> = {}) {
   const supabase = createSupabaseMock({
     tableResults: {
       suppliers: { data: [supplierRow], error: null },
@@ -71,7 +71,7 @@ function setupSupabase(overrides: Partial<Record<Table, { data: unknown; error: 
       accessories: { data: [{ model: 'ACC-1' }], error: null },
       app_settings: { data: { max_user_suppliers: 2 }, error: null },
       ...overrides,
-    } as Record<string, { data: unknown; error: unknown }>,
+    },
   });
   const extended = withExtras(supabase);
   createClientMock.mockReturnValue(extended);
