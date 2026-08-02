@@ -520,7 +520,7 @@ export function SinglePageApp() {
               )}
             >
               <ShoppingCart className="h-4 w-4" />
-              Fornecedores e Compras
+              Compras
             </button>
             <button
               type="button"
@@ -930,7 +930,7 @@ export function SinglePageApp() {
                 )}
               >
                 <ShoppingCart className="h-4 w-4" />
-                Fornecedores e Compras
+                Compras
               </button>
               <button
                 type="button"

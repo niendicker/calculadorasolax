@@ -148,7 +148,7 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
   }
 
   return <div className="space-y-5 py-5">
-    <PageHeader><div><h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Fornecedores e Compras</h1><p className="text-sm text-muted-foreground">Escolha seus fornecedores preferidos, compare ofertas e acompanhe seus pedidos.</p></div></PageHeader>
+    <PageHeader><div><h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Compras</h1><p className="text-sm text-muted-foreground">Escolha seus fornecedores preferidos, compare ofertas e acompanhe seus pedidos.</p></div></PageHeader>
     {message && <div role="status" className="rounded-lg border px-3 py-2 text-sm">{message}</div>}
 
     <Card>
