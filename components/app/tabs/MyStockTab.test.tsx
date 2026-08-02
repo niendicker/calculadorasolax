@@ -1,12 +1,24 @@
 // @vitest-environment jsdom
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
+import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import type { UserServiceItem, UserStockItem } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { MyStockTab } from './MyStockTab';
+
+const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
+vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
+
+// StockProductCard's "cost de fornecedor" reference fetches supplier offers
+// on mount — tests that don't care about that feature just want it to no-op,
+// as if the visitor were signed out (getUser resolves to no user, so the
+// fetch bails before touching `from`).
+beforeEach(() => {
+  createClientMock.mockReturnValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
+});
 
 const inverter: InverterCatalogOption = {
   id: 'i1',
@@ -175,6 +187,71 @@ describe('MyStockTab: editing price', () => {
   it('shows an empty-category hint when a section has no items yet', () => {
     setup({ userStockItems: [] });
     expect(screen.getByText(/Você ainda não adicionou nenhum produto desta categoria/)).toBeInTheDocument();
+  });
+});
+
+describe('MyStockTab: sale price and supplier cost reference', () => {
+  it('shows the resulting sale price based on the category margin', () => {
+    setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 20, batteryPercent: 0, accessoryPercent: 0 } });
+
+    expect(screen.getByText(/Preço de venda \(20% de margem\)/)).toHaveTextContent('R$ 1.200,00');
+  });
+
+  it('does not show a sale price for a product with no price defined yet', () => {
+    setup({ userStockItems: [{ ...stockItem, unitValue: 0 }] });
+    expect(screen.queryByText(/Preço de venda/)).not.toBeInTheDocument();
+  });
+
+  it('shows the cheapest supplier offer as a cost reference', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: {
+          suppliers: { data: [{ id: 'sup-1', is_default_for_all: true }], error: null },
+          user_supplier_preferences: { data: [], error: null },
+          supplier_offers: {
+            data: [
+              {
+                unit_price: 800,
+                supplier_product_mappings: { product_type: 'inverter', product_model: 'X1-Hybrid-5.0kW-G4' },
+                suppliers: { currency: 'BRL' },
+              },
+              {
+                unit_price: 750,
+                supplier_product_mappings: { product_type: 'inverter', product_model: 'X1-Hybrid-5.0kW-G4' },
+                suppliers: { currency: 'BRL' },
+              },
+            ],
+            error: null,
+          },
+        },
+      })
+    );
+    setup({ userStockItems: [stockItem] });
+
+    await waitFor(() => expect(screen.getByText(/Custo de fornecedor: R\$\s*750,00/)).toBeInTheDocument());
+  });
+
+  it('does not show a cost reference when no supplier offers that model', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: {
+          suppliers: { data: [{ id: 'sup-1', is_default_for_all: true }], error: null },
+          user_supplier_preferences: { data: [], error: null },
+          supplier_offers: { data: [], error: null },
+        },
+      })
+    );
+    setup({ userStockItems: [stockItem] });
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument());
+    expect(screen.queryByText(/Custo de fornecedor/)).not.toBeInTheDocument();
+  });
+
+  it('does not show a cost reference for a signed-out visitor', () => {
+    createClientMock.mockReturnValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
+    setup({ userStockItems: [stockItem] });
+
+    expect(screen.queryByText(/Custo de fornecedor/)).not.toBeInTheDocument();
   });
 });
 

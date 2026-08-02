@@ -1,18 +1,31 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { Battery, Boxes, Check, Loader2, Lock, Plus, Wrench, Zap } from 'lucide-react';
+import { Battery, Boxes, Check, Loader2, Lock, Plus, Truck, Wrench, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
+import { createClient } from '@/lib/supabase/client';
 import type { MarginSettings, ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { formatCurrencyBRL } from '../helpers';
 import { PageHeader } from '../shell/slots';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
+
+/** Cheapest active offer per `productType:productModel`, among the suppliers
+ * this user actually has access to (defaults-for-all + their own picks —
+ * same scoping as SupplyTab) — shown as a cost reference next to "Meu preço"
+ * so pricing isn't a guessing game. Keyed by string since a plain object is
+ * simpler here than a nested map for a lookup this small. */
+type SupplierCostMap = Record<string, { unitPrice: number; currency: string }>;
+
+function supplierCostKey(productType: StockProductType, model: string) {
+  return `${productType}:${model}`;
+}
 
 interface CatalogEntry {
   id: string;
@@ -101,6 +114,55 @@ export function MyStockTab({
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [activeSection, setActiveSection] = useState<StockProductType>('inverter');
   const [activeMainSection, setActiveMainSection] = useState<'products' | 'services'>('products');
+  const [supplierCosts, setSupplierCosts] = useState<SupplierCostMap>({});
+  const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSupplierCosts() {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? null;
+      if (!uid) return;
+
+      const [supplierResult, preferencesResult] = await Promise.all([
+        supabase.from('suppliers').select('id, is_default_for_all').eq('active', true).eq('ordering_enabled', true),
+        supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', uid),
+      ]);
+      const supplierList = (supplierResult.data ?? []) as { id: string; is_default_for_all: boolean }[];
+      const preferredIds = ((preferencesResult.data ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id);
+      const allowedSupplierIds = [
+        ...new Set([...supplierList.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id), ...preferredIds]),
+      ];
+      if (allowedSupplierIds.length === 0) return;
+
+      const { data: offers } = await supabase
+        .from('supplier_offers')
+        .select('unit_price, supplier_product_mappings!inner(product_type, product_model), suppliers!inner(currency)')
+        .eq('active', true)
+        .in('supplier_id', allowedSupplierIds);
+      if (cancelled) return;
+
+      const costMap: SupplierCostMap = {};
+      for (const offer of (offers ?? []) as unknown as {
+        unit_price: number;
+        supplier_product_mappings: { product_type: StockProductType; product_model: string };
+        suppliers: { currency: string };
+      }[]) {
+        const key = supplierCostKey(offer.supplier_product_mappings.product_type, offer.supplier_product_mappings.product_model);
+        const existing = costMap[key];
+        if (!existing || offer.unit_price < existing.unitPrice) {
+          costMap[key] = { unitPrice: offer.unit_price, currency: offer.suppliers.currency };
+        }
+      }
+      setSupplierCosts(costMap);
+    }
+
+    void loadSupplierCosts();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   const atLimit = userStockItems.length >= ACCOUNT_LIMITS.userStockItems;
 
@@ -214,6 +276,7 @@ export function MyStockTab({
                     (item) => item.productType === section.type && item.productModel === product.model
                   )
               );
+              const marginPercent = marginSettings[marginFieldByProductType[section.type]];
               return (
                 <div key={section.type} className="space-y-3">
                   <CategoryMarginInline
@@ -239,6 +302,8 @@ export function MyStockTab({
                         onPreviewDoc={setPreviewDoc}
                         onUpdateValue={onUpdateValue}
                         onRemove={onRemove}
+                        marginPercent={marginPercent}
+                        supplierCost={supplierCosts[supplierCostKey(item.productType, item.productModel)]}
                       />
                     ))}
                     <AddProductCard
@@ -782,6 +847,8 @@ function StockProductCard({
   onPreviewDoc,
   onUpdateValue,
   onRemove,
+  marginPercent,
+  supplierCost,
 }: {
   item: UserStockItem;
   fallbackIcon: React.ReactNode;
@@ -792,6 +859,14 @@ function StockProductCard({
   onPreviewDoc: (doc: ProductDocument) => void;
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  /** This category's sell margin (see CategoryMarginInline) — used to show
+   *  the resulting sale price right under the cost the user enters below,
+   *  instead of leaving that math implicit until an order is priced. */
+  marginPercent: number;
+  /** Cheapest active offer for this exact model among the user's allowed
+   *  suppliers (see the supplierCosts fetch above) — a cost reference,
+   *  not automatically applied to "Meu preço". */
+  supplierCost?: { unitPrice: number; currency: string };
 }) {
   const [valueSaveState, saveValue] = useInlineSave((value: number) => onUpdateValue(item.id, value));
   let imageUrl: string | null = null;
@@ -879,6 +954,20 @@ function StockProductCard({
           </div>
           {item.unitValue === 0 && (
             <p className="text-xs text-amber-600">Defina um preço — sem ele, este item entra como R$ 0 nos orçamentos.</p>
+          )}
+          {supplierCost && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Truck className="h-3 w-3 shrink-0" />
+              Custo de fornecedor: {formatCurrencyBRL(supplierCost.unitPrice)}
+            </p>
+          )}
+          {item.unitValue > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Preço de venda ({marginPercent}% de margem):{' '}
+              <span className="font-medium text-foreground">
+                {formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))}
+              </span>
+            </p>
           )}
         </div>
       }
