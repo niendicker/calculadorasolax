@@ -91,6 +91,12 @@ describe('MyStockTab: listing', () => {
     expect(screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4')).toHaveValue(1000);
   });
 
+  it('shows the nickname as the card title, with the model kept as a caption', () => {
+    setup({ userStockItems: [stockItem], inverterCatalog: [{ ...inverter, nickname: 'Inversor Residencial 5kW' }] });
+    expect(screen.getByText('Inversor Residencial 5kW')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+  });
+
   it('warns the user once they reach the stock item limit', () => {
     setup({
       userStockItems: Array.from({ length: ACCOUNT_LIMITS.userStockItems }, (_, i) => ({

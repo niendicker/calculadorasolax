@@ -874,10 +874,12 @@ function StockProductCard({
   let badges: string[] | undefined;
   let specs: [string, string][] | undefined;
   let description: string | null | undefined;
+  let nickname: string | null | undefined;
 
   if (item.productType === 'inverter') {
     const inverter = inverterCatalog.find((option) => option.model === item.productModel);
     if (inverter) {
+      nickname = inverter.nickname;
       imageUrl = inverter.imageUrl;
       documents = inverter.documents;
       badges = [inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`];
@@ -890,6 +892,7 @@ function StockProductCard({
     const battery = batteryCatalog.find((option) => option.model === item.productModel);
     if (battery) {
       const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
+      nickname = battery.nickname;
       imageUrl = battery.imageUrl;
       documents = battery.documents;
       badges = [battery.topology];
@@ -902,6 +905,7 @@ function StockProductCard({
   } else {
     const accessory = accessoryCatalog.find((option) => option.model === item.productModel);
     if (accessory) {
+      nickname = accessory.nickname;
       imageUrl = accessory.imageUrl;
       documents = accessory.documents;
       description = accessory.description;
@@ -913,6 +917,7 @@ function StockProductCard({
     <CatalogProductCard
       fallbackIcon={fallbackIcon}
       model={item.productModel}
+      nickname={nickname}
       imageUrl={imageUrl}
       documents={documents}
       badges={badges}

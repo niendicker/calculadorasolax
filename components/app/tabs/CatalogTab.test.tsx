@@ -81,6 +81,12 @@ describe('CatalogTab: sections', () => {
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
   });
 
+  it('shows the nickname as the card title, with the model kept as a caption', () => {
+    setup({ inverterCatalog: [{ ...inverter, nickname: 'Inversor Residencial 5kW' }] });
+    expect(screen.getByText('Inversor Residencial 5kW')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+  });
+
   it('groups multiple inverter phase counts and singularizes "1 fase"', () => {
     setup({ inverterCatalog: [inverter, threePhaseInverter] });
     expect(screen.getByText('Monofásico')).toBeInTheDocument();

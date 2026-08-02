@@ -378,4 +378,34 @@ describe('CatalogProductCard', () => {
     expect(screen.getByText('Descrição do produto')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'No estoque' })).toBeInTheDocument();
   });
+
+  it('shows the model as the title when there is no nickname', () => {
+    render(
+      <CatalogProductCard
+        fallbackIcon={<span>icon</span>}
+        model="X1-Hybrid-5.0kW-G4"
+        imageUrl={null}
+        documents={[]}
+        onPreviewImage={vi.fn()}
+        onPreviewDoc={vi.fn()}
+      />
+    );
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+  });
+
+  it('shows the nickname as the title, with the model as a caption underneath', () => {
+    render(
+      <CatalogProductCard
+        fallbackIcon={<span>icon</span>}
+        model="X1-Hybrid-5.0kW-G4"
+        nickname="Inversor Residencial 5kW"
+        imageUrl={null}
+        documents={[]}
+        onPreviewImage={vi.fn()}
+        onPreviewDoc={vi.fn()}
+      />
+    );
+    expect(screen.getByText('Inversor Residencial 5kW')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+  });
 });

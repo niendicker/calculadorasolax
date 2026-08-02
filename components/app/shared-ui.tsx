@@ -542,6 +542,7 @@ export function CatalogEmptyState({ label }: { label: string }) {
 export function CatalogProductCard({
   fallbackIcon,
   model,
+  nickname,
   imageUrl,
   documents,
   badges,
@@ -554,6 +555,10 @@ export function CatalogProductCard({
 }: {
   fallbackIcon: React.ReactNode;
   model: string;
+  /** Optional friendly name set by the admin — shown as the card's title in
+   *  place of the raw model code, with the model kept underneath as a small
+   *  caption so it's still visible. */
+  nickname?: string | null;
   imageUrl: string | null;
   documents: ProductDocument[];
   badges?: string[];
@@ -590,7 +595,10 @@ export function CatalogProductCard({
       </div>
       <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9')}>
         <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 break-words text-sm font-semibold leading-snug">{model}</p>
+          <div className="min-w-0">
+            <p className="break-words text-sm font-semibold leading-snug">{nickname || model}</p>
+            {nickname && <p className="break-words text-xs text-muted-foreground">{model}</p>}
+          </div>
           {badges && badges.length > 0 && (
             <div className="flex shrink-0 flex-wrap justify-end gap-1">
               {badges.map((badge) => (

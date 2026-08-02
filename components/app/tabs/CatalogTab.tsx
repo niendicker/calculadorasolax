@@ -105,6 +105,7 @@ export function CatalogTab({
                         key={inverter.id}
                         fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
                         model={inverter.model}
+                        nickname={inverter.nickname}
                         imageUrl={inverter.imageUrl}
                         documents={inverter.documents}
                         badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
@@ -150,6 +151,7 @@ export function CatalogTab({
                   key={battery.id}
                   fallbackIcon={<Battery className="h-8 w-8 text-muted-foreground" />}
                   model={battery.model}
+                  nickname={battery.nickname}
                   imageUrl={battery.imageUrl}
                   documents={battery.documents}
                   badges={roleBadge ? [battery.topology, roleBadge] : [battery.topology]}
@@ -184,6 +186,7 @@ export function CatalogTab({
                 key={accessory.id}
                 fallbackIcon={<Boxes className="h-8 w-8 text-muted-foreground" />}
                 model={accessory.model}
+                nickname={accessory.nickname}
                 imageUrl={accessory.imageUrl}
                 documents={accessory.documents}
                 description={accessory.description}
