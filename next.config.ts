@@ -17,6 +17,17 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_COMMIT_SHA: resolveCommitSha(),
   },
+  images: {
+    // Product photos, documents thumbnails and company logos are all served
+    // from this Supabase project's public storage buckets.
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'xeddlhrmquwzuesvznrd.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
 };
 
 export default withNextIntl(nextConfig);

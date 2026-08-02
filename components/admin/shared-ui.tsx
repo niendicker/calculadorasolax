@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ComponentProps, type ReactNode } from 'react';
+import Image from 'next/image';
 import { EyeOff, FileText, ImageIcon, Loader2, Pencil, Plus, Save, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -290,12 +291,9 @@ export function ProductMediaFields({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-        <div className="overflow-hidden rounded-lg border bg-background">
+        <div className="relative h-36 overflow-hidden rounded-lg border bg-background">
           {imageUrl ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="Imagem do produto" className="h-36 w-full object-contain p-3" />
-            </>
+            <Image src={imageUrl} alt="Imagem do produto" fill sizes="180px" className="object-contain p-3" />
           ) : (
             <div className="flex h-36 flex-col items-center justify-center gap-2 p-3 text-center text-xs text-muted-foreground">
               <ImageIcon className="h-8 w-8" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ClipboardCopy, Search, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -384,9 +385,8 @@ export function ImagePreviewModal({
             </Button>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-background p-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image.url} alt={image.alt} className="max-h-full max-w-full object-contain" />
+        <div className="relative min-h-0 flex-1 overflow-auto bg-background p-4">
+          <Image src={image.url} alt={image.alt} fill sizes="90vw" className="object-contain" />
         </div>
       </div>
     </div>,
@@ -472,12 +472,11 @@ export function ProductImage({
       type="button"
       onClick={() => onPreviewImage({ url: media.imageUrl as string, alt: media.model })}
       className={cn(
-        'flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background transition sm:h-full',
+        'relative h-24 overflow-hidden rounded-lg bg-background transition sm:h-full',
         className
       )}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={media.imageUrl} alt={media.model} className="h-full w-full object-contain p-2" />
+      <Image src={media.imageUrl} alt={media.model} fill sizes="160px" className="object-contain p-2" />
     </button>
   );
 }
@@ -559,11 +558,10 @@ export function CatalogProductCard({
         {imageUrl ? (
           <button
             type="button"
-            className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:opacity-90"
+            className="relative h-full w-full cursor-zoom-in transition hover:opacity-90"
             onClick={() => onPreviewImage({ url: imageUrl, alt: model })}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt={model} className="h-full w-full object-contain" />
+            <Image src={imageUrl} alt={model} fill sizes="112px" className="object-contain" />
           </button>
         ) : (
           fallbackIcon

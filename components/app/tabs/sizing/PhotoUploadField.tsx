@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -42,10 +43,11 @@ export function PhotoUploadField({
       <div className="rounded-lg border bg-card p-3">
         {photoUrl ? (
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={photoUrl}
               alt={label}
+              width={80}
+              height={80}
               className="h-20 w-20 shrink-0 rounded-md border bg-background object-cover"
             />
             <div className="min-w-0 space-y-2">

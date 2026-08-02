@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import { Battery, Boxes, Loader2, Lock, Plus, Wrench, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -694,12 +695,11 @@ function AddProductCard({
                     onClick={() => handleAdd(product.model)}
                     className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm transition hover:bg-muted disabled:opacity-60"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border bg-background">
                       {product.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={product.imageUrl} alt={product.model} className="h-full w-full object-contain p-1" />
+                        <Image src={product.imageUrl} alt={product.model} fill sizes="36px" className="object-contain p-1" />
                       ) : (
-                        smallIcon
+                        <div className="flex h-full w-full items-center justify-center">{smallIcon}</div>
                       )}
                     </div>
                     <span className="min-w-0 flex-1 truncate font-medium">{product.model}</span>

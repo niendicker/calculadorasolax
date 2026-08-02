@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Battery, Check, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
@@ -188,14 +189,13 @@ export function BatteryModelPicker({
                   {battery.imageUrl ? (
                     <button
                       type="button"
-                      className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:bg-muted/70"
+                      className="relative h-full w-full cursor-zoom-in transition hover:bg-muted/70"
                       onClick={(event) => {
                         event.stopPropagation();
                         setPreviewImage({ url: battery.imageUrl as string, alt: battery.model });
                       }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={battery.imageUrl} alt={battery.model} className="h-full w-full object-contain p-2" />
+                      <Image src={battery.imageUrl} alt={battery.model} fill sizes="96px" className="object-contain p-2" />
                     </button>
                   ) : (
                     <Battery className="h-8 w-8 text-muted-foreground" />
@@ -355,14 +355,13 @@ export function InverterModelPicker({
                   {inverter.imageUrl ? (
                     <button
                       type="button"
-                      className="flex h-full w-full cursor-zoom-in items-center justify-center transition hover:bg-muted/70"
+                      className="relative h-full w-full cursor-zoom-in transition hover:bg-muted/70"
                       onClick={(event) => {
                         event.stopPropagation();
                         setPreviewImage({ url: inverter.imageUrl as string, alt: inverter.model });
                       }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={inverter.imageUrl} alt={inverter.model} className="h-full w-full object-contain p-2" />
+                      <Image src={inverter.imageUrl} alt={inverter.model} fill sizes="96px" className="object-contain p-2" />
                     </button>
                   ) : (
                     <Zap className="h-8 w-8 text-muted-foreground" />
