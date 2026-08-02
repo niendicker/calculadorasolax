@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { PackageCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { orderStatusLabels } from '@/lib/procurement/types';
 import { money, type DeliveryForm, type Order, type Supplier } from './types';
+
+type ViaCepResponse = { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
 
 export function OrdersSection({
   orders,
@@ -32,9 +35,32 @@ export function OrdersSection({
   onCancelOrder: (orderId: string) => void;
   onSubmitToPartner: (orderId: string) => void;
 }) {
+  const [cepLookupState, setCepLookupState] = useState<'idle' | 'loading' | 'not-found'>('idle');
+
+  async function lookupCep(postalCode: string) {
+    const digits = postalCode.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setCepLookupState('loading');
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = (await response.json()) as ViaCepResponse;
+      if (data.erro) {
+        setCepLookupState('not-found');
+        return;
+      }
+      onDeliveryFieldChange('address', data.logradouro ?? '');
+      onDeliveryFieldChange('district', data.bairro ?? '');
+      onDeliveryFieldChange('city', data.localidade ?? '');
+      onDeliveryFieldChange('state', data.uf ?? '');
+      setCepLookupState('idle');
+    } catch {
+      setCepLookupState('idle');
+    }
+  }
+
   return (
     <section className="space-y-3">
-      <h2 className="flex items-center gap-2 font-semibold">
+      <h2 className="flex items-center gap-2 text-base font-semibold">
         <PackageCheck className="h-4 w-4" />
         Meus pedidos
       </h2>
@@ -94,11 +120,23 @@ export function OrdersSection({
                     value={deliveryForm.name}
                     onChange={(event) => onDeliveryFieldChange('name', event.target.value)}
                   />
-                  <Input
-                    placeholder="CEP"
-                    value={deliveryForm.postal_code}
-                    onChange={(event) => onDeliveryFieldChange('postal_code', event.target.value)}
-                  />
+                  <div>
+                    <Input
+                      placeholder="CEP"
+                      value={deliveryForm.postal_code}
+                      onChange={(event) => {
+                        onDeliveryFieldChange('postal_code', event.target.value);
+                        setCepLookupState('idle');
+                      }}
+                      onBlur={(event) => void lookupCep(event.target.value)}
+                    />
+                    {cepLookupState === 'loading' && (
+                      <p className="mt-1 text-xs text-muted-foreground">Buscando endereço...</p>
+                    )}
+                    {cepLookupState === 'not-found' && (
+                      <p className="mt-1 text-xs text-destructive">CEP não encontrado. Preencha o endereço manualmente.</p>
+                    )}
+                  </div>
                   <Input
                     placeholder="Endereço"
                     value={deliveryForm.address}

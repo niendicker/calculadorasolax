@@ -177,9 +177,9 @@ describe('SupplyTab: loading and empty states', () => {
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     expect(screen.getByLabelText('Carregando fornecedores e ofertas')).toBeInTheDocument();
-    expect(screen.queryByText(/Ainda não há ofertas disponíveis/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nenhuma oferta disponível ainda/)).not.toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByText(/Ainda não há ofertas disponíveis/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Nenhuma oferta disponível ainda/)).toBeInTheDocument());
     expect(screen.queryByLabelText('Carregando fornecedores e ofertas')).not.toBeInTheDocument();
   });
 
@@ -187,7 +187,7 @@ describe('SupplyTab: loading and empty states', () => {
     setupSupabase();
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText(/Ainda não há ofertas disponíveis/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Nenhuma oferta disponível ainda/)).toBeInTheDocument());
     expect(screen.getByText('Você ainda não fez pedidos.')).toBeInTheDocument();
     expect(screen.getByText('Adicione produtos de um fornecedor.')).toBeInTheDocument();
   });
@@ -335,6 +335,31 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     expect(screen.getByRole('checkbox', { name: /Fornecedor B/ })).toBeInTheDocument();
   });
 
+  it('starts collapsed with a summary line once suppliers are already selected, and expands on demand', async () => {
+    setupSupabase({
+      suppliers: [{ id: 's1', name: 'Fornecedor Padrão', is_default_for_all: true }, { id: 's2', name: 'Fornecedor A', is_default_for_all: false }],
+      preferenceSupplierIds: ['s2'],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await screen.findByText('Meus fornecedores (1/2)');
+    expect(screen.getByText('Fornecedor Padrão, Fornecedor A')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir fornecedores' }));
+    expect(screen.getByRole('checkbox', { name: /Fornecedor A/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher fornecedores' }));
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('starts expanded when the user has no supplier preferences yet', async () => {
+    setupSupabase({ suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    expect(await screen.findByRole('checkbox', { name: /Fornecedor A/ })).toBeInTheDocument();
+  });
+
   it('shows the configured quota and current selection count', async () => {
     setupSupabase({
       suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }],
@@ -344,6 +369,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     expect(await screen.findByText('Meus fornecedores (1/3)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir fornecedores' }));
     expect(screen.getByRole('checkbox', { name: /Fornecedor A/ })).toBeChecked();
   });
 
@@ -361,6 +387,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     setupSupabase({ suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }], preferenceSupplierIds: ['s1'] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Expandir fornecedores' }));
     const checkbox = await screen.findByRole('checkbox', { name: /Fornecedor A/ });
     expect(checkbox).toBeChecked();
     fireEvent.click(checkbox);
@@ -375,6 +402,7 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Expandir fornecedores' }));
     const otherCheckbox = await screen.findByRole('checkbox', { name: /Fornecedor B/ });
     expect(otherCheckbox).toBeDisabled();
     fireEvent.click(otherCheckbox);
@@ -480,6 +508,19 @@ describe('SupplyTab: cart quantity controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
 
     await waitFor(() => expect(screen.getByText('3× X1-Hybrid-5.0kW')).toBeInTheDocument());
+  });
+
+  it('removes the item instead of allowing a quantity below minimum_quantity when decrementing', async () => {
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1', minimum_quantity: 3, stock_quantity: 10 })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    await waitFor(() => expect(screen.getByText('3× X1-Hybrid-5.0kW')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Diminuir' }));
+
+    await waitFor(() => expect(screen.getByText('Adicione produtos de um fornecedor.')).toBeInTheDocument());
   });
 
   it('clears the cart via "Limpar carrinho"', async () => {
@@ -756,6 +797,46 @@ describe('SupplyTab: submitting an order to the partner API', () => {
       method: 'POST',
       body: expect.stringContaining('"state":"SP"'),
     }));
+  });
+
+  it('auto-fills the address fields from ViaCEP when a CEP is entered', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ logradouro: 'Av. Paulista', bairro: 'Bela Vista', localidade: 'São Paulo', uf: 'SP' }),
+    });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    const cepInput = screen.getByPlaceholderText('CEP');
+    fireEvent.change(cepInput, { target: { value: '01310-930' } });
+    fireEvent.blur(cepInput);
+
+    expect(global.fetch).toHaveBeenCalledWith('https://viacep.com.br/ws/01310930/json/');
+    await waitFor(() => expect(screen.getByPlaceholderText('Endereço')).toHaveValue('Av. Paulista'));
+    expect(screen.getByPlaceholderText('Cidade')).toHaveValue('São Paulo');
+    expect(screen.getByPlaceholderText('UF')).toHaveValue('SP');
+  });
+
+  it('shows a not-found message when the CEP does not resolve, without blocking manual entry', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ erro: true }) });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    const cepInput = screen.getByPlaceholderText('CEP');
+    fireEvent.change(cepInput, { target: { value: '00000000' } });
+    fireEvent.blur(cepInput);
+
+    await waitFor(() => expect(screen.getByText('CEP não encontrado. Preencha o endereço manualmente.')).toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText('Endereço'), { target: { value: 'Rua Manual' } });
+    expect(screen.getByPlaceholderText('Endereço')).toHaveValue('Rua Manual');
   });
 
   it('shows the error message returned by the submit endpoint', async () => {

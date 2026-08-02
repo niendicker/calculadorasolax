@@ -20,12 +20,14 @@ export function OffersSection({
   onQueryChange,
   cart,
   onChangeQuantity,
+  selectedSupplierCount,
 }: {
   offers: SupplierOfferView[];
   query: string;
   onQueryChange: (query: string) => void;
   cart: Cart;
   onChangeQuantity: (offer: SupplierOfferView, quantity: number) => void;
+  selectedSupplierCount: number;
 }) {
   const filtered = offers.filter((offer) =>
     `${offer.supplier_product_mappings.product_model} ${offer.supplier_product_mappings.supplier_sku} ${offer.suppliers.name}`
@@ -36,7 +38,7 @@ export function OffersSection({
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="shrink-0 font-semibold">Ofertas disponíveis</h2>
+        <h2 className="shrink-0 text-base font-semibold">Ofertas disponíveis</h2>
         <Input
           aria-label="Buscar ofertas"
           className="max-w-xs"
@@ -48,8 +50,9 @@ export function OffersSection({
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Ainda não há ofertas disponíveis. Verifique se você escolheu fornecedores acima, ou aguarde a
-            sincronização de preços.
+            {selectedSupplierCount === 0
+              ? 'Nenhuma oferta disponível ainda. Escolha ao menos um fornecedor em "Meus fornecedores" acima para ver preços.'
+              : 'Nenhuma oferta encontrada para os fornecedores selecionados. Tente outro termo de busca ou aguarde a sincronização de preços.'}
           </CardContent>
         </Card>
       ) : (
@@ -77,6 +80,7 @@ export function OffersSection({
                       <p className="text-xs text-muted-foreground">
                         {offer.stock_quantity == null ? 'Estoque sob consulta' : `${offer.stock_quantity} em estoque`}
                         {offer.lead_time_days != null ? ` · ${offer.lead_time_days} dias` : ''}
+                        {offer.minimum_quantity > 1 ? ` · mín. ${offer.minimum_quantity} un.` : ''}
                       </p>
                     </div>
                     <div className="flex items-center rounded-lg border">
@@ -85,7 +89,7 @@ export function OffersSection({
                         size="icon-sm"
                         aria-label="Diminuir"
                         disabled={!quantity}
-                        onClick={() => onChangeQuantity(offer, quantity - 1)}
+                        onClick={() => onChangeQuantity(offer, quantity - 1 < offer.minimum_quantity ? 0 : quantity - 1)}
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </Button>

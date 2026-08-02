@@ -143,6 +143,8 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     setPendingSupplierId(null);
   }
 
+  const selectedSupplierCount = suppliers.filter((supplier) => supplier.is_default_for_all).length + preferredIds.length;
+
   const cartOffers = offers.filter((offer) => cart[offer.id]);
   const supplierIds = [...new Set(cartOffers.map((offer) => offer.supplier_id))];
   const cartSupplierId = supplierIds[0];
@@ -235,7 +237,7 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
   }
 
   return (
-    <div className="space-y-5 py-5">
+    <div className={`space-y-5 py-5 ${cartOffers.length > 0 ? 'pb-20 xl:pb-5' : ''}`}>
       <PageHeader>
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Compras</h1>
@@ -269,13 +271,21 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
             onToggle={toggleSupplier}
           />
 
-          <OffersSection offers={offers} query={query} onQueryChange={setQuery} cart={cart} onChangeQuantity={changeQuantity} />
+          <OffersSection
+            offers={offers}
+            query={query}
+            onQueryChange={setQuery}
+            cart={cart}
+            onChangeQuantity={changeQuantity}
+            selectedSupplierCount={selectedSupplierCount}
+          />
 
           {/* Below `xl` the cart only lives in the summary drawer (see PageSummary
-           * below), which has no visible trigger of its own outside the `lg`-only
-           * floating button — this keeps the cart reachable on phones too. */}
+           * below), which has no visible trigger of its own — this fixed button
+           * keeps the cart reachable on phones no matter how far the offers grid
+           * has been scrolled. */}
           {cartOffers.length > 0 && (
-            <Button className="xl:hidden" onClick={onShowSummary}>
+            <Button className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 shadow-lg xl:hidden" onClick={onShowSummary}>
               <ShoppingCart className="h-4 w-4" />
               Ver carrinho ({cartOffers.length}) · {money(subtotal, cartSupplier?.currency)}
             </Button>
