@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "check:functions": "cd supabase/functions && deno check calculate-residential/index.ts",
