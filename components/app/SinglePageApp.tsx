@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
@@ -9,6 +10,7 @@ import {
   ClipboardList,
   FolderOpen,
   LayoutDashboard,
+  Loader2,
   LogOut,
   Menu,
   ShieldUser,
@@ -29,18 +31,35 @@ import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
+// PrintableReport stays a static import: exportPdf() calls window.print()
+// synchronously and expects the report already in the DOM — a lazy chunk
+// still loading when print() fires would produce an empty/broken PDF.
 import { PrintableReport } from './PrintableReport';
 import { AppFooter } from './shell/AppFooter';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
-import { CatalogTab } from './tabs/CatalogTab';
-import { ClientsTab } from './tabs/ClientsTab';
-import { MyStockTab } from './tabs/MyStockTab';
-import { ProfileTab } from './tabs/ProfileTab';
-import { SupplyTab } from './tabs/SupplyTab';
 import { ProjectTab } from './tabs/ProjectTab';
-import { SizingTab } from './tabs/SizingTab';
 import { batteryTopologyToCatalog } from '@/lib/types';
 import { gridTypeToApprovedTopology } from './types';
+
+/** Centered spinner shown while a tab's own chunk is still downloading —
+ * only the initial tab (Projeto) is a static import, so every other tab
+ * below is fetched on first visit instead of bloating the app's initial
+ * bundle with code most sessions never touch (Catálogo, Fornecedores,
+ * Clientes, Perfil) or with SizingTab's own large feature-picker tree. */
+function TabLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center py-24 text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+    </div>
+  );
+}
+
+const CatalogTab = dynamic(() => import('./tabs/CatalogTab').then((m) => m.CatalogTab), { loading: TabLoadingFallback });
+const ClientsTab = dynamic(() => import('./tabs/ClientsTab').then((m) => m.ClientsTab), { loading: TabLoadingFallback });
+const MyStockTab = dynamic(() => import('./tabs/MyStockTab').then((m) => m.MyStockTab), { loading: TabLoadingFallback });
+const ProfileTab = dynamic(() => import('./tabs/ProfileTab').then((m) => m.ProfileTab), { loading: TabLoadingFallback });
+const SupplyTab = dynamic(() => import('./tabs/SupplyTab').then((m) => m.SupplyTab), { loading: TabLoadingFallback });
+const SizingTab = dynamic(() => import('./tabs/SizingTab').then((m) => m.SizingTab), { loading: TabLoadingFallback });
 
 /** Marks the active bottom-nav tab as having a summary — purely decorative
  * (not its own button, since a <button> can't nest inside the tab's <button>);

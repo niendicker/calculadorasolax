@@ -111,10 +111,10 @@ describe('SinglePageApp: initial load and navigation', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
   });
 
   it('shows an "Administração" link only for admin profiles', async () => {
@@ -162,11 +162,11 @@ describe('SinglePageApp: login-gated navigation', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument());
     expect(routerMock.push).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
-    expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
   });
 });
 
@@ -200,10 +200,10 @@ describe('SinglePageApp: mobile bottom nav', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Catálogo' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
   });
 
   it('opens the summary drawer by tapping the already-active tab again', async () => {
@@ -223,7 +223,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
@@ -254,7 +254,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     const moreNav = within(dialog).getByRole('navigation');
 
     fireEvent.click(within(moreNav).getByRole('button', { name: 'Meu Catálogo' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
@@ -292,7 +292,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calcular solução' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Calcular solução' }));
     expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 });
@@ -372,18 +372,18 @@ describe('SinglePageApp: full mobile menu navigation', () => {
     }
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Clientes' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Meu Catálogo' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Perfil' }));
-    expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
   });
 
   it('follows the "Administração" link from the "Mais" menu and closes it', async () => {
@@ -420,7 +420,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     window.print = vi.fn();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
     expect(window.print).toHaveBeenCalled();
   });
@@ -448,7 +448,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     window.print = vi.fn(() => { titleDuringPrint = document.title; });
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
     expect(titleDuringPrint).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}$/);
 
