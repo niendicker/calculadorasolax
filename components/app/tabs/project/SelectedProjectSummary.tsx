@@ -1,0 +1,295 @@
+'use client';
+
+import { useState } from 'react';
+import { BatteryCharging, Calculator, ChevronRight, ClipboardCopy, Gauge, Mail, MapPin, Phone, Users, X, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import type { Client, MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
+import {
+  batteryQuantityBreakdown,
+  buildProjectShareText,
+  calculateSystemCost,
+  formatCurrencyBRL,
+  normalizeAccessoryLine,
+  solutionMetrics,
+} from '../../helpers';
+import { Metric, SharePreviewModal } from '../../shared-ui';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../../types';
+
+/** A product's category label, its nickname/model (with quantity, if any),
+ * and — only when a nickname is set — the bare model code as a small
+ * caption underneath, so a long nickname + model pair doesn't get crammed
+ * onto one line next to the category label. */
+function ProductNameLine({
+  category,
+  model,
+  nickname,
+  suffix,
+}: {
+  category: string;
+  model: string;
+  nickname?: string | null;
+  suffix?: string;
+}) {
+  return (
+    <div>
+      <p className="text-muted-foreground">{category}</p>
+      <p className="font-medium text-foreground">
+        {nickname || model}
+        {suffix}
+      </p>
+      {nickname && <p className="text-[0.7rem] text-muted-foreground">{model}</p>}
+    </div>
+  );
+}
+
+/** Rich, read-only summary of a saved project selected from the list —
+ * lets the user inspect a project's own solution without loading it into
+ * the editor (which "Abrir" already does). Rendered in the shell's summary
+ * panel in place of the live "Configuração salva junto" summary. */
+export function SelectedProjectSummary({
+  project,
+  client,
+  batteryCatalog,
+  inverterCatalog,
+  accessoryCatalog,
+  userStockItems,
+  userServices,
+  marginSettings,
+  onClose,
+  onOpenSizing,
+}: {
+  project: SavedProject;
+  client: Client | undefined;
+  batteryCatalog: BatteryCatalogOption[];
+  inverterCatalog: InverterCatalogOption[];
+  accessoryCatalog: AccessoryCatalogOption[];
+  userStockItems: UserStockItem[];
+  userServices: UserServiceItem[];
+  marginSettings: MarginSettings;
+  onClose: () => void;
+  onOpenSizing: () => void;
+}) {
+  const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
+  const systemCost =
+    project.solution || project.services.length > 0
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog)
+      : null;
+  const batteryParts = project.solution
+    ? batteryQuantityBreakdown(
+        project.solution.batteryModel,
+        project.solution.batteryQty,
+        batteryCatalog,
+        (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
+      )
+    : [];
+  const [previewText, setPreviewText] = useState<string | null>(null);
+
+  function openProjectDataPreview() {
+    const text = buildProjectShareText(
+      {
+        name: project.name,
+        address: project.address,
+        topology: project.residentialOptions.topology,
+        gridType: project.residentialOptions.gridType,
+        loadsCount: project.residentialOptions.loads.length,
+        peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+        dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
+        solution: project.solution,
+      },
+      client?.name,
+      batteryCatalog
+    );
+    setPreviewText(text);
+  }
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-semibold">{project.name}</h2>
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Users className="h-3 w-3 shrink-0" />
+            <span className="truncate">{client?.name || 'Cliente não informado'}</span>
+          </p>
+          {client?.phone && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client.phone}</span>
+            </p>
+          )}
+          {client?.email && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client.email}</span>
+            </p>
+          )}
+        </div>
+        <Button variant="ghost" size="icon-sm" aria-label="Fechar resumo do projeto" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {project.address && (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span className="truncate">{project.address}</span>
+        </p>
+      )}
+
+      {metrics && project.solution && (
+        <>
+          <Separator />
+          <div className="grid grid-cols-3 gap-2">
+            <Metric
+              icon={Gauge}
+              label="Nominal"
+              value={metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'}
+              unit="kVA"
+            />
+            <Metric
+              icon={Zap}
+              label="Máxima"
+              value={metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'}
+              unit="kVA"
+            />
+            <Metric icon={BatteryCharging} label="Energia" value={metrics.energyKwh.toFixed(2)} unit="kWh" />
+          </div>
+          <div className="space-y-2.5 rounded-lg border bg-background p-2.5 text-xs text-muted-foreground">
+            <div className="space-y-2.5">
+              <ProductNameLine
+                category="Inversor"
+                model={project.solution.inverterModel}
+                nickname={inverterCatalog.find((item) => item.model === project.solution?.inverterModel)?.nickname}
+              />
+              {batteryParts.map((part, index) => (
+                <ProductNameLine
+                  key={part.model}
+                  category={index === 0 ? 'Bateria' : 'Bateria (expansão)'}
+                  model={part.model}
+                  nickname={batteryCatalog.find((item) => item.model === part.model)?.nickname}
+                  suffix={` × ${part.qty}`}
+                />
+              ))}
+              {project.solution.pvPowerKw ? (
+                <p>
+                  Fotovoltaico <span className="font-medium text-foreground">{project.solution.pvPowerKw.toFixed(2)} kWp</span>
+                </p>
+              ) : null}
+            </div>
+
+            {project.solution.accessories.length > 0 && (
+              <>
+                <Separator />
+                <div className="space-y-2.5">
+                  <p className="font-medium text-foreground">Acessórios</p>
+                  {project.solution.accessories.map((accessory) => {
+                    const { model, qty, optional, bundled, appliesTo } = normalizeAccessoryLine(accessory);
+                    const nickname = accessoryCatalog.find((item) => item.model === model)?.nickname;
+                    return (
+                      <div key={model} className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-foreground">
+                            {nickname || model}
+                            {qty !== 1 ? ` × ${qty}` : ''}
+                          </p>
+                          {nickname && <p className="truncate text-[0.7rem]">{model}</p>}
+                        </div>
+                        <span className="shrink-0 text-[0.7rem]">
+                          {bundled
+                            ? appliesTo === 'inverter'
+                              ? 'Incluso no inversor'
+                              : appliesTo === 'battery'
+                                ? 'Incluso na bateria'
+                                : 'Incluso'
+                            : optional
+                              ? 'Opcional'
+                              : 'Obrigatório'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {!project.solution && (
+        <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          Este projeto ainda não tem uma solução calculada.
+        </p>
+      )}
+
+      {((systemCost && systemCost.pricedItemsCount > 0) || project.services.length > 0) && (
+        <>
+          <Separator />
+          <div className="space-y-2.5 rounded-lg border bg-background p-2.5">
+            {systemCost && systemCost.pricedItemsCount > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground">Valor da solução</p>
+                <p className="text-lg font-semibold">{formatCurrencyBRL(systemCost.totalCost)}</p>
+                {!systemCost.isComplete && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Preço parcial: {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} itens com valor no
+                    estoque.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {project.services.length > 0 && (
+              <>
+                {systemCost && systemCost.pricedItemsCount > 0 && <Separator />}
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Serviços</p>
+                  {project.services.map((line) => {
+                    const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
+                    return (
+                      <div key={line.serviceId} className="flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          {line.name}
+                          {line.qty !== 1 ? ` × ${line.qty}` : ''}
+                        </span>
+                        <span className="shrink-0">
+                          {unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      <Separator />
+
+      <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenSizing}>
+        <Calculator className="h-4 w-4" />
+        Ir para Dimensionamento
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+
+      <Button
+        variant="outline"
+        size="lg"
+        className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+        onClick={openProjectDataPreview}
+      >
+        <ClipboardCopy className="h-4 w-4" />
+        Copiar dados
+      </Button>
+      <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
+
+      <Separator />
+      <p className="text-xs text-muted-foreground">
+        Atualizado em{' '}
+        {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(project.updatedAt))}
+      </p>
+    </>
+  );
+}
