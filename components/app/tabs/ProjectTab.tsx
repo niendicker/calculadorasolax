@@ -162,6 +162,21 @@ export function ProjectTab({
     onCancelNew();
   }
 
+  const editingProject = currentProjectId ? savedProjects.find((project) => project.id === currentProjectId) : null;
+  const isDraftDirty = editingProject
+    ? projectInfo.name !== editingProject.name ||
+      projectInfo.clientId !== editingProject.clientId ||
+      projectInfo.address !== editingProject.address ||
+      projectInfo.notes !== editingProject.notes ||
+      JSON.stringify(services) !== JSON.stringify(editingProject.services ?? [])
+    : Boolean(
+        projectInfo.name.trim() ||
+          projectInfo.clientId ||
+          projectInfo.address.trim() ||
+          projectInfo.notes.trim() ||
+          services.length > 0
+      );
+
   return (
     <div className="space-y-4">
       <PageHeader>
@@ -293,6 +308,17 @@ export function ProjectTab({
           <ProjectListSkeleton />
         ) : (
           <>
+            {savedProjects.length === 0 && !projectDetailsVisible && (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Novo por aqui?</p>
+                <p className="mt-1">
+                  Um fluxo comum: cadastre seus produtos e preços em <strong>Meu Catálogo</strong>, adicione um{' '}
+                  <strong>Cliente</strong>, depois crie um <strong>Novo projeto</strong> e finalize no{' '}
+                  <strong>Dimensionamento</strong>. Você também pode só clicar em &quot;Novo projeto&quot; agora e
+                  ajustar tudo depois.
+                </p>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               {!projectDetailsVisible && <NewProjectCard onClick={onNew} />}
               {projectDetailsVisible && !currentProjectId && (
@@ -300,6 +326,7 @@ export function ProjectTab({
                   projectInfo={projectInfo}
                   clients={clients}
                   isNew
+                  isDirty={isDraftDirty}
                   setProjectInfo={setProjectInfo}
                   onManageClients={onManageClients}
                   onSave={handleSave}
@@ -319,6 +346,7 @@ export function ProjectTab({
                     projectInfo={projectInfo}
                     clients={clients}
                     isNew={false}
+                    isDirty={isDraftDirty}
                     setProjectInfo={setProjectInfo}
                     onManageClients={onManageClients}
                     onSave={handleSave}

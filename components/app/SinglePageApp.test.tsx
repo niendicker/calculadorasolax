@@ -187,6 +187,57 @@ describe('SinglePageApp: login-gated navigation', () => {
   });
 });
 
+describe('SinglePageApp: unsaved profile edits', () => {
+  it('asks for confirmation before leaving Perfil with unsaved edits, and stays put if declined', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Nome Editado' } });
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.getByLabelText('Nome')).toHaveValue('Nome Editado');
+    confirmSpy.mockRestore();
+  });
+
+  it('leaves Perfil once the user confirms discarding unsaved edits', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Nome Editado' } });
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    confirmSpy.mockRestore();
+  });
+
+  it('does not ask for confirmation when leaving Perfil without any edits', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    confirmSpy.mockRestore();
+  });
+});
+
 describe('SinglePageApp: sign out', () => {
   it('signs out and redirects to login', async () => {
     const supabase = setupSupabase({}, { loggedIn: true });
@@ -247,6 +298,14 @@ describe('SinglePageApp: mobile bottom nav', () => {
     expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 
+  it('labels the "Mais" button with the generic text while on a top-level tab', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Mais');
+  });
+
   it('reaches Clientes via the "Mais" menu instead of the bottom bar', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
@@ -273,6 +332,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     fireEvent.click(within(moreNav).getByRole('button', { name: 'Meu Catálogo' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
+    expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Meu Catálogo');
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[0]);
@@ -335,15 +395,17 @@ describe('SinglePageApp: account data error', () => {
 });
 
 describe('SinglePageApp: summary panel', () => {
-  it('shows the empty-state message on tabs without a summary, and hides it on Projeto', async () => {
+  it('hides the summary panel entirely on tabs that never register one, instead of a permanently empty column', async () => {
     setupSupabase();
     renderApp();
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
-    expect(screen.queryByText('Nenhum resumo disponível para esta seção.')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Fechar resumo')).not.toBeInTheDocument();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
-    await waitFor(() => expect(screen.getByText('Nenhum resumo disponível para esta seção.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
+    expect(screen.queryByText('Nenhum resumo disponível para esta seção.')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Ver resumo')).not.toBeInTheDocument();
   });
 });
 

@@ -64,6 +64,16 @@ const SizingTab = dynamic(() => import('./tabs/SizingTab').then((m) => m.SizingT
 /** Marks the active bottom-nav tab as having a summary — purely decorative
  * (not its own button, since a <button> can't nest inside the tab's <button>);
  * tapping the already-active tab opens the summary instead of re-selecting it. */
+// Labels the "Mais" bottom-nav button with whichever of its sub-sections is
+// currently open, instead of always showing the generic "Mais" — otherwise a
+// user has to reopen the sheet just to remember where they are.
+const moreNavTabLabels: Partial<Record<'purchases' | 'myStock' | 'clients' | 'profile', string>> = {
+  purchases: 'Compras',
+  myStock: 'Meu Catálogo',
+  clients: 'Clientes',
+  profile: 'Perfil',
+};
+
 function BottomNavSummaryBadge() {
   return (
     <span className="absolute -right-1.5 -top-1 flex h-3 w-3 items-center justify-center rounded-full border border-background bg-primary">
@@ -192,6 +202,7 @@ export function SinglePageApp() {
     profileSaving,
     profileMessage,
     profileError,
+    profileDirty,
     openProfile,
     saveProfile,
     uploadCompanyLogo,
@@ -229,7 +240,7 @@ export function SinglePageApp() {
     removeProject,
     duplicateProject,
     refreshProjectSolution: refreshProjectSolutionAction,
-    setActiveTab,
+    setActiveTab: changeTab,
   });
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
@@ -333,12 +344,23 @@ export function SinglePageApp() {
     setMaxPowerPerPhaseW,
   ]);
 
+  // Single gate for every navigation away from Perfil: that tab has no
+  // autosave, so leaving it via any of the shell's several nav paths
+  // (sidebar, bottom nav, "Mais" sheet) would otherwise discard edits
+  // silently — see profileDirty in useProfileActions.
+  function changeTab(tab: typeof activeTab) {
+    if (activeTab === 'profile' && tab !== 'profile' && profileDirty) {
+      if (!window.confirm('Você tem alterações não salvas no perfil. Sair sem salvar?')) return;
+    }
+    setActiveTab(tab);
+  }
+
   function openClientsManager() {
     if (!profile) {
       router.push(`/${locale}/login?redirect=/${locale}`);
       return;
     }
-    setActiveTab('clients');
+    changeTab('clients');
   }
 
   function openPurchasesTab() {
@@ -346,7 +368,7 @@ export function SinglePageApp() {
       router.push(`/${locale}/login?redirect=/${locale}`);
       return;
     }
-    setActiveTab('purchases');
+    changeTab('purchases');
   }
 
   async function signOut() {
@@ -437,7 +459,7 @@ export function SinglePageApp() {
   }
 
   function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'myStock' | 'clients') {
-    setActiveTab(tab);
+    changeTab(tab);
     setMobileMenuOpen(false);
   }
 
@@ -458,7 +480,12 @@ export function SinglePageApp() {
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-background">
-      <div className="mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr] xl:grid-cols-[240px_minmax(0,1fr)_460px]">
+      <div
+        className={cn(
+          'mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]',
+          summaryActive ? 'xl:grid-cols-[240px_minmax(0,1fr)_460px]' : 'xl:grid-cols-[240px_minmax(0,1fr)]'
+        )}
+      >
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -474,7 +501,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'project' ? 'page' : undefined}
-              onClick={() => setActiveTab('project')}
+              onClick={() => changeTab('project')}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'project' &&
@@ -487,7 +514,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'sizing' ? 'page' : undefined}
-              onClick={() => setActiveTab('sizing')}
+              onClick={() => changeTab('sizing')}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'sizing' &&
@@ -500,7 +527,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'catalog' ? 'page' : undefined}
-              onClick={() => setActiveTab('catalog')}
+              onClick={() => changeTab('catalog')}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'catalog' &&
@@ -513,7 +540,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'myStock' ? 'page' : undefined}
-              onClick={() => setActiveTab('myStock')}
+              onClick={() => changeTab('myStock')}
               className={cn(
                 'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'myStock' &&
@@ -789,7 +816,11 @@ export function SinglePageApp() {
           aria-modal={summaryDrawerOpen && summaryActive ? true : undefined}
           aria-label={summaryDrawerOpen && summaryActive ? 'Resumo' : undefined}
           className={cn(
-            'xl:static xl:z-auto xl:flex xl:min-h-0 xl:w-auto xl:max-w-none xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:shadow-none',
+            'xl:z-auto xl:min-h-0 xl:w-auto xl:max-w-none xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:shadow-none',
+            // Tabs that never call PageSummary (Catálogo, Meu Catálogo, Perfil)
+            // shouldn't reserve a permanently empty 460px column on desktop —
+            // the grid template above drops that column too when inactive.
+            summaryActive ? 'xl:static xl:flex' : 'xl:hidden',
             summaryDrawerOpen && summaryActive
               ? 'fixed inset-y-0 right-0 z-50 flex w-[88vw] max-w-sm flex-col overflow-y-auto border-l bg-card shadow-xl'
               : 'hidden'
@@ -813,11 +844,6 @@ export function SinglePageApp() {
             </div>
           )}
           <div ref={setSummaryEl} className="space-y-4 px-4 pt-4 pb-5" />
-          {!summaryActive && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
-              <p>Nenhum resumo disponível para esta seção.</p>
-            </div>
-          )}
         </aside>
         {summaryDrawerOpen && summaryActive && (
           <button
@@ -894,7 +920,7 @@ export function SinglePageApp() {
             )}
           >
             <Menu className="h-5 w-5" />
-            Mais
+            {moreNavTabLabels[activeTab as keyof typeof moreNavTabLabels] ?? 'Mais'}
           </button>
         </nav>
 

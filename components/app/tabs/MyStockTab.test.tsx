@@ -140,6 +140,42 @@ describe('MyStockTab: editing price', () => {
 
     expect(props.onUpdateValue).not.toHaveBeenCalled();
   });
+
+  it('shows a saved indicator after a successful inline price edit', async () => {
+    setup({ userStockItems: [stockItem] });
+    const input = screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4');
+
+    fireEvent.change(input, { target: { value: '1500' } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(screen.getByLabelText('Salvo')).toBeInTheDocument());
+  });
+
+  it('surfaces an error instead of silently discarding a failed inline price edit', async () => {
+    const onUpdateValue = vi.fn().mockRejectedValue(new Error('boom'));
+    setup({ userStockItems: [stockItem], onUpdateValue });
+    const input = screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4');
+
+    fireEvent.change(input, { target: { value: '1500' } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(screen.getByText('Não foi possível salvar')).toBeInTheDocument());
+  });
+
+  it('warns when a stock item still has no price defined', () => {
+    setup({ userStockItems: [{ ...stockItem, unitValue: 0 }] });
+    expect(screen.getByText(/Defina um preço/)).toBeInTheDocument();
+  });
+
+  it('does not warn once a price has been set', () => {
+    setup({ userStockItems: [stockItem] });
+    expect(screen.queryByText(/Defina um preço/)).not.toBeInTheDocument();
+  });
+
+  it('shows an empty-category hint when a section has no items yet', () => {
+    setup({ userStockItems: [] });
+    expect(screen.getByText(/Você ainda não adicionou nenhum produto desta categoria/)).toBeInTheDocument();
+  });
 });
 
 describe('MyStockTab: removing', () => {
@@ -245,6 +281,24 @@ describe('MyStockTab: services', () => {
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemoveService).toHaveBeenCalledWith('sv1'));
+  });
+
+  it('shows an empty hint when there are no services yet', () => {
+    setup({ userServices: [] });
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    expect(screen.getByText(/Você ainda não cadastrou nenhum serviço/)).toBeInTheDocument();
+  });
+
+  it('surfaces an error instead of silently discarding a failed inline service price edit', async () => {
+    const onUpdateServiceValue = vi.fn().mockRejectedValue(new Error('boom'));
+    setup({ userServices: [serviceItem], onUpdateServiceValue });
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    fireEvent.change(screen.getByLabelText('Preço do serviço Instalação'), { target: { value: '600' } });
+    fireEvent.blur(screen.getByLabelText('Preço do serviço Instalação'));
+
+    await waitFor(() => expect(screen.getByText('Não foi possível salvar')).toBeInTheDocument());
   });
 
   it('shows the limit-reached state once at ACCOUNT_LIMITS.userServices', () => {
@@ -474,5 +528,16 @@ describe('MyStockTab: sell margins', () => {
     fireEvent.blur(input);
 
     expect(props.onUpdateMarginPercent).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an error instead of silently discarding a failed margin edit', async () => {
+    const onUpdateMarginPercent = vi.fn().mockRejectedValue(new Error('boom'));
+    setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 }, onUpdateMarginPercent });
+
+    const input = screen.getByLabelText('Margem de venda');
+    fireEvent.change(input, { target: { value: '15' } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(screen.getByText('Não foi possível salvar')).toBeInTheDocument());
   });
 });

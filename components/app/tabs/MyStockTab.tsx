@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { Battery, Boxes, Loader2, Lock, Plus, Wrench, Zap } from 'lucide-react';
+import { Battery, Boxes, Check, Loader2, Lock, Plus, Wrench, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -130,7 +130,8 @@ export function MyStockTab({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Meu Catálogo</h1>
           <p className="text-sm text-muted-foreground">
-            Produtos que você adicionou do Catálogo, com o preço que você define para seus orçamentos.
+            Seus preços de produtos e serviços, usados nos orçamentos. Para adicionar um novo produto, escolha-o na
+            aba Catálogo.
           </p>
         </div>
       </PageHeader>
@@ -220,6 +221,11 @@ export function MyStockTab({
                     marginSettings={marginSettings}
                     onUpdateMarginPercent={onUpdateMarginPercent}
                   />
+                  {items.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Você ainda não adicionou nenhum produto desta categoria ao seu catálogo — escolha um abaixo.
+                    </p>
+                  )}
                   <div className="grid gap-3 lg:grid-cols-2">
                     {items.map((item) => (
                       <StockProductCard
@@ -269,6 +275,39 @@ export function MyStockTab({
   );
 }
 
+type InlineSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+/** Wraps an inline (save-on-blur) update call with local status so a failed
+ *  write surfaces instead of vanishing silently — these fields have no other
+ *  feedback since there's no surrounding form/submit button. */
+function useInlineSave<T>(update: (value: T) => Promise<void>) {
+  const [state, setState] = useState<InlineSaveState>('idle');
+  async function run(value: T) {
+    setState('saving');
+    try {
+      await update(value);
+      setState('saved');
+      setTimeout(() => setState('idle'), 2000);
+    } catch {
+      setState('error');
+    }
+  }
+  return [state, run] as const;
+}
+
+function InlineSaveStatus({ state }: { state: InlineSaveState }) {
+  if (state === 'saving') return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Salvando" />;
+  if (state === 'saved') return <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label="Salvo" />;
+  if (state === 'error') {
+    return (
+      <span role="alert" className="text-xs text-destructive">
+        Não foi possível salvar
+      </span>
+    );
+  }
+  return null;
+}
+
 const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> = {
   inverter: 'inverterPercent',
   battery: 'batteryPercent',
@@ -291,6 +330,7 @@ function CategoryMarginInline({
 }) {
   const field = marginFieldByProductType[productType];
   const value = marginSettings[field];
+  const [saveState, save] = useInlineSave((percent: number) => onUpdateMarginPercent(productType, percent));
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -305,11 +345,12 @@ function CategoryMarginInline({
         onBlur={(event) => {
           const parsed = Number(event.target.value);
           const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-          if (nextValue !== value) onUpdateMarginPercent(productType, nextValue);
+          if (nextValue !== value) void save(nextValue);
         }}
         className="h-7 w-16 rounded-md border border-input bg-background px-1.5 text-center text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       />
       <span>%</span>
+      <InlineSaveStatus state={saveState} />
     </div>
   );
 }
@@ -341,6 +382,11 @@ function ServicesSection({
           adicionar outro.
         </p>
       )}
+      {userServices.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Você ainda não cadastrou nenhum serviço — use o card ao lado para adicionar um.
+        </p>
+      )}
       <div className="grid gap-3 lg:grid-cols-2">
         {userServices.map((service) => (
           <ServiceCard
@@ -368,18 +414,24 @@ function ServiceCard({
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
+  const [nameSaveState, saveName] = useInlineSave((name: string) => onUpdateName(service.id, name));
+  const [valueSaveState, saveValue] = useInlineSave((value: number) => onUpdateValue(service.id, value));
+
   return (
     <div className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3">
       <div className="min-w-0 flex-1 space-y-2">
-        <Input
-          key={service.id}
-          defaultValue={service.name}
-          aria-label={`Nome do serviço ${service.name}`}
-          onBlur={(event) => {
-            const nextName = event.target.value.trim();
-            if (nextName && nextName !== service.name) onUpdateName(service.id, nextName);
-          }}
-        />
+        <div className="flex items-center gap-1.5">
+          <Input
+            key={service.id}
+            defaultValue={service.name}
+            aria-label={`Nome do serviço ${service.name}`}
+            onBlur={(event) => {
+              const nextName = event.target.value.trim();
+              if (nextName && nextName !== service.name) void saveName(nextName);
+            }}
+          />
+          <InlineSaveStatus state={nameSaveState} />
+        </div>
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground">R$</span>
           <input
@@ -392,10 +444,11 @@ function ServiceCard({
             onBlur={(event) => {
               const parsed = Number(event.target.value);
               const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-              if (nextValue !== service.unitValue) onUpdateValue(service.id, nextValue);
+              if (nextValue !== service.unitValue) void saveValue(nextValue);
             }}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
+          <InlineSaveStatus state={valueSaveState} />
         </div>
       </div>
       <ConfirmDeleteButton
@@ -740,6 +793,7 @@ function StockProductCard({
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
+  const [valueSaveState, saveValue] = useInlineSave((value: number) => onUpdateValue(item.id, value));
   let imageUrl: string | null = null;
   let documents: ProductDocument[] = [];
   let badges: string[] | undefined;
@@ -801,25 +855,31 @@ function StockProductCard({
         />
       }
       stockControl={
-        <div className="flex items-center gap-2 border-t pt-2">
-          <span className="text-xs text-muted-foreground">Meu preço</span>
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">R$</span>
-            <input
-              key={item.id}
-              type="number"
-              min={0}
-              step={0.01}
-              defaultValue={item.unitValue}
-              aria-label={`Meu preço para ${item.productModel}`}
-              onBlur={(event) => {
-                const parsed = Number(event.target.value);
-                const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-                if (nextValue !== item.unitValue) onUpdateValue(item.id, nextValue);
-              }}
-              className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
+        <div className="space-y-1 border-t pt-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Meu preço</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">R$</span>
+              <input
+                key={item.id}
+                type="number"
+                min={0}
+                step={0.01}
+                defaultValue={item.unitValue}
+                aria-label={`Meu preço para ${item.productModel}`}
+                onBlur={(event) => {
+                  const parsed = Number(event.target.value);
+                  const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+                  if (nextValue !== item.unitValue) void saveValue(nextValue);
+                }}
+                className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
+            <InlineSaveStatus state={valueSaveState} />
           </div>
+          {item.unitValue === 0 && (
+            <p className="text-xs text-amber-600">Defina um preço — sem ele, este item entra como R$ 0 nos orçamentos.</p>
+          )}
         </div>
       }
     />

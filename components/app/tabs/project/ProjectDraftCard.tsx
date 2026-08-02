@@ -3,6 +3,7 @@
 import { Plus, Save, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Client, ProjectInfo, ProjectServiceLine, UserServiceItem } from '@/lib/types';
@@ -29,6 +30,7 @@ export function ProjectDraftCard({
   projectInfo,
   clients,
   isNew,
+  isDirty,
   setProjectInfo,
   onManageClients,
   onSave,
@@ -43,6 +45,10 @@ export function ProjectDraftCard({
   projectInfo: ProjectInfo;
   clients: Client[];
   isNew: boolean;
+  /** Whether the draft differs from its starting point (blank for a new
+   *  project, last-saved values for one being edited) — gates a discard
+   *  confirmation on "Fechar" so a misclick can't silently lose input. */
+  isDirty: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onManageClients: () => void;
   onSave: () => void;
@@ -170,10 +176,23 @@ export function ProjectDraftCard({
           )}
         </div>
         <div className="flex justify-end gap-2 md:col-span-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            <X className="h-4 w-4" />
-            Fechar
-          </Button>
+          {isDirty ? (
+            <ConfirmDeleteButton
+              ariaLabel="Descartar alterações do projeto"
+              label="Fechar"
+              icon={<X className="h-4 w-4" />}
+              title="Descartar alterações?"
+              description="Os dados preenchidos neste projeto serão perdidos."
+              confirmLabel="Descartar"
+              triggerVariant="outline"
+              onConfirm={onCancel}
+            />
+          ) : (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              <X className="h-4 w-4" />
+              Fechar
+            </Button>
+          )}
           <Button type="button" onClick={onSave}>
             <Save className="h-4 w-4" />
             Salvar projeto

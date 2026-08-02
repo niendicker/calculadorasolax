@@ -126,6 +126,21 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
 }
 
 describe('ProjectTab: empty and list states', () => {
+  it('shows an onboarding hint for a brand-new user with no saved projects', () => {
+    setup({ savedProjects: [] });
+    expect(screen.getByText('Novo por aqui?')).toBeInTheDocument();
+  });
+
+  it('hides the onboarding hint once at least one project exists', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    expect(screen.queryByText('Novo por aqui?')).not.toBeInTheDocument();
+  });
+
+  it('hides the onboarding hint while a draft is open, even with no saved projects yet', () => {
+    setup({ savedProjects: [], projectDetailsVisible: true, currentProjectId: null });
+    expect(screen.queryByText('Novo por aqui?')).not.toBeInTheDocument();
+  });
+
   it('shows a generic placeholder in the summary panel when no project is open or selected', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     expect(
@@ -406,13 +421,23 @@ describe('ProjectTab: new project draft', () => {
     expect(screen.getByLabelText('Nome do projeto')).toHaveValue('');
   });
 
-  it('edits are reported via setProjectInfo and Fechar calls onCancelNew', () => {
+  it('edits are reported via setProjectInfo, and Fechar asks for confirmation before calling onCancelNew', async () => {
     const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
 
     fireEvent.change(screen.getByLabelText('Nome do projeto'), { target: { value: 'Novo nome' } });
     expect(useWizardStore.getState().projectInfo.name).toBe('Novo nome');
 
-    fireEvent.click(screen.getByRole('button', { name: /Fechar/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar alterações do projeto' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Descartar' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
+
+    expect(props.onCancelNew).toHaveBeenCalled();
+  });
+
+  it('closes immediately on Fechar when the new-project draft is still blank', () => {
+    const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
     expect(props.onCancelNew).toHaveBeenCalled();
   });
 
@@ -511,6 +536,33 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(screen.getByText('Escritório')).toBeInTheDocument();
     // Only one "Novo projeto" trigger card should exist for a genuinely new draft, and it must be absent here.
     expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
+  });
+
+  it('closes immediately on Fechar when editing an existing project with no unsaved changes', () => {
+    const { props } = setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia', clientId: null, address: '', notes: '' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    expect(props.onCancelNew).toHaveBeenCalled();
+  });
+
+  it('asks for confirmation on Fechar when editing an existing project with unsaved changes', async () => {
+    const { props } = setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia editada', clientId: null, address: '', notes: '' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar alterações do projeto' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Descartar' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
+
+    expect(props.onCancelNew).toHaveBeenCalled();
   });
 
   it('clicking Editar on a saved project delegates to onOpen with its id and also opens its summary', () => {

@@ -27,6 +27,12 @@ export function useProfileActions({
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  // Snapshot of the profile as last loaded/saved — compared against the live
+  // `profile` state to warn before navigating away with unsaved edits, since
+  // ProfileTab has no autosave and the shell has several distinct nav paths
+  // (sidebar, bottom nav, "Mais" sheet) that can all leave this tab.
+  const [profileSnapshot, setProfileSnapshot] = useState<InlineProfile | null>(null);
+  const profileDirty = Boolean(profile && profileSnapshot && JSON.stringify(profile) !== JSON.stringify(profileSnapshot));
 
   function openProfile() {
     setProfileMessage(null);
@@ -37,6 +43,7 @@ export function useProfileActions({
       return;
     }
 
+    setProfileSnapshot(profile);
     setActiveTab('profile');
   }
 
@@ -68,6 +75,7 @@ export function useProfileActions({
     }
 
     setProfileMessage('Perfil atualizado.');
+    setProfileSnapshot(profile);
   }
 
   async function uploadCompanyLogo(file: File | undefined) {
@@ -126,6 +134,7 @@ export function useProfileActions({
     profileSaving,
     profileMessage,
     profileError,
+    profileDirty,
     openProfile,
     saveProfile,
     uploadCompanyLogo,
