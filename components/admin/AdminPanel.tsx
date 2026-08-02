@@ -6,6 +6,7 @@ import { LogOut, Menu, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { createClient } from '@/lib/supabase/client';
+import { AdminNav } from './AdminNav';
 import { ActivityLogsPanel, MetricsPanel, UsersPanel } from './DashboardPanels';
 import { AccessoriesEditor } from './editors/AccessoriesEditor';
 import { BatteriesEditor } from './editors/BatteriesEditor';
@@ -15,21 +16,17 @@ import { PresetsEditor } from './editors/PresetsEditor';
 import { RulesEditor, type RulesJumpTarget } from './editors/RulesEditor';
 import { SolutionsEditor } from './editors/SolutionsEditor';
 import { SuppliersEditor } from './editors/SuppliersEditor';
+import { buildRuleGeneratedSolutions, getLogTarget, sanitizePathPart } from './helpers';
 import {
-  accessoryRuleDesiredFeatures,
-  accessoryRuleInverterModels,
-  buildRuleGeneratedSolutions,
-  clampNumber,
-  normalizeBatteryFlags,
-  normalizeEssBatteryConfigs,
-  normalizeInverterFlags,
-  normalizeInverterGridType,
-  normalizeInverterGridTypes,
-  phasesFromInverterGridTypes,
-  sanitizePathPart,
-  toNullableNumber,
-  toNumber,
-} from './helpers';
+  buildAccessoryPayload,
+  buildBatteryPayload,
+  buildEssRulePayload,
+  buildInverterPayload,
+  buildLoadCatalogPayload,
+  buildPresetPayload,
+  buildRulePayload,
+  buildSolutionPayload,
+} from './save-payloads';
 import { AdminLoadingSkeleton } from './shared-ui';
 import {
   emptyAccessory,
@@ -40,7 +37,6 @@ import {
   emptyPreset,
   emptyRule,
   emptySolution,
-  tabs,
   type AccessoryRow,
   type AccessoryRuleRow,
   type AdminLogAction,
@@ -278,35 +274,7 @@ export function AdminPanel() {
       entityType: 'inverter',
       label: 'inversor',
       beforeData: inverterForm.id ? inverters.find((row) => row.id === inverterForm.id) : null,
-      buildPayload: () => {
-        const gridTypes = normalizeInverterGridTypes(inverterForm.grid_types);
-        return {
-          model: inverterForm.model?.trim(),
-          nickname: inverterForm.nickname?.trim() || null,
-          power_kw: toNumber(inverterForm.power_kw),
-          standard_power_kva: toNumber(inverterForm.standard_power_kva),
-          peak_power_kva: toNumber(inverterForm.peak_power_kva),
-          phases: phasesFromInverterGridTypes(gridTypes, inverterForm.phases),
-          topology: inverterForm.topology,
-          grid_types: gridTypes,
-          max_battery_qty: toNumber(inverterForm.max_battery_qty, 1),
-          battery_ports: clampNumber(inverterForm.battery_ports, 1, 2, 1),
-          battery_voltage_min_v: toNullableNumber(inverterForm.battery_voltage_min_v),
-          battery_voltage_max_v: toNullableNumber(inverterForm.battery_voltage_max_v),
-          battery_current_max_a: toNullableNumber(inverterForm.battery_current_max_a),
-          max_power_per_phase_w: toNullableNumber(inverterForm.max_power_per_phase_w),
-          battery_charge_efficiency_percent: clampNumber(inverterForm.battery_charge_efficiency_percent, 1, 100, 97),
-          battery_discharge_efficiency_percent: clampNumber(inverterForm.battery_discharge_efficiency_percent, 1, 100, 97),
-          standby_consumption_w: Math.max(0, toNumber(inverterForm.standby_consumption_w)),
-          max_battery_charge_power_w: toNullableNumber(inverterForm.max_battery_charge_power_w),
-          max_battery_discharge_power_w: toNullableNumber(inverterForm.max_battery_discharge_power_w),
-          flags: normalizeInverterFlags(inverterForm.flags),
-          pv_oversizing_percent: inverterForm.pv_oversizing_percent === 50 ? 50 : 100,
-          warranty_years: Math.max(1, toNumber(inverterForm.warranty_years, 10)),
-          image_url: inverterForm.image_url?.trim() || null,
-          documents: inverterForm.documents ?? [],
-        };
-      },
+      buildPayload: () => buildInverterPayload(inverterForm),
       targetLabel: (payload) => payload.model || 'Inversor sem modelo',
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} o inversor ${payload.model || 'sem modelo'}.`,
       successMessage: 'Inversor salvo.',
@@ -323,37 +291,7 @@ export function AdminPanel() {
       entityType: 'battery',
       label: 'bateria',
       beforeData: batteryForm.id ? batteries.find((row) => row.id === batteryForm.id) : null,
-      buildPayload: () => ({
-        model: batteryForm.model?.trim(),
-        nickname: batteryForm.nickname?.trim() || null,
-        capacity_kwh: toNumber(batteryForm.capacity_kwh),
-        topology: batteryForm.topology,
-        standard_power_kw:
-          batteryForm.nominal_voltage_v != null && batteryForm.recommended_current_a != null
-            ? (batteryForm.nominal_voltage_v * batteryForm.recommended_current_a) / 1000
-            : null,
-        peak_power_kw:
-          batteryForm.nominal_voltage_v != null && batteryForm.max_current_a != null
-            ? (batteryForm.nominal_voltage_v * batteryForm.max_current_a) / 1000
-            : null,
-        min_soc_percent: batteryForm.min_soc_percent === 5 ? 5 : 10,
-        round_trip_efficiency_percent: clampNumber(batteryForm.round_trip_efficiency_percent, 1, 100, 95),
-        initial_soh_percent: clampNumber(batteryForm.initial_soh_percent, 1, 100, 100),
-        annual_soh_loss_percent: clampNumber(batteryForm.annual_soh_loss_percent, 0, 99, 2),
-        warranty_end_soh_percent: toNullableNumber(batteryForm.warranty_end_soh_percent),
-        nominal_voltage_v: toNullableNumber(batteryForm.nominal_voltage_v),
-        voltage_min_v: toNullableNumber(batteryForm.voltage_min_v),
-        voltage_max_v: toNullableNumber(batteryForm.voltage_max_v),
-        recommended_current_a: toNullableNumber(batteryForm.recommended_current_a),
-        max_current_a: toNullableNumber(batteryForm.max_current_a),
-        flags: normalizeBatteryFlags(batteryForm.flags),
-        max_association_qty: clampNumber(batteryForm.max_association_qty, 1, 15, 15),
-        expansion_model: batteryForm.expansion_model?.trim() || null,
-        warranty_years: Math.max(1, toNumber(batteryForm.warranty_years, 10)),
-        warranty_cycles: Math.max(1, toNumber(batteryForm.warranty_cycles, 6000)),
-        image_url: batteryForm.image_url?.trim() || null,
-        documents: batteryForm.documents ?? [],
-      }),
+      buildPayload: () => buildBatteryPayload(batteryForm),
       targetLabel: (payload) => payload.model || 'Bateria sem modelo',
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} a bateria ${payload.model || 'sem modelo'}.`,
       successMessage: 'Bateria salva.',
@@ -370,15 +308,7 @@ export function AdminPanel() {
       entityType: 'accessory',
       label: 'acessório',
       beforeData: accessoryForm.id ? accessories.find((row) => row.id === accessoryForm.id) : null,
-      buildPayload: () => ({
-        model: accessoryForm.model?.trim(),
-        nickname: accessoryForm.nickname?.trim() || null,
-        description: accessoryForm.description?.trim() || null,
-        active: accessoryForm.active ?? true,
-        warranty_years: Math.max(1, toNumber(accessoryForm.warranty_years, 2)),
-        image_url: accessoryForm.image_url?.trim() || null,
-        documents: accessoryForm.documents ?? [],
-      }),
+      buildPayload: () => buildAccessoryPayload(accessoryForm),
       targetLabel: (payload) => payload.model || 'Acessório sem modelo',
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} o acessório ${payload.model || 'sem modelo'}.`,
       successMessage: 'Acessório salvo.',
@@ -395,15 +325,7 @@ export function AdminPanel() {
       entityType: 'load_catalog_item',
       label: 'carga',
       beforeData: loadCatalogForm.id ? loadCatalogItems.find((row) => row.id === loadCatalogForm.id) : null,
-      buildPayload: () => ({
-        name_pt: loadCatalogForm.name_pt?.trim(),
-        name_en: loadCatalogForm.name_en?.trim() || loadCatalogForm.name_pt?.trim(),
-        name_zh: loadCatalogForm.name_zh?.trim() || loadCatalogForm.name_pt?.trim(),
-        power_w: toNumber(loadCatalogForm.power_w),
-        category: loadCatalogForm.category?.trim() || 'Outros',
-        ip_in_ratio: Math.max(1, toNumber(loadCatalogForm.ip_in_ratio, 1)),
-        active: loadCatalogForm.active ?? true,
-      }),
+      buildPayload: () => buildLoadCatalogPayload(loadCatalogForm),
       targetLabel: (payload) => payload.name_pt || 'Carga sem nome',
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} a carga ${payload.name_pt || 'sem nome'}.`,
       successMessage: 'Carga salva.',
@@ -420,12 +342,7 @@ export function AdminPanel() {
       entityType: 'load_preset',
       label: 'predefinição',
       beforeData: presetForm.id ? presets.find((row) => row.id === presetForm.id) : null,
-      buildPayload: () => ({
-        name: presetForm.name?.trim() || 'Predefinição sem nome',
-        description: presetForm.description?.trim() ?? '',
-        loads: presetForm.loads ?? [],
-        display_order: presetForm.display_order ?? presets.length,
-      }),
+      buildPayload: () => buildPresetPayload(presetForm, presets.length),
       targetLabel: (payload) => payload.name,
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} a predefinição ${payload.name}.`,
       successMessage: 'Predefinição salva.',
@@ -442,31 +359,7 @@ export function AdminPanel() {
       entityType: 'rule',
       label: 'regra',
       beforeData: ruleForm.id ? rules.find((row) => row.id === ruleForm.id) : null,
-      buildPayload: () => {
-        const inverterModels = accessoryRuleInverterModels(ruleForm);
-        return {
-          accessory_id: ruleForm.accessory_id,
-          name: ruleForm.name?.trim(),
-          // The optional/required choice was removed from the rule form — every
-          // accessory a rule applies is now always required (see migration 0056).
-          inclusion: 'required' as const,
-          trigger_metric: ruleForm.trigger_metric,
-          min_quantity: toNumber(ruleForm.min_quantity, 1),
-          inverter_model: inverterModels[0] ?? null,
-          inverter_models: inverterModels,
-          battery_model: ruleForm.battery_model || null,
-          grid_topology: ruleForm.grid_topology ? normalizeInverterGridType(ruleForm.grid_topology) : null,
-          battery_topology: ruleForm.battery_topology || null,
-          quantity_per_match: toNumber(ruleForm.quantity_per_match, 1),
-          scale_with_metric: ruleForm.scale_with_metric ?? false,
-          metric_divisor: Math.max(1, toNumber(ruleForm.metric_divisor, 1)),
-          comment: ruleForm.comment?.trim() || null,
-          desired_features: accessoryRuleDesiredFeatures(ruleForm),
-          excludes_accessory_models: ruleForm.excludes_accessory_models ?? [],
-          bundled: ruleForm.bundled ?? false,
-          active: ruleForm.active ?? true,
-        };
-      },
+      buildPayload: () => buildRulePayload(ruleForm),
       targetLabel: (payload) => payload.name || 'Regra sem nome',
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} a regra ${payload.name || 'sem nome'}.`,
       successMessage: 'Regra salva.',
@@ -483,23 +376,7 @@ export function AdminPanel() {
       entityType: 'rule',
       label: 'regra ESS',
       beforeData: essRuleForm.id ? essRules.find((row) => row.id === essRuleForm.id) : null,
-      buildPayload: () => {
-        const batteryConfigs = normalizeEssBatteryConfigs(essRuleForm, batteries);
-        const primaryBatteryConfig = batteryConfigs[0];
-        return {
-          name: essRuleForm.name?.trim() || null,
-          inverter_model: essRuleForm.inverter_model?.trim(),
-          battery_model: primaryBatteryConfig?.battery_model ?? null,
-          battery_topology: primaryBatteryConfig?.battery_topology ?? null,
-          grid_topology: null,
-          max_parallel_inverters: clampNumber(essRuleForm.max_parallel_inverters, 1, 10, 1),
-          min_battery_qty: primaryBatteryConfig?.min_battery_qty ?? 1,
-          max_battery_qty: primaryBatteryConfig?.max_battery_qty ?? 2,
-          battery_configs: batteryConfigs,
-          comment: essRuleForm.comment?.trim() || null,
-          active: essRuleForm.active ?? true,
-        };
-      },
+      buildPayload: () => buildEssRulePayload(essRuleForm, batteries),
       targetLabel: (payload) => `${payload.inverter_model || '-'} + ${payload.battery_model || '-'}`,
       summary: (payload, action) =>
         `${action === 'create' ? 'Criou' : 'Atualizou'} regra ESS para ${payload.inverter_model || '-'} com ${payload.battery_model || '-'}.`,
@@ -517,52 +394,7 @@ export function AdminPanel() {
       entityType: 'solution',
       label: 'combinação',
       beforeData: solutionForm.id ? solutions.find((row) => row.id === solutionForm.id) : null,
-      buildPayload: () => {
-        const accessoriesJson = solutionAccessories.filter((a) => a.model?.trim());
-        const commentsJson = solutionComments.filter((c) => c.trim());
-        const rawSolution = {
-          id: solutionForm.solution_code,
-          inverter: {
-            model: solutionForm.inverter_model,
-            quantity: toNumber(solutionForm.inverter_quantity, 1),
-            batteryPortsUsed: toNumber(solutionForm.battery_ports_used, 1),
-            nominalVoltageV: toNumber(solutionForm.nominal_voltage_v, 220),
-            ratedPowerW: toNumber(solutionForm.rated_power_w),
-            peakPowerW: toNumber(solutionForm.peak_power_w),
-            topology: solutionForm.grid_topology,
-          },
-          battery: {
-            model: solutionForm.battery_model,
-            quantity: toNumber(solutionForm.battery_quantity, 1),
-            powerW: toNumber(solutionForm.battery_power_w),
-            availableEnergyWh: toNumber(solutionForm.available_energy_wh),
-          },
-          accessories: accessoriesJson,
-          comments: commentsJson,
-        };
-
-        return {
-          source_file: solutionForm.source_file?.trim() || 'admin',
-          solution_code: solutionForm.solution_code?.trim(),
-          schema_version: solutionForm.schema_version || '1.0',
-          inverter_model: solutionForm.inverter_model?.trim(),
-          inverter_quantity: toNumber(solutionForm.inverter_quantity, 1),
-          battery_ports_used: toNumber(solutionForm.battery_ports_used, 1),
-          nominal_voltage_v: toNumber(solutionForm.nominal_voltage_v, 220),
-          rated_power_w: toNumber(solutionForm.rated_power_w),
-          peak_power_w: toNumber(solutionForm.peak_power_w),
-          grid_topology: solutionForm.grid_topology,
-          battery_model: solutionForm.battery_model?.trim(),
-          battery_topology: solutionForm.battery_topology,
-          battery_quantity: toNumber(solutionForm.battery_quantity, 1),
-          battery_power_w: toNumber(solutionForm.battery_power_w),
-          available_energy_wh: toNumber(solutionForm.available_energy_wh),
-          accessories: accessoriesJson,
-          comments: commentsJson,
-          raw_solution: rawSolution,
-          active: solutionForm.active ?? true,
-        };
-      },
+      buildPayload: () => buildSolutionPayload(solutionForm, solutionAccessories, solutionComments),
       targetLabel: (payload) => payload.solution_code || 'Combinação sem código',
       summary: (payload, action) => `${action === 'create' ? 'Criou' : 'Atualizou'} a combinação ${payload.solution_code || 'sem código'}.`,
       successMessage: 'Combinação salva.',
@@ -635,49 +467,21 @@ export function AdminPanel() {
     await loadResource('solutions');
   }
 
-  function getLogTarget(table: string, id: string) {
-    if (table === 'inverters') {
-      const row = inverters.find((item) => item.id === id);
-      return { entityType: 'inverter' as const, label: row?.model ?? 'Inversor removido', beforeData: row };
-    }
-    if (table === 'batteries') {
-      const row = batteries.find((item) => item.id === id);
-      return { entityType: 'battery' as const, label: row?.model ?? 'Bateria removida', beforeData: row };
-    }
-    if (table === 'accessories') {
-      const row = accessories.find((item) => item.id === id);
-      return { entityType: 'accessory' as const, label: row?.model ?? 'Acessório removido', beforeData: row };
-    }
-    if (table === 'load_catalog') {
-      const row = loadCatalogItems.find((item) => item.id === id);
-      return { entityType: 'load_catalog_item' as const, label: row?.name_pt ?? 'Carga removida', beforeData: row };
-    }
-    if (table === 'load_presets') {
-      const row = presets.find((item) => item.id === id);
-      return { entityType: 'load_preset' as const, label: row?.name ?? 'Predefinição removida', beforeData: row };
-    }
-    if (table === 'approved_solutions') {
-      const row = solutions.find((item) => item.id === id);
-      return { entityType: 'solution' as const, label: row?.solution_code ?? 'Combinação removida', beforeData: row };
-    }
-    if (table === 'ess_compatibility_rules') {
-      const row = essRules.find((item) => item.id === id);
-      return {
-        entityType: 'rule' as const,
-        label: row ? `${row.inverter_model} + ${row.battery_model}` : 'Regra ESS removida',
-        beforeData: row,
-      };
-    }
-    const row = rules.find((item) => item.id === id);
-    return { entityType: 'rule' as const, label: row?.name ?? 'Regra removida', beforeData: row };
-  }
-
   async function removeRow(table: string, id: string, soft = false) {
     setSaving(true);
     setRemovingIds((current) => new Set(current).add(id));
     setStatus(soft ? 'Inativando registro...' : 'Removendo registro...');
     setError(null);
-    const logTarget = getLogTarget(table, id);
+    const logTarget = getLogTarget(table, id, {
+      inverters,
+      batteries,
+      accessories,
+      loadCatalogItems,
+      presets,
+      solutions,
+      essRules,
+      rules,
+    });
     const request = soft
       ? supabase.from(table).update({ active: false }).eq('id', id)
       : supabase.from(table).delete().eq('id', id);
@@ -864,22 +668,7 @@ export function AdminPanel() {
         <div className="grid min-h-0 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
           <nav className="hidden min-h-0 gap-2 overflow-y-auto rounded-lg border bg-card p-2 lg:flex lg:flex-col">
             <div className="flex flex-1 flex-col gap-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <Button
-                    key={tab.key}
-                    type="button"
-                    aria-current={activeTab === tab.key ? 'page' : undefined}
-                    variant={activeTab === tab.key ? 'default' : 'ghost'}
-                    className="justify-start"
-                    onClick={() => selectTab(tab.key)}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </Button>
-                );
-              })}
+              <AdminNav activeTab={activeTab} onSelectTab={selectTab} />
             </div>
             <Separator />
             <Button variant="outline" className="justify-start" onClick={signOut}>
@@ -1081,22 +870,7 @@ export function AdminPanel() {
             </div>
 
             <nav className="mt-8 flex flex-col gap-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <Button
-                    key={tab.key}
-                    type="button"
-                    aria-current={activeTab === tab.key ? 'page' : undefined}
-                    variant={activeTab === tab.key ? 'default' : 'ghost'}
-                    className="justify-start"
-                    onClick={() => selectTab(tab.key)}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </Button>
-                );
-              })}
+              <AdminNav activeTab={activeTab} onSelectTab={selectTab} />
             </nav>
 
             <div className="mt-auto grid gap-2">

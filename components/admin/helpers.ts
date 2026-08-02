@@ -8,7 +8,9 @@ import {
   inverterFlagLabels,
   inverterGridTypeLabels,
   legacyInverterGridTypeMap,
+  type AccessoryRow,
   type AccessoryRuleRow,
+  type AdminLogEntity,
   type ApprovedGridTopology,
   type BatteryFlag,
   type BatteryRow,
@@ -19,6 +21,8 @@ import {
   type InverterFlag,
   type InverterGridType,
   type InverterRow,
+  type LoadCatalogRow,
+  type PresetRow,
   type SolutionRow,
   type TriggerMetric,
 } from './types';
@@ -554,4 +558,57 @@ export async function fetchApprovedSolutions(supabase: ReturnType<typeof createC
 
     if (page.length < pageSize) return { data: rows, error: null };
   }
+}
+
+/** Looks up the row being removed (for the activity log's beforeData/label)
+ * across whichever table `removeRow` was called for — a pure lookup over
+ * already-fetched catalogs, no I/O of its own. */
+export function getLogTarget(
+  table: string,
+  id: string,
+  catalogs: {
+    inverters: InverterRow[];
+    batteries: BatteryRow[];
+    accessories: AccessoryRow[];
+    loadCatalogItems: LoadCatalogRow[];
+    presets: PresetRow[];
+    solutions: SolutionRow[];
+    essRules: EssCompatibilityRuleRow[];
+    rules: AccessoryRuleRow[];
+  }
+): { entityType: AdminLogEntity; label: string; beforeData: unknown } {
+  if (table === 'inverters') {
+    const row = catalogs.inverters.find((item) => item.id === id);
+    return { entityType: 'inverter', label: row?.model ?? 'Inversor removido', beforeData: row };
+  }
+  if (table === 'batteries') {
+    const row = catalogs.batteries.find((item) => item.id === id);
+    return { entityType: 'battery', label: row?.model ?? 'Bateria removida', beforeData: row };
+  }
+  if (table === 'accessories') {
+    const row = catalogs.accessories.find((item) => item.id === id);
+    return { entityType: 'accessory', label: row?.model ?? 'Acessório removido', beforeData: row };
+  }
+  if (table === 'load_catalog') {
+    const row = catalogs.loadCatalogItems.find((item) => item.id === id);
+    return { entityType: 'load_catalog_item', label: row?.name_pt ?? 'Carga removida', beforeData: row };
+  }
+  if (table === 'load_presets') {
+    const row = catalogs.presets.find((item) => item.id === id);
+    return { entityType: 'load_preset', label: row?.name ?? 'Predefinição removida', beforeData: row };
+  }
+  if (table === 'approved_solutions') {
+    const row = catalogs.solutions.find((item) => item.id === id);
+    return { entityType: 'solution', label: row?.solution_code ?? 'Combinação removida', beforeData: row };
+  }
+  if (table === 'ess_compatibility_rules') {
+    const row = catalogs.essRules.find((item) => item.id === id);
+    return {
+      entityType: 'rule',
+      label: row ? `${row.inverter_model} + ${row.battery_model}` : 'Regra ESS removida',
+      beforeData: row,
+    };
+  }
+  const row = catalogs.rules.find((item) => item.id === id);
+  return { entityType: 'rule', label: row?.name ?? 'Regra removida', beforeData: row };
 }
