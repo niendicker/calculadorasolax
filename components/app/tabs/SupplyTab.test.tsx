@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupplierOfferView } from '@/lib/procurement/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
@@ -647,6 +647,28 @@ describe('SupplyTab: existing orders and cancellation', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Pedido cancelado.'));
   });
 
+  it('auto-dismisses the success message after a few seconds', async () => {
+    setupSupabase({ orders: [makeOrder({ id: 'ord-1', status: 'requested' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    const trigger = await screen.findByRole('button', { name: 'Cancelar pedido de Fornecedor A' });
+    fireEvent.click(trigger);
+    const confirmButton = await screen.findByRole('button', { name: 'Cancelar pedido' }, { timeout: 1000 });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(confirmButton);
+      await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Pedido cancelado.'));
+
+      act(() => {
+        vi.advanceTimersByTime(3500);
+      });
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows the error message returned by cancel_purchase_order', async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: null, error: { message: 'Falha ao cancelar' } });
@@ -755,6 +777,51 @@ describe('SupplyTab: submitting an order to the partner API', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Produto ainda não sincronizado.'));
+  });
+
+  it('re-enables submission after a network failure instead of leaving the button stuck', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    fireEvent.change(screen.getByPlaceholderText('CEP'), { target: { value: '01310930' } });
+    fireEvent.change(screen.getByPlaceholderText('Endereço'), { target: { value: 'Av. Paulista' } });
+    fireEvent.change(screen.getByPlaceholderText('Número'), { target: { value: '1000' } });
+    fireEvent.change(screen.getByPlaceholderText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByPlaceholderText('UF'), { target: { value: 'SP' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Erro ao enviar pedido ao fornecedor. Verifique sua conexão e tente novamente.'
+      )
+    );
+    expect(screen.getByRole('button', { name: 'Confirmar envio' })).not.toBeDisabled();
+  });
+
+  it('falls back to a generic message when the submit endpoint returns no error field', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, json: () => Promise.resolve({}) });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+    fireEvent.change(screen.getByPlaceholderText('CEP'), { target: { value: '01310930' } });
+    fireEvent.change(screen.getByPlaceholderText('Endereço'), { target: { value: 'Av. Paulista' } });
+    fireEvent.change(screen.getByPlaceholderText('Número'), { target: { value: '1000' } });
+    fireEvent.change(screen.getByPlaceholderText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByPlaceholderText('UF'), { target: { value: 'SP' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar envio' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Erro ao enviar pedido ao fornecedor.')
+    );
   });
 
   it('closes the delivery form when "Cancelar" is clicked', async () => {

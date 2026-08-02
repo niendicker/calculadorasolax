@@ -43,6 +43,12 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     setStatus(null);
   }
 
+  useEffect(() => {
+    if (!status) return;
+    const timer = setTimeout(() => setStatus(null), 3500);
+    return () => clearTimeout(timer);
+  }, [status]);
+
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id ?? null;
@@ -207,20 +213,25 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     if (missing) return setFailure('Preencha o endereço de entrega completo.');
     setSubmittingPartner(true);
     setError(null);
-    const response = await fetch(`/api/purchase-orders/${orderId}/submit-to-partner`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(deliveryForm),
-    });
-    const result = await response.json();
-    if (response.ok) {
-      setSuccess(`Pedido enviado ao fornecedor. Nº ${result.saleNumber}.`);
-      setPartnerOrderId(null);
-      await load();
-    } else {
-      setFailure(result.error);
+    try {
+      const response = await fetch(`/api/purchase-orders/${orderId}/submit-to-partner`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(deliveryForm),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        setSuccess(`Pedido enviado ao fornecedor. Nº ${result.saleNumber}.`);
+        setPartnerOrderId(null);
+        await load();
+      } else {
+        setFailure(result.error ?? 'Erro ao enviar pedido ao fornecedor.');
+      }
+    } catch {
+      setFailure('Erro ao enviar pedido ao fornecedor. Verifique sua conexão e tente novamente.');
+    } finally {
+      setSubmittingPartner(false);
     }
-    setSubmittingPartner(false);
   }
 
   return (
