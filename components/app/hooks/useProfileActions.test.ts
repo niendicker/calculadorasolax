@@ -2,6 +2,7 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import type { InlineProfile } from '../types';
 import { useProfileActions } from './useProfileActions';
 
@@ -12,7 +13,7 @@ const fakeProfile: InlineProfile = {
   phone: '',
   role: 'user',
   companyName: '',
-  companyAddress: '',
+  companyAddress: emptyAddress(),
   companyLogoUrl: '',
 };
 

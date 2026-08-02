@@ -41,6 +41,7 @@ import type {
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
+import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import {
   batteryQuantityBreakdown,
@@ -568,8 +569,8 @@ export function PrintableReport({
             <p className="text-sm font-semibold text-primary">
               {profile?.companyName || 'SolaX Power Brasil'}
             </p>
-            {profile?.companyAddress && (
-              <p className="mt-1 max-w-md text-xs text-muted-foreground">{profile.companyAddress}</p>
+            {profile?.companyAddress && !isAddressEmpty(profile.companyAddress) && (
+              <p className="mt-1 max-w-md text-xs text-muted-foreground">{formatAddress(profile.companyAddress)}</p>
             )}
             <h1 className="mt-2 text-2xl font-bold text-foreground">Relatório de dimensionamento</h1>
             <p className="mt-1 text-sm text-muted-foreground">Gerado em {generatedAt}</p>
@@ -603,7 +604,7 @@ export function PrintableReport({
           <ReportInfoRow icon={Mail} label="Email" value={client?.email || '-'} />
           <ReportInfoRow icon={Phone} label="Telefone" value={client?.phone || '-'} />
           <ReportInfoRow icon={IdCard} label="CPF/CNPJ" value={client?.document || '-'} />
-          <ReportInfoRow icon={MapPin} label="Endereço" value={projectInfo.address || '-'} />
+          <ReportInfoRow icon={MapPin} label="Endereço" value={formatAddress(projectInfo.address) || '-'} />
           {projectInfo.notes && <ReportInfoRow label="Observações" value={projectInfo.notes} />}
         </div>
       </section>

@@ -2,11 +2,12 @@
 
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import type { Client, ProjectInfo, Solution, UserStockItem } from '@/lib/types';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from './types';
 import { PrintableReport } from './PrintableReport';
 
-const projectInfo: ProjectInfo = { name: 'Casa de praia', clientId: 'c1', address: 'Rua X, 1', notes: '' };
+const projectInfo: ProjectInfo = { name: 'Casa de praia', clientId: 'c1', address: { ...emptyAddress(), street: 'Rua X, 1' }, notes: '' };
 
 const client: Client = {
   id: 'c1',
@@ -73,7 +74,7 @@ describe('PrintableReport: header', () => {
             phone: '',
             role: 'user',
             companyName: 'Integradora XPTO',
-            companyAddress: 'Av. Principal, 100',
+            companyAddress: { ...emptyAddress(), street: 'Av. Principal, 100' },
             companyLogoUrl: 'https://cdn.example.com/logo.png',
           },
         })}
@@ -91,7 +92,7 @@ describe('PrintableReport: project and client info', () => {
     expect(screen.getByText('Casa de praia')).toBeInTheDocument();
     expect(screen.getByText('Fulano')).toBeInTheDocument();
 
-    rerender(<PrintableReport {...baseProps({ client: null, projectInfo: { ...projectInfo, name: '', address: '' } })} />);
+    rerender(<PrintableReport {...baseProps({ client: null, projectInfo: { ...projectInfo, name: '', address: emptyAddress() } })} />);
     expect(screen.getAllByText('-').length).toBeGreaterThan(0);
   });
 

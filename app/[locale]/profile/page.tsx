@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { ProfilePanel } from '@/components/auth/ProfilePanel';
+import { addressFromJson } from '@/lib/address';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
@@ -41,7 +42,7 @@ export default async function ProfilePage({
         phone: profile?.phone ?? user.user_metadata?.phone ?? '',
         role: profile?.role ?? 'user',
         company_name: profile?.company_name ?? '',
-        company_address: profile?.company_address ?? '',
+        company_address: addressFromJson(profile?.company_address),
         company_logo_url: profile?.company_logo_url ?? '',
       }}
     />

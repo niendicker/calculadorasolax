@@ -7,6 +7,7 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Client, ProjectInfo, ProjectServiceLine, UserServiceItem } from '@/lib/types';
+import { AddressFields } from '../../address-fields';
 import { formatCurrencyBRL } from '../../helpers';
 
 function ProjectField({
@@ -104,14 +105,16 @@ export function ProjectDraftCard({
             </Button>
           </div>
         </div>
-        <ProjectField label="Endereço" id="clientAddress">
-          <Input
-            id="clientAddress"
-            value={projectInfo.address}
-            onChange={(event) => setProjectInfo({ address: event.target.value })}
-            placeholder="Endereço da instalação"
-          />
-        </ProjectField>
+        <div className="md:col-span-2">
+          <Label>Endereço da instalação</Label>
+          <div className="mt-1.5">
+            <AddressFields
+              address={projectInfo.address}
+              onChange={(partial) => setProjectInfo({ address: { ...projectInfo.address, ...partial } })}
+              idPrefix="projectAddress"
+            />
+          </div>
+        </div>
         <div className="md:col-span-2">
           <ProjectField label="Observações" id="projectNotes">
             <textarea

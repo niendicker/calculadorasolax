@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { useRouter } from 'next/navigation';
+import { isAddressEmpty } from '@/lib/address';
 import type { createClient } from '@/lib/supabase/client';
 import type { InlineProfile } from '../types';
 
@@ -62,7 +63,7 @@ export function useProfileActions({
       phone: profile.phone.trim(),
       role: profile.role,
       company_name: profile.companyName.trim(),
-      company_address: profile.companyAddress.trim(),
+      company_address: isAddressEmpty(profile.companyAddress) ? null : profile.companyAddress,
       company_logo_url: profile.companyLogoUrl.trim(),
       updated_at: new Date().toISOString(),
     });

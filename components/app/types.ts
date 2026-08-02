@@ -1,4 +1,4 @@
-import type { BatteryTopology, InverterFlag, ProductDocument, ResidentialGridType } from '@/lib/types';
+import type { Address, BatteryTopology, InverterFlag, ProductDocument, ResidentialGridType } from '@/lib/types';
 
 export interface InlineProfile {
   id: string;
@@ -7,7 +7,7 @@ export interface InlineProfile {
   phone: string;
   role: 'user' | 'admin';
   companyName: string;
-  companyAddress: string;
+  companyAddress: Address;
   companyLogoUrl: string;
 }
 

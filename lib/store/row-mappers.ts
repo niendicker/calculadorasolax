@@ -3,6 +3,7 @@
 // their own table (clients, projects, user_load_catalog, etc.) but none of
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
+import { addressFromJson } from '@/lib/address';
 import type {
   Client,
   ProjectServiceLine,
@@ -66,7 +67,7 @@ export function projectFromRow(row: Record<string, unknown>): SavedProject {
     id: row.id as string,
     name: (row.name as string) ?? '',
     clientId: (row.client_id as string | null) ?? null,
-    address: (row.address as string | null) ?? '',
+    address: addressFromJson(row.address),
     notes: (row.notes as string | null) ?? '',
     updatedAt: row.updated_at as string,
     residentialOptions: row.residential_options as ResidentialOptions,

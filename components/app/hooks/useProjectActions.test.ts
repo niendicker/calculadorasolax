@@ -2,6 +2,7 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import type { SavedProject } from '@/lib/types';
 import { useProjectActions } from './useProjectActions';
 
@@ -9,7 +10,7 @@ const fakeProject: SavedProject = {
   id: 'p1',
   name: 'Casa de praia',
   clientId: null,
-  address: '',
+  address: emptyAddress(),
   notes: '',
   updatedAt: '2026-01-01T00:00:00.000Z',
   residentialOptions: {
@@ -44,7 +45,7 @@ function setup(overrides: Partial<Parameters<typeof useProjectActions>[0]> = {})
       phone: '',
       role: 'user' as const,
       companyName: '',
-      companyAddress: '',
+      companyAddress: emptyAddress(),
       companyLogoUrl: '',
     },
     router,

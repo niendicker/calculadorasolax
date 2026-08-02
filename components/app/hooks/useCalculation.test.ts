@@ -2,6 +2,7 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import { getCalculationErrorMessage, getNetworkErrorMessage } from '@/lib/calculation-error-messages';
 import type { ProjectInfo, ResidentialOptions, Solution, SingleLoad } from '@/lib/types';
 import { useCalculation } from './useCalculation';
@@ -34,7 +35,7 @@ const incompleteResidentialOptions: ResidentialOptions = {
   batteryModel: null,
 };
 
-const projectInfo: ProjectInfo = { name: 'Projeto teste', clientId: null, address: '', notes: '' };
+const projectInfo: ProjectInfo = { name: 'Projeto teste', clientId: null, address: emptyAddress(), notes: '' };
 
 const fakeSolution: Solution = {
   inverterId: 'inv-1',

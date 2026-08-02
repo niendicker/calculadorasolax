@@ -3,13 +3,14 @@
 // wizard state back to blank (newProjectDraft, cancelProjectDraft's no-project
 // branch, removeProject's "was current" branch).
 
+import { emptyAddress } from '@/lib/address';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import type { DesiredFeatureId, IndustrialOptions, ProjectInfo, ResidentialOptions } from '@/lib/types';
 
 export const defaultProjectInfo: ProjectInfo = {
   name: '',
   clientId: null,
-  address: '',
+  address: emptyAddress(),
   notes: '',
 };
 

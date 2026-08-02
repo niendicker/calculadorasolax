@@ -4,6 +4,7 @@
 // (partialize/merge) below; every other test in this file works the same either way.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
@@ -26,7 +27,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
   return {
     name: 'Projeto salvo',
     clientId: null,
-    address: 'Rua salva, 1',
+    address: { ...emptyAddress(), street: 'Rua salva, 1' },
     notes: 'Notas salvas',
     updatedAt: '2026-01-01T00:00:00.000Z',
     residentialOptions: {
@@ -255,7 +256,7 @@ describe('cancelProjectDraft', () => {
     useWizardStore.getState().cancelProjectDraft();
 
     const s = useWizardStore.getState();
-    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: '', notes: '' });
+    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: emptyAddress(), notes: '' });
     expect(s.currentProjectId).toBeNull();
     expect(s.projectDetailsVisible).toBe(false);
     expect(s.residentialOptions.loads).toHaveLength(0);
@@ -263,12 +264,12 @@ describe('cancelProjectDraft', () => {
   });
 
   it('reverts unsaved edits on an existing project back to its last saved values', () => {
-    const saved = makeSavedProject({ id: 'p1', name: 'Nome salvo', address: 'Endereço salvo' });
+    const saved = makeSavedProject({ id: 'p1', name: 'Nome salvo', address: { ...emptyAddress(), street: 'Endereço salvo' } });
     useWizardStore.setState({
       savedProjects: [saved],
       currentProjectId: 'p1',
       projectDetailsVisible: true,
-      projectInfo: { name: 'Edição não salva', clientId: null, address: 'Endereço editado', notes: '' },
+      projectInfo: { name: 'Edição não salva', clientId: null, address: { ...emptyAddress(), street: 'Endereço editado' }, notes: '' },
       residentialOptions: { ...saved.residentialOptions, batteryModel: 'outro-modelo-editado' },
     });
 
@@ -280,7 +281,7 @@ describe('cancelProjectDraft', () => {
     expect(s.projectInfo).toEqual({
       name: 'Nome salvo',
       clientId: null,
-      address: 'Endereço salvo',
+      address: { ...emptyAddress(), street: 'Endereço salvo' },
       notes: 'Notas salvas',
     });
     expect(s.residentialOptions.batteryModel).toBe('T-BAT-SYS-HV-5.8');
@@ -292,7 +293,7 @@ describe('cancelProjectDraft', () => {
       savedProjects: [],
       currentProjectId: 'ghost-id',
       projectDetailsVisible: true,
-      projectInfo: { name: 'Editando algo removido', clientId: null, address: '', notes: '' },
+      projectInfo: { name: 'Editando algo removido', clientId: null, address: emptyAddress(), notes: '' },
     });
 
     useWizardStore.getState().cancelProjectDraft();
@@ -300,7 +301,7 @@ describe('cancelProjectDraft', () => {
     const s = useWizardStore.getState();
     expect(s.currentProjectId).toBeNull();
     expect(s.projectDetailsVisible).toBe(false);
-    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: '', notes: '' });
+    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: emptyAddress(), notes: '' });
   });
 });
 
@@ -309,12 +310,12 @@ describe('setProjectInfo', () => {
 
   it('shallow-merges a partial into the existing projectInfo', () => {
     useWizardStore.getState().setProjectInfo({ name: 'Residência Silva' });
-    useWizardStore.getState().setProjectInfo({ address: 'Rua das Flores, 10' });
+    useWizardStore.getState().setProjectInfo({ address: { ...emptyAddress(), street: 'Rua das Flores, 10' } });
 
     expect(useWizardStore.getState().projectInfo).toEqual({
       name: 'Residência Silva',
       clientId: null,
-      address: 'Rua das Flores, 10',
+      address: { ...emptyAddress(), street: 'Rua das Flores, 10' },
       notes: '',
     });
   });
@@ -328,7 +329,7 @@ describe('newProjectDraft', () => {
     useWizardStore.setState({
       savedProjects: [saved],
       currentProjectId: 'p1',
-      projectInfo: { name: 'Projeto carregado', clientId: null, address: '', notes: '' },
+      projectInfo: { name: 'Projeto carregado', clientId: null, address: emptyAddress(), notes: '' },
       residentialOptions: saved.residentialOptions,
       solution: null,
       projectDetailsVisible: false,
@@ -339,7 +340,7 @@ describe('newProjectDraft', () => {
     const s = useWizardStore.getState();
     expect(s.currentProjectId).toBeNull();
     expect(s.projectDetailsVisible).toBe(true);
-    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: '', notes: '' });
+    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: emptyAddress(), notes: '' });
     expect(s.residentialOptions.loads).toHaveLength(0);
     // Saved projects list itself is untouched, only the active draft resets.
     expect(s.savedProjects).toEqual([saved]);
@@ -895,7 +896,7 @@ describe('removeProject', () => {
     const s = useWizardStore.getState();
     expect(s.currentProjectId).toBeNull();
     expect(s.projectDetailsVisible).toBe(false);
-    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: '', notes: '' });
+    expect(s.projectInfo).toEqual({ name: '', clientId: null, address: emptyAddress(), notes: '' });
   });
 
   it('leaves the active draft alone when a different project is removed', async () => {
@@ -1064,7 +1065,7 @@ describe('fetchProjects', () => {
         id: 'row-p1',
         name: 'Projeto do banco',
         clientId: null,
-        address: 'Endereço do banco',
+        address: { ...emptyAddress(), street: 'Endereço do banco' },
         notes: 'Notas do banco',
         updatedAt: '2026-02-01T00:00:00.000Z',
         residentialOptions: projectRow.residential_options,

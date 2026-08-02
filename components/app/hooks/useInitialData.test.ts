@@ -2,6 +2,7 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { useInitialData } from './useInitialData';
 
@@ -154,7 +155,7 @@ describe('useInitialData: logged-in user', () => {
       phone: '',
       role: 'admin',
       companyName: '',
-      companyAddress: '',
+      companyAddress: emptyAddress(),
       companyLogoUrl: '',
     });
     expect(props.fetchClients).toHaveBeenCalled();

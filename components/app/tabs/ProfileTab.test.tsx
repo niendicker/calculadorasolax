@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import type { InlineProfile } from '../types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import { ProfileTab } from './ProfileTab';
@@ -14,7 +15,7 @@ const baseProfile: InlineProfile = {
   phone: '11999999999',
   role: 'user',
   companyName: '',
-  companyAddress: '',
+  companyAddress: emptyAddress(),
   companyLogoUrl: '',
 };
 
@@ -99,8 +100,10 @@ describe('ProfileTab: fields', () => {
     fireEvent.change(screen.getByLabelText('Nome da empresa'), { target: { value: 'Solax Ltda' } });
     expect(screen.getByLabelText('Nome da empresa')).toHaveValue('Solax Ltda');
 
-    fireEvent.change(screen.getByLabelText('Endereço da empresa'), { target: { value: 'Rua X, 123' } });
-    expect(screen.getByLabelText('Endereço da empresa')).toHaveValue('Rua X, 123');
+    fireEvent.change(screen.getByLabelText('Endereço'), { target: { value: 'Rua X' } });
+    expect(screen.getByLabelText('Endereço')).toHaveValue('Rua X');
+    fireEvent.change(screen.getByLabelText('Número'), { target: { value: '123' } });
+    expect(screen.getByLabelText('Número')).toHaveValue('123');
 
     expect(screen.queryByAltText('Logomarca da empresa')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Logomarca'), { target: { value: 'https://cdn.example.com/logo.png' } });

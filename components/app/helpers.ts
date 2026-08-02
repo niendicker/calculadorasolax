@@ -1,4 +1,5 @@
 import type {
+  Address,
   AccessoryLine,
   BatteryTopology,
   DesiredFeatureId,
@@ -14,6 +15,7 @@ import type {
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
+import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
 import { gridLabels, topologyLabels } from './types';
 
@@ -470,7 +472,7 @@ export function buildPdfFileName(projectName: string, date: Date = new Date()): 
 export function buildProjectShareText(
   project: {
     name: string;
-    address?: string;
+    address?: Address;
     topology: BatteryTopology | null;
     gridType: ResidentialGridType | null;
     loadsCount: number;
@@ -485,7 +487,7 @@ export function buildProjectShareText(
 
   const lines: string[] = [`*Projeto: ${project.name || 'Sem nome'}*`];
   if (clientName) lines.push(`Cliente: ${clientName}`);
-  if (project.address) lines.push(`Endereço: ${project.address}`);
+  if (project.address && !isAddressEmpty(project.address)) lines.push(`Endereço: ${formatAddress(project.address)}`);
 
   lines.push('', '*Configuração:*');
   if (topology) lines.push(`- Topologia: ${topologyLabels[topology]}`);

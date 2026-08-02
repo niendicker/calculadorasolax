@@ -1,3 +1,4 @@
+import { emptyAddress } from '@/lib/address';
 import { useWizardStore } from '@/lib/store/wizard-store';
 
 /** Resets the wizard store to its factory-default state — for tests that
@@ -5,7 +6,7 @@ import { useWizardStore } from '@/lib/store/wizard-store';
  *  cases, since Zustand state otherwise persists across tests in the same file. */
 export function resetWizardStore() {
   useWizardStore.setState({
-    projectInfo: { name: '', clientId: null, address: '', notes: '' },
+    projectInfo: { name: '', clientId: null, address: emptyAddress(), notes: '' },
     currentProjectId: null,
     projectDetailsVisible: false,
     savedProjects: [],

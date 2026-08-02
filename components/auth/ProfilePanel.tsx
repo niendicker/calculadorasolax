@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
+import type { Address } from '@/lib/types';
+import { AddressFields } from '@/components/app/address-fields';
 
 interface Profile {
   id: string;
@@ -16,7 +19,7 @@ interface Profile {
   phone: string;
   role: 'user' | 'admin';
   company_name: string;
-  company_address: string;
+  company_address: Address;
   company_logo_url: string;
 }
 
@@ -46,7 +49,7 @@ export function ProfilePanel({
       full_name: profile.full_name.trim(),
       phone: profile.phone.trim(),
       company_name: profile.company_name.trim(),
-      company_address: profile.company_address.trim(),
+      company_address: isAddressEmpty(profile.company_address) ? null : profile.company_address,
       company_logo_url: profile.company_logo_url.trim(),
       updated_at: new Date().toISOString(),
     });
@@ -126,11 +129,11 @@ export function ProfilePanel({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="profileCompanyAddress">Endereço da empresa</Label>
-                <Input
-                  id="profileCompanyAddress"
-                  value={profile.company_address}
-                  onChange={(event) => setProfile({ ...profile, company_address: event.target.value })}
+                <Label>Endereço da empresa</Label>
+                <AddressFields
+                  address={profile.company_address}
+                  onChange={(partial) => setProfile({ ...profile, company_address: { ...profile.company_address, ...partial } })}
+                  idPrefix="profileCompanyAddress"
                 />
               </div>
               <div className="space-y-1.5">

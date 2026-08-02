@@ -321,10 +321,24 @@ export interface ResidentialOptions {
   maxPowerPerPhaseW: number | null;
 }
 
+/** A structured Brazilian address, filled via CEP lookup (ViaCEP) plus the
+ *  number/complement the lookup can't know — used for the project's
+ *  installation address and the company address on the profile, both
+ *  formerly a single free-text field. */
+export interface Address {
+  postalCode: string;
+  street: string;
+  number: string;
+  complement: string;
+  district: string;
+  city: string;
+  state: string;
+}
+
 export interface ProjectInfo {
   name: string;
   clientId: string | null;
-  address: string;
+  address: Address;
   notes: string;
 }
 
@@ -399,7 +413,7 @@ export interface SavedProject {
   id: string;
   name: string;
   clientId: string | null;
-  address: string;
+  address: Address;
   notes: string;
   updatedAt: string;
   residentialOptions: ResidentialOptions;

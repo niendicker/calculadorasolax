@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { isAddressEmpty } from '@/lib/address';
 import type {
   BatteryTopology,
   ResidentialGridType,
@@ -166,13 +167,13 @@ export function ProjectTab({
   const isDraftDirty = editingProject
     ? projectInfo.name !== editingProject.name ||
       projectInfo.clientId !== editingProject.clientId ||
-      projectInfo.address !== editingProject.address ||
+      JSON.stringify(projectInfo.address) !== JSON.stringify(editingProject.address) ||
       projectInfo.notes !== editingProject.notes ||
       JSON.stringify(services) !== JSON.stringify(editingProject.services ?? [])
     : Boolean(
         projectInfo.name.trim() ||
           projectInfo.clientId ||
-          projectInfo.address.trim() ||
+          !isAddressEmpty(projectInfo.address) ||
           projectInfo.notes.trim() ||
           services.length > 0
       );

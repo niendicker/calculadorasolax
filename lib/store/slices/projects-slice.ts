@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import { isAddressEmpty } from '@/lib/address';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
@@ -115,7 +116,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       user_id: userData.user.id,
       client_id: s.projectInfo.clientId,
       name,
-      address: s.projectInfo.address.trim() || null,
+      address: isAddressEmpty(s.projectInfo.address) ? null : s.projectInfo.address,
       notes: s.projectInfo.notes.trim() || null,
       residential_options: s.residentialOptions,
       solution: s.solution,
@@ -212,7 +213,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       user_id: userData.user.id,
       client_id: source.clientId,
       name: `${source.name} (cópia)`,
-      address: source.address || null,
+      address: isAddressEmpty(source.address) ? null : source.address,
       notes: source.notes || null,
       residential_options: source.residentialOptions,
       solution: source.solution,

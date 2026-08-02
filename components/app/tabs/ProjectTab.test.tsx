@@ -2,6 +2,7 @@
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import type { Client, ProjectInfo, SavedProject } from '@/lib/types';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
@@ -12,7 +13,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
   return {
     name: 'Projeto salvo',
     clientId: null,
-    address: '',
+    address: emptyAddress(),
     notes: '',
     updatedAt: '2026-01-01T00:00:00.000Z',
     residentialOptions: {
@@ -39,7 +40,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
   };
 }
 
-const emptyProjectInfo: ProjectInfo = { name: '', clientId: null, address: '', notes: '' };
+const emptyProjectInfo: ProjectInfo = { name: '', clientId: null, address: emptyAddress(), notes: '' };
 
 beforeEach(() => {
   resetWizardStore();
@@ -452,7 +453,10 @@ describe('ProjectTab: new project draft', () => {
     expect(useWizardStore.getState().projectInfo.clientId).toBe('c1');
 
     fireEvent.change(screen.getByLabelText('Endereço'), { target: { value: 'Rua das Flores, 10' } });
-    expect(useWizardStore.getState().projectInfo.address).toBe('Rua das Flores, 10');
+    expect(useWizardStore.getState().projectInfo.address.street).toBe('Rua das Flores, 10');
+
+    fireEvent.change(screen.getByLabelText('Número'), { target: { value: '10' } });
+    expect(useWizardStore.getState().projectInfo.address).toMatchObject({ street: 'Rua das Flores, 10', number: '10' });
 
     fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'Instalação em telhado inclinado.' } });
     expect(useWizardStore.getState().projectInfo.notes).toBe('Instalação em telhado inclinado.');
@@ -465,7 +469,7 @@ describe('ProjectTab: new project draft', () => {
     const { props } = setup({
       projectDetailsVisible: true,
       currentProjectId: null,
-      projectInfo: { name: 'Residência Silva', clientId: null, address: '', notes: '' },
+      projectInfo: { name: 'Residência Silva', clientId: null, address: emptyAddress(), notes: '' },
     });
     fireEvent.click(screen.getByRole('button', { name: /Salvar projeto/ }));
     expect(props.onSave).toHaveBeenCalled();
@@ -526,7 +530,7 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' }), makeProject({ id: 'p2', name: 'Escritório' })],
       currentProjectId: 'p1',
       projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: '', notes: '' },
+      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
     });
 
     // The card for p1 became the editable form (its name only shows as an input value)...
@@ -543,7 +547,7 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
       currentProjectId: 'p1',
       projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: '', notes: '' },
+      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
@@ -555,7 +559,7 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
       currentProjectId: 'p1',
       projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia editada', clientId: null, address: '', notes: '' },
+      projectInfo: { name: 'Casa de praia editada', clientId: null, address: emptyAddress(), notes: '' },
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Descartar alterações do projeto' }));

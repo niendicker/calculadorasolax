@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { addressFromJson } from '@/lib/address';
 import type { createClient } from '@/lib/supabase/client';
 import { flushPendingSimulations } from '@/lib/metrics-queue';
 import type { CatalogItem, LoadPresetItem, ProductDocument } from '@/lib/types';
@@ -97,7 +98,7 @@ export function useInitialData({
           phone: profileData?.phone ?? userData.user.user_metadata?.phone ?? '',
           role: profileData?.role === 'admin' ? 'admin' : 'user',
           companyName: profileData?.company_name ?? '',
-          companyAddress: profileData?.company_address ?? '',
+          companyAddress: addressFromJson(profileData?.company_address),
           companyLogoUrl: profileData?.company_logo_url ?? '',
         });
 

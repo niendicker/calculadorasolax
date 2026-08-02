@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { BatteryCharging, Calculator, ChevronRight, ClipboardCopy, Gauge, Mail, MapPin, Phone, Users, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { formatAddress, isAddressEmpty } from '@/lib/address';
 import type { Client, MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
@@ -131,10 +132,10 @@ export function SelectedProjectSummary({
         </Button>
       </div>
 
-      {project.address && (
+      {!isAddressEmpty(project.address) && (
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <MapPin className="h-3 w-3 shrink-0" />
-          <span className="truncate">{project.address}</span>
+          <span className="truncate">{formatAddress(project.address)}</span>
         </p>
       )}
 

@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { ProfilePanel } from './ProfilePanel';
 
@@ -19,7 +20,7 @@ const initialProfile = {
   phone: '11999999999',
   role: 'user' as const,
   company_name: '',
-  company_address: '',
+  company_address: emptyAddress(),
   company_logo_url: '',
 };
 
@@ -73,12 +74,14 @@ describe('ProfilePanel', () => {
 
     fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '11888888888' } });
     fireEvent.change(screen.getByLabelText('Nome da empresa'), { target: { value: 'Minha Empresa' } });
-    fireEvent.change(screen.getByLabelText('Endereço da empresa'), { target: { value: 'Rua 1, 100' } });
+    fireEvent.change(screen.getByLabelText('Endereço'), { target: { value: 'Rua 1' } });
+    fireEvent.change(screen.getByLabelText('Número'), { target: { value: '100' } });
     fireEvent.change(screen.getByLabelText('URL da logomarca'), { target: { value: 'https://x.com/logo.png' } });
 
     expect(screen.getByLabelText('Telefone')).toHaveValue('11888888888');
     expect(screen.getByLabelText('Nome da empresa')).toHaveValue('Minha Empresa');
-    expect(screen.getByLabelText('Endereço da empresa')).toHaveValue('Rua 1, 100');
+    expect(screen.getByLabelText('Endereço')).toHaveValue('Rua 1');
+    expect(screen.getByLabelText('Número')).toHaveValue('100');
     expect(screen.getByLabelText('URL da logomarca')).toHaveValue('https://x.com/logo.png');
   });
 

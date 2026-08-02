@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import {
   clientFromRow,
   projectFromRow,
@@ -134,7 +135,7 @@ describe('userStockItemFromRow', () => {
 });
 
 describe('projectFromRow', () => {
-  it('maps every field from a full row', () => {
+  it('maps every field from a full row, treating a legacy plain-text address as a bare street line', () => {
     expect(
       projectFromRow({
         id: 'pr1',
@@ -151,7 +152,7 @@ describe('projectFromRow', () => {
       id: 'pr1',
       name: 'Projeto',
       clientId: 'c1',
-      address: 'Rua 1',
+      address: { ...emptyAddress(), street: 'Rua 1' },
       notes: 'nota',
       updatedAt: '2026-01-01',
       residentialOptions: { topology: 'HighVoltage' },
@@ -160,10 +161,15 @@ describe('projectFromRow', () => {
     });
   });
 
+  it('maps a structured jsonb address unchanged', () => {
+    const address = { ...emptyAddress(), postalCode: '01310-930', street: 'Av. Paulista', city: 'São Paulo', state: 'SP' };
+    expect(projectFromRow({ id: 'pr1', residential_options: {}, address }).address).toEqual(address);
+  });
+
   it('defaults clientId, address, notes, solution and services when absent', () => {
     const result = projectFromRow({ id: 'pr1', residential_options: {} });
     expect(result.clientId).toBeNull();
-    expect(result.address).toBe('');
+    expect(result.address).toEqual(emptyAddress());
     expect(result.notes).toBe('');
     expect(result.solution).toBeNull();
     expect(result.services).toEqual([]);

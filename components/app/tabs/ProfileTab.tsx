@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { AddressFields } from '../address-fields';
 import { PageHeader } from '../shell/slots';
 import type { InlineProfile } from '../types';
 
@@ -107,12 +108,11 @@ export function ProfileTab({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="inlineCompanyAddress">Endereço da empresa</Label>
-                  <Input
-                    id="inlineCompanyAddress"
-                    value={profile.companyAddress}
-                    onChange={(event) => setProfile({ ...profile, companyAddress: event.target.value })}
-                    placeholder="Endereço comercial"
+                  <Label>Endereço da empresa</Label>
+                  <AddressFields
+                    address={profile.companyAddress}
+                    onChange={(partial) => setProfile({ ...profile, companyAddress: { ...profile.companyAddress, ...partial } })}
+                    idPrefix="inlineCompanyAddress"
                   />
                 </div>
                 <div className="space-y-1.5">
