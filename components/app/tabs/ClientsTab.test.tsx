@@ -57,19 +57,19 @@ describe('ClientsTab: add flow', () => {
     const { props } = setup();
 
     fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
-    expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Nome/)).toBeInTheDocument();
 
     const saveButton = screen.getByRole('button', { name: /Salvar cliente/ });
     expect(saveButton).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Novo Cliente' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Novo Cliente' } });
     expect(saveButton).toBeEnabled();
 
     fireEvent.click(saveButton);
 
     await waitFor(() => expect(props.onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Novo Cliente' })));
     // Form closes back to the list on success.
-    await waitFor(() => expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByLabelText(/^Nome/)).not.toBeInTheDocument());
   });
 
   it('shows a limit-reached error verbatim and keeps the form open', async () => {
@@ -77,11 +77,11 @@ describe('ClientsTab: add flow', () => {
     setup({ onAdd });
 
     fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
-    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'X' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'X' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar cliente/ }));
 
     await waitFor(() => expect(screen.getByText('Limite de 50 clientes cadastrados atingido.')).toBeInTheDocument());
-    expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Nome/)).toBeInTheDocument();
   });
 
   it('shows a generic error message for any other failure', async () => {
@@ -89,7 +89,7 @@ describe('ClientsTab: add flow', () => {
     setup({ onAdd });
 
     fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
-    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'X' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'X' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar cliente/ }));
 
     await waitFor(() =>
@@ -97,11 +97,48 @@ describe('ClientsTab: add flow', () => {
     );
   });
 
-  it('closes the form without saving on Cancelar', () => {
+  it('closes the form without saving on Cancelar when nothing was typed', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Nome/)).not.toBeInTheDocument();
+  });
+
+  it('focuses the name field automatically when the form opens', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
+    expect(screen.getByLabelText(/^Nome/)).toHaveFocus();
+  });
+
+  it('submits the form on Enter instead of requiring a click on Salvar', async () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
+
+    const nameInput = screen.getByLabelText(/^Nome/);
+    fireEvent.change(nameInput, { target: { value: 'Novo Cliente' } });
+    fireEvent.submit(nameInput.closest('form')!);
+
+    await waitFor(() => expect(props.onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Novo Cliente' })));
+  });
+
+  it('asks for confirmation before discarding unsaved changes on Cancelar', async () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Rascunho' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar alterações do cliente' }));
+    const discardButton = await screen.findByRole('button', { name: 'Descartar' }, { timeout: 1000 });
+    fireEvent.click(discardButton);
+
+    expect(screen.queryByLabelText(/^Nome/)).not.toBeInTheDocument();
+  });
+
+  it('disables "Novo cliente" once the account limit is reached', () => {
+    const clients = Array.from({ length: 50 }, (_, index) => makeClient({ id: `c${index}`, name: `Cliente ${index}` }));
+    setup({ clients });
+
+    expect(screen.getByText('Clientes (50/50)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Novo cliente' })).toBeDisabled();
   });
 });
 
@@ -112,10 +149,10 @@ describe('ClientsTab: edit flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
 
-    expect(screen.getByLabelText('Nome')).toHaveValue('Ana');
+    expect(screen.getByLabelText(/^Nome/)).toHaveValue('Ana');
     expect(screen.getByLabelText('Email')).toHaveValue('ana@x.com');
 
-    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ana Editada' } });
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Ana Editada' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar cliente/ }));
 
     await waitFor(() =>
@@ -167,7 +204,7 @@ describe('ClientsTab: form fields', () => {
     fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'nota qualquer' } });
 
     expect(screen.getByLabelText('Email')).toHaveValue('a@b.com');
-    expect(screen.getByLabelText('Telefone')).toHaveValue('11999999999');
+    expect(screen.getByLabelText('Telefone')).toHaveValue('(11) 99999-9999');
     expect(screen.getByLabelText('CPF/CNPJ')).toHaveValue('123.456.789-00');
     expect(screen.getByLabelText('Observações')).toHaveValue('nota qualquer');
   });

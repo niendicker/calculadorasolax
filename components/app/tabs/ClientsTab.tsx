@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { isLimitError } from '@/lib/limits';
+import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import type { Client } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '../shell/slots';
@@ -15,6 +15,27 @@ import { SearchInput } from '../shared-ui';
 
 function emptyClientForm() {
   return { name: '', email: '', phone: '', document: '', notes: '' };
+}
+
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatDocument(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
 export function ClientsTab({
@@ -34,6 +55,7 @@ export function ClientsTab({
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyClientForm());
+  const [initialForm, setInitialForm] = useState(emptyClientForm());
   const [saving, setSaving] = useState(false);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
@@ -48,23 +70,34 @@ export function ClientsTab({
 
   function openNew() {
     setEditingId(null);
-    setForm(emptyClientForm());
+    const next = emptyClientForm();
+    setForm(next);
+    setInitialForm(next);
     setActionError(null);
     setFormOpen(true);
   }
 
   function openEdit(client: Client) {
     setEditingId(client.id);
-    setForm({
+    const next = {
       name: client.name,
       email: client.email,
       phone: client.phone,
       document: client.document,
       notes: client.notes,
-    });
+    };
+    setForm(next);
+    setInitialForm(next);
     setActionError(null);
     setFormOpen(true);
   }
+
+  function closeForm() {
+    setFormOpen(false);
+  }
+
+  const isDirty = Object.keys(form).some((key) => form[key as keyof typeof form] !== initialForm[key as keyof typeof initialForm]);
+  const atClientLimit = clients.length >= ACCOUNT_LIMITS.clients;
 
   async function handleSave() {
     if (!form.name.trim()) return;
@@ -106,11 +139,13 @@ export function ClientsTab({
     <div className="mx-auto max-w-3xl space-y-4 py-4">
       <PageHeader>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Clientes ({clients.length}/{ACCOUNT_LIMITS.clients})
+          </h1>
           <p className="text-sm text-muted-foreground">Cadastre e gerencie os clientes usados nos projetos.</p>
         </div>
         {!formOpen && (
-          <Button onClick={openNew}>
+          <Button onClick={openNew} disabled={atClientLimit}>
             <UserRound className="h-4 w-4" />
             Novo cliente
           </Button>
@@ -180,11 +215,20 @@ export function ClientsTab({
               </div>
             )
           ) : (
-            <div className="space-y-3">
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleSave();
+              }}
+            >
               <div className="space-y-1.5">
-                <Label htmlFor="clientFormName">Nome</Label>
+                <Label htmlFor="clientFormName">
+                  Nome <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="clientFormName"
+                  autoFocus
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
                   placeholder="Nome do cliente"
@@ -206,7 +250,7 @@ export function ClientsTab({
                   <Input
                     id="clientFormPhone"
                     value={form.phone}
-                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                    onChange={(event) => setForm({ ...form, phone: formatPhone(event.target.value) })}
                     placeholder="(00) 00000-0000"
                   />
                 </div>
@@ -216,7 +260,7 @@ export function ClientsTab({
                 <Input
                   id="clientFormDocument"
                   value={form.document}
-                  onChange={(event) => setForm({ ...form, document: event.target.value })}
+                  onChange={(event) => setForm({ ...form, document: formatDocument(event.target.value) })}
                   placeholder="Documento do cliente"
                 />
               </div>
@@ -230,15 +274,28 @@ export function ClientsTab({
                 />
               </div>
               <div className="grid gap-2 sm:flex sm:justify-end">
-                <Button variant="ghost" onClick={() => setFormOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSave} disabled={!form.name.trim() || saving}>
+                {isDirty ? (
+                  <ConfirmDeleteButton
+                    ariaLabel="Descartar alterações do cliente"
+                    label="Cancelar"
+                    title="Descartar alterações?"
+                    description="Os dados preenchidos neste formulário serão perdidos."
+                    confirmLabel="Descartar"
+                    triggerVariant="outline"
+                    disabled={saving}
+                    onConfirm={closeForm}
+                  />
+                ) : (
+                  <Button type="button" variant="ghost" disabled={saving} onClick={closeForm}>
+                    Cancelar
+                  </Button>
+                )}
+                <Button type="submit" disabled={!form.name.trim() || saving}>
                   <Save className="h-4 w-4" />
                   {saving ? 'Salvando...' : 'Salvar cliente'}
                 </Button>
               </div>
-            </div>
+            </form>
           )}
         </CardContent>
       </Card>
