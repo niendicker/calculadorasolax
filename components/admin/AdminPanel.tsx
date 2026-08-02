@@ -649,7 +649,7 @@ export function AdminPanel() {
 
   return (
     <main className="h-screen overflow-hidden bg-background">
-      <div className="mx-auto grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] gap-4 px-4 py-5">
+      <div className="mx-auto grid h-full w-full grid-rows-[auto_minmax(0,1fr)] gap-4 px-4 py-5">
         <header className="z-20 flex flex-col gap-3 border-b bg-background px-1 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Administração de soluções</h1>
