@@ -180,6 +180,31 @@ Migrações Supabase:
 | `0039_ess_compatibility_rule_name.sql` | Nome opcional para regras ESS |
 | `0040_load_catalog_active.sql` | Ativar/desativar carga do catálogo sem excluir |
 | `0041_split_phase_grid_topology.sql` | Bifásico (`2p_220V`) como rede própria em `approved_solutions`, separada de Monofásico |
+| `0042_inverter_max_power_per_phase.sql` | Potência máxima por fase configurável no inversor, para validar balanceamento de cargas |
+| `0043_admin_activity_logs_restrict_and_phase_power_check.sql` | Restringe `admin_activity_logs` a admins; valida potência por fase |
+| `0044_user_stock_items.sql` | "Meu Catálogo" (`user_stock_items`): produtos do admin com preço próprio do usuário |
+| `0045_account_limits.sql` | Limites de linhas por usuário em tabelas self-service e cargas por projeto |
+| `0046_load_presets.sql` | Predefinições de cargas movidas do código para o banco (editáveis pelo admin) |
+| `0047_user_load_presets.sql` | Predefinições de cargas pessoais do usuário, separadas das globais |
+| `0048_db_security_and_perf_hardening.sql` | Auditoria de segurança/performance: FIFO de logs, policies e índices |
+| `0049_product_nickname.sql` | Apelido opcional por produto, mostrado ao usuário no lugar do modelo técnico |
+| `0050_battery_expansion_model.sql` | Metadado de bateria "Master" + unidades de expansão eletricamente idênticas |
+| `0051_accessory_rule_desired_features.sql` | Regra de acessório pode exigir uma funcionalidade desejada específica |
+| `0052_ess_compatible_solution_ids.sql` | Corrige checagem ESS para comparar baterias por porta, não o total da solução |
+| `0053_accessory_rule_scale_with_metric.sql` | Quantidade de acessório pode escalar com a métrica de disparo da regra |
+| `0054_accessory_rule_metric_divisor.sql` | Acessório pode ser adicionado uma vez por *grupo* da métrica, não por unidade |
+| `0055_accessory_rule_battery_quantity_per_port_metric.sql` | Nova métrica de disparo: baterias por porta física |
+| `0056_accessory_rule_always_required.sql` | Regras de acessório passam a ser sempre obrigatórias (remove opcional) |
+| `0057_accessory_rule_excludes_accessory_models.sql` | Regra pode excluir outros modelos de acessório da lista final |
+| `0058_accessory_rule_bundled.sql` | Marca acessório como incluso de fábrica no inversor (ex.: dongle WiFi) |
+| `0059_raise_user_stock_items_limit.sql` | Eleva o limite de "Meu Catálogo" de 10 para 14 produtos |
+| `0060_user_services.sql` | Catálogo pessoal de serviços (instalação, frete, mão de obra) com preço próprio |
+| `0061_profile_sell_margins.sql` | Margem de venda (%) por categoria de produto, aplicada na análise econômica |
+| `0062_product_energy_performance.sql` | Eficiência de conversão, SOH inicial/anual e SOH de garantia por produto |
+| `0063_supplier_procurement.sql` | Fornecedores públicos, integrações restritas, ofertas e pedidos de compra |
+| `0064_user_supplier_preferences.sql` | Usuário escolhe fornecedores preferidos (limite definido pelo admin) |
+| `0065_partner_order_push.sql` | Envio de pedidos de compra à API de parceiro de um fornecedor específico |
+| `0066_product_warranty.sql` | Garantia por produto: anos (todos) e ciclos de carga/descarga (baterias) |
 
 Aplicar migrações ao projeto linkado:
 
@@ -292,6 +317,18 @@ A função recebe as opções residenciais e retorna a menor combinação aprova
 - regras ESS de compatibilidade e limites
 - acessórios definidos na combinação
 - acessórios automáticos por regra
+
+Como essa function roda em Deno e não pode importar do app Next, `logic.ts` mantém cópias próprias de um punhado de tipos/constantes/funções que também existem no lado Next (cada uma marcada `Mirrors ...` na própria definição). `supabase/functions/calculate-residential/mirrors.test.ts` importa as duas versões lado a lado e garante que concordam — **ao adicionar ou alterar uma duplicata `Mirrors ...`, adicione/atualize o caso correspondente nesse arquivo** (ele não pega divergência de *tipos* puros, só de valores/funções em runtime).
+
+## Testes e CI
+
+```bash
+npm run lint        # eslint
+npm run typecheck   # tsc --noEmit
+npm test            # vitest run
+```
+
+Os três rodam automaticamente em todo push/PR para `main` via GitHub Actions (`.github/workflows/ci.yml`).
 
 ## UX
 
