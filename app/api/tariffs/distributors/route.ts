@@ -64,7 +64,7 @@ export async function GET() {
 }
 
 function findDistributorField(record: Record<string, unknown>): string | null {
-  const possibleNames = ['DsDistribuidora', 'Distribuidora', 'DISTRIBUIDORA'];
+  const possibleNames = ['SigAgente', 'DsDistribuidora', 'Distribuidora', 'DISTRIBUIDORA'];
 
   for (const name of possibleNames) {
     if (name in record) return name;

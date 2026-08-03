@@ -109,7 +109,7 @@ function filterRecordsByQuery(records: CkanDatastoreRecord[], query: AneelTariff
 }
 
 function matchesDistributor(record: CkanDatastoreRecord, distributor: string): boolean {
-  const field = findField(record, ['DsDistribuidora', 'Distribuidora', 'DISTRIBUIDORA']);
+  const field = findField(record, ['SigAgente', 'DsDistribuidora', 'Distribuidora', 'DISTRIBUIDORA']);
   if (!field) return false;
 
   const recordValue = String(record[field]).toLowerCase().trim();
@@ -119,7 +119,7 @@ function matchesDistributor(record: CkanDatastoreRecord, distributor: string): b
 }
 
 function matchesSubgroup(record: CkanDatastoreRecord, subgroup: string): boolean {
-  const field = findField(record, ['CdSubgrupo', 'Subgrupo', 'SUBGRUPO']);
+  const field = findField(record, ['DscSubGrupo', 'CdSubgrupo', 'Subgrupo', 'SUBGRUPO']);
   if (!field) return false;
 
   const recordValue = String(record[field]).toUpperCase().trim();
@@ -129,7 +129,7 @@ function matchesSubgroup(record: CkanDatastoreRecord, subgroup: string): boolean
 }
 
 function matchesTariffMode(record: CkanDatastoreRecord, tariffMode: string): boolean {
-  const field = findField(record, ['DsModalidadeTarifaria', 'ModalidadeTarifaria', 'MODALIDADE']);
+  const field = findField(record, ['DscModalidadeTarifaria', 'DsModalidadeTarifaria', 'ModalidadeTarifaria', 'MODALIDADE']);
   if (!field) return false;
 
   const recordValue = String(record[field]).toLowerCase().trim();
@@ -149,7 +149,7 @@ function matchesConsumerClass(record: CkanDatastoreRecord, consumerClass: string
 }
 
 function isWithinValidity(record: CkanDatastoreRecord, referenceDate: Date): boolean {
-  const startField = findField(record, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+  const startField = findField(record, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
   if (!startField) return false;
 
   const startDateStr = String(record[startField]);
@@ -158,7 +158,7 @@ function isWithinValidity(record: CkanDatastoreRecord, referenceDate: Date): boo
     return false;
   }
 
-  const endField = findField(record, ['DtFinalVigencia', 'DataFinal', 'DATA_FINAL']);
+  const endField = findField(record, ['DatFimVigencia', 'DtFinalVigencia', 'DataFinal', 'DATA_FINAL']);
   if (endField) {
     const endDateStr = String(record[endField]);
     if (endDateStr && endDateStr !== '') {
@@ -211,8 +211,8 @@ function selectBestRecord(records: CkanDatastoreRecord[]): CkanDatastoreRecord |
   if (records.length === 0) return null;
 
   const sorted = [...records].sort((a, b) => {
-    const aStartField = findField(a, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
-    const bStartField = findField(b, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+    const aStartField = findField(a, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+    const bStartField = findField(b, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
 
     if (!aStartField || !bStartField) return 0;
 
@@ -232,7 +232,7 @@ function extractTariffs(record: CkanDatastoreRecord): Record<string, number | un
 
   const teField = findField(record, ['VlrTE', 'TE', 'TARIFA_ENERGIA']);
   const tusdField = findField(record, ['VlrTUSD', 'TUSD', 'TARIFA_USO']);
-  const unitField = findField(record, ['DsUnidade', 'Unidade', 'UNIDADE']);
+  const unitField = findField(record, ['DscUnidadeTerciaria', 'DsUnidade', 'Unidade', 'UNIDADE']);
 
   let teValue = 0;
   let tusdValue = 0;
@@ -256,7 +256,7 @@ function extractTariffs(record: CkanDatastoreRecord): Record<string, number | un
     const normalized = normalizeUnit(totalTariff, unit);
     const tariffValue = normalized.value;
 
-    const periodField = findField(record, ['DsPeriodoTarifario', 'Periodo', 'PERIODO']);
+    const periodField = findField(record, ['NomPostoTarifario', 'DsPeriodoTarifario', 'Periodo', 'PERIODO']);
     if (periodField) {
       const periodName = String(record[periodField]);
       const period = normalizePeriodName(periodName);
@@ -286,8 +286,8 @@ function extractDate(record: CkanDatastoreRecord, possibleNames: string[]): stri
 
 function buildTariffResult(record: CkanDatastoreRecord, query: AneelTariffQuery): EnergyTariffResult {
   const tariffs = extractTariffs(record);
-  const validFrom = extractDate(record, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']) ?? query.referenceDate;
-  const validUntil = extractDate(record, ['DtFinalVigencia', 'DataFinal', 'DATA_FINAL']) || undefined;
+  const validFrom = extractDate(record, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']) ?? query.referenceDate;
+  const validUntil = extractDate(record, ['DatFimVigencia', 'DtFinalVigencia', 'DataFinal', 'DATA_FINAL']) || undefined;
 
   return {
     distributor: query.distributor,
