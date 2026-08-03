@@ -20,9 +20,16 @@ import { emptyDelivery, money, type Cart, type DeliveryForm, type Order, type Su
 export function SupplyTab({
   onShowSummary,
   batteryCatalog = [],
+  autoImportFromSolution = false,
+  onAutoImportHandled,
 }: {
   onShowSummary: () => void;
   batteryCatalog?: BatteryCatalogOption[];
+  /** Set by "Cotar solução" (Dimensionamento) to trigger importFromSolution
+   *  automatically once this tab's offers have loaded, instead of requiring
+   *  a second click on "Importar itens da solução atual" below. */
+  autoImportFromSolution?: boolean;
+  onAutoImportHandled?: () => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const { solution } = useWizardStore();
@@ -339,6 +346,18 @@ export function SupplyTab({
       setSuccess('Itens da solução adicionados ao carrinho.');
     }
   }
+
+  useEffect(() => {
+    if (!loading && autoImportFromSolution) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot reaction to navigating here from "Cotar solução", not a render-time derivation
+      importFromSolution();
+      onAutoImportHandled?.();
+    }
+    // Only re-run when loading finishes or the parent asks for a fresh
+    // import — importFromSolution/onAutoImportHandled are fresh closures
+    // every render and would otherwise cause this to fire on every offer/cart change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, autoImportFromSolution]);
 
   return (
     <div className={`space-y-5 py-5 ${cartOffers.length > 0 ? 'pb-20 xl:pb-5' : ''}`}>

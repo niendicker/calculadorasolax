@@ -1053,6 +1053,38 @@ describe('SupplyTab: importing items from the current solution', () => {
       )
     );
   });
+
+  it('auto-imports as soon as offers load when arriving via "Cotar solução", then reports it handled', async () => {
+    useWizardStore.setState({ solution: makeSolution() });
+    setupSupabase({
+      offers: [
+        makeOffer({ id: 'o1', supplier_id: 's1' }),
+        makeOffer({
+          id: 'o2',
+          supplier_id: 's1',
+          supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 },
+        }),
+      ],
+    });
+    const onAutoImportHandled = vi.fn();
+    renderWithShell(
+      <SupplyTab onShowSummary={vi.fn()} autoImportFromSolution onAutoImportHandled={onAutoImportHandled} />
+    );
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Itens da solução adicionados ao carrinho.'));
+    expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument();
+    expect(onAutoImportHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not auto-import when autoImportFromSolution is false', async () => {
+    useWizardStore.setState({ solution: makeSolution() });
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('Adicione produtos de um fornecedor.')).toBeInTheDocument();
+  });
 });
 
 describe('SupplyTab: notifying a supplier by email', () => {

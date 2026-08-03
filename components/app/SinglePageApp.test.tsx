@@ -549,6 +549,34 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     expect(window.print).not.toHaveBeenCalled();
   });
 
+  it('sends a logged-in user to Compras when they click "Cotar solução"', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    act(() => { useWizardStore.setState({ solution: makeSolution() }); });
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Compras' })).toBeInTheDocument());
+  });
+
+  it('redirects to login when clicking "Cotar solução" without a profile', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    act(() => { useWizardStore.setState({ solution: makeSolution() }); });
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
+
+    expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
+  });
+
   it('renders the printable report once a solution is set', async () => {
     setupSupabase();
     renderApp();

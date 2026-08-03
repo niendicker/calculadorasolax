@@ -16,6 +16,7 @@ import {
   Gauge,
   Loader2,
   Save,
+  ShoppingCart,
   Sun,
   Zap,
   type LucideIcon,
@@ -110,6 +111,7 @@ export function SizingTab({
   resetResidential,
   calculate,
   exportPdf,
+  onQuoteSolution,
   autosaveStatus,
   autosaveLastSavedAt,
   productMedia,
@@ -169,6 +171,10 @@ export function SizingTab({
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
+  /** Sends the user to Compras with the current solution's inverter/battery/
+   *  accessories pre-loaded into the cart — same items as "Importar itens da
+   *  solução atual" over there, just reachable in one click from here. */
+  onQuoteSolution: () => void;
   autosaveStatus: AutosaveStatus;
   autosaveLastSavedAt: Date | null;
   productMedia: Record<string, ProductMedia>;
@@ -549,7 +555,15 @@ export function SizingTab({
              * trick as the sticky header above — see its comment) so this stays
              * an easy, always-visible tap target on mobile instead of requiring
              * a scroll to the end of the summary. */}
-            <div className="sticky bottom-0 -mx-4 -mb-5 bg-card px-4 pb-5 pt-3">
+            <div className="sticky bottom-0 -mx-4 -mb-5 grid gap-2 bg-card px-4 pb-5 pt-3">
+              <Button
+                variant="outline"
+                className="h-12 w-full gap-2 text-base shadow-md md:h-9 md:text-sm"
+                onClick={onQuoteSolution}
+              >
+                <ShoppingCart className="h-5 w-5 md:h-4 md:w-4" />
+                Cotar solução
+              </Button>
               <Button
                 className="h-12 w-full gap-2 text-base shadow-md md:h-9 md:text-sm"
                 onClick={() => {

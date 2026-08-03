@@ -146,6 +146,7 @@ export function SinglePageApp() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
+  const [pendingSupplyImport, setPendingSupplyImport] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
@@ -368,6 +369,19 @@ export function SinglePageApp() {
       router.push(`/${locale}/login?redirect=/${locale}`);
       return;
     }
+    changeTab('purchases');
+  }
+
+  // "Cotar solução" (Dimensionamento) jumps straight to Compras with the
+  // current solution's items already in the cart — pendingSupplyImport tells
+  // SupplyTab to run its own "Importar itens da solução atual" once its
+  // offers have loaded, then clear itself via onAutoImportHandled.
+  function quoteSolution() {
+    if (!profile) {
+      router.push(`/${locale}/login?redirect=/${locale}`);
+      return;
+    }
+    setPendingSupplyImport(true);
     changeTab('purchases');
   }
 
@@ -720,7 +734,12 @@ export function SinglePageApp() {
               onUpdateMarginPercent={updateMarginPercent}
             />
           ) : activeTab === 'purchases' ? (
-            <SupplyTab onShowSummary={() => setSummaryDrawerOpen(true)} batteryCatalog={batteryCatalog} />
+            <SupplyTab
+              onShowSummary={() => setSummaryDrawerOpen(true)}
+              batteryCatalog={batteryCatalog}
+              autoImportFromSolution={pendingSupplyImport}
+              onAutoImportHandled={() => setPendingSupplyImport(false)}
+            />
           ) : activeTab === 'clients' ? (
             <ClientsTab
               clients={clients}
@@ -784,6 +803,7 @@ export function SinglePageApp() {
               resetResidential={resetResidentialToDefaults}
               calculate={calculateAndShowSummary}
               exportPdf={exportPdf}
+              onQuoteSolution={quoteSolution}
               autosaveStatus={autosaveStatus}
               autosaveLastSavedAt={autosaveLastSavedAt}
               productMedia={productMedia}

@@ -112,6 +112,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     resetResidential: vi.fn(),
     calculate: vi.fn(),
     exportPdf: vi.fn(),
+    onQuoteSolution: vi.fn(),
     autosaveStatus: 'idle' as const,
     autosaveLastSavedAt: null,
     productMedia: {},
@@ -2306,5 +2307,19 @@ describe('SizingTab: Resumo tab "Copiar dados"', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia da mensagem' })).not.toBeInTheDocument(), {
       timeout: 2000,
     });
+  });
+});
+
+describe('SizingTab: Resumo tab "Cotar solução"', () => {
+  it('calls onQuoteSolution when a solution is available', () => {
+    const { props } = setup({
+      residentialOptions: { ...emptyResidentialOptions, loads: [{ id: 'l1' }] },
+      solution: fakeSolution,
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Resumo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
+
+    expect(props.onQuoteSolution).toHaveBeenCalledTimes(1);
   });
 });
