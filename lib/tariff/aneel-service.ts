@@ -1,0 +1,303 @@
+import { normalizePeriodName, normalizeNumber, normalizeUnit } from './normalize';
+
+export interface CkanRecord {
+  [key: string]: string | number | null;
+}
+
+export interface AneelTariffQuery {
+  distributor: string;
+  subgroup: string;
+  tariffMode: string;
+  consumerClass?: string;
+  referenceDate: string;
+}
+
+export interface EnergyTariffResult {
+  distributor: string;
+  subgroup: string;
+  tariffMode: string;
+  consumerClass?: string;
+  validFrom: string;
+  validUntil?: string;
+  source: 'ANEEL';
+  fetchedAt: string;
+  tariffs: {
+    peak?: number;
+    intermediate?: number;
+    offPeak?: number;
+    conventional?: number;
+  };
+}
+
+const ANEEL_CKAN_API = 'https://dadosabertos.aneel.gov.br/api/3/action';
+const DEFAULT_RESOURCE_ID = process.env.ANEEL_TARIFF_RESOURCE_ID || 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
+
+interface CkanDatastoreRecord {
+  _id: number;
+  [key: string]: string | number | null;
+}
+
+interface CkanDatastoreResponse {
+  success: boolean;
+  result: {
+    records: CkanDatastoreRecord[];
+    total: number;
+  };
+}
+
+export async function fetchTariffsFromAneel(query: AneelTariffQuery): Promise<EnergyTariffResult | null> {
+  try {
+    const records = await queryAneelDatastore();
+    if (records.length === 0) return null;
+
+    const filtered = filterRecordsByQuery(records, query);
+    if (filtered.length === 0) return null;
+
+    const selected = selectBestRecord(filtered);
+    if (!selected) return null;
+
+    return buildTariffResult(selected, query);
+  } catch (error) {
+    console.error('[ANEEL] Error fetching tariffs:', error);
+    return null;
+  }
+}
+
+async function queryAneelDatastore(): Promise<CkanDatastoreRecord[]> {
+  const url = new URL(`${ANEEL_CKAN_API}/datastore_search`);
+  url.searchParams.append('resource_id', DEFAULT_RESOURCE_ID);
+  url.searchParams.append('limit', '10000');
+
+  const response = await fetch(url.toString(), {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`ANEEL API responded with HTTP ${response.status}`);
+  }
+
+  const data: CkanDatastoreResponse = await response.json();
+  if (!data.success || !data.result?.records) {
+    throw new Error('Invalid ANEEL response structure');
+  }
+
+  return data.result.records;
+}
+
+function filterRecordsByQuery(records: CkanDatastoreRecord[], query: AneelTariffQuery): CkanDatastoreRecord[] {
+  const queryDate = new Date(query.referenceDate);
+
+  return records.filter((record) => {
+    const matches =
+      matchesDistributor(record, query.distributor) &&
+      matchesSubgroup(record, query.subgroup) &&
+      matchesTariffMode(record, query.tariffMode);
+
+    if (!matches) return false;
+
+    if (query.consumerClass && !matchesConsumerClass(record, query.consumerClass)) {
+      return false;
+    }
+
+    if (!isWithinValidity(record, queryDate)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function matchesDistributor(record: CkanDatastoreRecord, distributor: string): boolean {
+  const field = findField(record, ['DsDistribuidora', 'Distribuidora', 'DISTRIBUIDORA']);
+  if (!field) return false;
+
+  const recordValue = String(record[field]).toLowerCase().trim();
+  const queryValue = distributor.toLowerCase().trim();
+
+  return recordValue.includes(queryValue) || queryValue.includes(recordValue);
+}
+
+function matchesSubgroup(record: CkanDatastoreRecord, subgroup: string): boolean {
+  const field = findField(record, ['CdSubgrupo', 'Subgrupo', 'SUBGRUPO']);
+  if (!field) return false;
+
+  const recordValue = String(record[field]).toUpperCase().trim();
+  const queryValue = subgroup.toUpperCase().trim();
+
+  return recordValue === queryValue;
+}
+
+function matchesTariffMode(record: CkanDatastoreRecord, tariffMode: string): boolean {
+  const field = findField(record, ['DsModalidadeTarifaria', 'ModalidadeTarifaria', 'MODALIDADE']);
+  if (!field) return false;
+
+  const recordValue = String(record[field]).toLowerCase().trim();
+  const queryValue = tariffMode.toLowerCase().trim();
+
+  return recordValue.includes(queryValue) || queryValue.includes(recordValue);
+}
+
+function matchesConsumerClass(record: CkanDatastoreRecord, consumerClass: string): boolean {
+  const field = findField(record, ['DsClasse', 'Classe', 'CLASSE']);
+  if (!field) return false;
+
+  const recordValue = String(record[field]).toLowerCase().trim();
+  const queryValue = consumerClass.toLowerCase().trim();
+
+  return recordValue.includes(queryValue) || queryValue.includes(recordValue);
+}
+
+function isWithinValidity(record: CkanDatastoreRecord, referenceDate: Date): boolean {
+  const startField = findField(record, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+  if (!startField) return false;
+
+  const startDateStr = String(record[startField]);
+  const startDate = parseDate(startDateStr);
+  if (!startDate || startDate > referenceDate) {
+    return false;
+  }
+
+  const endField = findField(record, ['DtFinalVigencia', 'DataFinal', 'DATA_FINAL']);
+  if (endField) {
+    const endDateStr = String(record[endField]);
+    if (endDateStr && endDateStr !== '') {
+      const endDate = parseDate(endDateStr);
+      if (endDate && endDate < referenceDate) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function findField(record: CkanDatastoreRecord, possibleNames: string[]): string | null {
+  for (const name of possibleNames) {
+    if (name in record) return name;
+  }
+
+  const recordKeys = Object.keys(record);
+  for (const key of recordKeys) {
+    const lowerKey = key.toLowerCase();
+    for (const name of possibleNames) {
+      if (lowerKey === name.toLowerCase()) return key;
+    }
+  }
+
+  return null;
+}
+
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+
+  const trimmed = String(dateStr).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const date = new Date(trimmed + 'T00:00:00Z');
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    const [day, month, year] = trimmed.split('/');
+    const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+}
+
+function selectBestRecord(records: CkanDatastoreRecord[]): CkanDatastoreRecord | null {
+  if (records.length === 0) return null;
+
+  const sorted = [...records].sort((a, b) => {
+    const aStartField = findField(a, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+    const bStartField = findField(b, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+
+    if (!aStartField || !bStartField) return 0;
+
+    const aStart = parseDate(String(a[aStartField]));
+    const bStart = parseDate(String(b[bStartField]));
+
+    if (!aStart || !bStart) return 0;
+
+    return bStart.getTime() - aStart.getTime();
+  });
+
+  return sorted[0];
+}
+
+function extractTariffs(record: CkanDatastoreRecord): Record<string, number | undefined> {
+  const tariffs: Record<string, number | undefined> = {};
+
+  const teField = findField(record, ['VlrTE', 'TE', 'TARIFA_ENERGIA']);
+  const tusdField = findField(record, ['VlrTUSD', 'TUSD', 'TARIFA_USO']);
+  const unitField = findField(record, ['DsUnidade', 'Unidade', 'UNIDADE']);
+
+  let teValue = 0;
+  let tusdValue = 0;
+  let unit = 'R$/kWh';
+
+  if (teField && record[teField] !== null) {
+    teValue = normalizeNumber(record[teField]);
+  }
+  if (tusdField && record[tusdField] !== null) {
+    tusdValue = normalizeNumber(record[tusdField]);
+  }
+  if (unitField && record[unitField] !== null) {
+    const unitStr = String(record[unitField]);
+    const normalized = normalizeUnit(teValue + tusdValue, unitStr);
+    unit = normalized.unit;
+  }
+
+  const totalTariff = teValue + tusdValue;
+
+  if (unit.toLowerCase() === 'r$/kwh') {
+    const normalized = normalizeUnit(totalTariff, unit);
+    const tariffValue = normalized.value;
+
+    const periodField = findField(record, ['DsPeriodoTarifario', 'Periodo', 'PERIODO']);
+    if (periodField) {
+      const periodName = String(record[periodField]);
+      const period = normalizePeriodName(periodName);
+
+      if (period) {
+        tariffs[period] = tariffValue;
+      }
+    }
+  }
+
+  return tariffs;
+}
+
+function extractDate(record: CkanDatastoreRecord, possibleNames: string[]): string | null {
+  const field = findField(record, possibleNames);
+  if (!field) return null;
+
+  const dateStr = String(record[field]);
+  const date = parseDate(dateStr);
+
+  if (date) {
+    return date.toISOString().split('T')[0];
+  }
+
+  return null;
+}
+
+function buildTariffResult(record: CkanDatastoreRecord, query: AneelTariffQuery): EnergyTariffResult {
+  const tariffs = extractTariffs(record);
+  const validFrom = extractDate(record, ['DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']) ?? query.referenceDate;
+  const validUntil = extractDate(record, ['DtFinalVigencia', 'DataFinal', 'DATA_FINAL']) || undefined;
+
+  return {
+    distributor: query.distributor,
+    subgroup: query.subgroup,
+    tariffMode: query.tariffMode,
+    consumerClass: query.consumerClass,
+    validFrom,
+    validUntil,
+    source: 'ANEEL',
+    fetchedAt: new Date().toISOString(),
+    tariffs,
+  };
+}

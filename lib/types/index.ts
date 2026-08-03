@@ -52,6 +52,10 @@ export type DesiredFeatureId =
 export interface WhiteTariffConfig {
   /** Input experience. Missing on legacy projects and therefore treated as advanced. */
   inputMode?: 'basic' | 'advanced';
+  /** Whether tariffs are filled automatically from ANEEL or manually by the user. Defaults to 'manual' for retrocompatibility. */
+  tariffInputMode?: 'automatic' | 'manual';
+  /** Source of tariff values. Defaults to 'USER' for retrocompatibility. */
+  tariffSource?: 'ANEEL' | 'USER';
   /** Total bill consumption, independent from the optional photovoltaic feature. */
   totalMonthlyConsumptionKwh?: number;
   /** Basic-mode allocation of total monthly consumption to each expensive window. */
@@ -77,6 +81,22 @@ export interface WhiteTariffConfig {
    * the report's savings estimate are derived as pontaTariffPerKwh -
    * foraPontaTariffPerKwh and intermediateTariffPerKwh - foraPontaTariffPerKwh. */
   foraPontaTariffPerKwh: number;
+  /** Energy distributor name (from ANEEL data). */
+  distributor?: string;
+  /** Tariff subgroup (e.g., 'B1', 'B2'). */
+  subgroup?: string;
+  /** Tariff modality (e.g., 'Tarifa Branca', 'Convencional'). */
+  tariffMode?: string;
+  /** Consumer class for applicable tariff modes. */
+  consumerClass?: string;
+  /** Tariff validity start date (YYYY-MM-DD). */
+  validFrom?: string;
+  /** Tariff validity end date (YYYY-MM-DD), if applicable. */
+  validUntil?: string;
+  /** Timestamp when tariffs were fetched from ANEEL (ISO 8601). */
+  fetchedAt?: string;
+  /** Fields that have been manually edited after automatic fetch. */
+  manuallyEditedFields?: string[];
 }
 
 /** Extra sizing inputs only used when 'microgrid' is a desired feature — describes

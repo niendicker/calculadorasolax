@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Battery, BatteryCharging, Check, Clock, Moon, Zap } from 'lucide-react';
+import { AlertTriangle, Battery, BatteryCharging, Check, Clock, Moon, Zap, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { DesiredFeatureId, WhiteTariffConfig } from '@/lib/types';
+import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
 import { cn } from '@/lib/utils';
 import { TARIFF_BUSINESS_DAYS_PER_MONTH, calculateTariffSavings, isWhiteTariffConfigIncomplete } from '../../../helpers';
+import { AutomaticTariffPanel } from './AutomaticTariffPanel';
 
 export const emptyWhiteTariffConfig: WhiteTariffConfig = {
   inputMode: 'basic',
@@ -97,6 +100,7 @@ export function WhiteTariffPanel({
   const backupDailyKwh = value.includes('backup') ? dailyKwh : 0;
   const whiteBusinessDays = whiteTariff?.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH;
   const whiteInputMode = whiteTariff?.inputMode ?? 'advanced';
+  const tariffInputMode = whiteTariff?.tariffInputMode ?? 'manual';
   const whiteTotalMonthlyKwh = whiteTariff?.totalMonthlyConsumptionKwh ?? 0;
   const whiteExpensiveMonthlyKwh = whiteTariff
     ? ((whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / 1000) * whiteBusinessDays
@@ -111,6 +115,97 @@ export function WhiteTariffPanel({
   const preliminaryTariffSavings = calculateTariffSavings(whiteTariff ?? null, {
     totalMonthlyConsumptionKwh: whiteTotalMonthlyKwh || null,
   });
+
+  const [distributors, setDistributors] = useState<string[]>([]);
+  const [loadingDistributors, setLoadingDistributors] = useState(true);
+  const [fetchingTariffs, setFetchingTariffs] = useState(false);
+  const [tariffError, setTariffError] = useState<string | null>(null);
+  const [aneelTariffs, setAneelTariffs] = useState<EnergyTariffResult | null>(null);
+
+  const [aneelDistributor, setAneelDistributor] = useState(whiteTariff?.distributor || '');
+  const [aneelSubgroup, setAneelSubgroup] = useState(whiteTariff?.subgroup || '');
+  const [aneelTariffMode, setAneelTariffMode] = useState(whiteTariff?.tariffMode || 'Tarifa Branca');
+  const [aneelReferenceDate, setAneelReferenceDate] = useState(
+    whiteTariff?.validFrom || new Date().toISOString().split('T')[0]
+  );
+
+  useEffect(() => {
+    async function loadDistributors() {
+      try {
+        const response = await fetch('/api/tariffs/distributors');
+        if (response.ok) {
+          const data = await response.json();
+          setDistributors(data.distributors || []);
+        }
+      } catch (err) {
+        console.error('Error loading distributors:', err);
+      } finally {
+        setLoadingDistributors(false);
+      }
+    }
+
+    loadDistributors();
+  }, []);
+
+  async function handleFetchTariffs() {
+    if (!aneelDistributor || !aneelSubgroup || !aneelTariffMode || !aneelReferenceDate) {
+      setTariffError('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    setFetchingTariffs(true);
+    setTariffError(null);
+
+    try {
+      const params = new URLSearchParams({
+        distributor: aneelDistributor,
+        subgroup: aneelSubgroup,
+        tariffMode: aneelTariffMode,
+        referenceDate: aneelReferenceDate,
+      });
+
+      const response = await fetch(`/api/tariffs/lookup?${params}`);
+      if (!response.ok) {
+        const error = await response.json();
+        setTariffError(error.error || 'Erro ao buscar tarifas');
+        return;
+      }
+
+      const data = await response.json();
+      setAneelTariffs(data.tariffs);
+
+      const next = { ...(whiteTariff ?? emptyWhiteTariffConfig) };
+      next.tariffInputMode = 'automatic';
+      next.tariffSource = 'ANEEL';
+      next.distributor = data.tariffs.distributor;
+      next.subgroup = data.tariffs.subgroup;
+      next.tariffMode = data.tariffs.tariffMode;
+      next.validFrom = data.tariffs.validFrom;
+      next.validUntil = data.tariffs.validUntil;
+      next.fetchedAt = data.tariffs.fetchedAt;
+
+      if (data.tariffs.tariffs.peak !== undefined) {
+        next.pontaTariffPerKwh = data.tariffs.tariffs.peak;
+      }
+      if (data.tariffs.tariffs.intermediate !== undefined) {
+        next.intermediateTariffPerKwh = data.tariffs.tariffs.intermediate;
+      }
+      if (data.tariffs.tariffs.offPeak !== undefined) {
+        next.foraPontaTariffPerKwh = data.tariffs.tariffs.offPeak;
+      }
+      if (data.tariffs.tariffs.conventional !== undefined) {
+        next.foraPontaTariffPerKwh = data.tariffs.tariffs.conventional;
+      }
+
+      next.manuallyEditedFields = [];
+      onWhiteTariffChange(next);
+    } catch (err) {
+      setTariffError('Erro de conexão ao consultar tarifas');
+      console.error(err);
+    } finally {
+      setFetchingTariffs(false);
+    }
+  }
 
   function updateBasicWhiteTariff(patch: Partial<WhiteTariffConfig>) {
     const next = { ...(whiteTariff ?? emptyWhiteTariffConfig), ...patch };
@@ -127,8 +222,75 @@ export function WhiteTariffPanel({
     onWhiteTariffChange(next);
   }
 
+  function markFieldAsEdited(fieldName: string) {
+    if (!whiteTariff) return;
+    const edited = new Set(whiteTariff.manuallyEditedFields || []);
+    edited.add(fieldName);
+    onWhiteTariffChange({
+      ...whiteTariff,
+      manuallyEditedFields: Array.from(edited),
+    });
+  }
+
   return (
     <div className="space-y-3">
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1" role="tablist" aria-label="Fonte de tarifas">
+          {(['automatic', 'manual'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={tariffInputMode === mode}
+              onClick={() => {
+                const next = { ...(whiteTariff ?? emptyWhiteTariffConfig), tariffInputMode: mode };
+                onWhiteTariffChange(next);
+              }}
+              className={cn(
+                'rounded-md px-3 py-2 text-sm font-medium',
+                tariffInputMode === mode ? 'bg-background shadow-sm ring-1 ring-border/70' : 'text-muted-foreground'
+              )}
+            >
+              {mode === 'automatic' ? 'Automático pela ANEEL' : 'Manual'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tariffInputMode === 'automatic' && (
+        <AutomaticTariffPanel
+          distributor={aneelDistributor}
+          setDistributor={setAneelDistributor}
+          distributors={distributors}
+          loadingDistributors={loadingDistributors}
+          subgroup={aneelSubgroup}
+          setSubgroup={setAneelSubgroup}
+          tariffMode={aneelTariffMode}
+          setTariffMode={setAneelTariffMode}
+          referenceDate={aneelReferenceDate}
+          setReferenceDate={setAneelReferenceDate}
+          tariffs={aneelTariffs}
+          loading={fetchingTariffs}
+          error={tariffError}
+          onFetchTariffs={handleFetchTariffs}
+        />
+      )}
+
+      {tariffInputMode === 'automatic' && whiteTariff && aneelTariffs && (
+        <div className="flex gap-2">
+          <Button
+            onClick={handleFetchTariffs}
+            disabled={fetchingTariffs}
+            variant="outline"
+            className="flex-1"
+            size="sm"
+          >
+            <RefreshCw className={cn('mr-2 h-4 w-4', fetchingTariffs && 'animate-spin')} />
+            Atualizar tarifas
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1" role="tablist" aria-label="Modo de preenchimento da Tarifa Branca">
         {(['basic', 'advanced'] as const).map((mode) => (
           <button key={mode} type="button" role="tab" aria-selected={whiteInputMode === mode}
@@ -225,6 +387,11 @@ export function WhiteTariffPanel({
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Zap className="h-3.5 w-3.5 text-destructive" />
             Ponta
+            {whiteTariff?.manuallyEditedFields?.includes('pontaTariffPerKwh') && (
+              <span className="ml-auto text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 px-1.5 py-0.5 rounded">
+                Alterado manualmente
+              </span>
+            )}
           </p>
           <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -250,12 +417,13 @@ export function WhiteTariffPanel({
                 step={0.01}
                 placeholder="Ex.: 1.20"
                 value={whiteTariff?.pontaTariffPerKwh ?? ''}
-                onChange={(event) =>
+                onChange={(event) => {
+                  markFieldAsEdited('pontaTariffPerKwh');
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
                     pontaTariffPerKwh: Number(event.target.value) || 0,
-                  })
-                }
+                  });
+                }}
               />
             </div>
           </div>
@@ -271,6 +439,11 @@ export function WhiteTariffPanel({
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Clock className="h-3.5 w-3.5 text-primary" />
             Intermediária
+            {whiteTariff?.manuallyEditedFields?.includes('intermediateTariffPerKwh') && (
+              <span className="ml-auto text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 px-1.5 py-0.5 rounded">
+                Alterado manualmente
+              </span>
+            )}
           </p>
           <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -296,12 +469,13 @@ export function WhiteTariffPanel({
                 step={0.01}
                 placeholder="Ex.: 0.95"
                 value={whiteTariff?.intermediateTariffPerKwh ?? ''}
-                onChange={(event) =>
+                onChange={(event) => {
+                  markFieldAsEdited('intermediateTariffPerKwh');
                   onWhiteTariffChange({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
                     intermediateTariffPerKwh: Number(event.target.value) || 0,
-                  })
-                }
+                  });
+                }}
               />
             </div>
           </div>
@@ -317,6 +491,11 @@ export function WhiteTariffPanel({
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Moon className="h-3.5 w-3.5 text-accent" />
             Fora ponta
+            {whiteTariff?.manuallyEditedFields?.includes('foraPontaTariffPerKwh') && (
+              <span className="ml-auto text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 px-1.5 py-0.5 rounded">
+                Alterado manualmente
+              </span>
+            )}
           </p>
           <div className="mt-2 space-y-1.5 sm:max-w-[calc(50%-0.375rem)]">
             <Label htmlFor="whiteTariffForaPonta">
@@ -329,12 +508,13 @@ export function WhiteTariffPanel({
               step={0.01}
               placeholder="Ex.: 0.75"
               value={whiteTariff?.foraPontaTariffPerKwh ?? ''}
-              onChange={(event) =>
+              onChange={(event) => {
+                markFieldAsEdited('foraPontaTariffPerKwh');
                 onWhiteTariffChange({
                   ...(whiteTariff ?? emptyWhiteTariffConfig),
                   foraPontaTariffPerKwh: Number(event.target.value) || 0,
-                })
-              }
+                });
+              }}
             />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">

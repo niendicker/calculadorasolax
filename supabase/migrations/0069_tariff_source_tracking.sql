@@ -1,0 +1,18 @@
+-- Add automatic tariff source tracking metadata to residential_options JSONB
+-- No schema changes needed; fields added to existing JSON structure:
+-- - tariffInputMode: 'automatic' | 'manual' (defaults to 'manual' for retrocompatibility)
+-- - tariffSource: 'ANEEL' | 'USER' (defaults to 'USER' for retrocompatibility)
+-- - distributor: string (distributor name from ANEEL)
+-- - subgroup: string (tariff subgroup, e.g., 'B1', 'B2')
+-- - tariffMode: string (tariff modality, e.g., 'Tarifa Branca')
+-- - consumerClass: string (optional, consumer class when applicable)
+-- - validFrom: string (ISO 8601 date, tariff validity start)
+-- - validUntil: string (ISO 8601 date, tariff validity end, if applicable)
+-- - fetchedAt: string (ISO 8601 timestamp, when tariffs were fetched)
+-- - manuallyEditedFields: string[] (array of field names edited after automatic fetch)
+--
+-- Old projects stored with manually entered tariffs are interpreted as:
+-- tariffInputMode = 'manual'
+-- tariffSource = 'USER'
+--
+-- No changes to the database schema are required since residential_options is already JSONB.
