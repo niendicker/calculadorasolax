@@ -330,12 +330,12 @@ export function ResultSummary({
               return (
                 <div key={model} className="relative rounded-lg border bg-muted/30 p-3">
                   {bundled ? (
-                    <Badge variant="secondary" className="absolute right-2 top-2">
+                    <Badge variant="secondary" className="absolute right-2 top-2 z-10">
                       <Package className="h-3 w-3" />
                       Incluso
                     </Badge>
                   ) : (
-                    <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2">
+                    <Badge variant={optional ? 'outline' : 'default'} className="absolute right-2 top-2 z-10">
                       {optional ? 'Opcional' : 'Obrigatório'}
                     </Badge>
                   )}
