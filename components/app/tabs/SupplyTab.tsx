@@ -4,17 +4,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { useWizardStore } from '@/lib/store/wizard-store';
 import type { SupplierOfferView } from '@/lib/procurement/types';
+import type { StockProductType } from '@/lib/types';
+import { batteryQuantityBreakdown, normalizeAccessoryLine } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { SupplyLoadingSkeleton } from '../shared-ui';
+import type { BatteryCatalogOption } from '../types';
 import { CartSummary } from './supply/CartSummary';
 import { OffersSection } from './supply/OffersSection';
 import { OrdersSection } from './supply/OrdersSection';
 import { SupplierPreferencesCard } from './supply/SupplierPreferencesCard';
 import { emptyDelivery, money, type Cart, type DeliveryForm, type Order, type Supplier } from './supply/types';
 
-export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
+export function SupplyTab({
+  onShowSummary,
+  batteryCatalog = [],
+}: {
+  onShowSummary: () => void;
+  batteryCatalog?: BatteryCatalogOption[];
+}) {
   const supabase = useMemo(() => createClient(), []);
+  const { solution } = useWizardStore();
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [maxUserSuppliers, setMaxUserSuppliers] = useState(2);
@@ -32,6 +43,9 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
   const [partnerOrderId, setPartnerOrderId] = useState<string | null>(null);
   const [deliveryForm, setDeliveryForm] = useState<DeliveryForm>(emptyDelivery);
   const [submittingPartner, setSubmittingPartner] = useState(false);
+  const [emailOrderId, setEmailOrderId] = useState<string | null>(null);
+  const [emailMessage, setEmailMessage] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   function setSuccess(message: string) {
     setStatus(message);
@@ -63,7 +77,7 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     const [supplierResult, settingsResult, preferencesResult, orderResult] = await Promise.all([
       supabase
         .from('suppliers')
-        .select('id, name, description, order_mode, is_default_for_all, supports_partner_orders')
+        .select('id, name, description, order_mode, is_default_for_all, supports_partner_orders, email')
         .eq('active', true)
         .eq('ordering_enabled', true)
         .order('name'),
@@ -236,6 +250,96 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
     }
   }
 
+  function openEmailForm(orderId: string, supplierName: string) {
+    setEmailOrderId(orderId);
+    setEmailMessage(
+      `Olá, ${supplierName}!\n\nSegue em anexo nossa solicitação de cotação com os produtos e quantidades necessários. Poderiam nos retornar com preço, prazo de entrega e condições de pagamento?\n\nFico à disposição para qualquer dúvida.\n\nAtenciosamente.`
+    );
+    setError(null);
+  }
+
+  async function notifySupplierByEmail(orderId: string) {
+    if (!emailMessage.trim()) return setFailure('Escreva uma mensagem para o fornecedor.');
+    setSendingEmail(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/purchase-orders/${orderId}/notify-supplier-email`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: emailMessage }),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        setSuccess('Email enviado ao fornecedor, com cópia para você.');
+        setEmailOrderId(null);
+      } else {
+        setFailure(result.error ?? 'Erro ao enviar email ao fornecedor.');
+      }
+    } catch {
+      setFailure('Erro ao enviar email ao fornecedor. Verifique sua conexão e tente novamente.');
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
+  // Pre-fills the cart with the current project's own inverter/battery/
+  // non-bundled accessories, matched against active offers from whichever
+  // single supplier already has items in the cart (or the cheapest supplier
+  // offering the inverter, if the cart is still empty) — mirrors the
+  // single-supplier-per-cart rule enforced in changeQuantity, so this can't
+  // produce a cart the rest of the page would then reject.
+  function importFromSolution() {
+    if (!solution) return setFailure('Nenhuma solução calculada no projeto atual para importar.');
+
+    const batteryParts = batteryQuantityBreakdown(
+      solution.batteryModel,
+      solution.batteryQty,
+      batteryCatalog,
+      (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+    );
+    const wanted: { productType: StockProductType; model: string; qty: number }[] = [
+      { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
+      ...batteryParts.map((part) => ({ productType: 'battery' as const, model: part.model, qty: part.qty })),
+      ...solution.accessories.flatMap((accessory) => {
+        const { model, qty, optional, bundled } = normalizeAccessoryLine(accessory);
+        return bundled || optional ? [] : [{ productType: 'accessory' as const, model, qty }];
+      }),
+    ];
+
+    const inverterOffers = offers.filter(
+      (offer) =>
+        offer.supplier_product_mappings.product_type === 'inverter' &&
+        offer.supplier_product_mappings.product_model === solution.inverterModel
+    );
+    const targetSupplierId = cartSupplierId ?? inverterOffers[0]?.supplier_id;
+    if (!targetSupplierId) {
+      return setFailure('Nenhuma oferta de inversor compatível com a solução foi encontrada entre seus fornecedores.');
+    }
+
+    const nextCart: Cart = { ...cart };
+    const unmatched: string[] = [];
+    for (const item of wanted) {
+      const offer = offers.find(
+        (candidate) =>
+          candidate.supplier_id === targetSupplierId &&
+          candidate.supplier_product_mappings.product_type === item.productType &&
+          candidate.supplier_product_mappings.product_model === item.model
+      );
+      if (!offer) {
+        unmatched.push(item.model);
+        continue;
+      }
+      const maximum = offer.stock_quantity ?? item.qty;
+      nextCart[offer.id] = Math.max(nextCart[offer.id] ?? 0, Math.min(item.qty, maximum));
+    }
+    setCart(nextCart);
+    if (unmatched.length > 0) {
+      setFailure(`Itens sem oferta do fornecedor selecionado, não adicionados: ${unmatched.join(', ')}.`);
+    } else {
+      setSuccess('Itens da solução adicionados ao carrinho.');
+    }
+  }
+
   return (
     <div className={`space-y-5 py-5 ${cartOffers.length > 0 ? 'pb-20 xl:pb-5' : ''}`}>
       <PageHeader>
@@ -270,6 +374,13 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
             pendingSupplierId={pendingSupplierId}
             onToggle={toggleSupplier}
           />
+
+          {solution && (
+            <Button variant="outline" onClick={importFromSolution}>
+              <ShoppingCart className="h-4 w-4" />
+              Importar itens da solução atual
+            </Button>
+          )}
 
           <OffersSection
             offers={offers}
@@ -316,6 +427,13 @@ export function SupplyTab({ onShowSummary }: { onShowSummary: () => void }) {
             onDeliveryFieldChange={updateDeliveryField}
             onCancelOrder={cancelOrder}
             onSubmitToPartner={submitToPartner}
+            emailOrderId={emailOrderId}
+            emailMessage={emailMessage}
+            sendingEmail={sendingEmail}
+            onOpenEmailForm={openEmailForm}
+            onCancelEmailForm={() => setEmailOrderId(null)}
+            onEmailMessageChange={setEmailMessage}
+            onNotifySupplierByEmail={notifySupplierByEmail}
           />
         </>
       )}

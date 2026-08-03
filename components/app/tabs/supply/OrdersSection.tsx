@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PackageCheck } from 'lucide-react';
+import { Mail, PackageCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +23,13 @@ export function OrdersSection({
   onDeliveryFieldChange,
   onCancelOrder,
   onSubmitToPartner,
+  emailOrderId,
+  emailMessage,
+  sendingEmail,
+  onOpenEmailForm,
+  onCancelEmailForm,
+  onEmailMessageChange,
+  onNotifySupplierByEmail,
 }: {
   orders: Order[];
   suppliers: Supplier[];
@@ -34,6 +41,13 @@ export function OrdersSection({
   onDeliveryFieldChange: (field: keyof DeliveryForm, value: string) => void;
   onCancelOrder: (orderId: string) => void;
   onSubmitToPartner: (orderId: string) => void;
+  emailOrderId: string | null;
+  emailMessage: string;
+  sendingEmail: boolean;
+  onOpenEmailForm: (orderId: string, supplierName: string) => void;
+  onCancelEmailForm: () => void;
+  onEmailMessageChange: (message: string) => void;
+  onNotifySupplierByEmail: (orderId: string) => void;
 }) {
   const [cepLookupState, setCepLookupState] = useState<'idle' | 'loading' | 'not-found'>('idle');
 
@@ -68,11 +82,10 @@ export function OrdersSection({
         <p className="text-sm text-muted-foreground">Você ainda não fez pedidos.</p>
       ) : (
         orders.map((order) => {
-          const canSubmitToPartner =
-            order.status === 'requested' &&
-            !order.external_order_id &&
-            suppliers.find((s) => s.id === order.supplier_id)?.supports_partner_orders;
+          const supplier = suppliers.find((s) => s.id === order.supplier_id);
+          const canSubmitToPartner = order.status === 'requested' && !order.external_order_id && supplier?.supports_partner_orders;
           const cancellable = ['requested', 'under_review', 'quoted'].includes(order.status);
+          const canNotifyByEmail = Boolean(supplier?.email) && cancellable;
           return (
             <Card key={order.id}>
               <CardContent className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -106,6 +119,12 @@ export function OrdersSection({
                   {canSubmitToPartner && (
                     <Button variant="outline" size="sm" onClick={() => onOpenPartnerForm(order.id)}>
                       Enviar ao fornecedor
+                    </Button>
+                  )}
+                  {canNotifyByEmail && (
+                    <Button variant="outline" size="sm" onClick={() => onOpenEmailForm(order.id, order.suppliers.name)}>
+                      <Mail className="h-4 w-4" />
+                      Notificar por email
                     </Button>
                   )}
                 </div>
@@ -173,6 +192,28 @@ export function OrdersSection({
                       Confirmar envio
                     </Button>
                     <Button size="sm" variant="ghost" onClick={onCancelPartnerForm}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+              {emailOrderId === order.id && (
+                <CardContent className="space-y-2 border-t pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    Envia uma solicitação de cotação para <strong>{supplier?.email}</strong>, com o PDF da proposta em
+                    anexo e cópia para o seu email.
+                  </p>
+                  <textarea
+                    className="min-h-32 w-full rounded-lg border border-input bg-background p-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    aria-label="Mensagem para o fornecedor"
+                    value={emailMessage}
+                    onChange={(event) => onEmailMessageChange(event.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={sendingEmail} onClick={() => onNotifySupplierByEmail(order.id)}>
+                      {sendingEmail ? 'Enviando...' : 'Enviar email'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={onCancelEmailForm}>
                       Cancelar
                     </Button>
                   </div>

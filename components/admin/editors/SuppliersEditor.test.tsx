@@ -241,6 +241,24 @@ describe('SuppliersEditor: saving a supplier', () => {
     expect(screen.getByText('Salvar fornecedor')).toBeDisabled();
   });
 
+  it('edits the contact email and sends it (trimmed to null when blank) when saving', async () => {
+    const supabase = await renderEditor();
+    fireEvent.change(fieldNear('Nome'), { target: { value: 'Nova Distribuidora' } });
+    fireEvent.change(fieldNear('Identificador'), { target: { value: 'nova-distribuidora' } });
+    fireEvent.change(fieldNear('Email de contato'), { target: { value: 'compras@nova.com' } });
+    fireEvent.click(screen.getByText('Salvar fornecedor'));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Fornecedor salvo.'));
+    expect(supabase.from).toHaveBeenCalledWith('suppliers');
+  });
+
+  it('loads the existing contact email when selecting a supplier', async () => {
+    await renderEditor({ suppliers: { data: [{ id: 's1', name: 'Acme Solar', slug: 'acme-solar', active: true, ordering_enabled: true, order_mode: 'quote', currency: 'BRL', minimum_order_value: 0, description: null, is_default_for_all: false, supports_partner_orders: false, email: 'contato@acme.com' }], error: null } });
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    expect(fieldNear('Email de contato')).toHaveValue('contato@acme.com');
+  });
+
   it('toggles active and ordering_enabled checkboxes and edits description/order mode/minimum', async () => {
     await renderEditor();
     fireEvent.click(screen.getByLabelText('Fornecedor ativo'));

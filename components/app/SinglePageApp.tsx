@@ -720,7 +720,7 @@ export function SinglePageApp() {
               onUpdateMarginPercent={updateMarginPercent}
             />
           ) : activeTab === 'purchases' ? (
-            <SupplyTab onShowSummary={() => setSummaryDrawerOpen(true)} />
+            <SupplyTab onShowSummary={() => setSummaryDrawerOpen(true)} batteryCatalog={batteryCatalog} />
           ) : activeTab === 'clients' ? (
             <ClientsTab
               clients={clients}

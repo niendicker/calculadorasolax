@@ -28,6 +28,7 @@ export interface Supplier {
   order_mode: string;
   is_default_for_all: boolean;
   supports_partner_orders: boolean;
+  email: string | null;
 }
 
 export interface DeliveryForm {
