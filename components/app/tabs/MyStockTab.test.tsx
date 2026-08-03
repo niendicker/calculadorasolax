@@ -200,7 +200,7 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
   it('shows the resulting sale price based on the category margin', () => {
     setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 20, batteryPercent: 0, accessoryPercent: 0 } });
 
-    expect(screen.getByText(/Preço de venda \(20% de margem\)/)).toHaveTextContent('R$ 1.200,00');
+    expect(screen.getByText(/Preço de venda \(20% de markup\)/)).toHaveTextContent('R$ 1.200,00');
   });
 
   it('does not show a sale price for a product with no price defined yet', () => {
@@ -585,19 +585,19 @@ describe('MyStockTab: sell margins', () => {
     setup({ marginSettings: { inverterPercent: 10, batteryPercent: 20, accessoryPercent: 5 } });
 
     // "Inversores" is the default tab.
-    expect(screen.getByLabelText('Margem de venda')).toHaveValue(10);
+    expect(screen.getByLabelText('Markup de venda')).toHaveValue(10);
 
     fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
-    expect(screen.getByLabelText('Margem de venda')).toHaveValue(20);
+    expect(screen.getByLabelText('Markup de venda')).toHaveValue(20);
 
     fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
-    expect(screen.getByLabelText('Margem de venda')).toHaveValue(5);
+    expect(screen.getByLabelText('Markup de venda')).toHaveValue(5);
   });
 
   it('saves a category margin on blur when it changes', () => {
     const { props } = setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
 
-    const input = screen.getByLabelText('Margem de venda');
+    const input = screen.getByLabelText('Markup de venda');
     fireEvent.change(input, { target: { value: '15' } });
     fireEvent.blur(input);
 
@@ -607,7 +607,7 @@ describe('MyStockTab: sell margins', () => {
   it('does not save on blur when the margin value is unchanged', () => {
     const { props } = setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
 
-    const input = screen.getByLabelText('Margem de venda');
+    const input = screen.getByLabelText('Markup de venda');
     fireEvent.blur(input);
 
     expect(props.onUpdateMarginPercent).not.toHaveBeenCalled();
@@ -617,7 +617,7 @@ describe('MyStockTab: sell margins', () => {
     const onUpdateMarginPercent = vi.fn().mockRejectedValue(new Error('boom'));
     setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 }, onUpdateMarginPercent });
 
-    const input = screen.getByLabelText('Margem de venda');
+    const input = screen.getByLabelText('Markup de venda');
     fireEvent.change(input, { target: { value: '15' } });
     fireEvent.blur(input);
 

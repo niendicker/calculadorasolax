@@ -399,7 +399,7 @@ function CategoryMarginInline({
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <label htmlFor={`margin-${productType}`}>Margem de venda</label>
+      <label htmlFor={`margin-${productType}`}>Markup de venda</label>
       <input
         key={value}
         id={`margin-${productType}`}
@@ -968,7 +968,7 @@ function StockProductCard({
           )}
           {item.unitValue > 0 && (
             <p className="text-xs text-muted-foreground">
-              Preço de venda ({marginPercent}% de margem):{' '}
+              Preço de venda ({marginPercent}% de markup):{' '}
               <span className="font-medium text-foreground">
                 {formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))}
               </span>
