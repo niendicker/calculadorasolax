@@ -72,7 +72,7 @@ export async function GET(request: Request) {
           const isGenerator = GENERATOR_PREFIXES.some((prefix) =>
             accessant.toUpperCase().startsWith(prefix)
           );
-          if (isGenerator) {
+          if (!isGenerator) {
             accessantAgents.add(accessant);
           }
         }

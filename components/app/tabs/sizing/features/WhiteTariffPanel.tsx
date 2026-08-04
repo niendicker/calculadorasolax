@@ -123,6 +123,9 @@ export function WhiteTariffPanel({
   const [aneelTariffs, setAneelTariffs] = useState<EnergyTariffResult | null>(null);
 
   const [aneelDistributor, setAneelDistributor] = useState(whiteTariff?.distributor || '');
+  const [aneelAccessantAgent, setAneelAccessantAgent] = useState(whiteTariff?.consumerClass || '');
+  const [aneelAccessantAgents, setAneelAccessantAgents] = useState<string[]>([]);
+  const [loadingAccessantAgents, setLoadingAccessantAgents] = useState(false);
   const [aneelSubgroup, setAneelSubgroup] = useState(whiteTariff?.subgroup || '');
   const [aneelTariffMode, setAneelTariffMode] = useState(whiteTariff?.tariffMode || 'Branca');
   const [aneelReferenceDate, setAneelReferenceDate] = useState('');
@@ -154,6 +157,31 @@ export function WhiteTariffPanel({
     loadData();
   }, []);
 
+  useEffect(() => {
+    async function loadAccessantAgents() {
+      if (!aneelDistributor) {
+        setAneelAccessantAgents([]);
+        setAneelAccessantAgent('');
+        return;
+      }
+
+      setLoadingAccessantAgents(true);
+      try {
+        const response = await fetch(`/api/tariffs/accessant-agents?distributor=${encodeURIComponent(aneelDistributor)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setAneelAccessantAgents(data.accessantAgents || []);
+        }
+      } catch (err) {
+        console.error('Error loading accessant agents:', err);
+      } finally {
+        setLoadingAccessantAgents(false);
+      }
+    }
+
+    loadAccessantAgents();
+  }, [aneelDistributor]);
+
   async function handleFetchTariffs() {
     if (!aneelDistributor || !aneelSubgroup || !aneelTariffMode || !aneelReferenceDate) {
       setTariffError('Preencha todos os campos obrigatórios');
@@ -170,6 +198,10 @@ export function WhiteTariffPanel({
         tariffMode: aneelTariffMode,
         referenceDate: aneelReferenceDate,
       });
+
+      if (aneelAccessantAgent) {
+        params.append('accessantAgent', aneelAccessantAgent);
+      }
 
       const response = await fetch(`/api/tariffs/lookup?${params}`);
       if (!response.ok) {
@@ -270,6 +302,10 @@ export function WhiteTariffPanel({
           setDistributor={setAneelDistributor}
           distributors={distributors}
           loadingDistributors={loadingDistributors}
+          accessantAgent={aneelAccessantAgent}
+          setAccessantAgent={setAneelAccessantAgent}
+          accessantAgents={aneelAccessantAgents}
+          loadingAccessantAgents={loadingAccessantAgents}
           subgroup={aneelSubgroup}
           setSubgroup={setAneelSubgroup}
           tariffMode={aneelTariffMode}

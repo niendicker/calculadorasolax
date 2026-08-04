@@ -14,6 +14,11 @@ interface AutomaticTariffPanelProps {
   distributors: string[];
   loadingDistributors: boolean;
 
+  accessantAgent: string;
+  setAccessantAgent: (value: string) => void;
+  accessantAgents: string[];
+  loadingAccessantAgents: boolean;
+
   subgroup: string;
   setSubgroup: (value: string) => void;
 
@@ -35,6 +40,10 @@ export function AutomaticTariffPanel({
   setDistributor,
   distributors,
   loadingDistributors,
+  accessantAgent,
+  setAccessantAgent,
+  accessantAgents,
+  loadingAccessantAgents,
   subgroup,
   setSubgroup,
   tariffMode,
@@ -101,6 +110,27 @@ export function AutomaticTariffPanel({
             )}
           </div>
         </div>
+
+        {accessantAgents.length > 0 && (
+          <div className="space-y-1.5">
+            <Label htmlFor="aneelAccessantAgent">Agente acessante (opcional)</Label>
+            <select
+              id="aneelAccessantAgent"
+              value={accessantAgent}
+              onChange={(e) => setAccessantAgent(e.target.value)}
+              disabled={loadingAccessantAgents || accessantAgents.length === 0}
+              className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">Sem agente acessante (opcional)</option>
+              {accessantAgents.map((agent) => (
+                <option key={agent} value={agent}>
+                  {agent}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">Consumidor ou gerador na rede</p>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
