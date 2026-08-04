@@ -113,7 +113,11 @@ export async function getLatestTariffDate(): Promise<string | null> {
       return today.toISOString().split('T')[0];
     }
 
-    return latestValidDate ? latestValidDate.toISOString().split('T')[0] : null;
+    if (latestValidDate) {
+      return latestValidDate.toISOString().split('T')[0];
+    }
+
+    return today.toISOString().split('T')[0];
   } catch (error) {
     console.error('[ANEEL] Error fetching latest date:', error);
     return null;

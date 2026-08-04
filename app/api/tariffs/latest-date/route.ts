@@ -5,11 +5,7 @@ export async function GET() {
   try {
     const latestDate = await getLatestTariffDate();
 
-    if (!latestDate) {
-      return NextResponse.json({ error: 'Nenhuma data encontrada' }, { status: 404 });
-    }
-
-    return NextResponse.json({ latestDate });
+    return NextResponse.json({ latestDate: latestDate || new Date().toISOString().split('T')[0] });
   } catch (error) {
     console.error('[API] Error in tariffs/latest-date:', error);
 
