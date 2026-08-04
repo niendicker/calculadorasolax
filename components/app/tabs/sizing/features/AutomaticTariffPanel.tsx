@@ -26,6 +26,7 @@ interface AutomaticTariffPanelProps {
   setTariffMode: (value: string) => void;
 
   referenceDate: string;
+  loadingReferenceDate: boolean;
 
   tariffs: EnergyTariffResult | null;
   loading: boolean;
@@ -49,6 +50,7 @@ export function AutomaticTariffPanel({
   tariffMode,
   setTariffMode,
   referenceDate,
+  loadingReferenceDate,
   tariffs,
   loading,
   error,
@@ -174,7 +176,12 @@ export function AutomaticTariffPanel({
           <div className="space-y-1.5">
             <Label>Última atualização disponível</Label>
             <div className="rounded border border-border bg-muted/30 px-3 py-2 text-sm">
-              {referenceDate ? (
+              {loadingReferenceDate ? (
+                <p className="text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Carregando...
+                </p>
+              ) : referenceDate ? (
                 <p className="font-medium">
                   {new Date(referenceDate + 'T00:00:00Z').toLocaleDateString('pt-BR', {
                     year: 'numeric',
@@ -183,7 +190,7 @@ export function AutomaticTariffPanel({
                   })}
                 </p>
               ) : (
-                <p className="text-muted-foreground">Carregando...</p>
+                <p className="text-destructive text-sm">Não foi possível carregar a data</p>
               )}
             </div>
             <p className="text-xs text-muted-foreground">Dados homologados pela ANEEL</p>

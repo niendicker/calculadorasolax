@@ -118,6 +118,7 @@ export function WhiteTariffPanel({
 
   const [distributors, setDistributors] = useState<string[]>([]);
   const [loadingDistributors, setLoadingDistributors] = useState(true);
+  const [loadingReferenceDate, setLoadingReferenceDate] = useState(true);
   const [fetchingTariffs, setFetchingTariffs] = useState(false);
   const [tariffError, setTariffError] = useState<string | null>(null);
   const [aneelTariffs, setAneelTariffs] = useState<EnergyTariffResult | null>(null);
@@ -141,16 +142,23 @@ export function WhiteTariffPanel({
         if (distributorsRes.ok) {
           const data = await distributorsRes.json();
           setDistributors(data.distributors || []);
+        } else {
+          console.error('Error fetching distributors:', distributorsRes.status);
         }
 
         if (dateRes.ok) {
           const data = await dateRes.json();
           setAneelReferenceDate(data.latestDate || '');
+        } else {
+          console.error('Error fetching latest date:', dateRes.status);
+          setAneelReferenceDate('');
         }
       } catch (err) {
         console.error('Error loading data:', err);
+        setAneelReferenceDate('');
       } finally {
         setLoadingDistributors(false);
+        setLoadingReferenceDate(false);
       }
     }
 
@@ -311,6 +319,7 @@ export function WhiteTariffPanel({
           tariffMode={aneelTariffMode}
           setTariffMode={setAneelTariffMode}
           referenceDate={aneelReferenceDate}
+          loadingReferenceDate={loadingReferenceDate}
           tariffs={aneelTariffs}
           loading={fetchingTariffs}
           error={tariffError}
