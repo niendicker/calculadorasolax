@@ -10,6 +10,7 @@ export interface AneelTariffQuery {
   subgroup: string;
   tariffMode: string;
   consumerClass?: string;
+  accessantAgent?: string;
   referenceDate: string;
 }
 
@@ -160,6 +161,10 @@ function filterRecordsByQuery(records: CkanDatastoreRecord[], query: AneelTariff
 
     if (!matches) return false;
 
+    if (query.accessantAgent && !matchesAccessantAgent(record, query.accessantAgent)) {
+      return false;
+    }
+
     if (query.consumerClass && !matchesConsumerClass(record, query.consumerClass)) {
       return false;
     }
@@ -198,6 +203,16 @@ function matchesTariffMode(record: CkanDatastoreRecord, tariffMode: string): boo
 
   const recordValue = String(record[field]).toLowerCase().trim();
   const queryValue = tariffMode.toLowerCase().trim();
+
+  return recordValue === queryValue;
+}
+
+function matchesAccessantAgent(record: CkanDatastoreRecord, accessantAgent: string): boolean {
+  const field = findField(record, ['SigAgenteAcessante', 'SignAccessantAgent', 'AGENTE_ACESSANTE']);
+  if (!field) return false;
+
+  const recordValue = String(record[field]).toUpperCase().trim();
+  const queryValue = accessantAgent.toUpperCase().trim();
 
   return recordValue === queryValue;
 }
