@@ -7,9 +7,15 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
+interface CkanDatastoreRecord {
+  _id: number;
+  [key: string]: string | number | null;
+}
+
 class SimpleCache {
   private tariffCache = new Map<string, CacheEntry<EnergyTariffResult>>();
   private distributorCache = new Map<string, CacheEntry<string[]>>();
+  private datasetCache: CacheEntry<CkanDatastoreRecord[]> | null = null;
 
   getTariff(key: string): EnergyTariffResult | null {
     const entry = this.tariffCache.get(key);
@@ -49,9 +55,28 @@ class SimpleCache {
     });
   }
 
+  getDataset(): CkanDatastoreRecord[] | null {
+    if (!this.datasetCache) return null;
+
+    if (Date.now() - this.datasetCache.timestamp > CACHE_TTL_MS) {
+      this.datasetCache = null;
+      return null;
+    }
+
+    return this.datasetCache.data;
+  }
+
+  setDataset(data: CkanDatastoreRecord[]): void {
+    this.datasetCache = {
+      data,
+      timestamp: Date.now(),
+    };
+  }
+
   clear(): void {
     this.tariffCache.clear();
     this.distributorCache.clear();
+    this.datasetCache = null;
   }
 }
 

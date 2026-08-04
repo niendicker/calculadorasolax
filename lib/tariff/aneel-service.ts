@@ -1,4 +1,5 @@
 import { normalizePeriodName, normalizeNumber, normalizeUnit } from './normalize';
+import { cache } from './cache';
 
 export interface CkanRecord {
   [key: string]: string | number | null;
@@ -88,6 +89,11 @@ export async function getLatestTariffDate(): Promise<string | null> {
 }
 
 async function queryAneelDatastore(): Promise<CkanDatastoreRecord[]> {
+  const cached = cache.getDataset();
+  if (cached) {
+    return cached;
+  }
+
   const url = new URL(`${ANEEL_CKAN_API}/datastore_search`);
   url.searchParams.append('resource_id', DEFAULT_RESOURCE_ID);
   url.searchParams.append('limit', '10000');
@@ -106,7 +112,10 @@ async function queryAneelDatastore(): Promise<CkanDatastoreRecord[]> {
     throw new Error('Invalid ANEEL response structure');
   }
 
-  return data.result.records;
+  const records = data.result.records;
+  cache.setDataset(records);
+
+  return records;
 }
 
 function filterRecordsByQuery(records: CkanDatastoreRecord[], query: AneelTariffQuery): CkanDatastoreRecord[] {
