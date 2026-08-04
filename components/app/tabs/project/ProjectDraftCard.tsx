@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Save, Users, X } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Save, UserPlus, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -9,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import type { Client, ProjectInfo, ProjectServiceLine, UserServiceItem } from '@/lib/types';
 import { AddressFields } from '../../address-fields';
 import { formatCurrencyBRL } from '../../helpers';
+import { QuickAddClientModal } from './QuickAddClientModal';
 
 function ProjectField({
   label,
@@ -34,6 +36,7 @@ export function ProjectDraftCard({
   isDirty,
   setProjectInfo,
   onManageClients,
+  onAddClient,
   onSave,
   onCancel,
   nameError,
@@ -52,6 +55,7 @@ export function ProjectDraftCard({
   isDirty: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onManageClients: () => void;
+  onAddClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   onSave: () => void;
   onCancel: () => void;
   nameError: boolean;
@@ -61,6 +65,8 @@ export function ProjectDraftCard({
   onRemoveService: (serviceId: string) => void;
   onUpdateServiceQty: (serviceId: string, qty: number) => void;
 }) {
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
   return (
     <Card className="border-primary/40 bg-primary/5 sm:col-span-2">
       <CardHeader>
@@ -99,6 +105,16 @@ export function ProjectDraftCard({
                 </option>
               ))}
             </select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              aria-label="Novo cliente"
+              onClick={() => setQuickAddOpen(true)}
+            >
+              <UserPlus className="h-4 w-4" />
+            </Button>
             <Button type="button" variant="outline" className="shrink-0" onClick={onManageClients}>
               <Users className="h-4 w-4" />
               Gerenciar clientes
@@ -202,6 +218,16 @@ export function ProjectDraftCard({
           </Button>
         </div>
       </CardContent>
+
+      <QuickAddClientModal
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        onAdd={onAddClient}
+        onCreated={(client) => {
+          setProjectInfo({ clientId: client.id });
+          setQuickAddOpen(false);
+        }}
+      />
     </Card>
   );
 }

@@ -92,6 +92,7 @@ export function ProjectTab({
     currentProjectId,
     savedProjects,
     clients,
+    addClient,
     userStockItems,
     userServices,
     marginSettings,
@@ -330,6 +331,7 @@ export function ProjectTab({
                   isDirty={isDraftDirty}
                   setProjectInfo={setProjectInfo}
                   onManageClients={onManageClients}
+                  onAddClient={addClient}
                   onSave={handleSave}
                   onCancel={handleCancel}
                   nameError={nameError}
@@ -350,6 +352,7 @@ export function ProjectTab({
                     isDirty={isDraftDirty}
                     setProjectInfo={setProjectInfo}
                     onManageClients={onManageClients}
+                    onAddClient={addClient}
                     onSave={handleSave}
                     onCancel={handleCancel}
                     nameError={nameError}

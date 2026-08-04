@@ -444,6 +444,15 @@ export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+export function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 /** Default filename for the exported PDF report ("projeto_data") — most
  * browsers' print-to-PDF dialog suggests document.title as the filename, so
  * this is set as the title right before calling window.print() (see exportPdf
