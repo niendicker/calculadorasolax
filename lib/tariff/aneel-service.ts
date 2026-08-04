@@ -63,6 +63,30 @@ export async function fetchTariffsFromAneel(query: AneelTariffQuery): Promise<En
   }
 }
 
+export async function getLatestTariffDate(): Promise<string | null> {
+  try {
+    const records = await queryAneelDatastore();
+    if (records.length === 0) return null;
+
+    let latestDate: Date | null = null;
+    for (const record of records) {
+      const field = findField(record, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+      if (field) {
+        const dateStr = String(record[field]);
+        const date = parseDate(dateStr);
+        if (date && (!latestDate || date > latestDate)) {
+          latestDate = date;
+        }
+      }
+    }
+
+    return latestDate ? latestDate.toISOString().split('T')[0] : null;
+  } catch (error) {
+    console.error('[ANEEL] Error fetching latest date:', error);
+    return null;
+  }
+}
+
 async function queryAneelDatastore(): Promise<CkanDatastoreRecord[]> {
   const url = new URL(`${ANEEL_CKAN_API}/datastore_search`);
   url.searchParams.append('resource_id', DEFAULT_RESOURCE_ID);

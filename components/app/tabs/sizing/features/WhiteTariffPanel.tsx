@@ -125,26 +125,33 @@ export function WhiteTariffPanel({
   const [aneelDistributor, setAneelDistributor] = useState(whiteTariff?.distributor || '');
   const [aneelSubgroup, setAneelSubgroup] = useState(whiteTariff?.subgroup || '');
   const [aneelTariffMode, setAneelTariffMode] = useState(whiteTariff?.tariffMode || 'Tarifa Branca');
-  const [aneelReferenceDate, setAneelReferenceDate] = useState(
-    whiteTariff?.validFrom || new Date().toISOString().split('T')[0]
-  );
+  const [aneelReferenceDate, setAneelReferenceDate] = useState('');
 
   useEffect(() => {
-    async function loadDistributors() {
+    async function loadData() {
       try {
-        const response = await fetch('/api/tariffs/distributors');
-        if (response.ok) {
-          const data = await response.json();
+        const [distributorsRes, dateRes] = await Promise.all([
+          fetch('/api/tariffs/distributors'),
+          fetch('/api/tariffs/latest-date'),
+        ]);
+
+        if (distributorsRes.ok) {
+          const data = await distributorsRes.json();
           setDistributors(data.distributors || []);
         }
+
+        if (dateRes.ok) {
+          const data = await dateRes.json();
+          setAneelReferenceDate(data.latestDate || '');
+        }
       } catch (err) {
-        console.error('Error loading distributors:', err);
+        console.error('Error loading data:', err);
       } finally {
         setLoadingDistributors(false);
       }
     }
 
-    loadDistributors();
+    loadData();
   }, []);
 
   async function handleFetchTariffs() {
@@ -268,7 +275,6 @@ export function WhiteTariffPanel({
           tariffMode={aneelTariffMode}
           setTariffMode={setAneelTariffMode}
           referenceDate={aneelReferenceDate}
-          setReferenceDate={setAneelReferenceDate}
           tariffs={aneelTariffs}
           loading={fetchingTariffs}
           error={tariffError}
