@@ -236,7 +236,7 @@ function extractTariffs(record: CkanDatastoreRecord): Record<string, number | un
 
   let teValue = 0;
   let tusdValue = 0;
-  let unit = 'R$/kWh';
+  let unitStr = 'R$/kWh';
 
   if (teField && record[teField] !== null) {
     teValue = normalizeNumber(record[teField]);
@@ -245,17 +245,16 @@ function extractTariffs(record: CkanDatastoreRecord): Record<string, number | un
     tusdValue = normalizeNumber(record[tusdField]);
   }
   if (unitField && record[unitField] !== null) {
-    const unitStr = String(record[unitField]);
-    const normalized = normalizeUnit(teValue + tusdValue, unitStr);
-    unit = normalized.unit;
+    unitStr = String(record[unitField]);
   }
 
   const totalTariff = teValue + tusdValue;
 
-  if (unit.toLowerCase() === 'r$/kwh') {
-    const normalized = normalizeUnit(totalTariff, unit);
-    const tariffValue = normalized.value;
+  const normalized = normalizeUnit(totalTariff, unitStr);
+  const tariffValue = normalized.value;
+  const finalUnit = normalized.unit;
 
+  if (finalUnit.toLowerCase() === 'r$/kwh') {
     const periodField = findField(record, ['NomPostoTarifario', 'DsPeriodoTarifario', 'Periodo', 'PERIODO']);
     if (periodField) {
       const periodName = String(record[periodField]);

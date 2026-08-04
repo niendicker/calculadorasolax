@@ -13,7 +13,7 @@ export function normalizePeriodName(periodName: string): TariffPeriod | null {
   const normalized = normalizeText(periodName);
 
   if (normalized === 'ponta') return 'peak';
-  if (normalized === 'intermediaria') return 'intermediate';
+  if (normalized === 'intermediaria' || normalized === 'intermediario') return 'intermediate';
   if (normalized === 'fora ponta' || normalized === 'fora de ponta' || normalized === 'fora-ponta' || normalized === 'fora-de-ponta') return 'offPeak';
   if (normalized === 'convencional') return 'conventional';
 

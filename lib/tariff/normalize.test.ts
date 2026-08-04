@@ -16,6 +16,7 @@ describe('normalizePeriodName', () => {
 
   it('normalizes intermediária to intermediate', () => {
     expect(normalizePeriodName('Intermediária')).toBe('intermediate');
+    expect(normalizePeriodName('Intermediário')).toBe('intermediate');
     expect(normalizePeriodName('intermediária')).toBe('intermediate');
   });
 
