@@ -69,7 +69,7 @@ const SizingTab = dynamic(() => import('./tabs/SizingTab').then((m) => m.SizingT
 // user has to reopen the sheet just to remember where they are.
 const moreNavTabLabels: Partial<Record<'purchases' | 'myStock' | 'clients' | 'profile', string>> = {
   purchases: 'Compras',
-  myStock: 'Meu Catálogo',
+  myStock: 'Portfólio',
   clients: 'Clientes',
   profile: 'Perfil',
 };
@@ -556,13 +556,13 @@ export function SinglePageApp() {
               aria-current={activeTab === 'myStock' ? 'page' : undefined}
               onClick={() => changeTab('myStock')}
               className={cn(
-                'flex h-8 w-full items-center gap-2 rounded-lg py-0 pl-9 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'myStock' &&
                   'border border-primary/20 bg-primary/10 font-medium text-foreground'
               )}
             >
-              <Wallet className="h-3.5 w-3.5" />
-              Meu Catálogo
+              <Wallet className="h-4 w-4" />
+              Portfólio
             </button>
             <button
               type="button"
@@ -837,7 +837,7 @@ export function SinglePageApp() {
           aria-label={summaryDrawerOpen && summaryActive ? 'Resumo' : undefined}
           className={cn(
             'xl:z-auto xl:min-h-0 xl:w-auto xl:max-w-none xl:flex-col xl:overflow-y-auto xl:border-l xl:bg-card xl:shadow-none',
-            // Tabs that never call PageSummary (Catálogo, Meu Catálogo, Perfil)
+            // Tabs that never call PageSummary (Catálogo, Portfólio, Perfil)
             // shouldn't reserve a permanently empty 460px column on desktop —
             // the grid template above drops that column too when inactive.
             summaryActive ? 'xl:static xl:flex' : 'xl:hidden',
@@ -1013,7 +1013,7 @@ export function SinglePageApp() {
                 )}
               >
                 <Wallet className="h-4 w-4" />
-                Meu Catálogo
+                Portfólio
               </button>
               <button
                 type="button"

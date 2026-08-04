@@ -485,7 +485,7 @@ describe('ProjectTab: new project draft', () => {
   it('shows a placeholder when there are no user services registered yet', () => {
     setup({ projectDetailsVisible: true, currentProjectId: null, userServices: [] });
     expect(
-      screen.getByText('Cadastre serviços (instalação, frete...) em Meu Catálogo para adicioná-los ao projeto.')
+      screen.getByText('Cadastre serviços (instalação, frete...) em Portfólio para adicioná-los ao projeto.')
     ).toBeInTheDocument();
   });
 

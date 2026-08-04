@@ -313,7 +313,7 @@ export function ProjectTab({
               <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">Novo por aqui?</p>
                 <p className="mt-1">
-                  Um fluxo comum: cadastre seus produtos e preços em <strong>Meu Catálogo</strong>, adicione um{' '}
+                  Um fluxo comum: cadastre seus produtos e preços em <strong>Portfólio</strong>, adicione um{' '}
                   <strong>Cliente</strong>, depois crie um <strong>Novo projeto</strong> e finalize no{' '}
                   <strong>Dimensionamento</strong>. Você também pode só clicar em &quot;Novo projeto&quot; agora e
                   ajustar tudo depois.

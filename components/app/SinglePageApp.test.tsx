@@ -319,7 +319,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument();
   });
 
-  it('opens the "Mais" menu, switches to Meu Catálogo, and closes', async () => {
+  it('opens the "Mais" menu, switches to Portfólio, and closes', async () => {
     setupSupabase();
     renderApp();
 
@@ -329,10 +329,10 @@ describe('SinglePageApp: mobile bottom nav', () => {
     const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
     const moreNav = within(dialog).getByRole('navigation');
 
-    fireEvent.click(within(moreNav).getByRole('button', { name: 'Meu Catálogo' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument());
+    fireEvent.click(within(moreNav).getByRole('button', { name: 'Portfólio' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Portfólio' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
-    expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Meu Catálogo');
+    expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Portfólio');
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[0]);
@@ -410,13 +410,13 @@ describe('SinglePageApp: summary panel', () => {
 });
 
 describe('SinglePageApp: desktop sidebar navigation', () => {
-  it('navigates to Meu Catálogo and back to Projeto via the sidebar', async () => {
+  it('navigates to Portfólio and back to Projeto via the sidebar', async () => {
     setupSupabase();
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Meu Catálogo' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Portfólio' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Portfólio' })).toBeInTheDocument();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument();
@@ -457,8 +457,8 @@ describe('SinglePageApp: full mobile menu navigation', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Meu Catálogo' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Meu Catálogo' })).toBeInTheDocument());
+    fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Portfólio' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Portfólio' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Perfil' }));

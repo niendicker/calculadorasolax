@@ -130,7 +130,7 @@ export function ProjectDraftCard({
           <Label>Serviços</Label>
           {userServices.length === 0 ? (
             <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-              Cadastre serviços (instalação, frete...) em Meu Catálogo para adicioná-los ao projeto.
+              Cadastre serviços (instalação, frete...) em Portfólio para adicioná-los ao projeto.
             </p>
           ) : (
             <div className="space-y-2">

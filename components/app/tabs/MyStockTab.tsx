@@ -190,7 +190,7 @@ export function MyStockTab({
     <div className="mx-auto max-w-5xl space-y-4 py-4">
       <PageHeader>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Meu Catálogo</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Portfólio</h1>
           <p className="text-sm text-muted-foreground">
             Seus preços de produtos e serviços, usados nos orçamentos. Para adicionar um novo produto, escolha-o na
             aba Catálogo.
