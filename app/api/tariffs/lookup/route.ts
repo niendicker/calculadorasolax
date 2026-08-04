@@ -6,10 +6,15 @@ const ANEEL_CKAN_API = 'https://dadosabertos.aneel.gov.br/api/3/action';
 const DEFAULT_RESOURCE_ID = process.env.ANEEL_TARIFF_RESOURCE_ID || 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
 const GENERATOR_PREFIXES = ['EOL', 'UFV', 'UTE', 'UHE', 'PCH', 'CGH', 'CGU', 'UTN'];
 
+interface CkanDatastoreRecord {
+  _id: number;
+  [key: string]: string | number | null;
+}
+
 interface CkanDatastoreResponse {
   success: boolean;
   result: {
-    records: Array<Record<string, string | number | null>>;
+    records: CkanDatastoreRecord[];
   };
 }
 
