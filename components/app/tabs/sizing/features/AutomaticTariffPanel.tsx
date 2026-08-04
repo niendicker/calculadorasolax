@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
+import { tariffSubgroups } from '@/lib/tariff/subgroups';
 
 interface AutomaticTariffPanelProps {
   distributor: string;
@@ -29,7 +30,6 @@ interface AutomaticTariffPanelProps {
 }
 
 const TARIFF_MODES = ['Tarifa Branca', 'Convencional', 'Azul', 'Verde'];
-const COMMON_SUBGROUPS = ['B1', 'B2', 'B3', 'A1', 'A2', 'A3', 'A4'];
 
 export function AutomaticTariffPanel({
   distributor,
@@ -112,9 +112,9 @@ export function AutomaticTariffPanel({
               className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Selecione um subgrupo</option>
-              {COMMON_SUBGROUPS.map((sg) => (
-                <option key={sg} value={sg}>
-                  {sg}
+              {tariffSubgroups.map((sg) => (
+                <option key={sg.value} value={sg.value}>
+                  {sg.label}
                 </option>
               ))}
             </select>
