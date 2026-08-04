@@ -28,7 +28,7 @@ interface AutomaticTariffPanelProps {
   onFetchTariffs: () => Promise<void>;
 }
 
-const TARIFF_MODES = ['Tarifa Branca', 'Convencional', 'Azul', 'Verde'];
+const TARIFF_MODES = ['Branca', 'Convencional', 'Azul', 'Verde'];
 
 export function AutomaticTariffPanel({
   distributor,
