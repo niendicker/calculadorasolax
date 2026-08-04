@@ -179,7 +179,7 @@ function matchesDistributor(record: CkanDatastoreRecord, distributor: string): b
   const recordValue = String(record[field]).toLowerCase().trim();
   const queryValue = distributor.toLowerCase().trim();
 
-  return recordValue.includes(queryValue) || queryValue.includes(recordValue);
+  return recordValue === queryValue;
 }
 
 function matchesSubgroup(record: CkanDatastoreRecord, subgroup: string): boolean {
@@ -199,7 +199,7 @@ function matchesTariffMode(record: CkanDatastoreRecord, tariffMode: string): boo
   const recordValue = String(record[field]).toLowerCase().trim();
   const queryValue = tariffMode.toLowerCase().trim();
 
-  return recordValue.includes(queryValue) || queryValue.includes(recordValue);
+  return recordValue === queryValue;
 }
 
 function matchesConsumerClass(record: CkanDatastoreRecord, consumerClass: string): boolean {
