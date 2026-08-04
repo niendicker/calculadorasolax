@@ -51,13 +51,18 @@ export async function fetchTariffsFromAneel(query: AneelTariffQuery): Promise<En
     const records = await queryAneelDatastore();
     if (records.length === 0) return null;
 
-    const filtered = filterRecordsByQuery(records, query);
+    const updatedQuery = { ...query };
+    if (!updatedQuery.referenceDate || updatedQuery.referenceDate === '') {
+      updatedQuery.referenceDate = new Date().toISOString().split('T')[0];
+    }
+
+    const filtered = filterRecordsByQuery(records, updatedQuery);
     if (filtered.length === 0) return null;
 
     const selected = selectBestRecord(filtered);
     if (!selected) return null;
 
-    return buildTariffResult(selected, query);
+    return buildTariffResult(selected, updatedQuery);
   } catch (error) {
     console.error('[ANEEL] Error fetching tariffs:', error);
     return null;
@@ -69,19 +74,45 @@ export async function getLatestTariffDate(): Promise<string | null> {
     const records = await queryAneelDatastore();
     if (records.length === 0) return null;
 
-    let latestDate: Date | null = null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let hasValidDataToday = false;
+    let latestValidDate: Date | null = null;
+
     for (const record of records) {
-      const field = findField(record, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
-      if (field) {
-        const dateStr = String(record[field]);
-        const date = parseDate(dateStr);
-        if (date && (!latestDate || date > latestDate)) {
-          latestDate = date;
+      const startField = findField(record, ['DatInicioVigencia', 'DtInicialVigencia', 'DataInicial', 'DATA_INICIAL']);
+      const endField = findField(record, ['DatFimVigencia', 'DtFinalVigencia', 'DataFinal', 'DATA_FINAL']);
+
+      if (!startField) continue;
+
+      const startDateStr = String(record[startField]);
+      const startDate = parseDate(startDateStr);
+
+      if (!startDate || startDate > today) continue;
+
+      let isValid = true;
+      if (endField && record[endField]) {
+        const endDateStr = String(record[endField]);
+        const endDate = parseDate(endDateStr);
+        if (endDate && endDate < today) {
+          isValid = false;
+        }
+      }
+
+      if (isValid) {
+        hasValidDataToday = true;
+        if (!latestValidDate || startDate > latestValidDate) {
+          latestValidDate = startDate;
         }
       }
     }
 
-    return latestDate ? latestDate.toISOString().split('T')[0] : null;
+    if (hasValidDataToday) {
+      return today.toISOString().split('T')[0];
+    }
+
+    return latestValidDate ? latestValidDate.toISOString().split('T')[0] : null;
   } catch (error) {
     console.error('[ANEEL] Error fetching latest date:', error);
     return null;
