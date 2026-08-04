@@ -54,6 +54,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ accessantAgents: [] });
     }
 
+    const GENERATOR_PREFIXES = ['EOL', 'UFV', 'UTE', 'UHE', 'PCH', 'CGH', 'CGU', 'UTN'];
+
     const accessantAgents = new Set<string>();
     const queryDist = distributor.toLowerCase().trim();
 
@@ -63,7 +65,12 @@ export async function GET(request: Request) {
       if (agent === queryDist) {
         const accessant = String(record.SigAgenteAcessante || '').trim();
         if (accessant && accessant !== 'Não se aplica') {
-          accessantAgents.add(accessant);
+          const isGenerator = GENERATOR_PREFIXES.some((prefix) =>
+            accessant.toUpperCase().startsWith(prefix)
+          );
+          if (isGenerator) {
+            accessantAgents.add(accessant);
+          }
         }
       }
     }
