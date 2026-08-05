@@ -144,6 +144,7 @@ describe('projectFromRow', () => {
         address: 'Rua 1',
         notes: 'nota',
         updated_at: '2026-01-01',
+        status: 'sent',
         residential_options: { topology: 'HighVoltage' },
         solution: { batteryModel: 'X' },
         services: [{ serviceId: 's1', name: 'Serviço', qty: 1 }],
@@ -155,6 +156,7 @@ describe('projectFromRow', () => {
       address: { ...emptyAddress(), street: 'Rua 1' },
       notes: 'nota',
       updatedAt: '2026-01-01',
+      status: 'sent',
       residentialOptions: { topology: 'HighVoltage' },
       solution: { batteryModel: 'X' },
       services: [{ serviceId: 's1', name: 'Serviço', qty: 1 }],
@@ -166,11 +168,12 @@ describe('projectFromRow', () => {
     expect(projectFromRow({ id: 'pr1', residential_options: {}, address }).address).toEqual(address);
   });
 
-  it('defaults clientId, address, notes, solution and services when absent', () => {
+  it('defaults clientId, address, notes, status, solution and services when absent', () => {
     const result = projectFromRow({ id: 'pr1', residential_options: {} });
     expect(result.clientId).toBeNull();
     expect(result.address).toEqual(emptyAddress());
     expect(result.notes).toBe('');
+    expect(result.status).toBe('draft');
     expect(result.solution).toBeNull();
     expect(result.services).toEqual([]);
   });

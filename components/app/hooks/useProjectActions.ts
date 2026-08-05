@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { isLimitError } from '@/lib/limits';
-import type { SavedProject } from '@/lib/types';
+import type { ProjectStatus, SavedProject } from '@/lib/types';
 import type { InlineProfile } from '../types';
+import { projectStatusLabels } from '../types';
 
 export function useProjectActions({
   profile,
@@ -15,6 +16,7 @@ export function useProjectActions({
   removeProject,
   duplicateProject,
   refreshProjectSolution,
+  updateProjectStatus,
   setActiveTab,
 }: {
   profile: InlineProfile | null;
@@ -27,6 +29,7 @@ export function useProjectActions({
   removeProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<SavedProject>;
   refreshProjectSolution: (id: string) => Promise<SavedProject>;
+  updateProjectStatus: (id: string, status: ProjectStatus) => Promise<SavedProject>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
@@ -122,6 +125,15 @@ export function useProjectActions({
     }
   }
 
+  async function updateStatus(id: string, status: ProjectStatus) {
+    try {
+      await updateProjectStatus(id, status);
+      report(`Cotação marcada como "${projectStatusLabels[status]}".`);
+    } catch {
+      report('Não foi possível atualizar o status da cotação. Tente novamente.');
+    }
+  }
+
   return {
     projectStatus,
     statusId,
@@ -134,6 +146,7 @@ export function useProjectActions({
     deleteProject,
     duplicateProject: duplicateExistingProject,
     refreshProjectSolution: refreshSolution,
+    updateProjectStatus: updateStatus,
     refreshingProjectId,
   };
 }

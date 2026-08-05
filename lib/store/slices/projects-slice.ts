@@ -3,7 +3,7 @@ import { isAddressEmpty } from '@/lib/address';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
-import type { ProjectInfo, SavedProject } from '@/lib/types';
+import type { ProjectInfo, ProjectStatus, SavedProject } from '@/lib/types';
 import { defaultProjectInfo, defaultResidential, sanitizeDesiredFeatures } from '../defaults';
 import { projectFromRow } from '../row-mappers';
 import { totalDailyKwh, totalPeakW } from '../wizard-calculations';
@@ -34,6 +34,7 @@ export interface ProjectsSlice {
    * project's card can catch up a solution that's gone stale after the loads
    * changed, without the user having to reopen it in Dimensionamento. */
   refreshProjectSolution: (id: string) => Promise<SavedProject>;
+  updateProjectStatus: (id: string, status: ProjectStatus) => Promise<SavedProject>;
   fetchProjects: () => Promise<void>;
 }
 
@@ -259,6 +260,24 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     if (error) throw error;
 
     const updated = projectFromRow(row);
+    set((s) => ({
+      savedProjects: s.savedProjects.map((item) => (item.id === id ? updated : item)),
+    }));
+
+    return updated;
+  },
+
+  updateProjectStatus: async (id, status) => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('projects')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    const updated = projectFromRow(data);
     set((s) => ({
       savedProjects: s.savedProjects.map((item) => (item.id === id ? updated : item)),
     }));

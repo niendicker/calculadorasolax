@@ -30,6 +30,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
     address: { ...emptyAddress(), street: 'Rua salva, 1' },
     notes: 'Notas salvas',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
     residentialOptions: {
       topology: 'HighVoltage',
       batteryModel: 'T-BAT-SYS-HV-5.8',
@@ -1050,6 +1051,40 @@ describe('refreshProjectSolution', () => {
   });
 });
 
+describe('updateProjectStatus', () => {
+  beforeEach(() => resetStore());
+
+  it('persists the new status and updates the matching project in savedProjects', async () => {
+    const supabase = createSupabaseMock({
+      tableResults: { projects: { data: { ...projectRow, id: 'p1', status: 'sent' }, error: null } },
+    });
+    createClientMock.mockReturnValue(supabase);
+
+    const source = makeSavedProject({ id: 'p1', status: 'draft' });
+    const other = makeSavedProject({ id: 'p2', status: 'draft' });
+    useWizardStore.setState({ savedProjects: [source, other] });
+
+    const updated = await useWizardStore.getState().updateProjectStatus('p1', 'sent');
+
+    expect(updated.status).toBe('sent');
+    const s = useWizardStore.getState();
+    expect(s.savedProjects.find((p) => p.id === 'p1')?.status).toBe('sent');
+    // The other project in the list is untouched.
+    expect(s.savedProjects.find((p) => p.id === 'p2')).toEqual(other);
+  });
+
+  it('propagates a Supabase error instead of updating state', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { projects: { data: null, error: { message: 'db down' } } } })
+    );
+    const source = makeSavedProject({ id: 'p1', status: 'draft' });
+    useWizardStore.setState({ savedProjects: [source] });
+
+    await expect(useWizardStore.getState().updateProjectStatus('p1', 'sent')).rejects.toBeTruthy();
+    expect(useWizardStore.getState().savedProjects).toEqual([source]);
+  });
+});
+
 describe('fetchProjects', () => {
   beforeEach(() => resetStore());
 
@@ -1068,6 +1103,7 @@ describe('fetchProjects', () => {
         address: { ...emptyAddress(), street: 'Endereço do banco' },
         notes: 'Notas do banco',
         updatedAt: '2026-02-01T00:00:00.000Z',
+        status: 'draft',
         residentialOptions: projectRow.residential_options,
         solution: null,
         services: [],

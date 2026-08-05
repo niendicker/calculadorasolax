@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
   BatteryTopology,
+  ProjectStatus,
   ResidentialGridType,
 } from '@/lib/types';
 import { useWizardStore } from '@/lib/store/wizard-store';
@@ -14,7 +15,7 @@ import { calculateSystemCost, formatCurrencyBRL } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
-import { gridLabels, topologyLabels } from '../types';
+import { gridLabels, projectStatusLabels, topologyLabels } from '../types';
 import { NewProjectCard } from './project/NewProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
@@ -45,6 +46,7 @@ export function ProjectTab({
   onDuplicate,
   onRefreshSolution,
   refreshingProjectId,
+  onUpdateStatus,
   onDownloadPdf,
   onManageClients,
   onShowSummary,
@@ -75,6 +77,7 @@ export function ProjectTab({
   /** Id of the project currently being recalculated, if any — used to show a
    * loading state on that project's "Atualizar" button specifically. */
   refreshingProjectId: string | null;
+  onUpdateStatus: (id: string, status: ProjectStatus) => void;
   onDownloadPdf: (id: string) => void;
   onManageClients: () => void;
   /** Brings the shell's summary panel into view (a slide-in drawer on
@@ -107,6 +110,7 @@ export function ProjectTab({
   const nameError = nameSubmitAttempted && !projectInfo.name.trim();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<'all' | ProjectStatus>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'client'>('recent');
 
   const selectedProject =
@@ -138,7 +142,8 @@ export function ProjectTab({
         statusFilter === 'all' ||
         (statusFilter === 'with' && project.solution) ||
         (statusFilter === 'without' && !project.solution);
-      return matchesSearch && matchesStatus;
+      const matchesQuoteStatus = quoteStatusFilter === 'all' || project.status === quoteStatusFilter;
+      return matchesSearch && matchesStatus && matchesQuoteStatus;
     })
     .sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name, 'pt-BR');
@@ -206,6 +211,7 @@ export function ProjectTab({
               onHideSummary();
             }}
             onOpenSizing={() => onOpenSizing(selectedProject.id)}
+            onUpdateStatus={(status) => onUpdateStatus(selectedProject.id, status)}
           />
         ) : projectDetailsVisible ? (
           <>
@@ -291,6 +297,19 @@ export function ProjectTab({
                     </button>
                   ))}
                 </div>
+                <select
+                  aria-label="Filtrar por status da cotação"
+                  value={quoteStatusFilter}
+                  onChange={(event) => setQuoteStatusFilter(event.target.value as typeof quoteStatusFilter)}
+                  className="h-10 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8"
+                >
+                  <option value="all">Todos os status</option>
+                  {(Object.keys(projectStatusLabels) as ProjectStatus[]).map((value) => (
+                    <option key={value} value={value}>
+                      {projectStatusLabels[value]}
+                    </option>
+                  ))}
+                </select>
                 <select
                   aria-label="Ordenar projetos"
                   value={sortBy}
@@ -387,6 +406,7 @@ export function ProjectTab({
                     onDuplicate={() => onDuplicate(project.id)}
                     onRefreshSolution={() => onRefreshSolution(project.id)}
                     refreshing={refreshingProjectId === project.id}
+                    onUpdateStatus={(status) => onUpdateStatus(project.id, status)}
                     onDownloadPdf={() => onDownloadPdf(project.id)}
                   />
                 )

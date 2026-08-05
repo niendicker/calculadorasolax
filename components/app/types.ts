@@ -1,4 +1,11 @@
-import type { Address, BatteryTopology, InverterFlag, ProductDocument, ResidentialGridType } from '@/lib/types';
+import type {
+  Address,
+  BatteryTopology,
+  InverterFlag,
+  ProductDocument,
+  ProjectStatus,
+  ResidentialGridType,
+} from '@/lib/types';
 
 export interface InlineProfile {
   id: string;
@@ -104,6 +111,13 @@ export const gridLabels: Record<ResidentialGridType, string> = {
   splitPhase_220: 'Bifásico 220V',
   threePhase_220: 'Trifásico 220V',
   threePhase_380: 'Trifásico 380V',
+};
+
+export const projectStatusLabels: Record<ProjectStatus, string> = {
+  draft: 'Rascunho',
+  sent: 'Enviada',
+  accepted: 'Aceita',
+  rejected: 'Recusada',
 };
 
 export const gridTypeToApprovedTopology: Record<ResidentialGridType, '1p_220V' | '2p_220V' | '3p_220V' | '3p_380V'> = {

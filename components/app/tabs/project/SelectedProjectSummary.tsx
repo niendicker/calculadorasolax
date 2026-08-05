@@ -5,7 +5,7 @@ import { BatteryCharging, Calculator, ChevronRight, ClipboardCopy, Gauge, Mail, 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
-import type { Client, MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
   batteryQuantityBreakdown,
@@ -17,6 +17,7 @@ import {
 } from '../../helpers';
 import { Metric, SharePreviewModal } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../../types';
+import { ProjectStatusSelect } from './ProjectStatusSelect';
 
 /** A product's category label, its nickname/model (with quantity, if any),
  * and — only when a nickname is set — the bare model code as a small
@@ -60,6 +61,7 @@ export function SelectedProjectSummary({
   marginSettings,
   onClose,
   onOpenSizing,
+  onUpdateStatus,
 }: {
   project: SavedProject;
   client: Client | undefined;
@@ -71,6 +73,7 @@ export function SelectedProjectSummary({
   marginSettings: MarginSettings;
   onClose: () => void;
   onOpenSizing: () => void;
+  onUpdateStatus: (status: ProjectStatus) => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -109,7 +112,10 @@ export function SelectedProjectSummary({
     <>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold">{project.name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="min-w-0 truncate text-sm font-semibold">{project.name}</h2>
+            <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
+          </div>
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Users className="h-3 w-3 shrink-0" />
             <span className="truncate">{client?.name || 'Cliente não informado'}</span>

@@ -7,6 +7,7 @@ import { addressFromJson } from '@/lib/address';
 import type {
   Client,
   ProjectServiceLine,
+  ProjectStatus,
   ResidentialOptions,
   SavedProject,
   Solution,
@@ -70,6 +71,7 @@ export function projectFromRow(row: Record<string, unknown>): SavedProject {
     address: addressFromJson(row.address),
     notes: (row.notes as string | null) ?? '',
     updatedAt: row.updated_at as string,
+    status: (row.status as ProjectStatus | undefined) ?? 'draft',
     residentialOptions: row.residential_options as ResidentialOptions,
     solution: (row.solution as Solution | null) ?? null,
     services: Array.isArray(row.services) ? (row.services as ProjectServiceLine[]) : [],

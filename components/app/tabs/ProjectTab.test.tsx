@@ -16,6 +16,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
     address: emptyAddress(),
     notes: '',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
     residentialOptions: {
       topology: 'HighVoltage',
       batteryModel: 'TP-HS3.6',
@@ -116,6 +117,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onDuplicate: vi.fn(),
     onRefreshSolution: vi.fn(),
     refreshingProjectId: null,
+    onUpdateStatus: vi.fn(),
     onDownloadPdf: vi.fn(),
     onManageClients: vi.fn(),
     onShowSummary: vi.fn(),
@@ -1074,6 +1076,47 @@ describe('ProjectTab: refreshing a project\'s solution from the card', () => {
       'title',
       'A solução salva não atende 100% aos requisitos — recalcule para atualizar.'
     );
+  });
+});
+
+describe('ProjectTab: quotation status', () => {
+  it('shows the project\'s current status on its card', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', status: 'sent' })] });
+    expect(screen.getByRole('combobox', { name: 'Status da cotação' })).toHaveValue('sent');
+  });
+
+  it('calls onUpdateStatus with the project id and the newly picked status, without triggering card selection', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', status: 'draft' })] });
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status da cotação' }), { target: { value: 'accepted' } });
+
+    expect(props.onUpdateStatus).toHaveBeenCalledWith('p1', 'accepted');
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
+  });
+
+  it('filters the project list by quotation status', () => {
+    setup({
+      savedProjects: [
+        makeProject({ id: 'p1', name: 'Casa de praia', status: 'draft' }),
+        makeProject({ id: 'p2', name: 'Escritório', status: 'accepted' }),
+      ],
+    });
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar por status da cotação' }), {
+      target: { value: 'accepted' },
+    });
+
+    expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
+    expect(screen.getByText('Escritório')).toBeInTheDocument();
+  });
+
+  it('shows the status control in the selected-project summary panel too', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', status: 'rejected' })] });
+
+    const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
+    fireEvent.click(card!);
+
+    expect(screen.getAllByRole('combobox', { name: 'Status da cotação' })).toHaveLength(2);
   });
 });
 

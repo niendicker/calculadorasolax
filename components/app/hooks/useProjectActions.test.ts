@@ -13,6 +13,7 @@ const fakeProject: SavedProject = {
   address: emptyAddress(),
   notes: '',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  status: 'draft',
   residentialOptions: {
     topology: null,
     batteryModel: null,
@@ -57,6 +58,7 @@ function setup(overrides: Partial<Parameters<typeof useProjectActions>[0]> = {})
     removeProject: vi.fn().mockResolvedValue(undefined),
     duplicateProject: vi.fn().mockResolvedValue(fakeProject),
     refreshProjectSolution: vi.fn().mockResolvedValue(fakeProject),
+    updateProjectStatus: vi.fn().mockResolvedValue(fakeProject),
     setActiveTab: vi.fn(),
     ...overrides,
   };
@@ -302,5 +304,28 @@ describe('useProjectActions: refreshProjectSolution', () => {
     });
 
     expect(result.current.projectStatus).toBe('Não foi possível recalcular a solução. Tente novamente.');
+  });
+});
+
+describe('useProjectActions: updateProjectStatus', () => {
+  it('reports success naming the new status label', async () => {
+    const { result, props } = setup();
+
+    await act(async () => {
+      await result.current.updateProjectStatus('p1', 'sent');
+    });
+
+    expect(props.updateProjectStatus).toHaveBeenCalledWith('p1', 'sent');
+    expect(result.current.projectStatus).toBe('Cotação marcada como "Enviada".');
+  });
+
+  it('reports a generic failure without throwing when the update rejects', async () => {
+    const { result } = setup({ updateProjectStatus: vi.fn().mockRejectedValue(new Error('db down')) });
+
+    await act(async () => {
+      await result.current.updateProjectStatus('p1', 'accepted');
+    });
+
+    expect(result.current.projectStatus).toBe('Não foi possível atualizar o status da cotação. Tente novamente.');
   });
 });

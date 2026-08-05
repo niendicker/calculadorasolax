@@ -362,6 +362,11 @@ export interface ProjectInfo {
   notes: string;
 }
 
+/** A project's quotation lifecycle: still being configured, shared with the
+ *  client, or resolved either way. Set only via `updateProjectStatus` — not
+ *  part of `ProjectInfo`, so routine draft edits/autosave never touch it. */
+export type ProjectStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
+
 export interface Client {
   id: string;
   name: string;
@@ -436,6 +441,7 @@ export interface SavedProject {
   address: Address;
   notes: string;
   updatedAt: string;
+  status: ProjectStatus;
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
   services: ProjectServiceLine[];

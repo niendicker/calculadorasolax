@@ -16,12 +16,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
-import type { Client, MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import { calculateSystemCost, formatCurrencyBRL, solutionHasInsufficientMargin } from '../../helpers';
 import type { BatteryCatalogOption } from '../../types';
 import { gridLabels, topologyLabels } from '../../types';
+import { ProjectStatusSelect } from './ProjectStatusSelect';
 
 const STALE_AFTER_DAYS = 7;
 
@@ -44,6 +45,7 @@ export function ProjectCard({
   onDuplicate,
   onRefreshSolution,
   refreshing,
+  onUpdateStatus,
   onDownloadPdf,
 }: {
   project: SavedProject;
@@ -60,6 +62,7 @@ export function ProjectCard({
   onDuplicate: () => void;
   onRefreshSolution: () => void;
   refreshing: boolean;
+  onUpdateStatus: (status: ProjectStatus) => void;
   onDownloadPdf: () => void;
 }) {
   const hasSolution = Boolean(project.solution);
@@ -140,7 +143,10 @@ export function ProjectCard({
         </span>
       </div>
       <div className="min-w-0 pr-16">
-        <p className="font-semibold">{project.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 truncate font-semibold">{project.name}</p>
+          <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
+        </div>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Users className="h-3 w-3 shrink-0" />
           <span className="truncate">{client?.name || 'Cliente não informado'}</span>
