@@ -10,8 +10,8 @@ import {
   ChevronLeft,
   ClipboardCopy,
   CircleCheck,
+  Download,
   Eraser,
-  FileText,
   FolderOpen,
   Gauge,
   Loader2,
@@ -51,7 +51,7 @@ import {
 } from '../helpers';
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import { PageHeader, PageSummary } from '../shell/slots';
-import { Metric, SharePreviewModal, SolutionSkeleton } from '../shared-ui';
+import { Metric, SharePreviewModal, SolutionSkeleton, WhatsAppIcon } from '../shared-ui';
 import { gridLabels, gridOptions, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
 import { ConfigurationSummary } from './sizing/ConfigurationSummary';
 import { DesiredFeaturesPicker, featureIcons } from './sizing/DesiredFeaturesPicker';
@@ -112,6 +112,9 @@ export function SizingTab({
   calculate,
   exportPdf,
   exportingPdf,
+  onSendQuote,
+  sendingQuote,
+  canSendQuoteByWhatsApp,
   onQuoteSolution,
   autosaveStatus,
   autosaveLastSavedAt,
@@ -121,6 +124,7 @@ export function SizingTab({
   userServices = [],
   marginSettings,
   onChooseMicrogridVariant,
+  summaryDrawerOpen,
 }: {
   projectName: string;
   loadingLabel: string;
@@ -176,6 +180,16 @@ export function SizingTab({
    * instant, so both "Baixar relatório" triggers below need to show that
    * something's happening instead of looking unresponsive. */
   exportingPdf: boolean;
+  /** Same handleSendQuote approach as the Projeto tab's SelectedProjectSummary
+   * — tries to share the actual PDF report via the OS share sheet, falling
+   * back to a plain wa.me text link. */
+  onSendQuote: () => void;
+  /** True while onSendQuote() is building the PDF blob to share. */
+  sendingQuote: boolean;
+  /** Whether the client attached to this project (if any) has a phone number
+   *  to send the WhatsApp quote to — the button stays visible but disabled
+   *  (with an explanatory title) otherwise, matching SelectedProjectSummary. */
+  canSendQuoteByWhatsApp: boolean;
   /** Sends the user to Compras with the current solution's inverter/battery/
    *  accessories pre-loaded into the cart — same items as "Importar itens da
    *  solução atual" over there, just reachable in one click from here. */
@@ -188,6 +202,12 @@ export function SizingTab({
   userServices?: UserServiceItem[];
   marginSettings: MarginSettings;
   onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
+  /** True while the summary panel is showing as a mobile/tablet drawer (see
+   *  SinglePageApp's summaryDrawerOpen) — always false on desktop, where the
+   *  panel is a permanently-visible column instead of something that gets
+   *  shown/hidden. Used to reset back to "Resumo" whenever the drawer opens,
+   *  regardless of whichever tab a previous calculation left selected. */
+  summaryDrawerOpen: boolean;
 }) {
   const [activeItem, setActiveItem] = useState<PickerItemId | null>(null);
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
@@ -208,6 +228,17 @@ export function SizingTab({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (solution || error || secondarySolution || secondaryError) setSummaryTab('solucao');
   }, [solution, error, secondarySolution, secondaryError]);
+
+  // On mobile/tablet, the summary panel is a drawer the user explicitly
+  // opens rather than something always on screen — "Resumo" should be what
+  // greets them every time it's opened, not whatever tab a calculation from
+  // earlier in the session already left selected (see the effect above).
+  // No-op on desktop: summaryDrawerOpen never turns true there (see
+  // SinglePageApp's aside, always the static xl:flex column instead).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot reaction to the drawer opening, not a render-time derivation
+    if (summaryDrawerOpen) setSummaryTab('resumo');
+  }, [summaryDrawerOpen]);
 
   function jumpToGridType() {
     setActiveItem('gridType');
@@ -409,7 +440,7 @@ export function SizingTab({
                   : undefined
             }
           >
-            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
           </Button>
           <Button onClick={calculate} disabled={!canCalculate || loading}>
@@ -426,7 +457,7 @@ export function SizingTab({
          * underneath. Negative margins cancel the aside's own px-4/pt-4
          * padding so the sticky background spans full width and touches the
          * top edge, then re-applies that padding inside. */}
-        <div className="sticky top-0 z-10 -mx-4 -mt-4 space-y-3 bg-card px-4 pt-4 pb-3">
+        <div className="sticky top-0 z-20 -mx-4 -mt-4 space-y-3 bg-card px-4 pt-4 pb-3">
           <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1" role="tablist" aria-label="Seções do resumo">
             <button
               type="button"
@@ -556,6 +587,31 @@ export function SizingTab({
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
             />
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={exportPdf}
+              disabled={!solution || !canCalculate || loading || hasInsufficientSolution || exportingPdf}
+              title={
+                !solution
+                  ? 'Calcule uma solução antes de baixar o relatório.'
+                  : hasInsufficientSolution
+                    ? 'A solução encontrada não atende 100% aos requisitos de potência/energia — ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
+                    : undefined
+              }
+            >
+              {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
+            </Button>
+            <Button
+              className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-50"
+              disabled={!canSendQuoteByWhatsApp || sendingQuote}
+              title={canSendQuoteByWhatsApp ? undefined : 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'}
+              onClick={onSendQuote}
+            >
+              {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
+              Compartilhar cotação
+            </Button>
             {/* Sticky to the bottom of the summary aside (same cancel-the-padding
              * trick as the sticky header above — see its comment) so this stays
              * an easy, always-visible tap target on mobile instead of requiring
@@ -612,9 +668,6 @@ export function SizingTab({
                 solution={activeSolution}
                 batteryCatalog={batteryCatalog}
                 inverterCatalog={inverterCatalog}
-                onExport={exportPdf}
-                canExport={canCalculate && !hasInsufficientSolution}
-                exportingPdf={exportingPdf}
                 productMedia={productMedia}
                 userStockItems={userStockItems}
                 services={services}

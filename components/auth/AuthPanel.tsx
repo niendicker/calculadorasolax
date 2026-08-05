@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { CheckCircle2, Eye, EyeOff, LogIn, Mail, Phone, User, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -220,157 +221,166 @@ export function AuthPanel({
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <section className="grid min-h-screen grid-rows-[1fr_auto] px-6 py-5 sm:px-10 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-20 xl:px-28">
-        <div className="hidden lg:flex lg:items-center lg:justify-center">
+    <main className="login-page relative isolate overflow-hidden">
+      <Image
+        src="/images/login/solax-logo.png"
+        alt="SolaX"
+        width={256}
+        height={88}
+        priority
+        className="absolute left-6 top-6 z-20 h-auto w-32 sm:left-10 sm:top-8"
+      />
+
+      <div className="login-image relative flex items-center justify-center" aria-hidden="true">
+        <div className="relative z-10 -translate-y-12">
           <LoginIllustration />
         </div>
+      </div>
 
-        <div className="flex w-full items-center justify-center py-14 lg:justify-end">
-          <div className="w-full max-w-[420px]">
-            <div className="mb-14 text-center lg:text-left">
-              <h1 className="text-3xl font-bold uppercase leading-tight text-primary sm:text-4xl">
-                {mode === 'login' && 'Seja bem vindo ao futuro da energia'}
-                {mode === 'signup' && 'Crie sua conta SolaX'}
-                {mode === 'recovery' && 'Recupere seu acesso'}
-              </h1>
-            </div>
+      <div className="login-form px-6 py-14 sm:px-10 lg:px-20 xl:px-28">
+        <div className="w-full max-w-[420px]">
+          <div className="mb-14 text-center lg:text-left">
+            <h1 className="text-3xl font-bold uppercase leading-tight text-primary sm:text-4xl">
+              {mode === 'login' && 'Seja bem vindo ao futuro da energia'}
+              {mode === 'signup' && 'Crie sua conta SolaX'}
+              {mode === 'recovery' && 'Recupere seu acesso'}
+            </h1>
+          </div>
 
-            <form
-              onSubmit={
-                mode === 'login'
-                  ? login
-                  : mode === 'signup'
-                    ? signup
-                    : recoverPassword
-              }
-              className="space-y-6"
-            >
-              {mode === 'signup' && (
-                <>
-                  <FieldIcon id="fullName" label="Nome" icon={<User className="h-4 w-4" />}>
-                    <Input
-                      id="fullName"
-                      className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
-                      placeholder="Nome completo"
-                      value={fullName}
-                      onChange={(event) => setFullName(event.target.value)}
-                      required
-                    />
-                  </FieldIcon>
-                  <FieldIcon id="phone" label="Telefone" icon={<Phone className="h-4 w-4" />}>
-                    <Input
-                      id="phone"
-                      className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
-                      placeholder="Telefone"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      required
-                    />
-                  </FieldIcon>
-                </>
-              )}
-
-              <FieldIcon id="email" label="Email" icon={<Mail className="h-4 w-4" />}>
-                <Input
-                  id="email"
-                  className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
-                  type="email"
-                  placeholder="ex: example@email.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
-              </FieldIcon>
-
-              {mode !== 'recovery' && (
-                <FieldIcon id="password" label="Senha">
-                  <PasswordInput
-                    id="password"
-                    value={password}
-                    showPassword={showPassword}
-                    setShowPassword={setShowPassword}
-                    onChange={setPassword}
-                  />
-                </FieldIcon>
-              )}
-
-              {mode === 'signup' && (
-                <label className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    checked={acceptedTerms}
-                    onChange={(event) => setAcceptedTerms(event.target.checked)}
+          <form
+            onSubmit={
+              mode === 'login'
+                ? login
+                : mode === 'signup'
+                  ? signup
+                  : recoverPassword
+            }
+            className="space-y-6"
+          >
+            {mode === 'signup' && (
+              <>
+                <FieldIcon id="fullName" label="Nome" icon={<User className="h-4 w-4" />}>
+                  <Input
+                    id="fullName"
+                    className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
+                    placeholder="Nome completo"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
                     required
                   />
-                  <span>
-                    Li e aceito os{' '}
-                    <a href={`/${locale}/termos`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                      Termos de Uso
-                    </a>{' '}
-                    e a{' '}
-                    <a href={`/${locale}/privacidade`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                      Política de Privacidade
-                    </a>
-                    .
-                  </span>
-                </label>
+                </FieldIcon>
+                <FieldIcon id="phone" label="Telefone" icon={<Phone className="h-4 w-4" />}>
+                  <Input
+                    id="phone"
+                    className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
+                    placeholder="Telefone"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    required
+                  />
+                </FieldIcon>
+              </>
+            )}
+
+            <FieldIcon id="email" label="Email" icon={<Mail className="h-4 w-4" />}>
+              <Input
+                id="email"
+                className="h-11 md:h-11 border-primary/80 bg-background pl-8 md:pl-8"
+                type="email"
+                placeholder="ex: example@email.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </FieldIcon>
+
+            {mode !== 'recovery' && (
+              <FieldIcon id="password" label="Senha">
+                <PasswordInput
+                  id="password"
+                  value={password}
+                  showPassword={showPassword}
+                  setShowPassword={setShowPassword}
+                  onChange={setPassword}
+                />
+              </FieldIcon>
+            )}
+
+            {mode === 'signup' && (
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  checked={acceptedTerms}
+                  onChange={(event) => setAcceptedTerms(event.target.checked)}
+                  required
+                />
+                <span>
+                  Li e aceito os{' '}
+                  <a href={`/${locale}/termos`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                    Termos de Uso
+                  </a>{' '}
+                  e a{' '}
+                  <a href={`/${locale}/privacidade`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                    Política de Privacidade
+                  </a>
+                  .
+                </span>
+              </label>
+            )}
+
+            <Button className="h-11 md:h-11 w-full border-border bg-background text-foreground hover:border-primary hover:bg-background hover:text-primary" variant="outline" type="submit" disabled={loading}>
+              {loading && 'Processando...'}
+              {!loading && mode === 'login' && (
+                <>
+                  <LogIn className="h-4 w-4" />
+                  Login
+                </>
               )}
+              {!loading && mode === 'signup' && 'Cadastrar'}
+              {!loading && mode === 'recovery' && 'Enviar recuperação'}
+            </Button>
+          </form>
 
-              <Button className="h-11 md:h-11 w-full border-border bg-background text-foreground hover:border-primary hover:bg-background hover:text-primary" variant="outline" type="submit" disabled={loading}>
-                {loading && 'Processando...'}
-                {!loading && mode === 'login' && (
-                  <>
-                    <LogIn className="h-4 w-4" />
-                    Login
-                  </>
-                )}
-                {!loading && mode === 'signup' && 'Cadastrar'}
-                {!loading && mode === 'recovery' && 'Enviar recuperação'}
-              </Button>
-            </form>
-
-            {mode === 'login' ? (
-              <div className="mt-8 space-y-7 text-center text-sm">
-                <p className="text-muted-foreground">
-                  Não possui cadastro?{' '}
-                  <button
-                    type="button"
-                    className="font-medium text-primary hover:underline"
-                    onClick={() => setMode('signup')}
-                  >
-                    Criar Conta
-                  </button>
-                </p>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => setMode('recovery')}
-                >
-                  Esqueci a senha
-                </button>
-              </div>
-            ) : (
-              <div className="mt-8 text-center text-sm">
+          {mode === 'login' ? (
+            <div className="mt-8 space-y-7 text-center text-sm">
+              <p className="text-muted-foreground">
+                Não possui cadastro?{' '}
                 <button
                   type="button"
                   className="font-medium text-primary hover:underline"
-                  onClick={() => setMode('login')}
+                  onClick={() => setMode('signup')}
                 >
-                  Voltar ao login
+                  Criar Conta
                 </button>
-              </div>
-            )}
+              </p>
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => setMode('recovery')}
+              >
+                Esqueci a senha
+              </button>
+            </div>
+          ) : (
+            <div className="mt-8 text-center text-sm">
+              <button
+                type="button"
+                className="font-medium text-primary hover:underline"
+                onClick={() => setMode('login')}
+              >
+                Voltar ao login
+              </button>
+            </div>
+          )}
 
-          </div>
         </div>
+      </div>
 
-        <footer className="col-span-full flex flex-col gap-2 py-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>© 2026 SolaX Power Brasil.</span>
-          <span>Versão: 1.1.0</span>
-        </footer>
-      </section>
+      <footer className="absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2 py-2 pl-6 pr-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:pl-10 sm:pr-10 lg:pr-20 xl:pr-28">
+        <span>© 2026 SolaX Power Brasil.</span>
+        <span>Versão: 1.1.0</span>
+      </footer>
 
       {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
     </main>

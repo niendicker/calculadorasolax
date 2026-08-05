@@ -2,7 +2,8 @@
 
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Client } from '@/lib/types';
+import { emptyAddress } from '@/lib/address';
+import type { Client, SavedProject } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import { ClientsTab } from './ClientsTab';
 
@@ -18,12 +19,46 @@ function makeClient(partial: Partial<Client> & Pick<Client, 'id' | 'name'>): Cli
   };
 }
 
+function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
+  return {
+    name: 'Projeto salvo',
+    clientId: null,
+    address: emptyAddress(),
+    notes: '',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    residentialOptions: {
+      topology: 'HighVoltage',
+      batteryModel: 'TP-HS3.6',
+      secondaryBatteryModel: null,
+      inverterModel: null,
+      gridType: 'singlePhase_220',
+      loads: [],
+      peakCalcMode: 'sum',
+      operationHours: 0,
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: null,
+      generator: null,
+      pv: null,
+      atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
+      maxPowerPerPhaseW: null,
+    },
+    solution: null,
+    services: [],
+    ...partial,
+  };
+}
+
 function setup(overrides: Partial<Parameters<typeof ClientsTab>[0]> = {}) {
   const props = {
     clients: [] as Client[],
+    savedProjects: [] as SavedProject[],
     onAdd: vi.fn().mockResolvedValue(makeClient({ id: 'new', name: 'Novo Cliente' })),
     onUpdate: vi.fn().mockResolvedValue(undefined),
     onRemove: vi.fn().mockResolvedValue(undefined),
+    onOpenProject: vi.fn(),
     ...overrides,
   };
   const utils = renderWithShell(<ClientsTab {...props} />);
@@ -49,6 +84,69 @@ describe('ClientsTab: empty and list states', () => {
 
     expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.queryByText('Beto')).not.toBeInTheDocument();
+  });
+});
+
+describe('ClientsTab: client project history', () => {
+  it('does not show a project count for a client with no projects', () => {
+    setup({ clients: [makeClient({ id: 'c1', name: 'Ana' })], savedProjects: [] });
+    expect(screen.queryByRole('button', { name: /projeto/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the project count and expands to list each one with its status', () => {
+    setup({
+      clients: [makeClient({ id: 'c1', name: 'Ana' })],
+      savedProjects: [
+        makeProject({ id: 'p1', name: 'Casa da Praia', clientId: 'c1', status: 'draft' }),
+        makeProject({ id: 'p2', name: 'Apto Centro', clientId: 'c1', status: 'accepted' }),
+        makeProject({ id: 'p3', name: 'Projeto de outro cliente', clientId: 'c2' }),
+      ],
+    });
+
+    const toggle = screen.getByRole('button', { name: '2 projetos' });
+    expect(screen.queryByText('Casa da Praia')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByText('Casa da Praia')).toBeInTheDocument();
+    expect(screen.getByText('Rascunho')).toBeInTheDocument();
+    expect(screen.getByText('Apto Centro')).toBeInTheDocument();
+    expect(screen.getByText('Aceita')).toBeInTheDocument();
+    expect(screen.queryByText('Projeto de outro cliente')).not.toBeInTheDocument();
+  });
+
+  it('uses singular "projeto" for a single project', () => {
+    setup({
+      clients: [makeClient({ id: 'c1', name: 'Ana' })],
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', clientId: 'c1' })],
+    });
+    expect(screen.getByRole('button', { name: '1 projeto' })).toBeInTheDocument();
+  });
+
+  it('opens a project from the client list', () => {
+    const { props } = setup({
+      clients: [makeClient({ id: 'c1', name: 'Ana' })],
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', clientId: 'c1' })],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '1 projeto' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+
+    expect(props.onOpenProject).toHaveBeenCalledWith('p1');
+  });
+
+  it('collapses the project list when toggled again', () => {
+    setup({
+      clients: [makeClient({ id: 'c1', name: 'Ana' })],
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', clientId: 'c1' })],
+    });
+
+    const toggle = screen.getByRole('button', { name: '1 projeto' });
+    fireEvent.click(toggle);
+    expect(screen.getByText('Casa da Praia')).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByText('Casa da Praia')).not.toBeInTheDocument();
   });
 });
 

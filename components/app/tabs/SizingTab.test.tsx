@@ -113,6 +113,9 @@ function setup(overrides: Record<string, unknown> = {}) {
     calculate: vi.fn(),
     exportPdf: vi.fn(),
     exportingPdf: false,
+    onSendQuote: vi.fn(),
+    sendingQuote: false,
+    canSendQuoteByWhatsApp: true,
     onQuoteSolution: vi.fn(),
     autosaveStatus: 'idle' as const,
     autosaveLastSavedAt: null,
@@ -120,6 +123,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     userStockItems: [] as UserStockItem[],
     marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 } as MarginSettings,
     onChooseMicrogridVariant: vi.fn(),
+    summaryDrawerOpen: false,
     ...overrides,
   };
 
@@ -221,14 +225,17 @@ describe('SizingTab: title bar', () => {
     expect(screen.getByRole('button', { name: 'Calculando...' })).toBeDisabled();
   });
 
-  // The header and the Solução tab each have their own "Baixar relatório"
-  // button (same label/action, different spots) — a solution present also
-  // auto-jumps the summary to the Solução tab (see the effect watching
-  // `solution`), so both can be on screen at once. getAllByRole disambiguates
-  // instead of relying on the two buttons having different text.
+  // The header and the Resumo tab each have their own "Baixar relatório"
+  // button (same label/action, different spots) — always both on screen at
+  // once regardless of solution/tab state, since the header's copy is
+  // unconditional and the Resumo tab is also the default/auto-selected one
+  // whenever there's no solution yet. getAllByRole disambiguates instead of
+  // relying on the two buttons having different text.
   it('shows Baixar relatório disabled (not hidden) before a solution exists, and enabled once one does', () => {
     setup({ solution: null, canCalculate: true });
-    expect(screen.getByRole('button', { name: /Baixar relatório/ })).toBeDisabled();
+    for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {
+      expect(button).toBeDisabled();
+    }
 
     setup({ solution: fakeSolution, canCalculate: true });
     expect(screen.getAllByRole('button', { name: /Baixar relatório/ }).length).toBeGreaterThan(0);
@@ -559,6 +566,34 @@ describe('SizingTab: summary panel', () => {
     const peakRow = within(marginCard).getByText('Potência máxima').closest('.px-2');
     expect(peakRow).toHaveTextContent('Insuficiente');
     expect(peakRow).not.toHaveTextContent('Fator decisivo');
+  });
+});
+
+describe('SizingTab: summary drawer defaults to Resumo when opened', () => {
+  it('resets to Resumo when the mobile summary drawer opens, even after a solution jumped it to Solução', () => {
+    const { rerender, props } = setup({ solution: fakeSolution, canCalculate: true, summaryDrawerOpen: false });
+    expect(screen.getByRole('tab', { name: 'Solução' })).toHaveAttribute('aria-selected', 'true');
+
+    // Rerendering wrapped in the same <Shell> as renderWithShell (see its own
+    // rerender note further down this file) — without it, the tree's root
+    // type changes and React remounts everything from scratch, losing both
+    // SizingTab's internal summaryTab state and the portal target Shell
+    // provides, which is exactly what this test needs to stay intact to
+    // prove the reset happens on an actual prop change, not a fresh mount.
+    rerender(
+      <Shell>
+        <NextIntlClientProvider locale="pt" messages={ptMessages}>
+          <SizingTab {...(props as Parameters<typeof SizingTab>[0])} summaryDrawerOpen />
+        </NextIntlClientProvider>
+      </Shell>
+    );
+
+    expect(screen.getByRole('tab', { name: 'Resumo' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('leaves Solução selected when summaryDrawerOpen stays false (desktop never toggles it)', () => {
+    setup({ solution: fakeSolution, canCalculate: true, summaryDrawerOpen: false });
+    expect(screen.getByRole('tab', { name: 'Solução' })).toHaveAttribute('aria-selected', 'true');
   });
 });
 

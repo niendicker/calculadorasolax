@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyAddress } from '@/lib/address';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
-import type { Solution } from '@/lib/types';
+import type { SavedProject, Solution } from '@/lib/types';
 import type { SupplierOfferView } from '@/lib/procurement/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import { SupplyTab } from './SupplyTab';
@@ -19,6 +20,38 @@ function makeSolution(partial: Partial<Solution> = {}): Solution {
     batteryQty: 1,
     pvPowerKw: null,
     accessories: [],
+    ...partial,
+  };
+}
+
+function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
+  return {
+    name: 'Projeto salvo',
+    clientId: null,
+    address: emptyAddress(),
+    notes: '',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    residentialOptions: {
+      topology: 'HighVoltage',
+      batteryModel: 'TP-HS3.6',
+      secondaryBatteryModel: null,
+      inverterModel: null,
+      gridType: 'singlePhase_220',
+      loads: [],
+      peakCalcMode: 'sum',
+      operationHours: 0,
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: null,
+      generator: null,
+      pv: null,
+      atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
+      maxPowerPerPhaseW: null,
+    },
+    solution: null,
+    services: [],
     ...partial,
   };
 }
@@ -101,6 +134,9 @@ function makeOrder(partial: Record<string, unknown> = {}) {
     subtotal: 100,
     total_amount: null,
     external_order_id: null,
+    delivery_address: null,
+    project_id: null,
+    projects: null,
     suppliers: { name: 'Fornecedor A' },
     purchase_order_items: [{ id: 'item-1', product_model: 'X1-Hybrid-5.0kW', supplier_sku: 'SKU-1', quantity: 1, unit_price: 100, line_total: 100 }],
     ...partial,
@@ -250,6 +286,38 @@ describe('SupplyTab: offers list and search', () => {
     fireEvent.change(screen.getByLabelText('Buscar ofertas'), { target: { value: 'Fornecedor C' } });
     expect(screen.getByText('Cabo')).toBeInTheDocument();
     expect(screen.queryByText('TP-HS3.6')).not.toBeInTheDocument();
+  });
+
+  it('filters offers by supplier chip, alongside the text search', async () => {
+    setupSupabase({
+      offers: [
+        makeOffer({ id: 'o1', supplier_id: 's1', supplier_product_mappings: { product_type: 'inverter', product_model: 'X1-Hybrid-5.0kW', supplier_sku: 'SKU-1', pack_quantity: 1 }, suppliers: { name: 'Fornecedor A', currency: 'BRL', order_mode: 'both', minimum_order_value: 0 } }),
+        makeOffer({ id: 'o2', supplier_id: 's2', supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 }, suppliers: { name: 'Fornecedor B', currency: 'BRL', order_mode: 'both', minimum_order_value: 0 } }),
+      ],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    const filterGroup = screen.getByRole('group', { name: 'Filtrar por fornecedor' });
+    expect(within(filterGroup).getByText('Todos')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(filterGroup).getByText('Fornecedor B'));
+    expect(screen.queryByText('X1-Hybrid-5.0kW')).not.toBeInTheDocument();
+    expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
+    expect(within(filterGroup).getByText('Fornecedor B')).toHaveAttribute('aria-pressed', 'true');
+    expect(within(filterGroup).getByText('Todos')).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(within(filterGroup).getByText('Todos'));
+    expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument();
+    expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
+  });
+
+  it('hides the supplier filter chips when there is only one supplier with offers', async () => {
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(screen.queryByRole('group', { name: 'Filtrar por fornecedor' })).not.toBeInTheDocument();
   });
 
   it('shows "Estoque sob consulta" when stock_quantity is null and omits lead time when null', async () => {
@@ -644,6 +712,53 @@ describe('SupplyTab: creating orders', () => {
     await waitFor(() => expect(supabase.rpc).toHaveBeenCalledWith('create_purchase_order', expect.objectContaining({ p_customer_notes: null })));
   });
 
+  it('sends the checkout delivery address (only the filled-in fields) to create_purchase_order', async () => {
+    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    fireEvent.change(screen.getByPlaceholderText('Endereço'), { target: { value: 'Av. Principal' } });
+    fireEvent.change(screen.getByPlaceholderText('Número'), { target: { value: '100' } });
+    fireEvent.change(screen.getByPlaceholderText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.change(screen.getByPlaceholderText('UF'), { target: { value: 'sp' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
+
+    await waitFor(() => expect(supabase.rpc).toHaveBeenCalledWith('create_purchase_order', expect.objectContaining({
+      p_delivery_address: { address: 'Av. Principal', number: '100', city: 'São Paulo', state: 'SP' },
+    })));
+  });
+
+  it('sends an empty delivery address when the checkout address is left blank', async () => {
+    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
+
+    await waitFor(() => expect(supabase.rpc).toHaveBeenCalledWith('create_purchase_order', expect.objectContaining({
+      p_delivery_address: {},
+    })));
+  });
+
+  it('clears the checkout delivery address once the order is created', async () => {
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    fireEvent.change(screen.getByPlaceholderText('Cidade'), { target: { value: 'São Paulo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    // The cart empties out (no items left), so re-adding one and reopening
+    // the form should show the address field reset, not still "São Paulo".
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    expect(screen.getByPlaceholderText('Cidade')).toHaveValue('');
+  });
+
   it('shows the error message and keeps the cart when the order creation fails', async () => {
     setupSupabase({
       offers: [makeOffer({ id: 'o1', supplier_id: 's1' })],
@@ -684,6 +799,24 @@ describe('SupplyTab: existing orders and cancellation', () => {
     expect(screen.getByText('Pedido direto')).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.textContent?.startsWith('#ord-abcd') ?? false)).toBeInTheDocument();
     expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument();
+  });
+
+  it('shows which project an order was created from, when it was linked to one', async () => {
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-abcdefgh', project_id: 'p1', projects: { name: 'Casa da Praia' } })],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
+    expect(screen.getByText(/Projeto: Casa da Praia/)).toBeInTheDocument();
+  });
+
+  it('omits the project line for orders with no linked project', async () => {
+    setupSupabase({ orders: [makeOrder({ id: 'ord-abcdefgh' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Fornecedor A')).toBeInTheDocument());
+    expect(screen.queryByText(/Projeto:/)).not.toBeInTheDocument();
   });
 
   it('falls back to subtotal when total_amount is null, and to the raw status when unmapped', async () => {
@@ -790,6 +923,26 @@ describe('SupplyTab: submitting an order to the partner API', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Preencha o endereço de entrega completo.'));
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('pre-fills the delivery address from what the customer already gave at checkout', async () => {
+    setupSupabase({
+      orders: [makeOrder({
+        id: 'ord-1',
+        supplier_id: 'sup-1',
+        status: 'requested',
+        delivery_address: { address: 'Av. Paulista', number: '1000', city: 'São Paulo', state: 'SP' },
+      })],
+      suppliers: [{ id: 'sup-1', supports_partner_orders: true }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar ao fornecedor' }));
+
+    expect(screen.getByPlaceholderText('Endereço')).toHaveValue('Av. Paulista');
+    expect(screen.getByPlaceholderText('Número')).toHaveValue('1000');
+    expect(screen.getByPlaceholderText('Cidade')).toHaveValue('São Paulo');
+    expect(screen.getByPlaceholderText('UF')).toHaveValue('SP');
   });
 
   it('submits the delivery address and shows the returned sale number on success', async () => {
@@ -938,13 +1091,53 @@ describe('SupplyTab: submitting an order to the partner API', () => {
   });
 });
 
-describe('SupplyTab: importing items from the current solution', () => {
-  it('hides the import button when there is no calculated solution', async () => {
+describe('SupplyTab: importing items from a project solution', () => {
+  it('hides the import controls when there is no calculated solution anywhere', async () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Importar itens da solução atual' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Importar itens do projeto' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Projeto para importar itens' })).not.toBeInTheDocument();
+  });
+
+  it('names the current project in the select when one is loaded', async () => {
+    useWizardStore.setState({
+      solution: makeSolution(),
+      projectInfo: { name: 'Casa da Praia', clientId: null, address: emptyAddress(), notes: '' },
+    });
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    const select = await screen.findByRole('combobox', { name: 'Projeto para importar itens' });
+    expect(within(select).getByText('Casa da Praia')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Importar itens do projeto' })).toBeInTheDocument();
+  });
+
+  it('lets the user choose among every saved project with a valid solution, not just the current one', async () => {
+    useWizardStore.setState({
+      solution: null,
+      currentProjectId: null,
+      savedProjects: [
+        makeProject({ id: 'p1', name: 'Casa da Praia', solution: makeSolution() }),
+        makeProject({ id: 'p2', name: 'Apto Centro', solution: makeSolution({ batteryModel: 'Modelo-Sem-Oferta' }) }),
+        makeProject({ id: 'p3', name: 'Sem solução ainda', solution: null }),
+      ],
+    });
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    const select = await screen.findByRole('combobox', { name: 'Projeto para importar itens' });
+    expect(within(select).getByText('Casa da Praia')).toBeInTheDocument();
+    expect(within(select).getByText('Apto Centro')).toBeInTheDocument();
+    expect(within(select).queryByText('Sem solução ainda')).not.toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: 'p2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Importar itens do projeto' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Itens sem oferta do fornecedor selecionado, não adicionados: Modelo-Sem-Oferta.')
+    );
   });
 
   it('adds the inverter and battery to the cart when matching offers exist', async () => {
@@ -961,11 +1154,67 @@ describe('SupplyTab: importing items from the current solution', () => {
     });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens da solução atual' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Itens da solução adicionados ao carrinho.'));
     await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(screen.getByText('1× TP-HS3.6')).toBeInTheDocument();
+  });
+
+  it('links the created order back to the project that supplied the cart items', async () => {
+    useWizardStore.setState({
+      solution: null,
+      currentProjectId: null,
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', solution: makeSolution() })],
+    });
+    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
+    expect(screen.getByText(/Projeto: Casa da Praia/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
+
+    await waitFor(() =>
+      expect(supabase.rpc).toHaveBeenCalledWith('create_purchase_order', expect.objectContaining({ p_project_id: 'p1' }))
+    );
+  });
+
+  it('does not link the order to any project when the cart was built by hand', async () => {
+    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
+
+    await waitFor(() =>
+      expect(supabase.rpc).toHaveBeenCalledWith('create_purchase_order', expect.objectContaining({ p_project_id: null }))
+    );
+  });
+
+  it('forgets the linked project once the cart is cleared', async () => {
+    useWizardStore.setState({
+      solution: null,
+      currentProjectId: null,
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', solution: makeSolution() })],
+    });
+    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar carrinho' }));
+    await waitFor(() => expect(screen.getByText('Adicione produtos de um fornecedor.')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
+
+    await waitFor(() =>
+      expect(supabase.rpc).toHaveBeenCalledWith('create_purchase_order', expect.objectContaining({ p_project_id: null }))
+    );
   });
 
   it('reports models with no matching offer instead of silently skipping them', async () => {
@@ -973,7 +1222,7 @@ describe('SupplyTab: importing items from the current solution', () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens da solução atual' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('Itens sem oferta do fornecedor selecionado, não adicionados: Modelo-Sem-Oferta.')
@@ -1008,7 +1257,7 @@ describe('SupplyTab: importing items from the current solution', () => {
     });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens da solução atual' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
 
     await waitFor(() => expect(screen.getByText('2× Smart Meter')).toBeInTheDocument());
     expect(screen.queryByText(/WiFi Dongle/)).not.toBeInTheDocument();
@@ -1033,7 +1282,7 @@ describe('SupplyTab: importing items from the current solution', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Aumentar' })[0]);
     await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Importar itens da solução atual' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Importar itens do projeto' }));
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('Itens sem oferta do fornecedor selecionado, não adicionados: TP-HS3.6.')
@@ -1045,7 +1294,7 @@ describe('SupplyTab: importing items from the current solution', () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens da solução atual' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(
@@ -1135,6 +1384,47 @@ describe('SupplyTab: notifying a supplier by email', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar email' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Este fornecedor não tem um email cadastrado.'));
+  });
+
+  it('disables "Notificar por email" for 10 minutes after a successful send', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ status: 'sent' }) });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', email: 'fornecedor@a.com' }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Notificar por email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar email' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Email enviado ao fornecedor, com cópia para você.'));
+
+    const cooldownButton = screen.getByRole('button', { name: /Aguarde \d+ min/ });
+    expect(cooldownButton).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Notificar por email' })).not.toBeInTheDocument();
+  });
+
+  it('disables the button using the server\'s retryAfterSeconds when a 429 cooldown response comes back', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: () => Promise.resolve({ error: 'Aguarde 4 min antes de notificar este fornecedor de novo.', retryAfterSeconds: 240 }),
+    });
+    setupSupabase({
+      orders: [makeOrder({ id: 'ord-1', supplier_id: 'sup-1', status: 'requested' })],
+      suppliers: [{ id: 'sup-1', email: 'fornecedor@a.com' }],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Notificar por email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar email' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Aguarde 4 min antes de notificar este fornecedor de novo.'));
+    // Both the "Enviar email" button (form still open after the failure) and
+    // the outer trigger button now read the same cooldown label.
+    for (const button of screen.getAllByRole('button', { name: 'Aguarde 4 min' })) {
+      expect(button).toBeDisabled();
+    }
   });
 
   it('closes the form on Cancelar without sending', async () => {

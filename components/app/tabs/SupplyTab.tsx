@@ -3,36 +3,39 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { SupplierOfferView } from '@/lib/procurement/types';
-import type { StockProductType } from '@/lib/types';
+import type { Solution, StockProductType } from '@/lib/types';
 import { batteryQuantityBreakdown, normalizeAccessoryLine } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { SupplyLoadingSkeleton } from '../shared-ui';
-import type { BatteryCatalogOption } from '../types';
+import type { BatteryCatalogOption, InlineProfile } from '../types';
 import { CartSummary } from './supply/CartSummary';
 import { OffersSection } from './supply/OffersSection';
 import { OrdersSection } from './supply/OrdersSection';
 import { SupplierPreferencesCard } from './supply/SupplierPreferencesCard';
-import { emptyDelivery, money, type Cart, type DeliveryForm, type Order, type Supplier } from './supply/types';
+import { emptyDelivery, money, nonEmptyDeliveryFields, type Cart, type DeliveryForm, type Order, type Supplier } from './supply/types';
 
 export function SupplyTab({
   onShowSummary,
   batteryCatalog = [],
   autoImportFromSolution = false,
   onAutoImportHandled,
+  profile = null,
 }: {
   onShowSummary: () => void;
   batteryCatalog?: BatteryCatalogOption[];
   /** Set by "Cotar solução" (Dimensionamento) to trigger importFromSolution
    *  automatically once this tab's offers have loaded, instead of requiring
-   *  a second click on "Importar itens da solução atual" below. */
+   *  a second click on "Importar itens do projeto" below. */
   autoImportFromSolution?: boolean;
   onAutoImportHandled?: () => void;
+  profile?: InlineProfile | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const { solution } = useWizardStore();
+  const { solution, projectInfo, savedProjects, currentProjectId } = useWizardStore();
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [maxUserSuppliers, setMaxUserSuppliers] = useState(2);
@@ -42,17 +45,42 @@ export function SupplyTab({
   const [offers, setOffers] = useState<SupplierOfferView[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<Cart>({});
+  // Set when the cart's items came from "Importar itens do projeto" —
+  // create_purchase_order already accepts a project_id (see migration 0063),
+  // this is just the frontend finally threading it through so a project's
+  // purchase history stays traceable afterward. Cleared alongside the cart.
+  const [cartProjectId, setCartProjectId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Collected at checkout, optional — passed straight into create_purchase_order
+  // so the supplier has it from the start, whichever path the order later
+  // takes (automatic partner push or manual email). Cleared alongside the
+  // cart/notes once the order is created.
+  const [checkoutDelivery, setCheckoutDelivery] = useState<DeliveryForm>(emptyDelivery);
   const [partnerOrderId, setPartnerOrderId] = useState<string | null>(null);
   const [deliveryForm, setDeliveryForm] = useState<DeliveryForm>(emptyDelivery);
   const [submittingPartner, setSubmittingPartner] = useState(false);
   const [emailOrderId, setEmailOrderId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
+  // Epoch ms (per order) until "Notificar por email" is allowed again — the
+  // server enforces the real 10-minute cooldown (it reads back
+  // purchase_order_events, so it holds even across reloads/other tabs); this
+  // just avoids letting the user fire an attempt that's certain to be
+  // rejected right after a send.
+  const [emailCooldownUntil, setEmailCooldownUntil] = useState<Record<string, number>>({});
+  // Only used to force a re-render as each cooldown lapses (so the button
+  // re-enables on its own) — the value itself is never read.
+  const [, setCooldownTick] = useState(0);
+
+  useEffect(() => {
+    if (Object.keys(emailCooldownUntil).length === 0) return;
+    const timer = setInterval(() => setCooldownTick((t) => t + 1), 15_000);
+    return () => clearInterval(timer);
+  }, [emailCooldownUntil]);
 
   function setSuccess(message: string) {
     setStatus(message);
@@ -97,7 +125,7 @@ export function SupplyTab({
       supabase
         .from('purchase_orders')
         .select(
-          'id, supplier_id, created_at, request_type, status, currency, subtotal, total_amount, external_order_id, suppliers(name), purchase_order_items(id, product_model, supplier_sku, quantity, unit_price, line_total)'
+          'id, supplier_id, created_at, request_type, status, currency, subtotal, total_amount, external_order_id, delivery_address, project_id, projects(name), suppliers(name), purchase_order_items(id, product_model, supplier_sku, quantity, unit_price, line_total)'
         )
         .order('created_at', { ascending: false })
         .limit(50),
@@ -196,7 +224,8 @@ export function SupplyTab({
       p_request_type: requestType,
       p_items: cartOffers.map((offer) => ({ offer_id: offer.id, quantity: cart[offer.id] })),
       p_idempotency_key: crypto.randomUUID(),
-      p_delivery_address: {},
+      p_project_id: cartProjectId,
+      p_delivery_address: nonEmptyDeliveryFields(checkoutDelivery),
       p_customer_notes: notes || null,
     });
     if (createError) {
@@ -207,9 +236,35 @@ export function SupplyTab({
       );
       setCart({});
       setNotes('');
+      setCheckoutDelivery(emptyDelivery);
+      setCartProjectId(null);
       await load();
     }
     setBusy(false);
+  }
+
+  function updateCheckoutDeliveryField(field: keyof DeliveryForm, value: string) {
+    setCheckoutDelivery((current) => ({ ...current, [field]: value }));
+  }
+
+  const hasCompanyAddress = Boolean(profile && !isAddressEmpty(profile.companyAddress));
+
+  // One-off fill, not a persistent binding — lets the checkout address start
+  // from the company's own registered address (Perfil) instead of typed from
+  // scratch, while staying just as editable/overridable afterward as any
+  // manually-entered delivery address.
+  function useCompanyAddressForDelivery() {
+    if (!profile) return;
+    setCheckoutDelivery({
+      name: profile.companyName,
+      postal_code: profile.companyAddress.postalCode,
+      address: profile.companyAddress.street,
+      number: profile.companyAddress.number,
+      complement: profile.companyAddress.complement,
+      district: profile.companyAddress.district,
+      city: profile.companyAddress.city,
+      state: profile.companyAddress.state,
+    });
   }
 
   async function cancelOrder(id: string) {
@@ -221,7 +276,11 @@ export function SupplyTab({
 
   function openPartnerForm(orderId: string) {
     setPartnerOrderId(orderId);
-    setDeliveryForm(emptyDelivery);
+    // Pre-fill from whatever address the customer already gave at checkout —
+    // still shown (not skipped) so they can review/complete it before this
+    // irreversible push to the partner's API, but not retyped from scratch.
+    const order = orders.find((item) => item.id === orderId);
+    setDeliveryForm({ ...emptyDelivery, ...(order?.delivery_address ?? {}) });
     setError(null);
   }
 
@@ -279,8 +338,12 @@ export function SupplyTab({
       if (response.ok) {
         setSuccess('Email enviado ao fornecedor, com cópia para você.');
         setEmailOrderId(null);
+        setEmailCooldownUntil((c) => ({ ...c, [orderId]: Date.now() + 10 * 60 * 1000 }));
       } else {
         setFailure(result.error ?? 'Erro ao enviar email ao fornecedor.');
+        if (response.status === 429 && typeof result.retryAfterSeconds === 'number') {
+          setEmailCooldownUntil((c) => ({ ...c, [orderId]: Date.now() + result.retryAfterSeconds * 1000 }));
+        }
       }
     } catch {
       setFailure('Erro ao enviar email ao fornecedor. Verifique sua conexão e tente novamente.');
@@ -289,25 +352,50 @@ export function SupplyTab({
     }
   }
 
-  // Pre-fills the cart with the current project's own inverter/battery/
+  // Every project with a calculated solution is a valid import source, not
+  // just whatever happens to be live in the wizard right now — a project
+  // loaded elsewhere (e.g. re-opened from "Projeto") already carries its own
+  // stored solution even without touching Dimensionamento again this
+  // session. The currently-open project (if any) uses the live `solution`
+  // instead of its stored one, since that's the freshest data if it was just
+  // recalculated and not saved yet.
+  const importCandidates = useMemo(() => {
+    const candidates: { id: string; name: string; solution: Solution }[] = [];
+    if (!currentProjectId && solution) {
+      candidates.push({ id: '__draft__', name: projectInfo.name.trim() || 'Solução atual (não salva)', solution });
+    }
+    for (const project of savedProjects) {
+      const projectSolution = project.id === currentProjectId ? (solution ?? project.solution) : project.solution;
+      if (!projectSolution) continue;
+      candidates.push({ id: project.id, name: project.name.trim() || 'Projeto sem nome', solution: projectSolution });
+    }
+    return candidates;
+  }, [savedProjects, currentProjectId, solution, projectInfo.name]);
+
+  const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const effectiveImportId =
+    selectedImportId && importCandidates.some((c) => c.id === selectedImportId)
+      ? selectedImportId
+      : (currentProjectId && importCandidates.some((c) => c.id === currentProjectId) ? currentProjectId : importCandidates[0]?.id) ?? null;
+  const selectedImportCandidate = importCandidates.find((c) => c.id === effectiveImportId) ?? null;
+
+  // Pre-fills the cart with the chosen project's own inverter/battery/
   // non-bundled accessories, matched against active offers from whichever
   // single supplier already has items in the cart (or the cheapest supplier
   // offering the inverter, if the cart is still empty) — mirrors the
   // single-supplier-per-cart rule enforced in changeQuantity, so this can't
   // produce a cart the rest of the page would then reject.
-  function importFromSolution() {
-    if (!solution) return setFailure('Nenhuma solução calculada no projeto atual para importar.');
-
+  function importSolutionItems(targetSolution: Solution) {
     const batteryParts = batteryQuantityBreakdown(
-      solution.batteryModel,
-      solution.batteryQty,
+      targetSolution.batteryModel,
+      targetSolution.batteryQty,
       batteryCatalog,
-      (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+      (targetSolution.inverterQty ?? 1) * (targetSolution.batteryPortsUsed ?? 1)
     );
     const wanted: { productType: StockProductType; model: string; qty: number }[] = [
-      { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
+      { productType: 'inverter', model: targetSolution.inverterModel, qty: targetSolution.inverterQty ?? 1 },
       ...batteryParts.map((part) => ({ productType: 'battery' as const, model: part.model, qty: part.qty })),
-      ...solution.accessories.flatMap((accessory) => {
+      ...targetSolution.accessories.flatMap((accessory) => {
         const { model, qty, optional, bundled } = normalizeAccessoryLine(accessory);
         return bundled || optional ? [] : [{ productType: 'accessory' as const, model, qty }];
       }),
@@ -316,7 +404,7 @@ export function SupplyTab({
     const inverterOffers = offers.filter(
       (offer) =>
         offer.supplier_product_mappings.product_type === 'inverter' &&
-        offer.supplier_product_mappings.product_model === solution.inverterModel
+        offer.supplier_product_mappings.product_model === targetSolution.inverterModel
     );
     const targetSupplierId = cartSupplierId ?? inverterOffers[0]?.supplier_id;
     if (!targetSupplierId) {
@@ -347,14 +435,26 @@ export function SupplyTab({
     }
   }
 
+  function importFromSolution() {
+    if (!selectedImportCandidate) return setFailure('Nenhuma solução calculada para importar.');
+    importSolutionItems(selectedImportCandidate.solution);
+    // '__draft__' is the live, not-yet-saved solution — nothing to link the
+    // order to yet, unlike every other candidate, which is a real project id.
+    setCartProjectId(selectedImportCandidate.id === '__draft__' ? null : selectedImportCandidate.id);
+  }
+
   useEffect(() => {
     if (!loading && autoImportFromSolution) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot reaction to navigating here from "Cotar solução", not a render-time derivation
-      importFromSolution();
+      /* eslint-disable react-hooks/set-state-in-effect -- one-shot reaction to navigating here from "Cotar solução", not a render-time derivation */
+      if (solution) {
+        importSolutionItems(solution);
+        setCartProjectId(currentProjectId);
+      }
+      /* eslint-enable react-hooks/set-state-in-effect */
       onAutoImportHandled?.();
     }
     // Only re-run when loading finishes or the parent asks for a fresh
-    // import — importFromSolution/onAutoImportHandled are fresh closures
+    // import — importSolutionItems/onAutoImportHandled are fresh closures
     // every render and would otherwise cause this to fire on every offer/cart change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, autoImportFromSolution]);
@@ -394,11 +494,25 @@ export function SupplyTab({
             onToggle={toggleSupplier}
           />
 
-          {solution && (
-            <Button variant="outline" onClick={importFromSolution}>
-              <ShoppingCart className="h-4 w-4" />
-              Importar itens da solução atual
-            </Button>
+          {importCandidates.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <select
+                aria-label="Projeto para importar itens"
+                className="flex h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm sm:max-w-xs"
+                value={effectiveImportId ?? ''}
+                onChange={(event) => setSelectedImportId(event.target.value)}
+              >
+                {importCandidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+              <Button variant="outline" onClick={importFromSolution}>
+                <ShoppingCart className="h-4 w-4" />
+                Importar itens do projeto
+              </Button>
+            </div>
           )}
 
           <OffersSection
@@ -431,7 +545,16 @@ export function SupplyTab({
               onNotesChange={setNotes}
               busy={busy}
               onCreateOrder={createOrder}
-              onClearCart={() => setCart({})}
+              onClearCart={() => {
+                setCart({});
+                setCheckoutDelivery(emptyDelivery);
+                setCartProjectId(null);
+              }}
+              deliveryForm={checkoutDelivery}
+              onDeliveryFieldChange={updateCheckoutDeliveryField}
+              hasCompanyAddress={hasCompanyAddress}
+              onUseCompanyAddress={useCompanyAddressForDelivery}
+              cartProjectName={cartProjectId ? (savedProjects.find((p) => p.id === cartProjectId)?.name ?? null) : null}
             />
           </PageSummary>
 
@@ -453,6 +576,7 @@ export function SupplyTab({
             onCancelEmailForm={() => setEmailOrderId(null)}
             onEmailMessageChange={setEmailMessage}
             onNotifySupplierByEmail={notifySupplierByEmail}
+            emailCooldownUntil={emailCooldownUntil}
           />
         </>
       )}

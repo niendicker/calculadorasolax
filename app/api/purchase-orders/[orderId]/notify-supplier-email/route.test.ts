@@ -38,6 +38,7 @@ const baseOrder = {
   currency: 'BRL',
   subtotal: 5000,
   status: 'requested',
+  delivery_address: null,
   purchase_order_items: [
     { product_model: 'X1-Hybrid-5.0kW-G4', supplier_sku: 'SKU-1', quantity: 1, unit_price: 5000, line_total: 5000 },
   ],
@@ -49,17 +50,32 @@ function singleResult(data: unknown, error: unknown = null) {
   return { eq: () => ({ single: () => Promise.resolve({ data, error }) }) };
 }
 
+/** Chain for the `purchase_order_events` lookup: `.select().eq().eq().order().limit().maybeSingle()`. */
+function eventsQueryResult(data: unknown, error: unknown = null) {
+  const builder = {
+    eq: () => builder,
+    order: () => builder,
+    limit: () => builder,
+    maybeSingle: () => Promise.resolve({ data, error }),
+  };
+  return builder;
+}
+
 function setupServerFrom({
   order = baseOrder as unknown,
   orderError = null as unknown,
   profile = baseProfile as unknown,
-}: { order?: unknown; orderError?: unknown; profile?: unknown } = {}) {
+  lastEmailEvent = null as unknown,
+}: { order?: unknown; orderError?: unknown; profile?: unknown; lastEmailEvent?: unknown } = {}) {
   serverFromMock.mockImplementation((table: string) => {
     if (table === 'purchase_orders') {
       return { select: () => singleResult(order, orderError) };
     }
     if (table === 'profiles') {
       return { select: () => singleResult(profile) };
+    }
+    if (table === 'purchase_order_events') {
+      return { select: () => eventsQueryResult(lastEmailEvent) };
     }
     throw new Error(`unexpected table ${table}`);
   });
@@ -159,6 +175,34 @@ describe('POST /api/purchase-orders/[orderId]/notify-supplier-email', () => {
     expect(response.status).toBe(422);
   });
 
+  it('returns 429 when a supplier email for this order was already sent within the last 10 minutes', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
+    const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    setupServerFrom({ lastEmailEvent: { created_at: sixMinutesAgo } });
+    const POST = await importRoute();
+
+    const response = await POST(makeRequest({ message: 'Olá' }), routeParams);
+
+    expect(response.status).toBe(429);
+    const body = await response.json();
+    expect(body.error).toBe('Aguarde 4 min antes de notificar este fornecedor de novo.');
+    expect(body.retryAfterSeconds).toBeGreaterThan(0);
+    expect(body.retryAfterSeconds).toBeLessThanOrEqual(4 * 60);
+  });
+
+  it('allows sending again once the 10-minute cooldown has fully elapsed', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
+    const elevenMinutesAgo = new Date(Date.now() - 11 * 60 * 1000).toISOString();
+    setupServerFrom({ lastEmailEvent: { created_at: elevenMinutesAgo } });
+    setupServiceFrom();
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) });
+    const POST = await importRoute();
+
+    const response = await POST(makeRequest({ message: 'Olá' }), routeParams);
+
+    expect(response.status).toBe(200);
+  });
+
   it('returns 409 when the supplier has no email registered', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
     setupServerFrom();
@@ -205,6 +249,24 @@ describe('POST /api/purchase-orders/[orderId]/notify-supplier-email', () => {
 
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({ order_id: 'order-1', actor_id: 'user-1', event_type: 'supplier_email_sent' })
+    );
+  });
+
+  it('passes the order\'s saved delivery address through to the PDF, when it has one', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
+    setupServerFrom({
+      order: { ...baseOrder, delivery_address: { address: 'Av. Paulista', number: '1000', city: 'São Paulo', state: 'SP' } },
+    });
+    setupServiceFrom();
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) });
+    const POST = await importRoute();
+
+    await POST(makeRequest({ message: 'Olá' }), routeParams);
+
+    expect(renderPdfMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deliveryAddress: { address: 'Av. Paulista', number: '1000', city: 'São Paulo', state: 'SP' },
+      })
     );
   });
 

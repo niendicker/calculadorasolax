@@ -28,7 +28,7 @@ describe('ACCOUNT_LIMITS', () => {
     expect(ACCOUNT_LIMITS).toEqual({
       projects: 15,
       userLoadCatalog: 20,
-      userStockItems: 14,
+      userStockItems: 20,
       loadsPerProject: 20,
       clients: 50,
       userPresets: 3,

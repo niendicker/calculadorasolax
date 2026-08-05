@@ -10,6 +10,16 @@ export interface Order {
   subtotal: number;
   total_amount: number | null;
   external_order_id: string | null;
+  /** Collected at checkout (optional there — see `nonEmptyDeliveryFields`) so
+   * the supplier already has it when the order reaches them, whichever path
+   * that ends up being (partner push or email). `{}` when the customer
+   * skipped it. */
+  delivery_address: Partial<DeliveryForm> | null;
+  /** Set when this order was created from "Importar itens do projeto" in the
+   *  cart, so a project's own purchase history is traceable afterward — null
+   *  for orders built from offers added to the cart with no project context. */
+  project_id: string | null;
+  projects: { name: string } | null;
   suppliers: { name: string };
   purchase_order_items: {
     id: string;
@@ -52,6 +62,15 @@ export const emptyDelivery: DeliveryForm = {
   city: '',
   state: '',
 };
+
+/** Drops blank/whitespace-only fields before sending to the server — the
+ * checkout address is optional, so a half-filled or entirely empty form
+ * should collapse to `{}` (the column's own default) rather than a payload
+ * full of empty strings. */
+export function nonEmptyDeliveryFields(form: DeliveryForm): Partial<DeliveryForm> {
+  const entries = Object.entries(form).filter(([, value]) => value.trim() !== '');
+  return Object.fromEntries(entries) as Partial<DeliveryForm>;
+}
 
 export const money = (value: number, currency = 'BRL') =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(value);

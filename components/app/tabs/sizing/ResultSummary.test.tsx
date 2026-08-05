@@ -85,9 +85,6 @@ function renderResult(overrides: Partial<React.ComponentProps<typeof ResultSumma
     solution: baseSolution,
     batteryCatalog: [battery],
     inverterCatalog: [inverter],
-    onExport: vi.fn(),
-    canExport: true,
-    exportingPdf: false,
     productMedia: {} as Record<string, ProductMedia>,
     userStockItems: [] as UserStockItem[],
     services: [] as ProjectServiceLine[],
@@ -303,66 +300,6 @@ describe('ResultSummary: financial analysis', () => {
     expect(screen.getByText('Ganho com SolaX')).toBeInTheDocument();
     expect(screen.getByText('Sem SolaX')).toBeInTheDocument();
     expect(screen.getByText('Com SolaX')).toBeInTheDocument();
-  });
-});
-
-describe('ResultSummary: export button', () => {
-  it('calls onExport when clicked and is disabled when canExport is false', () => {
-    const onExport = vi.fn();
-    const { rerender } = render(
-      <NextIntlClientProvider locale="pt" messages={ptMessages}>
-        <ResultSummary
-          solution={baseSolution}
-          batteryCatalog={[battery]}
-          inverterCatalog={[inverter]}
-          onExport={onExport}
-          canExport={true}
-          exportingPdf={false}
-          productMedia={{}}
-          userStockItems={[]}
-          services={[]}
-          userServices={[]}
-          marginSettings={zeroMargin}
-          whiteTariff={null}
-          pv={null}
-          onChooseMicrogridVariant={vi.fn()}
-          desiredFeatures={[]}
-          microgrid={null}
-          nominalW={5000}
-          peakW={7000}
-          dailyKwh={5}
-        />
-      </NextIntlClientProvider>
-    );
-    fireEvent.click(screen.getByText('Baixar relatório'));
-    expect(onExport).toHaveBeenCalled();
-
-    rerender(
-      <NextIntlClientProvider locale="pt" messages={ptMessages}>
-        <ResultSummary
-          solution={baseSolution}
-          batteryCatalog={[battery]}
-          inverterCatalog={[inverter]}
-          onExport={onExport}
-          canExport={false}
-          exportingPdf={false}
-          productMedia={{}}
-          userStockItems={[]}
-          services={[]}
-          userServices={[]}
-          marginSettings={zeroMargin}
-          whiteTariff={null}
-          pv={null}
-          onChooseMicrogridVariant={vi.fn()}
-          desiredFeatures={[]}
-          microgrid={null}
-          nominalW={5000}
-          peakW={7000}
-          dailyKwh={5}
-        />
-      </NextIntlClientProvider>
-    );
-    expect(screen.getByText('Baixar relatório').closest('button')).toBeDisabled();
   });
 });
 

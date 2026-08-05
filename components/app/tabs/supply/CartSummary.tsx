@@ -1,9 +1,10 @@
 'use client';
 
-import { ShoppingCart } from 'lucide-react';
+import { Building2, FolderOpen, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { SupplierOfferView } from '@/lib/procurement/types';
-import { money, type Cart } from './types';
+import { DeliveryAddressFields } from './DeliveryAddressFields';
+import { money, type Cart, type DeliveryForm } from './types';
 
 export function CartSummary({
   cartOffers,
@@ -15,6 +16,11 @@ export function CartSummary({
   busy,
   onCreateOrder,
   onClearCart,
+  deliveryForm,
+  onDeliveryFieldChange,
+  hasCompanyAddress,
+  onUseCompanyAddress,
+  cartProjectName,
 }: {
   cartOffers: SupplierOfferView[];
   cart: Cart;
@@ -25,6 +31,23 @@ export function CartSummary({
   busy: boolean;
   onCreateOrder: (requestType: 'quote' | 'direct') => void;
   onClearCart: () => void;
+  /** Optional at this point — passed straight to create_purchase_order so
+   * the supplier already has it, whatever path the order later takes. */
+  deliveryForm: DeliveryForm;
+  onDeliveryFieldChange: (field: keyof DeliveryForm, value: string) => void;
+  /** Whether the profile (Perfil) has a registered company address to offer
+   *  as a one-click default — hides the shortcut entirely when there's
+   *  nothing to fill in from. */
+  hasCompanyAddress: boolean;
+  /** Fills every delivery field from the company's registered address —
+   *  a one-off default, not a persistent binding, so the fields stay just as
+   *  editable afterward as a manually-typed address. */
+  onUseCompanyAddress: () => void;
+  /** Name of the project whose solution supplied the cart's items (via
+   *  "Importar itens do projeto"), if any — the resulting order is linked to
+   *  it (see create_purchase_order's p_project_id) so it shows up in that
+   *  project's own history afterward. */
+  cartProjectName: string | null;
 }) {
   const belowMinimum = subtotal < Number(cartSupplier?.minimum_order_value ?? 0);
 
@@ -34,6 +57,12 @@ export function CartSummary({
         <ShoppingCart className="h-4 w-4" />
         Carrinho
       </h2>
+      {cartProjectName && cartOffers.length > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+          Projeto: {cartProjectName}
+        </p>
+      )}
       <div className="space-y-3">
         {cartOffers.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">Adicione produtos de um fornecedor.</p>
@@ -63,6 +92,26 @@ export function CartSummary({
               maxLength={2000}
               onChange={(event) => onNotesChange(event.target.value)}
             />
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Endereço de entrega (opcional) — ajuda o fornecedor a cotar o frete já na primeira resposta.
+                </p>
+                {hasCompanyAddress && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 gap-1 px-2 text-xs"
+                    onClick={onUseCompanyAddress}
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    Usar endereço da empresa
+                  </Button>
+                )}
+              </div>
+              <DeliveryAddressFields form={deliveryForm} onChange={onDeliveryFieldChange} />
+            </div>
             <div className="grid gap-2">
               {['quote', 'both'].includes(cartSupplier?.order_mode ?? '') && (
                 <Button disabled={busy || belowMinimum} onClick={() => onCreateOrder('quote')}>

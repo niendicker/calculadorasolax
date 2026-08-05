@@ -1,10 +1,12 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import type { SupplierOfferView } from '@/lib/procurement/types';
 import { money, type Cart } from './types';
 
@@ -29,10 +31,31 @@ export function OffersSection({
   onChangeQuantity: (offer: SupplierOfferView, quantity: number) => void;
   selectedSupplierCount: number;
 }) {
-  const filtered = offers.filter((offer) =>
-    `${offer.supplier_product_mappings.product_model} ${offer.supplier_product_mappings.supplier_sku} ${offer.suppliers.name}`
-      .toLowerCase()
-      .includes(query.toLowerCase())
+  const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
+
+  // Sourced from the offers actually on screen (not the full "Meus
+  // fornecedores" list) so a chip never appears for a supplier with nothing
+  // to show right now.
+  const suppliersWithOffers = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const offer of offers) {
+      if (!byId.has(offer.supplier_id)) byId.set(offer.supplier_id, offer.suppliers.name);
+    }
+    return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [offers]);
+
+  // Falls back to "Todos" if the selected supplier no longer has any offer
+  // (e.g. its offers expired while this chip was already selected) instead
+  // of silently showing zero results with an active-looking chip.
+  const effectiveSupplierFilter =
+    supplierFilter && suppliersWithOffers.some((supplier) => supplier.id === supplierFilter) ? supplierFilter : null;
+
+  const filtered = offers.filter(
+    (offer) =>
+      (!effectiveSupplierFilter || offer.supplier_id === effectiveSupplierFilter) &&
+      `${offer.supplier_product_mappings.product_model} ${offer.supplier_product_mappings.supplier_sku} ${offer.suppliers.name}`
+        .toLowerCase()
+        .includes(query.toLowerCase())
   );
 
   return (
@@ -47,6 +70,39 @@ export function OffersSection({
           onChange={(event) => onQueryChange(event.target.value)}
         />
       </div>
+      {suppliersWithOffers.length > 1 && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por fornecedor">
+          <button
+            type="button"
+            aria-pressed={effectiveSupplierFilter === null}
+            onClick={() => setSupplierFilter(null)}
+            className={cn(
+              'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              effectiveSupplierFilter === null
+                ? 'border-primary bg-primary/[0.08] text-foreground'
+                : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/40 hover:text-foreground'
+            )}
+          >
+            Todos
+          </button>
+          {suppliersWithOffers.map((supplier) => (
+            <button
+              key={supplier.id}
+              type="button"
+              aria-pressed={effectiveSupplierFilter === supplier.id}
+              onClick={() => setSupplierFilter(supplier.id)}
+              className={cn(
+                'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                effectiveSupplierFilter === supplier.id
+                  ? 'border-primary bg-primary/[0.08] text-foreground'
+                  : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/40 hover:text-foreground'
+              )}
+            >
+              {supplier.name}
+            </button>
+          ))}
+        </div>
+      )}
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">

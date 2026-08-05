@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { renderPurchaseOrderPdf, type PurchaseOrderPdfItem } from '@/lib/pdf/purchase-order-pdf';
+import { renderPurchaseOrderPdf, type PurchaseOrderPdfDeliveryAddress, type PurchaseOrderPdfItem } from '@/lib/pdf/purchase-order-pdf';
 
 interface NotifyInput {
   message?: string;
 }
+
+/** Minimum gap between two "Notificar por email" sends for the same order —
+ * without this, an impatient user (or a repeated/scripted call directly
+ * against this route) could email the same supplier over and over for one
+ * order. `purchase_order_events` already logs every send; this is the first
+ * place that reads it back instead of treating it as a write-only log. */
+const SUPPLIER_EMAIL_COOLDOWN_MS = 10 * 60 * 1000;
 
 /** Emails a supplier a request-for-quote for an already-created purchase
  *  order — for suppliers with no partner-order API integration (see
@@ -36,13 +43,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   const { data: order, error: orderError } = await supabase
     .from('purchase_orders')
     .select(
-      'id, supplier_id, currency, subtotal, status, purchase_order_items(product_model, supplier_sku, quantity, unit_price, line_total)'
+      'id, supplier_id, currency, subtotal, status, delivery_address, purchase_order_items(product_model, supplier_sku, quantity, unit_price, line_total)'
     )
     .eq('id', orderId)
     .single();
   if (orderError || !order) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
   if (!['requested', 'under_review', 'quoted'].includes(order.status)) {
     return NextResponse.json({ error: 'Este pedido não está mais disponível para notificar o fornecedor.' }, { status: 409 });
+  }
+
+  const { data: lastEmailEvent } = await supabase
+    .from('purchase_order_events')
+    .select('created_at')
+    .eq('order_id', orderId)
+    .eq('event_type', 'supplier_email_sent')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastEmailEvent) {
+    const elapsedMs = Date.now() - new Date(lastEmailEvent.created_at).getTime();
+    if (elapsedMs < SUPPLIER_EMAIL_COOLDOWN_MS) {
+      const retryAfterSeconds = Math.ceil((SUPPLIER_EMAIL_COOLDOWN_MS - elapsedMs) / 1000);
+      const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+      return NextResponse.json(
+        { error: `Aguarde ${retryAfterMinutes} min antes de notificar este fornecedor de novo.`, retryAfterSeconds },
+        { status: 429 }
+      );
+    }
   }
 
   const { data: profile } = await supabase.from('profiles').select('full_name, company_name, phone, email').eq('id', user.id).single();
@@ -57,6 +84,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
 
   const items = (order.purchase_order_items ?? []) as PurchaseOrderPdfItem[];
   const customerName = profile?.company_name?.trim() || profile?.full_name?.trim() || 'Cliente';
+  const deliveryAddress = (order.delivery_address ?? null) as PurchaseOrderPdfDeliveryAddress | null;
 
   let pdfBase64: string;
   try {
@@ -69,6 +97,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
       items,
       subtotal: order.subtotal,
       message,
+      deliveryAddress,
     });
   } catch {
     return NextResponse.json({ error: 'Não foi possível gerar o PDF da proposta.' }, { status: 500 });

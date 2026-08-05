@@ -33,6 +33,17 @@ export interface PurchaseOrderPdfItem {
   line_total: number;
 }
 
+export interface PurchaseOrderPdfDeliveryAddress {
+  name?: string | null;
+  postal_code?: string | null;
+  address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
 export interface PurchaseOrderPdfInput {
   supplierName: string;
   customerName: string;
@@ -42,6 +53,10 @@ export interface PurchaseOrderPdfInput {
   items: PurchaseOrderPdfItem[];
   subtotal: number;
   message: string;
+  /** Collected at checkout (see components/app/tabs/supply/CartSummary.tsx) —
+   * optional there, so this is too: lets the supplier quote shipping in the
+   * same reply instead of a back-and-forth to ask for it. */
+  deliveryAddress?: PurchaseOrderPdfDeliveryAddress | null;
 }
 
 function formatMoney(value: number, currency: string) {
@@ -50,6 +65,21 @@ function formatMoney(value: number, currency: string) {
   } catch {
     return `${currency} ${value.toFixed(2)}`;
   }
+}
+
+function hasAnyDeliveryField(address: PurchaseOrderPdfDeliveryAddress | null | undefined): address is PurchaseOrderPdfDeliveryAddress {
+  return Boolean(address && Object.values(address).some((value) => value?.trim()));
+}
+
+function formatDeliveryAddress(address: PurchaseOrderPdfDeliveryAddress): string[] {
+  const lines: string[] = [];
+  const line1 = [address.address, address.number].filter(Boolean).join(', ');
+  if (line1) lines.push(address.complement ? `${line1} - ${address.complement}` : line1);
+  const cityState = address.city && address.state ? `${address.city}/${address.state}` : address.city || address.state || '';
+  const line2 = [address.district, cityState].filter(Boolean).join(' - ');
+  if (line2) lines.push(line2);
+  if (address.postal_code) lines.push(`CEP ${address.postal_code}`);
+  return lines;
 }
 
 /** Renders a simple "request for quote" PDF for a purchase order — product,
@@ -73,6 +103,16 @@ export async function renderPurchaseOrderPdf(input: PurchaseOrderPdfInput): Prom
             {input.customerPhone ? ` · ${input.customerPhone}` : ''}
           </Text>
         </View>
+
+        {hasAnyDeliveryField(input.deliveryAddress) && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Endereço de entrega</Text>
+            {input.deliveryAddress.name && <Text>{input.deliveryAddress.name}</Text>}
+            {formatDeliveryAddress(input.deliveryAddress).map((line, index) => (
+              <Text key={index}>{line}</Text>
+            ))}
+          </View>
+        )}
 
         <View style={styles.headerRow}>
           <Text style={{ flex: 3 }}>Produto</Text>

@@ -972,7 +972,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(within(dialog).getByText(/Disjuntor CA/)).toBeInTheDocument();
   });
 
-  it('"Enviar cotação por WhatsApp" opens wa.me pointed at the client\'s number', () => {
+  it('"Compartilhar cotação" opens wa.me pointed at the client\'s number', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     setup({
       savedProjects: [
@@ -995,7 +995,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     });
 
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     expect(openSpy).toHaveBeenCalledWith(
       expect.stringContaining('https://wa.me/5511912345678?text='),
@@ -1005,7 +1005,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     openSpy.mockRestore();
   });
 
-  it('disables "Enviar cotação por WhatsApp" when the client has no phone on file', () => {
+  it('disables "Compartilhar cotação" when the client has no phone on file', () => {
     setup({
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c1' })],
       clients: [{ id: 'c1', name: 'Ana Souza', phone: '' } as Client],
@@ -1013,7 +1013,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     clickCard('Casa de praia');
 
-    expect(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
   });
 
   const solvedProject = makeProject({
@@ -1041,7 +1041,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     setup({ savedProjects: [solvedProject], clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client] });
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
     const [{ files }] = share.mock.calls[0];
@@ -1063,7 +1063,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     setup({ savedProjects: [solvedProject], clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client] });
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     await waitFor(() => expect(navigator.share).toHaveBeenCalledTimes(1));
     expect(openSpy).not.toHaveBeenCalled();
@@ -1081,13 +1081,60 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     setup({ savedProjects: [solvedProject], clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client] });
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     await waitFor(() => expect(openSpy).toHaveBeenCalled());
 
     openSpy.mockRestore();
     delete (navigator as { canShare?: unknown }).canShare;
     delete (navigator as { share?: unknown }).share;
+  });
+
+  it('marks the project "Enviada" once the quote is actually shared', async () => {
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    Object.defineProperty(navigator, 'canShare', { value: vi.fn().mockReturnValue(true), configurable: true });
+    Object.defineProperty(navigator, 'share', { value: vi.fn().mockResolvedValue(undefined), configurable: true });
+
+    const { props } = setup({
+      savedProjects: [solvedProject],
+      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+    });
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() => expect(props.onUpdateStatus).toHaveBeenCalledWith('p1', 'sent'));
+
+    delete (navigator as { canShare?: unknown }).canShare;
+    delete (navigator as { share?: unknown }).share;
+  });
+
+  it('marks the project "Enviada" when falling back to the plain wa.me link too', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { props } = setup({
+      savedProjects: [solvedProject],
+      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+    });
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() => expect(props.onUpdateStatus).toHaveBeenCalledWith('p1', 'sent'));
+
+    openSpy.mockRestore();
+  });
+
+  it('does not touch the status when the quote is already past "Rascunho"', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { props } = setup({
+      savedProjects: [{ ...solvedProject, status: 'accepted' }],
+      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+    });
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalled());
+    expect(props.onUpdateStatus).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
   });
 
   it('clicking the selected card again clears the selection', () => {

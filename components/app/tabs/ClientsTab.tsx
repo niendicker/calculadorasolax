@@ -1,18 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { Save, UserRound } from 'lucide-react';
+import { ChevronDown, FolderOpen, Save, UserRound } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
-import type { Client } from '@/lib/types';
+import type { Client, SavedProject } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { formatPhone } from '../helpers';
 import { PageHeader } from '../shell/slots';
 import { SearchInput } from '../shared-ui';
+import { projectStatusLabels } from '../types';
 
 function emptyClientForm() {
   return { name: '', email: '', phone: '', document: '', notes: '' };
@@ -32,17 +34,24 @@ function formatDocument(raw: string): string {
 
 export function ClientsTab({
   clients,
+  savedProjects,
   onAdd,
   onUpdate,
   onRemove,
+  onOpenProject,
 }: {
   clients: Client[];
+  savedProjects: SavedProject[];
   onAdd: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   onUpdate: (
     id: string,
     partial: Partial<{ name: string; email: string; phone: string; document: string; notes: string }>
   ) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  /** Loads the project into the wizard and switches to the Projeto tab —
+   *  reached from a client's own project list, so a client's history doesn't
+   *  require hunting for their name over on Projeto. */
+  onOpenProject: (id: string) => void;
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,6 +61,7 @@ export function ClientsTab({
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredClients = clients.filter((client) =>
@@ -167,41 +177,84 @@ export function ClientsTab({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {filteredClients.map((client) => (
-                      <div
-                        key={client.id}
-                        className={cn(
-                          'flex flex-col gap-2 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between',
-                          removingIds.has(client.id) && 'opacity-60'
-                        )}
-                      >
-                        <div className="min-w-0">
-                          <p className="font-medium">{client.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {[client.email, client.phone, client.document].filter(Boolean).join(' · ') ||
-                              'Sem dados de contato'}
-                          </p>
+                    {filteredClients.map((client) => {
+                      const projects = savedProjects.filter((project) => project.clientId === client.id);
+                      const expanded = expandedClientId === client.id;
+                      return (
+                        <div
+                          key={client.id}
+                          className={cn(
+                            'rounded-lg border bg-background',
+                            removingIds.has(client.id) && 'opacity-60'
+                          )}
+                        >
+                          <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="font-medium">{client.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {[client.email, client.phone, client.document].filter(Boolean).join(' · ') ||
+                                  'Sem dados de contato'}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap gap-2">
+                              {projects.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-expanded={expanded}
+                                  onClick={() => setExpandedClientId(expanded ? null : client.id)}
+                                >
+                                  <FolderOpen className="h-4 w-4" />
+                                  {projects.length} {projects.length === 1 ? 'projeto' : 'projetos'}
+                                  <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEdit(client)}
+                                disabled={removingIds.has(client.id)}
+                              >
+                                Editar
+                              </Button>
+                              <ConfirmDeleteButton
+                                ariaLabel={`Remover cliente ${client.name}`}
+                                title="Remover cliente?"
+                                description="Os projetos que usam esse cliente ficarão sem cliente associado."
+                                confirmLabel="Remover"
+                                disabled={removingIds.has(client.id)}
+                                onConfirm={() => handleRemove(client.id)}
+                              />
+                            </div>
+                          </div>
+                          {expanded && projects.length > 0 && (
+                            <div className="space-y-1.5 border-t p-3">
+                              {projects.map((project) => (
+                                <div
+                                  key={project.id}
+                                  className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2.5 py-1.5 text-sm"
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate">{project.name}</span>
+                                    <Badge variant="outline" className="shrink-0 text-[0.65rem]">
+                                      {projectStatusLabels[project.status]}
+                                    </Badge>
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 shrink-0 px-2 text-xs"
+                                    onClick={() => onOpenProject(project.id)}
+                                  >
+                                    Abrir
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex shrink-0 gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEdit(client)}
-                            disabled={removingIds.has(client.id)}
-                          >
-                            Editar
-                          </Button>
-                          <ConfirmDeleteButton
-                            ariaLabel={`Remover cliente ${client.name}`}
-                            title="Remover cliente?"
-                            description="Os projetos que usam esse cliente ficarão sem cliente associado."
-                            confirmLabel="Remover"
-                            disabled={removingIds.has(client.id)}
-                            onConfirm={() => handleRemove(client.id)}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

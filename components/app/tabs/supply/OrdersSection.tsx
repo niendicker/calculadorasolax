@@ -1,16 +1,17 @@
 'use client';
 
-import { useState } from 'react';
 import { Mail, PackageCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
-import { Input } from '@/components/ui/input';
 import { orderStatusLabels } from '@/lib/procurement/types';
+import { DeliveryAddressFields } from './DeliveryAddressFields';
 import { money, type DeliveryForm, type Order, type Supplier } from './types';
 
-type ViaCepResponse = { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
+function remainingCooldownMs(until: number | undefined): number {
+  return Math.max(0, (until ?? 0) - Date.now());
+}
 
 export function OrdersSection({
   orders,
@@ -30,6 +31,7 @@ export function OrdersSection({
   onCancelEmailForm,
   onEmailMessageChange,
   onNotifySupplierByEmail,
+  emailCooldownUntil,
 }: {
   orders: Order[];
   suppliers: Supplier[];
@@ -48,30 +50,11 @@ export function OrdersSection({
   onCancelEmailForm: () => void;
   onEmailMessageChange: (message: string) => void;
   onNotifySupplierByEmail: (orderId: string) => void;
+  /** Epoch ms (per order id) until "Notificar por email" can be used again —
+   * mirrors the server's 10-minute cooldown so a fresh click doesn't get
+   * sent just to bounce off a 429. */
+  emailCooldownUntil: Record<string, number>;
 }) {
-  const [cepLookupState, setCepLookupState] = useState<'idle' | 'loading' | 'not-found'>('idle');
-
-  async function lookupCep(postalCode: string) {
-    const digits = postalCode.replace(/\D/g, '');
-    if (digits.length !== 8) return;
-    setCepLookupState('loading');
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      const data = (await response.json()) as ViaCepResponse;
-      if (data.erro) {
-        setCepLookupState('not-found');
-        return;
-      }
-      onDeliveryFieldChange('address', data.logradouro ?? '');
-      onDeliveryFieldChange('district', data.bairro ?? '');
-      onDeliveryFieldChange('city', data.localidade ?? '');
-      onDeliveryFieldChange('state', data.uf ?? '');
-      setCepLookupState('idle');
-    } catch {
-      setCepLookupState('idle');
-    }
-  }
-
   return (
     <section className="space-y-3">
       <h2 className="flex items-center gap-2 text-base font-semibold">
@@ -86,6 +69,8 @@ export function OrdersSection({
           const canSubmitToPartner = order.status === 'requested' && !order.external_order_id && supplier?.supports_partner_orders;
           const cancellable = ['requested', 'under_review', 'quoted'].includes(order.status);
           const canNotifyByEmail = Boolean(supplier?.email) && cancellable;
+          const cooldownRemainingMs = remainingCooldownMs(emailCooldownUntil[order.id]);
+          const cooldownRemainingMinutes = Math.ceil(cooldownRemainingMs / 60_000);
           return (
             <Card key={order.id}>
               <CardContent className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -98,6 +83,12 @@ export function OrdersSection({
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     #{order.id.slice(0, 8)} · {new Date(order.created_at).toLocaleString('pt-BR')}
+                    {order.projects?.name && (
+                      <>
+                        {' '}
+                        · Projeto: {order.projects.name}
+                      </>
+                    )}
                   </p>
                   <p className="mt-2 text-sm">
                     {order.purchase_order_items.map((item) => `${item.quantity}× ${item.product_model}`).join(' · ')}
@@ -122,72 +113,26 @@ export function OrdersSection({
                     </Button>
                   )}
                   {canNotifyByEmail && (
-                    <Button variant="outline" size="sm" onClick={() => onOpenEmailForm(order.id, order.suppliers.name)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={cooldownRemainingMs > 0}
+                      title={cooldownRemainingMs > 0 ? `Aguarde ${cooldownRemainingMinutes} min para notificar de novo.` : undefined}
+                      onClick={() => onOpenEmailForm(order.id, order.suppliers.name)}
+                    >
                       <Mail className="h-4 w-4" />
-                      Notificar por email
+                      {cooldownRemainingMs > 0 ? `Aguarde ${cooldownRemainingMinutes} min` : 'Notificar por email'}
                     </Button>
                   )}
                 </div>
               </CardContent>
               {partnerOrderId === order.id && (
-                <CardContent className="grid gap-2 border-t pt-3 sm:grid-cols-2">
-                  <p className="text-xs text-muted-foreground sm:col-span-2">
-                    Endereço de entrega para o fornecedor processar o pedido.
+                <CardContent className="space-y-2 border-t pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    Endereço de entrega para o fornecedor processar o pedido — revise antes de confirmar.
                   </p>
-                  <Input
-                    placeholder="Destinatário (opcional)"
-                    value={deliveryForm.name}
-                    onChange={(event) => onDeliveryFieldChange('name', event.target.value)}
-                  />
-                  <div>
-                    <Input
-                      placeholder="CEP"
-                      value={deliveryForm.postal_code}
-                      onChange={(event) => {
-                        onDeliveryFieldChange('postal_code', event.target.value);
-                        setCepLookupState('idle');
-                      }}
-                      onBlur={(event) => void lookupCep(event.target.value)}
-                    />
-                    {cepLookupState === 'loading' && (
-                      <p className="mt-1 text-xs text-muted-foreground">Buscando endereço...</p>
-                    )}
-                    {cepLookupState === 'not-found' && (
-                      <p className="mt-1 text-xs text-destructive">CEP não encontrado. Preencha o endereço manualmente.</p>
-                    )}
-                  </div>
-                  <Input
-                    placeholder="Endereço"
-                    value={deliveryForm.address}
-                    onChange={(event) => onDeliveryFieldChange('address', event.target.value)}
-                  />
-                  <Input
-                    placeholder="Número"
-                    value={deliveryForm.number}
-                    onChange={(event) => onDeliveryFieldChange('number', event.target.value)}
-                  />
-                  <Input
-                    placeholder="Complemento (opcional)"
-                    value={deliveryForm.complement}
-                    onChange={(event) => onDeliveryFieldChange('complement', event.target.value)}
-                  />
-                  <Input
-                    placeholder="Bairro (opcional)"
-                    value={deliveryForm.district}
-                    onChange={(event) => onDeliveryFieldChange('district', event.target.value)}
-                  />
-                  <Input
-                    placeholder="Cidade"
-                    value={deliveryForm.city}
-                    onChange={(event) => onDeliveryFieldChange('city', event.target.value)}
-                  />
-                  <Input
-                    placeholder="UF"
-                    maxLength={2}
-                    value={deliveryForm.state}
-                    onChange={(event) => onDeliveryFieldChange('state', event.target.value.toUpperCase())}
-                  />
-                  <div className="flex gap-2 sm:col-span-2">
+                  <DeliveryAddressFields form={deliveryForm} onChange={onDeliveryFieldChange} />
+                  <div className="flex gap-2">
                     <Button size="sm" disabled={submittingPartner} onClick={() => onSubmitToPartner(order.id)}>
                       Confirmar envio
                     </Button>
@@ -210,8 +155,16 @@ export function OrdersSection({
                     onChange={(event) => onEmailMessageChange(event.target.value)}
                   />
                   <div className="flex gap-2">
-                    <Button size="sm" disabled={sendingEmail} onClick={() => onNotifySupplierByEmail(order.id)}>
-                      {sendingEmail ? 'Enviando...' : 'Enviar email'}
+                    <Button
+                      size="sm"
+                      disabled={sendingEmail || cooldownRemainingMs > 0}
+                      onClick={() => onNotifySupplierByEmail(order.id)}
+                    >
+                      {sendingEmail
+                        ? 'Enviando...'
+                        : cooldownRemainingMs > 0
+                          ? `Aguarde ${cooldownRemainingMinutes} min`
+                          : 'Enviar email'}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={onCancelEmailForm}>
                       Cancelar

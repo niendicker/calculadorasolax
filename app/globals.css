@@ -142,6 +142,37 @@
   }
 }
 
+/* Login page layout (components/auth/AuthPanel.tsx) */
+.login-page {
+  display: grid;
+  grid-template-columns: minmax(420px, 3fr) minmax(480px, 2fr);
+  min-height: 100vh;
+}
+
+.login-image {
+  background-image: url("/images/login/background.webp");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.login-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+@media (max-width: 1023.98px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-image {
+    display: none;
+  }
+}
+
 /* Login page illustration (components/auth/LoginIllustration.tsx) */
 @keyframes login-float {
   0%, 100% { transform: translateY(0); }

@@ -5,10 +5,11 @@ import { NextIntlClientProvider } from 'next-intl';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
+import { emptyAddress } from '@/lib/address';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
-import type { Solution } from '@/lib/types';
+import type { Client, SavedProject, Solution } from '@/lib/types';
 import { SinglePageApp } from './SinglePageApp';
 
 function makeSolution(partial: Partial<Solution> = {}): Solution {
@@ -21,6 +22,38 @@ function makeSolution(partial: Partial<Solution> = {}): Solution {
     batteryQty: 1,
     pvPowerKw: 5,
     accessories: [],
+    ...partial,
+  };
+}
+
+function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
+  return {
+    name: 'Projeto salvo',
+    clientId: null,
+    address: emptyAddress(),
+    notes: '',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    residentialOptions: {
+      topology: 'HighVoltage',
+      batteryModel: 'TP-HS3.6',
+      secondaryBatteryModel: null,
+      inverterModel: null,
+      gridType: 'singlePhase_220',
+      loads: [],
+      peakCalcMode: 'sum',
+      operationHours: 0,
+      desiredFeatures: [],
+      whiteTariff: null,
+      microgrid: null,
+      generator: null,
+      pv: null,
+      atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
+      maxPowerPerPhaseW: null,
+    },
+    solution: null,
+    services: [],
     ...partial,
   };
 }
@@ -196,6 +229,28 @@ describe('SinglePageApp: login-gated navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
+  });
+
+  it('opens a project from its client in Clientes, landing on Projeto with it loaded', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    act(() => {
+      useWizardStore.setState({
+        clients: [{ id: 'c1', name: 'Ana Souza', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }],
+        savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa da Praia', clientId: 'c1' })],
+      });
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: '1 projeto' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    expect(screen.getByDisplayValue('Casa da Praia')).toBeInTheDocument();
   });
 });
 
@@ -588,6 +643,141 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
 
     expect(buildProjectQuotePdfBlobMock).not.toHaveBeenCalled();
+  });
+
+  it('disables "Compartilhar cotação" when there is no client phone on file', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+
+    expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
+  });
+
+  it('opens wa.me pointed at the client\'s number when the browser can\'t share files', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    act(() => {
+      useWizardStore.setState((s) => ({
+        clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+        projectInfo: { ...s.projectInfo, clientId: 'c1' },
+      }));
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() =>
+      expect(openSpy).toHaveBeenCalledWith(
+        expect.stringContaining('https://wa.me/5511912345678?text='),
+        '_blank',
+        'noopener,noreferrer'
+      )
+    );
+    openSpy.mockRestore();
+  });
+
+  it('shares the PDF file via the Web Share API when supported, instead of opening wa.me', async () => {
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    const canShare = vi.fn().mockReturnValue(true);
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'canShare', { value: canShare, configurable: true });
+    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    act(() => {
+      useWizardStore.setState((s) => ({
+        clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+        projectInfo: { ...s.projectInfo, clientId: 'c1' },
+      }));
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    const [{ files }] = share.mock.calls[0];
+    expect(files[0]).toBeInstanceOf(File);
+    expect(files[0].type).toBe('application/pdf');
+    expect(openSpy).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
+    delete (navigator as { canShare?: unknown }).canShare;
+    delete (navigator as { share?: unknown }).share;
+  });
+
+  it('marks a "Rascunho" project as "Enviada" once its quote is actually shared', async () => {
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    Object.defineProperty(navigator, 'canShare', { value: vi.fn().mockReturnValue(true), configurable: true });
+    Object.defineProperty(navigator, 'share', { value: vi.fn().mockResolvedValue(undefined), configurable: true });
+    const updateProjectStatusMock = vi.fn().mockResolvedValue({});
+
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    act(() => {
+      useWizardStore.setState((s) => ({
+        currentProjectId: 'p1',
+        savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa de praia', status: 'draft' })],
+        clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+        projectInfo: { ...s.projectInfo, clientId: 'c1' },
+        updateProjectStatus: updateProjectStatusMock,
+      }));
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() => expect(updateProjectStatusMock).toHaveBeenCalledWith('p1', 'sent'));
+
+    delete (navigator as { canShare?: unknown }).canShare;
+    delete (navigator as { share?: unknown }).share;
+  });
+
+  it('does not touch the status of a project that already moved past "Rascunho"', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const updateProjectStatusMock = vi.fn().mockResolvedValue({});
+
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    act(() => {
+      useWizardStore.setState((s) => ({
+        currentProjectId: 'p1',
+        savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa de praia', status: 'accepted' })],
+        clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+        projectInfo: { ...s.projectInfo, clientId: 'c1' },
+        updateProjectStatus: updateProjectStatusMock,
+      }));
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalled());
+    expect(updateProjectStatusMock).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
   });
 
   it('sends a logged-in user to Compras when they click "Cotar solução"', async () => {

@@ -10,7 +10,6 @@ import {
   Loader2,
   Mail,
   MapPin,
-  MessageCircle,
   Phone,
   Users,
   X,
@@ -32,7 +31,7 @@ import {
   normalizeAccessoryLine,
   solutionMetrics,
 } from '../../helpers';
-import { Metric, SharePreviewModal } from '../../shared-ui';
+import { Metric, SharePreviewModal, WhatsAppIcon } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
 
@@ -135,6 +134,13 @@ export function SelectedProjectSummary({
   // user backs out without picking a target. There's no wa.me equivalent for
   // attaching a file — the browser Share API + a user-picked target app is
   // the only way to get a file into WhatsApp at all.
+  // Sharing the quote is the real-world signal that it left "Rascunho" —
+  // only advances from 'draft' so a re-share after the client already
+  // responded doesn't quietly undo an 'accepted'/'rejected' status.
+  function markSent() {
+    if (project.status === 'draft') onUpdateStatus('sent');
+  }
+
   async function handleSendQuote() {
     if (!whatsAppUrl) return;
 
@@ -159,6 +165,7 @@ export function SelectedProjectSummary({
           const file = new File([blob], `${buildPdfFileName(project.name)}.pdf`, { type: 'application/pdf' });
           if (navigator.canShare({ files: [file] })) {
             await navigator.share({ files: [file], text: quoteText });
+            markSent();
             return;
           }
         }
@@ -172,6 +179,7 @@ export function SelectedProjectSummary({
     }
 
     window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
+    markSent();
   }
 
   return (
@@ -354,8 +362,8 @@ export function SelectedProjectSummary({
         title={whatsAppUrl ? undefined : 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'}
         onClick={() => void handleSendQuote()}
       >
-        {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-        Enviar cotação por WhatsApp
+        {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
+        Compartilhar cotação
       </Button>
 
       <Button
