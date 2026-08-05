@@ -1,7 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { BatteryCharging, Calculator, ChevronRight, ClipboardCopy, Gauge, Mail, MapPin, Phone, Users, X, Zap } from 'lucide-react';
+import {
+  BatteryCharging,
+  Calculator,
+  ChevronRight,
+  ClipboardCopy,
+  Gauge,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Users,
+  X,
+  Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
@@ -9,7 +22,9 @@ import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceIt
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
   batteryQuantityBreakdown,
+  buildClientQuoteText,
   buildProjectShareText,
+  buildWhatsAppShareUrl,
   calculateSystemCost,
   formatCurrencyBRL,
   normalizeAccessoryLine,
@@ -90,22 +105,26 @@ export function SelectedProjectSummary({
     : [];
   const [previewText, setPreviewText] = useState<string | null>(null);
 
+  const shareableProject = {
+    name: project.name,
+    address: project.address,
+    topology: project.residentialOptions.topology,
+    gridType: project.residentialOptions.gridType,
+    loadsCount: project.residentialOptions.loads.length,
+    peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+    dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
+    solution: project.solution,
+  };
+
+  const whatsAppUrl = client?.phone
+    ? buildWhatsAppShareUrl(
+        client.phone,
+        buildClientQuoteText(shareableProject, client.name, batteryCatalog, project.services, systemCost)
+      )
+    : null;
+
   function openProjectDataPreview() {
-    const text = buildProjectShareText(
-      {
-        name: project.name,
-        address: project.address,
-        topology: project.residentialOptions.topology,
-        gridType: project.residentialOptions.gridType,
-        loadsCount: project.residentialOptions.loads.length,
-        peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
-        dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
-        solution: project.solution,
-      },
-      client?.name,
-      batteryCatalog
-    );
-    setPreviewText(text);
+    setPreviewText(buildProjectShareText(shareableProject, client?.name, batteryCatalog));
   }
 
   return (
@@ -282,13 +301,24 @@ export function SelectedProjectSummary({
       </Button>
 
       <Button
+        size="lg"
+        className="w-full bg-emerald-600 text-white shadow-sm transition-shadow hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
+        disabled={!whatsAppUrl}
+        title={whatsAppUrl ? undefined : 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'}
+        onClick={() => window.open(whatsAppUrl as string, '_blank', 'noopener,noreferrer')}
+      >
+        <MessageCircle className="h-4 w-4" />
+        Enviar cotação por WhatsApp
+      </Button>
+
+      <Button
         variant="outline"
         size="lg"
         className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
         onClick={openProjectDataPreview}
       >
         <ClipboardCopy className="h-4 w-4" />
-        Copiar dados
+        Copiar dados para fornecedor
       </Button>
       <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
 

@@ -138,6 +138,10 @@ export function useProjectActions({
     projectStatus,
     statusId,
     dismissProjectStatus,
+    /** Exposed so callers outside this hook's own actions (e.g. SinglePageApp's
+     * PDF export) can surface a message through the same toast instead of
+     * needing their own separate status/error UI. */
+    reportStatus: report,
     saveProject,
     startNewProject,
     cancelNewProject,

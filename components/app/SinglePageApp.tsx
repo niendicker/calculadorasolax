@@ -31,12 +31,9 @@ import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
-// PrintableReport stays a static import: exportPdf() calls window.print()
-// synchronously and expects the report already in the DOM — a lazy chunk
-// still loading when print() fires would produce an empty/broken PDF.
-import { PrintableReport } from './PrintableReport';
 import { AppFooter } from './shell/AppFooter';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
+import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { ProjectTab } from './tabs/ProjectTab';
 import { batteryTopologyToCatalog } from '@/lib/types';
 import { gridTypeToApprovedTopology } from './types';
@@ -222,6 +219,7 @@ export function SinglePageApp() {
     projectStatus,
     statusId,
     dismissProjectStatus,
+    reportStatus,
     saveProject,
     startNewProject,
     cancelNewProject,
@@ -398,12 +396,55 @@ export function SinglePageApp() {
     router.refresh();
   }
 
-  function exportPdf() {
+  // @react-pdf/renderer is a sizable library only needed once the user
+  // actually exports — dynamically imported here instead of joining the
+  // rest of this already-static-imported component's bundle.
+  async function exportPdf() {
     if (!solution || !canCalculate) return;
-    const previousTitle = document.title;
-    document.title = buildPdfFileName(projectInfo.name);
-    window.addEventListener('afterprint', () => { document.title = previousTitle; }, { once: true });
-    window.print();
+    try {
+      const { buildProjectQuotePdfBlob } = await import('./project-quote-pdf');
+      const blob = await buildProjectQuotePdfBlob({
+        projectInfo,
+        client: clients.find((c) => c.id === projectInfo.clientId) ?? null,
+        profile,
+        solution,
+        secondarySolution,
+        secondaryBatteryModel: residentialOptions.secondaryBatteryModel,
+        loads: residentialOptions.loads,
+        operationHours: residentialOptions.operationHours,
+        topology: residentialOptions.topology,
+        selectedBatteryModel: residentialOptions.batteryModel,
+        gridType: residentialOptions.gridType,
+        nominalW,
+        peakW,
+        dailyKwh,
+        userStockItems,
+        marginSettings,
+        services,
+        userServices,
+        whiteTariff: residentialOptions.whiteTariff,
+        pv: residentialOptions.pv,
+        desiredFeatures: residentialOptions.desiredFeatures,
+        microgrid: residentialOptions.microgrid,
+        generator: residentialOptions.generator,
+        atsPhotoUrl: residentialOptions.atsPhotoUrl,
+        atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
+        batteryCatalog,
+        inverterCatalog,
+        accessoryCatalog,
+        productMedia,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${buildPdfFileName(projectInfo.name)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      reportStatus('Não foi possível gerar o PDF. Tente novamente.');
+    }
   }
 
   // "Compartilhar Relatório" on a not-yet-open project card: quietly loads
@@ -423,12 +464,13 @@ export function SinglePageApp() {
   useEffect(() => {
     if (!pendingPdfProjectIdRef.current || pendingPdfProjectIdRef.current !== currentProjectId) return;
     pendingPdfProjectIdRef.current = null;
-    if (!solution || !canCalculate) return;
-    const previousTitle = document.title;
-    document.title = buildPdfFileName(projectInfo.name);
-    window.addEventListener('afterprint', () => { document.title = previousTitle; }, { once: true });
-    window.print();
-  }, [currentProjectId, solution, canCalculate, projectInfo.name]);
+    void exportPdf();
+    // exportPdf itself is intentionally excluded: it closes over every field
+    // of the freshly-loaded project (solution, residentialOptions, services,
+    // etc.), so re-running this effect for each of those would fire the
+    // export multiple times per project load instead of once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId]);
 
   // resetResidential() already brings topology/gridType back to the store's
   // HV/monofásico 220V defaults — this just goes one step further and also
@@ -497,6 +539,9 @@ export function SinglePageApp() {
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-background">
+      {projectStatus && (
+        <ProjectStatusToast key={statusId} message={projectStatus} onDismiss={dismissProjectStatus} />
+      )}
       <div
         className={cn(
           'mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]',
@@ -686,9 +731,6 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               accessoryCatalog={accessoryCatalog}
               initialLoading={initialLoading}
-              projectStatus={projectStatus}
-              statusId={statusId}
-              onDismissStatus={dismissProjectStatus}
               topology={residentialOptions.topology}
               batteryModel={residentialOptions.batteryModel}
               gridType={residentialOptions.gridType}
@@ -1069,40 +1111,6 @@ export function SinglePageApp() {
             </div>
           </aside>
         </div>
-      )}
-
-      {solution && (
-        <PrintableReport
-          projectInfo={projectInfo}
-          client={clients.find((c) => c.id === projectInfo.clientId) ?? null}
-          profile={profile}
-          solution={solution}
-          secondarySolution={secondarySolution}
-          secondaryBatteryModel={residentialOptions.secondaryBatteryModel}
-          loads={residentialOptions.loads}
-          operationHours={residentialOptions.operationHours}
-          topology={residentialOptions.topology}
-          selectedBatteryModel={residentialOptions.batteryModel}
-          gridType={residentialOptions.gridType}
-          nominalW={nominalW}
-          peakW={peakW}
-          dailyKwh={dailyKwh}
-          userStockItems={userStockItems}
-          marginSettings={marginSettings}
-          services={services}
-          userServices={userServices}
-          whiteTariff={residentialOptions.whiteTariff}
-          pv={residentialOptions.pv}
-          desiredFeatures={residentialOptions.desiredFeatures}
-          microgrid={residentialOptions.microgrid}
-          generator={residentialOptions.generator}
-          atsPhotoUrl={residentialOptions.atsPhotoUrl}
-          atsBackupAcknowledged={residentialOptions.atsBackupAcknowledged}
-          batteryCatalog={batteryCatalog}
-          inverterCatalog={inverterCatalog}
-          accessoryCatalog={accessoryCatalog}
-          productMedia={productMedia}
-        />
       )}
     </main>
   );

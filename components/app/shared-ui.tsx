@@ -169,56 +169,6 @@ export function Requirement({ done, label }: { done: boolean; label: string }) {
   );
 }
 
-export function ReportMetric({
-  label,
-  value,
-  icon: Icon,
-  highlight,
-  note,
-}: {
-  label: string;
-  value: string;
-  icon?: LucideIcon;
-  /** Calls out a standout figure (e.g. PV/battery savings) with the primary
-   * color instead of the plain neutral card other metrics use. */
-  highlight?: boolean;
-  /** Smaller secondary line below the value, e.g. the monthly figure behind
-   * an annual headline value — de-emphasized on purpose. */
-  note?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        'print-avoid-break min-w-0 overflow-hidden rounded-xl border p-3.5',
-        highlight ? 'border-primary/30 bg-primary/5' : 'border-border/70 bg-muted/30'
-      )}
-    >
-      <p className={cn('flex min-w-0 items-start gap-1.5 text-xs', highlight ? 'text-primary/80' : 'text-muted-foreground')}>
-        {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-        {label}
-      </p>
-      <p className={cn('mt-1.5 break-words text-base font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]', highlight ? 'text-primary' : 'text-foreground')}>{value}</p>
-      {note && <p className="mt-0.5 break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{note}</p>}
-    </div>
-  );
-}
-
-/** A single label/value line for the report's plain-language sections — a
- * light bottom divider between rows reads as a tidy list instead of the grid
- * lines a real <table> forces, which is what makes those sections feel
- * "spreadsheet-y" instead of like a document meant to be read. */
-export function ReportInfoRow({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {
-  return (
-    <div className="print-avoid-break flex items-start justify-between gap-4 border-b border-border/50 py-2 text-sm last:border-0">
-      <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
-        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
-        {label}
-      </span>
-      <span className="min-w-0 break-words text-right font-medium text-foreground [overflow-wrap:anywhere]">{value}</span>
-    </div>
-  );
-}
-
 export function ProjectListSkeleton() {
   return (
     <div className="space-y-2" aria-label="Carregando projetos">

@@ -56,7 +56,7 @@ function formatMoney(value: number, currency: string) {
  *  SKU, quantity and reference price per line, plus the requester's contact
  *  info and message — to attach to the supplier-notification email (see
  *  app/api/purchase-orders/[orderId]/notify-supplier-email). Deliberately not
- *  the full technical PrintableReport: a supplier needs what to quote, not
+ *  the full technical project quote PDF: a supplier needs what to quote, not
  *  the customer's economic analysis. */
 export async function renderPurchaseOrderPdf(input: PurchaseOrderPdfInput): Promise<string> {
   const buffer = await renderToBuffer(

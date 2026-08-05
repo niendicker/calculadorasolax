@@ -19,7 +19,6 @@ import { gridLabels, projectStatusLabels, topologyLabels } from '../types';
 import { NewProjectCard } from './project/NewProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
-import { ProjectStatusToast } from './project/ProjectStatusToast';
 import { SelectedProjectSummary } from './project/SelectedProjectSummary';
 
 export function ProjectTab({
@@ -27,9 +26,6 @@ export function ProjectTab({
   inverterCatalog,
   accessoryCatalog,
   initialLoading,
-  projectStatus,
-  statusId,
-  onDismissStatus,
   topology,
   batteryModel,
   gridType,
@@ -56,9 +52,6 @@ export function ProjectTab({
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
   initialLoading: boolean;
-  projectStatus: string | null;
-  statusId: number;
-  onDismissStatus: () => void;
   topology: BatteryTopology | null;
   batteryModel: string | null;
   gridType: ResidentialGridType | null;
@@ -238,10 +231,6 @@ export function ProjectTab({
           </div>
         )}
       </PageSummary>
-
-      {projectStatus && (
-        <ProjectStatusToast key={statusId} message={projectStatus} onDismiss={onDismissStatus} />
-      )}
 
       <div className="space-y-3">
         <div

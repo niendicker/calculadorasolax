@@ -15,8 +15,6 @@ import {
   ProductAttachments,
   ProductImage,
   ProjectListSkeleton,
-  ReportInfoRow,
-  ReportMetric,
   Requirement,
   SearchInput,
   SharePreviewModal,
@@ -145,20 +143,6 @@ describe('Requirement', () => {
       </ul>
     );
     expect(screen.getByText('Topologia').closest('li')).toHaveClass('text-foreground');
-  });
-});
-
-describe('ReportMetric / ReportInfoRow', () => {
-  it('renders a labeled metric card', () => {
-    render(<ReportMetric label="Nominal" value="5.00 kVA" />);
-    expect(screen.getByText('Nominal')).toBeInTheDocument();
-    expect(screen.getByText('5.00 kVA')).toBeInTheDocument();
-  });
-
-  it('renders a label/value row', () => {
-    render(<ReportInfoRow label="Cliente" value="Ana" />);
-    expect(screen.getByText('Cliente')).toBeInTheDocument();
-    expect(screen.getByText('Ana')).toBeInTheDocument();
   });
 });
 

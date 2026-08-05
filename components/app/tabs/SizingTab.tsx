@@ -351,7 +351,7 @@ export function SizingTab({
   // *either* battery search (primary or secondary) came back short on power/
   // energy, not just whichever tab happens to be active right now — the
   // printed report always includes both solutions regardless of which tab is
-  // selected on screen (see PrintableReport.tsx). Skips a solution still
+  // selected on screen (see project-quote-pdf.tsx). Skips a solution still
   // sitting on an unchosen microgrid alternative — there's no export button
   // reachable in that state (see ResultSummary's MicrogridVariantChoice
   // early-return), so there's nothing to gate yet.
@@ -584,7 +584,7 @@ export function SizingTab({
                 }}
               >
                 <ClipboardCopy className="h-5 w-5 md:h-4 md:w-4" />
-                Copiar dados
+                Copiar dados para fornecedor
               </Button>
             </div>
             <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />

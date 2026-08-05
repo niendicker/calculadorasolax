@@ -98,9 +98,6 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     inverterCatalog: [],
     accessoryCatalog: [],
     initialLoading: false,
-    projectStatus: null,
-    statusId: 0,
-    onDismissStatus: vi.fn(),
     topology: null,
     batteryModel: null,
     gridType: null,
@@ -888,7 +885,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     });
 
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados para fornecedor' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
     expect(writeText).not.toHaveBeenCalled();
@@ -931,11 +928,55 @@ describe('ProjectTab: selecting a project without opening it', () => {
     });
 
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados para fornecedor' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
     expect(within(dialog).queryByText(/WiFi Dongle/)).not.toBeInTheDocument();
     expect(within(dialog).getByText(/Disjuntor CA/)).toBeInTheDocument();
+  });
+
+  it('"Enviar cotação por WhatsApp" opens wa.me pointed at the client\'s number', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          clientId: 'c1',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
+    });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('https://wa.me/5511912345678?text='),
+      '_blank',
+      'noopener,noreferrer'
+    );
+    openSpy.mockRestore();
+  });
+
+  it('disables "Enviar cotação por WhatsApp" when the client has no phone on file', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c1' })],
+      clients: [{ id: 'c1', name: 'Ana Souza', phone: '' } as Client],
+    });
+
+    clickCard('Casa de praia');
+
+    expect(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' })).toBeDisabled();
   });
 
   it('clicking the selected card again clears the selection', () => {
@@ -1159,34 +1200,5 @@ describe('ProjectTab: removing a project', () => {
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('p1'));
-  });
-});
-
-describe('ProjectTab: status message', () => {
-  it('shows the projectStatus text when present', () => {
-    setup({ projectStatus: 'Projeto removido.' });
-    expect(screen.getByRole('status')).toHaveTextContent('Projeto removido.');
-  });
-
-  it('dismisses via the close button', () => {
-    const { props } = setup({ projectStatus: 'Projeto removido.' });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
-
-    expect(props.onDismissStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it('auto-dismisses after the countdown', () => {
-    vi.useFakeTimers();
-    try {
-      const { props } = setup({ projectStatus: 'Projeto removido.' });
-
-      expect(props.onDismissStatus).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(5000);
-
-      expect(props.onDismissStatus).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

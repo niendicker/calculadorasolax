@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   TARIFF_BUSINESS_DAYS_PER_MONTH,
+  buildClientQuoteText,
   buildMarginSummary,
   buildPdfFileName,
+  buildProjectShareText,
+  buildWhatsAppShareUrl,
   calculateDegradedPaybackMonths,
   calculateSystemCost,
   calculateTariffSavings,
@@ -614,6 +617,81 @@ describe('buildPdfFileName', () => {
 
   it('strips characters unsafe in a filename and collapses whitespace into underscores', () => {
     expect(buildPdfFileName('  Projeto: "Norte" / Sul <2>  ', date)).toBe('Projeto_Norte_Sul_2_2026-07-22');
+  });
+});
+
+const shareableProject = {
+  name: 'Casa de praia',
+  topology: 'HighVoltage' as const,
+  gridType: 'singlePhase_220' as const,
+  loadsCount: 3,
+  peakW: 5000,
+  dailyKwh: 12,
+  solution: null,
+};
+
+describe('buildProjectShareText', () => {
+  it('asks the reader for a quote, without any pricing', () => {
+    const text = buildProjectShareText(shareableProject, 'Ana Souza', []);
+    expect(text).toContain('Poderia me passar um orçamento para essa solução?');
+    expect(text).toContain('Cliente: Ana Souza');
+    expect(text).not.toMatch(/R\$/);
+  });
+
+  it('lists the solution once one is calculated', () => {
+    const text = buildProjectShareText({ ...shareableProject, solution: makeSolution() }, undefined, []);
+    expect(text).toContain('X1-Hybrid-5.0-D');
+    expect(text).toContain('T-BAT-SYS HV 5.8 V2');
+  });
+});
+
+describe('buildClientQuoteText', () => {
+  const project = { ...shareableProject, solution: makeSolution() };
+  const systemCost = { totalCost: 32450, pricedItemsCount: 2, totalItemsCount: 2, isComplete: true, missingItems: [] };
+
+  it('addresses the client directly with the priced total, not a request for a quote', () => {
+    const text = buildClientQuoteText(project, 'Ana Souza', [], [], systemCost);
+    expect(text).toContain('*Orçamento: Casa de praia*');
+    expect(text).toContain('Cliente: Ana Souza');
+    expect(text).toContain('R$');
+    expect(text).not.toContain('Poderia me passar um orçamento');
+  });
+
+  it('flags a partial price when not every item has one yet', () => {
+    const text = buildClientQuoteText(project, undefined, [], [], { ...systemCost, isComplete: false });
+    expect(text).toContain('Valor parcial');
+  });
+
+  it('omits the price section entirely when nothing is priced yet', () => {
+    const text = buildClientQuoteText(project, undefined, [], [], { ...systemCost, pricedItemsCount: 0 });
+    expect(text).not.toContain('Investimento total');
+  });
+
+  it('lists services by name and quantity', () => {
+    const text = buildClientQuoteText(
+      project,
+      undefined,
+      [],
+      [{ serviceId: 's1', name: 'Instalação', qty: 2 }],
+      systemCost
+    );
+    expect(text).toContain('Instalação × 2');
+  });
+});
+
+describe('buildWhatsAppShareUrl', () => {
+  it('builds a wa.me link with the country code added and the text URL-encoded', () => {
+    expect(buildWhatsAppShareUrl('(11) 91234-5678', 'Olá!')).toBe(
+      `https://wa.me/5511912345678?text=${encodeURIComponent('Olá!')}`
+    );
+  });
+
+  it('returns null for a phone with fewer than 10 digits', () => {
+    expect(buildWhatsAppShareUrl('1234', 'Olá!')).toBeNull();
+  });
+
+  it('does not double the country code when it is already present', () => {
+    expect(buildWhatsAppShareUrl('+55 11 91234-5678', 'Oi')).toBe('https://wa.me/5511912345678?text=Oi');
   });
 });
 

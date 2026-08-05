@@ -2291,7 +2291,7 @@ describe('SizingTab: Resumo tab "Copiar dados"', () => {
     // A fresh solution auto-jumps the summary panel to "Solução" — switch back to "Resumo".
     fireEvent.click(screen.getByRole('tab', { name: /^Resumo/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados para fornecedor' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
     expect(writeText).not.toHaveBeenCalled();

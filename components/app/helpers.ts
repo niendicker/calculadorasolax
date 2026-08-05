@@ -467,84 +467,144 @@ export function buildPdfFileName(projectName: string, date: Date = new Date()): 
   return `${safeName || 'projeto'}_${isoDate}`;
 }
 
-/** Plain-text, WhatsApp-friendly (using its *bold* markup) summary of a
- * project — meant for the customer to copy and paste to their own
- * salesperson when asking for a quote on that exact configuration/solution,
- * so it needs to stand on its own without the app open (same spirit as
- * PrintableReport, just as short-form text instead of a full PDF).
- *
- * Takes already-derived topology/gridType/loadsCount/peakW/dailyKwh instead
- * of a full ResidentialOptions/SavedProject so it can be called both from a
- * SavedProject (Projeto tab) and from the live wizard state (Dimensionamento
- * tab's Resumo, which already has peakW/dailyKwh precomputed and a narrower
- * residentialOptions prop shape). */
-export function buildProjectShareText(
-  project: {
-    name: string;
-    address?: Address;
-    topology: BatteryTopology | null;
-    gridType: ResidentialGridType | null;
-    loadsCount: number;
-    peakW: number;
-    dailyKwh: number;
-    solution: Solution | null;
-  },
-  clientName: string | undefined,
-  batteryCatalog: { model: string; standardPowerKw: number | null; peakPowerKw: number | null; expansionModel?: string | null }[]
-): string {
+// Shared shape for the two WhatsApp-friendly summaries below — already-derived
+// topology/gridType/loadsCount/peakW/dailyKwh instead of a full
+// ResidentialOptions/SavedProject so either can be called both from a
+// SavedProject (Projeto tab) and from the live wizard state (Dimensionamento
+// tab's Resumo, which already has peakW/dailyKwh precomputed and a narrower
+// residentialOptions prop shape).
+type ShareableProject = {
+  name: string;
+  address?: Address;
+  topology: BatteryTopology | null;
+  gridType: ResidentialGridType | null;
+  loadsCount: number;
+  peakW: number;
+  dailyKwh: number;
+  solution: Solution | null;
+};
+
+type ShareableBatteryCatalog = {
+  model: string;
+  standardPowerKw: number | null;
+  peakPowerKw: number | null;
+  expansionModel?: string | null;
+}[];
+
+function buildConfigLines(project: ShareableProject): string[] {
   const { topology, gridType, loadsCount, peakW, dailyKwh } = project;
-
-  const lines: string[] = [`*Projeto: ${project.name || 'Sem nome'}*`];
-  if (clientName) lines.push(`Cliente: ${clientName}`);
-  if (project.address && !isAddressEmpty(project.address)) lines.push(`Endereço: ${formatAddress(project.address)}`);
-
-  lines.push('', '*Configuração:*');
+  const lines: string[] = ['*Configuração:*'];
   if (topology) lines.push(`- Topologia: ${topologyLabels[topology]}`);
   if (gridType) lines.push(`- Rede: ${gridLabels[gridType]}`);
   lines.push(`- ${loadsCount} carga(s) cadastrada(s)`);
   lines.push(`- Pico: ${(peakW / 1000).toFixed(2)} kVA`);
   lines.push(`- Consumo: ${dailyKwh.toFixed(2)} kWh/dia`);
+  return lines;
+}
 
-  if (project.solution) {
-    const metrics = solutionMetrics(project.solution, batteryCatalog);
-    const batteryParts = batteryQuantityBreakdown(
-      project.solution.batteryModel,
-      project.solution.batteryQty,
-      batteryCatalog,
-      (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
-    );
+function buildSolutionLines(solution: Solution, batteryCatalog: ShareableBatteryCatalog): string[] {
+  const metrics = solutionMetrics(solution, batteryCatalog);
+  const batteryParts = batteryQuantityBreakdown(
+    solution.batteryModel,
+    solution.batteryQty,
+    batteryCatalog,
+    (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+  );
 
-    lines.push('', '*Solução recomendada:*');
-    lines.push(`- Inversor: ${project.solution.inverterModel}`);
-    batteryParts.forEach((part, index) => {
-      lines.push(`- Bateria${index > 0 ? ' (expansão)' : ''}: ${part.model} × ${part.qty}`);
-    });
-    if (project.solution.pvPowerKw) lines.push(`- Fotovoltaico: ${project.solution.pvPowerKw.toFixed(2)} kWp`);
-    lines.push(
-      `- Nominal: ${metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'} kVA · Máxima: ${
-        metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'
-      } kVA · Energia: ${metrics.energyKwh.toFixed(2)} kWh`
-    );
+  const lines: string[] = ['*Solução recomendada:*', `- Inversor: ${solution.inverterModel}`];
+  batteryParts.forEach((part, index) => {
+    lines.push(`- Bateria${index > 0 ? ' (expansão)' : ''}: ${part.model} × ${part.qty}`);
+  });
+  if (solution.pvPowerKw) lines.push(`- Fotovoltaico: ${solution.pvPowerKw.toFixed(2)} kWp`);
+  lines.push(
+    `- Nominal: ${metrics.nominalW != null ? (metrics.nominalW / 1000).toFixed(2) : '-'} kVA · Máxima: ${
+      metrics.peakW != null ? (metrics.peakW / 1000).toFixed(2) : '-'
+    } kVA · Energia: ${metrics.energyKwh.toFixed(2)} kWh`
+  );
 
-    // Bundled accessories (already included with the inverter/battery) aren't
-    // something the salesperson needs to quote separately, so they're left
-    // out of the share text — only standalone required/optional items go in.
-    const quotableAccessories = project.solution.accessories
-      .map((accessory) => normalizeAccessoryLine(accessory))
-      .filter((accessory) => !accessory.bundled);
-    if (quotableAccessories.length > 0) {
-      lines.push('', '*Acessórios:*');
-      for (const { model, qty, optional } of quotableAccessories) {
-        lines.push(`- ${model}${qty !== 1 ? ` × ${qty}` : ''} (${optional ? 'opcional' : 'obrigatório'})`);
-      }
+  // Bundled accessories (already included with the inverter/battery) aren't
+  // something that needs quoting/listing separately, so they're left out —
+  // only standalone required/optional items go in.
+  const quotableAccessories = solution.accessories
+    .map((accessory) => normalizeAccessoryLine(accessory))
+    .filter((accessory) => !accessory.bundled);
+  if (quotableAccessories.length > 0) {
+    lines.push('', '*Acessórios:*');
+    for (const { model, qty, optional } of quotableAccessories) {
+      lines.push(`- ${model}${qty !== 1 ? ` × ${qty}` : ''} (${optional ? 'opcional' : 'obrigatório'})`);
     }
-  } else {
-    lines.push('', 'Solução ainda não calculada.');
   }
+  return lines;
+}
 
+/** Plain-text, WhatsApp-friendly (using its *bold* markup) summary of a
+ * project, addressed *upstream* — meant for the installer to send to their
+ * own supplier/distributor asking for pricing on that exact
+ * configuration/solution, not to the end client (no pricing is included; see
+ * `buildClientQuoteText` for the client-facing version). */
+export function buildProjectShareText(
+  project: ShareableProject,
+  clientName: string | undefined,
+  batteryCatalog: ShareableBatteryCatalog
+): string {
+  const lines: string[] = [`*Projeto: ${project.name || 'Sem nome'}*`];
+  if (clientName) lines.push(`Cliente: ${clientName}`);
+  if (project.address && !isAddressEmpty(project.address)) lines.push(`Endereço: ${formatAddress(project.address)}`);
+
+  lines.push('', ...buildConfigLines(project));
+  lines.push('', ...(project.solution ? buildSolutionLines(project.solution, batteryCatalog) : ['Solução ainda não calculada.']));
   lines.push('', 'Poderia me passar um orçamento para essa solução?');
 
   return lines.join('\n');
+}
+
+/** Client-facing counterpart to `buildProjectShareText` — same technical
+ * summary, but addressed *to* the client with the priced total instead of
+ * asking a supplier for one, meant to be sent straight over WhatsApp
+ * (`buildWhatsAppShareUrl`) as a lightweight alternative to the full PDF
+ * report for a quick first contact. */
+export function buildClientQuoteText(
+  project: ShareableProject,
+  clientName: string | undefined,
+  batteryCatalog: ShareableBatteryCatalog,
+  services: ProjectServiceLine[],
+  systemCost: SystemCostEstimate | null,
+  companyName?: string
+): string {
+  const lines: string[] = [`*Orçamento: ${project.name || 'Sem nome'}*`];
+  if (clientName) lines.push(`Cliente: ${clientName}`);
+  if (project.address && !isAddressEmpty(project.address)) lines.push(`Endereço: ${formatAddress(project.address)}`);
+
+  lines.push('', ...buildConfigLines(project));
+  lines.push('', ...(project.solution ? buildSolutionLines(project.solution, batteryCatalog) : ['Solução ainda não calculada.']));
+
+  if (services.length > 0) {
+    lines.push('', '*Serviços inclusos:*');
+    for (const line of services) {
+      lines.push(`- ${line.name}${line.qty !== 1 ? ` × ${line.qty}` : ''}`);
+    }
+  }
+
+  if (systemCost && systemCost.pricedItemsCount > 0) {
+    lines.push('', `*Investimento total: ${formatCurrencyBRL(systemCost.totalCost)}*`);
+    if (!systemCost.isComplete) lines.push('_Valor parcial — ainda faltam itens com preço cadastrado._');
+  }
+
+  lines.push('', companyName ? `Fico à disposição para dúvidas! — ${companyName}` : 'Fico à disposição para dúvidas!');
+
+  return lines.join('\n');
+}
+
+/** Opens WhatsApp with `text` pre-filled for `phone` — returns null when the
+ * number doesn't look like a valid Brazilian phone (fewer than 10 digits:
+ * DDD + number), so callers can disable the send action instead of opening
+ * a broken link. Prefixes the country code (55) when the stored number
+ * doesn't already carry one, since wa.me needs the full digit string. */
+export function buildWhatsAppShareUrl(phone: string, text: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 10) return null;
+  const fullNumber = digits.length > 11 ? digits : `55${digits}`;
+  return `https://wa.me/${fullNumber}?text=${encodeURIComponent(text)}`;
 }
 
 export interface TariffSavingsEstimate {

@@ -38,12 +38,17 @@ function bottomNav() {
   return within(screen.getByRole('navigation', { name: 'Navegação' }));
 }
 
-const { createClientMock, routerMock } = vi.hoisted(() => ({
+const { createClientMock, routerMock, buildProjectQuotePdfBlobMock } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   routerMock: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
+  // The PDF itself is exercised in project-quote-pdf.test.tsx — mocked here
+  // so these tests stay focused on exportPdf's own wiring (when it fires,
+  // what filename it downloads as, how it reports failure).
+  buildProjectQuotePdfBlobMock: vi.fn(),
 }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 vi.mock('next/navigation', () => ({ useRouter: () => routerMock }));
+vi.mock('./project-quote-pdf', () => ({ buildProjectQuotePdfBlob: buildProjectQuotePdfBlobMock }));
 
 const userRow = { id: 'user-1', email: 'user@example.com', user_metadata: {} };
 
@@ -102,6 +107,7 @@ beforeEach(() => {
   routerMock.push.mockReset();
   routerMock.replace.mockReset();
   routerMock.refresh.mockReset();
+  buildProjectQuotePdfBlobMock.mockReset();
   resetWizardStore();
   Element.prototype.scrollTo = vi.fn();
 });
@@ -479,14 +485,11 @@ describe('SinglePageApp: full mobile menu navigation', () => {
 });
 
 describe('SinglePageApp: solution-dependent behavior', () => {
-  it('exports the PDF report by calling window.print once a solution exists', async () => {
-    setupSupabase();
-    renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
-
+  function setSolvedProject(overrides: { projectName?: string } = {}) {
     act(() => {
       useWizardStore.setState((s) => ({
         solution: makeSolution(),
+        ...(overrides.projectName ? { projectInfo: { ...s.projectInfo, name: overrides.projectName } } : {}),
         residentialOptions: {
           ...s.residentialOptions,
           topology: 'HighVoltage',
@@ -496,43 +499,69 @@ describe('SinglePageApp: solution-dependent behavior', () => {
         },
       }));
     });
-    window.print = vi.fn();
+  }
+
+  it('downloads a real PDF blob once a solution exists', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    const fakeBlob = new Blob(['fake pdf'], { type: 'application/pdf' });
+    buildProjectQuotePdfBlobMock.mockResolvedValue(fakeBlob);
+    const createObjectURL = vi.fn().mockReturnValue('blob:fake-url');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
-    expect(window.print).toHaveBeenCalled();
+    await waitFor(() => expect(buildProjectQuotePdfBlobMock).toHaveBeenCalled());
+    expect(createObjectURL).toHaveBeenCalledWith(fakeBlob);
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-url');
+
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 
-  it('sets document.title to "projeto_data" right before printing, and restores it afterwards', async () => {
+  it('names the downloaded file after the project and today\'s date', async () => {
     setupSupabase();
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    const originalTitle = document.title;
-    act(() => {
-      useWizardStore.setState((s) => ({
-        solution: makeSolution(),
-        projectInfo: { ...s.projectInfo, name: 'Casa de praia' },
-        residentialOptions: {
-          ...s.residentialOptions,
-          topology: 'HighVoltage',
-          batteryModel: 'TP-HS3.6',
-          gridType: 'singlePhase_220',
-          loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
-        },
-      }));
-    });
-    let titleDuringPrint = '';
-    window.print = vi.fn(() => { titleDuringPrint = document.title; });
+    setSolvedProject({ projectName: 'Casa de praia' });
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['fake pdf'], { type: 'application/pdf' }));
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn().mockReturnValue('blob:fake-url'), revokeObjectURL: vi.fn() });
+    let capturedDownload = '';
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        capturedDownload = this.download;
+      });
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
-    expect(titleDuringPrint).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}$/);
+    await waitFor(() => expect(capturedDownload).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}\.pdf$/));
 
-    window.dispatchEvent(new Event('afterprint'));
-    expect(document.title).toBe(originalTitle);
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('reports a friendly error when PDF generation fails, without leaving the app broken', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+
+    setSolvedProject();
+    buildProjectQuotePdfBlobMock.mockRejectedValue(new Error('boom'));
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
+
+    await waitFor(() => expect(screen.getByText('Não foi possível gerar o PDF. Tente novamente.')).toBeInTheDocument());
   });
 
   it('does not export the PDF when the config that produced the solution is no longer valid (e.g. loads cleared after calculating)', async () => {
@@ -541,12 +570,11 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
-    window.print = vi.fn();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
     fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
 
-    expect(window.print).not.toHaveBeenCalled();
+    expect(buildProjectQuotePdfBlobMock).not.toHaveBeenCalled();
   });
 
   it('sends a logged-in user to Compras when they click "Cotar solução"', async () => {
@@ -575,17 +603,6 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
 
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
-  });
-
-  it('renders the printable report once a solution is set', async () => {
-    setupSupabase();
-    renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
-
-    act(() => { useWizardStore.setState({ solution: makeSolution() }); });
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-
-    await waitFor(() => expect(document.querySelector('.print-report')).toBeInTheDocument());
   });
 
   it('switches from the economic to the microgrid variant when chosen', async () => {
