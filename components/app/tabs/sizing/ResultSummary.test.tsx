@@ -87,6 +87,7 @@ function renderResult(overrides: Partial<React.ComponentProps<typeof ResultSumma
     inverterCatalog: [inverter],
     onExport: vi.fn(),
     canExport: true,
+    exportingPdf: false,
     productMedia: {} as Record<string, ProductMedia>,
     userStockItems: [] as UserStockItem[],
     services: [] as ProjectServiceLine[],
@@ -316,6 +317,7 @@ describe('ResultSummary: export button', () => {
           inverterCatalog={[inverter]}
           onExport={onExport}
           canExport={true}
+          exportingPdf={false}
           productMedia={{}}
           userStockItems={[]}
           services={[]}
@@ -343,6 +345,7 @@ describe('ResultSummary: export button', () => {
           inverterCatalog={[inverter]}
           onExport={onExport}
           canExport={false}
+          exportingPdf={false}
           productMedia={{}}
           userStockItems={[]}
           services={[]}

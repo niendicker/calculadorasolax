@@ -11,6 +11,7 @@ import type {
   ProjectServiceLine,
   PvConfig,
   ResidentialGridType,
+  SavedProject,
   Solution,
   UserServiceItem,
   UserStockItem,
@@ -18,6 +19,7 @@ import type {
 } from '@/lib/types';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { DESIRED_FEATURE_DEFINITIONS, desiredFeatureLabel } from '@/lib/desired-features';
+import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-calculations';
 import {
   batteryQuantityBreakdown,
   buildMarginSummary,
@@ -908,4 +910,72 @@ export function ProjectQuotePdfDocument({
  * the wizard store), unlike the old `window.print()` flow this replaces. */
 export async function buildProjectQuotePdfBlob(input: ProjectQuotePdfInput): Promise<Blob> {
   return pdf(<ProjectQuotePdfDocument {...input} />).toBlob();
+}
+
+/** Assembles a `ProjectQuotePdfInput` straight from a `SavedProject` — used
+ * to export a project's report *without* first loading it into the live
+ * wizard store. Loading-into-the-store-first used to be how the "Baixar
+ * Relatório" card button got its data, but it piggybacked on
+ * `currentProjectId` changing to know when to fire, which silently broke
+ * (stuck spinner, or one project's download picking up another's data) once
+ * two downloads got triggered back to back, or the target project already
+ * happened to be the one loaded. Building the input directly from the saved
+ * row sidesteps all of that — each call is self-contained. Returns null when
+ * the project has no calculated solution, since there'd be nothing to render.
+ * `productMedia` (nickname/image lookups) is intentionally omitted here: it's
+ * only ever populated for whichever solution is *currently* loaded in the
+ * live store, so it would be stale/wrong for an arbitrary saved project —
+ * falling back to the bare model code is the honest choice. */
+export function buildProjectQuotePdfInputFromSavedProject(
+  project: SavedProject,
+  {
+    client,
+    profile,
+    userStockItems,
+    marginSettings,
+    userServices,
+    batteryCatalog,
+    inverterCatalog,
+    accessoryCatalog,
+  }: {
+    client: Client | null;
+    profile: InlineProfile | null;
+    userStockItems: UserStockItem[];
+    marginSettings?: MarginSettings;
+    userServices?: UserServiceItem[];
+    batteryCatalog: BatteryCatalogOption[];
+    inverterCatalog?: InverterCatalogOption[];
+    accessoryCatalog?: AccessoryCatalogOption[];
+  }
+): ProjectQuotePdfInput | null {
+  if (!project.solution) return null;
+
+  return {
+    projectInfo: { name: project.name, clientId: project.clientId, address: project.address, notes: project.notes },
+    client,
+    profile,
+    solution: project.solution,
+    loads: project.residentialOptions.loads,
+    operationHours: project.residentialOptions.operationHours,
+    topology: project.residentialOptions.topology,
+    selectedBatteryModel: project.residentialOptions.batteryModel,
+    gridType: project.residentialOptions.gridType,
+    nominalW: totalNominalW(project.residentialOptions.loads),
+    peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+    dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
+    userStockItems,
+    marginSettings,
+    services: project.services,
+    userServices,
+    whiteTariff: project.residentialOptions.whiteTariff,
+    pv: project.residentialOptions.pv,
+    desiredFeatures: project.residentialOptions.desiredFeatures,
+    microgrid: project.residentialOptions.microgrid,
+    generator: project.residentialOptions.generator,
+    atsPhotoUrl: project.residentialOptions.atsPhotoUrl,
+    atsBackupAcknowledged: project.residentialOptions.atsBackupAcknowledged,
+    batteryCatalog,
+    inverterCatalog,
+    accessoryCatalog,
+  };
 }

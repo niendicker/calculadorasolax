@@ -86,8 +86,8 @@ export function SinglePageApp() {
   const supabase = useMemo(() => createClient(), []);
   const {
     projectInfo,
-    currentProjectId,
     clients,
+    savedProjects,
     userStockItems,
     userServices,
     marginSettings,
@@ -145,6 +145,12 @@ export function SinglePageApp() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
   const [pendingSupplyImport, setPendingSupplyImport] = useState(false);
+  // Feedback while exportPdf() is generating the (non-instant) PDF blob —
+  // exportingPdf covers every "Baixar relatório" trigger (Dimensionamento's
+  // own buttons), downloadingProjectId additionally pins which saved
+  // project's card button to spin, since several can be on screen at once.
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [downloadingProjectId, setDownloadingProjectId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
@@ -396,11 +402,26 @@ export function SinglePageApp() {
     router.refresh();
   }
 
+  function triggerBlobDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   // @react-pdf/renderer is a sizable library only needed once the user
   // actually exports — dynamically imported here instead of joining the
-  // rest of this already-static-imported component's bundle.
+  // rest of this already-static-imported component's bundle. Only for the
+  // live Dimensionamento state (the "Baixar relatório" buttons there); a
+  // saved project's own card downloads independently via downloadProjectPdf
+  // below, straight from its stored data.
   async function exportPdf() {
     if (!solution || !canCalculate) return;
+    setExportingPdf(true);
     try {
       const { buildProjectQuotePdfBlob } = await import('./project-quote-pdf');
       const blob = await buildProjectQuotePdfBlob({
@@ -434,43 +455,51 @@ export function SinglePageApp() {
         accessoryCatalog,
         productMedia,
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${buildPdfFileName(projectInfo.name)}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, `${buildPdfFileName(projectInfo.name)}.pdf`);
     } catch {
       reportStatus('Não foi possível gerar o PDF. Tente novamente.');
+    } finally {
+      setExportingPdf(false);
     }
   }
 
-  // "Compartilhar Relatório" on a not-yet-open project card: quietly loads
-  // it into the wizard state (loadProject sets solution/canCalculate
-  // synchronously from the saved project, no recalculation involved — see
-  // loadProject in wizard-store.ts) WITHOUT opening the edit draft card
-  // (showDetails: false — unlike "Editar", this shouldn't switch the
-  // Projeto tab into edit mode), then the effect below fires exportPdf()
-  // once that project's data has landed in state.
-  const pendingPdfProjectIdRef = useRef<string | null>(null);
-
-  function downloadProjectPdf(id: string) {
-    pendingPdfProjectIdRef.current = id;
-    loadProject(id, { showDetails: false });
+  // "Baixar Relatório" on a project card in the list — builds the PDF
+  // straight from that project's own saved data instead of first loading it
+  // into the live wizard state (which the old implementation did, reusing
+  // exportPdf() above via an effect keyed off currentProjectId). That
+  // indirection broke down as soon as two downloads landed close together,
+  // or the target project already happened to be loaded: the effect only
+  // fires on an actual *change* of currentProjectId, so a second click could
+  // silently never call exportPdf() again (stuck "Gerando relatório...") or
+  // end up exporting whichever project's data was loaded last instead of the
+  // one actually clicked. Being self-contained per call sidesteps all of it.
+  async function downloadProjectPdf(id: string) {
+    const project = savedProjects.find((p) => p.id === id);
+    if (!project) return;
+    setDownloadingProjectId(id);
+    try {
+      const { buildProjectQuotePdfBlob, buildProjectQuotePdfInputFromSavedProject } = await import(
+        './project-quote-pdf'
+      );
+      const input = buildProjectQuotePdfInputFromSavedProject(project, {
+        client: clients.find((c) => c.id === project.clientId) ?? null,
+        profile,
+        userStockItems,
+        marginSettings,
+        userServices,
+        batteryCatalog,
+        inverterCatalog,
+        accessoryCatalog,
+      });
+      if (!input) return;
+      const blob = await buildProjectQuotePdfBlob(input);
+      triggerBlobDownload(blob, `${buildPdfFileName(project.name)}.pdf`);
+    } catch {
+      reportStatus('Não foi possível gerar o PDF. Tente novamente.');
+    } finally {
+      setDownloadingProjectId(null);
+    }
   }
-
-  useEffect(() => {
-    if (!pendingPdfProjectIdRef.current || pendingPdfProjectIdRef.current !== currentProjectId) return;
-    pendingPdfProjectIdRef.current = null;
-    void exportPdf();
-    // exportPdf itself is intentionally excluded: it closes over every field
-    // of the freshly-loaded project (solution, residentialOptions, services,
-    // etc.), so re-running this effect for each of those would fire the
-    // export multiple times per project load instead of once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProjectId]);
 
   // resetResidential() already brings topology/gridType back to the store's
   // HV/monofásico 220V defaults — this just goes one step further and also
@@ -691,7 +720,14 @@ export function SinglePageApp() {
            * duplicated the SolaX brand mark already shown in the sidebar/nav. */}
           <div
             className={cn(
-              'z-20 flex shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
+              // items-start (not -center): the portaled title block below is
+              // usually 2+ lines on mobile (title + description, sometimes
+              // also a button row) — centering the icon/button beside it made
+              // them float around its vertical middle instead of lining up
+              // with the title. Only matters on mobile: both side elements
+              // are lg:hidden, so desktop's single remaining flex child makes
+              // this a no-op there.
+              'z-20 flex shrink-0 items-start gap-2 border-b bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
               scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
             )}
           >
@@ -727,6 +763,7 @@ export function SinglePageApp() {
                   )}
                   {activeTab === 'project' ? (
             <ProjectTab
+              profile={profile}
               batteryCatalog={batteryCatalog}
               inverterCatalog={inverterCatalog}
               accessoryCatalog={accessoryCatalog}
@@ -749,6 +786,7 @@ export function SinglePageApp() {
               refreshingProjectId={refreshingProjectId}
               onUpdateStatus={updateProjectStatusAction}
               onDownloadPdf={downloadProjectPdf}
+              downloadingProjectId={downloadingProjectId}
               onManageClients={openClientsManager}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}
@@ -849,6 +887,7 @@ export function SinglePageApp() {
               resetResidential={resetResidentialToDefaults}
               calculate={calculateAndShowSummary}
               exportPdf={exportPdf}
+              exportingPdf={exportingPdf}
               onQuoteSolution={quoteSolution}
               autosaveStatus={autosaveStatus}
               autosaveLastSavedAt={autosaveLastSavedAt}
@@ -909,7 +948,7 @@ export function SinglePageApp() {
               </Button>
             </div>
           )}
-          <div ref={setSummaryEl} className="space-y-4 px-4 pt-4 pb-5" />
+          <div ref={setSummaryEl} className="space-y-4 px-4 pt-6 pb-5" />
         </aside>
         {summaryDrawerOpen && summaryActive && (
           <button

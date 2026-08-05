@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
   BatteryTopology,
+  ProjectServiceLine,
   ProjectStatus,
   ResidentialGridType,
 } from '@/lib/types';
@@ -14,14 +15,30 @@ import { cn } from '@/lib/utils';
 import { calculateSystemCost, formatCurrencyBRL } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../types';
 import { gridLabels, projectStatusLabels, topologyLabels } from '../types';
 import { NewProjectCard } from './project/NewProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
 import { SelectedProjectSummary } from './project/SelectedProjectSummary';
 
+/** Field-by-field comparison instead of `JSON.stringify` equality — Postgres'
+ * jsonb column doesn't preserve each service line's key order on read, so a
+ * project fresh out of the DB (e.g. right after saving) can carry
+ * `{ qty, name, serviceId }` where the live draft still has
+ * `{ serviceId, name, qty }`. `JSON.stringify` would call that "different"
+ * and leave the draft stuck looking dirty (discard-confirmation on "Fechar")
+ * even with nothing actually unsaved. */
+function sameServiceLines(a: ProjectServiceLine[], b: ProjectServiceLine[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((line, index) => {
+    const other = b[index];
+    return line.serviceId === other.serviceId && line.name === other.name && line.qty === other.qty;
+  });
+}
+
 export function ProjectTab({
+  profile,
   batteryCatalog,
   inverterCatalog,
   accessoryCatalog,
@@ -44,10 +61,12 @@ export function ProjectTab({
   refreshingProjectId,
   onUpdateStatus,
   onDownloadPdf,
+  downloadingProjectId,
   onManageClients,
   onShowSummary,
   onHideSummary,
 }: {
+  profile: InlineProfile | null;
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
@@ -72,6 +91,9 @@ export function ProjectTab({
   refreshingProjectId: string | null;
   onUpdateStatus: (id: string, status: ProjectStatus) => void;
   onDownloadPdf: (id: string) => void;
+  /** Id of the project currently generating its PDF, if any — used to show a
+   * loading state on that project's "Baixar Relatório" button specifically. */
+  downloadingProjectId: string | null;
   onManageClients: () => void;
   /** Brings the shell's summary panel into view (a slide-in drawer on
    * mobile/tablet) — selecting a project should surface its rich summary
@@ -168,7 +190,7 @@ export function ProjectTab({
       projectInfo.clientId !== editingProject.clientId ||
       JSON.stringify(projectInfo.address) !== JSON.stringify(editingProject.address) ||
       projectInfo.notes !== editingProject.notes ||
-      JSON.stringify(services) !== JSON.stringify(editingProject.services ?? [])
+      !sameServiceLines(services, editingProject.services ?? [])
     : Boolean(
         projectInfo.name.trim() ||
           projectInfo.clientId ||
@@ -193,6 +215,7 @@ export function ProjectTab({
           <SelectedProjectSummary
             project={selectedProject}
             client={clients.find((client) => client.id === selectedProject.clientId)}
+            profile={profile}
             batteryCatalog={batteryCatalog}
             inverterCatalog={inverterCatalog}
             accessoryCatalog={accessoryCatalog}
@@ -257,7 +280,7 @@ export function ProjectTab({
 
           {savedProjects.length > 0 && (
             <div className="flex flex-col items-end gap-2">
-              <div className="w-full shrink-0 sm:w-52">
+              <div className="flex w-full shrink-0 justify-end sm:w-52">
                 <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
@@ -397,6 +420,7 @@ export function ProjectTab({
                     refreshing={refreshingProjectId === project.id}
                     onUpdateStatus={(status) => onUpdateStatus(project.id, status)}
                     onDownloadPdf={() => onDownloadPdf(project.id)}
+                    downloading={downloadingProjectId === project.id}
                   />
                 )
               )}

@@ -11,7 +11,7 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary/30 bg-primary/[0.03] p-6 text-center transition-colors hover:border-primary/60 hover:bg-primary/[0.06] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-muted-foreground/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
         <Plus className="h-6 w-6" />

@@ -511,7 +511,7 @@ function buildSolutionLines(solution: Solution, batteryCatalog: ShareableBattery
     (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
   );
 
-  const lines: string[] = ['*Solução recomendada:*', `- Inversor: ${solution.inverterModel}`];
+  const lines: string[] = ['*Solução recomendada:*', `- Inversor: ${solution.inverterModel} × ${solution.inverterQty ?? 1}`];
   batteryParts.forEach((part, index) => {
     lines.push(`- Bateria${index > 0 ? ' (expansão)' : ''}: ${part.model} × ${part.qty}`);
   });

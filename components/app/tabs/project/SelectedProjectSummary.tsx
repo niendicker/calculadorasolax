@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ClipboardCopy,
   Gauge,
+  Loader2,
   Mail,
   MapPin,
   MessageCircle,
@@ -23,6 +24,7 @@ import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
   batteryQuantityBreakdown,
   buildClientQuoteText,
+  buildPdfFileName,
   buildProjectShareText,
   buildWhatsAppShareUrl,
   calculateSystemCost,
@@ -31,7 +33,7 @@ import {
   solutionMetrics,
 } from '../../helpers';
 import { Metric, SharePreviewModal } from '../../shared-ui';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
 
 /** A product's category label, its nickname/model (with quantity, if any),
@@ -68,6 +70,7 @@ function ProductNameLine({
 export function SelectedProjectSummary({
   project,
   client,
+  profile,
   batteryCatalog,
   inverterCatalog,
   accessoryCatalog,
@@ -80,6 +83,7 @@ export function SelectedProjectSummary({
 }: {
   project: SavedProject;
   client: Client | undefined;
+  profile: InlineProfile | null;
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
@@ -104,6 +108,7 @@ export function SelectedProjectSummary({
       )
     : [];
   const [previewText, setPreviewText] = useState<string | null>(null);
+  const [sendingQuote, setSendingQuote] = useState(false);
 
   const shareableProject = {
     name: project.name,
@@ -116,15 +121,57 @@ export function SelectedProjectSummary({
     solution: project.solution,
   };
 
-  const whatsAppUrl = client?.phone
-    ? buildWhatsAppShareUrl(
-        client.phone,
-        buildClientQuoteText(shareableProject, client.name, batteryCatalog, project.services, systemCost)
-      )
-    : null;
+  const quoteText = buildClientQuoteText(shareableProject, client?.name, batteryCatalog, project.services, systemCost);
+  const whatsAppUrl = client?.phone ? buildWhatsAppShareUrl(client.phone, quoteText) : null;
 
   function openProjectDataPreview() {
     setPreviewText(buildProjectShareText(shareableProject, client?.name, batteryCatalog));
+  }
+
+  // Tries to hand the actual PDF report to the OS share sheet (so WhatsApp —
+  // or whatever the user picks there — gets a real attached file, not just a
+  // text summary); falls back to the plain wa.me text link wherever file
+  // sharing isn't available (every desktop browser, some mobile ones) or the
+  // user backs out without picking a target. There's no wa.me equivalent for
+  // attaching a file — the browser Share API + a user-picked target app is
+  // the only way to get a file into WhatsApp at all.
+  async function handleSendQuote() {
+    if (!whatsAppUrl) return;
+
+    if (project.solution && typeof navigator.canShare === 'function') {
+      try {
+        const { buildProjectQuotePdfBlob, buildProjectQuotePdfInputFromSavedProject } = await import(
+          '../../project-quote-pdf'
+        );
+        const input = buildProjectQuotePdfInputFromSavedProject(project, {
+          client: client ?? null,
+          profile,
+          userStockItems,
+          marginSettings,
+          userServices,
+          batteryCatalog,
+          inverterCatalog,
+          accessoryCatalog,
+        });
+        if (input) {
+          setSendingQuote(true);
+          const blob = await buildProjectQuotePdfBlob(input);
+          const file = new File([blob], `${buildPdfFileName(project.name)}.pdf`, { type: 'application/pdf' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], text: quoteText });
+            return;
+          }
+        }
+      } catch (error) {
+        // AbortError: the user closed the share sheet without picking
+        // anything — respect that instead of popping a second window open.
+        if (error instanceof Error && error.name === 'AbortError') return;
+      } finally {
+        setSendingQuote(false);
+      }
+    }
+
+    window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
   }
 
   return (
@@ -158,9 +205,9 @@ export function SelectedProjectSummary({
       </div>
 
       {!isAddressEmpty(project.address) && (
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <MapPin className="h-3 w-3 shrink-0" />
-          <span className="truncate">{formatAddress(project.address)}</span>
+        <p className="flex items-start gap-1 text-xs text-muted-foreground">
+          <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+          <span className="min-w-0">{formatAddress(project.address)}</span>
         </p>
       )}
 
@@ -303,11 +350,11 @@ export function SelectedProjectSummary({
       <Button
         size="lg"
         className="w-full bg-emerald-600 text-white shadow-sm transition-shadow hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
-        disabled={!whatsAppUrl}
+        disabled={!whatsAppUrl || sendingQuote}
         title={whatsAppUrl ? undefined : 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'}
-        onClick={() => window.open(whatsAppUrl as string, '_blank', 'noopener,noreferrer')}
+        onClick={() => void handleSendQuote()}
       >
-        <MessageCircle className="h-4 w-4" />
+        {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
         Enviar cotação por WhatsApp
       </Button>
 

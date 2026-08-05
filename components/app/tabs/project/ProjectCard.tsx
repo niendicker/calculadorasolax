@@ -5,12 +5,12 @@ import {
   Calculator,
   Clock,
   Copy,
+  Download,
   Loader2,
   Mail,
   Pencil,
   Phone,
   RefreshCw,
-  Share2,
   Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,7 @@ export function ProjectCard({
   refreshing,
   onUpdateStatus,
   onDownloadPdf,
+  downloading,
 }: {
   project: SavedProject;
   client: Client | undefined;
@@ -64,6 +65,10 @@ export function ProjectCard({
   refreshing: boolean;
   onUpdateStatus: (status: ProjectStatus) => void;
   onDownloadPdf: () => void;
+  /** True while this project's PDF is being generated — the report can take
+   * a moment to render (react-pdf isn't instant), so the button needs its
+   * own feedback instead of looking unresponsive until the download fires. */
+  downloading: boolean;
 }) {
   const hasSolution = Boolean(project.solution);
   const idleDays = daysSince(project.updatedAt);
@@ -120,7 +125,7 @@ export function ProjectCard({
       }}
       className={cn(
         'relative flex h-full cursor-pointer flex-col gap-3 rounded-lg border bg-card p-4 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-        selected ? 'border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/30' : 'hover:border-primary/30 hover:bg-muted/30'
+        selected ? 'border-foreground/30 bg-muted/40 shadow-sm ring-1 ring-border' : 'hover:border-primary/30 hover:bg-muted/30'
       )}
     >
       <div className="absolute right-2 top-2 flex items-center gap-1">
@@ -204,12 +209,18 @@ export function ProjectCard({
         </div>
       </div>
       <div className="mt-auto space-y-2 pt-1">
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="min-w-[100px] flex-1" onClick={stopAnd(onOpen)}>
+        {/* grid, not flex-wrap: three buttons squeezed onto one flex-wrap row
+         * left barely 100px each, cramping "Dimensionamento" into a
+         * multi-line/overflowing label on narrow phones. Two even columns
+         * give each button real width, with "Atualizar" (only sometimes
+         * present) spanning its own full-width row below instead of
+         * fighting the other two for space. */}
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="sm" onClick={stopAnd(onOpen)}>
             <Pencil className="h-4 w-4" />
             Editar
           </Button>
-          <Button variant="outline" size="sm" className="min-w-[100px] flex-1" onClick={stopAnd(onOpenSizing)}>
+          <Button variant="outline" size="sm" onClick={stopAnd(onOpenSizing)}>
             <Calculator className="h-4 w-4" />
             Dimensionamento
           </Button>
@@ -218,7 +229,7 @@ export function ProjectCard({
               variant="outline"
               size="sm"
               className={cn(
-                'min-w-[100px] flex-1',
+                'col-span-2',
                 hasSolutionAlert && 'border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40'
               )}
               disabled={refreshing}
@@ -240,12 +251,12 @@ export function ProjectCard({
           variant="outline"
           size="sm"
           className="w-full"
-          disabled={!hasSolution}
-          title={hasSolution ? undefined : 'Calcule uma solução para este projeto antes de compartilhar o relatório.'}
+          disabled={!hasSolution || downloading}
+          title={hasSolution ? undefined : 'Calcule uma solução para este projeto antes de baixar o relatório.'}
           onClick={stopAnd(onDownloadPdf)}
         >
-          <Share2 className="h-4 w-4" />
-          Compartilhar Relatório
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {downloading ? 'Gerando relatório...' : 'Baixar Relatório'}
         </Button>
       </div>
     </div>

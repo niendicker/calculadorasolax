@@ -112,6 +112,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     resetResidential: vi.fn(),
     calculate: vi.fn(),
     exportPdf: vi.fn(),
+    exportingPdf: false,
     onQuoteSolution: vi.fn(),
     autosaveStatus: 'idle' as const,
     autosaveLastSavedAt: null,

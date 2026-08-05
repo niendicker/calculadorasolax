@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Battery, BatteryCharging, ChevronDown, FileText, Gauge, Package, Plug, Sun, TrendingUp, Wallet, Zap } from 'lucide-react';
+import { AlertTriangle, Battery, BatteryCharging, ChevronDown, FileText, Gauge, Loader2, Package, Plug, Sun, TrendingUp, Wallet, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
@@ -148,6 +148,7 @@ export function ResultSummary({
   inverterCatalog,
   onExport,
   canExport,
+  exportingPdf,
   productMedia,
   userStockItems,
   services,
@@ -167,6 +168,7 @@ export function ResultSummary({
   inverterCatalog: InverterCatalogOption[];
   onExport: () => void;
   canExport: boolean;
+  exportingPdf: boolean;
   productMedia: Record<string, ProductMedia>;
   userStockItems: UserStockItem[];
   services: ProjectServiceLine[];
@@ -482,9 +484,9 @@ export function ResultSummary({
         </div>
       )}
 
-      <Button className="w-full" variant="outline" onClick={onExport} disabled={!canExport}>
-        <FileText className="h-4 w-4" />
-        Baixar relatório
+      <Button className="w-full" variant="outline" onClick={onExport} disabled={!canExport || exportingPdf}>
+        {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+        {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
       </Button>
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />

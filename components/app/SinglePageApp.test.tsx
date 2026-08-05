@@ -48,7 +48,13 @@ const { createClientMock, routerMock, buildProjectQuotePdfBlobMock } = vi.hoiste
 }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 vi.mock('next/navigation', () => ({ useRouter: () => routerMock }));
-vi.mock('./project-quote-pdf', () => ({ buildProjectQuotePdfBlob: buildProjectQuotePdfBlobMock }));
+vi.mock('./project-quote-pdf', async (importOriginal) => {
+  // Only the (slow, real-PDF-rendering) buildProjectQuotePdfBlob is mocked —
+  // buildProjectQuotePdfInputFromSavedProject is a plain data-shaping
+  // function the code under test actually calls, so it stays real.
+  const actual = await importOriginal<typeof import('./project-quote-pdf')>();
+  return { ...actual, buildProjectQuotePdfBlob: buildProjectQuotePdfBlobMock };
+});
 
 const userRow = { id: 'user-1', email: 'user@example.com', user_metadata: {} };
 
@@ -509,9 +515,13 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     setSolvedProject();
     const fakeBlob = new Blob(['fake pdf'], { type: 'application/pdf' });
     buildProjectQuotePdfBlobMock.mockResolvedValue(fakeBlob);
-    const createObjectURL = vi.fn().mockReturnValue('blob:fake-url');
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    // Spy on the two static methods instead of replacing the global `URL`
+    // wholesale: `vi.stubGlobal('URL', { ...URL, ... })` swaps the real
+    // constructor for a plain object, which breaks any `new URL(...)` the
+    // bundler's own dynamic-import machinery does internally to resolve
+    // SizingTab's lazy chunk — silently failing that import.
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake-url');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
@@ -523,7 +533,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-url');
 
     clickSpy.mockRestore();
-    vi.unstubAllGlobals();
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
   });
 
   it('names the downloaded file after the project and today\'s date', async () => {
@@ -533,7 +544,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     setSolvedProject({ projectName: 'Casa de praia' });
     buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['fake pdf'], { type: 'application/pdf' }));
-    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn().mockReturnValue('blob:fake-url'), revokeObjectURL: vi.fn() });
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake-url');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     let capturedDownload = '';
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
@@ -547,7 +559,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await waitFor(() => expect(capturedDownload).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}\.pdf$/));
 
     clickSpy.mockRestore();
-    vi.unstubAllGlobals();
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
   });
 
   it('reports a friendly error when PDF generation fails, without leaving the app broken', async () => {

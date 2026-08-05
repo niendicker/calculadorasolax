@@ -68,7 +68,7 @@ export function ProjectDraftCard({
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   return (
-    <Card className="border-primary/40 bg-primary/5 sm:col-span-2">
+    <Card className="sm:col-span-2">
       <CardHeader>
         <CardTitle className="text-base">{isNew ? 'Novo projeto' : 'Editando projeto'}</CardTitle>
       </CardHeader>

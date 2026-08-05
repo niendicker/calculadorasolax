@@ -643,6 +643,15 @@ describe('buildProjectShareText', () => {
     expect(text).toContain('X1-Hybrid-5.0-D');
     expect(text).toContain('T-BAT-SYS HV 5.8 V2');
   });
+
+  it('includes the inverter quantity — a supplier quoting the solution needs to know how many, not just the model', () => {
+    const text = buildProjectShareText(
+      { ...shareableProject, solution: makeSolution({ inverterQty: 2 }) },
+      undefined,
+      []
+    );
+    expect(text).toContain('Inversor: X1-Hybrid-5.0-D × 2');
+  });
 });
 
 describe('buildClientQuoteText', () => {

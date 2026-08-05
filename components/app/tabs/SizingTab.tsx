@@ -111,6 +111,7 @@ export function SizingTab({
   resetResidential,
   calculate,
   exportPdf,
+  exportingPdf,
   onQuoteSolution,
   autosaveStatus,
   autosaveLastSavedAt,
@@ -171,6 +172,10 @@ export function SizingTab({
   resetResidential: () => void;
   calculate: () => void;
   exportPdf: () => void;
+  /** True while exportPdf() is generating the PDF blob — the report isn't
+   * instant, so both "Baixar relatório" triggers below need to show that
+   * something's happening instead of looking unresponsive. */
+  exportingPdf: boolean;
   /** Sends the user to Compras with the current solution's inverter/battery/
    *  accessories pre-loaded into the cart — same items as "Importar itens da
    *  solução atual" over there, just reachable in one click from here. */
@@ -395,7 +400,7 @@ export function SizingTab({
           <Button
             variant="outline"
             onClick={exportPdf}
-            disabled={!solution || !canCalculate || loading || hasInsufficientSolution}
+            disabled={!solution || !canCalculate || loading || hasInsufficientSolution || exportingPdf}
             title={
               !solution
                 ? 'Calcule uma solução antes de baixar o relatório.'
@@ -404,8 +409,8 @@ export function SizingTab({
                   : undefined
             }
           >
-            <FileText className="h-4 w-4" />
-            Baixar relatório
+            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
           </Button>
           <Button onClick={calculate} disabled={!canCalculate || loading}>
             <Calculator className="h-4 w-4" />
@@ -609,6 +614,7 @@ export function SizingTab({
                 inverterCatalog={inverterCatalog}
                 onExport={exportPdf}
                 canExport={canCalculate && !hasInsufficientSolution}
+                exportingPdf={exportingPdf}
                 productMedia={productMedia}
                 userStockItems={userStockItems}
                 services={services}

@@ -9,6 +9,17 @@ import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import { renderWithShell } from '../test-helpers/render-with-shell';
 import { ProjectTab } from './ProjectTab';
 
+const { buildProjectQuotePdfBlobMock } = vi.hoisted(() => ({
+  buildProjectQuotePdfBlobMock: vi.fn(),
+}));
+vi.mock('../project-quote-pdf', async (importOriginal) => {
+  // Only the (slow, real-PDF-rendering) buildProjectQuotePdfBlob is mocked —
+  // buildProjectQuotePdfInputFromSavedProject is a plain data-shaping
+  // function the code under test actually calls, so it stays real.
+  const actual = await importOriginal<typeof import('../project-quote-pdf')>();
+  return { ...actual, buildProjectQuotePdfBlob: buildProjectQuotePdfBlobMock };
+});
+
 function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
   return {
     name: 'Projeto salvo',
@@ -45,6 +56,7 @@ const emptyProjectInfo: ProjectInfo = { name: '', clientId: null, address: empty
 
 beforeEach(() => {
   resetWizardStore();
+  buildProjectQuotePdfBlobMock.mockReset();
 });
 
 /** projectInfo/projectDetailsVisible/currentProjectId/savedProjects/clients/
@@ -94,6 +106,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
   });
 
   const props = {
+    profile: null,
     batteryCatalog: [],
     inverterCatalog: [],
     accessoryCatalog: [],
@@ -116,6 +129,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     refreshingProjectId: null,
     onUpdateStatus: vi.fn(),
     onDownloadPdf: vi.fn(),
+    downloadingProjectId: null,
     onManageClients: vi.fn(),
     onShowSummary: vi.fn(),
     onHideSummary: vi.fn(),
@@ -568,6 +582,29 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(props.onCancelNew).toHaveBeenCalled();
   });
 
+  it('closes immediately on Fechar even when the saved project\'s services came back from the DB with reordered keys', () => {
+    // Postgres jsonb doesn't preserve object key order on read — a service
+    // line saved as { serviceId, name, qty } can come back as
+    // { qty, name, serviceId } (or any other order) without anything having
+    // actually changed. The dirty-check must not be fooled by that.
+    const { props } = setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          services: [{ qty: 2, name: 'Instalação', serviceId: 'srv1' } as unknown as { serviceId: string; name: string; qty: number }],
+        }),
+      ],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
+      services: [{ serviceId: 'srv1', name: 'Instalação', qty: 2 }],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    expect(props.onCancelNew).toHaveBeenCalled();
+  });
+
   it('clicking Editar on a saved project delegates to onOpen with its id and also opens its summary', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
@@ -979,6 +1016,80 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' })).toBeDisabled();
   });
 
+  const solvedProject = makeProject({
+    id: 'p1',
+    name: 'Casa de praia',
+    clientId: 'c1',
+    solution: {
+      inverterId: 'inv1',
+      inverterModel: 'X1-Hybrid',
+      batteryId: 'bat1',
+      batteryModel: 'TP-HS3.6',
+      batteryQty: 1,
+      pvPowerKw: null,
+      accessories: [],
+    },
+  });
+
+  it('shares the PDF file via the Web Share API when the browser supports it, instead of opening wa.me', async () => {
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    const canShare = vi.fn().mockReturnValue(true);
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'canShare', { value: canShare, configurable: true });
+    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    setup({ savedProjects: [solvedProject], clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client] });
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    const [{ files }] = share.mock.calls[0];
+    expect(files[0]).toBeInstanceOf(File);
+    expect(files[0].type).toBe('application/pdf');
+    expect(openSpy).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
+    delete (navigator as { canShare?: unknown }).canShare;
+    delete (navigator as { share?: unknown }).share;
+  });
+
+  it('does not fall back to wa.me when the user cancels the native share sheet', async () => {
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    const abortError = Object.assign(new Error('cancelled'), { name: 'AbortError' });
+    Object.defineProperty(navigator, 'canShare', { value: vi.fn().mockReturnValue(true), configurable: true });
+    Object.defineProperty(navigator, 'share', { value: vi.fn().mockRejectedValue(abortError), configurable: true });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    setup({ savedProjects: [solvedProject], clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client] });
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+
+    await waitFor(() => expect(navigator.share).toHaveBeenCalledTimes(1));
+    expect(openSpy).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
+    delete (navigator as { canShare?: unknown }).canShare;
+    delete (navigator as { share?: unknown }).share;
+  });
+
+  it('falls back to wa.me when sharing the file fails for a reason other than user cancellation', async () => {
+    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    Object.defineProperty(navigator, 'canShare', { value: vi.fn().mockReturnValue(true), configurable: true });
+    Object.defineProperty(navigator, 'share', { value: vi.fn().mockRejectedValue(new Error('boom')), configurable: true });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    setup({ savedProjects: [solvedProject], clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client] });
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar cotação por WhatsApp' }));
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalled());
+
+    openSpy.mockRestore();
+    delete (navigator as { canShare?: unknown }).canShare;
+    delete (navigator as { share?: unknown }).share;
+  });
+
   it('clicking the selected card again clears the selection', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
@@ -1164,7 +1275,7 @@ describe('ProjectTab: quotation status', () => {
 describe('ProjectTab: downloading a PDF from the card', () => {
   it('is disabled when the project has no calculated solution', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', solution: null })] });
-    expect(screen.getByRole('button', { name: 'Compartilhar Relatório' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Baixar Relatório' })).toBeDisabled();
   });
 
   it('delegates to onDownloadPdf with the project id when a solution exists', () => {
@@ -1186,8 +1297,45 @@ describe('ProjectTab: downloading a PDF from the card', () => {
       ],
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar Relatório' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Baixar Relatório' }));
     expect(props.onDownloadPdf).toHaveBeenCalledWith('p1');
+  });
+
+  it('shows a loading state and disables the button only for the project currently generating its PDF', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+        makeProject({
+          id: 'p2',
+          name: 'Escritório',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'X1-Hybrid',
+            batteryId: 'bat1',
+            batteryModel: 'TP-HS3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      downloadingProjectId: 'p1',
+    });
+
+    expect(screen.getByRole('button', { name: 'Gerando relatório...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Baixar Relatório' })).not.toBeDisabled();
   });
 });
 
