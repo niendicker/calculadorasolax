@@ -17,7 +17,6 @@ import {
   Loader2,
   Save,
   ShoppingCart,
-  Sun,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -85,6 +84,7 @@ export function SizingTab({
   batteryCatalog,
   inverterCatalog,
   availableInverterModels,
+  availableInverterModelsByTopology,
   solution,
   secondarySolution,
   secondaryError,
@@ -150,6 +150,7 @@ export function SizingTab({
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   availableInverterModels: Set<string> | null;
+  availableInverterModelsByTopology: Record<'HV' | 'LV', Set<string>> | null;
   solution: Solution | null;
   secondarySolution: Solution | null;
   secondaryError: string | null;
@@ -341,20 +342,16 @@ export function SizingTab({
 
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
-  // floor (with or without a backup reserve on top), same targets the
-  // Edge Function actually sizes against (see effectiveTargetPowerW/
-  // effectiveTargetEnergyWh). The loads themselves only count here while
-  // Backup is enabled — disabling it doesn't clear the registered loads (the
-  // user may re-enable it later), but they shouldn't inflate the summary
-  // while backup isn't actually being requested.
-  const isBackupEnabled = residentialOptions.desiredFeatures.includes('backup');
-  const backupNominalW = isBackupEnabled ? nominalW : 0;
-  const backupPeakW = isBackupEnabled ? peakW : 0;
-  const backupDailyKwh = isBackupEnabled ? dailyKwh : 0;
-  const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupNominalW);
-  const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupPeakW);
+  // floor, same targets the Edge Function actually sizes against (see
+  // effectiveTargetPowerW/effectiveTargetEnergyWh). Passing the full
+  // nominalW/peakW/dailyKwh straight through is safe even when Backup is
+  // disabled — those two functions only count the loads' own floor while
+  // 'backup' is itself a desired feature, so there's no need to pre-zero
+  // anything here anymore.
+  const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, nominalW);
+  const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, peakW);
   const summaryDailyKwh =
-    effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, backupDailyKwh * 1000) / 1000;
+    effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, dailyKwh * 1000) / 1000;
 
   // Resumo tab shows the same alert as soon as anything on the page (either
   // section tab) is pending review — no need to switch tabs to notice. A
@@ -375,9 +372,9 @@ export function SizingTab({
           whiteTariff: residentialOptions.whiteTariff,
           microgrid: residentialOptions.microgrid,
           pv: residentialOptions.pv,
-          nominalW: backupNominalW,
-          peakW: backupPeakW,
-          dailyKwh: backupDailyKwh,
+          nominalW,
+          peakW,
+          dailyKwh,
           solution: activeSolution,
         })
       : [];
@@ -396,9 +393,9 @@ export function SizingTab({
     whiteTariff: residentialOptions.whiteTariff,
     microgrid: residentialOptions.microgrid,
     pv: residentialOptions.pv,
-    nominalW: backupNominalW,
-    peakW: backupPeakW,
-    dailyKwh: backupDailyKwh,
+    nominalW,
+    peakW,
+    dailyKwh,
   };
   const hasInsufficientSolution = [solution, secondarySolution].some(
     (s) => s && !s.microgridAlternative && solutionHasInsufficientMargin(s, marginCheckParams)
@@ -436,7 +433,7 @@ export function SizingTab({
               !solution
                 ? 'Calcule uma solução antes de baixar o relatório.'
                 : hasInsufficientSolution
-                  ? 'A solução encontrada não atende 100% aos requisitos de potência/energia — ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
+                  ? 'A solução encontrada não atende 100% aos requisitos de potência/energia. Ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
                   : undefined
             }
           >
@@ -537,7 +534,7 @@ export function SizingTab({
               {(['primary', 'secondary'] as const).map((tab) => {
                 const model =
                   tab === 'primary' ? residentialOptions.batteryModel : residentialOptions.secondaryBatteryModel;
-                const label = (model && productMedia[model]?.nickname) || model || '—';
+                const label = (model && productMedia[model]?.nickname) || model || '-';
                 const active = effectiveBatteryTab === tab;
                 return (
                   <button
@@ -596,7 +593,7 @@ export function SizingTab({
                 !solution
                   ? 'Calcule uma solução antes de baixar o relatório.'
                   : hasInsufficientSolution
-                    ? 'A solução encontrada não atende 100% aos requisitos de potência/energia — ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
+                    ? 'A solução encontrada não atende 100% aos requisitos de potência/energia. Ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
                     : undefined
               }
             >
@@ -678,9 +675,9 @@ export function SizingTab({
                 onChooseMicrogridVariant={onChooseMicrogridVariant}
                 desiredFeatures={residentialOptions.desiredFeatures}
                 microgrid={residentialOptions.microgrid}
-                nominalW={backupNominalW}
-                peakW={backupPeakW}
-                dailyKwh={backupDailyKwh}
+                nominalW={nominalW}
+                peakW={peakW}
+                dailyKwh={dailyKwh}
               />
             )}
           </>
@@ -767,27 +764,12 @@ export function SizingTab({
                     })}
                   </div>
 
-                  {residentialOptions.desiredFeatures.includes('pv') && activeSolution?.pvPowerKw != null && (
-                    <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Sun className="h-4 w-4 text-primary" />
-                        FV recomendado
-                      </div>
-                      <div className="mt-1 flex items-baseline gap-2">
-                        <p className="text-lg font-semibold">{activeSolution.pvPowerKw.toFixed(2)} kWp</p>
-                        {activeSolution.pvMonthlyGenerationKwh != null && (
-                          <p className="text-sm text-muted-foreground">
-                            · {activeSolution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   <InverterModelPicker
                     inverters={inverterCatalog}
-                    availableModels={availableInverterModels}
+                    availableModelsByTopology={availableInverterModelsByTopology}
                     selectedModel={residentialOptions.inverterModel}
+                    topology={residentialOptions.topology}
+                    setTopology={setTopology}
                     loading={initialLoading}
                     setInverterModel={setInverterModel}
                     userStockItems={userStockItems}

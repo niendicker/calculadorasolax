@@ -539,7 +539,7 @@ export function CatalogProductCard({
       <div
         className={cn(
           'flex h-28 items-center justify-center overflow-hidden rounded-lg',
-          imageUrl ? 'bg-background' : 'border bg-background'
+          imageUrl ? 'bg-card' : 'border bg-card'
         )}
       >
         {imageUrl ? (

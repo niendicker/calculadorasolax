@@ -185,7 +185,7 @@ export function BatteryModelPicker({
                     {selected ? '1' : '2'}
                   </span>
                 )}
-                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background">
+                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-card">
                   {battery.imageUrl ? (
                     <button
                       type="button"
@@ -259,24 +259,45 @@ export function BatteryModelPicker({
 
 export function InverterModelPicker({
   inverters,
-  availableModels,
+  availableModelsByTopology,
   selectedModel,
+  topology,
+  setTopology,
   loading,
   setInverterModel,
   userStockItems,
 }: {
   inverters: InverterCatalogOption[];
-  availableModels: Set<string> | null;
+  /** Approved inverter models per battery topology (HV and LV computed
+   *  side by side, not just whichever is currently selected) — needed so
+   *  each tab's count/list reflects its own topology instead of both being
+   *  computed from whatever set happens to match the active one. */
+  availableModelsByTopology: Record<'HV' | 'LV', Set<string>> | null;
   selectedModel: string | null;
+  /** Shared with BatteryModelPicker — battery and inverter topology are
+   *  electrically coupled (an HV battery needs an HV inverter), so both
+   *  pickers filter off the same selection instead of drifting apart. */
+  topology: BatteryTopology | null;
+  setTopology: (topology: BatteryTopology) => void;
   loading: boolean;
   setInverterModel: (inverterModel: string | null) => void;
   userStockItems: UserStockItem[];
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
-  const visibleInverters = availableModels
-    ? inverters.filter((inverter) => availableModels.has(inverter.model))
-    : inverters;
+  const activeTopology = topology ? batteryTopologyToCatalog[topology] : 'HV';
+
+  function isVisibleForTab(inverter: InverterCatalogOption, tab: 'HV' | 'LV') {
+    const matchesTag = inverter.topology === tab || inverter.topology === 'BOTH';
+    const matchesApprovedCombo = !availableModelsByTopology || availableModelsByTopology[tab].has(inverter.model);
+    return matchesTag && matchesApprovedCombo;
+  }
+
+  const visibleInverters = inverters.filter((inverter) => isVisibleForTab(inverter, activeTopology));
+  const counts = {
+    HV: inverters.filter((inverter) => isVisibleForTab(inverter, 'HV')).length,
+    LV: inverters.filter((inverter) => isVisibleForTab(inverter, 'LV')).length,
+  };
 
   return (
     <div className="space-y-4 border-t pt-4">
@@ -285,6 +306,34 @@ export function InverterModelPicker({
         <p className="mt-1 text-xs text-muted-foreground">
           Escolha um modelo específico ou deixe em &quot;Todos&quot; para o sistema escolher automaticamente.
         </p>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">Filtre os modelos por topologia de bateria suportada.</p>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+          {(['HV', 'LV'] as const).map((tab) => {
+            const active = activeTopology === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                className={cn(
+                  'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition',
+                  active
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+                aria-pressed={active}
+                onClick={() => setTopology(catalogToBatteryTopology[tab])}
+              >
+                {tab}
+                <span className={cn('rounded-full px-1.5 py-0.5 text-[0.7rem]', active ? 'bg-primary/10 text-primary' : 'bg-background')}>
+                  {counts[tab]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {loading ? (
@@ -351,7 +400,7 @@ export function InverterModelPicker({
                     <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
                   </span>
                 )}
-                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-background">
+                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-card">
                   {inverter.imageUrl ? (
                     <button
                       type="button"
@@ -415,7 +464,7 @@ export function InverterModelPicker({
 
           {visibleInverters.length === 0 && (
             <div className="col-span-full rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              Nenhum inversor com solução aprovada para este tipo de rede.
+              Nenhum inversor {activeTopology} com solução aprovada para este tipo de rede.
             </div>
           )}
         </div>

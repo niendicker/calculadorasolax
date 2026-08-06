@@ -214,7 +214,7 @@ export function PhaseVoltageCompatibilityWarning({
     <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       A tensão/fases selecionadas ({phaseLabel} {voltageLabel}) são incompatíveis com o tipo de rede configurado (
-      {gridLabels[gridType]}) — selecione {networkPhaseLabel} e {networkVoltageLabel}
+      {gridLabels[gridType]}). Selecione {networkPhaseLabel} e {networkVoltageLabel}
       {microgridExceptionApplies ? ` (ou Monofásico 220V, aceito como exceção para microrrede)` : ''} para poder calcular.
     </p>
   );

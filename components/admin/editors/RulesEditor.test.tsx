@@ -678,11 +678,11 @@ describe('RulesEditor: display fallbacks and edge cases', () => {
       '[data-slot="card"]'
     ) as HTMLElement;
     expect(within(card).getByText('inativa')).toBeInTheDocument();
-    expect(within(card).getByText('—')).toBeInTheDocument();
+    expect(within(card).getByText('-')).toBeInTheDocument();
     expect(within(card).getByText('1')).toBeInTheDocument();
   });
 
-  it('renders "Redes: —" when the selected inverter has no recognized grid types', () => {
+  it('renders "Redes: -" when the selected inverter has no recognized grid types', () => {
     render(
       <ControlledEditor
         inverters={[makeInverter({ id: 'i1', model: 'Custom-Inv', grid_types: ['unrecognized'] })]}
@@ -691,7 +691,7 @@ describe('RulesEditor: display fallbacks and edge cases', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: /Nova compatibilidade/ }));
     const dialog = screen.getByRole('dialog', { name: /Nova compatibilidade ESS/ });
-    expect(within(dialog).getByText('Redes: —')).toBeInTheDocument();
+    expect(within(dialog).getByText('Redes: -')).toBeInTheDocument();
   });
 
   it('shows "Nenhuma bateria compatível" when the inverter topology has no matching, non-expansion batteries', () => {

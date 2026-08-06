@@ -286,7 +286,7 @@ export function MyStockTab({
                   />
                   {items.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Você ainda não adicionou nenhum produto desta categoria ao seu catálogo — escolha um abaixo.
+                      Você ainda não adicionou nenhum produto desta categoria ao seu catálogo. Escolha um abaixo.
                     </p>
                   )}
                   <div className="grid gap-3 lg:grid-cols-2">
@@ -438,7 +438,7 @@ function ServicesSection({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Serviços que você presta (instalação, frete, mão de obra...), com o preço que você define — some ao custo
+        Serviços que você presta (instalação, frete, mão de obra...), com o preço que você define. Somam ao custo
         final da solução quando adicionados a um projeto.
       </p>
       {atLimit && (
@@ -449,7 +449,7 @@ function ServicesSection({
       )}
       {userServices.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          Você ainda não cadastrou nenhum serviço — use o card ao lado para adicionar um.
+          Você ainda não cadastrou nenhum serviço. Use o card ao lado para adicionar um.
         </p>
       )}
       <div className="grid gap-3 lg:grid-cols-2">
@@ -813,7 +813,7 @@ function AddProductCard({
                     onClick={() => handleAdd(product.model)}
                     className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm transition hover:bg-muted disabled:opacity-60"
                   >
-                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border bg-background">
+                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border bg-card">
                       {product.imageUrl ? (
                         <Image src={product.imageUrl} alt={product.model} fill sizes="36px" className="object-contain p-1" />
                       ) : (
@@ -958,7 +958,7 @@ function StockProductCard({
             <InlineSaveStatus state={valueSaveState} />
           </div>
           {item.unitValue === 0 && (
-            <p className="text-xs text-amber-600">Defina um preço — sem ele, este item entra como R$ 0 nos orçamentos.</p>
+            <p className="text-xs text-amber-600">Defina um preço: sem ele, este item entra como R$ 0 nos orçamentos.</p>
           )}
           {supplierCost && (
             <p className="flex items-center gap-1 text-xs text-muted-foreground">

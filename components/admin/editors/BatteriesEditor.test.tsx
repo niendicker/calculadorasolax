@@ -164,8 +164,8 @@ describe('BatteriesEditor: form', () => {
     fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '10' } });
 
     // Tensão nominal/mín./máx. and Corrente rec./máx., in that order, all
-    // share the "—" placeholder — index into them positionally.
-    for (const input of screen.getAllByPlaceholderText('—')) {
+    // share the "-" placeholder — index into them positionally.
+    for (const input of screen.getAllByPlaceholderText('-')) {
       fireEvent.change(input, { target: { value: '48' } });
       expect(input).toHaveValue(48);
     }

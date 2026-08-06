@@ -71,8 +71,6 @@ export interface WhiteTariffConfig {
   pontaEnergyWh: number;
   /** Energy the battery must supply during the intermediária window (Wh). */
   intermediateEnergyWh: number;
-  /** When true, add the standard backup-energy reserve on top of pontaEnergyWh + intermediateEnergyWh. */
-  includeBackupReserve: boolean;
   /** Ponta (peak) tariff (R$/kWh), as billed. */
   pontaTariffPerKwh: number;
   /** Intermediária tariff (R$/kWh), as billed. */

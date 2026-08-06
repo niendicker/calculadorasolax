@@ -1273,7 +1273,7 @@ describe('ProjectTab: refreshing a project\'s solution from the card', () => {
 
     expect(screen.getByRole('button', { name: 'Atualizar' })).toHaveAttribute(
       'title',
-      'A solução salva não atende 100% aos requisitos — recalcule para atualizar.'
+      'A solução salva não atende 100% aos requisitos. Recalcule para atualizar.'
     );
   });
 });

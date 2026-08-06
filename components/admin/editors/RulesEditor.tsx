@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AlertTriangle, Boxes, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import { cn } from '@/lib/utils';
@@ -20,7 +21,6 @@ import {
   normalizeEssBatteryConfigs,
   normalizeInverterGridType,
   normalizeInverterGridTypes,
-  selectClasses,
   textareaClasses,
   toNumber,
 } from '../helpers';
@@ -270,7 +270,7 @@ export function RulesEditor(props: {
             ...Array.from(new Set(batteryConfigs.map((config) => config.battery_topology))),
           ],
           details: [
-            ['Baterias', batteryTags.length > 0 ? batteryTags : ['—'], true],
+            ['Baterias', batteryTags.length > 0 ? batteryTags : ['-'], true],
             ['Máx. paralelo', String(row.max_parallel_inverters ?? 1)],
           ] as [string, string | string[], true?][],
           description: row.comment ?? undefined,
@@ -329,8 +329,7 @@ export function RulesEditor(props: {
           form={
             <>
               <Field label="Acessório">
-                <select
-                  className={selectClasses()}
+                <Select
                   value={ruleForm.accessory_id ?? ''}
                   onChange={(event) => setRuleForm({ ...ruleForm, accessory_id: event.target.value })}
                 >
@@ -342,7 +341,7 @@ export function RulesEditor(props: {
                       {accessory.model}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Nome da regra">
                 <Input value={ruleForm.name ?? ''} onChange={(event) => setRuleForm({ ...ruleForm, name: event.target.value })} />
@@ -357,8 +356,7 @@ export function RulesEditor(props: {
                   onChange={(event) => setRuleForm({ ...ruleForm, quantity_per_match: toNumber(event.target.value, 1) })}
                 />
                 <Field label="Limiar baseado em">
-                  <select
-                    className={selectClasses()}
+                  <Select
                     value={ruleForm.trigger_metric ?? 'battery_quantity'}
                     onChange={(event) => {
                       const trigger_metric = event.target.value as TriggerMetric;
@@ -374,7 +372,7 @@ export function RulesEditor(props: {
                     <option value="battery_quantity">Qtd. baterias</option>
                     <option value="battery_ports_used">Portas de bateria</option>
                     <option value="battery_quantity_per_port">Baterias por porta</option>
-                  </select>
+                  </Select>
                 </Field>
                 <NumberWithUnitField
                   label="Quantidade mínima"
@@ -399,7 +397,7 @@ export function RulesEditor(props: {
                   tip={
                     ruleForm.trigger_metric === 'battery_quantity_per_port'
                       ? "Aplica a Quantidade do acessório uma vez por porta de bateria em uso na solução, assim que a densidade de baterias por porta atingir a Quantidade mínima."
-                      : "Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido dividida pelo agrupamento abaixo (arredondando pra cima) — ex.: 1 a cada 4 baterias, em vez de 1 fixo por solução. Sem efeito quando o limiar é 'Por solução'."
+                      : "Em vez de adicionar sempre a Quantidade do acessório uma única vez, multiplica pela quantidade real do limiar escolhido dividida pelo agrupamento abaixo (arredondando pra cima); ex.: 1 a cada 4 baterias, em vez de 1 fixo por solução. Sem efeito quando o limiar é 'Por solução'."
                   }
                 />
               </label>
@@ -432,8 +430,7 @@ export function RulesEditor(props: {
                 />
               </Field>
               <Field label="Bateria">
-                <select
-                  className={selectClasses()}
+                <Select
                   value={ruleForm.battery_model ?? ''}
                   onChange={(event) => setRuleForm({ ...ruleForm, battery_model: event.target.value || null })}
                 >
@@ -443,7 +440,7 @@ export function RulesEditor(props: {
                       {battery.model}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
 
               <Field
@@ -451,7 +448,7 @@ export function RulesEditor(props: {
                 label={
                   <InfoLabel
                     label="Funcionalidade desejada"
-                    tip="Se marcar uma ou mais, a regra só se aplica quando o cliente habilitar pelo menos uma delas na aba Funcionalidades. Avaliado apenas no cálculo em tempo real — não entra na geração em massa de soluções."
+                    tip="Se marcar uma ou mais, a regra só se aplica quando o cliente habilitar pelo menos uma delas na aba Funcionalidades. Avaliado apenas no cálculo em tempo real. Não entra na geração em massa de soluções."
                   />
                 }
               >
@@ -466,7 +463,7 @@ export function RulesEditor(props: {
                 label={
                   <InfoLabel
                     label="Exclui acessórios"
-                    tip="Quando esta regra bater, os acessórios marcados aqui são removidos da lista final, mesmo que a própria regra deles também tenha batido — use para quando dois acessórios diferentes cobrem a mesma necessidade e só um deve aparecer."
+                    tip="Quando esta regra bater, os acessórios marcados aqui são removidos da lista final, mesmo que a própria regra deles também tenha batido. Use para quando dois acessórios diferentes cobrem a mesma necessidade e só um deve aparecer."
                   />
                 }
               >
@@ -493,7 +490,7 @@ export function RulesEditor(props: {
                 />
                 <InfoLabel
                   label="Vem na caixa"
-                  tip="Marca esse acessório como incluso no produto (ex.: dongle WiFi, TCs) em vez de obrigatório/opcional — aparece com um selo próprio na Solução do cliente."
+                  tip="Marca esse acessório como incluso no produto (ex.: dongle WiFi, TCs) em vez de obrigatório/opcional. Aparece com um selo próprio na Solução do cliente."
                 />
               </label>
               <label className="flex items-center gap-2 text-sm">
@@ -554,8 +551,7 @@ export function RulesEditor(props: {
                 <p className="text-sm font-semibold">Inversor</p>
                 <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
                   <Field label="Modelo">
-                    <select
-                      className={selectClasses()}
+                    <Select
                       value={essForm.inverter_model ?? ''}
                       onChange={(event) => setEssForm({ ...essForm, inverter_model: event.target.value })}
                     >
@@ -567,11 +563,10 @@ export function RulesEditor(props: {
                           {inverter.model}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                   <Field label="Máximo paralelo">
-                    <select
-                      className={selectClasses()}
+                    <Select
                       value={essForm.max_parallel_inverters ?? 1}
                       onChange={(event) => setEssForm({ ...essForm, max_parallel_inverters: toNumber(event.target.value, 1) })}
                     >
@@ -580,12 +575,12 @@ export function RulesEditor(props: {
                           {qty}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                 </div>
                 {selectedInverter && (
                   <p className="text-xs text-muted-foreground">
-                    Redes: {currentGridTypes.map(formatInverterGridType).join(', ') || '—'}
+                    Redes: {currentGridTypes.map(formatInverterGridType).join(', ') || '-'}
                   </p>
                 )}
               </div>
@@ -593,7 +588,7 @@ export function RulesEditor(props: {
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Bateria</p>
                 <p className="text-xs text-muted-foreground">
-                  Topologias compatíveis: {currentBatteryTopologies.join(', ') || '—'}.
+                  Topologias compatíveis: {currentBatteryTopologies.join(', ') || '-'}.
                 </p>
                 <EssBatteryConfigsInput
                   batteries={props.batteries}

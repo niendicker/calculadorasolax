@@ -20,8 +20,8 @@ export function PvPanel({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        A potência do arranjo é calculada a partir do consumo e do HSP informados abaixo — não das cargas
-        cadastradas — e nunca ultrapassa o sobredimensionamento permitido pelo inversor recomendado.
+        A potência do arranjo é calculada a partir do consumo e do HSP informados abaixo (não das cargas
+        cadastradas) e nunca ultrapassa o sobredimensionamento permitido pelo inversor recomendado.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">

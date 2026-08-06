@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { NextIntlClientProvider } from 'next-intl';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import type { Solution, UserStockItem } from '@/lib/types';
@@ -227,8 +227,10 @@ function renderInverterPicker(props: Partial<React.ComponentProps<typeof Inverte
     <NextIntlClientProvider locale="pt" messages={ptMessages}>
       <InverterModelPicker
         inverters={[inverter1, inverter2]}
-        availableModels={null}
+        availableModelsByTopology={null}
         selectedModel={null}
+        topology={null}
+        setTopology={vi.fn()}
         loading={false}
         setInverterModel={vi.fn()}
         userStockItems={[]}
@@ -276,15 +278,51 @@ describe('InverterModelPicker', () => {
     expect(setInverterModel).toHaveBeenCalledTimes(1);
   });
 
-  it('narrows visible inverters by availableModels', () => {
-    renderInverterPicker({ availableModels: new Set(['X1-Hybrid-5.0kW-G4']) });
+  it('filters inverters by HV/LV topology, defaulting to HV, and counts BOTH-topology models in either tab', () => {
+    const lvInverter: InverterCatalogOption = { ...inverter1, id: 'i3', model: 'Model-Only-LV', topology: 'LV' };
+    const bothInverter: InverterCatalogOption = { ...inverter1, id: 'i4', model: 'Model-Both', topology: 'BOTH' };
+    renderInverterPicker({ inverters: [inverter1, inverter2, lvInverter, bothInverter] });
+
+    // Defaults to HV: both HV models plus the BOTH one, not the LV-only one.
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+    expect(screen.getByText('X3-Hybrid-8.0kW-G4')).toBeInTheDocument();
+    expect(screen.getByText('Model-Both')).toBeInTheDocument();
+    expect(screen.queryByText('Model-Only-LV')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /^HV/ })).getByText('3')).toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /^LV/ })).getByText('2')).toBeInTheDocument();
+  });
+
+  it('shows LV (and BOTH) inverters when the shared topology prop is LowVoltage', () => {
+    const lvInverter: InverterCatalogOption = { ...inverter1, id: 'i3', model: 'Model-Only-LV', topology: 'LV' };
+    const bothInverter: InverterCatalogOption = { ...inverter1, id: 'i4', model: 'Model-Both', topology: 'BOTH' };
+    renderInverterPicker({
+      inverters: [inverter1, inverter2, lvInverter, bothInverter],
+      topology: 'LowVoltage',
+    });
+
+    expect(screen.getByText('Model-Only-LV')).toBeInTheDocument();
+    expect(screen.getByText('Model-Both')).toBeInTheDocument();
+    expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
+  });
+
+  it('reports the tab switch via the shared setTopology callback (same one BatteryModelPicker uses)', () => {
+    const setTopology = vi.fn();
+    renderInverterPicker({ setTopology });
+    fireEvent.click(screen.getByRole('button', { name: /^LV/ }));
+    expect(setTopology).toHaveBeenCalledWith('LowVoltage');
+  });
+
+  it('narrows visible inverters by availableModelsByTopology', () => {
+    renderInverterPicker({
+      availableModelsByTopology: { HV: new Set(['X1-Hybrid-5.0kW-G4']), LV: new Set() },
+    });
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
     expect(screen.queryByText('X3-Hybrid-8.0kW-G4')).not.toBeInTheDocument();
   });
 
-  it('shows an empty state when availableModels narrows to zero', () => {
-    renderInverterPicker({ availableModels: new Set() });
-    expect(screen.getByText(/Nenhum inversor com solução aprovada/)).toBeInTheDocument();
+  it('shows an empty state when availableModelsByTopology narrows the active tab to zero', () => {
+    renderInverterPicker({ availableModelsByTopology: { HV: new Set(), LV: new Set() } });
+    expect(screen.getByText(/Nenhum inversor HV com solução aprovada/)).toBeInTheDocument();
   });
 
   it('shows in-stock badge for inverters the user has in stock', () => {

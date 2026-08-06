@@ -69,7 +69,6 @@ const whiteTariff: WhiteTariffConfig = {
   requiredPowerW: 3000,
   pontaEnergyWh: 6000,
   intermediateEnergyWh: 2000,
-  includeBackupReserve: true,
   pontaTariffPerKwh: 1.6,
   intermediateTariffPerKwh: 1.0,
   foraPontaTariffPerKwh: 0.8,
@@ -79,9 +78,12 @@ describe('drift check: effectiveTargetPowerW (logic.ts vs components/app/helpers
   it.each([
     { desiredFeatures: [] as const, whiteTariff: null, baseW: 5000 },
     { desiredFeatures: [] as const, whiteTariff, baseW: 5000 },
+    { desiredFeatures: ['backup'] as const, whiteTariff: null, baseW: 5000 },
     { desiredFeatures: ['white_tariff'] as const, whiteTariff: null, baseW: 5000 },
     { desiredFeatures: ['white_tariff'] as const, whiteTariff, baseW: 5000 },
     { desiredFeatures: ['white_tariff'] as const, whiteTariff, baseW: 1000 },
+    { desiredFeatures: ['backup', 'white_tariff'] as const, whiteTariff, baseW: 1000 },
+    { desiredFeatures: ['backup', 'white_tariff'] as const, whiteTariff, baseW: 5000 },
   ])('matches for %j', ({ desiredFeatures, whiteTariff: wt, baseW }) => {
     expect(denoEffectiveTargetPowerW([...desiredFeatures], wt, baseW)).toBe(
       nextEffectiveTargetPowerW([...desiredFeatures], wt, baseW)
@@ -92,13 +94,10 @@ describe('drift check: effectiveTargetPowerW (logic.ts vs components/app/helpers
 describe('drift check: effectiveTargetEnergyWh (logic.ts vs components/app/helpers.ts)', () => {
   it.each([
     { desiredFeatures: [] as const, whiteTariff: null, baseTargetEnergyWh: 10000 },
+    { desiredFeatures: ['backup'] as const, whiteTariff: null, baseTargetEnergyWh: 10000 },
     { desiredFeatures: ['white_tariff'] as const, whiteTariff: null, baseTargetEnergyWh: 10000 },
     { desiredFeatures: ['white_tariff'] as const, whiteTariff, baseTargetEnergyWh: 10000 },
-    {
-      desiredFeatures: ['white_tariff'] as const,
-      whiteTariff: { ...whiteTariff, includeBackupReserve: false },
-      baseTargetEnergyWh: 10000,
-    },
+    { desiredFeatures: ['backup', 'white_tariff'] as const, whiteTariff, baseTargetEnergyWh: 10000 },
   ])('matches for %j', ({ desiredFeatures, whiteTariff: wt, baseTargetEnergyWh }) => {
     expect(denoEffectiveTargetEnergyWh([...desiredFeatures], wt, baseTargetEnergyWh)).toBe(
       nextEffectiveTargetEnergyWh([...desiredFeatures], wt, baseTargetEnergyWh)

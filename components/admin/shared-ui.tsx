@@ -656,14 +656,14 @@ export function DetailItem({ label, value, className }: { label: string; value: 
           {value.length > 0
             ? value.map((v) => (
                 <span key={v} className="inline-flex items-center rounded border bg-muted px-1.5 py-0.5 text-xs font-medium leading-tight">
-                  {v || '—'}
+                  {v || '-'}
                 </span>
               ))
-            : <span className="text-sm font-medium">—</span>
+            : <span className="text-sm font-medium">-</span>
           }
         </div>
       ) : (
-        <p className="truncate text-sm font-medium">{value || '—'}</p>
+        <p className="truncate text-sm font-medium">{value || '-'}</p>
       )}
       <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
@@ -686,7 +686,7 @@ export function ProductQtyDetail({
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
-        <p className="truncate text-sm font-medium">{model || '—'}</p>
+        <p className="truncate text-sm font-medium">{model || '-'}</p>
         <Badge variant="secondary" className="shrink-0">
           x{quantity}
         </Badge>
@@ -761,7 +761,7 @@ export function RecordCardGrid({
               {item.details.length > 0 && (
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   {item.details.map(([label, value, span]) => (
-                    <DetailItem key={label} label={label} value={value || '—'} className={span ? 'col-span-2' : undefined} />
+                    <DetailItem key={label} label={label} value={value || '-'} className={span ? 'col-span-2' : undefined} />
                   ))}
                 </div>
               )}

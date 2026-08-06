@@ -322,18 +322,29 @@ export function SinglePageApp() {
     calculate,
   ]);
 
-  const availableInverterModels = useMemo(() => {
+  // Split by battery topology (not just the currently-selected one) so the
+  // HV/LV tabs in InverterModelPicker can each show their own accurate count
+  // and model list — computing both from a single combo set already scoped
+  // to "whichever topology happens to be active" would make the inactive
+  // tab's numbers wrong (see availableInverterModels below, kept for every
+  // other consumer that only cares about the current selection's validity).
+  const availableInverterModelsByTopology = useMemo(() => {
     if (!residentialOptions.gridType) return null;
     const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
+    const modelsFor = (batteryTopology: 'HV' | 'LV') =>
+      new Set(
+        approvedInverterCombos
+          .filter((combo) => combo.gridTopology === approvedTopology && combo.batteryTopology === batteryTopology)
+          .map((combo) => combo.inverterModel)
+      );
+    return { HV: modelsFor('HV'), LV: modelsFor('LV') };
+  }, [approvedInverterCombos, residentialOptions.gridType]);
+
+  const availableInverterModels = useMemo(() => {
+    if (!availableInverterModelsByTopology) return null;
     const batteryTopology = residentialOptions.topology ? batteryTopologyToCatalog[residentialOptions.topology] : 'HV';
-    return new Set(
-      approvedInverterCombos
-        .filter(
-          (combo) => combo.gridTopology === approvedTopology && combo.batteryTopology === batteryTopology
-        )
-        .map((combo) => combo.inverterModel)
-    );
-  }, [approvedInverterCombos, residentialOptions.gridType, residentialOptions.topology]);
+    return availableInverterModelsByTopology[batteryTopology];
+  }, [availableInverterModelsByTopology, residentialOptions.topology]);
 
   useEffect(() => {
     const phaseCount = residentialOptions.gridType ? gridTypePhaseCount[residentialOptions.gridType] : 1;
@@ -965,6 +976,7 @@ export function SinglePageApp() {
               batteryCatalog={batteryCatalog}
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
+              availableInverterModelsByTopology={availableInverterModelsByTopology}
               solution={solution}
               secondarySolution={secondarySolution}
               secondaryError={secondaryError}

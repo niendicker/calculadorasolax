@@ -86,6 +86,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     batteryCatalog: [battery, lvBattery],
     inverterCatalog: [inverter],
     availableInverterModels: null,
+    availableInverterModelsByTopology: null,
     solution: null,
     secondarySolution: null,
     secondaryError: null,
@@ -477,7 +478,6 @@ describe('SizingTab: summary panel', () => {
             requiredPowerW: 6000,
             pontaEnergyWh: 8000,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.2,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,
@@ -485,16 +485,16 @@ describe('SizingTab: summary panel', () => {
       },
     });
     // Power floor is a plain max(), applied to both Nominal and Pico the same
-    // way, so both cards land on the same 6.00 value; energy without
-    // includeBackupReserve is *replaced* by pontaEnergyWh + intermediateEnergyWh
-    // (8000 Wh = 8.00 kWh/dia), not added.
+    // way, so both cards land on the same 6.00 value; energy uses just
+    // pontaEnergyWh + intermediateEnergyWh (8000 Wh = 8.00 kWh/dia) since
+    // Backup isn't selected, not added on top of the loads.
     const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
     expect(within(resumo).getAllByText('6.00')).toHaveLength(2);
     expect(within(resumo).getByText('8.00')).toBeInTheDocument();
     expect(within(resumo).queryByText('3.00')).not.toBeInTheDocument();
   });
 
-  it('adds the backup reserve on top of the Tarifa Branca energy floor when includeBackupReserve is on', () => {
+  it('adds the backup reserve on top of the Tarifa Branca energy floor when Backup is also selected', () => {
     setup({
       nominalW: 1000,
       peakW: 2000,
@@ -506,7 +506,6 @@ describe('SizingTab: summary panel', () => {
             requiredPowerW: 500,
             pontaEnergyWh: 8000,
             intermediateEnergyWh: 0,
-            includeBackupReserve: true,
             pontaTariffPerKwh: 1.2,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,
@@ -712,11 +711,13 @@ describe('SizingTab: rede e configuração', () => {
     expect(props.setInverterModel).toHaveBeenCalledWith(null);
   });
 
-  it('restricts inverter choices to availableInverterModels when given', () => {
-    setup({ availableInverterModels: new Set(['some-other-model']) });
+  it('restricts inverter choices to availableInverterModelsByTopology when given', () => {
+    setup({
+      availableInverterModelsByTopology: { HV: new Set(['some-other-model']), LV: new Set(['some-other-model']) },
+    });
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
-    expect(screen.getByText('Nenhum inversor com solução aprovada para este tipo de rede.')).toBeInTheDocument();
+    expect(screen.getByText('Nenhum inversor HV com solução aprovada para este tipo de rede.')).toBeInTheDocument();
   });
 });
 
@@ -1062,7 +1063,6 @@ describe('SizingTab: configuration summary row jumps', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 0,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.35,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 1,
@@ -1084,7 +1084,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     return props;
   }
 
-  it('updates white tariff power, energies, tariffs and the backup-reserve checkbox', () => {
+  it('updates white tariff power, energies and tariffs', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff');
     fireEvent.change(screen.getByLabelText('Potência máxima nos horários caros (kW)'), { target: { value: '3' } });
     // 22 kWh/mês ÷ 22 dias úteis/mês = 1000 Wh/dia, a clean value to assert on.
@@ -1093,7 +1093,6 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     fireEvent.change(screen.getByLabelText('Ponta · Tarifa (R$/kWh)'), { target: { value: '1.35' } });
     fireEvent.change(screen.getByLabelText('Intermediária · Tarifa (R$/kWh)'), { target: { value: '1.05' } });
     fireEvent.change(screen.getByLabelText('Fora ponta · Tarifa (R$/kWh)'), { target: { value: '0.85' } });
-    fireEvent.click(screen.getByLabelText('Reservar para backup das cargas'));
 
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaEnergyWh: 1000 }));
@@ -1101,7 +1100,6 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.35 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1.05 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.85 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
   });
 
   it('derives tariff-window energy and power from the bill in basic mode', () => {
@@ -1111,7 +1109,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
         pontaConsumptionPercent: 20, intermediateConsumptionPercent: 10,
         businessDaysPerMonth: 22, pontaWindowHours: 3, intermediateWindowHours: 2,
         requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0,
-        includeBackupReserve: false, pontaTariffPerKwh: 0,
+        pontaTariffPerKwh: 0,
         intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0,
       },
     });
@@ -1130,7 +1128,6 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 0,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.35,
             intermediateTariffPerKwh: 1.1,
             foraPontaTariffPerKwh: 0.85,
@@ -1146,7 +1143,6 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 1000,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 0,
             intermediateTariffPerKwh: 0,
             foraPontaTariffPerKwh: 0,
@@ -1305,7 +1301,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     enable(/^Gerador/, 'external_generator', { gridType: 'threePhase_220' });
     expect(
       screen.getByText(
-        /A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\) — selecione Trifásico e 220V/
+        /A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\)\. Selecione Trifásico e 220V/
       )
     ).toBeInTheDocument();
   });
@@ -1361,7 +1357,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
     });
     expect(
-      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\) — selecione Monofásico e 220V/)
+      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\)\. Selecione Monofásico e 220V/)
     ).toBeInTheDocument();
     // No documented exception applies to a Monofásico network, so it shouldn't be mentioned.
     expect(screen.queryByText(/aceito como exceção/)).not.toBeInTheDocument();
@@ -1373,7 +1369,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
     });
     expect(
-      screen.getByText(/selecione Trifásico e 380V \(ou Monofásico 220V, aceito como exceção para microrrede\)/)
+      screen.getByText(/Selecione Trifásico e 380V \(ou Monofásico 220V, aceito como exceção para microrrede\)/)
     ).toBeInTheDocument();
   });
 
@@ -1857,42 +1853,6 @@ describe('SizingTab: Solução tab PV recommendation', () => {
   });
 });
 
-describe('SizingTab: PV recommendation above the inverter picker', () => {
-  // The sticky Resumo/Solução summary panel (a separate region of the page)
-  // already shows its own "FV recomendado" card whenever a solution exists,
-  // regardless of which config section is active — so these assertions are
-  // scoped to the Inversores Híbridos config section specifically, to tell
-  // "the new card next to the inverter picker" apart from that other one.
-  function inverterConfigSection() {
-    return screen.getByRole('radiogroup', { name: 'Tipo de rede' }).closest('.space-y-3.rounded-lg.border') as HTMLElement;
-  }
-
-  it('shows the FV recomendado card above Inversores Híbridos when pv is a desired feature', () => {
-    setup({
-      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['pv'] },
-      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
-    });
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
-
-    const section = inverterConfigSection();
-    expect(within(section).getByText('FV recomendado')).toBeInTheDocument();
-    expect(within(section).getByText('3.00 kWp')).toBeInTheDocument();
-  });
-
-  it('omits the card when pv is not a desired feature, even with a pvPowerKw estimate', () => {
-    setup({
-      residentialOptions: emptyResidentialOptions,
-      solution: { ...fakeSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 450 },
-    });
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
-
-    const section = inverterConfigSection();
-    expect(within(section).queryByText('FV recomendado')).not.toBeInTheDocument();
-  });
-});
-
 describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
   it('highlights the combined SolaX savings, leading with the annual figure and the monthly one de-emphasized', () => {
     setup({
@@ -1902,7 +1862,6 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 0,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.3,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,
@@ -1926,7 +1885,6 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 4000,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.2,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,
@@ -1947,7 +1905,6 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 4000,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.2,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,
@@ -1967,7 +1924,6 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 0,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.3,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,
@@ -1991,7 +1947,6 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
       requiredPowerW: 0,
       pontaEnergyWh: 4000,
       intermediateEnergyWh: 0,
-      includeBackupReserve: false,
       pontaTariffPerKwh: 1.3,
       intermediateTariffPerKwh: 0.95,
       foraPontaTariffPerKwh: 0.8,
@@ -2042,7 +1997,6 @@ describe('SizingTab: Solução tab battery/Tarifa Branca savings', () => {
             requiredPowerW: 0,
             pontaEnergyWh: 0,
             intermediateEnergyWh: 0,
-            includeBackupReserve: false,
             pontaTariffPerKwh: 1.3,
             intermediateTariffPerKwh: 0.95,
             foraPontaTariffPerKwh: 0.8,

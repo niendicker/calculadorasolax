@@ -23,7 +23,7 @@ export default function LocaleError({ error, reset }: { error: Error & { digest?
       <div className="space-y-1.5">
         <h1 className="text-lg font-semibold text-foreground">Algo deu errado</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Ocorreu um erro inesperado. Você pode tentar novamente ou recarregar a página — nenhum dado salvo foi
+          Ocorreu um erro inesperado. Você pode tentar novamente ou recarregar a página; nenhum dado salvo foi
           perdido.
         </p>
       </div>

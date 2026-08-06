@@ -43,7 +43,7 @@ export function InverterSupportSummary({
       {selectedCatalog === null ? (
         <SupportCountChip
           icon={Settings}
-          label="—"
+          label="-"
           tone="neutral"
           tooltip={`Selecione o tipo de rede em Configurações para ver quantos inversores compatíveis com a seleção atual suportam ${featureLabel}.`}
         />

@@ -48,7 +48,7 @@ export function PhotoUploadField({
               alt={label}
               width={80}
               height={80}
-              className="h-20 w-20 shrink-0 rounded-md border bg-background object-cover"
+              className="h-20 w-20 shrink-0 rounded-md border bg-card object-cover"
             />
             <div className="min-w-0 space-y-2">
               <p className="text-xs text-muted-foreground">{label}</p>

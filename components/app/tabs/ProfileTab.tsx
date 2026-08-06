@@ -129,7 +129,7 @@ export function ProfileTab({
                     onChange={(event) => uploadCompanyLogo(event.target.files?.[0])}
                   />
                   {profile.companyLogoUrl && (
-                    <div className="rounded-lg border bg-background p-2">
+                    <div className="rounded-lg border bg-card p-2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={profile.companyLogoUrl}

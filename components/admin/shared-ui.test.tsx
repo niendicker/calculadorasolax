@@ -162,7 +162,7 @@ describe('DetailItem', () => {
     expect(screen.getByText('X1')).toBeInTheDocument();
 
     rerender(<DetailItem label="Modelo" value="" />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
   });
 
   it('renders an array value as chips, falling back to an em-dash when empty', () => {
@@ -171,7 +171,7 @@ describe('DetailItem', () => {
     expect(screen.getByText('ip66')).toBeInTheDocument();
 
     rerender(<DetailItem label="Flags" value={[]} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
   });
 });
 

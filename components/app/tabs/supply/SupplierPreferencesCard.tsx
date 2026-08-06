@@ -67,7 +67,7 @@ export function SupplierPreferencesCard({
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 <ShieldCheck className="mr-1 inline h-3.5 w-3.5" />
-                Padrão para todas as contas — não contam na sua cota de {maxUserSuppliers}.
+                Padrão para todas as contas: não contam na sua cota de {maxUserSuppliers}.
               </p>
               {defaultSuppliers.map((supplier) => (
                 <div key={supplier.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">

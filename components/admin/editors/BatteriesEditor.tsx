@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Activity, Battery, Search, ShieldCheck, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { normalizeBatteryFlags, selectClasses, toNullableNumber, toNumber } from '../helpers';
+import { Select } from '@/components/ui/select';
+import { normalizeBatteryFlags, toNullableNumber, toNumber } from '../helpers';
 import { useCatalogEditorForm } from '../hooks/useCatalogEditorForm';
 import {
   Actions,
@@ -122,7 +123,7 @@ export function BatteriesEditor(props: {
                       <Zap className="h-3.5 w-3.5 shrink-0" />
                       {form.nominal_voltage_v != null && form.recommended_current_a != null
                         ? `${((form.nominal_voltage_v * form.recommended_current_a) / 1000).toFixed(2)} kW`
-                        : '—'}
+                        : '-'}
                     </div>
                   </Field>
                   <Field label={<InfoLabel label="Potência pico" tip="Calculada automaticamente: Tensão nominal × Corrente máxima." />}>
@@ -130,7 +131,7 @@ export function BatteriesEditor(props: {
                       <Zap className="h-3.5 w-3.5 shrink-0" />
                       {form.nominal_voltage_v != null && form.max_current_a != null
                         ? `${((form.nominal_voltage_v * form.max_current_a) / 1000).toFixed(2)} kW`
-                        : '—'}
+                        : '-'}
                     </div>
                   </Field>
                   <Field asDiv label={<InfoLabel label="SOC mínimo" tip="Percentual reservado da bateria. A energia útil é calculada descontando esse valor da capacidade." />}>
@@ -156,8 +157,7 @@ export function BatteriesEditor(props: {
                     />
                   </Field>
                   <Field label={<InfoLabel label="Associação máxima" tip="Quantidade máxima deste modelo em qualquer banco ou porta de bateria de um inversor." />}>
-                    <select
-                      className={selectClasses()}
+                    <Select
                       value={form.max_association_qty ?? 15}
                       onChange={(event) => setForm({ ...form, max_association_qty: toNumber(event.target.value, 15) })}
                     >
@@ -166,7 +166,7 @@ export function BatteriesEditor(props: {
                           {qty}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                   <Field
                     label={
@@ -176,8 +176,7 @@ export function BatteriesEditor(props: {
                       />
                     }
                   >
-                    <input
-                      className={selectClasses()}
+                    <Input
                       list="admin-battery-expansion-models"
                       value={form.expansion_model ?? ''}
                       onChange={(event) => setForm({ ...form, expansion_model: event.target.value })}
@@ -217,7 +216,7 @@ export function BatteriesEditor(props: {
                     label="SOH na garantia"
                     tip="Percentual mínimo garantido ao fim da garantia. Campo informativo opcional."
                     unit="%"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.warranty_end_soh_percent ?? undefined}
                     onChange={(event) => setForm({ ...form, warranty_end_soh_percent: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, warranty_end_soh_percent: null })}
@@ -232,7 +231,7 @@ export function BatteriesEditor(props: {
                   />
                   <NumberWithUnitField
                     label="Garantia por ciclos"
-                    tip="Limite de ciclos de carga/descarga cobertos pela garantia — o que ocorrer primeiro entre anos e ciclos encerra a garantia."
+                    tip="Limite de ciclos de carga/descarga cobertos pela garantia. O que ocorrer primeiro entre anos e ciclos encerra a garantia."
                     icon={<Activity className="h-4 w-4" />}
                     unit="ciclos"
                     value={form.warranty_cycles ?? 6000}
@@ -247,7 +246,7 @@ export function BatteriesEditor(props: {
                     label="Tensão nominal"
                     tip="Tensão nominal do modelo de bateria."
                     unit="V"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.nominal_voltage_v ?? undefined}
                     onChange={(event) => setForm({ ...form, nominal_voltage_v: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, nominal_voltage_v: null })}
@@ -256,7 +255,7 @@ export function BatteriesEditor(props: {
                     label="Tensão mín."
                     tip="Menor tensão operacional permitida para o banco de baterias."
                     unit="V"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.voltage_min_v ?? undefined}
                     onChange={(event) => setForm({ ...form, voltage_min_v: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, voltage_min_v: null })}
@@ -265,7 +264,7 @@ export function BatteriesEditor(props: {
                     label="Tensão máx."
                     tip="Maior tensão operacional permitida para o banco de baterias."
                     unit="V"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.voltage_max_v ?? undefined}
                     onChange={(event) => setForm({ ...form, voltage_max_v: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, voltage_max_v: null })}
@@ -274,7 +273,7 @@ export function BatteriesEditor(props: {
                     label="Corrente rec."
                     tip="Corrente recomendada para operação contínua."
                     unit="A"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.recommended_current_a ?? undefined}
                     onChange={(event) => setForm({ ...form, recommended_current_a: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, recommended_current_a: null })}
@@ -283,7 +282,7 @@ export function BatteriesEditor(props: {
                     label="Corrente máx."
                     tip="Corrente máxima suportada pela bateria."
                     unit="A"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.max_current_a ?? undefined}
                     onChange={(event) => setForm({ ...form, max_current_a: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, max_current_a: null })}
@@ -318,10 +317,10 @@ export function BatteriesEditor(props: {
         badges: [row.topology],
         details: [
           ['Capacidade / Útil', `${row.capacity_kwh} / ${(Number(row.capacity_kwh || 0) * (1 - Number(row.min_soc_percent ?? 10) / 100)).toFixed(2)} kWh`],
-          ['Potência', `${row.standard_power_kw ?? '—'} / ${row.peak_power_kw ?? '—'} kW`],
+          ['Potência', `${row.standard_power_kw ?? '-'} / ${row.peak_power_kw ?? '-'} kW`],
           ['RTE / SOH', `${row.round_trip_efficiency_percent ?? 95}% · −${row.annual_soh_loss_percent ?? 2}%/ano`],
-          ['Tensão', `${row.nominal_voltage_v ?? '—'} V (${row.voltage_min_v ?? '—'} – ${row.voltage_max_v ?? '—'} V)`],
-          ['Corrente', `${row.recommended_current_a ?? '—'} / ${row.max_current_a ?? '—'} A`],
+          ['Tensão', `${row.nominal_voltage_v ?? '-'} V (${row.voltage_min_v ?? '-'} – ${row.voltage_max_v ?? '-'} V)`],
+          ['Corrente', `${row.recommended_current_a ?? '-'} / ${row.max_current_a ?? '-'} A`],
           ['Garantia', `${row.warranty_years ?? 10} anos ou ${row.warranty_cycles ?? 6000} ciclos`],
         ],
         media: <MediaSummary imageUrl={row.image_url} documents={row.documents} />,

@@ -127,7 +127,7 @@ function MarginSummary({ rows }: { rows: MarginRow[] }) {
                   )}
                 </span>
                 <span className={cn('text-sm font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
-                  {row.marginPct !== null ? formatMarginDelta(row.providedValue - row.requiredValue, row.unit) : '—'}
+                  {row.marginPct !== null ? formatMarginDelta(row.providedValue - row.requiredValue, row.unit) : '-'}
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">

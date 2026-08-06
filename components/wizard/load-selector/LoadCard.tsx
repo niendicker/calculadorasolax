@@ -378,20 +378,20 @@ export function LoadCard({
               label={usageMode === 'fixed' ? 'Horas fixas' : 'Fator de uso'}
               tip={
                 usageMode === 'fixed'
-                  ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h) — por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
-                  : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período de operação compartilhado — por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima. Se a carga tiver um horário próprio de funcionamento, use "Horas" ao lado em vez de fração.'
+                  ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h). Por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
+                  : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período de operação compartilhado. Por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima. Se a carga tiver um horário próprio de funcionamento, use "Horas" ao lado em vez de fração.'
               }
             />
           </Label>
           <div className="mt-1 flex items-center gap-2">
-            <div className="flex flex-1 gap-1 rounded-md border bg-background p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
+            <div className="flex flex-1 gap-1 rounded-lg border bg-background p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
               <button
                 type="button"
                 role="tab"
                 aria-selected={usageMode === 'fraction'}
                 onClick={() => setUsageMode('fraction')}
                 className={cn(
-                  'flex-1 rounded px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'flex-1 rounded-md px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   usageMode === 'fraction'
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:text-foreground'
@@ -405,7 +405,7 @@ export function LoadCard({
                 aria-selected={usageMode === 'fixed'}
                 onClick={() => setUsageMode('fixed')}
                 className={cn(
-                  'flex-1 rounded px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'flex-1 rounded-md px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                   usageMode === 'fixed'
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:text-foreground'
@@ -447,7 +447,7 @@ export function LoadCard({
       {(load.ipInRatio ?? 1) > SOFT_STARTER_IP_IN_THRESHOLD && (
         <p className="flex items-start gap-1.5 border-t bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          IP/IN alto — considere um inversor de frequência (VFD) ou softstarter para suavizar a partida deste motor e reduzir o pico de corrente.
+          IP/IN alto. Considere um inversor de frequência (VFD) ou softstarter para suavizar a partida deste motor e reduzir o pico de corrente.
         </p>
       )}
       <div className="grid grid-cols-1 gap-2 border-t p-3 sm:grid-cols-3">
@@ -831,7 +831,7 @@ export function LoadCard({
               <span className="font-medium text-foreground">{loadPeakW.toFixed(0)} VA</span>
               <TooltipBubble triggerRef={peakTipRef} openUp={peakTipOpenUp} visible={peakTipVisible}>
                 {peakCalcMode === 'select' && !includedInPeak
-                  ? 'Potência máxima (não contabilizada — carga desmarcada)'
+                  ? 'Potência máxima (não contabilizada: carga desmarcada)'
                   : 'Potência máxima (nominal × IP/IN × quantidade)'}
               </TooltipBubble>
             </span>
@@ -902,8 +902,8 @@ export function LoadCard({
               <Zap className={cn('h-3.5 w-3.5', includedInPeak ? 'text-primary' : 'text-muted-foreground')} />
               <TooltipBubble triggerRef={includedToggleTipRef} openUp={includedToggleTipOpenUp} visible={includedToggleTipVisible} align="end">
                 {includedInPeak
-                  ? 'Conta na potência máxima — clique para excluir'
-                  : 'Não conta na potência máxima — clique para incluir'}
+                  ? 'Conta na potência máxima, clique para excluir'
+                  : 'Não conta na potência máxima, clique para incluir'}
               </TooltipBubble>
             </Button>
           )}

@@ -496,6 +496,30 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     expect(otherCheckbox).not.toBeChecked();
   });
 
+  it('does not let a stale preference for a now-default supplier eat into the quota', async () => {
+    // s1 was a normal pick before an admin promoted it to is_default_for_all
+    // — the leftover row in user_supplier_preferences should no longer count.
+    setupSupabase({
+      suppliers: [
+        { id: 's1', name: 'Fornecedor Padrão', is_default_for_all: true },
+        { id: 's2', name: 'Fornecedor B', is_default_for_all: false },
+        { id: 's3', name: 'Fornecedor C', is_default_for_all: false },
+      ],
+      maxUserSuppliers: 2,
+      preferenceSupplierIds: ['s1'],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    const first = await screen.findByRole('checkbox', { name: /Fornecedor B/ });
+    const second = screen.getByRole('checkbox', { name: /Fornecedor C/ });
+    expect(first).not.toBeDisabled();
+    expect(second).not.toBeDisabled();
+
+    fireEvent.click(first);
+    await waitFor(() => expect(first).toBeChecked());
+    expect(second).not.toBeDisabled();
+  });
+
   it('shows an error message when persisting a selection fails', async () => {
     setupSupabase({
       suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }],
@@ -1098,10 +1122,9 @@ describe('SupplyTab: importing items from a project solution', () => {
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Importar itens do projeto' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Projeto para importar itens' })).not.toBeInTheDocument();
   });
 
-  it('names the current project in the select when one is loaded', async () => {
+  it('shows the current project\'s name in the picker when one is loaded', async () => {
     useWizardStore.setState({
       solution: makeSolution(),
       projectInfo: { name: 'Casa da Praia', clientId: null, address: emptyAddress(), notes: '' },
@@ -1109,12 +1132,12 @@ describe('SupplyTab: importing items from a project solution', () => {
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    const select = await screen.findByRole('combobox', { name: 'Projeto para importar itens' });
-    expect(within(select).getByText('Casa da Praia')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Importar itens do projeto' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    expect(within(dialog).getByText('Casa da Praia')).toBeInTheDocument();
   });
 
-  it('lets the user choose among every saved project with a valid solution, not just the current one', async () => {
+  it('lists every saved project with a valid solution, not just the current one, and flags incompatible ones', async () => {
     useWizardStore.setState({
       solution: null,
       currentProjectId: null,
@@ -1124,20 +1147,34 @@ describe('SupplyTab: importing items from a project solution', () => {
         makeProject({ id: 'p3', name: 'Sem solução ainda', solution: null }),
       ],
     });
-    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    setupSupabase({
+      offers: [
+        makeOffer({ id: 'o1', supplier_id: 's1' }),
+        makeOffer({
+          id: 'o2',
+          supplier_id: 's1',
+          supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 },
+        }),
+      ],
+    });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
-    const select = await screen.findByRole('combobox', { name: 'Projeto para importar itens' });
-    expect(within(select).getByText('Casa da Praia')).toBeInTheDocument();
-    expect(within(select).getByText('Apto Centro')).toBeInTheDocument();
-    expect(within(select).queryByText('Sem solução ainda')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    expect(within(dialog).getByText('Casa da Praia')).toBeInTheDocument();
+    expect(within(dialog).getByText('Apto Centro')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Sem solução ainda')).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: 'p2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Importar itens do projeto' }));
+    // Apto Centro needs 'Modelo-Sem-Oferta', which no selected supplier offers.
+    const incompatibleRow = within(dialog).getByText('Apto Centro').closest('button') as HTMLButtonElement;
+    expect(incompatibleRow).toBeDisabled();
+    expect(screen.getByText(/Modelo-Sem-Oferta/)).toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent('Itens sem oferta do fornecedor selecionado, não adicionados: Modelo-Sem-Oferta.')
-    );
+    // Casa da Praia is fully matched, so it stays clickable.
+    fireEvent.click(within(dialog).getByText('Casa da Praia'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Itens da solução adicionados ao carrinho.'));
+    expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument();
+    expect(screen.getByText('1× TP-HS3.6')).toBeInTheDocument();
   });
 
   it('adds the inverter and battery to the cart when matching offers exist', async () => {
@@ -1155,6 +1192,8 @@ describe('SupplyTab: importing items from a project solution', () => {
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    fireEvent.click(within(dialog).getByText('Solução atual (não salva)'));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Itens da solução adicionados ao carrinho.'));
     await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
@@ -1167,10 +1206,21 @@ describe('SupplyTab: importing items from a project solution', () => {
       currentProjectId: null,
       savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', solution: makeSolution() })],
     });
-    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    const supabase = setupSupabase({
+      offers: [
+        makeOffer({ id: 'o1', supplier_id: 's1' }),
+        makeOffer({
+          id: 'o2',
+          supplier_id: 's1',
+          supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 },
+        }),
+      ],
+    });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    fireEvent.click(within(dialog).getByText('Casa da Praia'));
     await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
     expect(screen.getByText(/Projeto: Casa da Praia/)).toBeInTheDocument();
 
@@ -1200,16 +1250,27 @@ describe('SupplyTab: importing items from a project solution', () => {
       currentProjectId: null,
       savedProjects: [makeProject({ id: 'p1', name: 'Casa da Praia', solution: makeSolution() })],
     });
-    const supabase = setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    const supabase = setupSupabase({
+      offers: [
+        makeOffer({ id: 'o1', supplier_id: 's1' }),
+        makeOffer({
+          id: 'o2',
+          supplier_id: 's1',
+          supplier_product_mappings: { product_type: 'battery', product_model: 'TP-HS3.6', supplier_sku: 'SKU-2', pack_quantity: 1 },
+        }),
+      ],
+    });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    fireEvent.click(within(dialog).getByText('Casa da Praia'));
     await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar carrinho' }));
     await waitFor(() => expect(screen.getByText('Adicione produtos de um fornecedor.')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Aumentar' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Aumentar' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
 
     await waitFor(() =>
@@ -1217,12 +1278,26 @@ describe('SupplyTab: importing items from a project solution', () => {
     );
   });
 
-  it('reports models with no matching offer instead of silently skipping them', async () => {
+  it('shows a project as incompatible, with a tooltip naming the missing model, instead of letting it be picked', async () => {
     useWizardStore.setState({ solution: makeSolution({ batteryModel: 'Modelo-Sem-Oferta' }) });
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    const row = within(dialog).getByText('Solução atual (não salva)').closest('button') as HTMLButtonElement;
+    expect(row).toBeDisabled();
+    expect(screen.getByText(/Modelo-Sem-Oferta/)).toBeInTheDocument();
+
+    fireEvent.click(row);
+    expect(screen.queryByText('1× X1-Hybrid-5.0kW')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('reports models with no matching offer instead of silently skipping them when auto-importing', async () => {
+    useWizardStore.setState({ solution: makeSolution({ batteryModel: 'Modelo-Sem-Oferta' }) });
+    setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} autoImportFromSolution onAutoImportHandled={vi.fn()} />);
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('Itens sem oferta do fornecedor selecionado, não adicionados: Modelo-Sem-Oferta.')
@@ -1258,13 +1333,15 @@ describe('SupplyTab: importing items from a project solution', () => {
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    fireEvent.click(within(dialog).getByText('Solução atual (não salva)'));
 
     await waitFor(() => expect(screen.getByText('2× Smart Meter')).toBeInTheDocument());
     expect(screen.queryByText(/WiFi Dongle/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Matebox/)).not.toBeInTheDocument();
   });
 
-  it('only imports from the supplier already in the cart, reporting other models as unmatched', async () => {
+  it('only considers offers from the supplier already in the cart, marking the project incompatible if it needs another', async () => {
     useWizardStore.setState({ solution: makeSolution() });
     setupSupabase({
       offers: [
@@ -1283,24 +1360,22 @@ describe('SupplyTab: importing items from a project solution', () => {
     await waitFor(() => expect(screen.getByText('1× X1-Hybrid-5.0kW')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Importar itens do projeto' }));
-
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent('Itens sem oferta do fornecedor selecionado, não adicionados: TP-HS3.6.')
-    );
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    const row = within(dialog).getByText('Solução atual (não salva)').closest('button') as HTMLButtonElement;
+    expect(row).toBeDisabled();
+    expect(screen.getByText(/selecionados para: TP-HS3.6/)).toBeInTheDocument();
   });
 
-  it('fails clearly when there is no offer at all for the solution\'s inverter', async () => {
+  it('shows a project as incompatible when there is no offer at all for its inverter', async () => {
     useWizardStore.setState({ solution: makeSolution({ inverterModel: 'Modelo-Nao-Ofertado' }) });
     setupSupabase({ offers: [makeOffer({ id: 'o1', supplier_id: 's1' })] });
     renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Importar itens do projeto' }));
-
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'Nenhuma oferta de inversor compatível com a solução foi encontrada entre seus fornecedores.'
-      )
-    );
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha um projeto para importar' });
+    const row = within(dialog).getByText('Solução atual (não salva)').closest('button') as HTMLButtonElement;
+    expect(row).toBeDisabled();
+    expect(screen.getByText(/Modelo-Nao-Ofertado/)).toBeInTheDocument();
   });
 
   it('auto-imports as soon as offers load when arriving via "Cotar solução", then reports it handled', async () => {

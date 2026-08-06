@@ -66,7 +66,7 @@ describe('getCalculationErrorMessage', () => {
     ]);
 
     expect(message).toBe(
-      'Revise os seguintes campos antes de calcular: Tarifa Branca — energia na ponta, Tarifa Branca — tarifa intermediária.'
+      'Revise os seguintes campos antes de calcular: Tarifa Branca: energia na ponta, Tarifa Branca: tarifa intermediária.'
     );
   });
 

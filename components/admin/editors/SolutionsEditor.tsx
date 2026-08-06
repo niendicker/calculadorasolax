@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import {
   batteryQuantityBreakdown,
   buildRuleGeneratedSolutions,
   expansionModelSet,
-  selectClasses,
   solutionTotalBatteryPorts,
   toNumber,
 } from '../helpers';
@@ -665,8 +665,7 @@ export function SolutionsEditor(props: {
           <Separator />
 
           <Field label="Modelo do inversor">
-            <input
-              className={selectClasses()}
+            <Input
               list="admin-inverters"
               value={form.inverter_model ?? ''}
               onChange={(event) => setForm({ ...form, inverter_model: event.target.value })}
@@ -683,7 +682,7 @@ export function SolutionsEditor(props: {
             />
             <NumberWithUnitField
               label="Portas por inversor"
-              tip="Número de portas de bateria em uso em CADA inversor — não o total da combinação. O total (usado para escalar acessórios e a quebra Master/Slave) é Qtd. inversores × este valor."
+              tip="Número de portas de bateria em uso em CADA inversor, não o total da combinação. O total (usado para escalar acessórios e a quebra Master/Slave) é Qtd. inversores × este valor."
               icon={<Cable className="h-4 w-4" />}
               unit="un."
               value={form.battery_ports_used ?? 1}
@@ -714,8 +713,7 @@ export function SolutionsEditor(props: {
               onChange={(event) => setForm({ ...form, nominal_voltage_v: toNumber(event.target.value, 220) })}
             />
             <Field label="Rede">
-              <select
-                className={selectClasses()}
+              <Select
                 value={form.grid_topology ?? '1p_220V'}
                 onChange={(event) => setForm({ ...form, grid_topology: event.target.value as ApprovedGridTopology })}
               >
@@ -723,15 +721,14 @@ export function SolutionsEditor(props: {
                 <option value="2p_220V">2p 220V</option>
                 <option value="3p_220V">3p 220V</option>
                 <option value="3p_380V">3p 380V</option>
-              </select>
+              </Select>
             </Field>
           </div>
 
           <Separator />
 
           <Field label="Modelo da bateria">
-            <input
-              className={selectClasses()}
+            <Input
               list="admin-batteries"
               value={form.battery_model ?? ''}
               onChange={(event) => setForm({ ...form, battery_model: event.target.value })}
@@ -739,14 +736,13 @@ export function SolutionsEditor(props: {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Topologia bateria">
-              <select
-                className={selectClasses()}
+              <Select
                 value={form.battery_topology ?? 'HV'}
                 onChange={(event) => setForm({ ...form, battery_topology: event.target.value as CatalogBatteryTopology })}
               >
                 <option value="HV">HV</option>
                 <option value="LV">LV</option>
-              </select>
+              </Select>
             </Field>
             <NumberWithUnitField
               label="Qtd. baterias"

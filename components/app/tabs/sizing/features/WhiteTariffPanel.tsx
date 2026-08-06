@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Battery, BatteryCharging, Check, Clock, Moon, Zap, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Clock, Moon, Zap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,6 @@ export const emptyWhiteTariffConfig: WhiteTariffConfig = {
   requiredPowerW: 0,
   pontaEnergyWh: 0,
   intermediateEnergyWh: 0,
-  includeBackupReserve: false,
   pontaTariffPerKwh: 0,
   intermediateTariffPerKwh: 0,
   foraPontaTariffPerKwh: 0,
@@ -385,52 +384,12 @@ export function WhiteTariffPanel({
         </div>}
       </div>
       <div className="space-y-1.5">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={whiteTariff?.includeBackupReserve ?? false}
-          aria-label="Reservar para backup das cargas"
-          onClick={() =>
-            onWhiteTariffChange({
-              ...(whiteTariff ?? emptyWhiteTariffConfig),
-              includeBackupReserve: !(whiteTariff?.includeBackupReserve ?? false),
-            })
-          }
-          className={cn(
-            'flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors',
-            whiteTariff?.includeBackupReserve
-              ? 'border-primary/40 bg-primary/5'
-              : 'border-border bg-background hover:bg-muted/40'
-          )}
-        >
-          <span className="flex items-center gap-2">
-            {whiteTariff?.includeBackupReserve ? (
-              <BatteryCharging className="h-4 w-4 shrink-0 text-primary" />
-            ) : (
-              <Battery className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
-            <span className="font-medium">Reservar para backup das cargas</span>
-          </span>
-          <span
-            className={cn(
-              'flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-              whiteTariff?.includeBackupReserve
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground'
-            )}
-          >
-            {whiteTariff?.includeBackupReserve && <Check className="h-3 w-3" />}
-            {whiteTariff?.includeBackupReserve ? 'Ativado' : 'Desativado'}
-          </span>
-        </button>
-        {whiteTariff?.includeBackupReserve && (
-          <p className="flex items-center gap-1.5 pl-1 text-xs text-muted-foreground">
-            <Zap className="h-3.5 w-3.5 shrink-0 text-primary" />
-            {backupDailyKwh > 0
-              ? `+${backupDailyKwh.toFixed(1)} kWh/dia somados à energia exigida pela tarifa branca.`
-              : 'Soma a energia das cargas de backup à energia exigida pela tarifa branca.'}
-          </p>
-        )}
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Zap className="h-3.5 w-3.5 shrink-0 text-primary" />
+          {value.includes('backup')
+            ? `Backup está ativo — +${backupDailyKwh.toFixed(1)} kWh/dia somados à energia da Tarifa Branca.`
+            : 'Ative "Backup" para somar a energia das cargas à energia da Tarifa Branca.'}
+        </p>
       </div>
       <div className="space-y-2">
         <p className="text-sm font-semibold">2. Distribuição e tarifas</p>
@@ -593,7 +552,7 @@ export function WhiteTariffPanel({
             <div><p className="text-xs text-muted-foreground">Fora de ponta</p><strong>{whiteTotalMonthlyKwh > 0 ? `${whiteOffPeakMonthlyKwh.toFixed(1)} kWh/mês` : 'Informe o consumo'}</strong></div>
             <div><p className="text-xs text-muted-foreground">Potência mínima</p><strong>{(whiteTariff.requiredPowerW / 1000).toFixed(2)} kW</strong></div>
             <div><p className="text-xs text-muted-foreground">Armazenamento preliminar</p><strong>{preliminaryStorageKwh.toFixed(2)} kWh</strong></div>
-            <div><p className="text-xs text-muted-foreground">Consumo deslocado</p><strong>{whiteTotalMonthlyKwh > 0 ? `${whiteShiftPercent.toFixed(1)}%` : '—'}</strong></div>
+            <div><p className="text-xs text-muted-foreground">Consumo deslocado</p><strong>{whiteTotalMonthlyKwh > 0 ? `${whiteShiftPercent.toFixed(1)}%` : '-'}</strong></div>
             <div><p className="text-xs text-muted-foreground">Economia preliminar</p><strong>{preliminaryTariffSavings ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(preliminaryTariffSavings.monthlySavings) + '/mês' : 'Preencha as tarifas'}</strong></div>
           </div>
           {preliminaryTariffSavings && <p className={cn('mt-3 text-xs font-medium', preliminaryTariffSavings.monthlySavings > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300')}>

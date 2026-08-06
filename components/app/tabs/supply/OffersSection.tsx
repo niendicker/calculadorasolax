@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { Check, Minus, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,7 +79,7 @@ export function OffersSection({
             className={cn(
               'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
               effectiveSupplierFilter === null
-                ? 'border-primary bg-primary/[0.08] text-foreground'
+                ? 'border-primary bg-primary/5 text-foreground'
                 : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/40 hover:text-foreground'
             )}
           >
@@ -94,7 +94,7 @@ export function OffersSection({
               className={cn(
                 'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
                 effectiveSupplierFilter === supplier.id
-                  ? 'border-primary bg-primary/[0.08] text-foreground'
+                  ? 'border-primary bg-primary/5 text-foreground'
                   : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/40 hover:text-foreground'
               )}
             >
@@ -126,7 +126,15 @@ export function OffersSection({
                         {offer.suppliers.name} · SKU {mapping.supplier_sku}
                       </p>
                     </div>
-                    <Badge variant="outline">{productTypeLabels[mapping.product_type] ?? mapping.product_type}</Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {quantity > 0 && (
+                        <Badge variant="secondary" className="gap-1">
+                          <Check className="h-3 w-3" />
+                          No carrinho
+                        </Badge>
+                      )}
+                      <Badge variant="outline">{productTypeLabels[mapping.product_type] ?? mapping.product_type}</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>

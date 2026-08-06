@@ -162,6 +162,37 @@ export function filterSolutionsByRequiredFlags(
   return { compatibleSolutions: filtered, blocked: filtered.length === 0 };
 }
 
+/** The subset of an `inverters` row needed to check whether a solution's
+ * inverter can carry a desired PV array. */
+export interface PvCapableInverter {
+  model: string;
+  pv_oversizing_percent: number | null;
+}
+
+/** Narrows compatibleSolutions to those whose inverter can carry desiredPvKw
+ * (rated power scaled by that inverter's own pv_oversizing_percent). A no-op
+ * (never blocks) when desiredPvKw is 0 — PV wasn't selected, or the customer's
+ * inputs don't call for any array. `blocked` is true when that leaves
+ * nothing, mirroring filterSolutionsByRequiredFlags's shape so the caller can
+ * treat both gates the same way (including the relaxed-pool retry). Missing
+ * pv_oversizing_percent defaults to 100%, matching computePvPowerKw's own
+ * fallback assumption. */
+export function filterSolutionsByPvCapacity(
+  compatibleSolutions: ApprovedSolution[],
+  desiredPvKw: number,
+  candidateInverters: PvCapableInverter[]
+): { compatibleSolutions: ApprovedSolution[]; blocked: boolean } {
+  if (desiredPvKw <= 0) return { compatibleSolutions, blocked: false };
+
+  const oversizingByModel = new Map(candidateInverters.map((inverter) => [inverter.model, inverter.pv_oversizing_percent ?? 100]));
+  const filtered = compatibleSolutions.filter((solution) => {
+    const oversizingPercent = oversizingByModel.get(solution.inverter_model) ?? 100;
+    const maxPvKw = (solution.rated_power_w / 1000) * (1 + oversizingPercent / 100);
+    return maxPvKw >= desiredPvKw;
+  });
+  return { compatibleSolutions: filtered, blocked: filtered.length === 0 };
+}
+
 /** Decides how microgrid compatibility affects the final solution set, given
  * compatibleSolutions already ranked best-first by every other requirement:
  * - When microgrid is a hard requirement, it's enforced directly — the
@@ -200,37 +231,41 @@ export function resolveMicrogridSelection(
   return { compatibleSolutions, microgridAlternativeSolution, blocked: false };
 }
 
-/** Raises a power floor (continuous/rated or surge/peak) to also cover the
- * white-tariff window's required power when that's higher. Used for both:
- * the inverter's rated_power_w must sustain requiredPowerW for the whole
- * window (not just survive it as a brief surge), so callers pass nominalW
- * as baseW for that check, and peakW as baseW for the peak_power_w check. */
+/** Raises a power floor (continuous/rated or surge/peak) to cover whichever
+ * of Backup/Tarifa Branca is active and demands more. baseW only counts when
+ * 'backup' is a desired feature — it isn't a generic always-on heuristic
+ * anymore, it's specifically what Backup asks for. The two floors are never
+ * summed: an outage (backup) and a normal grid-connected tariff window
+ * (white tariff) can't happen at the same instant, so the inverter only ever
+ * needs to sustain whichever one is bigger, not both at once. Callers pass
+ * nominalW as baseW for the rated_power_w check, and peakW as baseW for the
+ * peak_power_w check. */
 export function effectiveTargetPowerW(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
   baseW: number
 ): number {
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseW;
-  return Math.max(baseW, whiteTariff.requiredPowerW);
+  const backupFloor = desiredFeatures.includes('backup') ? baseW : 0;
+  const whiteTariffFloor = desiredFeatures.includes('white_tariff') && whiteTariff ? whiteTariff.requiredPowerW : 0;
+  return Math.max(backupFloor, whiteTariffFloor);
 }
 
-/** Minimum battery energy the recommended solution must provide. When Tarifa
- * Branca is active this replaces the generic backup heuristic with the
- * energy the customer needs to cover both expensive windows (ponta +
- * intermediária), optionally topped up with that same backup reserve when
- * includeBackupReserve is set. */
+/** Minimum battery energy the recommended solution must provide. Unlike
+ * power, Backup's reserve and Tarifa Branca's daily arbitrage cycle *do*
+ * stack: a customer wanting both a guaranteed outage reserve and daily
+ * ponta/intermediária savings needs capacity for both at once, so this sums
+ * the two floors instead of taking the larger one. baseTargetEnergyWh only
+ * counts when 'backup' is a desired feature. */
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
   baseTargetEnergyWh: number,
   roundTripEfficiencyPercent = 100
 ): number {
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
+  const backupFloor = desiredFeatures.includes('backup') ? baseTargetEnergyWh : 0;
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return backupFloor;
   const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
-  return (
-    (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency +
-    (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0)
-  );
+  return backupFloor + (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency;
 }
 
 /** Mirrors lib/types.ts WhiteTariffConfig. */
@@ -245,7 +280,6 @@ export interface WhiteTariffConfig {
   requiredPowerW: number;
   pontaEnergyWh: number;
   intermediateEnergyWh: number;
-  includeBackupReserve: boolean;
   pontaTariffPerKwh: number;
   intermediateTariffPerKwh: number;
   foraPontaTariffPerKwh: number;
@@ -501,6 +535,17 @@ export function totalDailyKwh(loads: SingleLoad[], operationHours: number): numb
   }, 0);
 }
 
+/** The PV array size the customer's own average monthly consumption and the
+ * installation site's HSP (peak sun hours/day) actually call for — independent
+ * of the load-based dailyKwh used for battery/inverter sizing, and *not*
+ * capped by any inverter's capacity. This is the real-world requirement solution
+ * search must satisfy; computePvPowerKw below is the display-facing value
+ * capped to whatever inverter ended up chosen. */
+export function desiredPvPowerKw(pv: Pick<PvConfig, 'monthlyConsumptionKwh' | 'hsp'>): number {
+  if (pv.monthlyConsumptionKwh <= 0 || pv.hsp <= 0) return 0;
+  return pv.monthlyConsumptionKwh / 30 / pv.hsp;
+}
+
 /** PV peak power sized from the customer's own average monthly consumption
  * and the installation site's HSP (peak sun hours/day) — independent of the
  * load-based dailyKwh used for battery/inverter sizing. Capped at the
@@ -512,10 +557,8 @@ export function computePvPowerKw(
   ratedPowerW: number,
   pvOversizingPercent: number
 ): number {
-  if (pv.monthlyConsumptionKwh <= 0 || pv.hsp <= 0) return 0;
-  const rawPvKw = pv.monthlyConsumptionKwh / 30 / pv.hsp;
   const maxPvKw = (ratedPowerW / 1000) * (1 + pvOversizingPercent / 100);
-  return Math.min(rawPvKw, maxPvKw);
+  return Math.min(desiredPvPowerKw(pv), maxPvKw);
 }
 
 /** Theoretical-max monthly generation (kWh) from a PV array at the site's
@@ -840,9 +883,6 @@ export function validateResidentialOptions(raw: unknown): string[] {
       }
       if (typeof whiteTariff.intermediateEnergyWh !== 'number' || whiteTariff.intermediateEnergyWh < 0) {
         errors.push('whiteTariff.intermediateEnergyWh must be a number >= 0');
-      }
-      if (typeof whiteTariff.includeBackupReserve !== 'boolean') {
-        errors.push('whiteTariff.includeBackupReserve must be a boolean');
       }
       if (typeof whiteTariff.pontaTariffPerKwh !== 'number' || whiteTariff.pontaTariffPerKwh < 0) {
         errors.push('whiteTariff.pontaTariffPerKwh must be a number >= 0');

@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
 import { tariffSubgroups } from '@/lib/tariff/subgroups';
 
@@ -116,12 +117,11 @@ export function AutomaticTariffPanel({
         {accessantAgents.length > 0 && (
           <div className="space-y-1.5">
             <Label htmlFor="aneelAccessantAgent">Agente acessante (opcional)</Label>
-            <select
+            <Select
               id="aneelAccessantAgent"
               value={accessantAgent}
               onChange={(e) => setAccessantAgent(e.target.value)}
               disabled={loadingAccessantAgents || accessantAgents.length === 0}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
               <option value="">Sem agente acessante (opcional)</option>
               {accessantAgents.map((agent) => (
@@ -129,7 +129,7 @@ export function AutomaticTariffPanel({
                   {agent}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-muted-foreground">Consumidor ou gerador na rede</p>
           </div>
         )}
@@ -137,11 +137,10 @@ export function AutomaticTariffPanel({
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="aneelSubgroup">Subgrupo tarifário <span aria-label="obrigatório">*</span></Label>
-            <select
+            <Select
               id="aneelSubgroup"
               value={subgroup}
               onChange={(e) => setSubgroup(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Selecione um subgrupo</option>
               {tariffSubgroups.map((sg) => (
@@ -149,7 +148,7 @@ export function AutomaticTariffPanel({
                   {sg.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-muted-foreground">Consulte sua fatura de energia</p>
           </div>
         </div>
@@ -157,11 +156,10 @@ export function AutomaticTariffPanel({
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="aneelTariffMode">Modalidade tarifária <span aria-label="obrigatório">*</span></Label>
-            <select
+            <Select
               id="aneelTariffMode"
               value={tariffMode}
               onChange={(e) => setTariffMode(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Selecione uma modalidade</option>
               {TARIFF_MODES.map((mode) => (
@@ -169,7 +167,7 @@ export function AutomaticTariffPanel({
                   {mode}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-muted-foreground">Conforme contrato com a distribuidora</p>
           </div>
 

@@ -177,7 +177,6 @@ describe('ConfigurationSummary', () => {
           requiredPowerW: 1000,
           pontaEnergyWh: 500,
           intermediateEnergyWh: 300,
-          includeBackupReserve: false,
           pontaTariffPerKwh: 1.2,
           intermediateTariffPerKwh: 0.9,
           foraPontaTariffPerKwh: 0.7,

@@ -209,7 +209,7 @@ describe('InvertersEditor: general form', () => {
 
     const [standardPower, peakPower, maxPowerPerPhase] = screen.getAllByRole('spinbutton').filter((el) => {
       const placeholder = el.getAttribute('placeholder');
-      return placeholder === null || placeholder === '—';
+      return placeholder === null || placeholder === '-';
     });
     fireEvent.change(standardPower, { target: { value: '6' } });
     fireEvent.change(peakPower, { target: { value: '8' } });
@@ -221,7 +221,7 @@ describe('InvertersEditor: general form', () => {
     fireEvent.click(screen.getByRole('button', { name: 'LV' }));
     fireEvent.click(screen.getByRole('button', { name: '2' }));
 
-    for (const input of screen.getAllByPlaceholderText('—')) {
+    for (const input of screen.getAllByPlaceholderText('-')) {
       fireEvent.change(input, { target: { value: '48' } });
       expect(input).toHaveValue(48);
     }

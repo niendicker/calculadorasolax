@@ -299,23 +299,26 @@ export function solutionMetrics(
 }
 
 /** Mirrors supabase/functions/calculate-residential/logic.ts's effectiveTargetPowerW:
- * when Tarifa Branca is active, the inverter's rated/peak power floor must
- * also cover the tariff window's required power, not just the loads'. Kept
- * in sync manually since the Edge Function runs on Deno and can't be
- * imported here — this is what the server actually gated the solution on.
- * If you change this, update the Deno copy too — mirrors.test.ts next to
- * that file asserts both sides agree. */
+ * raises a power floor to cover whichever of Backup/Tarifa Branca demands
+ * more (baseW only counts when 'backup' is a desired feature — an outage and
+ * a normal grid-connected tariff window can't happen at the same instant, so
+ * the two floors are never summed, just maxed). Kept in sync manually since
+ * the Edge Function runs on Deno and can't be imported here — this is what
+ * the server actually gated the solution on. If you change this, update the
+ * Deno copy too — mirrors.test.ts next to that file asserts both sides agree. */
 export function effectiveTargetPowerW(
   desiredFeatures: DesiredFeatureId[],
   whiteTariff: WhiteTariffConfig | null,
   baseW: number
 ): number {
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseW;
-  return Math.max(baseW, whiteTariff.requiredPowerW);
+  const backupFloor = desiredFeatures.includes('backup') ? baseW : 0;
+  const whiteTariffFloor = desiredFeatures.includes('white_tariff') && whiteTariff ? whiteTariff.requiredPowerW : 0;
+  return Math.max(backupFloor, whiteTariffFloor);
 }
 
-/** Mirrors effectiveTargetEnergyWh from the same Edge Function file: the
- * battery must cover both expensive windows (ponta + intermediária). Same
+/** Mirrors effectiveTargetEnergyWh from the same Edge Function file: Backup's
+ * reserve and Tarifa Branca's daily arbitrage cycle stack (unlike power),
+ * since a customer wanting both needs capacity for both at once. Same
  * manual-sync caveat as effectiveTargetPowerW above — see mirrors.test.ts. */
 export function effectiveTargetEnergyWh(
   desiredFeatures: DesiredFeatureId[],
@@ -323,12 +326,10 @@ export function effectiveTargetEnergyWh(
   baseTargetEnergyWh: number,
   roundTripEfficiencyPercent = 100
 ): number {
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return baseTargetEnergyWh;
+  const backupFloor = desiredFeatures.includes('backup') ? baseTargetEnergyWh : 0;
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return backupFloor;
   const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
-  return (
-    (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency +
-    (whiteTariff.includeBackupReserve ? baseTargetEnergyWh : 0)
-  );
+  return backupFloor + (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency;
 }
 
 export interface MarginRow {
@@ -587,10 +588,11 @@ export function buildClientQuoteText(
 
   if (systemCost && systemCost.pricedItemsCount > 0) {
     lines.push('', `*Investimento total: ${formatCurrencyBRL(systemCost.totalCost)}*`);
-    if (!systemCost.isComplete) lines.push('_Valor parcial — ainda faltam itens com preço cadastrado._');
+    if (!systemCost.isComplete) lines.push('_Valor parcial: ainda faltam itens com preço cadastrado._');
   }
 
-  lines.push('', companyName ? `Fico à disposição para dúvidas! — ${companyName}` : 'Fico à disposição para dúvidas!');
+  lines.push('', 'Fico à disposição para dúvidas!');
+  if (companyName) lines.push(companyName);
 
   return lines.join('\n');
 }

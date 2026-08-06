@@ -72,7 +72,6 @@ const validWhiteTariff: WhiteTariffConfig = {
   requiredPowerW: 2000,
   pontaEnergyWh: 3000,
   intermediateEnergyWh: 2000,
-  includeBackupReserve: false,
   pontaTariffPerKwh: 1.2,
   intermediateTariffPerKwh: 0.95,
   foraPontaTariffPerKwh: 0.5,
@@ -305,9 +304,10 @@ describe('ResultSummary: financial analysis', () => {
 
 describe('ResultSummary: margin summary', () => {
   it('renders nothing when there are no margin rows to show (edge case guarded by rows.length===0)', () => {
-    // With desiredFeatures empty, buildMarginSummary always returns the 3 base rows,
+    // With Backup selected, buildMarginSummary always returns the 3 base rows,
     // so MarginSummary always renders something — verify the decisive/insufficient styling paths instead.
     renderResult({
+      desiredFeatures: ['backup'],
       solution: { ...baseSolution, inverterRatedPowerW: 1000, inverterPeakPowerW: 1000, availableEnergyWh: 1000 },
       nominalW: 5000,
       peakW: 7000,
@@ -319,6 +319,7 @@ describe('ResultSummary: margin summary', () => {
 
   it('shows the margin as absolute headroom in the row\'s own unit, not a percentage', () => {
     renderResult({
+      desiredFeatures: ['backup'],
       solution: { ...baseSolution, inverterRatedPowerW: 6000, inverterPeakPowerW: 20000, availableEnergyWh: 20000 },
       nominalW: 5000,
       peakW: 7000,
@@ -331,6 +332,7 @@ describe('ResultSummary: margin summary', () => {
 
   it('shows the decisive-factor badge for the tightest positive margin', () => {
     renderResult({
+      desiredFeatures: ['backup'],
       solution: { ...baseSolution, inverterRatedPowerW: 6000, inverterPeakPowerW: 20000, availableEnergyWh: 20000 },
       nominalW: 5000,
       peakW: 7000,

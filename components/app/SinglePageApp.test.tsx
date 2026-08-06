@@ -864,6 +864,62 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
   });
 
+  it('shows the correct HV and LV inverter counts at the same time, without switching tabs first', async () => {
+    // Regression test: availableInverterModels used to be a single set scoped
+    // to whichever topology was already active, so InverterModelPicker's LV
+    // tab count was computed from HV-only data (and vice versa) until the
+    // user actually clicked into it. Both counts must be right up front.
+    useWizardStore.setState((s) => ({
+      residentialOptions: { ...s.residentialOptions, gridType: 'singlePhase_220', topology: 'HighVoltage' },
+    }));
+    setupSupabase({
+      inverters: {
+        data: [
+          {
+            id: 'i1',
+            model: 'Model-A',
+            topology: 'HV',
+            phases: 1,
+            standard_power_kva: 5,
+            peak_power_kva: 7,
+            max_power_per_phase_w: null,
+            image_url: null,
+            documents: [],
+          },
+          {
+            id: 'i2',
+            model: 'Model-B',
+            topology: 'LV',
+            phases: 1,
+            standard_power_kva: 5,
+            peak_power_kva: 7,
+            max_power_per_phase_w: null,
+            image_url: null,
+            documents: [],
+          },
+        ],
+        error: null,
+      },
+      approved_solutions: {
+        data: [
+          { grid_topology: '1p_220V', battery_topology: 'HV', inverter_model: 'Model-A' },
+          { grid_topology: '1p_220V', battery_topology: 'LV', inverter_model: 'Model-B' },
+        ],
+        error: null,
+      },
+    });
+    renderApp();
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
+
+    await screen.findByText('Model-A');
+    expect(screen.queryByText('Model-B')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /^HV/ })).getByText('1')).toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /^LV/ })).getByText('1')).toBeInTheDocument();
+  });
+
   it('derives maxPowerPerPhaseW from the selected inverter on a multi-phase grid', async () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {

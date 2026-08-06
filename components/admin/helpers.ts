@@ -524,10 +524,6 @@ export function buildRuleGeneratedSolutions({
   });
 }
 
-export function selectClasses(className = '') {
-  return `h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:px-2.5 md:text-sm ${className}`;
-}
-
 export function textareaClasses(className = '') {
   return `min-h-20 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm ${className}`;
 }

@@ -285,6 +285,55 @@ Deno.test('microgrid as a fundamental requirement with no compatible solution re
   assertEquals(body.blockingFeatures, ['microgrid']);
 });
 
+Deno.test('a desired PV array too big for every candidate inverter returns 422 blocking pv', async () => {
+  const supabase = makeFakeSupabase({
+    tableResults: {
+      approved_solutions: { data: [makeSolutionRow({ rated_power_w: 5000 })], error: null },
+      // Even at 50% oversizing this inverter only carries 5kW * 1.5 = 7.5kWp,
+      // far short of the ~25kWp the customer's consumption/HSP call for.
+      inverters: {
+        data: [{ model: 'X1-Hybrid-5.0-D', flags: [], max_power_per_phase_w: null, pv_oversizing_percent: 50 }],
+        error: null,
+      },
+    },
+  });
+  const req = postRequest(
+    makeOptions({ desiredFeatures: ['pv'], pv: { monthlyConsumptionKwh: 3000, hsp: 4 } })
+  );
+  const res = await handleCalculateResidential(req, supabase);
+  assertEquals(res.status, 422);
+  const body = await res.json();
+  assertEquals(body.error, 'no_solution_matches_desired_features');
+  assertEquals(body.blockingFeatures, ['pv']);
+});
+
+Deno.test('a desired PV array too big for the cheapest inverter promotes to a bigger one that can carry it', async () => {
+  const small = makeSolutionRow({ id: 'small', inverter_model: 'small-inverter', rated_power_w: 5000, battery_power_w: 5000 });
+  const big = makeSolutionRow({ id: 'big', inverter_model: 'big-inverter', rated_power_w: 15000, battery_power_w: 15000 });
+  const supabase = makeFakeSupabase({
+    tableResults: {
+      // Ordered smallest-first, same as the real strict query's ORDER BY rated_power_w ASC.
+      approved_solutions: { data: [small, big], error: null },
+      inverters: {
+        data: [
+          { model: 'small-inverter', flags: [], max_power_per_phase_w: null, pv_oversizing_percent: 50 },
+          { model: 'big-inverter', flags: [], max_power_per_phase_w: null, pv_oversizing_percent: 50 },
+        ],
+        error: null,
+      },
+      accessory_rules: { data: [], error: null },
+    },
+  });
+  const req = postRequest(
+    // 10kWp desired: small-inverter's 5kW * 1.5 = 7.5kWp max is short, big-inverter's 15kW * 1.5 = 22.5kWp isn't.
+    makeOptions({ desiredFeatures: ['pv'], pv: { monthlyConsumptionKwh: 1200, hsp: 4 } })
+  );
+  const res = await handleCalculateResidential(req, supabase);
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.solutionId, 'big');
+});
+
 Deno.test('microgrid as an optional extra surfaces a microgridAlternative instead of blocking', async () => {
   const economic = makeSolutionRow({ id: 'economic', inverter_model: 'no-microgrid', rated_power_w: 3000, battery_power_w: 3000 });
   const withMicrogrid = makeSolutionRow({

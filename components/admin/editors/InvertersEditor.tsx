@@ -86,7 +86,7 @@ export function InvertersEditor(props: {
     [props.rows, selectedPhase]
   );
 
-  // Only three-phase inverters carry a 220V/380V distinction — 220V and 380V
+  // Only three-phase inverters carry a 220V/380V distinction - 220V and 380V
   // aren't mutually exclusive on a row, since one model's grid_types can list both.
   const voltageOptions = useMemo(() => {
     if (selectedPhase !== '3') return [];
@@ -110,7 +110,7 @@ export function InvertersEditor(props: {
     return rowsByPhase.filter((row) => normalizeInverterGridTypes(row.grid_types).includes(target));
   }, [rowsByPhase, selectedPhase, selectedVoltage]);
 
-  // Mono/bifásico inverters carry the HV/LV distinction instead — a row whose
+  // Mono/bifásico inverters carry the HV/LV distinction instead - a row whose
   // topology is 'BOTH' supports either, so it counts toward (and stays
   // visible under) both groups rather than being excluded from either.
   const batteryTopologyOptions = useMemo(() => {
@@ -227,7 +227,7 @@ export function InvertersEditor(props: {
                     tip="Limite de potência por fase para validação de balanceamento de cargas. Se vazio, o app usa Potência padrão ÷ número de fases da rede."
                     icon={<Zap className="h-4 w-4" />}
                     unit="VA"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.max_power_per_phase_w ?? ''}
                     onChange={(event) => setForm({ ...form, max_power_per_phase_w: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, max_power_per_phase_w: null })}
@@ -289,7 +289,7 @@ export function InvertersEditor(props: {
                     tip="Menor tensão de bateria aceita pelo inversor."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.battery_voltage_min_v ?? undefined}
                     onChange={(event) => setForm({ ...form, battery_voltage_min_v: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, battery_voltage_min_v: null })}
@@ -299,7 +299,7 @@ export function InvertersEditor(props: {
                     tip="Maior tensão de bateria aceita pelo inversor."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.battery_voltage_max_v ?? undefined}
                     onChange={(event) => setForm({ ...form, battery_voltage_max_v: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, battery_voltage_max_v: null })}
@@ -309,7 +309,7 @@ export function InvertersEditor(props: {
                     tip="Corrente máxima de bateria por porta, suportada pelo inversor."
                     icon={<Activity className="h-4 w-4" />}
                     unit="A"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.battery_current_max_a ?? undefined}
                     onChange={(event) => setForm({ ...form, battery_current_max_a: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, battery_current_max_a: null })}
@@ -341,7 +341,7 @@ export function InvertersEditor(props: {
                     label="Potência máx. de carga"
                     tip="Limite opcional de potência para carregar a bateria."
                     unit="W"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.max_battery_charge_power_w ?? undefined}
                     onChange={(event) => setForm({ ...form, max_battery_charge_power_w: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, max_battery_charge_power_w: null })}
@@ -350,7 +350,7 @@ export function InvertersEditor(props: {
                     label="Potência máx. de descarga"
                     tip="Limite opcional de potência entregue pela bateria através do inversor."
                     unit="W"
-                    placeholder="—"
+                    placeholder="-"
                     value={form.max_battery_discharge_power_w ?? undefined}
                     onChange={(event) => setForm({ ...form, max_battery_discharge_power_w: toNullableNumber(event.target.value) })}
                     onClear={() => setForm({ ...form, max_battery_discharge_power_w: null })}
@@ -390,11 +390,11 @@ export function InvertersEditor(props: {
         title: row.model,
         badges: [row.topology, `${row.phases} fase${row.phases === 1 ? '' : 's'}`],
         details: [
-          ['Potência', `${row.standard_power_kva ?? row.power_kw} / ${row.peak_power_kva ?? '—'} kVA`],
-          ['Portas bat.', `${row.battery_ports ?? 1}× · ${row.battery_current_max_a ?? '—'} A`],
+          ['Potência', `${row.standard_power_kva ?? row.power_kw} / ${row.peak_power_kva ?? '-'} kVA`],
+          ['Portas bat.', `${row.battery_ports ?? 1}× · ${row.battery_current_max_a ?? '-'} A`],
           ['Eficiência bat.', `${row.battery_charge_efficiency_percent ?? 97}% carga · ${row.battery_discharge_efficiency_percent ?? 97}% descarga`],
-          ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '—'],
-          ['Tensão bat.', `${row.battery_voltage_min_v ?? '—'} – ${row.battery_voltage_max_v ?? '—'} V`],
+          ['Redes', normalizeInverterGridTypes(row.grid_types).map(formatInverterGridType).join(', ') || '-'],
+          ['Tensão bat.', `${row.battery_voltage_min_v ?? '-'} – ${row.battery_voltage_max_v ?? '-'} V`],
           ['Sobredim. FV', `${row.pv_oversizing_percent ?? 100}%`],
           ['Garantia', `${row.warranty_years ?? 10} anos`],
         ],

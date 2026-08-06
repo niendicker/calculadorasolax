@@ -114,7 +114,7 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
       value: ['white_tariff'],
       onChange,
       onWhiteTariffChange,
-      whiteTariff: { inputMode: 'basic', totalMonthlyConsumptionKwh: 0, pontaConsumptionPercent: 20, intermediateConsumptionPercent: 10, businessDaysPerMonth: 22, pontaWindowHours: 3, intermediateWindowHours: 2, requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0, includeBackupReserve: false, pontaTariffPerKwh: 0, intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0 },
+      whiteTariff: { inputMode: 'basic', totalMonthlyConsumptionKwh: 0, pontaConsumptionPercent: 20, intermediateConsumptionPercent: 10, businessDaysPerMonth: 22, pontaWindowHours: 3, intermediateWindowHours: 2, requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0, pontaTariffPerKwh: 0, intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0 },
     });
     fireEvent.click(screen.getByText('Habilitado'));
     expect(onChange).toHaveBeenCalledWith([]);
@@ -169,7 +169,7 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
 
   it('does not seed a new config when the feature already has one set', () => {
     const onWhiteTariffChange = vi.fn();
-    const existing: WhiteTariffConfig = { inputMode: 'advanced', totalMonthlyConsumptionKwh: 50, pontaConsumptionPercent: 20, intermediateConsumptionPercent: 10, businessDaysPerMonth: 22, pontaWindowHours: 3, intermediateWindowHours: 2, requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0, includeBackupReserve: false, pontaTariffPerKwh: 0, intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0 };
+    const existing: WhiteTariffConfig = { inputMode: 'advanced', totalMonthlyConsumptionKwh: 50, pontaConsumptionPercent: 20, intermediateConsumptionPercent: 10, businessDaysPerMonth: 22, pontaWindowHours: 3, intermediateWindowHours: 2, requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0, pontaTariffPerKwh: 0, intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0 };
     renderPicker({ activeTab: 'white_tariff', onWhiteTariffChange, whiteTariff: existing, value: [] });
     fireEvent.click(screen.getByText('Habilitar'));
     expect(onWhiteTariffChange).not.toHaveBeenCalled();
@@ -212,7 +212,6 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     requiredPowerW: 2000,
     pontaEnergyWh: 3600,
     intermediateEnergyWh: 1800,
-    includeBackupReserve: false,
     pontaTariffPerKwh: 1.2,
     intermediateTariffPerKwh: 0.95,
     foraPontaTariffPerKwh: 0.75,
@@ -265,37 +264,25 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     expect(onWhiteTariffChange).toHaveBeenCalled();
   });
 
-  it('toggles includeBackupReserve and shows the daily kWh note when enabled with backup selected', () => {
-    const onWhiteTariffChange = vi.fn();
+  it('shows the backup-daily-kwh copy when Backup is also selected', () => {
     renderPicker({
       activeTab: 'white_tariff',
       value: ['white_tariff', 'backup'],
       whiteTariff: wt,
-      onWhiteTariffChange,
       dailyKwh: 4.5,
     });
-    fireEvent.click(screen.getByRole('switch'));
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ includeBackupReserve: true }));
+    expect(screen.getByText(/Backup está ativo/)).toBeInTheDocument();
+    expect(screen.getByText(/\+4\.5 kWh\/dia somados à energia da Tarifa Branca/)).toBeInTheDocument();
   });
 
-  it('shows the backup-daily-kwh copy when reserve enabled and backup contributes energy', () => {
-    renderPicker({
-      activeTab: 'white_tariff',
-      value: ['white_tariff', 'backup'],
-      whiteTariff: { ...wt, includeBackupReserve: true },
-      dailyKwh: 4.5,
-    });
-    expect(screen.getByText(/somados à energia exigida pela tarifa branca/)).toBeInTheDocument();
-  });
-
-  it('shows the generic reserve copy when reserve enabled but no backup energy', () => {
+  it('prompts to enable Backup when it is not selected', () => {
     renderPicker({
       activeTab: 'white_tariff',
       value: ['white_tariff'],
-      whiteTariff: { ...wt, includeBackupReserve: true },
+      whiteTariff: wt,
       dailyKwh: 0,
     });
-    expect(screen.getByText('Soma a energia das cargas de backup à energia exigida pela tarifa branca.')).toBeInTheDocument();
+    expect(screen.getByText('Ative "Backup" para somar a energia das cargas à energia da Tarifa Branca.')).toBeInTheDocument();
   });
 
   it('updates ponta energy field, tariff, intermediate energy/tariff, and fora ponta tariff', () => {

@@ -41,7 +41,7 @@ describe('InverterSupportSummary', () => {
   it('shows the catalog-wide count and a pending chip when nothing narrows the selection', () => {
     renderSummary();
     expect(screen.getByText('1/2')).toBeInTheDocument();
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
   });
 
   it('narrows by selectedInverterModel and shows a warning chip when the selection does not support the flag', () => {

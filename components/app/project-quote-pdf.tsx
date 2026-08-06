@@ -42,8 +42,8 @@ import {
 } from './types';
 
 const COLORS = {
-  primary: '#0d8f85',
-  primaryBg: '#eaf7f5',
+  primary: '#24506B',
+  primaryBg: '#F1F5FB',
   text: '#1a1a1a',
   muted: '#666666',
   border: '#dddddd',
@@ -222,6 +222,7 @@ function formatWarranty(product?: { warrantyYears?: number; warrantyCycles?: num
 function DesiredFeatureDetail({
   id,
   whiteTariff,
+  backupEnabled,
   microgrid,
   generator,
   atsPhotoUrl,
@@ -229,6 +230,7 @@ function DesiredFeatureDetail({
 }: {
   id: DesiredFeatureId;
   whiteTariff: WhiteTariffConfig | null;
+  backupEnabled: boolean;
   microgrid: MicrogridConfig | null;
   generator: GeneratorConfig | null;
   atsPhotoUrl: string | null;
@@ -247,7 +249,7 @@ function DesiredFeatureDetail({
           <Text style={styles.featureDetailBold}>{(whiteTariff.pontaEnergyWh / 1000).toFixed(2)} kWh</Text>
           {' · energia intermediária '}
           <Text style={styles.featureDetailBold}>{(whiteTariff.intermediateEnergyWh / 1000).toFixed(2)} kWh</Text>
-          {` · ${whiteTariff.includeBackupReserve ? 'com' : 'sem'} reserva de backup · tarifa ponta `}
+          {` · ${backupEnabled ? 'com' : 'sem'} reserva de backup · tarifa ponta `}
           <Text style={styles.featureDetailBold}>{formatCurrencyBRL(whiteTariff.pontaTariffPerKwh)}/kWh</Text>
           {' · tarifa intermediária '}
           <Text style={styles.featureDetailBold}>{formatCurrencyBRL(whiteTariff.intermediateTariffPerKwh)}/kWh</Text>
@@ -465,7 +467,7 @@ function ProductsSection({
         nickname={productMedia[model]?.nickname}
         model={model}
         qty={`×${qty}`}
-        note={bundled ? bundledLabel : optional ? `Opcional${comment ? ` — ${comment}` : ''}` : (comment ?? undefined)}
+        note={bundled ? bundledLabel : optional ? `Opcional${comment ? `: ${comment}` : ''}` : (comment ?? undefined)}
         alert={!optional && !bundled ? 'Acessório obrigatório' : undefined}
         description={catalogAccessory?.description}
         warranty={formatWarranty(catalogAccessory)}
@@ -667,16 +669,6 @@ export function ProjectQuotePdfDocument({
   const totalLoadPowerW = loads.reduce((total, load) => total + load.powerW * load.qty, 0);
   const totalLoadEnergyKwh = loads.reduce((total, load) => total + loadEnergyKwh(load), 0);
 
-  // Margins must reflect what the loads actually require the same way the
-  // Solução tab does: the registered loads only count toward the
-  // requirement while Backup is enabled (see SizingTab.tsx) — otherwise a
-  // disabled Backup with loads still on file would inflate the margins as if
-  // they were still being covered.
-  const isBackupEnabled = (desiredFeatures ?? []).includes('backup');
-  const marginNominalW = isBackupEnabled ? nominalW : 0;
-  const marginPeakW = isBackupEnabled ? peakW : 0;
-  const marginDailyKwh = isBackupEnabled ? dailyKwh : 0;
-
   const showLoadsTable = !desiredFeatures || desiredFeatures.includes('backup');
   const showEconomics = reportSystemCost.pricedItemsCount > 0 || Boolean(tariffSavings);
 
@@ -744,6 +736,7 @@ export function ProjectQuotePdfDocument({
                       <DesiredFeatureDetail
                         id={id}
                         whiteTariff={whiteTariff}
+                        backupEnabled={desiredFeatures.includes('backup')}
                         microgrid={microgrid ?? null}
                         generator={generator ?? null}
                         atsPhotoUrl={atsPhotoUrl ?? null}
@@ -757,7 +750,7 @@ export function ProjectQuotePdfDocument({
         )}
 
         <ProductsSection
-          title={secondarySolution ? `Produtos recomendados — Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
+          title={secondarySolution ? `Produtos recomendados: Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
           solution={solution}
           batteryCatalog={batteryCatalog}
           inverterCatalog={inverterCatalog}
@@ -769,14 +762,14 @@ export function ProjectQuotePdfDocument({
           whiteTariff={whiteTariff}
           microgrid={microgrid ?? null}
           pv={pv ?? null}
-          nominalW={marginNominalW}
-          peakW={marginPeakW}
-          dailyKwh={marginDailyKwh}
+          nominalW={nominalW}
+          peakW={peakW}
+          dailyKwh={dailyKwh}
         />
 
         {secondarySolution && (
           <ProductsSection
-            title={`Produtos recomendados — Bateria ${secondaryBatteryModel ?? secondarySolution.batteryModel} (comparação)`}
+            title={`Produtos recomendados: Bateria ${secondaryBatteryModel ?? secondarySolution.batteryModel} (comparação)`}
             solution={secondarySolution}
             batteryCatalog={batteryCatalog}
             inverterCatalog={inverterCatalog}
@@ -786,9 +779,9 @@ export function ProjectQuotePdfDocument({
             whiteTariff={whiteTariff}
             microgrid={microgrid ?? null}
             pv={pv ?? null}
-            nominalW={marginNominalW}
-            peakW={marginPeakW}
-            dailyKwh={marginDailyKwh}
+            nominalW={nominalW}
+            peakW={peakW}
+            dailyKwh={dailyKwh}
           />
         )}
 

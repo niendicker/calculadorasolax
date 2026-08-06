@@ -4,8 +4,10 @@ import {
   blockingDesiredFeatures,
   buildSolutionPayload,
   computeHardFilterFeatures,
+  desiredPvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  filterSolutionsByPvCapacity,
   filterSolutionsByRequiredFlags,
   gridTopologyMap,
   rankByLeastShortfall,
@@ -20,6 +22,7 @@ import {
   type ApprovedSolution,
   type BatteryCatalogRow,
   type InverterCapabilities,
+  type PvCapableInverter,
   type ResidentialOptions,
 } from './logic.ts';
 
@@ -250,6 +253,13 @@ export async function handleCalculateResidential(
     const hardFilterFeatures = computeHardFilterFeatures(desiredFeatures, microgridIsFundamental);
     const requiredFlags = requiredInverterFlags(hardFilterFeatures);
 
+    // Hoisted above runPipeline: the desired PV array is now a real
+    // requirement gate (filterSolutionsByPvCapacity below), not just a
+    // post-hoc sizing detail, so it needs to be known before the pipeline
+    // runs, not after a solution is already picked.
+    const pv = desiredFeatures.includes('pv') ? (options.pv ?? null) : null;
+    const desiredPvKw = pv ? desiredPvPowerKw(pv) : 0;
+
     type PipelineResult =
       | { ok: true; compatibleSolutions: ApprovedSolution[]; microgridAlternativeSolution: ApprovedSolution | null }
       | { ok: false; response: Response };
@@ -264,12 +274,12 @@ export async function handleCalculateResidential(
     async function runPipeline(candidates: ApprovedSolution[]): Promise<PipelineResult> {
       let pool = candidates;
 
-      if (requiredFlags.length > 0) {
+      if (requiredFlags.length > 0 || desiredPvKw > 0) {
         const candidateInverterModels = Array.from(new Set(pool.map((solution) => solution.inverter_model)));
 
         const { data: candidateInverters, error: inverterErr } = await supabase
           .from('inverters')
-          .select('model, flags, max_power_per_phase_w')
+          .select('model, flags, max_power_per_phase_w, pv_oversizing_percent')
           .in('model', candidateInverterModels);
 
         if (inverterErr) {
@@ -277,24 +287,45 @@ export async function handleCalculateResidential(
           return { ok: false, response: jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 }) };
         }
 
-        const flagsResult = filterSolutionsByRequiredFlags(
-          pool,
-          requiredFlags,
-          (candidateInverters ?? []) as InverterCapabilities[]
-        );
-        pool = flagsResult.compatibleSolutions;
+        if (requiredFlags.length > 0) {
+          const flagsResult = filterSolutionsByRequiredFlags(
+            pool,
+            requiredFlags,
+            (candidateInverters ?? []) as InverterCapabilities[]
+          );
+          pool = flagsResult.compatibleSolutions;
 
-        if (flagsResult.blocked) {
-          return {
-            ok: false,
-            response: jsonResponse(
-              {
-                error: 'no_solution_matches_desired_features',
-                blockingFeatures: blockingDesiredFeatures(hardFilterFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
-              },
-              { status: 422 }
-            ),
-          };
+          if (flagsResult.blocked) {
+            return {
+              ok: false,
+              response: jsonResponse(
+                {
+                  error: 'no_solution_matches_desired_features',
+                  blockingFeatures: blockingDesiredFeatures(hardFilterFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
+                },
+                { status: 422 }
+              ),
+            };
+          }
+        }
+
+        if (desiredPvKw > 0) {
+          const pvResult = filterSolutionsByPvCapacity(
+            pool,
+            desiredPvKw,
+            (candidateInverters ?? []) as PvCapableInverter[]
+          );
+          pool = pvResult.compatibleSolutions;
+
+          if (pvResult.blocked) {
+            return {
+              ok: false,
+              response: jsonResponse(
+                { error: 'no_solution_matches_desired_features', blockingFeatures: ['pv'] },
+                { status: 422 }
+              ),
+            };
+          }
         }
       }
 
@@ -427,7 +458,6 @@ export async function handleCalculateResidential(
         pvOversizingByModel.set(row.model, row.pv_oversizing_percent ?? 100);
       }
     }
-    const pv = desiredFeatures.includes('pv') ? (options.pv ?? null) : null;
 
     const { data: rules, error: rulesErr } = await supabase
       .from('accessory_rules')

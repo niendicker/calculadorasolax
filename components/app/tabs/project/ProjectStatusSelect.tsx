@@ -9,10 +9,9 @@ import { projectStatusLabels } from '../../types';
  *  state, accepted/rejected are the two ways a quote resolves. */
 const projectStatusStyles: Record<ProjectStatus, string> = {
   draft: 'border-border bg-muted text-muted-foreground',
-  sent: 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
-  accepted:
-    'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
-  rejected: 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
+  sent: 'border-primary/30 bg-primary/10 text-primary',
+  accepted: 'border-success/30 bg-success/10 text-success',
+  rejected: 'border-destructive/30 bg-destructive/10 text-destructive',
 };
 
 /** A `<select>` styled like a colored badge — lets the status of a

@@ -49,9 +49,9 @@ export default async function PrivacyPage({
         <section>
           <h2 className="text-lg font-semibold">3. Para que usamos esses dados (finalidade e base legal)</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-            <li>Viabilizar o login, o dimensionamento e a geração de relatórios — <strong>execução de contrato</strong>.</li>
-            <li>Preencher automaticamente dados do cliente/empresa em relatórios que você gera — <strong>execução de contrato</strong>.</li>
-            <li>Entender como a plataforma é usada, para priorizar melhorias (ex.: quais inversores/baterias são mais recomendados) — <strong>legítimo interesse</strong>, sempre limitado ao necessário.</li>
+            <li>Viabilizar o login, o dimensionamento e a geração de relatórios (<strong>execução de contrato</strong>).</li>
+            <li>Preencher automaticamente dados do cliente/empresa em relatórios que você gera (<strong>execução de contrato</strong>).</li>
+            <li>Entender como a plataforma é usada, para priorizar melhorias (ex.: quais inversores/baterias são mais recomendados), com base em <strong>legítimo interesse</strong>, sempre limitado ao necessário.</li>
             <li>Cumprir obrigações legais e responder a solicitações de autoridades, quando aplicável.</li>
           </ul>
         </section>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import type { Client, ProjectInfo, ProjectServiceLine, UserServiceItem } from '@/lib/types';
 import { AddressFields } from '../../address-fields';
 import { formatCurrencyBRL } from '../../helpers';
@@ -92,9 +93,9 @@ export function ProjectDraftCard({
         <div className="space-y-1.5">
           <Label htmlFor="clientId">Cliente</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <select
+            <Select
               id="clientId"
-              className="flex h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm"
+              className="flex-1 md:h-9"
               value={projectInfo.clientId ?? ''}
               onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
             >
@@ -104,7 +105,7 @@ export function ProjectDraftCard({
                   {client.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               type="button"
               variant="outline"

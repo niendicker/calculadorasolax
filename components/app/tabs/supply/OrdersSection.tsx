@@ -129,7 +129,7 @@ export function OrdersSection({
               {partnerOrderId === order.id && (
                 <CardContent className="space-y-2 border-t pt-3">
                   <p className="text-xs text-muted-foreground">
-                    Endereço de entrega para o fornecedor processar o pedido — revise antes de confirmar.
+                    Endereço de entrega para o fornecedor processar o pedido. Revise antes de confirmar.
                   </p>
                   <DeliveryAddressFields form={deliveryForm} onChange={onDeliveryFieldChange} />
                   <div className="flex gap-2">

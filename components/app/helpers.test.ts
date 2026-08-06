@@ -87,34 +87,45 @@ describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
     requiredPowerW: 4000,
     pontaEnergyWh: 6000,
     intermediateEnergyWh: 2000,
-    includeBackupReserve: false,
     pontaTariffPerKwh: 1.2,
     intermediateTariffPerKwh: 0.95,
     foraPontaTariffPerKwh: 0.7,
   };
 
-  it('ignores white_tariff\'s power floor when the feature is not selected, even with a config present', () => {
-    expect(effectiveTargetPowerW([], whiteTariff, 2000)).toBe(2000);
+  it('is 0 when neither Backup nor Tarifa Branca is selected, even with a config present', () => {
+    expect(effectiveTargetPowerW([], whiteTariff, 2000)).toBe(0);
   });
 
-  it('raises the power floor to whiteTariff.requiredPowerW when that is higher than the base', () => {
+  it('ignores white_tariff\'s power floor when the feature is not selected, using just Backup\'s base', () => {
+    expect(effectiveTargetPowerW(['backup'], whiteTariff, 2000)).toBe(2000);
+  });
+
+  it('raises the power floor to whiteTariff.requiredPowerW when that is higher than Backup\'s base', () => {
+    expect(effectiveTargetPowerW(['backup', 'white_tariff'], whiteTariff, 2000)).toBe(4000);
+  });
+
+  it('uses whiteTariff.requiredPowerW alone when Backup is not selected', () => {
     expect(effectiveTargetPowerW(['white_tariff'], whiteTariff, 2000)).toBe(4000);
   });
 
-  it('keeps the base power floor when it already exceeds whiteTariff.requiredPowerW', () => {
-    expect(effectiveTargetPowerW(['white_tariff'], whiteTariff, 5000)).toBe(5000);
+  it('keeps Backup\'s base power floor when it already exceeds whiteTariff.requiredPowerW', () => {
+    expect(effectiveTargetPowerW(['backup', 'white_tariff'], whiteTariff, 5000)).toBe(5000);
   });
 
-  it('replaces the base energy target with pontaEnergyWh + intermediateEnergyWh when includeBackupReserve is off', () => {
+  it('is 0 when neither Backup nor Tarifa Branca is selected', () => {
+    expect(effectiveTargetEnergyWh([], whiteTariff, 3000)).toBe(0);
+  });
+
+  it('uses just Backup\'s base energy when Tarifa Branca is not selected', () => {
+    expect(effectiveTargetEnergyWh(['backup'], whiteTariff, 3000)).toBe(3000);
+  });
+
+  it('uses just pontaEnergyWh + intermediateEnergyWh when Backup is not selected', () => {
     expect(effectiveTargetEnergyWh(['white_tariff'], whiteTariff, 3000)).toBe(8000);
   });
 
-  it('adds the base energy target on top when includeBackupReserve is on', () => {
-    expect(effectiveTargetEnergyWh(['white_tariff'], { ...whiteTariff, includeBackupReserve: true }, 3000)).toBe(11000);
-  });
-
-  it('ignores whiteTariff entirely when the feature is not selected', () => {
-    expect(effectiveTargetEnergyWh([], whiteTariff, 3000)).toBe(3000);
+  it('sums Backup\'s base energy on top of the tariff windows when both are selected', () => {
+    expect(effectiveTargetEnergyWh(['backup', 'white_tariff'], whiteTariff, 3000)).toBe(11000);
   });
 });
 
@@ -127,7 +138,7 @@ describe('buildMarginSummary', () => {
 
   it('computes Potência padrão/Pico/Energia rows from the load-derived targets vs the solution', () => {
     const rows = buildMarginSummary({
-      desiredFeatures: [],
+      desiredFeatures: ['backup'],
       whiteTariff: null,
       microgrid: null,
       pv: null,
@@ -220,7 +231,7 @@ describe('buildMarginSummary', () => {
 });
 
 describe('solutionHasInsufficientMargin', () => {
-  const params = { desiredFeatures: [], whiteTariff: null, microgrid: null, pv: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
+  const params = { desiredFeatures: ['backup'], whiteTariff: null, microgrid: null, pv: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
 
   it('returns true when any margin row falls short of what is required', () => {
     const shortOnEnergy = makeSolution({ inverterRatedPowerW: 5000, inverterPeakPowerW: 7000, availableEnergyWh: 1000 });
@@ -397,7 +408,6 @@ function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffC
     requiredPowerW: 2000,
     pontaEnergyWh: 4000,
     intermediateEnergyWh: 0,
-    includeBackupReserve: false,
     pontaTariffPerKwh: 1.2,
     intermediateTariffPerKwh: 0.95,
     foraPontaTariffPerKwh: 0.8,

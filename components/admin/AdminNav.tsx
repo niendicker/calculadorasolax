@@ -17,7 +17,7 @@ export function AdminNav({ activeTab, onSelectTab }: { activeTab: TabKey; onSele
             key={tab.key}
             type="button"
             aria-current={activeTab === tab.key ? 'page' : undefined}
-            variant={activeTab === tab.key ? 'default' : 'ghost'}
+            variant={activeTab === tab.key ? 'secondary' : 'ghost'}
             className="justify-start"
             onClick={() => onSelectTab(tab.key)}
           >

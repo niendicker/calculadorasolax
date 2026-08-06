@@ -33,7 +33,6 @@ import {
   normalizeInverterGridTypes,
   phasesFromInverterGridTypes,
   sanitizePathPart,
-  selectClasses,
   slugPart,
   solutionRuleMetricValue,
   textareaClasses,
@@ -135,10 +134,8 @@ describe('formatTriggerMetric', () => {
   });
 });
 
-describe('selectClasses / textareaClasses', () => {
-  it('build a base class string and append an optional extra class', () => {
-    expect(selectClasses()).toContain('rounded-lg');
-    expect(selectClasses('extra-class')).toContain('extra-class');
+describe('textareaClasses', () => {
+  it('builds a base class string and appends an optional extra class', () => {
     expect(textareaClasses()).toContain('rounded-lg');
     expect(textareaClasses('extra-class')).toContain('extra-class');
   });

@@ -44,9 +44,9 @@ export function CatalogTab({
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
 
   const sectionOptions = [
-    { value: 'inverters' as const, label: 'Inversores', count: inverterCatalog.length },
-    { value: 'batteries' as const, label: 'Baterias', count: batteryCatalog.length },
-    { value: 'accessories' as const, label: 'Acessórios', count: accessoryCatalog.length },
+    { value: 'inverters' as const, label: 'Inversores', count: inverterCatalog.length, icon: Zap },
+    { value: 'batteries' as const, label: 'Baterias', count: batteryCatalog.length, icon: Battery },
+    { value: 'accessories' as const, label: 'Acessórios', count: accessoryCatalog.length, icon: Boxes },
   ];
 
   const batteryExpansionModels = expansionModelSet(batteryCatalog);
@@ -62,9 +62,10 @@ export function CatalogTab({
         </div>
       </PageHeader>
 
-      <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
+      <div className="grid grid-cols-3 gap-3" role="tablist" aria-label="Tipo de produto">
         {sectionOptions.map((tab) => {
           const active = section === tab.value;
+          const Icon = tab.icon;
           return (
             <button
               key={tab.value}
@@ -73,14 +74,19 @@ export function CatalogTab({
               aria-selected={active}
               onClick={() => setSection(tab.value)}
               className={cn(
-                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
+                'flex flex-col items-center gap-1.5 rounded-lg border p-4 text-center transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-row sm:gap-3 sm:text-left',
                 active
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
               )}
             >
-              {tab.label}
-              <span className="text-xs text-muted-foreground">({tab.count})</span>
+              <Icon className={cn('h-6 w-6 shrink-0', active ? 'text-primary' : 'text-muted-foreground')} />
+              <div className="min-w-0">
+                <p className={cn('text-sm font-semibold', active ? 'text-primary' : 'text-foreground')}>{tab.label}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tab.count} produto{tab.count === 1 ? '' : 's'}
+                </p>
+              </div>
             </button>
           );
         })}

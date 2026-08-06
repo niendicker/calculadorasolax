@@ -190,7 +190,7 @@ export function DesiredFeaturesPicker({
           <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"
-              variant={isActiveEnabled ? 'default' : 'outline'}
+              variant={isActiveEnabled ? 'secondary' : 'outline'}
               size="sm"
               className="min-w-28"
               onClick={() => toggle(activeTab)}

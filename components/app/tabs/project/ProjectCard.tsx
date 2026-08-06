@@ -83,14 +83,6 @@ export function ProjectCard({
   // reuses the same margin check the Dimensionamento tab itself relies on,
   // read straight from the project's stored solution/loads (no need to
   // recalculate just to know whether it's already insufficient).
-  const isBackupEnabled = project.residentialOptions.desiredFeatures.includes('backup');
-  const nominalW = isBackupEnabled ? totalNominalW(project.residentialOptions.loads) : 0;
-  const projectPeakW = isBackupEnabled
-    ? totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum')
-    : 0;
-  const projectDailyKwh = isBackupEnabled
-    ? totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours)
-    : 0;
   const hasSolutionAlert =
     project.solution && !project.solution.microgridAlternative
       ? solutionHasInsufficientMargin(project.solution, {
@@ -98,9 +90,9 @@ export function ProjectCard({
           whiteTariff: project.residentialOptions.whiteTariff,
           microgrid: project.residentialOptions.microgrid,
           pv: project.residentialOptions.pv,
-          nominalW,
-          peakW: projectPeakW,
-          dailyKwh: projectDailyKwh,
+          nominalW: totalNominalW(project.residentialOptions.loads),
+          peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+          dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
         })
       : false;
 
@@ -233,7 +225,7 @@ export function ProjectCard({
                 hasSolutionAlert && 'border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40'
               )}
               disabled={refreshing}
-              title={hasSolutionAlert ? 'A solução salva não atende 100% aos requisitos — recalcule para atualizar.' : undefined}
+              title={hasSolutionAlert ? 'A solução salva não atende 100% aos requisitos. Recalcule para atualizar.' : undefined}
               onClick={stopAnd(onRefreshSolution)}
             >
               {refreshing ? (

@@ -95,7 +95,7 @@ export function CartSummary({
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  Endereço de entrega (opcional) — ajuda o fornecedor a cotar o frete já na primeira resposta.
+                  Endereço de entrega (opcional): ajuda o fornecedor a cotar o frete já na primeira resposta.
                 </p>
                 {hasCompanyAddress && (
                   <Button

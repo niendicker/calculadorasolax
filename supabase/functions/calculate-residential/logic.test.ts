@@ -5,8 +5,10 @@ import {
   computeHardFilterFeatures,
   computePvMonthlyGenerationKwh,
   computePvPowerKw,
+  desiredPvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  filterSolutionsByPvCapacity,
   filterSolutionsByRequiredFlags,
   inverterSatisfiesRequiredFlags,
   matchingEssBatteryConfig,
@@ -25,6 +27,7 @@ import {
   type EssCompatibilityRule,
   type InverterCapabilities,
   type MicrogridConfig,
+  type PvCapableInverter,
   type SingleLoad,
   type WhiteTariffConfig,
 } from './logic';
@@ -34,7 +37,6 @@ function makeWhiteTariff(partial: Partial<WhiteTariffConfig> = {}): WhiteTariffC
     requiredPowerW: 2000,
     pontaEnergyWh: 4000,
     intermediateEnergyWh: 0,
-    includeBackupReserve: false,
     pontaTariffPerKwh: 1.2,
     intermediateTariffPerKwh: 0.95,
     foraPontaTariffPerKwh: 0.8,
@@ -285,6 +287,19 @@ describe('ruleMatches', () => {
     const solution = makeSolution();
     const rule = makeRule({ desired_features: ['external_ats', 'external_generator'] });
     expect(ruleMatches(solution, rule, '1P_220V', ['backup', 'external_generator'])).toBe(true);
+  });
+});
+
+describe('desiredPvPowerKw', () => {
+  it('sizes from monthly consumption / 30 / HSP, uncapped by any inverter', () => {
+    // 3000 kWh/mo / 30 = 100 kWh/day; / 2 HSP = 50 kW — computePvPowerKw would
+    // cap this, but the raw desired size doesn't.
+    expect(desiredPvPowerKw({ monthlyConsumptionKwh: 3000, hsp: 2 })).toBe(50);
+  });
+
+  it('returns 0 when monthlyConsumptionKwh or hsp is not positive', () => {
+    expect(desiredPvPowerKw({ monthlyConsumptionKwh: 0, hsp: 4 })).toBe(0);
+    expect(desiredPvPowerKw({ monthlyConsumptionKwh: 300, hsp: 0 })).toBe(0);
   });
 });
 
@@ -873,6 +888,55 @@ describe('filterSolutionsByRequiredFlags', () => {
   });
 });
 
+describe('filterSolutionsByPvCapacity', () => {
+  function makeInverter(partial: Partial<PvCapableInverter> = {}): PvCapableInverter {
+    return { model: 'X1-Hybrid-5.0-D', pv_oversizing_percent: 100, ...partial };
+  }
+
+  it('is a no-op that never blocks when desiredPvKw is 0', () => {
+    const solutions = [makeSolution({ id: 's1' })];
+    expect(filterSolutionsByPvCapacity(solutions, 0, [])).toEqual({ compatibleSolutions: solutions, blocked: false });
+  });
+
+  it('keeps only solutions whose inverter can carry the desired PV array', () => {
+    // 5kW rated x (1+50%) = 7.5kWp max — enough for 6kWp desired.
+    const enough = makeSolution({ id: 's1', inverter_model: 'big-enough', rated_power_w: 5000 });
+    // 2kW rated x (1+50%) = 3kWp max — short of 6kWp desired.
+    const tooSmall = makeSolution({ id: 's2', inverter_model: 'too-small', rated_power_w: 2000 });
+    const inverters = [
+      makeInverter({ model: 'big-enough', pv_oversizing_percent: 50 }),
+      makeInverter({ model: 'too-small', pv_oversizing_percent: 50 }),
+    ];
+    expect(filterSolutionsByPvCapacity([enough, tooSmall], 6, inverters)).toEqual({
+      compatibleSolutions: [enough],
+      blocked: false,
+    });
+  });
+
+  it('reports blocked when no solution survives the PV capacity filter', () => {
+    const solution = makeSolution({ id: 's1', inverter_model: 'too-small', rated_power_w: 2000 });
+    const inverters = [makeInverter({ model: 'too-small', pv_oversizing_percent: 50 })];
+    expect(filterSolutionsByPvCapacity([solution], 6, inverters)).toEqual({
+      compatibleSolutions: [],
+      blocked: true,
+    });
+  });
+
+  it('defaults pv_oversizing_percent to 100% when a candidate inverter row is missing or has it null', () => {
+    // 5kW rated x (1+100%) = 10kWp max, the same default computePvPowerKw uses.
+    const solution = makeSolution({ id: 's1', inverter_model: 'unknown-model', rated_power_w: 5000 });
+    expect(filterSolutionsByPvCapacity([solution], 9, [])).toEqual({
+      compatibleSolutions: [solution],
+      blocked: false,
+    });
+
+    const solutionWithNullField = makeSolution({ id: 's2', inverter_model: 'null-oversizing', rated_power_w: 5000 });
+    expect(
+      filterSolutionsByPvCapacity([solutionWithNullField], 9, [makeInverter({ model: 'null-oversizing', pv_oversizing_percent: null })])
+    ).toEqual({ compatibleSolutions: [solutionWithNullField], blocked: false });
+  });
+});
+
 describe('solutionSupportsMicrogrid', () => {
   function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig {
     return {
@@ -1082,20 +1146,25 @@ describe('rankByLeastShortfall', () => {
 });
 
 describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
-  it('returns the base values unchanged when white_tariff is not selected', () => {
-    expect(effectiveTargetPowerW([], makeWhiteTariff(), 3000)).toBe(3000);
-    expect(effectiveTargetPowerW(['external_ats'], makeWhiteTariff(), 3000)).toBe(3000);
-    expect(effectiveTargetEnergyWh([], makeWhiteTariff(), 5000)).toBe(5000);
+  it('is 0 when neither Backup nor Tarifa Branca applies, regardless of the base value', () => {
+    expect(effectiveTargetPowerW([], makeWhiteTariff(), 3000)).toBe(0);
+    expect(effectiveTargetPowerW(['external_ats'], makeWhiteTariff(), 3000)).toBe(0);
+    expect(effectiveTargetEnergyWh([], makeWhiteTariff(), 5000)).toBe(0);
   });
 
-  it('returns the base values unchanged when white_tariff is selected but the config is missing', () => {
-    expect(effectiveTargetPowerW(['white_tariff'], null, 3000)).toBe(3000);
-    expect(effectiveTargetEnergyWh(['white_tariff'], null, 5000)).toBe(5000);
+  it('ignores the white-tariff power/energy floor when the config is missing, even with white_tariff selected', () => {
+    expect(effectiveTargetPowerW(['white_tariff'], null, 3000)).toBe(0);
+    expect(effectiveTargetEnergyWh(['white_tariff'], null, 5000)).toBe(0);
   });
 
-  it('takes the larger of the normal peak and the white-tariff required power', () => {
-    expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 2000 }), 3000)).toBe(3000);
-    expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 5000 }), 3000)).toBe(5000);
+  it('uses Backup\'s base power/energy alone when only Backup is selected', () => {
+    expect(effectiveTargetPowerW(['backup'], makeWhiteTariff(), 3000)).toBe(3000);
+    expect(effectiveTargetEnergyWh(['backup'], makeWhiteTariff(), 5000)).toBe(5000);
+  });
+
+  it('takes the larger of Backup\'s base power and the white-tariff required power', () => {
+    expect(effectiveTargetPowerW(['backup', 'white_tariff'], makeWhiteTariff({ requiredPowerW: 2000 }), 3000)).toBe(3000);
+    expect(effectiveTargetPowerW(['backup', 'white_tariff'], makeWhiteTariff({ requiredPowerW: 5000 }), 3000)).toBe(5000);
   });
 
   it('also raises a continuous/nominal power floor, not just the peak one, so the white-tariff requirement is sustainable rather than just survivable as a brief surge', () => {
@@ -1103,19 +1172,23 @@ describe('effectiveTargetPowerW / effectiveTargetEnergyWh', () => {
     expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 6000 }), 1200)).toBe(6000);
   });
 
-  it('uses only the ponta + intermediária white-tariff energy when backup reserve is not requested', () => {
+  it('ignores the base power/energy entirely when Backup is not selected, even if it would be larger', () => {
+    expect(effectiveTargetPowerW(['white_tariff'], makeWhiteTariff({ requiredPowerW: 2000 }), 9000)).toBe(2000);
+  });
+
+  it('uses only the ponta + intermediária white-tariff energy when Backup is not selected', () => {
     const energy = effectiveTargetEnergyWh(
       ['white_tariff'],
-      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 1000, includeBackupReserve: false }),
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 1000 }),
       5000
     );
     expect(energy).toBe(5000);
   });
 
-  it('adds the base backup reserve on top of the white-tariff energy when requested', () => {
+  it('sums Backup\'s base energy on top of the white-tariff energy when both are selected', () => {
     const energy = effectiveTargetEnergyWh(
-      ['white_tariff'],
-      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 1000, includeBackupReserve: true }),
+      ['backup', 'white_tariff'],
+      makeWhiteTariff({ pontaEnergyWh: 4000, intermediateEnergyWh: 1000 }),
       5000
     );
     expect(energy).toBe(10000);
@@ -1237,7 +1310,6 @@ describe('validateResidentialOptions', () => {
         requiredPowerW: 2000,
         pontaEnergyWh: 4000,
         intermediateEnergyWh: 1000,
-        includeBackupReserve: true,
         pontaTariffPerKwh: 1.2,
         intermediateTariffPerKwh: 0.95,
         foraPontaTariffPerKwh: 0.8,
@@ -1252,7 +1324,6 @@ describe('validateResidentialOptions', () => {
         requiredPowerW: -1,
         pontaEnergyWh: 'lots',
         intermediateEnergyWh: 'lots',
-        includeBackupReserve: 'yes',
         pontaTariffPerKwh: -0.4,
         intermediateTariffPerKwh: -0.2,
         foraPontaTariffPerKwh: -0.1,
@@ -1261,7 +1332,6 @@ describe('validateResidentialOptions', () => {
     expect(invalid.some((e) => e.includes('requiredPowerW'))).toBe(true);
     expect(invalid.some((e) => e.includes('pontaEnergyWh'))).toBe(true);
     expect(invalid.some((e) => e.includes('intermediateEnergyWh'))).toBe(true);
-    expect(invalid.some((e) => e.includes('includeBackupReserve'))).toBe(true);
     expect(invalid.some((e) => e.includes('pontaTariffPerKwh'))).toBe(true);
     expect(invalid.some((e) => e.includes('intermediateTariffPerKwh'))).toBe(true);
     expect(invalid.some((e) => e.includes('foraPontaTariffPerKwh'))).toBe(true);

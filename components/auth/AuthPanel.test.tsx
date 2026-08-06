@@ -90,6 +90,7 @@ describe('AuthPanel: signup', () => {
     fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '11999999999' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'novo@x.com' } });
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'segredo123' } });
+    fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'segredo123' } });
   }
 
   it('requires accepting the terms before submitting', () => {
@@ -105,6 +106,18 @@ describe('AuthPanel: signup', () => {
     fireEvent.submit(form);
 
     expect(screen.getByRole('alert')).toHaveTextContent('É preciso aceitar os Termos de Uso');
+  });
+
+  it('requires the password confirmation to match before submitting', () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    setup();
+    fillSignupForm();
+    fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'outrasenha' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('As senhas não coincidem');
   });
 
   it('creates the account and shows a confirmation message when there is no session yet (email confirmation required)', async () => {

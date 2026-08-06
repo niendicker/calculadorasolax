@@ -27,7 +27,10 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
@@ -49,38 +52,41 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #4f5d6b;
+  --background: #f8fafc;
+  --foreground: #16324f;
   --card: #ffffff;
-  --card-foreground: #4f5d6b;
+  --card-foreground: #16324f;
   --popover: #ffffff;
-  --popover-foreground: #4f5d6b;
-  --primary: #18b5aa;
+  --popover-foreground: #16324f;
+  --primary: #24506b;
   --primary-foreground: #ffffff;
-  --secondary: #edf2f7;
-  --secondary-foreground: #50606f;
-  --muted: #edf2f7;
-  --muted-foreground: #6f7c89;
-  --accent: #18b5aa;
+  --secondary: #f1f5fb;
+  --secondary-foreground: #16324f;
+  --muted: #f1f5fb;
+  --muted-foreground: #66788a;
+  --accent: #ff9d00;
+  --accent-hover: #e88700;
   --accent-foreground: #ffffff;
-  --destructive: #b42318;
-  --border: #e6edf3;
-  --input: #dfe7ef;
-  --ring: #18b5aa;
-  --chart-1: #18b5aa;
-  --chart-2: #4a8bdf;
-  --chart-3: #a0006d;
-  --chart-4: #f2a33a;
-  --chart-5: #50606f;
+  --destructive: #d64545;
+  --success: #27966b;
+  --warning: #d98a00;
+  --border: #d7e0ea;
+  --input: #d7e0ea;
+  --ring: #ff9d00;
+  --chart-1: #24506b;
+  --chart-2: #ff9d00;
+  --chart-3: #27966b;
+  --chart-4: #66788a;
+  --chart-5: #16324f;
   --radius: 1rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #4f5d6b;
-  --sidebar-primary: #18b5aa;
+  --sidebar-foreground: #16324f;
+  --sidebar-primary: #24506b;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #edf2f7;
-  --sidebar-accent-foreground: #4f5d6b;
-  --sidebar-border: #e6edf3;
-  --sidebar-ring: #18b5aa;
+  --sidebar-accent: #f1f5fb;
+  --sidebar-accent-foreground: #16324f;
+  --sidebar-border: #d7e0ea;
+  --sidebar-ring: #ff9d00;
 }
 
 .dark {
@@ -90,31 +96,34 @@
   --card-foreground: #e9f1f5;
   --popover: #16212b;
   --popover-foreground: #e9f1f5;
-  --primary: #36d0c5;
-  --primary-foreground: #082322;
+  --primary: #5b8faf;
+  --primary-foreground: #0b1d2a;
   --secondary: #22313d;
   --secondary-foreground: #e9f1f5;
   --muted: #22313d;
   --muted-foreground: #aebbc6;
-  --accent: #36d0c5;
+  --accent: #ff9d00;
+  --accent-hover: #ffb238;
   --accent-foreground: #ffffff;
   --destructive: #ff7a70;
+  --success: #34b37e;
+  --warning: #e5a100;
   --border: rgb(233 241 245 / 12%);
   --input: rgb(233 241 245 / 18%);
-  --ring: #36d0c5;
-  --chart-1: #36d0c5;
-  --chart-2: #74a9ed;
-  --chart-3: #d44caf;
-  --chart-4: #f4bd62;
+  --ring: #ff9d00;
+  --chart-1: #5b8faf;
+  --chart-2: #ff9d00;
+  --chart-3: #34b37e;
+  --chart-4: #aebbc6;
   --chart-5: #e9f1f5;
   --sidebar: #101820;
   --sidebar-foreground: #e9f1f5;
-  --sidebar-primary: #36d0c5;
-  --sidebar-primary-foreground: #082322;
+  --sidebar-primary: #5b8faf;
+  --sidebar-primary-foreground: #0b1d2a;
   --sidebar-accent: #22313d;
   --sidebar-accent-foreground: #e9f1f5;
   --sidebar-border: rgb(233 241 245 / 12%);
-  --sidebar-ring: #36d0c5;
+  --sidebar-ring: #ff9d00;
 }
 
 .app-shell {
@@ -140,6 +149,27 @@
     background: color-mix(in srgb, var(--accent) 24%, transparent);
     color: var(--foreground);
   }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
 }
 
 /* Login page layout (components/auth/AuthPanel.tsx) */
@@ -160,7 +190,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
 }
 
 @media (max-width: 1023.98px) {
@@ -191,6 +220,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .login-illustration * {
+    animation: none !important;
+  }
+
+  .animate-in {
     animation: none !important;
   }
 }

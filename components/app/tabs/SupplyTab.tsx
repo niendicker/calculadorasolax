@@ -13,6 +13,7 @@ import { PageHeader, PageSummary } from '../shell/slots';
 import { SupplyLoadingSkeleton } from '../shared-ui';
 import type { BatteryCatalogOption, InlineProfile } from '../types';
 import { CartSummary } from './supply/CartSummary';
+import { ImportProjectPicker, type ImportCandidate } from './supply/ImportProjectPicker';
 import { OffersSection } from './supply/OffersSection';
 import { OrdersSection } from './supply/OrdersSection';
 import { SupplierPreferencesCard } from './supply/SupplierPreferencesCard';
@@ -131,9 +132,16 @@ export function SupplyTab({
         .limit(50),
     ]);
     const supplierList = (supplierResult.data ?? []) as Supplier[];
-    const preferredSupplierIds = ((preferencesResult.data ?? []) as { supplier_id: string }[]).map(
-      (row) => row.supplier_id
+    const defaultSupplierIds = new Set(
+      supplierList.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id)
     );
+    // A supplier promoted to default-for-all after the user already picked
+    // it shouldn't keep eating into their quota — supabase/migrations/0072
+    // cleans up the underlying row, but this filter keeps the count correct
+    // client-side too regardless of when that cleanup has run.
+    const preferredSupplierIds = ((preferencesResult.data ?? []) as { supplier_id: string }[])
+      .map((row) => row.supplier_id)
+      .filter((id) => !defaultSupplierIds.has(id));
     const allowedSupplierIds = [
       ...new Set([
         ...supplierList.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id),
@@ -359,8 +367,8 @@ export function SupplyTab({
   // session. The currently-open project (if any) uses the live `solution`
   // instead of its stored one, since that's the freshest data if it was just
   // recalculated and not saved yet.
-  const importCandidates = useMemo(() => {
-    const candidates: { id: string; name: string; solution: Solution }[] = [];
+  const importCandidates = useMemo<ImportCandidate[]>(() => {
+    const candidates: ImportCandidate[] = [];
     if (!currentProjectId && solution) {
       candidates.push({ id: '__draft__', name: projectInfo.name.trim() || 'Solução atual (não salva)', solution });
     }
@@ -372,20 +380,13 @@ export function SupplyTab({
     return candidates;
   }, [savedProjects, currentProjectId, solution, projectInfo.name]);
 
-  const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
-  const effectiveImportId =
-    selectedImportId && importCandidates.some((c) => c.id === selectedImportId)
-      ? selectedImportId
-      : (currentProjectId && importCandidates.some((c) => c.id === currentProjectId) ? currentProjectId : importCandidates[0]?.id) ?? null;
-  const selectedImportCandidate = importCandidates.find((c) => c.id === effectiveImportId) ?? null;
-
-  // Pre-fills the cart with the chosen project's own inverter/battery/
-  // non-bundled accessories, matched against active offers from whichever
-  // single supplier already has items in the cart (or the cheapest supplier
-  // offering the inverter, if the cart is still empty) — mirrors the
-  // single-supplier-per-cart rule enforced in changeQuantity, so this can't
-  // produce a cart the rest of the page would then reject.
-  function importSolutionItems(targetSolution: Solution) {
+  // Resolves which supplier a solution's items would import from (whichever
+  // supplier already has items in the cart, or the cheapest one offering the
+  // solution's inverter — mirrors the single-supplier-per-cart rule enforced
+  // in changeQuantity) and matches each wanted item against that supplier's
+  // offers. Shared by the actual import and by the picker's upfront
+  // compatibility check, so both agree on exactly the same result.
+  function resolveImportPlan(targetSolution: Solution) {
     const batteryParts = batteryQuantityBreakdown(
       targetSolution.batteryModel,
       targetSolution.batteryQty,
@@ -406,12 +407,12 @@ export function SupplyTab({
         offer.supplier_product_mappings.product_type === 'inverter' &&
         offer.supplier_product_mappings.product_model === targetSolution.inverterModel
     );
-    const targetSupplierId = cartSupplierId ?? inverterOffers[0]?.supplier_id;
+    const targetSupplierId = cartSupplierId ?? inverterOffers[0]?.supplier_id ?? null;
     if (!targetSupplierId) {
-      return setFailure('Nenhuma oferta de inversor compatível com a solução foi encontrada entre seus fornecedores.');
+      return { targetSupplierId: null, matches: [], unmatched: wanted.map((item) => item.model) };
     }
 
-    const nextCart: Cart = { ...cart };
+    const matches: { item: (typeof wanted)[number]; offer: SupplierOfferView }[] = [];
     const unmatched: string[] = [];
     for (const item of wanted) {
       const offer = offers.find(
@@ -420,27 +421,49 @@ export function SupplyTab({
           candidate.supplier_product_mappings.product_type === item.productType &&
           candidate.supplier_product_mappings.product_model === item.model
       );
-      if (!offer) {
-        unmatched.push(item.model);
-        continue;
-      }
+      if (!offer) unmatched.push(item.model);
+      else matches.push({ item, offer });
+    }
+    return { targetSupplierId, matches, unmatched };
+  }
+
+  // Only projects whose every item already has an offer from the resolved
+  // supplier show as importable in the picker — an upfront check so an
+  // incompatible project reads as such before it's clicked, not just after.
+  function checkImportCompatibility(targetSolution: Solution) {
+    const plan = resolveImportPlan(targetSolution);
+    return { compatible: plan.targetSupplierId !== null && plan.unmatched.length === 0, missing: plan.unmatched };
+  }
+
+  // Pre-fills the cart with the chosen project's own inverter/battery/
+  // non-bundled accessories. Still used as-is by the auto-import effect
+  // below (arriving via "Cotar solução" bypasses the picker and its
+  // compatibility gate), which is why it still tolerates and reports a
+  // partial match instead of assuming resolveImportPlan found everything.
+  function importSolutionItems(targetSolution: Solution) {
+    const plan = resolveImportPlan(targetSolution);
+    if (!plan.targetSupplierId) {
+      return setFailure('Nenhuma oferta de inversor compatível com a solução foi encontrada entre seus fornecedores.');
+    }
+
+    const nextCart: Cart = { ...cart };
+    for (const { item, offer } of plan.matches) {
       const maximum = offer.stock_quantity ?? item.qty;
       nextCart[offer.id] = Math.max(nextCart[offer.id] ?? 0, Math.min(item.qty, maximum));
     }
     setCart(nextCart);
-    if (unmatched.length > 0) {
-      setFailure(`Itens sem oferta do fornecedor selecionado, não adicionados: ${unmatched.join(', ')}.`);
+    if (plan.unmatched.length > 0) {
+      setFailure(`Itens sem oferta do fornecedor selecionado, não adicionados: ${plan.unmatched.join(', ')}.`);
     } else {
       setSuccess('Itens da solução adicionados ao carrinho.');
     }
   }
 
-  function importFromSolution() {
-    if (!selectedImportCandidate) return setFailure('Nenhuma solução calculada para importar.');
-    importSolutionItems(selectedImportCandidate.solution);
+  function handleImportCandidate(candidate: ImportCandidate) {
+    importSolutionItems(candidate.solution);
     // '__draft__' is the live, not-yet-saved solution — nothing to link the
     // order to yet, unlike every other candidate, which is a real project id.
-    setCartProjectId(selectedImportCandidate.id === '__draft__' ? null : selectedImportCandidate.id);
+    setCartProjectId(candidate.id === '__draft__' ? null : candidate.id);
   }
 
   useEffect(() => {
@@ -474,7 +497,7 @@ export function SupplyTab({
         <div
           role={error ? 'alert' : 'status'}
           className={`rounded-lg border px-3 py-2 text-sm ${
-            error ? 'border-destructive/40 text-destructive' : 'border-emerald-300 text-emerald-700'
+            error ? 'border-destructive/40 text-destructive' : 'border-success/40 text-success'
           }`}
         >
           {error ?? status}
@@ -495,24 +518,11 @@ export function SupplyTab({
           />
 
           {importCandidates.length > 0 && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                aria-label="Projeto para importar itens"
-                className="flex h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9 md:px-2.5 md:text-sm sm:max-w-xs"
-                value={effectiveImportId ?? ''}
-                onChange={(event) => setSelectedImportId(event.target.value)}
-              >
-                {importCandidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </select>
-              <Button variant="outline" onClick={importFromSolution}>
-                <ShoppingCart className="h-4 w-4" />
-                Importar itens do projeto
-              </Button>
-            </div>
+            <ImportProjectPicker
+              candidates={importCandidates}
+              checkCompatibility={checkImportCompatibility}
+              onImport={handleImportCandidate}
+            />
           )}
 
           <OffersSection
@@ -529,7 +539,10 @@ export function SupplyTab({
            * keeps the cart reachable on phones no matter how far the offers grid
            * has been scrolled. */}
           {cartOffers.length > 0 && (
-            <Button className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 shadow-lg xl:hidden" onClick={onShowSummary}>
+            <Button
+              className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300 xl:hidden"
+              onClick={onShowSummary}
+            >
               <ShoppingCart className="h-4 w-4" />
               Ver carrinho ({cartOffers.length}) · {money(subtotal, cartSupplier?.currency)}
             </Button>

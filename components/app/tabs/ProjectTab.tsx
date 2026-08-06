@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ClipboardList } from 'lucide-react';
+import { Select } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
@@ -309,11 +310,11 @@ export function ProjectTab({
                     </button>
                   ))}
                 </div>
-                <select
+                <Select
                   aria-label="Filtrar por status da cotação"
                   value={quoteStatusFilter}
                   onChange={(event) => setQuoteStatusFilter(event.target.value as typeof quoteStatusFilter)}
-                  className="h-10 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8"
+                  className="shrink-0 px-2 text-xs md:px-2"
                 >
                   <option value="all">Todos os status</option>
                   {(Object.keys(projectStatusLabels) as ProjectStatus[]).map((value) => (
@@ -321,17 +322,17 @@ export function ProjectTab({
                       {projectStatusLabels[value]}
                     </option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   aria-label="Ordenar projetos"
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                  className="h-10 shrink-0 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8"
+                  className="shrink-0 px-2 text-xs md:px-2"
                 >
                   <option value="recent">Mais recentes</option>
                   <option value="name">Nome (A-Z)</option>
                   <option value="client">Cliente (A-Z)</option>
-                </select>
+                </Select>
               </div>
             </div>
           )}
