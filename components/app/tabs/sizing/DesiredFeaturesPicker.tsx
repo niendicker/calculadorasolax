@@ -260,6 +260,7 @@ export function DesiredFeaturesPicker({
             dailyKwh={dailyKwh}
             whiteTariff={whiteTariff}
             onWhiteTariffChange={onWhiteTariffChange}
+            pv={pv}
           />
         )}
 

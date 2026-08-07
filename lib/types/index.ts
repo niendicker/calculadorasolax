@@ -360,6 +360,12 @@ export interface ProjectInfo {
   notes: string;
 }
 
+/** Lifecycle of a public quote-share link (see quote_shares table and
+ *  components/app/helpers.ts's buildQuoteShareSnapshot) — a subset of
+ *  ProjectStatus's vocabulary shared verbatim so a customer's response can
+ *  be copied straight into ProjectStatus with no translation. */
+export type QuoteShareStatus = 'sent' | 'accepted' | 'rejected';
+
 /** A project's quotation lifecycle: still being configured, shared with the
  *  client, or resolved either way. Set only via `updateProjectStatus` — not
  *  part of `ProjectInfo`, so routine draft edits/autosave never touch it. */

@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ClipboardCopy,
   Gauge,
+  Link2,
   Loader2,
   Mail,
   MapPin,
@@ -18,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
+import { createClient } from '@/lib/supabase/client';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
@@ -25,6 +27,7 @@ import {
   buildClientQuoteText,
   buildPdfFileName,
   buildProjectShareText,
+  buildQuoteShareSnapshot,
   buildWhatsAppShareUrl,
   calculateSystemCost,
   formatCurrencyBRL,
@@ -108,6 +111,8 @@ export function SelectedProjectSummary({
     : [];
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [sendingQuote, setSendingQuote] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [creatingShareLink, setCreatingShareLink] = useState(false);
 
   const shareableProject = {
     name: project.name,
@@ -180,6 +185,41 @@ export function SelectedProjectSummary({
 
     window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
     markSent();
+  }
+
+  // Creates a public, no-login link the client can open to review the same
+  // data as the PDF and click Aceitar/Recusar — quote_shares.snapshot
+  // freezes the numbers at this exact moment (see buildQuoteShareSnapshot's
+  // own doc comment for what's deliberately left out of it). profile.id
+  // doubles as auth.uid() (profiles.id references auth.users.id), so no
+  // separate getUser() round trip is needed here.
+  async function handleCreateShareLink() {
+    if (!profile) return;
+    const snapshot = buildQuoteShareSnapshot(project, {
+      client: client ?? null,
+      profile,
+      userStockItems,
+      marginSettings,
+      userServices,
+      batteryCatalog,
+      inverterCatalog,
+    });
+    if (!snapshot) return;
+
+    setCreatingShareLink(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('quote_shares')
+        .insert({ project_id: project.id, user_id: profile.id, snapshot })
+        .select('id')
+        .single();
+      if (error || !data) return;
+      setShareLink(`${window.location.origin}/cotacao/${data.id}`);
+      markSent();
+    } finally {
+      setCreatingShareLink(false);
+    }
   }
 
   return (
@@ -365,6 +405,19 @@ export function SelectedProjectSummary({
         {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
         Compartilhar cotação
       </Button>
+
+      <Button
+        variant="outline"
+        size="lg"
+        className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+        disabled={!project.solution || creatingShareLink}
+        title={project.solution ? undefined : 'Calcule uma solução para este projeto antes de compartilhar o link.'}
+        onClick={() => void handleCreateShareLink()}
+      >
+        {creatingShareLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+        Compartilhar orçamento (link)
+      </Button>
+      <SharePreviewModal text={shareLink} onClose={() => setShareLink(null)} />
 
       <Button
         variant="outline"

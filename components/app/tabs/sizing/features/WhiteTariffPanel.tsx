@@ -5,7 +5,7 @@ import { AlertTriangle, Clock, Moon, Zap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { DesiredFeatureId, WhiteTariffConfig } from '@/lib/types';
+import type { DesiredFeatureId, PvConfig, WhiteTariffConfig } from '@/lib/types';
 import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
 import { cn } from '@/lib/utils';
 import { TARIFF_BUSINESS_DAYS_PER_MONTH, calculateTariffSavings, isWhiteTariffConfigIncomplete } from '../../../helpers';
@@ -85,16 +85,25 @@ function WhiteTariffEnergyField({
   );
 }
 
+/** Kept in sync between "Armazenamento preliminar" and "Economia preliminar"
+ *  in the instant summary below, so both preview numbers share the same
+ *  loss assumption instead of one silently being lossless — replaced by the
+ *  chosen battery's real round_trip_efficiency_percent once a solution is
+ *  picked (see calculateSystemCost/buildMarginSummary call sites). */
+const PRELIMINARY_ROUND_TRIP_EFFICIENCY_PERCENT = 90;
+
 export function WhiteTariffPanel({
   value,
   dailyKwh,
   whiteTariff,
   onWhiteTariffChange,
+  pv,
 }: {
   value: DesiredFeatureId[];
   dailyKwh: number;
   whiteTariff: WhiteTariffConfig | null;
   onWhiteTariffChange: (whiteTariff: WhiteTariffConfig | null) => void;
+  pv: PvConfig | null;
 }) {
   const backupDailyKwh = value.includes('backup') ? dailyKwh : 0;
   const whiteBusinessDays = whiteTariff?.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH;
@@ -105,14 +114,25 @@ export function WhiteTariffPanel({
     ? ((whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / 1000) * whiteBusinessDays
     : 0;
   const whiteOffPeakMonthlyKwh = Math.max(0, whiteTotalMonthlyKwh - whiteExpensiveMonthlyKwh);
+  const whiteOffPeakDailyKwh = whiteBusinessDays > 0 ? whiteOffPeakMonthlyKwh / whiteBusinessDays : 0;
   const whiteShiftPercent = whiteTotalMonthlyKwh > 0
     ? Math.min(100, (whiteExpensiveMonthlyKwh / whiteTotalMonthlyKwh) * 100)
     : 0;
   const preliminaryStorageKwh = whiteTariff
-    ? (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / 1000 / 0.9
+    ? (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / 1000 / (PRELIMINARY_ROUND_TRIP_EFFICIENCY_PERCENT / 100)
     : 0;
+  // Before a solution exists there's no chosen inverter to cap the array, so
+  // the raw (uncapped) PV size is exactly what generates the customer's own
+  // monthlyConsumptionKwh over the month — see desiredPvPowerKw in the Edge
+  // Function, whose generation (rawKw * hsp * 30) algebraically simplifies
+  // back to monthlyConsumptionKwh. That lets the battery displacement
+  // preview credit solar as a charging source without duplicating that math.
+  const preliminaryPvMonthlyGenerationKwh =
+    value.includes('pv') && pv && pv.monthlyConsumptionKwh > 0 && pv.hsp > 0 ? pv.monthlyConsumptionKwh : null;
   const preliminaryTariffSavings = calculateTariffSavings(whiteTariff ?? null, {
     totalMonthlyConsumptionKwh: whiteTotalMonthlyKwh || null,
+    pvMonthlyGenerationKwh: preliminaryPvMonthlyGenerationKwh,
+    batteryRoundTripEfficiencyPercent: PRELIMINARY_ROUND_TRIP_EFFICIENCY_PERCENT,
   });
 
   const [distributors, setDistributors] = useState<string[]>([]);
@@ -526,6 +546,9 @@ export function WhiteTariffPanel({
                 });
               }}
             />
+            {whiteTotalMonthlyKwh > 0 && (
+              <p className="text-xs text-muted-foreground">{whiteOffPeakDailyKwh.toFixed(2)} kWh/dia</p>
+            )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             A energia fora ponta é calculada automaticamente: consumo total (Fotovoltaico) menos ponta e intermediária.

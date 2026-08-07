@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { NextIntlClientProvider } from 'next-intl';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import type {
@@ -305,6 +305,19 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.6 }));
   });
 
+  it('shows the calculated fora-ponta daily energy', () => {
+    renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt });
+    // Expensive (ponta+intermediária): (3600+1800)/1000 * 22 dias = 118.8 kWh/mês.
+    // Fora ponta: 400 - 118.8 = 281.2 kWh/mês; / 22 dias = 12.78 kWh/dia.
+    expect(screen.getByText('12.78 kWh/dia')).toBeInTheDocument();
+  });
+
+  it('omits the fora-ponta daily energy when total monthly consumption is not informed', () => {
+    renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: { ...wt, totalMonthlyConsumptionKwh: 0 } });
+    const foraPontaCard = screen.getByText('Fora ponta').closest('div')!;
+    expect(within(foraPontaCard).queryByText(/kWh\/dia/)).not.toBeInTheDocument();
+  });
+
   it('shows the tariff-order warning when ponta/intermediate are below fora ponta', () => {
     renderPicker({
       activeTab: 'white_tariff',
@@ -335,6 +348,38 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
       whiteTariff: { ...wt, pontaTariffPerKwh: 0.75, intermediateTariffPerKwh: 0.75, foraPontaTariffPerKwh: 0.75 },
     });
     expect(screen.getByText('Resumo instantâneo')).toBeInTheDocument();
+  });
+
+  it('feeds the preliminary PV generation into the arbitrage savings estimate when pv is also selected', () => {
+    const withoutPv = renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, pv: null });
+    const withoutPvSavings = screen.getByText('Economia preliminar').closest('div')!.querySelector('strong')!.textContent;
+    withoutPv.unmount();
+
+    renderPicker({
+      activeTab: 'white_tariff',
+      value: ['white_tariff', 'pv'],
+      whiteTariff: wt,
+      pv: { monthlyConsumptionKwh: 300, hsp: 4.5 },
+    });
+    const withPvSavings = screen.getByText('Economia preliminar').closest('div')!.querySelector('strong')!.textContent;
+
+    expect(withPvSavings).not.toBe(withoutPvSavings);
+  });
+
+  it('ignores the pv config for the savings estimate when pv is not a selected feature', () => {
+    const withoutPvFeature = renderPicker({
+      activeTab: 'white_tariff',
+      value: ['white_tariff'],
+      whiteTariff: wt,
+      pv: { monthlyConsumptionKwh: 300, hsp: 4.5 },
+    });
+    const withoutPvFeatureSavings = screen.getByText('Economia preliminar').closest('div')!.querySelector('strong')!.textContent;
+    withoutPvFeature.unmount();
+
+    renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, pv: null });
+    const withNullPvSavings = screen.getByText('Economia preliminar').closest('div')!.querySelector('strong')!.textContent;
+
+    expect(withoutPvFeatureSavings).toBe(withNullPvSavings);
   });
 
   it('updates business days / ponta hours / intermediate hours assumptions in basic and advanced modes', () => {

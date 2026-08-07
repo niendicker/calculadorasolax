@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { NextIntlClientProvider } from 'next-intl';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import type {
@@ -231,14 +231,15 @@ describe('ResultSummary: financial analysis', () => {
     expect(screen.queryByText('Análise financeira estimada')).not.toBeInTheDocument();
   });
 
-  it('shows the investment card and a "Falta precificar" note when partially priced', () => {
+  it('shows the "Falta precificar" note right under Investimento estimado when partially priced', () => {
     const userStockItems: UserStockItem[] = [
       { id: 's1', productType: 'inverter', productModel: 'X1-Hybrid-5.0kW-G4', unitValue: 10000, createdAt: '', updatedAt: '' },
     ];
     renderResult({ userStockItems });
     expect(screen.getByText('Análise financeira estimada')).toBeInTheDocument();
     expect(screen.getByText('Valor parcial · 1 de 2 modelos/serviços')).toBeInTheDocument();
-    expect(screen.getByText('Falta precificar')).toBeInTheDocument();
+    const investmentCard = screen.getByText('Investimento estimado').closest('div')!;
+    expect(within(investmentCard).getByText(/Falta precificar:/)).toBeInTheDocument();
   });
 
   it('shows a complete investment total when all items and services are priced', () => {

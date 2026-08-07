@@ -2,6 +2,7 @@ import type {
   Address,
   AccessoryLine,
   BatteryTopology,
+  Client,
   DesiredFeatureId,
   GeneratorConfig,
   MarginSettings,
@@ -9,6 +10,7 @@ import type {
   ProjectServiceLine,
   PvConfig,
   ResidentialGridType,
+  SavedProject,
   Solution,
   StockProductType,
   UserServiceItem,
@@ -17,7 +19,8 @@ import type {
 } from '@/lib/types';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
-import { gridLabels, topologyLabels } from './types';
+import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-calculations';
+import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfile, type InverterCatalogOption } from './types';
 
 export { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart };
 
@@ -609,6 +612,148 @@ export function buildWhatsAppShareUrl(phone: string, text: string): string | nul
   return `https://wa.me/${fullNumber}?text=${encodeURIComponent(text)}`;
 }
 
+/** Frozen, customer-safe copy of a project's quote — everything a public
+ * quote-share link (quote_shares table) needs to render, with nothing that
+ * requires the installer's private tables (userStockItems, marginSettings,
+ * catalogs) to redisplay later, since the end customer has no session to
+ * read those. Deliberately excludes MarginSettings/unitValue (the
+ * installer's cost/margin, never shown to a customer), Solution.solutionCode/
+ * sourceFile (internal rule identifiers — see project-quote-pdf.tsx's
+ * "Referência técnica"), and Client.notes (the installer's private CRM
+ * note). */
+export interface QuoteShareSnapshot {
+  companyName: string | null;
+  companyLogoUrl: string | null;
+  projectName: string;
+  clientName: string | null;
+  generatedAt: string;
+  nominalW: number;
+  peakW: number;
+  dailyKwh: number;
+  desiredFeatures: DesiredFeatureId[];
+  whiteTariff: WhiteTariffConfig | null;
+  pv: PvConfig | null;
+  pvPowerKw: number | null;
+  pvMonthlyGenerationKwh: number | null;
+  microgrid: MicrogridConfig | null;
+  generator: GeneratorConfig | null;
+  products: { category: string; model: string; qty: number }[];
+  services: { name: string; qty: number }[];
+  marginRows: MarginRow[];
+  systemCost: { totalCost: number; isComplete: boolean } | null;
+  tariffSavings: TariffSavingsEstimate | null;
+}
+
+/** Builds the snapshot persisted into quote_shares.snapshot at share time —
+ * same computations project-quote-pdf.tsx's ProjectQuotePdfDocument already
+ * runs (calculateSystemCost, calculateTariffSavings, buildMarginSummary),
+ * trimmed to the customer-facing subset described on QuoteShareSnapshot.
+ * Returns null when the project has no calculated solution yet, mirroring
+ * buildProjectQuotePdfInputFromSavedProject's same guard. */
+export function buildQuoteShareSnapshot(
+  project: SavedProject,
+  {
+    client,
+    profile,
+    userStockItems,
+    marginSettings,
+    userServices,
+    batteryCatalog,
+    inverterCatalog = [],
+  }: {
+    client: Client | null;
+    profile: InlineProfile | null;
+    userStockItems: UserStockItem[];
+    marginSettings?: MarginSettings;
+    userServices?: UserServiceItem[];
+    batteryCatalog: BatteryCatalogOption[];
+    inverterCatalog?: InverterCatalogOption[];
+  }
+): QuoteShareSnapshot | null {
+  const { solution, residentialOptions, services = [] } = project;
+  if (!solution) return null;
+
+  const nominalW = totalNominalW(residentialOptions.loads);
+  const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
+  const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
+
+  const batteryPerformance = batteryCatalog.find((item) => item.model === solution.batteryModel);
+  const inverterPerformance = inverterCatalog.find((item) => item.model === solution.inverterModel);
+  const tariffSavings = calculateTariffSavings(residentialOptions.whiteTariff, {
+    totalMonthlyConsumptionKwh:
+      residentialOptions.whiteTariff?.totalMonthlyConsumptionKwh || residentialOptions.pv?.monthlyConsumptionKwh || null,
+    availableEnergyWh: solution.availableEnergyWh ?? 0,
+    pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh,
+    batteryRoundTripEfficiencyPercent: batteryPerformance?.roundTripEfficiencyPercent ?? 95,
+    inverterChargeEfficiencyPercent: inverterPerformance?.batteryChargeEfficiencyPercent ?? 97,
+    inverterDischargeEfficiencyPercent: inverterPerformance?.batteryDischargeEfficiencyPercent ?? 97,
+    initialSohPercent: batteryPerformance?.initialSohPercent ?? 100,
+    annualSohLossPercent: batteryPerformance?.annualSohLossPercent ?? 2,
+    standbyConsumptionW: inverterPerformance?.standbyConsumptionW ?? 0,
+    maxBatteryDischargePowerW: inverterPerformance?.maxBatteryDischargePowerW ?? null,
+    maxBatteryChargePowerW: inverterPerformance?.maxBatteryChargePowerW ?? null,
+  });
+
+  const systemCostEstimate = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog);
+  const systemCost =
+    systemCostEstimate.pricedItemsCount > 0
+      ? { totalCost: systemCostEstimate.totalCost, isComplete: systemCostEstimate.isComplete }
+      : null;
+
+  const marginRows = solution.microgridAlternative
+    ? []
+    : buildMarginSummary({
+        desiredFeatures: residentialOptions.desiredFeatures,
+        whiteTariff: residentialOptions.whiteTariff,
+        microgrid: residentialOptions.microgrid,
+        pv: residentialOptions.pv,
+        nominalW,
+        peakW,
+        dailyKwh,
+        solution,
+      });
+
+  const products: QuoteShareSnapshot['products'] = [
+    { category: 'Inversor', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
+  ];
+  const batteryParts = batteryQuantityBreakdown(
+    solution.batteryModel,
+    solution.batteryQty,
+    batteryCatalog,
+    (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+  );
+  batteryParts.forEach((part, index) => {
+    products.push({ category: index === 0 ? 'Bateria' : 'Bateria (expansão)', model: part.model, qty: part.qty });
+  });
+  solution.accessories.forEach((accessory) => {
+    const { model, qty } = normalizeAccessoryLine(accessory);
+    products.push({ category: 'Acessório', model, qty });
+  });
+
+  return {
+    companyName: profile?.companyName ?? null,
+    companyLogoUrl: profile?.companyLogoUrl ?? null,
+    projectName: project.name,
+    clientName: client?.name ?? null,
+    generatedAt: new Date().toISOString(),
+    nominalW,
+    peakW,
+    dailyKwh,
+    desiredFeatures: residentialOptions.desiredFeatures,
+    whiteTariff: residentialOptions.whiteTariff,
+    pv: residentialOptions.pv,
+    pvPowerKw: solution.pvPowerKw,
+    pvMonthlyGenerationKwh: solution.pvMonthlyGenerationKwh ?? null,
+    microgrid: residentialOptions.microgrid,
+    generator: residentialOptions.generator,
+    products,
+    services: services.map((line) => ({ name: line.name, qty: line.qty })),
+    marginRows,
+    systemCost,
+    tariffSavings,
+  };
+}
+
 export interface TariffSavingsEstimate {
   monthlySavings: number;
   annualSavings: number;
@@ -621,14 +766,15 @@ export interface TariffSavingsEstimate {
    * that would contradict the customer's own total. */
   monthlyCostWithoutSolaxBrl: number | null;
   monthlyCostWithSolaxBrl: number | null;
-  /** Portion of monthlySavings contributed by PV generation — either shifted
-   * into the ponta/intermediária windows via the battery (capped by its
-   * daily capacity, see calculateTariffSavings) or self-consumed at the fora
-   * ponta rate. Zero when there's no PV generation estimate; always 0 <=
-   * pvMonthlySavings <= monthlySavings. */
+  /** Portion of monthlySavings from PV generation that never touches the
+   * battery — already full, or the tariff windows are already fully served
+   * — credited at the fora ponta rate. Zero when there's no PV generation
+   * estimate, or when it's small enough that the battery absorbs all of it
+   * (see batteryMonthlySavings). Always 0 <= pvMonthlySavings <= monthlySavings. */
   pvMonthlySavings: number;
-  /** Savings produced by shifting energy with the battery, excluding the
-   * portion attributed to photovoltaic generation. */
+  /** Savings from everything the battery discharges into the ponta/
+   * intermediária windows, whichever source charged it — solar (capped by
+   * the battery's daily capacity, see calculateTariffSavings) or grid. */
   batteryMonthlySavings: number;
   /** False when ponta/intermediária are not actually more expensive than
    * fora ponta, making the arbitrage estimate misleading or negative. */
@@ -711,16 +857,18 @@ export function calculateDegradedPaybackMonths(
  * (see pvMonthlySavings for the PV-only breakdown). Null when white_tariff
  * isn't configured.
  *
- * Without PV, the saving is simply the ponta/intermediária energy shifted
- * off the grid, valued at the spread against the fora ponta rate (the
- * battery recharges at the cheap fora ponta rate to cover it). With PV, the
- * portion of the battery's daily charge that comes from free solar instead
- * of the grid saves the *full* ponta/intermediária tariff instead of just
- * the spread — but that portion can never exceed the battery's own daily
- * capacity (`availableEnergyWh`), and ponta gets first claim on it (the
- * pricier window). Any solar left over (battery full, or ponta/intermediária
- * already fully covered) still offsets grid consumption at the fora ponta
- * rate, same as before PV was factored in.
+ * `batteryMonthlySavings` is the value of *all* energy the battery discharges
+ * into the ponta/intermediária windows, regardless of what charged it —
+ * grid-charged energy is valued at the spread against the fora ponta rate
+ * (the battery recharges at the cheap fora ponta rate to cover it);
+ * solar-charged energy is valued at the *full* ponta/intermediária tariff,
+ * since it cost nothing to put in. Solar's share of that daily discharge can
+ * never exceed the battery's own daily capacity (`availableEnergyWh`), and
+ * ponta gets first claim on it (the pricier window). `pvMonthlySavings` is
+ * only the solar left over once the battery is full and both windows are
+ * already fully served — credited separately at the fora ponta rate, and
+ * deliberately excluded from calculateDegradedPaybackMonths' SOH fade since
+ * it never depends on battery health.
  *
  * When `totalMonthlyConsumptionKwh` is given (Fotovoltaico's own
  * monthlyConsumptionKwh, when that feature is enabled too), also derives two
@@ -820,13 +968,19 @@ export function calculateTariffSavings(
   );
   const monthlyExcessSolarSavings = dailySolarExcessKwh * whiteTariff.foraPontaTariffPerKwh * DAYS_PER_MONTH;
 
-  const pvMonthlySavings =
-    businessDays *
-      (dailySolarToPonta * whiteTariff.pontaTariffPerKwh + dailySolarToIntermediate * whiteTariff.intermediateTariffPerKwh) +
-    monthlyExcessSolarSavings;
-
   const standbyMonthlyCost = Math.max(0, standbyConsumptionW) * 24 * DAYS_PER_MONTH / 1000 * whiteTariff.foraPontaTariffPerKwh;
-  const batteryMonthlySavings = Math.max(0, monthlyPontaSavings + monthlyIntermediateSavings - pvMonthlySavings - standbyMonthlyCost);
+  // Everything the battery discharges into ponta/intermediária, whichever
+  // source charged it — solar or grid. Folding solar-charged discharge in
+  // here (instead of under pvMonthlySavings) means this figure never reads
+  // as "0" just because PV happens to cover 100% of what the battery is
+  // shifting; it also means calculateDegradedPaybackMonths' SOH fade now
+  // correctly applies to that portion too, since a degraded battery holds
+  // less of either source.
+  const batteryMonthlySavings = Math.max(0, monthlyPontaSavings + monthlyIntermediateSavings - standbyMonthlyCost);
+  // Solar generation that never touches the battery at all (already full,
+  // or the tariff windows are already fully served) — credited at the fora
+  // ponta rate regardless of battery health, so kept out of SOH fade.
+  const pvMonthlySavings = monthlyExcessSolarSavings;
   const monthlySavings = batteryMonthlySavings + pvMonthlySavings;
   const tariffOrderValid = pontaSpread >= 0 && intermediateSpread >= 0;
 

@@ -5,6 +5,7 @@ import {
   buildMarginSummary,
   buildPdfFileName,
   buildProjectShareText,
+  buildQuoteShareSnapshot,
   buildWhatsAppShareUrl,
   calculateDegradedPaybackMonths,
   calculateSystemCost,
@@ -23,7 +24,19 @@ import {
   recommendedGeneratorApparentPowerVA,
   solutionHasInsufficientMargin,
 } from './helpers';
-import type { AccessoryLine, GeneratorConfig, MicrogridConfig, Solution, UserStockItem, WhiteTariffConfig } from '@/lib/types';
+import { emptyAddress } from '@/lib/address';
+import type {
+  AccessoryLine,
+  Client,
+  DesiredFeatureId,
+  GeneratorConfig,
+  MicrogridConfig,
+  SavedProject,
+  Solution,
+  UserStockItem,
+  WhiteTariffConfig,
+} from '@/lib/types';
+import type { BatteryCatalogOption, InlineProfile } from './types';
 
 function makeGenerator(partial: Partial<GeneratorConfig> = {}): GeneratorConfig {
   return { voltageV: 220, phases: 1, apparentPowerVA: 5000, photoUrl: null, ownAtsAcknowledged: false, ...partial };
@@ -67,6 +80,80 @@ function makeStockItem(partial: Partial<UserStockItem> = {}): UserStockItem {
     unitValue: 5000,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
+    ...partial,
+  };
+}
+
+function makeBatteryCatalogOption(partial: Partial<BatteryCatalogOption> & { model: string }): BatteryCatalogOption {
+  return {
+    id: partial.model,
+    capacityKwh: 5.8,
+    topology: 'HV',
+    standardPowerKw: 2.8,
+    peakPowerKw: 5.6,
+    minSocPercent: 10,
+    imageUrl: null,
+    documents: [],
+    ...partial,
+  };
+}
+
+function makeClient(partial: Partial<Client> = {}): Client {
+  return {
+    id: 'client-1',
+    name: 'Cliente Teste',
+    email: '',
+    phone: '',
+    document: '',
+    notes: 'Cliente difícil, sempre pede desconto — nunca mostrar isso pra ele.',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    ...partial,
+  };
+}
+
+function makeProfile(partial: Partial<InlineProfile> = {}): InlineProfile {
+  return {
+    id: 'user-1',
+    email: 'vendedor@empresa.com',
+    fullName: 'Vendedor Teste',
+    phone: '',
+    role: 'user',
+    companyName: 'Empresa Teste',
+    companyAddress: emptyAddress(),
+    companyLogoUrl: '',
+    ...partial,
+  };
+}
+
+function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
+  return {
+    name: 'Projeto Teste',
+    clientId: null,
+    address: emptyAddress(),
+    notes: '',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    residentialOptions: {
+      topology: 'HighVoltage',
+      batteryModel: 'T-BAT-SYS HV 5.8 V2',
+      secondaryBatteryModel: null,
+      inverterModel: null,
+      gridType: 'singlePhase_220',
+      loads: [{ id: 'l1', name: 'Carga', powerW: 1000, qty: 1, ipInRatio: 1 }],
+      peakCalcMode: 'sum',
+      operationHours: 4,
+      desiredFeatures: ['backup'],
+      whiteTariff: null,
+      microgrid: null,
+      generator: null,
+      pv: null,
+      atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
+      maxPowerPerPhaseW: null,
+    },
+    solution: null,
+    services: [],
     ...partial,
   };
 }
@@ -231,7 +318,7 @@ describe('buildMarginSummary', () => {
 });
 
 describe('solutionHasInsufficientMargin', () => {
-  const params = { desiredFeatures: ['backup'], whiteTariff: null, microgrid: null, pv: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
+  const params = { desiredFeatures: ['backup'] as DesiredFeatureId[], whiteTariff: null, microgrid: null, pv: null, nominalW: 3000, peakW: 6000, dailyKwh: 3 };
 
   it('returns true when any margin row falls short of what is required', () => {
     const shortOnEnergy = makeSolution({ inverterRatedPowerW: 5000, inverterPeakPowerW: 7000, availableEnergyWh: 1000 });
@@ -508,7 +595,7 @@ describe('calculateTariffSavings', () => {
     expect(result!.pvMonthlySavings).toBe(0);
   });
 
-  it('values PV generation shifted into ponta at the full ponta tariff, up to the battery capacity, ponta getting first claim', () => {
+  it('credits PV generation shifted into ponta at the full ponta tariff to batteryMonthlySavings, up to the battery capacity, ponta getting first claim', () => {
     // Battery holds 3 kWh/dia; ponta needs 4 kWh/dia, intermediária needs 2 kWh/dia; PV generates 5 kWh/dia (150/30).
     // Ponta gets first claim: min(3, 4) = 3 kWh/dia shifted to ponta, nothing left over for intermediária.
     const whiteTariff = makeWhiteTariff({
@@ -524,20 +611,21 @@ describe('calculateTariffSavings', () => {
     const intermediateShiftKwh = 0; // battery capacity already used up by ponta
     const dailyExcessSolarKwh = 5 - pontaShiftKwh - intermediateShiftKwh;
 
-    const expectedMonthlySavings =
-      TARIFF_BUSINESS_DAYS_PER_MONTH *
-        (pontaShiftKwh * 1.2 + intermediateShiftKwh * 1.0) +
-      dailyExcessSolarKwh * 0.8 * 30;
-    const expectedPvMonthlySavings =
-      TARIFF_BUSINESS_DAYS_PER_MONTH * (pontaShiftKwh * 1.2 + intermediateShiftKwh * 1.0) + dailyExcessSolarKwh * 0.8 * 30;
+    // Solar-charged battery discharge (whether the battery is full or not) is
+    // now part of batteryMonthlySavings, not pvMonthlySavings — only the
+    // excess that never touches the battery stays under pvMonthlySavings.
+    const expectedBatteryMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (pontaShiftKwh * 1.2 + intermediateShiftKwh * 1.0);
+    const expectedPvMonthlySavings = dailyExcessSolarKwh * 0.8 * 30;
+    const expectedMonthlySavings = expectedBatteryMonthlySavings + expectedPvMonthlySavings;
 
     expect(result!.monthlySavings).toBeCloseTo(expectedMonthlySavings);
+    expect(result!.batteryMonthlySavings).toBeCloseTo(expectedBatteryMonthlySavings);
     expect(result!.pvMonthlySavings).toBeCloseTo(expectedPvMonthlySavings);
     // pvMonthlySavings never exceeds the combined total.
     expect(result!.pvMonthlySavings).toBeLessThanOrEqual(result!.monthlySavings);
   });
 
-  it('spills leftover battery capacity from ponta into intermediária once ponta is fully covered', () => {
+  it('spills leftover battery capacity from ponta into intermediária once ponta is fully covered, crediting batteryMonthlySavings even when solar covers it entirely', () => {
     // Battery holds 5 kWh/dia; ponta needs 2 kWh/dia (fully shiftable), leaving 3 kWh/dia for intermediária (needs 4).
     const whiteTariff = makeWhiteTariff({
       pontaEnergyWh: 2000,
@@ -548,9 +636,11 @@ describe('calculateTariffSavings', () => {
     });
     const result = calculateTariffSavings(whiteTariff, { availableEnergyWh: 5000, pvMonthlyGenerationKwh: 150 });
 
-    // Ponta fully shifted (2 kWh/dia) + intermediária shifted 3 kWh/dia (remaining battery capacity).
-    const expectedPvMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (2 * 1.2 + 3 * 1.0);
-    expect(result!.pvMonthlySavings).toBeCloseTo(expectedPvMonthlySavings);
+    // Ponta fully shifted (2 kWh/dia) + intermediária shifted 3 kWh/dia (remaining battery capacity) — PV's
+    // 5 kWh/dia exactly covers the battery's 5 kWh/dia capacity, so there's no excess left for pvMonthlySavings.
+    const expectedBatteryMonthlySavings = TARIFF_BUSINESS_DAYS_PER_MONTH * (2 * 1.2 + 3 * 1.0);
+    expect(result!.batteryMonthlySavings).toBeCloseTo(expectedBatteryMonthlySavings);
+    expect(result!.pvMonthlySavings).toBe(0);
   });
 
   it('prioritizes the intermediate period when it has the greater tariff benefit', () => {
@@ -711,6 +801,125 @@ describe('buildWhatsAppShareUrl', () => {
 
   it('does not double the country code when it is already present', () => {
     expect(buildWhatsAppShareUrl('+55 11 91234-5678', 'Oi')).toBe('https://wa.me/5511912345678?text=Oi');
+  });
+});
+
+describe('buildQuoteShareSnapshot', () => {
+  const batteryCatalog = [makeBatteryCatalogOption({ model: 'T-BAT-SYS HV 5.8 V2' })];
+
+  function makeShareableProject(partial: Partial<SavedProject> = {}) {
+    return makeSavedProject({
+      id: 'project-1',
+      name: 'Projeto do Cliente',
+      solution: makeSolution({
+        batteryModel: 'T-BAT-SYS HV 5.8 V2',
+        availableEnergyWh: 5220,
+        solutionCode: 'REGRA-INTERNA-42',
+        sourceFile: 'battery_rules_v3.xlsx',
+        accessories: [{ model: 'Smart Meter', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false }],
+      }),
+      ...partial,
+    });
+  }
+
+  it('returns null when the project has no calculated solution', () => {
+    const project = makeSavedProject({ id: 'project-1', solution: null });
+    expect(
+      buildQuoteShareSnapshot(project, { client: null, profile: null, userStockItems: [], batteryCatalog })
+    ).toBeNull();
+  });
+
+  it('never includes the installer margin percentages, stock unit costs, or internal solution identifiers', () => {
+    const project = makeShareableProject();
+    const marginSettings = { inverterPercent: 30, batteryPercent: 25, accessoryPercent: 20 };
+    const userStockItems = [makeStockItem({ productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 4321 })];
+
+    const snapshot = buildQuoteShareSnapshot(project, {
+      client: makeClient(),
+      profile: makeProfile(),
+      userStockItems,
+      marginSettings,
+      batteryCatalog,
+    })!;
+
+    const serialized = JSON.stringify(snapshot);
+    // Margin settings/cost basis values must never leak into the snapshot.
+    expect(serialized).not.toContain('4321');
+    expect(serialized).not.toContain('30');
+    // Internal rule identifiers must never leak either.
+    expect(serialized).not.toContain('REGRA-INTERNA-42');
+    expect(serialized).not.toContain('battery_rules_v3.xlsx');
+    expect(JSON.stringify(snapshot)).not.toMatch(/solutionCode|sourceFile/);
+  });
+
+  it('never includes the client\'s private notes', () => {
+    const project = makeShareableProject();
+    const client = makeClient({ name: 'Maria Silva', notes: 'Anotação privada do vendedor sobre a Maria.' });
+
+    const snapshot = buildQuoteShareSnapshot(project, { client, profile: makeProfile(), userStockItems: [], batteryCatalog })!;
+
+    expect(snapshot.clientName).toBe('Maria Silva');
+    expect(JSON.stringify(snapshot)).not.toContain('Anotação privada');
+  });
+
+  it('includes the customer-facing total (post-margin), not the raw stock price', () => {
+    const project = makeShareableProject();
+    const userStockItems = [
+      makeStockItem({ productType: 'inverter', productModel: 'X1-Hybrid-5.0-D', unitValue: 4000 }),
+      makeStockItem({ id: 'stock-2', productType: 'battery', productModel: 'T-BAT-SYS HV 5.8 V2', unitValue: 3000 }),
+    ];
+    const marginSettings = { inverterPercent: 20, batteryPercent: 20, accessoryPercent: 20 };
+
+    const snapshot = buildQuoteShareSnapshot(project, {
+      client: null,
+      profile: makeProfile(),
+      userStockItems,
+      marginSettings,
+      batteryCatalog,
+    })!;
+
+    // (4000 + 3000) x 1.2 = 8400 — the marked-up total, not the 7000 cost basis.
+    // isComplete is false because the solution's "Smart Meter" accessory has no stock price here.
+    expect(snapshot.systemCost).toEqual({ totalCost: 8400, isComplete: false });
+  });
+
+  it('resolves inverter/battery/accessory product lines with their quantities', () => {
+    const project = makeShareableProject();
+
+    const snapshot = buildQuoteShareSnapshot(project, {
+      client: null,
+      profile: makeProfile(),
+      userStockItems: [],
+      batteryCatalog,
+    })!;
+
+    expect(snapshot.products).toEqual([
+      { category: 'Inversor', model: 'X1-Hybrid-5.0-D', qty: 1 },
+      { category: 'Bateria', model: 'T-BAT-SYS HV 5.8 V2', qty: 1 },
+      { category: 'Acessório', model: 'Smart Meter', qty: 1 },
+    ]);
+  });
+
+  it('carries company branding from the profile and falls back to null without one', () => {
+    const project = makeShareableProject();
+
+    const withProfile = buildQuoteShareSnapshot(project, {
+      client: null,
+      profile: makeProfile({ companyName: 'SolaX Instaladora', companyLogoUrl: 'https://x.co/logo.png' }),
+      userStockItems: [],
+      batteryCatalog,
+    })!;
+    expect(withProfile.companyName).toBe('SolaX Instaladora');
+    expect(withProfile.companyLogoUrl).toBe('https://x.co/logo.png');
+
+    const withoutProfile = buildQuoteShareSnapshot(project, {
+      client: null,
+      profile: null,
+      userStockItems: [],
+      batteryCatalog,
+    })!;
+    expect(withoutProfile.companyName).toBeNull();
+    expect(withoutProfile.companyLogoUrl).toBeNull();
   });
 });
 

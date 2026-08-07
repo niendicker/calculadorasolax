@@ -376,9 +376,14 @@ export function ResultSummary({
                   {formatCurrencyBRL(systemCost.totalCost)}
                 </p>
                 {!systemCost.isComplete && (
-                  <p className="mt-1 break-words text-xs text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
-                    Valor parcial · {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} modelos/serviços
-                  </p>
+                  <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2">
+                    <p className="break-words text-xs font-medium text-amber-800 [overflow-wrap:anywhere] dark:text-amber-300">
+                      Valor parcial · {systemCost.pricedItemsCount} de {systemCost.totalItemsCount} modelos/serviços
+                    </p>
+                    <p className="mt-1 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                      Falta precificar: {systemCost.missingItems.join(', ')}
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -413,13 +418,6 @@ export function ResultSummary({
               )}
             </div>
           </div>
-
-          {systemCost.missingItems.length > 0 && (
-            <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
-              <p className="font-medium text-amber-800 dark:text-amber-300">Falta precificar</p>
-              <p className="mt-1 text-muted-foreground">{systemCost.missingItems.join(', ')}</p>
-            </div>
-          )}
 
           {tariffSavings && !tariffSavings.tariffOrderValid && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
