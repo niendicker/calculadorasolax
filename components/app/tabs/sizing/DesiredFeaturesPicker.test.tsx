@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { useState } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -303,6 +304,37 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1 }));
     fireEvent.change(screen.getByLabelText(/Fora ponta · Tarifa/), { target: { value: '0.6' } });
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.6 }));
+  });
+
+  it('lets the ponta/intermediária/fora-ponta tariff fields be cleared to empty, instead of getting stuck showing 0', () => {
+    // Regression test: value={x ?? ''} treats 0 as a real value to display
+    // (nullish coalescing doesn't catch it), so clearing the field set state
+    // to 0 and then rendered that same "0" straight back into the input,
+    // making it impossible to actually blank the field out.
+    function ControlledWhiteTariffPanel() {
+      const [whiteTariff, setWhiteTariff] = useState(wt);
+      const props = baseProps({
+        activeTab: 'white_tariff',
+        value: ['white_tariff'],
+        whiteTariff,
+        onWhiteTariffChange: setWhiteTariff,
+      });
+      return (
+        <NextIntlClientProvider locale="pt" messages={ptMessages}>
+          <DesiredFeaturesPicker {...props} />
+        </NextIntlClientProvider>
+      );
+    }
+    render(<ControlledWhiteTariffPanel />);
+
+    fireEvent.change(screen.getByLabelText(/Ponta · Tarifa/), { target: { value: '' } });
+    expect(screen.getByLabelText(/Ponta · Tarifa/)).toHaveValue(null);
+
+    fireEvent.change(screen.getByLabelText(/Intermediária · Tarifa/), { target: { value: '' } });
+    expect(screen.getByLabelText(/Intermediária · Tarifa/)).toHaveValue(null);
+
+    fireEvent.change(screen.getByLabelText(/Fora ponta · Tarifa/), { target: { value: '' } });
+    expect(screen.getByLabelText(/Fora ponta · Tarifa/)).toHaveValue(null);
   });
 
   it('shows the calculated fora-ponta daily energy', () => {

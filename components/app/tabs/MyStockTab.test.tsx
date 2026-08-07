@@ -133,9 +133,24 @@ describe('MyStockTab: listing', () => {
     const secondItem: UserStockItem = { ...stockItem, id: 's2', productType: 'battery', productModel: 'TP-HS3.6' };
     setup({ userStockItems: [stockItem, secondItem] });
 
-    expect(screen.getByRole('tab', { name: /Inversores/ })).toHaveTextContent('(1)');
-    expect(screen.getByRole('tab', { name: /Baterias/ })).toHaveTextContent('(1)');
-    expect(screen.getByRole('tab', { name: /Acessórios/ })).toHaveTextContent('(0)');
+    expect(screen.getByRole('tab', { name: /Inversores/ })).toHaveTextContent('1 item');
+    expect(screen.getByRole('tab', { name: /Baterias/ })).toHaveTextContent('1 item');
+    expect(screen.getByRole('tab', { name: /Acessórios/ })).toHaveTextContent('0 itens');
+  });
+
+  it('flags a section tab (and the Produtos tab) when one of its items has no price set yet', () => {
+    setup({ userStockItems: [{ ...stockItem, unitValue: 0 }] });
+
+    expect(within(screen.getByRole('tab', { name: /Inversores/ })).getByLabelText('Item sem preço definido')).toBeInTheDocument();
+    expect(within(screen.getByRole('tab', { name: /^Produtos/ })).getByLabelText('Item sem preço definido')).toBeInTheDocument();
+    expect(within(screen.getByRole('tab', { name: /Baterias/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
+  });
+
+  it('does not flag any tab once every item in stock has a price', () => {
+    setup({ userStockItems: [stockItem] });
+
+    expect(within(screen.getByRole('tab', { name: /Inversores/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('tab', { name: /^Produtos/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
   });
 });
 

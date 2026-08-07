@@ -446,7 +446,7 @@ export function WhiteTariffPanel({
                 min={0}
                 step={0.01}
                 placeholder="Ex.: 1.20"
-                value={whiteTariff?.pontaTariffPerKwh ?? ''}
+                value={whiteTariff?.pontaTariffPerKwh || ''}
                 onChange={(event) => {
                   markFieldAsEdited('pontaTariffPerKwh');
                   onWhiteTariffChange({
@@ -498,7 +498,7 @@ export function WhiteTariffPanel({
                 min={0}
                 step={0.01}
                 placeholder="Ex.: 0.95"
-                value={whiteTariff?.intermediateTariffPerKwh ?? ''}
+                value={whiteTariff?.intermediateTariffPerKwh || ''}
                 onChange={(event) => {
                   markFieldAsEdited('intermediateTariffPerKwh');
                   onWhiteTariffChange({
@@ -537,7 +537,7 @@ export function WhiteTariffPanel({
               min={0}
               step={0.01}
               placeholder="Ex.: 0.75"
-              value={whiteTariff?.foraPontaTariffPerKwh ?? ''}
+              value={whiteTariff?.foraPontaTariffPerKwh || ''}
               onChange={(event) => {
                 markFieldAsEdited('foraPontaTariffPerKwh');
                 onWhiteTariffChange({

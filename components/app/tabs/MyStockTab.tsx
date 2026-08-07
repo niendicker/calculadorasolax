@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { Battery, Boxes, Check, Loader2, Lock, Plus, Truck, Wrench, Zap } from 'lucide-react';
+import { AlertTriangle, Battery, Boxes, Check, Loader2, Lock, Package, Plus, Truck, Wrench, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -53,6 +53,7 @@ const batteryTopologyTabs: GroupTab[] = [
 const sectionDefinitions: {
   type: StockProductType;
   label: string;
+  icon: LucideIcon;
   fallbackIcon: React.ReactNode;
   smallIcon: React.ReactNode;
   groupTabs?: GroupTab[];
@@ -60,6 +61,7 @@ const sectionDefinitions: {
   {
     type: 'inverter',
     label: 'Inversores',
+    icon: Zap,
     fallbackIcon: <Zap className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <Zap className="h-4 w-4 text-muted-foreground" />,
     groupTabs: inverterPhaseTabs,
@@ -67,6 +69,7 @@ const sectionDefinitions: {
   {
     type: 'battery',
     label: 'Baterias',
+    icon: Battery,
     fallbackIcon: <Battery className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <Battery className="h-4 w-4 text-muted-foreground" />,
     groupTabs: batteryTopologyTabs,
@@ -74,6 +77,7 @@ const sectionDefinitions: {
   {
     type: 'accessory',
     label: 'Acessórios',
+    icon: Boxes,
     fallbackIcon: <Boxes className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <Boxes className="h-4 w-4 text-muted-foreground" />,
   },
@@ -165,6 +169,8 @@ export function MyStockTab({
   }, [supabase]);
 
   const atLimit = userStockItems.length >= ACCOUNT_LIMITS.userStockItems;
+  const hasUnpricedProduct = userStockItems.some((item) => item.unitValue === 0);
+  const hasUnpricedService = userServices.some((service) => service.unitValue === 0);
 
   const catalogByType: Record<StockProductType, CatalogEntry[]> = {
     inverter: inverterCatalog.map((inverter) => ({
@@ -198,38 +204,25 @@ export function MyStockTab({
         </div>
       </PageHeader>
 
-      <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Seções do catálogo">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeMainSection === 'products'}
+      <div className="grid grid-cols-2 gap-3" role="tablist" aria-label="Seções do catálogo">
+        <PortfolioSectionCard
+          active={activeMainSection === 'products'}
+          icon={Package}
+          label="Produtos"
+          count={userStockItems.length}
+          countLabel={userStockItems.length === 1 ? 'produto' : 'produtos'}
+          warn={hasUnpricedProduct}
           onClick={() => setActiveMainSection('products')}
-          className={cn(
-            'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
-            activeMainSection === 'products'
-              ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-              : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-          )}
-        >
-          Produtos
-          <span className="text-xs text-muted-foreground">({userStockItems.length})</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeMainSection === 'services'}
+        />
+        <PortfolioSectionCard
+          active={activeMainSection === 'services'}
+          icon={Wrench}
+          label="Serviços"
+          count={userServices.length}
+          countLabel={userServices.length === 1 ? 'serviço' : 'serviços'}
+          warn={hasUnpricedService}
           onClick={() => setActiveMainSection('services')}
-          className={cn(
-            'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
-            activeMainSection === 'services'
-              ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-              : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-          )}
-        >
-          <Wrench className="h-3.5 w-3.5" />
-          Serviços
-          <span className="text-xs text-muted-foreground">({userServices.length})</span>
-        </button>
+        />
       </div>
 
       {activeMainSection === 'products' && (
@@ -242,27 +235,20 @@ export function MyStockTab({
           )}
 
           <div className="space-y-4">
-            <div className="flex gap-1 rounded-md bg-muted/60 p-1" role="tablist" aria-label="Tipo de produto">
+            <div className="grid grid-cols-3 gap-3" role="tablist" aria-label="Tipo de produto">
               {sectionDefinitions.map((section) => {
-                const count = userStockItems.filter((item) => item.productType === section.type).length;
-                const active = activeSection === section.type;
+                const sectionItems = userStockItems.filter((item) => item.productType === section.type);
                 return (
-                  <button
+                  <PortfolioSectionCard
                     key={section.type}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
+                    active={activeSection === section.type}
+                    icon={section.icon}
+                    label={section.label}
+                    count={sectionItems.length}
+                    countLabel={sectionItems.length === 1 ? 'item' : 'itens'}
+                    warn={sectionItems.some((item) => item.unitValue === 0)}
                     onClick={() => setActiveSection(section.type)}
-                    className={cn(
-                      'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-9',
-                      active
-                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                    )}
-                  >
-                    {section.label}
-                    <span className="text-xs text-muted-foreground">({count})</span>
-                  </button>
+                  />
                 );
               })}
             </div>
@@ -337,6 +323,67 @@ export function MyStockTab({
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
+  );
+}
+
+/** Section-switcher card — same concept as Dimensionamento's PickerCard
+ *  (icon badge + label + status, colored by state) applied to a flatter,
+ *  always-2-or-3-way choice: no drill-in/back-button flow, since every
+ *  section here is already just a grid of product cards that fits fine on
+ *  screen. `warn` mirrors PickerCard's 'warn' state for an item missing
+ *  something it needs (here: at least one product in this section with no
+ *  "Meu preço" set yet, the same condition StockProductCard itself flags). */
+function PortfolioSectionCard({
+  active,
+  icon: Icon,
+  label,
+  count,
+  countLabel,
+  warn,
+  onClick,
+}: {
+  active: boolean;
+  icon: LucideIcon;
+  label: string;
+  count: number;
+  countLabel: string;
+  warn: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center gap-1.5 rounded-lg border p-4 text-center transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-row sm:gap-3 sm:text-left',
+        active
+          ? 'border-primary bg-primary/5 shadow-sm'
+          : warn
+            ? 'border-destructive/30 bg-card hover:bg-muted/40'
+            : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground',
+          active && 'bg-primary/15 text-primary',
+          !active && warn && 'bg-destructive/10 text-destructive'
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className={cn('flex items-center gap-1.5 text-sm font-semibold', active ? 'text-primary' : 'text-foreground')}>
+          {label}
+          {warn && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label="Item sem preço definido" />}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {count} {countLabel}
+        </p>
+      </div>
+    </button>
   );
 }
 
