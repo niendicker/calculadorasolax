@@ -1083,6 +1083,34 @@ describe('updateProjectStatus', () => {
     await expect(useWizardStore.getState().updateProjectStatus('p1', 'sent')).rejects.toBeTruthy();
     expect(useWizardStore.getState().savedProjects).toEqual([source]);
   });
+
+  it('logs a status_changed project_event when the status actually changes', async () => {
+    const supabase = createSupabaseMock({
+      tableResults: { projects: { data: { ...projectRow, id: 'p1', status: 'sent' }, error: null } },
+    });
+    createClientMock.mockReturnValue(supabase);
+
+    const source = makeSavedProject({ id: 'p1', status: 'draft' });
+    useWizardStore.setState({ savedProjects: [source] });
+
+    await useWizardStore.getState().updateProjectStatus('p1', 'sent');
+
+    expect(supabase.from).toHaveBeenCalledWith('project_events');
+  });
+
+  it('does not log a project_event when the status is unchanged', async () => {
+    const supabase = createSupabaseMock({
+      tableResults: { projects: { data: { ...projectRow, id: 'p1', status: 'draft' }, error: null } },
+    });
+    createClientMock.mockReturnValue(supabase);
+
+    const source = makeSavedProject({ id: 'p1', status: 'draft' });
+    useWizardStore.setState({ savedProjects: [source] });
+
+    await useWizardStore.getState().updateProjectStatus('p1', 'draft');
+
+    expect(supabase.from).not.toHaveBeenCalledWith('project_events');
+  });
 });
 
 describe('fetchProjects', () => {

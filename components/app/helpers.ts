@@ -448,6 +448,27 @@ export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+/** Masks a CPF/CNPJ for display — keeps the first 3 and last 2 digits
+ * visible (enough to recognize/confirm it's the right document without
+ * exposing the whole number) and replaces every other digit with •,
+ * preserving whatever punctuation formatDocument already put in place.
+ * Works on either document shape since it masks by digit *position*, not by
+ * a fixed CPF/CNPJ pattern. Returns short/empty input unchanged — nothing
+ * meaningful to hide below 6 digits. */
+export function maskDocument(formatted: string): string {
+  const digitIndexes: number[] = [];
+  for (let i = 0; i < formatted.length; i += 1) {
+    if (/\d/.test(formatted[i])) digitIndexes.push(i);
+  }
+  if (digitIndexes.length <= 5) return formatted;
+
+  const visible = new Set([...digitIndexes.slice(0, 3), ...digitIndexes.slice(-2)]);
+  return formatted
+    .split('')
+    .map((char, index) => (/\d/.test(char) && !visible.has(index) ? '•' : char))
+    .join('');
+}
+
 export function formatPhone(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 11);
   if (digits.length === 0) return '';

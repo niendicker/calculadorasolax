@@ -27,6 +27,7 @@ import {
   calculateSystemCost,
   calculateTariffSavings,
   formatCurrencyBRL,
+  maskDocument,
   normalizeAccessoryLine,
   solutionMetrics,
   type MarginRow,
@@ -716,7 +717,7 @@ export function ProjectQuotePdfDocument({
               { label: 'Cliente', value: client?.name || '-' },
               { label: 'Email', value: client?.email || '-' },
               { label: 'Telefone', value: client?.phone || '-' },
-              { label: 'CPF/CNPJ', value: client?.document || '-' },
+              { label: 'CPF/CNPJ', value: client?.document ? maskDocument(client.document) : '-' },
               { label: 'Endereço', value: formatAddress(projectInfo.address) || '-' },
               ...(projectInfo.notes ? [{ label: 'Observações', value: projectInfo.notes }] : []),
             ]}

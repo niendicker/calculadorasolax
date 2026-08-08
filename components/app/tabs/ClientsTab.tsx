@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, FolderOpen, Save, UserRound } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, FolderOpen, Save, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,13 +11,37 @@ import { Label } from '@/components/ui/label';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import type { Client, SavedProject } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { formatPhone } from '../helpers';
+import { formatPhone, maskDocument } from '../helpers';
 import { PageHeader } from '../shell/slots';
 import { SearchInput } from '../shared-ui';
 import { projectStatusLabels } from '../types';
 
 function emptyClientForm() {
   return { name: '', email: '', phone: '', document: '', notes: '' };
+}
+
+/** CPF/CNPJ shown masked by default (see maskDocument) with a click-to-reveal
+ *  toggle — unlike phone/email, a document number is sensitive enough that a
+ *  glance at a shared screen shouldn't expose the whole thing, but the
+ *  installer still needs a way to read/copy it when actually required. */
+function MaskedDocumentReveal({ document }: { document: string }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <span className="inline-flex items-center gap-1">
+      {revealed ? document : maskDocument(document)}
+      <button
+        type="button"
+        aria-label={revealed ? 'Ocultar documento' : 'Mostrar documento'}
+        onClick={(event) => {
+          event.stopPropagation();
+          setRevealed((current) => !current);
+        }}
+        className="text-muted-foreground hover:text-foreground"
+      >
+        {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+      </button>
+    </span>
+  );
 }
 
 function formatDocument(raw: string): string {
@@ -62,6 +86,7 @@ export function ClientsTab({
   const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [documentRevealed, setDocumentRevealed] = useState(false);
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredClients = clients.filter((client) =>
@@ -76,6 +101,7 @@ export function ClientsTab({
     setForm(next);
     setInitialForm(next);
     setActionError(null);
+    setDocumentRevealed(false);
     setFormOpen(true);
   }
 
@@ -91,6 +117,7 @@ export function ClientsTab({
     setForm(next);
     setInitialForm(next);
     setActionError(null);
+    setDocumentRevealed(false);
     setFormOpen(true);
   }
 
@@ -191,9 +218,17 @@ export function ClientsTab({
                           <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="font-medium">{client.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {[client.email, client.phone, client.document].filter(Boolean).join(' · ') ||
-                                  'Sem dados de contato'}
+                              <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                                {[client.email, client.phone].filter(Boolean).length > 0 && (
+                                  <span>{[client.email, client.phone].filter(Boolean).join(' · ')}</span>
+                                )}
+                                {client.document && (
+                                  <>
+                                    {(client.email || client.phone) && <span>·</span>}
+                                    <MaskedDocumentReveal document={client.document} />
+                                  </>
+                                )}
+                                {!client.email && !client.phone && !client.document && <span>Sem dados de contato</span>}
                               </p>
                             </div>
                             <div className="flex shrink-0 flex-wrap gap-2">
@@ -302,12 +337,25 @@ export function ClientsTab({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="clientFormDocument">CPF/CNPJ</Label>
-                <Input
-                  id="clientFormDocument"
-                  value={form.document}
-                  onChange={(event) => setForm({ ...form, document: formatDocument(event.target.value) })}
-                  placeholder="Documento do cliente"
-                />
+                <div className="relative">
+                  <Input
+                    id="clientFormDocument"
+                    type={documentRevealed ? 'text' : 'password'}
+                    autoComplete="off"
+                    className="pr-10"
+                    value={form.document}
+                    onChange={(event) => setForm({ ...form, document: formatDocument(event.target.value) })}
+                    placeholder="Documento do cliente"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label={documentRevealed ? 'Ocultar documento' : 'Mostrar documento'}
+                    onClick={() => setDocumentRevealed((current) => !current)}
+                  >
+                    {documentRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="clientFormNotes">Observações</Label>

@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ClipboardCopy,
   Gauge,
-  Link2,
   Loader2,
   Mail,
   MapPin,
@@ -24,8 +23,6 @@ import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceIt
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
   batteryQuantityBreakdown,
-  buildClientQuoteText,
-  buildPdfFileName,
   buildProjectShareText,
   buildQuoteShareSnapshot,
   buildWhatsAppShareUrl,
@@ -36,6 +33,7 @@ import {
 } from '../../helpers';
 import { Metric, SharePreviewModal, WhatsAppIcon } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
+import { ProjectEventsTimeline } from './ProjectEventsTimeline';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
 
 /** A product's category label, its nickname/model (with quantity, if any),
@@ -110,9 +108,8 @@ export function SelectedProjectSummary({
       )
     : [];
   const [previewText, setPreviewText] = useState<string | null>(null);
-  const [sendingQuote, setSendingQuote] = useState(false);
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const [creatingShareLink, setCreatingShareLink] = useState(false);
+  const [sharingQuote, setSharingQuote] = useState(false);
+  const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
 
   const shareableProject = {
     name: project.name,
@@ -125,78 +122,25 @@ export function SelectedProjectSummary({
     solution: project.solution,
   };
 
-  const quoteText = buildClientQuoteText(shareableProject, client?.name, batteryCatalog, project.services, systemCost);
-  const whatsAppUrl = client?.phone ? buildWhatsAppShareUrl(client.phone, quoteText) : null;
+  const canShareQuote = Boolean(project.solution && client?.phone && profile);
 
   function openProjectDataPreview() {
     setPreviewText(buildProjectShareText(shareableProject, client?.name, batteryCatalog));
   }
 
-  // Tries to hand the actual PDF report to the OS share sheet (so WhatsApp —
-  // or whatever the user picks there — gets a real attached file, not just a
-  // text summary); falls back to the plain wa.me text link wherever file
-  // sharing isn't available (every desktop browser, some mobile ones) or the
-  // user backs out without picking a target. There's no wa.me equivalent for
-  // attaching a file — the browser Share API + a user-picked target app is
-  // the only way to get a file into WhatsApp at all.
-  // Sharing the quote is the real-world signal that it left "Rascunho" —
-  // only advances from 'draft' so a re-share after the client already
-  // responded doesn't quietly undo an 'accepted'/'rejected' status.
-  function markSent() {
-    if (project.status === 'draft') onUpdateStatus('sent');
-  }
-
-  async function handleSendQuote() {
-    if (!whatsAppUrl) return;
-
-    if (project.solution && typeof navigator.canShare === 'function') {
-      try {
-        const { buildProjectQuotePdfBlob, buildProjectQuotePdfInputFromSavedProject } = await import(
-          '../../project-quote-pdf'
-        );
-        const input = buildProjectQuotePdfInputFromSavedProject(project, {
-          client: client ?? null,
-          profile,
-          userStockItems,
-          marginSettings,
-          userServices,
-          batteryCatalog,
-          inverterCatalog,
-          accessoryCatalog,
-        });
-        if (input) {
-          setSendingQuote(true);
-          const blob = await buildProjectQuotePdfBlob(input);
-          const file = new File([blob], `${buildPdfFileName(project.name)}.pdf`, { type: 'application/pdf' });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], text: quoteText });
-            markSent();
-            return;
-          }
-        }
-      } catch (error) {
-        // AbortError: the user closed the share sheet without picking
-        // anything — respect that instead of popping a second window open.
-        if (error instanceof Error && error.name === 'AbortError') return;
-      } finally {
-        setSendingQuote(false);
-      }
-    }
-
-    window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
-    markSent();
-  }
-
-  // Creates a public, no-login link the client can open to review the same
-  // data as the PDF and click Aceitar/Recusar — quote_shares.snapshot
-  // freezes the numbers at this exact moment (see buildQuoteShareSnapshot's
-  // own doc comment for what's deliberately left out of it). profile.id
-  // doubles as auth.uid() (profiles.id references auth.users.id), so no
-  // separate getUser() round trip is needed here.
-  async function handleCreateShareLink() {
-    if (!profile) return;
+  // Generates the public quote-share link (same snapshot the old separate
+  // "Compartilhar orçamento (link)" button used to build) and opens WhatsApp
+  // with a short message containing it, in one action — the link itself is
+  // now a strictly richer experience than the old formatted-text message
+  // (buildClientQuoteText) ever was: same product/financial breakdown, plus
+  // Aceitar/Recusar the text could never offer. Logs a project_events row so
+  // this shows up in the Histórico below, and — like the old two actions
+  // both did — only advances status out of 'draft', so re-sharing after the
+  // client already responded doesn't quietly undo an accepted/rejected.
+  async function handleShareQuote() {
+    if (!profile || !client?.phone) return;
     const snapshot = buildQuoteShareSnapshot(project, {
-      client: client ?? null,
+      client,
       profile,
       userStockItems,
       marginSettings,
@@ -206,7 +150,7 @@ export function SelectedProjectSummary({
     });
     if (!snapshot) return;
 
-    setCreatingShareLink(true);
+    setSharingQuote(true);
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -215,10 +159,24 @@ export function SelectedProjectSummary({
         .select('id')
         .single();
       if (error || !data) return;
-      setShareLink(`${window.location.origin}/cotacao/${data.id}`);
-      markSent();
+
+      const link = `${window.location.origin}/cotacao/${data.id}`;
+      const message = `Olá! Segue o orçamento da sua instalação solar:\n${link}\n\nAcesse para conferir os detalhes e responder.`;
+      const whatsAppUrl = buildWhatsAppShareUrl(client.phone, message);
+      if (whatsAppUrl) window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
+
+      const wasDraft = project.status === 'draft';
+      await supabase.from('project_events').insert({
+        project_id: project.id,
+        actor_id: profile.id,
+        event_type: 'quote_shared',
+        from_status: wasDraft ? 'draft' : null,
+        to_status: wasDraft ? 'sent' : null,
+      });
+      if (wasDraft) onUpdateStatus('sent');
+      setEventsRefreshKey((key) => key + 1);
     } finally {
-      setCreatingShareLink(false);
+      setSharingQuote(false);
     }
   }
 
@@ -398,26 +356,19 @@ export function SelectedProjectSummary({
       <Button
         size="lg"
         className="w-full bg-emerald-600 text-white shadow-sm transition-shadow hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
-        disabled={!whatsAppUrl || sendingQuote}
-        title={whatsAppUrl ? undefined : 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'}
-        onClick={() => void handleSendQuote()}
+        disabled={!canShareQuote || sharingQuote}
+        title={
+          !project.solution
+            ? 'Calcule uma solução para este projeto antes de compartilhar.'
+            : !client?.phone
+              ? 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'
+              : undefined
+        }
+        onClick={() => void handleShareQuote()}
       >
-        {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
+        {sharingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
         Compartilhar cotação
       </Button>
-
-      <Button
-        variant="outline"
-        size="lg"
-        className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
-        disabled={!project.solution || creatingShareLink}
-        title={project.solution ? undefined : 'Calcule uma solução para este projeto antes de compartilhar o link.'}
-        onClick={() => void handleCreateShareLink()}
-      >
-        {creatingShareLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-        Compartilhar orçamento (link)
-      </Button>
-      <SharePreviewModal text={shareLink} onClose={() => setShareLink(null)} />
 
       <Button
         variant="outline"
@@ -431,6 +382,7 @@ export function SelectedProjectSummary({
       <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
 
       <Separator />
+      <ProjectEventsTimeline projectId={project.id} refreshKey={`${project.updatedAt}:${eventsRefreshKey}`} />
       <p className="text-xs text-muted-foreground">
         Atualizado em{' '}
         {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(project.updatedAt))}

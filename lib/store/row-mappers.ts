@@ -6,6 +6,7 @@
 import { addressFromJson } from '@/lib/address';
 import type {
   Client,
+  ProjectEvent,
   ProjectServiceLine,
   ProjectStatus,
   ResidentialOptions,
@@ -75,6 +76,19 @@ export function projectFromRow(row: Record<string, unknown>): SavedProject {
     residentialOptions: row.residential_options as ResidentialOptions,
     solution: (row.solution as Solution | null) ?? null,
     services: Array.isArray(row.services) ? (row.services as ProjectServiceLine[]) : [],
+  };
+}
+
+export function projectEventFromRow(row: Record<string, unknown>): ProjectEvent {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    actorId: (row.actor_id as string | null) ?? null,
+    eventType: row.event_type as string,
+    fromStatus: (row.from_status as string | null) ?? null,
+    toStatus: (row.to_status as string | null) ?? null,
+    message: (row.message as string | null) ?? null,
+    createdAt: row.created_at as string,
   };
 }
 

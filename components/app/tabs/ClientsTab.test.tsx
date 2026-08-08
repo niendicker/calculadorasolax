@@ -311,4 +311,32 @@ describe('ClientsTab: form fields', () => {
     setup({ clients: [makeClient({ id: 'c1', name: 'Sem Contato' })] });
     expect(screen.getByText('Sem dados de contato')).toBeInTheDocument();
   });
+
+  it('masks the document type — a password field — hiding the browser-native value until revealed', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
+
+    const input = screen.getByLabelText('CPF/CNPJ');
+    expect(input).toHaveAttribute('type', 'password');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar documento' }));
+    expect(input).toHaveAttribute('type', 'text');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar documento' }));
+    expect(input).toHaveAttribute('type', 'password');
+  });
+});
+
+describe('ClientsTab: list', () => {
+  it('shows the client\'s document masked, with a toggle to reveal the full value', () => {
+    setup({ clients: [makeClient({ id: 'c1', name: 'Ana', document: '123.456.789-00' })] });
+
+    expect(screen.getByText('123.•••.•••-00')).toBeInTheDocument();
+    expect(screen.queryByText('123.456.789-00')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar documento' }));
+
+    expect(screen.getByText('123.456.789-00')).toBeInTheDocument();
+    expect(screen.queryByText('123.•••.•••-00')).not.toBeInTheDocument();
+  });
 });

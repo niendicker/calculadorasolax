@@ -35,6 +35,7 @@ function setupServiceFrom({
 }: { share?: unknown; shareError?: unknown; updateShareResult?: unknown } = {}) {
   const updateShare = vi.fn(() => ({ eq: () => Promise.resolve(updateShareResult) }));
   const updateProject = vi.fn(() => ({ eq: () => Promise.resolve({ data: null, error: null }) }));
+  const insertEvent = vi.fn(() => Promise.resolve({ data: null, error: null }));
   serviceFromMock.mockImplementation((table: string) => {
     if (table === 'quote_shares') {
       return { select: () => singleResult(share, shareError), update: updateShare };
@@ -42,9 +43,12 @@ function setupServiceFrom({
     if (table === 'projects') {
       return { update: updateProject };
     }
+    if (table === 'project_events') {
+      return { insert: insertEvent };
+    }
     throw new Error(`unexpected table ${table}`);
   });
-  return { updateShare, updateProject };
+  return { updateShare, updateProject, insertEvent };
 }
 
 beforeEach(() => {
@@ -93,7 +97,7 @@ describe('POST /api/quote-shares/[token]/respond', () => {
     expect(await response.json()).toEqual({ error: 'already_responded' });
   });
 
-  it('accepts: updates quote_shares.status/responded_at and projects.status, returns 200', async () => {
+  it('accepts: updates quote_shares.status/responded_at and projects.status/updated_at, returns 200', async () => {
     const { updateShare, updateProject } = setupServiceFrom();
     const POST = await importRoute();
 
@@ -102,7 +106,33 @@ describe('POST /api/quote-shares/[token]/respond', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: 'accepted' });
     expect(updateShare).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted', responded_at: expect.any(String) }));
-    expect(updateProject).toHaveBeenCalledWith({ status: 'accepted' });
+    expect(updateProject).toHaveBeenCalledWith({ status: 'accepted', updated_at: expect.any(String) });
+  });
+
+  it('logs a quote_accepted project_event with from_status/to_status', async () => {
+    const { insertEvent } = setupServiceFrom();
+    const POST = await importRoute();
+
+    await POST(makeRequest({ decision: 'accepted' }), routeParams);
+
+    expect(insertEvent).toHaveBeenCalledWith({
+      project_id: 'project-1',
+      actor_id: null,
+      event_type: 'quote_accepted',
+      from_status: 'sent',
+      to_status: 'accepted',
+    });
+  });
+
+  it('logs a quote_rejected project_event when the customer declines', async () => {
+    const { insertEvent } = setupServiceFrom();
+    const POST = await importRoute();
+
+    await POST(makeRequest({ decision: 'rejected' }), routeParams);
+
+    expect(insertEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event_type: 'quote_rejected', from_status: 'sent', to_status: 'rejected' })
+    );
   });
 
   it('rejects: returns 200 with the rejected status', async () => {

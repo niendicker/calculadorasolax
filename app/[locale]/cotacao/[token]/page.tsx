@@ -20,8 +20,25 @@ export default async function QuoteSharePage({ params }: { params: Promise<{ tok
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data } = await service.from('quote_shares').select('status, snapshot, responded_at').eq('id', token).maybeSingle();
+  const { data } = await service
+    .from('quote_shares')
+    .select('status, snapshot, responded_at, project_id, first_viewed_at')
+    .eq('id', token)
+    .maybeSingle();
   if (!data) notFound();
+
+  // Logged once (guarded by first_viewed_at) so a customer refreshing the
+  // page repeatedly doesn't spam the seller's Histórico with duplicate
+  // "visualizou" entries.
+  if (!data.first_viewed_at) {
+    const viewedAt = new Date().toISOString();
+    await service.from('quote_shares').update({ first_viewed_at: viewedAt }).eq('id', token);
+    await service.from('project_events').insert({
+      project_id: data.project_id,
+      actor_id: null,
+      event_type: 'quote_link_viewed',
+    });
+  }
 
   return (
     <QuoteShareView

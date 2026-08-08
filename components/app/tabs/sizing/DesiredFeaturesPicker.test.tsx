@@ -312,7 +312,7 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     // to 0 and then rendered that same "0" straight back into the input,
     // making it impossible to actually blank the field out.
     function ControlledWhiteTariffPanel() {
-      const [whiteTariff, setWhiteTariff] = useState(wt);
+      const [whiteTariff, setWhiteTariff] = useState<WhiteTariffConfig | null>(wt);
       const props = baseProps({
         activeTab: 'white_tariff',
         value: ['white_tariff'],

@@ -20,6 +20,7 @@ import {
   isGeneratorPowerInsufficient,
   isMicrogridPhaseVoltageIncompatible,
   isWhiteTariffConfigIncomplete,
+  maskDocument,
   normalizeAccessoryLine,
   recommendedGeneratorApparentPowerVA,
   solutionHasInsufficientMargin,
@@ -801,6 +802,21 @@ describe('buildWhatsAppShareUrl', () => {
 
   it('does not double the country code when it is already present', () => {
     expect(buildWhatsAppShareUrl('+55 11 91234-5678', 'Oi')).toBe('https://wa.me/5511912345678?text=Oi');
+  });
+});
+
+describe('maskDocument', () => {
+  it('masks a formatted CPF, keeping the first 3 and last 2 digits visible', () => {
+    expect(maskDocument('123.456.789-00')).toBe('123.•••.•••-00');
+  });
+
+  it('masks a formatted CNPJ the same way', () => {
+    expect(maskDocument('12.345.678/0001-95')).toBe('12.3••.•••/••••-95');
+  });
+
+  it('returns short input unchanged — nothing meaningful to hide', () => {
+    expect(maskDocument('')).toBe('');
+    expect(maskDocument('1234')).toBe('1234');
   });
 });
 

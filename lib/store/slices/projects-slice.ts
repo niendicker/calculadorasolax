@@ -269,6 +269,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
 
   updateProjectStatus: async (id, status) => {
     const supabase = createClient();
+    const previous = get().savedProjects.find((item) => item.id === id);
     const { data, error } = await supabase
       .from('projects')
       .update({ status, updated_at: new Date().toISOString() })
@@ -281,6 +282,20 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     set((s) => ({
       savedProjects: s.savedProjects.map((item) => (item.id === id ? updated : item)),
     }));
+
+    // Logged for the project's Histórico (see ProjectEventsTimeline) —
+    // best-effort: a failure here shouldn't undo the status change itself,
+    // which already succeeded above.
+    if (previous && previous.status !== status) {
+      const { data: userData } = await supabase.auth.getUser();
+      await supabase.from('project_events').insert({
+        project_id: id,
+        actor_id: userData.user?.id ?? null,
+        event_type: 'status_changed',
+        from_status: previous.status,
+        to_status: status,
+      });
+    }
 
     return updated;
   },

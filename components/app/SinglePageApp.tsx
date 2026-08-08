@@ -9,7 +9,6 @@ import {
   Boxes,
   ClipboardList,
   FolderOpen,
-  LayoutDashboard,
   Loader2,
   LogOut,
   Menu,
@@ -658,7 +657,7 @@ export function SinglePageApp() {
     setSummaryDrawerOpen(true);
   }
 
-  function openMobileTab(tab: 'project' | 'sizing' | 'catalog' | 'myStock' | 'clients') {
+  function openMobileTab(tab: 'project' | 'catalog' | 'myStock' | 'clients') {
     changeTab(tab);
     setMobileMenuOpen(false);
   }
@@ -685,7 +684,7 @@ export function SinglePageApp() {
       )}
       <div
         className={cn(
-          'mx-auto grid h-full w-full max-w-[1920px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]',
+          'mx-auto grid h-full w-full max-w-[1920px] grid-rows-[minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[1fr]',
           summaryActive ? 'xl:grid-cols-[240px_minmax(0,1fr)_460px]' : 'xl:grid-cols-[240px_minmax(0,1fr)]'
         )}
       >
@@ -713,19 +712,6 @@ export function SinglePageApp() {
             >
               <FolderOpen className="h-4 w-4" />
               Projeto
-            </button>
-            <button
-              type="button"
-              aria-current={activeTab === 'sizing' ? 'page' : undefined}
-              onClick={() => changeTab('sizing')}
-              className={cn(
-                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                activeTab === 'sizing' &&
-                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
-              )}
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Dimensionamento
             </button>
             <button
               type="button"
@@ -1100,23 +1086,6 @@ export function SinglePageApp() {
               {activeTab === 'project' && summaryActive && <BottomNavSummaryBadge />}
             </span>
             Projeto
-          </button>
-          <button
-            type="button"
-            aria-current={activeTab === 'sizing' ? 'page' : undefined}
-            onClick={() =>
-              activeTab === 'sizing' && summaryActive ? setSummaryDrawerOpen(true) : openMobileTab('sizing')
-            }
-            className={cn(
-              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
-              activeTab === 'sizing' && 'font-medium text-primary'
-            )}
-          >
-            <span className="relative inline-flex">
-              <LayoutDashboard className="h-5 w-5" />
-              {activeTab === 'sizing' && summaryActive && <BottomNavSummaryBadge />}
-            </span>
-            Dimensionamento
           </button>
           <button
             type="button"

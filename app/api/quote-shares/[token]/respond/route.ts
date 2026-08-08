@@ -44,7 +44,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     .eq('id', token);
   if (updateShareError) return NextResponse.json({ error: 'update_failed' }, { status: 500 });
 
-  await service.from('projects').update({ status: decision }).eq('id', share.project_id);
+  // updated_at is set explicitly (not just left to a DB default) so the
+  // seller's project summary — which keys its Histórico refetch off this
+  // field — picks up the new quote_accepted/quote_rejected event next time
+  // it's loaded, the same way a manual status change already does.
+  await service.from('projects').update({ status: decision, updated_at: new Date().toISOString() }).eq('id', share.project_id);
+
+  await service.from('project_events').insert({
+    project_id: share.project_id,
+    actor_id: null,
+    event_type: decision === 'accepted' ? 'quote_accepted' : 'quote_rejected',
+    from_status: 'sent',
+    to_status: decision,
+  });
 
   return NextResponse.json({ status: decision });
 }

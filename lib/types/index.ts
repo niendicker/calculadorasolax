@@ -371,6 +371,38 @@ export type QuoteShareStatus = 'sent' | 'accepted' | 'rejected';
  *  part of `ProjectInfo`, so routine draft edits/autosave never touch it. */
 export type ProjectStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
 
+/** Vocabulary in use today for `project_events.event_type` — the column
+ *  itself is free text with no DB-side CHECK (see the migration's own
+ *  comment), on purpose: new event types (delivery, pós-venda, ...) can be
+ *  added later without a migration. `ProjectEvent.eventType` below is
+ *  therefore typed as plain `string`, not this union, so rendering code
+ *  doesn't break on a type it doesn't recognize yet. */
+export const KNOWN_PROJECT_EVENT_TYPES = [
+  'quote_shared',
+  'quote_link_viewed',
+  'quote_accepted',
+  'quote_rejected',
+  'status_changed',
+] as const;
+export type ProjectEventType = (typeof KNOWN_PROJECT_EVENT_TYPES)[number];
+
+/** One row of a project's communication/negotiation timeline (see
+ *  project_events table) — quote shared, link viewed, accepted/rejected, or
+ *  a manual status change. `actorId` is null for customer-driven events
+ *  (the anonymous visitor on the public quote page has no auth.uid()).
+ *  `fromStatus`/`toStatus` are only populated when the event actually
+ *  changed the project's status. */
+export interface ProjectEvent {
+  id: string;
+  projectId: string;
+  actorId: string | null;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  message: string | null;
+  createdAt: string;
+}
+
 export interface Client {
   id: string;
   name: string;

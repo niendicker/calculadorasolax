@@ -16,10 +16,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { Tooltip } from '@/components/ui/tooltip';
+import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import { calculateSystemCost, formatCurrencyBRL, solutionHasInsufficientMargin } from '../../helpers';
+import { featureIcons } from '../sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption } from '../../types';
 import { gridLabels, topologyLabels } from '../../types';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
@@ -160,12 +163,6 @@ export function ProjectCard({
             <span className="truncate">{client.email}</span>
           </p>
         )}
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Atualizado em{' '}
-          {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
-            new Date(project.updatedAt)
-          )}
-        </p>
         {systemCost && systemCost.pricedItemsCount > 0 && (
           <p className="mt-0.5 text-xs">
             <span className="text-muted-foreground">Valor: </span>
@@ -193,12 +190,22 @@ export function ProjectCard({
               ? topologyLabels[project.residentialOptions.topology]
               : 'Sem topologia'}
           </Badge>
-          <Badge variant="outline">{project.residentialOptions.batteryModel || 'Sem bateria'}</Badge>
           <Badge variant="outline">
             {project.residentialOptions.gridType ? gridLabels[project.residentialOptions.gridType] : 'Sem rede'}
           </Badge>
-          <Badge variant="outline">{project.residentialOptions.loads.length} carga(s)</Badge>
         </div>
+        {project.residentialOptions.desiredFeatures.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-2">
+            {project.residentialOptions.desiredFeatures.map((feature) => {
+              const Icon = featureIcons[feature];
+              return (
+                <Tooltip key={feature} content={desiredFeatureLabel(feature)}>
+                  <Icon className="h-4 w-4 text-muted-foreground" aria-label={desiredFeatureLabel(feature)} />
+                </Tooltip>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="mt-auto space-y-2 pt-1">
         {/* grid, not flex-wrap: three buttons squeezed onto one flex-wrap row
@@ -250,6 +257,12 @@ export function ProjectCard({
           {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {downloading ? 'Gerando relatório...' : 'Baixar Relatório'}
         </Button>
+        <p className="pt-0.5 text-center text-[0.7rem] text-muted-foreground/70">
+          Atualizado em{' '}
+          {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+            new Date(project.updatedAt)
+          )}
+        </p>
       </div>
     </div>
   );

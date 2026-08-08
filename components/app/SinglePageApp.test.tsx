@@ -71,6 +71,74 @@ function bottomNav() {
   return within(screen.getByRole('navigation', { name: 'Navegação' }));
 }
 
+/** Dimensionamento no longer has its own nav entry (sidebar or bottom bar) —
+ *  it's reachable only via a project's own "Dimensionamento" button
+ *  (ProjectCard.tsx), same as a real user now has to. Seeds a saved project
+ *  carrying over whatever residentialOptions/solution/projectInfo/services
+ *  the test already put on the live wizard store (loadProject, triggered by
+ *  clicking that button, would otherwise overwrite them with the new
+ *  project's — usually-blank — own data), then drives the same click path:
+ *  Projeto tab → find that project's card → its "Dimensionamento" button. */
+async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = sidebarNav) {
+  const live = useWizardStore.getState();
+  // Some tests already seed their own project (with a specific id/status
+  // they assert on later) via currentProjectId + savedProjects directly —
+  // reuse that one instead of creating an unrelated placeholder, or the
+  // "Dimensionamento" click below would open/operate on the wrong project.
+  const existing = live.savedProjects.find((p) => p.id === live.currentProjectId) ?? live.savedProjects.at(-1);
+  let projectName: string;
+  if (existing) {
+    projectName = existing.name;
+    act(() => {
+      useWizardStore.setState((s) => ({
+        savedProjects: s.savedProjects.map((p) =>
+          p.id === existing.id
+            ? {
+                ...p,
+                clientId: live.projectInfo.clientId,
+                address: live.projectInfo.address,
+                notes: live.projectInfo.notes,
+                residentialOptions: live.residentialOptions,
+                solution: live.solution,
+                services: live.services,
+              }
+            : p
+        ),
+      }));
+    });
+  } else {
+    projectName = live.projectInfo.name || 'Projeto de teste';
+    act(() => {
+      useWizardStore.setState((s) => ({
+        savedProjects: [
+          ...s.savedProjects,
+          makeSavedProject({
+            id: '__sizing_test_project__',
+            name: projectName,
+            clientId: live.projectInfo.clientId,
+            address: live.projectInfo.address,
+            notes: live.projectInfo.notes,
+            residentialOptions: live.residentialOptions,
+            solution: live.solution,
+            services: live.services,
+          }),
+        ],
+      }));
+    });
+  }
+
+  // Clicking "Projeto" while it's already the active tab toggles the mobile
+  // summary drawer instead of no-op'ing — skip the click if we're there already.
+  if (!screen.queryByRole('heading', { level: 1, name: 'Projeto' })) {
+    fireEvent.click(navScope().getByRole('button', { name: 'Projeto' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+  }
+
+  const card = (await screen.findAllByText(projectName)).at(-1)!.closest('[role="button"]') as HTMLElement;
+  fireEvent.click(within(card).getByRole('button', { name: 'Dimensionamento' }));
+  await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+}
+
 const { createClientMock, routerMock, buildProjectQuotePdfBlobMock } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   routerMock: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
@@ -161,8 +229,7 @@ describe('SinglePageApp: initial load and navigation', () => {
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
   });
 
   it('shows an "Administração" link only for admin profiles', async () => {
@@ -337,8 +404,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     fireEvent.click(bottomNav().getByRole('button', { name: 'Catálogo' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject(bottomNav);
   });
 
   it('opens the summary drawer by tapping the already-active tab again', async () => {
@@ -357,11 +423,14 @@ describe('SinglePageApp: mobile bottom nav', () => {
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Catálogo' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
+
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Projeto' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Projeto' }));
     expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 
@@ -433,7 +502,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
       }));
     });
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject(bottomNav);
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Calcular solução' }));
@@ -517,8 +586,7 @@ describe('SinglePageApp: full mobile menu navigation', () => {
       return within(dialog).getByRole('navigation');
     }
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject(bottomNav);
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Clientes' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument());
@@ -579,7 +647,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
     await waitFor(() => expect(buildProjectQuotePdfBlobMock).toHaveBeenCalled());
@@ -608,7 +676,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
         capturedDownload = this.download;
       });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
     await waitFor(() => expect(capturedDownload).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}\.pdf$/));
@@ -626,7 +694,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     setSolvedProject();
     buildProjectQuotePdfBlobMock.mockRejectedValue(new Error('boom'));
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
 
     await waitFor(() => expect(screen.getByText('Não foi possível gerar o PDF. Tente novamente.')).toBeInTheDocument());
@@ -639,7 +707,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
 
     expect(buildProjectQuotePdfBlobMock).not.toHaveBeenCalled();
@@ -651,7 +719,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     setSolvedProject();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
 
     expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
@@ -671,7 +739,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
       }));
     });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
@@ -705,7 +773,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
       }));
     });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
@@ -741,7 +809,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
       }));
     });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
@@ -770,7 +838,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
       }));
     });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
@@ -786,7 +854,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
@@ -800,7 +868,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
@@ -817,7 +885,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
     act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     await waitFor(() => expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument());
 
     const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
@@ -836,7 +904,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
     act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
+    await goToSizingViaProject();
     await waitFor(() => expect(screen.getByText('Versão Econômica')).toBeInTheDocument());
 
     const economicCard = screen.getByText('Versão Econômica').closest('.rounded-lg') as HTMLElement;
@@ -860,8 +928,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     });
     renderApp();
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
   });
 
   it('shows the correct HV and LV inverter counts at the same time, without switching tabs first', async () => {
@@ -910,8 +977,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     });
     renderApp();
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
 
     await screen.findByText('Model-A');
@@ -950,8 +1016,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
     });
     renderApp();
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     await waitFor(() => expect(useWizardStore.getState().residentialOptions.maxPowerPerPhaseW).toBeCloseTo(3333.33, 1));
   });
@@ -986,8 +1051,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     (supabase as unknown as { functions: unknown }).functions = { invoke };
 
     renderApp();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
@@ -1039,8 +1103,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     (supabase as unknown as { functions: unknown }).functions = { invoke };
 
     renderApp();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
@@ -1076,8 +1139,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     (supabase as unknown as { functions: unknown }).functions = { invoke };
 
     renderApp();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
@@ -1095,8 +1157,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     (supabase as unknown as { functions: unknown }).functions = { invoke };
 
     renderApp();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
@@ -1137,8 +1198,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     ];
     setupSupabase({ batteries: { data: batteryRows, error: null } });
     renderApp();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
@@ -1178,8 +1238,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     ];
     setupSupabase({ batteries: { data: batteryRows, error: null } });
     renderApp();
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
@@ -1200,8 +1259,7 @@ describe('SinglePageApp: uploading a feature photo', () => {
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Dimensionamento' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+    await goToSizingViaProject();
 
     fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
