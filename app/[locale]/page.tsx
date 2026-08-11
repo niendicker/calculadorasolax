@@ -19,16 +19,16 @@ export default async function HomePage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('terms_accepted_at')
-      .eq('id', user.id)
-      .maybeSingle();
+  if (!user) redirect(`/${locale}/login?redirect=/${locale}`);
 
-    if (!profile?.terms_accepted_at) {
-      redirect(`/${locale}/aceite-termos?redirect=${encodeURIComponent(`/${locale}`)}`);
-    }
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('terms_accepted_at')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile?.terms_accepted_at) {
+    redirect(`/${locale}/aceite-termos?redirect=${encodeURIComponent(`/${locale}`)}`);
   }
 
   return <SinglePageApp />;
