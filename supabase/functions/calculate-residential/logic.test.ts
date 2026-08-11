@@ -1231,6 +1231,22 @@ describe('validateResidentialOptions', () => {
     expect(errors.some((e) => e.includes('topology'))).toBe(true);
   });
 
+  it('accepts a null or omitted minInverterQty', () => {
+    expect(validateResidentialOptions({ ...validPayload(), minInverterQty: null })).toEqual([]);
+    expect(validateResidentialOptions(validPayload())).toEqual([]);
+  });
+
+  it('accepts a positive integer minInverterQty', () => {
+    expect(validateResidentialOptions({ ...validPayload(), minInverterQty: 2 })).toEqual([]);
+  });
+
+  it('rejects a minInverterQty that is not a positive integer', () => {
+    for (const value of [0, -1, 1.5, 'two']) {
+      const errors = validateResidentialOptions({ ...validPayload(), minInverterQty: value });
+      expect(errors.some((e) => e.includes('minInverterQty'))).toBe(true);
+    }
+  });
+
   it('rejects an empty loads array', () => {
     const errors = validateResidentialOptions({ ...validPayload(), loads: [] });
     expect(errors).toContain('loads must be a non-empty array');
@@ -1278,6 +1294,43 @@ describe('validateResidentialOptions', () => {
       loads: [{ powerW: 100, qty: 1, ipInRatio: 0.5 }],
     });
     expect(errors.some((e) => e.includes('ipInRatio'))).toBe(true);
+  });
+
+  it('rejects an unknown usageMode', () => {
+    const errors = validateResidentialOptions({
+      ...validPayload(),
+      loads: [{ powerW: 100, qty: 1, usageMode: 'always' }],
+    });
+    expect(errors.some((e) => e.includes('usageMode'))).toBe(true);
+  });
+
+  it('rejects a usageFactor outside 0-1', () => {
+    for (const usageFactor of [-1, 1.5, 'half']) {
+      const errors = validateResidentialOptions({
+        ...validPayload(),
+        loads: [{ powerW: 100, qty: 1, usageFactor }],
+      });
+      expect(errors.some((e) => e.includes('usageFactor'))).toBe(true);
+    }
+    expect(
+      validateResidentialOptions({ ...validPayload(), loads: [{ powerW: 100, qty: 1, usageFactor: 0.5 }] })
+    ).toEqual([]);
+  });
+
+  it('rejects a fixedHours outside 0-24', () => {
+    for (const fixedHours of [-1, 25, 'ten']) {
+      const errors = validateResidentialOptions({
+        ...validPayload(),
+        loads: [{ powerW: 100, qty: 1, usageMode: 'fixed', fixedHours }],
+      });
+      expect(errors.some((e) => e.includes('fixedHours'))).toBe(true);
+    }
+    expect(
+      validateResidentialOptions({
+        ...validPayload(),
+        loads: [{ powerW: 100, qty: 1, usageMode: 'fixed', fixedHours: 10 }],
+      })
+    ).toEqual([]);
   });
 
   it('rejects a batteryModel that is neither a string nor null', () => {

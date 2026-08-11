@@ -317,6 +317,9 @@ export interface ResidentialOptions {
   topology: 'HighVoltage' | 'LowVoltage';
   batteryModel: string | null;
   inverterModel: string | null;
+  /** Only accept approved_solutions rows with at least this many inverters
+   * in parallel — see index.ts's strict/relaxed queries. */
+  minInverterQty?: number | null;
   gridType: 'singlePhase_220' | 'splitPhase_220' | 'threePhase_220' | 'threePhase_380';
   loads: SingleLoad[];
   peakCalcMode?: PeakCalcMode;
@@ -845,6 +848,14 @@ export function validateResidentialOptions(raw: unknown): string[] {
   }
 
   if (
+    options.minInverterQty !== undefined &&
+    options.minInverterQty !== null &&
+    (typeof options.minInverterQty !== 'number' || !Number.isInteger(options.minInverterQty) || options.minInverterQty < 1)
+  ) {
+    errors.push('minInverterQty must be a positive integer or null');
+  }
+
+  if (
     options.peakCalcMode !== undefined &&
     !VALID_PEAK_CALC_MODES.includes(options.peakCalcMode as PeakCalcMode)
   ) {
@@ -1020,6 +1031,24 @@ export function validateResidentialOptions(raw: unknown): string[] {
         (typeof l.ipInRatio !== 'number' || !Number.isFinite(l.ipInRatio) || l.ipInRatio < 1)
       ) {
         errors.push(`loads[${index}].ipInRatio must be a number >= 1`);
+      }
+
+      if (l.usageMode !== undefined && l.usageMode !== 'fraction' && l.usageMode !== 'fixed') {
+        errors.push(`loads[${index}].usageMode must be 'fraction' or 'fixed'`);
+      }
+
+      if (
+        l.usageFactor !== undefined &&
+        (typeof l.usageFactor !== 'number' || !Number.isFinite(l.usageFactor) || l.usageFactor < 0 || l.usageFactor > 1)
+      ) {
+        errors.push(`loads[${index}].usageFactor must be a number between 0 and 1`);
+      }
+
+      if (
+        l.fixedHours !== undefined &&
+        (typeof l.fixedHours !== 'number' || !Number.isFinite(l.fixedHours) || l.fixedHours < 0 || l.fixedHours > 24)
+      ) {
+        errors.push(`loads[${index}].fixedHours must be a number between 0 and 24`);
       }
     });
   }
