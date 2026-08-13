@@ -13,6 +13,13 @@ function resolveCommitSha() {
   }
 }
 
+// Derived from NEXT_PUBLIC_SUPABASE_URL instead of a hardcoded hostname, so
+// migrating the Supabase project (self-hosted or not) only requires updating
+// that one env var — next/image's remote-host allowlist follows it
+// automatically instead of needing a matching next.config.ts edit + redeploy
+// every time (see the supabase-calculadora.solaxpowerbrasil.cloud migration).
+const supabaseUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_COMMIT_SHA: resolveCommitSha(),
@@ -22,8 +29,8 @@ const nextConfig: NextConfig = {
     // from this Supabase project's public storage buckets.
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'xeddlhrmquwzuesvznrd.supabase.co',
+        protocol: supabaseUrl.protocol.replace(':', '') as 'http' | 'https',
+        hostname: supabaseUrl.hostname,
         pathname: '/storage/v1/object/public/**',
       },
     ],
