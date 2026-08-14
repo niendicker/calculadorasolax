@@ -16,6 +16,7 @@ function makeQueryBuilder(result: QueryResult) {
     upsert: () => builder,
     eq: () => builder,
     in: () => builder,
+    not: () => builder,
     range: () => builder,
     limit: () => builder,
     single: () => Promise.resolve(result),

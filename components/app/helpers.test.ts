@@ -6,6 +6,7 @@ import {
   buildPdfFileName,
   buildProjectShareText,
   buildQuoteShareSnapshot,
+  buildSupplierQuoteRequestEmail,
   buildWhatsAppShareUrl,
   calculateDegradedPaybackMonths,
   calculateSystemCost,
@@ -14,6 +15,7 @@ import {
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   expansionModelSet,
+  formatDocument,
   generatorActivePowerW,
   isGeneratorAtsUnacknowledged,
   isGeneratorPhaseVoltageIncompatible,
@@ -123,6 +125,7 @@ function makeProfile(partial: Partial<InlineProfile> = {}): InlineProfile {
     companyName: 'Empresa Teste',
     companyAddress: emptyAddress(),
     companyLogoUrl: '',
+    companyDocument: '',
     ...partial,
   };
 }
@@ -140,6 +143,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
       batteryModel: 'T-BAT-SYS HV 5.8 V2',
       secondaryBatteryModel: null,
       inverterModel: null,
+      minInverterQty: null,
       gridType: 'singlePhase_220',
       loads: [{ id: 'l1', name: 'Carga', powerW: 1000, qty: 1, ipInRatio: 1 }],
       peakCalcMode: 'sum',
@@ -755,6 +759,37 @@ describe('buildProjectShareText', () => {
   });
 });
 
+describe('buildSupplierQuoteRequestEmail', () => {
+  it('includes the requester\'s company data for NF/freight, without WhatsApp-style asterisks', () => {
+    const profile = makeProfile({
+      companyName: 'Instaladora Solar LTDA',
+      companyDocument: '12.345.678/0001-95',
+      phone: '(11) 91234-5678',
+      companyAddress: { ...emptyAddress(), street: 'Av. Paulista', number: '1000', city: 'São Paulo', state: 'SP' },
+    });
+    const text = buildSupplierQuoteRequestEmail(shareableProject, profile, []);
+
+    expect(text).toContain('Instaladora Solar LTDA');
+    expect(text).toContain('12.345.678/0001-95');
+    expect(text).toContain('(11) 91234-5678');
+    expect(text).toContain('Av. Paulista');
+    expect(text).not.toContain('*');
+  });
+
+  it('omits the CNPJ/CPF line when the profile has none on file', () => {
+    const profile = makeProfile({ companyDocument: '' });
+    const text = buildSupplierQuoteRequestEmail(shareableProject, profile, []);
+    expect(text).not.toContain('CNPJ/CPF');
+  });
+
+  it('lists the solution once one is calculated', () => {
+    const profile = makeProfile();
+    const text = buildSupplierQuoteRequestEmail({ ...shareableProject, solution: makeSolution() }, profile, []);
+    expect(text).toContain('X1-Hybrid-5.0-D');
+    expect(text).toContain('T-BAT-SYS HV 5.8 V2');
+  });
+});
+
 describe('buildClientQuoteText', () => {
   const project = { ...shareableProject, solution: makeSolution() };
   const systemCost = { totalCost: 32450, pricedItemsCount: 2, totalItemsCount: 2, isComplete: true, missingItems: [] };
@@ -802,6 +837,20 @@ describe('buildWhatsAppShareUrl', () => {
 
   it('does not double the country code when it is already present', () => {
     expect(buildWhatsAppShareUrl('+55 11 91234-5678', 'Oi')).toBe('https://wa.me/5511912345678?text=Oi');
+  });
+});
+
+describe('formatDocument', () => {
+  it('formats an 11-digit input as a CPF', () => {
+    expect(formatDocument('12345678900')).toBe('123.456.789-00');
+  });
+
+  it('formats a 12+ digit input as a CNPJ', () => {
+    expect(formatDocument('12345678000195')).toBe('12.345.678/0001-95');
+  });
+
+  it('strips non-digit characters and caps at 14 digits', () => {
+    expect(formatDocument('12.345.678/0001-95extra')).toBe('12.345.678/0001-95');
   });
 });
 

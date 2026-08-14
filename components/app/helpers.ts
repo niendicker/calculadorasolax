@@ -448,6 +448,21 @@ export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+/** Formats a CPF/CNPJ as the user types — detects which shape by digit
+ * count (≤11 digits stays CPF, more becomes CNPJ) so one field handles both
+ * without asking which type it is up front. */
+export function formatDocument(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
 /** Masks a CPF/CNPJ for display — keeps the first 3 and last 2 digits
  * visible (enough to recognize/confirm it's the right document without
  * exposing the whole number) and replaces every other digit with •,
@@ -498,7 +513,7 @@ export function buildPdfFileName(projectName: string, date: Date = new Date()): 
 // SavedProject (Projeto tab) and from the live wizard state (Dimensionamento
 // tab's Resumo, which already has peakW/dailyKwh precomputed and a narrower
 // residentialOptions prop shape).
-type ShareableProject = {
+export type ShareableProject = {
   name: string;
   address?: Address;
   topology: BatteryTopology | null;
@@ -509,7 +524,7 @@ type ShareableProject = {
   solution: Solution | null;
 };
 
-type ShareableBatteryCatalog = {
+export type ShareableBatteryCatalog = {
   model: string;
   standardPowerKw: number | null;
   peakPowerKw: number | null;
@@ -581,6 +596,39 @@ export function buildProjectShareText(
   lines.push('', 'Poderia me passar um orçamento para essa solução?');
 
   return lines.join('\n');
+}
+
+/** Email counterpart to `buildProjectShareText` — same technical summary
+ * (config + solution), but as a plain-text email body instead of a
+ * WhatsApp-bound clipboard string: no `*bold*` markup (doesn't render in an
+ * email), and leads with the requester's own company data (name, CNPJ/CPF,
+ * phone, address) so the supplier has what it needs to issue an NF and quote
+ * freight, alongside the solution to be priced. */
+export function buildSupplierQuoteRequestEmail(
+  project: ShareableProject,
+  profile: InlineProfile,
+  batteryCatalog: ShareableBatteryCatalog
+): string {
+  const lines: string[] = [
+    `Olá! Gostaria de solicitar uma cotação para a solução abaixo${project.name ? ` (projeto: ${project.name})` : ''}.`,
+    '',
+    'Dados para nota fiscal e frete:',
+    `- Empresa: ${profile.companyName || profile.fullName}`,
+  ];
+  if (profile.companyDocument) lines.push(`- CNPJ/CPF: ${profile.companyDocument}`);
+  if (profile.phone) lines.push(`- Telefone: ${profile.phone}`);
+  if (profile.email) lines.push(`- Email: ${profile.email}`);
+  if (!isAddressEmpty(profile.companyAddress)) {
+    lines.push(`- Endereço de entrega: ${formatAddress(profile.companyAddress)}`);
+  }
+
+  lines.push('', ...buildConfigLines(project));
+  lines.push('', ...(project.solution ? buildSolutionLines(project.solution, batteryCatalog) : ['Solução ainda não calculada.']));
+  lines.push('', 'Poderiam nos passar valores e prazo de entrega/frete para esses itens?');
+
+  // buildConfigLines/buildSolutionLines use WhatsApp's *bold* markup, which
+  // would just show up as literal asterisks in an email body.
+  return lines.join('\n').replace(/\*/g, '');
 }
 
 /** Client-facing counterpart to `buildProjectShareText` — same technical

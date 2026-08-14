@@ -5,7 +5,6 @@ import {
   BatteryCharging,
   Calculator,
   ChevronRight,
-  ClipboardCopy,
   Gauge,
   Loader2,
   Mail,
@@ -23,7 +22,6 @@ import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceIt
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
   batteryQuantityBreakdown,
-  buildProjectShareText,
   buildQuoteShareSnapshot,
   buildWhatsAppShareUrl,
   calculateSystemCost,
@@ -31,10 +29,11 @@ import {
   normalizeAccessoryLine,
   solutionMetrics,
 } from '../../helpers';
-import { Metric, SharePreviewModal, WhatsAppIcon } from '../../shared-ui';
+import { Metric, WhatsAppIcon } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
+import { SupplierQuoteRequestModal } from './SupplierQuoteRequestModal';
 
 /** A product's category label, its nickname/model (with quantity, if any),
  * and — only when a nickname is set — the bare model code as a small
@@ -80,6 +79,7 @@ export function SelectedProjectSummary({
   onClose,
   onOpenSizing,
   onUpdateStatus,
+  onManageSuppliers,
 }: {
   project: SavedProject;
   client: Client | undefined;
@@ -93,6 +93,9 @@ export function SelectedProjectSummary({
   onClose: () => void;
   onOpenSizing: () => void;
   onUpdateStatus: (status: ProjectStatus) => void;
+  /** Sends the seller to Compras — used by the supplier quote-request modal
+   *  when they haven't picked any suppliers there yet. */
+  onManageSuppliers: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -107,7 +110,7 @@ export function SelectedProjectSummary({
         (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
       )
     : [];
-  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [supplierQuoteModalOpen, setSupplierQuoteModalOpen] = useState(false);
   const [sharingQuote, setSharingQuote] = useState(false);
   const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
 
@@ -123,10 +126,7 @@ export function SelectedProjectSummary({
   };
 
   const canShareQuote = Boolean(project.solution && client?.phone && profile);
-
-  function openProjectDataPreview() {
-    setPreviewText(buildProjectShareText(shareableProject, client?.name, batteryCatalog));
-  }
+  const canRequestSupplierQuote = Boolean(project.solution && profile);
 
   // Generates the public quote-share link (same snapshot the old separate
   // "Compartilhar orçamento (link)" button used to build) and opens WhatsApp
@@ -374,12 +374,25 @@ export function SelectedProjectSummary({
         variant="outline"
         size="lg"
         className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-        onClick={openProjectDataPreview}
+        disabled={!canRequestSupplierQuote}
+        title={!project.solution ? 'Calcule uma solução para este projeto antes de solicitar orçamento.' : undefined}
+        onClick={() => setSupplierQuoteModalOpen(true)}
       >
-        <ClipboardCopy className="h-4 w-4" />
-        Copiar dados para fornecedor
+        <Mail className="h-4 w-4" />
+        Solicitar orçamento ao fornecedor
       </Button>
-      <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
+      {profile && (
+        <SupplierQuoteRequestModal
+          open={supplierQuoteModalOpen}
+          onClose={() => setSupplierQuoteModalOpen(false)}
+          projectId={project.id}
+          project={shareableProject}
+          profile={profile}
+          batteryCatalog={batteryCatalog}
+          onSent={() => setEventsRefreshKey((key) => key + 1)}
+          onManageSuppliers={onManageSuppliers}
+        />
+      )}
 
       <Separator />
       <ProjectEventsTimeline projectId={project.id} refreshKey={`${project.updatedAt}:${eventsRefreshKey}`} />

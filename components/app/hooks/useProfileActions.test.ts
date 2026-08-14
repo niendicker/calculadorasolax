@@ -15,6 +15,7 @@ const fakeProfile: InlineProfile = {
   companyName: '',
   companyAddress: emptyAddress(),
   companyLogoUrl: '',
+  companyDocument: '',
 };
 
 function makeSupabase({

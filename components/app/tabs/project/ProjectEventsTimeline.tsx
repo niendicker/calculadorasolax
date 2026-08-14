@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Activity, CheckCircle2, Eye, RefreshCw, Send, XCircle, type LucideIcon } from 'lucide-react';
+import { Activity, CheckCircle2, Eye, Mail, RefreshCw, Send, XCircle, type LucideIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { projectEventFromRow } from '@/lib/store/row-mappers';
 import type { ProjectEvent, ProjectStatus } from '@/lib/types';
@@ -21,6 +21,10 @@ const eventTypeMeta: Record<string, { icon: LucideIcon; label: (event: ProjectEv
   quote_link_viewed: { icon: Eye, label: () => 'Cliente visualizou o orçamento' },
   quote_accepted: { icon: CheckCircle2, label: () => 'Cliente aceitou o orçamento' },
   quote_rejected: { icon: XCircle, label: () => 'Cliente recusou o orçamento' },
+  supplier_quote_requested: {
+    icon: Mail,
+    label: (event) => event.message ?? 'Solicitação de orçamento enviada ao fornecedor',
+  },
   status_changed: {
     icon: RefreshCw,
     label: (event) => `Status alterado: ${statusLabel(event.fromStatus)} → ${statusLabel(event.toStatus)}`,

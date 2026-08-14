@@ -17,6 +17,7 @@ const baseProfile: InlineProfile = {
   companyName: '',
   companyAddress: emptyAddress(),
   companyLogoUrl: '',
+  companyDocument: '',
 };
 
 /** ProfileTab is fully controlled (profile, deleteAccountOpen, deleteConfirmText
@@ -108,6 +109,13 @@ describe('ProfileTab: fields', () => {
     expect(screen.queryByAltText('Logomarca da empresa')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Logomarca'), { target: { value: 'https://cdn.example.com/logo.png' } });
     expect(screen.getByAltText('Logomarca da empresa')).toHaveAttribute('src', 'https://cdn.example.com/logo.png');
+  });
+
+  it('formats the CNPJ field as the user types', () => {
+    renderWithShell(<ControlledProfileTab />);
+
+    fireEvent.change(screen.getByLabelText('CNPJ da empresa'), { target: { value: '12345678000195' } });
+    expect(screen.getByLabelText('CNPJ da empresa')).toHaveValue('12.345.678/0001-95');
   });
 
   it('uploads a company logo file', () => {

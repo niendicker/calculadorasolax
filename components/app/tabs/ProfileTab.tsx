@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { AddressFields } from '../address-fields';
+import { formatDocument } from '../helpers';
 import { PageHeader } from '../shell/slots';
 import type { InlineProfile } from '../types';
 
@@ -106,6 +107,18 @@ export function ProfileTab({
                     onChange={(event) => setProfile({ ...profile, companyName: event.target.value })}
                     placeholder="Nome que aparecerá no relatório"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="inlineCompanyDocument">CNPJ da empresa</Label>
+                  <Input
+                    id="inlineCompanyDocument"
+                    value={profile.companyDocument}
+                    onChange={(event) => setProfile({ ...profile, companyDocument: formatDocument(event.target.value) })}
+                    placeholder="00.000.000/0000-00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usado nas solicitações de orçamento por email para fornecedores.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Endereço da empresa</Label>

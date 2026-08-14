@@ -389,6 +389,7 @@ export const KNOWN_PROJECT_EVENT_TYPES = [
   'quote_accepted',
   'quote_rejected',
   'status_changed',
+  'supplier_quote_requested',
 ] as const;
 export type ProjectEventType = (typeof KNOWN_PROJECT_EVENT_TYPES)[number];
 

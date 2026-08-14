@@ -901,6 +901,7 @@ export function SinglePageApp() {
               onDownloadPdf={downloadProjectPdf}
               downloadingProjectId={downloadingProjectId}
               onManageClients={openClientsManager}
+              onManageSuppliers={openPurchasesTab}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}
             />

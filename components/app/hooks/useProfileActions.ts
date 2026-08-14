@@ -65,6 +65,7 @@ export function useProfileActions({
       company_name: profile.companyName.trim(),
       company_address: isAddressEmpty(profile.companyAddress) ? null : profile.companyAddress,
       company_logo_url: profile.companyLogoUrl.trim(),
+      company_document: profile.companyDocument.trim() || null,
       updated_at: new Date().toISOString(),
     });
 

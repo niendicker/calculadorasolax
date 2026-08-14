@@ -81,6 +81,7 @@ describe('buildProjectQuotePdfBlob', () => {
       companyName: 'Integradora XPTO',
       companyAddress: { ...emptyAddress(), street: 'Av. Principal, 100' },
       companyLogoUrl: 'https://cdn.example.com/logo.png',
+      companyDocument: '',
     };
     const blob = await buildProjectQuotePdfBlob(baseInput({ profile }));
     expect(await pdfMagicBytes(blob)).toBe('%PDF-');

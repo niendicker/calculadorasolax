@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import type { Client, SavedProject } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { formatPhone, maskDocument } from '../helpers';
+import { formatDocument, formatPhone, maskDocument } from '../helpers';
 import { PageHeader } from '../shell/slots';
 import { SearchInput } from '../shared-ui';
 import { projectStatusLabels } from '../types';
@@ -42,18 +42,6 @@ function MaskedDocumentReveal({ document }: { document: string }) {
       </button>
     </span>
   );
-}
-
-function formatDocument(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 14);
-  if (digits.length <= 11) {
-    return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  }
-  return digits
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
 export function ClientsTab({

@@ -16,6 +16,9 @@ export interface InlineProfile {
   companyName: string;
   companyAddress: Address;
   companyLogoUrl: string;
+  /** CNPJ/CPF, used on outgoing supplier quote-request emails for invoice
+   * (NF) and freight-quote purposes. Optional — blank when not filled in. */
+  companyDocument: string;
 }
 
 export interface ProductMedia {
