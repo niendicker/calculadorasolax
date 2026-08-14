@@ -33,6 +33,7 @@ const baseProfile: InlineProfile = {
   companyName: 'Empresa Teste',
   companyAddress: emptyAddress(),
   companyLogoUrl: '',
+  companyDocument: '',
 };
 
 function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
@@ -48,6 +49,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
       batteryModel: 'TP-HS3.6',
       secondaryBatteryModel: null,
       inverterModel: null,
+      minInverterQty: null,
       gridType: 'singlePhase_220',
       loads: [],
       peakCalcMode: 'sum',
@@ -149,6 +151,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onDownloadPdf: vi.fn(),
     downloadingProjectId: null,
     onManageClients: vi.fn(),
+    onManageSuppliers: vi.fn(),
     onShowSummary: vi.fn(),
     onHideSummary: vi.fn(),
     ...propOverrides,
@@ -238,8 +241,8 @@ describe('ProjectTab: empty and list states', () => {
   });
 });
 
-describe('ProjectTab: aggregate stats, filtering and sorting', () => {
-  it('shows a stats line with the project count, how many have a solution, and the total priced value', () => {
+describe('ProjectTab: aggregate stats', () => {
+  it('shows a summary strip with the project count, how many have a solution, and the total priced value', () => {
     setup({
       savedProjects: [
         makeProject({
@@ -262,50 +265,13 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
       ],
     });
 
-    expect(screen.getByText(/2 projetos/)).toBeInTheDocument();
-    expect(screen.getByText(/1 com solução calculada/)).toBeInTheDocument();
-    // One match in the aggregate stats line, one on the priced project's own card.
+    const summary = screen.getByRole('group', { name: 'Resumo dos projetos' });
+    expect(within(summary).getByText('2')).toBeInTheDocument();
+    expect(within(summary).getByText('projetos')).toBeInTheDocument();
+    expect(within(summary).getByText('1')).toBeInTheDocument();
+    expect(within(summary).getByText('com solução')).toBeInTheDocument();
+    // One match in the summary strip, one on the priced project's own card.
     expect(screen.getAllByText(/R\$\s*8\.000,00/)).toHaveLength(2);
-  });
-
-  it('filters the list to only projects with (or without) a calculated solution', () => {
-    setup({
-      savedProjects: [
-        makeProject({
-          id: 'p1',
-          name: 'Casa de praia',
-          solution: {
-            inverterId: 'inv1',
-            inverterModel: 'X1-Hybrid',
-            batteryId: 'bat1',
-            batteryModel: 'TP-HS3.6',
-            batteryQty: 1,
-            pvPowerKw: null,
-            accessories: [],
-          },
-        }),
-        makeProject({ id: 'p2', name: 'Escritório' }),
-      ],
-    });
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Com solução' }));
-    expect(screen.getByText('Casa de praia')).toBeInTheDocument();
-    expect(screen.queryByText('Escritório')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Sem solução' }));
-    expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
-    expect(screen.getByText('Escritório')).toBeInTheDocument();
-  });
-
-  it('sorts the list by name when "Nome (A-Z)" is chosen', () => {
-    setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Zebra' }), makeProject({ id: 'p2', name: 'Alpha' })],
-    });
-
-    fireEvent.change(screen.getByLabelText('Ordenar projetos'), { target: { value: 'name' } });
-
-    const names = screen.getAllByText(/^(Zebra|Alpha)$/).map((el) => el.textContent);
-    expect(names).toEqual(['Alpha', 'Zebra']);
   });
 
   it("shows the linked client's phone and email on the card", () => {
@@ -316,24 +282,6 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
 
     expect(screen.getByText('(11) 99999-0000')).toBeInTheDocument();
     expect(screen.getByText('ana@example.com')).toBeInTheDocument();
-  });
-
-  it('sorts the list by client name when "Cliente (A-Z)" is chosen', () => {
-    setup({
-      savedProjects: [
-        makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c2' }),
-        makeProject({ id: 'p2', name: 'Escritório', clientId: 'c1' }),
-      ],
-      clients: [
-        { id: 'c1', name: 'Alpha Cliente' } as Client,
-        { id: 'c2', name: 'Zebra Cliente' } as Client,
-      ],
-    });
-
-    fireEvent.change(screen.getByLabelText('Ordenar projetos'), { target: { value: 'client' } });
-
-    const names = screen.getAllByText(/^(Casa de praia|Escritório)$/).map((el) => el.textContent);
-    expect(names).toEqual(['Escritório', 'Casa de praia']);
   });
 
   it("shows each project's own priced solution value on its card, flagging a partial total", () => {
@@ -374,6 +322,7 @@ describe('ProjectTab: aggregate stats, filtering and sorting', () => {
             batteryModel: null,
             secondaryBatteryModel: null,
             inverterModel: null,
+            minInverterQty: null,
             gridType: null,
             loads: [],
             peakCalcMode: 'sum',
@@ -444,6 +393,16 @@ describe('ProjectTab: new project draft', () => {
   it('hides the "Novo projeto" trigger card while a draft is already open', () => {
     setup({ projectDetailsVisible: true, currentProjectId: null });
     expect(screen.queryByRole('button', { name: /Novo projeto/ })).not.toBeInTheDocument();
+  });
+
+  it('hides other saved-project cards and the search input while a new draft is open', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      projectDetailsVisible: true,
+      currentProjectId: null,
+    });
+    expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pesquisar projeto...' })).not.toBeInTheDocument();
   });
 
   it('shows an inline draft card (not a separate list item) when starting a new project', () => {
@@ -567,8 +526,8 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     // The card for p1 became the editable form (its name only shows as an input value)...
     expect(screen.getByLabelText('Nome do projeto')).toHaveValue('Casa de praia');
     expect(screen.getByText('Editando projeto')).toBeInTheDocument();
-    // ...while p2 stays a normal read-only card.
-    expect(screen.getByText('Escritório')).toBeInTheDocument();
+    // ...while p2's card is hidden entirely, so it can't be clicked into by mistake mid-edit.
+    expect(screen.queryByText('Escritório')).not.toBeInTheDocument();
     // Only one "Novo projeto" trigger card should exist for a genuinely new draft, and it must be absent here.
     expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
   });
@@ -915,11 +874,29 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Obrigatório')).toBeInTheDocument();
   });
 
-  it('"Copiar dados" shows a single-view preview of the WhatsApp-friendly summary, copying only when confirmed', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  it('"Solicitar orçamento ao fornecedor" previews the message and sends only to the checked suppliers', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: {
+          quote_shares: { data: { id: 'share-1' }, error: null },
+          suppliers: {
+            data: [
+              { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
+              { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
+            ],
+            error: null,
+          },
+        },
+      })
+    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ status: 'sent', sentTo: ['Fornecedor A'], failedTo: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     setup({
+      profile: baseProfile,
       savedProjects: [
         makeProject({
           id: 'p1',
@@ -940,28 +917,48 @@ describe('ProjectTab: selecting a project without opening it', () => {
     });
 
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados para fornecedor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' }));
 
-    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
-    expect(writeText).not.toHaveBeenCalled();
-    expect(within(dialog).getByText(/Casa de praia/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/Ana Souza/)).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
+    await within(dialog).findByText('Fornecedor A');
     expect(within(dialog).getByText(/X1-Hybrid/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/orçamento/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Poderiam nos passar valores e prazo/)).toBeInTheDocument();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar' }));
+    const sendButton = within(dialog).getByRole('button', { name: 'Enviar solicitação' });
+    expect(sendButton).toBeDisabled();
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    expect(within(dialog).getByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Fornecedor A/ }));
+    expect(sendButton).not.toBeDisabled();
 
-    // The preview closes itself shortly after a successful copy.
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia da mensagem' })).not.toBeInTheDocument(), {
-      timeout: 2000,
-    });
+    fireEvent.click(sendButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/request-supplier-quote', expect.anything()));
+    const [, requestInit] = fetchMock.mock.calls[0];
+    const sentBody = JSON.parse(requestInit.body);
+    expect(sentBody.supplierIds).toEqual(['sup-1']);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' })).not.toBeInTheDocument());
+
+    vi.unstubAllGlobals();
   });
 
-  it('"Copiar dados" omits bundled accessories from the preview, keeping only quotable ones', () => {
-    setup({
+  it('points the seller to Compras when they haven\'t chosen any supplier there yet', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({
+        tableResults: {
+          quote_shares: { data: { id: 'share-1' }, error: null },
+          // Suppliers exist in the catalog, but none are default-for-all and
+          // the seller has no user_supplier_preferences row — same as a
+          // brand-new Compras user.
+          suppliers: {
+            data: [{ id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: false }],
+            error: null,
+          },
+        },
+      })
+    );
+    const { props } = setup({
+      profile: baseProfile,
       savedProjects: [
         makeProject({
           id: 'p1',
@@ -973,21 +970,32 @@ describe('ProjectTab: selecting a project without opening it', () => {
             batteryModel: 'TP-HS3.6',
             batteryQty: 1,
             pvPowerKw: null,
-            accessories: [
-              { model: 'WiFi Dongle', qty: 1, optional: false, appliesTo: 'inverter', comment: null, bundled: true },
-              { model: 'Disjuntor CA', qty: 1, optional: false, appliesTo: 'system', comment: null, bundled: false },
-            ],
+            accessories: [],
           },
         }),
       ],
     });
 
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados para fornecedor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' }));
 
-    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
-    expect(within(dialog).queryByText(/WiFi Dongle/)).not.toBeInTheDocument();
-    expect(within(dialog).getByText(/Disjuntor CA/)).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
+    await within(dialog).findByText(/ainda não escolheu fornecedores/);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ir para Compras' }));
+
+    expect(props.onManageSuppliers).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' })).not.toBeInTheDocument();
+  });
+
+  it('disables "Solicitar orçamento ao fornecedor" when the project has no calculated solution yet', () => {
+    setup({
+      profile: baseProfile,
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', solution: null })],
+    });
+
+    clickCard('Casa de praia');
+    expect(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' })).toBeDisabled();
   });
 
   const solvedProject = makeProject({
@@ -1206,6 +1214,7 @@ describe('ProjectTab: refreshing a project\'s solution from the card', () => {
             batteryModel: 'TP-HS3.6',
             secondaryBatteryModel: null,
             inverterModel: null,
+            minInverterQty: null,
             gridType: 'singlePhase_220',
             loads: [{ id: 'l1', name: 'Chuveiro', powerW: 100000, qty: 1, ipInRatio: 1, usageFactor: 1 }],
             peakCalcMode: 'sum',
@@ -1255,22 +1264,6 @@ describe('ProjectTab: quotation status', () => {
 
     expect(props.onUpdateStatus).toHaveBeenCalledWith('p1', 'accepted');
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
-  });
-
-  it('filters the project list by quotation status', () => {
-    setup({
-      savedProjects: [
-        makeProject({ id: 'p1', name: 'Casa de praia', status: 'draft' }),
-        makeProject({ id: 'p2', name: 'Escritório', status: 'accepted' }),
-      ],
-    });
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar por status da cotação' }), {
-      target: { value: 'accepted' },
-    });
-
-    expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
-    expect(screen.getByText('Escritório')).toBeInTheDocument();
   });
 
   it('shows the status control in the selected-project summary panel too', () => {

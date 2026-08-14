@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList } from 'lucide-react';
-import { Select } from '@/components/ui/select';
+import { Banknote, Calculator, ClipboardList, FolderOpen } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
@@ -12,12 +11,11 @@ import type {
   ResidentialGridType,
 } from '@/lib/types';
 import { useWizardStore } from '@/lib/store/wizard-store';
-import { cn } from '@/lib/utils';
 import { calculateSystemCost, formatCurrencyBRL } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../types';
-import { gridLabels, projectStatusLabels, topologyLabels } from '../types';
+import { gridLabels, topologyLabels } from '../types';
 import { NewProjectCard } from './project/NewProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
@@ -64,6 +62,7 @@ export function ProjectTab({
   onDownloadPdf,
   downloadingProjectId,
   onManageClients,
+  onManageSuppliers,
   onShowSummary,
   onHideSummary,
 }: {
@@ -96,6 +95,9 @@ export function ProjectTab({
    * loading state on that project's "Baixar Relatório" button specifically. */
   downloadingProjectId: string | null;
   onManageClients: () => void;
+  /** Sends the seller to Compras — used by the supplier quote-request modal
+   *  when they haven't picked any suppliers there yet. */
+  onManageSuppliers: () => void;
   /** Brings the shell's summary panel into view (a slide-in drawer on
    * mobile/tablet) — selecting a project should surface its rich summary
    * immediately instead of waiting for the user to tap the nav badge. */
@@ -125,9 +127,6 @@ export function ProjectTab({
   const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false);
   const nameError = nameSubmitAttempted && !projectInfo.name.trim();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'with' | 'without'>('all');
-  const [quoteStatusFilter, setQuoteStatusFilter] = useState<'all' | ProjectStatus>('all');
-  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'client'>('recent');
 
   const selectedProject =
     !projectDetailsVisible && selectedProjectId
@@ -152,24 +151,11 @@ export function ProjectTab({
   const filteredProjects = savedProjects
     .filter((project) => {
       const clientName = clients.find((client) => client.id === project.clientId)?.name ?? '';
-      const matchesSearch =
-        project.name.toLowerCase().includes(normalizedSearch) || clientName.toLowerCase().includes(normalizedSearch);
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'with' && project.solution) ||
-        (statusFilter === 'without' && !project.solution);
-      const matchesQuoteStatus = quoteStatusFilter === 'all' || project.status === quoteStatusFilter;
-      return matchesSearch && matchesStatus && matchesQuoteStatus;
+      return (
+        project.name.toLowerCase().includes(normalizedSearch) || clientName.toLowerCase().includes(normalizedSearch)
+      );
     })
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name, 'pt-BR');
-      if (sortBy === 'client') {
-        const clientA = clients.find((client) => client.id === a.clientId)?.name ?? '';
-        const clientB = clients.find((client) => client.id === b.clientId)?.name ?? '';
-        return clientA.localeCompare(clientB, 'pt-BR');
-      }
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   function handleSave() {
     if (!projectInfo.name.trim()) {
@@ -204,7 +190,7 @@ export function ProjectTab({
     <div className="space-y-4">
       <PageHeader>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Projeto</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Projetos</h1>
           <p className="text-sm text-muted-foreground">
             Escolha um cliente cadastrado e salve a configuração para reutilizar depois.
           </p>
@@ -229,6 +215,7 @@ export function ProjectTab({
             }}
             onOpenSizing={() => onOpenSizing(selectedProject.id)}
             onUpdateStatus={(status) => onUpdateStatus(selectedProject.id, status)}
+            onManageSuppliers={onManageSuppliers}
           />
         ) : projectDetailsVisible ? (
           <>
@@ -256,87 +243,43 @@ export function ProjectTab({
         )}
       </PageSummary>
 
-      <div className="space-y-3">
-        <div
-          className={cn(
-            'flex flex-col gap-3',
-            savedProjects.length > 0 && 'lg:flex-row lg:items-center lg:justify-between'
-          )}
-        >
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h2 className="text-sm font-semibold">Projetos salvos</h2>
-            {savedProjects.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {savedProjects.length} projeto{savedProjects.length !== 1 ? 's' : ''} · {projectsWithSolutionCount} com
-                solução calculada
-                {solutionsValue > 0 && (
-                  <>
-                    {' · '}Valor total:{' '}
-                    <span className="font-medium text-foreground">{formatCurrencyBRL(solutionsValue)}</span>
-                  </>
-                )}
-              </span>
-            )}
-          </div>
-
-          {savedProjects.length > 0 && (
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex w-full shrink-0 justify-end sm:w-52">
-                <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="flex h-10 items-center gap-1 rounded-lg bg-muted p-1 md:h-8" role="tablist" aria-label="Filtrar por solução">
-                  {(
-                    [
-                      { value: 'all', label: 'Todos' },
-                      { value: 'with', label: 'Com solução' },
-                      { value: 'without', label: 'Sem solução' },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="tab"
-                      aria-selected={statusFilter === option.value}
-                      onClick={() => setStatusFilter(option.value)}
-                      className={cn(
-                        'flex h-full items-center rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                        statusFilter === option.value
-                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <Select
-                  aria-label="Filtrar por status da cotação"
-                  value={quoteStatusFilter}
-                  onChange={(event) => setQuoteStatusFilter(event.target.value as typeof quoteStatusFilter)}
-                  className="shrink-0 px-2 text-xs md:px-2"
-                >
-                  <option value="all">Todos os status</option>
-                  {(Object.keys(projectStatusLabels) as ProjectStatus[]).map((value) => (
-                    <option key={value} value={value}>
-                      {projectStatusLabels[value]}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  aria-label="Ordenar projetos"
-                  value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                  className="shrink-0 px-2 text-xs md:px-2"
-                >
-                  <option value="recent">Mais recentes</option>
-                  <option value="name">Nome (A-Z)</option>
-                  <option value="client">Cliente (A-Z)</option>
-                </Select>
-              </div>
-            </div>
+      <div className="mt-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Projetos salvos</h2>
+          {savedProjects.length > 0 && !projectDetailsVisible && (
+            <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
           )}
         </div>
+
+        {savedProjects.length > 0 && (
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-background px-3 py-2 text-sm"
+            role="group"
+            aria-label="Resumo dos projetos"
+          >
+            <span className="flex items-baseline gap-1.5">
+              <FolderOpen className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+              <strong className="tabular-nums">{savedProjects.length}</strong>
+              <span className="text-xs text-muted-foreground">projeto{savedProjects.length !== 1 ? 's' : ''}</span>
+            </span>
+            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+            <span className="flex items-baseline gap-1.5">
+              <Calculator className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+              <strong className="tabular-nums">{projectsWithSolutionCount}</strong>
+              <span className="text-xs text-muted-foreground">com solução</span>
+            </span>
+            {solutionsValue > 0 && (
+              <>
+                <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+                <span className="flex items-baseline gap-1.5">
+                  <Banknote className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+                  <strong className="tabular-nums">{formatCurrencyBRL(solutionsValue)}</strong>
+                  <span className="text-xs text-muted-foreground">valor total</span>
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         {initialLoading ? (
           <ProjectListSkeleton />
@@ -394,7 +337,7 @@ export function ProjectTab({
                     onRemoveService={onRemoveService}
                     onUpdateServiceQty={onUpdateServiceQty}
                   />
-                ) : (
+                ) : projectDetailsVisible ? null : (
                   <ProjectCard
                     key={project.id}
                     project={project}
