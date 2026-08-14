@@ -423,6 +423,31 @@ describe('setTopology', () => {
     expect(options.batteryModel).toBeNull();
     expect(options.inverterModel).toBeNull();
   });
+
+  it('also clears the secondary battery model and its live solution, which belonged to the old topology', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        batteryModel: 'T-BAT-SYS-HV-5.8',
+        secondaryBatteryModel: 'T-BAT-SYS-HV-5.8-B',
+      },
+      secondarySolution: {
+        inverterId: 'i1',
+        inverterModel: 'X1',
+        batteryId: 'b1',
+        batteryModel: 'T-BAT-SYS-HV-5.8-B',
+        batteryQty: 1,
+        pvPowerKw: null,
+        accessories: [],
+      },
+    }));
+
+    useWizardStore.getState().setTopology('LowVoltage');
+
+    const options = useWizardStore.getState().residentialOptions;
+    expect(options.secondaryBatteryModel).toBeNull();
+    expect(useWizardStore.getState().secondarySolution).toBeNull();
+  });
 });
 
 describe('setBatteryModel', () => {

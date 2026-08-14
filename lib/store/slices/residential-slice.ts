@@ -74,8 +74,13 @@ export const createResidentialSlice: StateCreator<WizardStore, [], [], Residenti
         ...s.residentialOptions,
         topology,
         batteryModel: null,
+        secondaryBatteryModel: null,
         inverterModel: null,
       },
+      // The secondary battery's own live comparison result belonged to the
+      // model that just got cleared above — leaving it set would keep
+      // showing a "solução" for a battery no longer selected.
+      secondarySolution: null,
     })),
 
   setBatteryModel: (batteryModel) =>
