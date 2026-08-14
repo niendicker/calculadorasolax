@@ -165,6 +165,14 @@ export function SinglePageApp() {
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<HTMLElement | null>(null);
 
+  // wizard-store persists to localStorage with skipHydration (see
+  // lib/store/wizard-store.ts) so the server-rendered first paint always
+  // matches the client's un-hydrated defaults; this pulls the saved state in
+  // right after mount instead.
+  useEffect(() => {
+    void useWizardStore.persist.rehydrate();
+  }, []);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;

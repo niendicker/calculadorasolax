@@ -55,6 +55,13 @@ export const useWizardStore = create<WizardStore>()(
     }),
     {
       name: 'solax-wizard',
+      // Persisted state is only available in the browser, so rehydrating
+      // synchronously at store-creation time (zustand's default) makes the
+      // client's first render diverge from the server-rendered HTML — which
+      // never sees localStorage — and React throws a hydration error for any
+      // returning user with saved data. Deferring rehydration to the effect
+      // below keeps the client's first paint aligned with the server.
+      skipHydration: true,
       partialize: (state) => ({
         projectInfo: state.projectInfo,
         currentProjectId: state.currentProjectId,
