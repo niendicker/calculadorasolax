@@ -99,6 +99,7 @@ export function SizingTab({
   setBatteryModel,
   setSecondaryBatteryModel,
   setInverterModel,
+  setMinInverterQty,
   setGridType,
   setDesiredFeatures,
   setWhiteTariffConfig,
@@ -134,6 +135,7 @@ export function SizingTab({
     batteryModel: string | null;
     secondaryBatteryModel: string | null;
     inverterModel: string | null;
+    minInverterQty: number | null;
     gridType: ResidentialGridType | null;
     loads: unknown[];
     operationHours: number;
@@ -165,6 +167,7 @@ export function SizingTab({
   setBatteryModel: (batteryModel: string | null) => void;
   setSecondaryBatteryModel: (batteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
+  setMinInverterQty: (minInverterQty: number | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
   setWhiteTariffConfig: (whiteTariff: WhiteTariffConfig | null) => void;
@@ -774,6 +777,44 @@ export function SizingTab({
                     setInverterModel={setInverterModel}
                     userStockItems={userStockItems}
                   />
+
+                  <div className="space-y-3 border-t pt-4">
+                    <div>
+                      <p className="text-sm font-medium">Mínimo de inversores em paralelo</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Força a busca a considerar apenas soluções com pelo menos essa quantidade de inversores
+                        trabalhando em paralelo — dividir a potência entre mais de um inversor às vezes permite
+                        atender o projeto com um banco de baterias menor. Deixe em &quot;Automático&quot; para o
+                        sistema escolher a combinação mais econômica.
+                      </p>
+                    </div>
+                    <div
+                      className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1"
+                      role="tablist"
+                      aria-label="Mínimo de inversores em paralelo"
+                    >
+                      {([null, 2, 3, 4] as const).map((option) => {
+                        const active = (residentialOptions.minInverterQty ?? null) === option;
+                        return (
+                          <button
+                            key={option ?? 'auto'}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            onClick={() => setMinInverterQty(option)}
+                            className={cn(
+                              'flex h-8 items-center justify-center rounded-md px-2 text-sm font-medium transition',
+                              active
+                                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                            )}
+                          >
+                            {option === null ? 'Automático' : `${option}+`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               ) : activeItem === 'battery' ? (
                 <BatteryModelPicker

@@ -173,6 +173,7 @@ export async function handleCalculateResidential(
     }
     if (options.batteryModel) strictQuery = strictQuery.eq('battery_model', options.batteryModel);
     if (options.inverterModel) strictQuery = strictQuery.eq('inverter_model', options.inverterModel);
+    if (options.minInverterQty) strictQuery = strictQuery.gte('inverter_quantity', options.minInverterQty);
 
     const { data: strictRows, error: strictErr } = await strictQuery;
 
@@ -207,6 +208,7 @@ export async function handleCalculateResidential(
         .limit(500);
       if (options.batteryModel) relaxedQuery = relaxedQuery.eq('battery_model', options.batteryModel);
       if (options.inverterModel) relaxedQuery = relaxedQuery.eq('inverter_model', options.inverterModel);
+      if (options.minInverterQty) relaxedQuery = relaxedQuery.gte('inverter_quantity', options.minInverterQty);
       const { data, error } = await relaxedQuery;
       if (error) return { error };
       relaxedRowsCache = (data ?? []) as ApprovedSolution[];

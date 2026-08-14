@@ -16,6 +16,7 @@ const validResidentialOptions: ResidentialOptions = {
   batteryModel: 'TP-HS3.6',
   secondaryBatteryModel: null,
   inverterModel: null,
+  minInverterQty: null,
   gridType: 'singlePhase_220',
   loads: [makeLoad()],
   peakCalcMode: 'sum',

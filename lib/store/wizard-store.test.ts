@@ -36,6 +36,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
       batteryModel: 'T-BAT-SYS-HV-5.8',
       secondaryBatteryModel: null,
       inverterModel: 'X1-Hybrid-5.0kW-G4',
+      minInverterQty: null,
       gridType: 'singlePhase_220',
       loads: [makeLoad({ powerW: 1000, qty: 1 })],
       peakCalcMode: 'sum',
@@ -461,6 +462,21 @@ describe('setInverterModel', () => {
   it('sets the inverter model without touching other fields', () => {
     useWizardStore.getState().setInverterModel('X1-Hybrid-5.0kW-G4');
     expect(useWizardStore.getState().residentialOptions.inverterModel).toBe('X1-Hybrid-5.0kW-G4');
+  });
+});
+
+describe('setMinInverterQty', () => {
+  beforeEach(() => resetStore());
+
+  it('sets the minimum parallel-inverter count without touching other fields', () => {
+    useWizardStore.getState().setMinInverterQty(2);
+    expect(useWizardStore.getState().residentialOptions.minInverterQty).toBe(2);
+  });
+
+  it('clears it back to null ("Automático")', () => {
+    useWizardStore.getState().setMinInverterQty(3);
+    useWizardStore.getState().setMinInverterQty(null);
+    expect(useWizardStore.getState().residentialOptions.minInverterQty).toBeNull();
   });
 });
 

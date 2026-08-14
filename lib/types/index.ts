@@ -314,6 +314,12 @@ export interface ResidentialOptions {
    * topology as batteryModel (there's only one `topology` field). */
   secondaryBatteryModel: string | null;
   inverterModel: string | null;
+  /** Forces the search to only consider approved solutions with at least
+   * this many inverters in parallel — e.g. splitting the load across 2
+   * inverters instead of 1 can let a smaller/cheaper battery bank cover the
+   * same power. Null (the default) leaves it to whichever combination is
+   * cheapest, which is usually — but not always — a single inverter. */
+  minInverterQty: number | null;
   gridType: ResidentialGridType | null;
   loads: SingleLoad[];
   peakCalcMode: PeakCalcMode;

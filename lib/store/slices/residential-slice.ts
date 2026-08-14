@@ -35,6 +35,7 @@ export interface ResidentialSlice {
   setBatteryModel: (batteryModel: string | null) => void;
   setSecondaryBatteryModel: (secondaryBatteryModel: string | null) => void;
   setInverterModel: (inverterModel: string | null) => void;
+  setMinInverterQty: (minInverterQty: number | null) => void;
   setGridType: (gridType: ResidentialGridType) => void;
   setMaxPowerPerPhaseW: (maxPowerPerPhaseW: number | null) => void;
   setDesiredFeatures: (desiredFeatures: DesiredFeatureId[]) => void;
@@ -90,6 +91,11 @@ export const createResidentialSlice: StateCreator<WizardStore, [], [], Residenti
   setInverterModel: (inverterModel) =>
     set((s) => ({
       residentialOptions: { ...s.residentialOptions, inverterModel },
+    })),
+
+  setMinInverterQty: (minInverterQty) =>
+    set((s) => ({
+      residentialOptions: { ...s.residentialOptions, minInverterQty },
     })),
 
   setGridType: (gridType) =>

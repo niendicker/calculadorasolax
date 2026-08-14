@@ -11,6 +11,7 @@ const residentialOptions: ResidentialOptions = {
   batteryModel: 'TP-HS3.6',
   secondaryBatteryModel: null,
   inverterModel: null,
+  minInverterQty: null,
   gridType: 'singlePhase_220',
   loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
   peakCalcMode: 'sum',

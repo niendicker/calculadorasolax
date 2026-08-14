@@ -19,6 +19,7 @@ export const defaultResidential: ResidentialOptions = {
   batteryModel: null,
   secondaryBatteryModel: null,
   inverterModel: null,
+  minInverterQty: null,
   gridType: 'singlePhase_220',
   loads: [],
   peakCalcMode: 'sum',

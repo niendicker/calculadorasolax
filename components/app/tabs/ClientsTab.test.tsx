@@ -32,6 +32,7 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
       batteryModel: 'TP-HS3.6',
       secondaryBatteryModel: null,
       inverterModel: null,
+      minInverterQty: null,
       gridType: 'singlePhase_220',
       loads: [],
       peakCalcMode: 'sum',

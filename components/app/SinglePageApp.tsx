@@ -126,6 +126,7 @@ export function SinglePageApp() {
     setBatteryModel,
     setSecondaryBatteryModel,
     setInverterModel,
+    setMinInverterQty,
     setGridType,
     setMaxPowerPerPhaseW,
     setDesiredFeatures,
@@ -317,6 +318,11 @@ export function SinglePageApp() {
     setInverterModel(model);
   }
 
+  function setMinInverterQtyAndRecalc(qty: number | null) {
+    pendingAutoCalcRef.current = true;
+    setMinInverterQty(qty);
+  }
+
   useEffect(() => {
     if (!pendingAutoCalcRef.current) return;
     pendingAutoCalcRef.current = false;
@@ -325,6 +331,7 @@ export function SinglePageApp() {
     residentialOptions.batteryModel,
     residentialOptions.secondaryBatteryModel,
     residentialOptions.inverterModel,
+    residentialOptions.minInverterQty,
     canCalculate,
     calculate,
   ]);
@@ -985,6 +992,7 @@ export function SinglePageApp() {
               setBatteryModel={setBatteryModelAndRecalc}
               setSecondaryBatteryModel={setSecondaryBatteryModelAndRecalc}
               setInverterModel={setInverterModelAndRecalc}
+              setMinInverterQty={setMinInverterQtyAndRecalc}
               setGridType={setGridType}
               setDesiredFeatures={setDesiredFeatures}
               setWhiteTariffConfig={setWhiteTariffConfig}

@@ -22,6 +22,7 @@ export function resetWizardStore() {
       batteryModel: null,
       secondaryBatteryModel: null,
       inverterModel: null,
+      minInverterQty: null,
       gridType: null,
       loads: [],
       peakCalcMode: 'sum',

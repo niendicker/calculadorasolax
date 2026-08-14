@@ -63,6 +63,7 @@ const emptyResidentialOptions = {
   batteryModel: null,
   secondaryBatteryModel: null,
   inverterModel: null,
+  minInverterQty: null,
   gridType: null,
   loads: [] as unknown[],
   desiredFeatures: [] as never[],
@@ -101,6 +102,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     setBatteryModel: vi.fn(),
     setSecondaryBatteryModel: vi.fn(),
     setInverterModel: vi.fn(),
+    setMinInverterQty: vi.fn(),
     setGridType: vi.fn(),
     setDesiredFeatures: vi.fn(),
     setWhiteTariffConfig: vi.fn(),
@@ -718,6 +720,33 @@ describe('SizingTab: rede e configuração', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
     expect(screen.getByText('Nenhum inversor HV com solução aprovada para este tipo de rede.')).toBeInTheDocument();
+  });
+
+  it('defaults the minimum-parallel-inverters control to "Automático"', () => {
+    setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
+
+    const group = screen.getByRole('tablist', { name: 'Mínimo de inversores em paralelo' });
+    expect(within(group).getByRole('tab', { name: 'Automático' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(group).getByRole('tab', { name: '2+' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('picks a minimum number of parallel inverters', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
+
+    const group = screen.getByRole('tablist', { name: 'Mínimo de inversores em paralelo' });
+    fireEvent.click(within(group).getByRole('tab', { name: '2+' }));
+    expect(props.setMinInverterQty).toHaveBeenCalledWith(2);
+  });
+
+  it('reflects an already-chosen minimum back onto its own control', () => {
+    setup({ residentialOptions: { ...emptyResidentialOptions, minInverterQty: 3 } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
+
+    const group = screen.getByRole('tablist', { name: 'Mínimo de inversores em paralelo' });
+    expect(within(group).getByRole('tab', { name: '3+' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(group).getByRole('tab', { name: 'Automático' })).toHaveAttribute('aria-selected', 'false');
   });
 });
 
