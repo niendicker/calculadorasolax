@@ -63,9 +63,8 @@ const SizingTab = dynamic(() => import('./tabs/SizingTab').then((m) => m.SizingT
 // Labels the "Mais" bottom-nav button with whichever of its sub-sections is
 // currently open, instead of always showing the generic "Mais" — otherwise a
 // user has to reopen the sheet just to remember where they are.
-const moreNavTabLabels: Partial<Record<'purchases' | 'myStock' | 'clients' | 'profile', string>> = {
+const moreNavTabLabels: Partial<Record<'purchases' | 'clients' | 'profile', string>> = {
   purchases: 'Compras',
-  myStock: 'Portfólio',
   clients: 'Clientes',
   profile: 'Perfil',
 };
@@ -726,7 +725,7 @@ export function SinglePageApp() {
               )}
             >
               <FolderOpen className="h-4 w-4" />
-              Projeto
+              Projetos
             </button>
             <button
               type="button"
@@ -1102,7 +1101,7 @@ export function SinglePageApp() {
               <FolderOpen className="h-5 w-5" />
               {activeTab === 'project' && summaryActive && <BottomNavSummaryBadge />}
             </span>
-            Projeto
+            Projetos
           </button>
           <button
             type="button"
@@ -1123,11 +1122,28 @@ export function SinglePageApp() {
           </button>
           <button
             type="button"
+            aria-current={activeTab === 'myStock' ? 'page' : undefined}
+            onClick={() =>
+              activeTab === 'myStock' && summaryActive ? setSummaryDrawerOpen(true) : openMobileTab('myStock')
+            }
+            className={cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
+              activeTab === 'myStock' && 'font-medium text-primary'
+            )}
+          >
+            <span className="relative inline-flex">
+              <Wallet className="h-5 w-5" />
+              {activeTab === 'myStock' && summaryActive && <BottomNavSummaryBadge />}
+            </span>
+            Portfólio
+          </button>
+          <button
+            type="button"
             aria-label="Mais opções"
             onClick={() => setMobileMenuOpen(true)}
             className={cn(
               'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground',
-              (activeTab === 'purchases' || activeTab === 'myStock' || activeTab === 'clients' || activeTab === 'profile') && 'font-medium text-primary'
+              (activeTab === 'purchases' || activeTab === 'clients' || activeTab === 'profile') && 'font-medium text-primary'
             )}
           >
             <Menu className="h-5 w-5" />
@@ -1135,15 +1151,19 @@ export function SinglePageApp() {
           </button>
         </nav>
 
-        {summaryActive && (
+        {/* "Projeto"/"Catálogo" already have their own toggle built into their
+         * bottom-nav icon (tap again to reopen the summary) — every other tab
+         * with a summary (Dimensionamento, Compras) is only reachable through
+         * "Mais", whose entries are plain single-click links with no such
+         * toggle, so they need this floating fallback instead. On mobile it's
+         * lifted above the bottom nav bar; from lg up that bar is gone, so it
+         * settles back down near the corner (still needed up to xl, where the
+         * summary becomes a permanent column instead of a drawer). */}
+        {summaryActive && activeTab !== 'project' && activeTab !== 'catalog' && (
           <Button
             type="button"
             size="icon-lg"
-            className="fixed z-30 hidden shadow-lg lg:inline-flex xl:hidden"
-            style={{
-              bottom: 'calc(1rem + env(safe-area-inset-bottom))',
-              right: 'calc(1rem + env(safe-area-inset-right))',
-            }}
+            className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 inline-flex shadow-lg lg:bottom-[calc(1rem+env(safe-area-inset-bottom))] xl:hidden"
             aria-label="Ver resumo"
             onClick={() => setSummaryDrawerOpen(true)}
           >
@@ -1193,18 +1213,6 @@ export function SinglePageApp() {
               >
                 <Users className="h-4 w-4" />
                 Clientes
-              </button>
-              <button
-                type="button"
-                aria-current={activeTab === 'myStock' ? 'page' : undefined}
-                onClick={() => openMobileTab('myStock')}
-                className={cn(
-                  'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  activeTab === 'myStock' && 'bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <Wallet className="h-4 w-4" />
-                Portfólio
               </button>
               <button
                 type="button"

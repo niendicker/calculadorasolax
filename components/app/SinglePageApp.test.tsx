@@ -39,6 +39,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
       batteryModel: 'TP-HS3.6',
       secondaryBatteryModel: null,
       inverterModel: null,
+      minInverterQty: null,
       gridType: 'singlePhase_220',
       loads: [],
       peakCalcMode: 'sum',
@@ -129,9 +130,9 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
 
   // Clicking "Projeto" while it's already the active tab toggles the mobile
   // summary drawer instead of no-op'ing — skip the click if we're there already.
-  if (!screen.queryByRole('heading', { level: 1, name: 'Projeto' })) {
-    fireEvent.click(navScope().getByRole('button', { name: 'Projeto' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+  if (!screen.queryByRole('heading', { level: 1, name: 'Projetos' })) {
+    fireEvent.click(navScope().getByRole('button', { name: 'Projetos' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   }
 
   const card = (await screen.findAllByText(projectName)).at(-1)!.closest('[role="button"]') as HTMLElement;
@@ -224,7 +225,7 @@ describe('SinglePageApp: initial load and navigation', () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
@@ -236,7 +237,7 @@ describe('SinglePageApp: initial load and navigation', () => {
     setupSupabase({}, { loggedIn: true, role: 'admin' });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     expect(screen.getByRole('link', { name: /Administração/ })).toHaveAttribute('href', '/pt/admin');
   });
 
@@ -244,7 +245,7 @@ describe('SinglePageApp: initial load and navigation', () => {
     setupSupabase({}, { loggedIn: true, role: 'user' });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     expect(screen.queryByRole('link', { name: /Administração/ })).not.toBeInTheDocument();
   });
 });
@@ -254,7 +255,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
 
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
@@ -264,7 +265,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Compras' }));
 
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
@@ -274,7 +275,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
 
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
@@ -284,7 +285,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Clientes' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument());
@@ -301,7 +302,7 @@ describe('SinglePageApp: login-gated navigation', () => {
   it('opens a project from its client in Clientes, landing on Projeto with it loaded', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => {
       useWizardStore.setState({
@@ -316,7 +317,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: '1 projeto' }));
     fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     expect(screen.getByDisplayValue('Casa da Praia')).toBeInTheDocument();
   });
 });
@@ -326,13 +327,13 @@ describe('SinglePageApp: unsaved profile edits', () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Nome Editado' } });
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projetos' }));
 
     expect(confirmSpy).toHaveBeenCalled();
     expect(screen.getByLabelText('Nome')).toHaveValue('Nome Editado');
@@ -343,15 +344,15 @@ describe('SinglePageApp: unsaved profile edits', () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Nome Editado' } });
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projetos' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     confirmSpy.mockRestore();
   });
 
@@ -359,15 +360,15 @@ describe('SinglePageApp: unsaved profile edits', () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projetos' }));
 
     expect(confirmSpy).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     confirmSpy.mockRestore();
   });
 });
@@ -377,7 +378,7 @@ describe('SinglePageApp: sign out', () => {
     const supabase = setupSupabase({}, { loggedIn: true });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
 
     await waitFor(() => expect(supabase.auth.signOut).toHaveBeenCalled());
@@ -389,7 +390,7 @@ describe('SinglePageApp: sign out', () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Sair' })).not.toBeInTheDocument();
   });
 });
@@ -399,7 +400,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Catálogo' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
@@ -410,34 +411,34 @@ describe('SinglePageApp: mobile bottom nav', () => {
   it('opens the summary drawer by tapping the already-active tab again', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     // Projeto is already the active tab (and has a summary), so tapping it
     // again opens the summary instead of just re-selecting the same tab.
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Projeto' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Projetos' }));
     expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 
   it('switches to an inactive tab on first tap, and only opens its summary once already active', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Catálogo' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Projeto' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Projetos' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Projeto' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Projetos' }));
     expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
   });
 
   it('labels the "Mais" button with the generic text while on a top-level tab', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Mais');
   });
@@ -445,7 +446,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
   it('reaches Clientes via the "Mais" menu instead of the bottom bar', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     expect(bottomNav().queryByRole('button', { name: 'Clientes' })).not.toBeInTheDocument();
 
@@ -455,30 +456,22 @@ describe('SinglePageApp: mobile bottom nav', () => {
     expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument();
   });
 
-  it('opens the "Mais" menu, switches to Portfólio, and closes', async () => {
+  it('switches to Portfólio via its own bottom-nav icon', async () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
-    const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
-    const moreNav = within(dialog).getByRole('navigation');
-
-    fireEvent.click(within(moreNav).getByRole('button', { name: 'Portfólio' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Portfólio' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Portfólio' })).toBeInTheDocument());
-    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
-    expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Portfólio');
-
-    fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[0]);
-    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
+    // Portfólio now has its own icon, not one of the tabs tucked under "Mais".
+    expect(bottomNav().getByRole('button', { name: 'Mais opções' })).toHaveTextContent('Mais');
   });
 
   it('closes the "Mais" menu via the X button inside it', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Fechar menu' })[1]);
@@ -488,7 +481,7 @@ describe('SinglePageApp: mobile bottom nav', () => {
   it('opens the summary drawer as soon as "Calcular" is pressed, without waiting for the result', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => {
       useWizardStore.setState((s) => ({
@@ -535,7 +528,7 @@ describe('SinglePageApp: summary panel', () => {
     setupSupabase();
     renderApp();
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     expect(screen.queryByLabelText('Fechar resumo')).not.toBeInTheDocument();
 
     fireEvent.click(sidebarNav().getByRole('button', { name: 'Catálogo' }));
@@ -549,19 +542,19 @@ describe('SinglePageApp: desktop sidebar navigation', () => {
   it('navigates to Portfólio and back to Projeto via the sidebar', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Portfólio' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Portfólio' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Portfólio' })).toBeInTheDocument();
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projeto' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument();
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Projetos' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument();
   });
 
   it('scrolls the content area and toggles the compact title-bar padding', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     // The scrollable <section> isn't an ancestor of the title (portaled into a
     // sibling div outside it) or a labeled landmark, so it's found directly.
@@ -578,7 +571,7 @@ describe('SinglePageApp: full mobile menu navigation', () => {
   it('navigates to every mobile-nav destination, via the bottom bar and the "Mais" menu', async () => {
     setupSupabase({}, { loggedIn: true, role: 'admin' });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     function openMoreMenuNav() {
       fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
@@ -592,9 +585,8 @@ describe('SinglePageApp: full mobile menu navigation', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Portfólio' }));
+    fireEvent.click(bottomNav().getByRole('button', { name: 'Portfólio' }));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Portfólio' })).toBeInTheDocument());
-    expect(screen.queryByRole('dialog', { name: 'Mais opções' })).not.toBeInTheDocument();
 
     fireEvent.click(within(openMoreMenuNav()).getByRole('button', { name: 'Perfil' }));
     await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
@@ -603,7 +595,7 @@ describe('SinglePageApp: full mobile menu navigation', () => {
   it('follows the "Administração" link from the "Mais" menu and closes it', async () => {
     setupSupabase({}, { loggedIn: true, role: 'admin' });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     fireEvent.click(bottomNav().getByRole('button', { name: 'Mais opções' }));
     const dialog = screen.getByRole('dialog', { name: 'Mais opções' });
@@ -633,7 +625,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('downloads a real PDF blob once a solution exists', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     const fakeBlob = new Blob(['fake pdf'], { type: 'application/pdf' });
@@ -663,7 +655,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('names the downloaded file after the project and today\'s date', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject({ projectName: 'Casa de praia' });
     buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['fake pdf'], { type: 'application/pdf' }));
@@ -689,7 +681,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('reports a friendly error when PDF generation fails, without leaving the app broken', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     buildProjectQuotePdfBlobMock.mockRejectedValue(new Error('boom'));
@@ -703,7 +695,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('does not export the PDF when the config that produced the solution is no longer valid (e.g. loads cleared after calculating)', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
 
@@ -716,7 +708,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('disables "Compartilhar cotação" when there is no client phone on file', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     await goToSizingViaProject();
@@ -729,7 +721,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     act(() => {
@@ -763,7 +755,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     act(() => {
@@ -796,7 +788,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     act(() => {
@@ -825,7 +817,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     setSolvedProject();
     act(() => {
@@ -851,7 +843,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('sends a logged-in user to Compras when they click "Cotar solução"', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
     await goToSizingViaProject();
@@ -865,7 +857,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('redirects to login when clicking "Cotar solução" without a profile', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
     await goToSizingViaProject();
@@ -879,7 +871,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('switches from the economic to the microgrid variant when chosen', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     const economic = makeSolution({ batteryModel: 'TP-HS3.6' });
     const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
@@ -898,7 +890,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
   it('keeps the economic variant when chosen, dropping the microgrid alternative', async () => {
     setupSupabase();
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     const economic = makeSolution({ batteryModel: 'TP-HS3.6' });
     const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
@@ -1257,7 +1249,7 @@ describe('SinglePageApp: uploading a feature photo', () => {
       }),
     };
     renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projeto' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     await goToSizingViaProject();
 
