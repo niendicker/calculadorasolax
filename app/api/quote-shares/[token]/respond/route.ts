@@ -25,7 +25,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   }
   const decision = input.decision;
 
-  const service = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

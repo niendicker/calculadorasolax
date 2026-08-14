@@ -88,7 +88,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const { data: preferences } = await supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', user.id);
   const preferredIds = new Set(((preferences ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id));
 
-  const service = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: suppliers } = await service

@@ -47,7 +47,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
 
   const { data: profile } = await supabase.from('profiles').select('full_name, company_name, email, phone').eq('id', user.id).single();
 
-  const service = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: supplier } = await service.from('suppliers').select('supports_partner_orders').eq('id', order.supplier_id).single();

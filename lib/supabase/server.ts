@@ -4,8 +4,13 @@ import { cookies } from 'next/headers';
 export async function createClient() {
   const cookieStore = await cookies();
 
+  // Server-side requests go over the Docker network directly to Kong
+  // instead of round-tripping through the public hostname; falls back to
+  // the public URL when SUPABASE_INTERNAL_URL isn't set (e.g. local dev).
+  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {

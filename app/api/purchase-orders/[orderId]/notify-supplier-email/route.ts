@@ -76,7 +76,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   const userEmail = profile?.email || user.email;
   if (!userEmail) return NextResponse.json({ error: 'Não foi possível identificar seu email.' }, { status: 422 });
 
-  const service = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: supplier } = await service.from('suppliers').select('name, email').eq('id', order.supplier_id).single();
