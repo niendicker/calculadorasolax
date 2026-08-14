@@ -79,12 +79,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   if (!userEmail) return NextResponse.json({ error: 'Não foi possível identificar seu email.' }, { status: 422 });
   const requesterName = profile?.company_name?.trim() || profile?.full_name?.trim() || 'Cliente';
 
+  // Same "fornecedores deste usuário" scoping the picker in
+  // SupplierQuoteRequestModal uses client-side (active + ordering_enabled +
+  // default-for-all-or-preferred) — reapplied here because the lookup below
+  // needs the service role (suppliers.email isn't exposed to the anon key),
+  // which would otherwise let a caller quote-request *any* supplier id,
+  // including ones this user isn't even supposed to see.
+  const { data: preferences } = await supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', user.id);
+  const preferredIds = new Set(((preferences ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id));
+
   const service = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data: suppliers } = await service.from('suppliers').select('id, name, email').in('id', supplierIds);
-  const suppliersWithEmail = ((suppliers ?? []) as { id: string; name: string; email: string | null }[]).filter(
-    (supplier): supplier is { id: string; name: string; email: string } => Boolean(supplier.email)
+  const { data: suppliers } = await service
+    .from('suppliers')
+    .select('id, name, email, is_default_for_all')
+    .eq('active', true)
+    .eq('ordering_enabled', true)
+    .in('id', supplierIds);
+  const allowedSuppliers = ((suppliers ?? []) as { id: string; name: string; email: string | null; is_default_for_all: boolean }[]).filter(
+    (supplier) => supplier.is_default_for_all || preferredIds.has(supplier.id)
+  );
+  const suppliersWithEmail = allowedSuppliers.filter(
+    (supplier): supplier is { id: string; name: string; email: string; is_default_for_all: boolean } => Boolean(supplier.email)
   );
   if (suppliersWithEmail.length === 0) {
     return NextResponse.json({ error: 'Nenhum dos fornecedores selecionados tem email cadastrado.' }, { status: 409 });

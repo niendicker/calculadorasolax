@@ -54,12 +54,14 @@ function setupServerFrom({
   profile = baseProfile as unknown,
   lastRequestEvent = null as unknown,
   insertResult = { data: null, error: null } as unknown,
+  preferences = [] as unknown,
 }: {
   project?: unknown;
   projectError?: unknown;
   profile?: unknown;
   lastRequestEvent?: unknown;
   insertResult?: unknown;
+  preferences?: unknown;
 } = {}) {
   const insert = vi.fn().mockResolvedValue(insertResult);
   serverFromMock.mockImplementation((table: string) => {
@@ -72,17 +74,23 @@ function setupServerFrom({
     if (table === 'project_events') {
       return { select: () => eventsQueryResult(lastRequestEvent), insert };
     }
+    if (table === 'user_supplier_preferences') {
+      return { select: () => ({ eq: () => Promise.resolve({ data: preferences, error: null }) }) };
+    }
     throw new Error(`unexpected table ${table}`);
   });
   return { insert };
 }
 
+/** Suppliers default to `is_default_for_all: true` so existing tests (which
+ * only care about the email-sending behavior, not the visibility scoping
+ * below) don't also need to stub `user_supplier_preferences`. */
 function setupServiceFrom({
-  suppliers = [{ id: 'sup-1', name: 'Fornecedor A', email: 'fornecedor@a.com' }] as unknown,
+  suppliers = [{ id: 'sup-1', name: 'Fornecedor A', email: 'fornecedor@a.com', is_default_for_all: true }] as unknown,
 }: { suppliers?: unknown } = {}) {
   serviceFromMock.mockImplementation((table: string) => {
     if (table === 'suppliers') {
-      return { select: () => ({ in: () => Promise.resolve({ data: suppliers, error: null }) }) };
+      return { select: () => ({ eq: () => ({ eq: () => ({ in: () => Promise.resolve({ data: suppliers, error: null }) }) }) }) };
     }
     throw new Error(`unexpected table ${table}`);
   });
@@ -180,7 +188,7 @@ describe('POST /api/projects/[projectId]/request-supplier-quote', () => {
   it('returns 409 when none of the selected suppliers have an email registered', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
     setupServerFrom();
-    setupServiceFrom({ suppliers: [{ id: 'sup-1', name: 'Fornecedor A', email: null }] });
+    setupServiceFrom({ suppliers: [{ id: 'sup-1', name: 'Fornecedor A', email: null, is_default_for_all: true }] });
     const POST = await importRoute();
 
     const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
@@ -189,13 +197,47 @@ describe('POST /api/projects/[projectId]/request-supplier-quote', () => {
     expect(await response.json()).toEqual({ error: 'Nenhum dos fornecedores selecionados tem email cadastrado.' });
   });
 
+  it('excludes a supplier that is neither default-for-all nor one of this user\'s preferred suppliers', async () => {
+    // Regression test: this lookup runs through the service role (suppliers.email
+    // isn't exposed to the anon key), so it must reapply the same scoping the
+    // client-side picker uses — otherwise any authenticated caller could pass an
+    // arbitrary supplier id and have the server email/reveal a supplier they
+    // aren't actually meant to see.
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
+    setupServerFrom({ preferences: [] });
+    setupServiceFrom({
+      suppliers: [{ id: 'sup-9', name: 'Fornecedor Alheio', email: 'alheio@fornecedores.com', is_default_for_all: false }],
+    });
+    const POST = await importRoute();
+
+    const response = await POST(makeRequest({ supplierIds: ['sup-9'], message: 'Olá' }), routeParams);
+
+    expect(response.status).toBe(409);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("includes a supplier that isn't default-for-all but is one of this user's preferred suppliers", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
+    setupServerFrom({ preferences: [{ supplier_id: 'sup-9' }] });
+    setupServiceFrom({
+      suppliers: [{ id: 'sup-9', name: 'Fornecedor Preferido', email: 'preferido@fornecedores.com', is_default_for_all: false }],
+    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) });
+    const POST = await importRoute();
+
+    const response = await POST(makeRequest({ supplierIds: ['sup-9'], message: 'Olá' }), routeParams);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'sent', sentTo: ['Fornecedor Preferido'], failedTo: [] });
+  });
+
   it('sends one email per supplier, CCs the requester, and logs a single project event', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
     const { insert } = setupServerFrom();
     setupServiceFrom({
       suppliers: [
-        { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com' },
-        { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com' },
+        { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
+        { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
       ],
     });
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) });
@@ -232,8 +274,8 @@ describe('POST /api/projects/[projectId]/request-supplier-quote', () => {
     const { insert } = setupServerFrom();
     setupServiceFrom({
       suppliers: [
-        { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com' },
-        { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com' },
+        { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
+        { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
       ],
     });
     (global.fetch as ReturnType<typeof vi.fn>)
