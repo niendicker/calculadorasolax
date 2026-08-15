@@ -78,6 +78,8 @@ interface PickerItem {
 
 export function SizingTab({
   projectName,
+  currentProjectId,
+  onBackToProject,
   loadingLabel,
   calculateLabel,
   residentialOptions,
@@ -128,6 +130,10 @@ export function SizingTab({
   summaryDrawerOpen,
 }: {
   projectName: string;
+  /** Set only for an already-saved project — a brand-new, not-yet-saved
+   *  draft has a name but nothing in Projetos to link back to and select. */
+  currentProjectId: string | null;
+  onBackToProject: () => void;
   loadingLabel: string;
   calculateLabel: string;
   residentialOptions: {
@@ -409,11 +415,24 @@ export function SizingTab({
       <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dimensionamento</h1>
-          {projectName && (
-            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+          {projectName && currentProjectId ? (
+            <button
+              type="button"
+              onClick={onBackToProject}
+              title="Voltar para Projetos"
+              className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {projectName}
-            </p>
+            </button>
+          ) : (
+            projectName && (
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {projectName}
+              </p>
+            )
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">

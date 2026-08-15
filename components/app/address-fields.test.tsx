@@ -38,6 +38,27 @@ describe('AddressFields', () => {
     expect(screen.getByLabelText('UF')).toBeInTheDocument();
   });
 
+  it('hints that the rest of the address auto-fills from the CEP', () => {
+    render(<ControlledAddressFields />);
+    expect(screen.getByText('Preenche o resto do endereço automaticamente.')).toBeInTheDocument();
+  });
+
+  it('swaps the CEP hint for the loading message while the lookup is in flight', async () => {
+    let resolveFetch!: (value: unknown) => void;
+    (global.fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise((resolve) => { resolveFetch = resolve; }));
+    render(<ControlledAddressFields />);
+
+    const cepInput = screen.getByLabelText('CEP');
+    fireEvent.change(cepInput, { target: { value: '01310930' } });
+    fireEvent.blur(cepInput);
+
+    await waitFor(() => expect(screen.getByText('Buscando endereço...')).toBeInTheDocument());
+    expect(screen.queryByText('Preenche o resto do endereço automaticamente.')).not.toBeInTheDocument();
+
+    resolveFetch({ ok: true, json: () => Promise.resolve({ logradouro: 'Av. Paulista' }) });
+    await waitFor(() => expect(screen.getByText('Preenche o resto do endereço automaticamente.')).toBeInTheDocument());
+  });
+
   it('auto-fills street/district/city/state from ViaCEP when a CEP is entered', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,

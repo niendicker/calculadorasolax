@@ -75,9 +75,12 @@ export function AddressFields({
           onBlur={(event) => void lookup(event.target.value)}
           placeholder="00000-000"
         />
-        {cepState === 'loading' && <p className="text-xs text-muted-foreground">Buscando endereço...</p>}
-        {cepState === 'not-found' && (
+        {cepState === 'loading' ? (
+          <p className="text-xs text-muted-foreground">Buscando endereço...</p>
+        ) : cepState === 'not-found' ? (
           <p className="text-xs text-destructive">CEP não encontrado. Preencha o endereço manualmente.</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Preenche o resto do endereço automaticamente.</p>
         )}
       </div>
       <div className="space-y-1.5">

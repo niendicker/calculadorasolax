@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Banknote, Calculator, ClipboardList, FolderOpen } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
@@ -126,7 +126,20 @@ export function ProjectTab({
   const [search, setSearch] = useState('');
   const [nameSubmitAttempted, setNameSubmitAttempted] = useState(false);
   const nameError = nameSubmitAttempted && !projectInfo.name.trim();
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  // Landing here via the project-name link in Dimensionamento (or anywhere
+  // else that leaves currentProjectId set without reopening the edit form)
+  // pre-selects that project's card instead of the plain list — mirrors
+  // clicking the card directly. Only matters on mount: this tab fully
+  // unmounts on every switch away (see SinglePageApp's tab ternary), so a
+  // later change to currentProjectId elsewhere shouldn't reach back in here.
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() =>
+    projectDetailsVisible ? null : currentProjectId
+  );
+  useEffect(() => {
+    if (selectedProjectId) onShowSummary();
+    // Mount-only, matching the state initializer above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedProject =
     !projectDetailsVisible && selectedProjectId
@@ -330,6 +343,7 @@ export function ProjectTab({
                     onAddClient={addClient}
                     onSave={handleSave}
                     onCancel={handleCancel}
+                    onOpenSizing={() => onOpenSizing(project.id)}
                     nameError={nameError}
                     userServices={userServices}
                     services={services}

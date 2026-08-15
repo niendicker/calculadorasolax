@@ -81,6 +81,8 @@ const emptyResidentialOptions = {
 function setup(overrides: Record<string, unknown> = {}) {
   const props = {
     projectName: '',
+    currentProjectId: null,
+    onBackToProject: vi.fn(),
     loadingLabel: 'Calculando...',
     calculateLabel: 'Calcular',
     residentialOptions: emptyResidentialOptions,
@@ -159,6 +161,18 @@ describe('SizingTab: title bar', () => {
   it('omits the subtitle when no project is loaded yet', () => {
     setup({ projectName: '' });
     expect(screen.queryByText('Casa de praia')).not.toBeInTheDocument();
+  });
+
+  it('makes the project name a link back to Projetos when it is an already-saved project', () => {
+    const { props } = setup({ projectName: 'Casa de praia', currentProjectId: 'p1' });
+    fireEvent.click(screen.getByRole('button', { name: /Casa de praia/ }));
+    expect(props.onBackToProject).toHaveBeenCalled();
+  });
+
+  it('keeps the project name as plain text (not a link) for a not-yet-saved draft', () => {
+    setup({ projectName: 'Casa de praia', currentProjectId: null });
+    expect(screen.queryByRole('button', { name: /Casa de praia/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Casa de praia')).toBeInTheDocument();
   });
 
   it('wires Calcular to its callback', () => {

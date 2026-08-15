@@ -412,6 +412,11 @@ describe('ProjectTab: new project draft', () => {
     expect(screen.getByLabelText('Nome do projeto')).toHaveValue('');
   });
 
+  it('does not offer "Dimensionamento" for a brand-new, not-yet-saved draft', () => {
+    setup({ projectDetailsVisible: true, currentProjectId: null });
+    expect(screen.queryByRole('button', { name: 'Dimensionamento' })).not.toBeInTheDocument();
+  });
+
   it('edits are reported via setProjectInfo, and Fechar asks for confirmation before calling onCancelNew', async () => {
     const { props } = setup({ projectDetailsVisible: true, currentProjectId: null });
 
@@ -532,6 +537,18 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
   });
 
+  it('offers a "Dimensionamento" shortcut while editing an already-saved project, delegating to onOpenSizing', () => {
+    const { props } = setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
+  });
+
   it('closes immediately on Fechar when editing an existing project with no unsaved changes', () => {
     const { props } = setup({
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
@@ -636,6 +653,22 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Inversor')).toBeInTheDocument();
     expect(screen.getByText('X1-Hybrid')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+  });
+
+  it('pre-selects currentProjectId on mount (e.g. arriving via the project-name link from Dimensionamento)', () => {
+    const { props } = setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' }), makeProject({ id: 'p2', name: 'Escritório' })],
+      currentProjectId: 'p1',
+    });
+
+    // No click needed — p1's summary is already showing on mount.
+    expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+    expect(props.onShowSummary).toHaveBeenCalled();
+  });
+
+  it('does not pre-select anything when currentProjectId is unset', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })], currentProjectId: null });
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
 
   it('"Ir para Dimensionamento" in the summary delegates to onOpenSizing with the selected project id', () => {

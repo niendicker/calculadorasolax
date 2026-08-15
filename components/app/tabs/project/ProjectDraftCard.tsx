@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Save, UserPlus, Users, X } from 'lucide-react';
+import { Calculator, FileText, MapPin, Plus, Save, StickyNote, User, UserPlus, Users, Wrench, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -13,20 +13,46 @@ import { AddressFields } from '../../address-fields';
 import { formatCurrencyBRL } from '../../helpers';
 import { QuickAddClientModal } from './QuickAddClientModal';
 
+/** Small muted label + a left-aligned icon inside the field, same treatment
+ * as the login form (see AuthPanel's FieldIcon) — the plain <Label> default
+ * (text-sm font-medium) reads as too heavy for a form this dense with
+ * fields, and this section had no icons at all unlike the rest of the app. */
 function ProjectField({
   label,
   id,
+  icon,
   children,
 }: {
   label: string;
   id: string;
+  icon: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
+      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </Label>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+          {icon}
+        </span>
+        {children}
+      </div>
     </div>
+  );
+}
+
+/** Section label for a field group that isn't a single input (address block,
+ * services picker) — same de-emphasized treatment as ProjectField's label,
+ * with the icon inline instead of overlaid (there's no single field to
+ * overlay it on). */
+function SectionLabel({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Label className="gap-1.5 text-xs font-medium text-muted-foreground">
+      {icon}
+      {children}
+    </Label>
   );
 }
 
@@ -40,6 +66,7 @@ export function ProjectDraftCard({
   onAddClient,
   onSave,
   onCancel,
+  onOpenSizing,
   nameError,
   userServices,
   services,
@@ -59,6 +86,10 @@ export function ProjectDraftCard({
   onAddClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   onSave: () => void;
   onCancel: () => void;
+  /** Jumps straight to Dimensionamento for this project — only offered once
+   *  it's actually saved (isNew: false), since a brand-new draft has no id
+   *  yet for the sizing tab to load. */
+  onOpenSizing?: () => void;
   nameError: boolean;
   userServices: UserServiceItem[];
   services: ProjectServiceLine[];
@@ -74,9 +105,10 @@ export function ProjectDraftCard({
         <CardTitle className="text-base">{isNew ? 'Novo projeto' : 'Editando projeto'}</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
-        <ProjectField label="Nome do projeto" id="projectName">
+        <ProjectField label="Nome do projeto" id="projectName" icon={<FileText className="h-4 w-4" />}>
           <Input
             id="projectName"
+            className="pl-8 md:pl-8"
             value={projectInfo.name}
             onChange={(event) => setProjectInfo({ name: event.target.value })}
             placeholder="Ex: Residência Silva"
@@ -91,21 +123,26 @@ export function ProjectDraftCard({
           )}
         </ProjectField>
         <div className="space-y-1.5">
-          <Label htmlFor="clientId">Cliente</Label>
+          <Label htmlFor="clientId" className="text-xs font-medium text-muted-foreground">
+            Cliente
+          </Label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Select
-              id="clientId"
-              className="flex-1 md:h-9"
-              value={projectInfo.clientId ?? ''}
-              onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
-            >
-              <option value="">Sem cliente selecionado</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </Select>
+            <div className="relative flex-1">
+              <User className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Select
+                id="clientId"
+                className="md:h-9 pl-8 md:pl-8"
+                value={projectInfo.clientId ?? ''}
+                onChange={(event) => setProjectInfo({ clientId: event.target.value || null })}
+              >
+                <option value="">Sem cliente selecionado</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -123,7 +160,7 @@ export function ProjectDraftCard({
           </div>
         </div>
         <div className="md:col-span-2">
-          <Label>Endereço da instalação</Label>
+          <SectionLabel icon={<MapPin className="h-4 w-4" />}>Endereço da instalação</SectionLabel>
           <div className="mt-1.5">
             <AddressFields
               address={projectInfo.address}
@@ -132,19 +169,26 @@ export function ProjectDraftCard({
             />
           </div>
         </div>
-        <div className="md:col-span-2">
-          <ProjectField label="Observações" id="projectNotes">
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="projectNotes" className="text-xs font-medium text-muted-foreground">
+            Observações
+          </Label>
+          {/* Icon sits at the top instead of vertically centered (ProjectField's
+           * default) — a tall textarea would otherwise leave it floating in
+           * empty space next to blank lines. */}
+          <div className="relative">
+            <StickyNote className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <textarea
               id="projectNotes"
-              className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:px-2.5 md:text-sm"
+              className="min-h-24 w-full rounded-lg border border-input bg-background py-2 pl-8 pr-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:pl-8 md:pr-2.5 md:text-sm"
               value={projectInfo.notes}
               onChange={(event) => setProjectInfo({ notes: event.target.value })}
               placeholder="Informações comerciais, restrições da instalação ou preferências do cliente."
             />
-          </ProjectField>
+          </div>
         </div>
         <div className="space-y-1.5 md:col-span-2">
-          <Label>Serviços</Label>
+          <SectionLabel icon={<Wrench className="h-4 w-4" />}>Serviços</SectionLabel>
           {userServices.length === 0 ? (
             <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
               Cadastre serviços (instalação, frete...) em Portfólio para adicioná-los ao projeto.
@@ -211,6 +255,12 @@ export function ProjectDraftCard({
             <Button type="button" variant="outline" onClick={onCancel}>
               <X className="h-4 w-4" />
               Fechar
+            </Button>
+          )}
+          {!isNew && onOpenSizing && (
+            <Button type="button" variant="outline" onClick={onOpenSizing}>
+              <Calculator className="h-4 w-4" />
+              Dimensionamento
             </Button>
           )}
           <Button type="button" onClick={onSave}>

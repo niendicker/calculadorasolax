@@ -405,6 +405,14 @@ export function SinglePageApp() {
     changeTab('project');
   }
 
+  // Project-name link in Dimensionamento's header — the wizard state already
+  // holds whichever project got us here (currentProjectId), so this is just
+  // a tab switch; ProjectTab picks currentProjectId up on mount to select
+  // that project's card instead of landing on the plain list.
+  function backToProject() {
+    changeTab('project');
+  }
+
   function openPurchasesTab() {
     if (!profile) {
       router.push(`/${locale}/login?redirect=/${locale}`);
@@ -971,6 +979,8 @@ export function SinglePageApp() {
           ) : (
             <SizingTab
               projectName={projectInfo.name}
+              currentProjectId={currentProjectId}
+              onBackToProject={backToProject}
               loadingLabel={tc('loading')}
               calculateLabel={tc('calculate')}
               residentialOptions={residentialOptions}
