@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST() {
@@ -13,27 +12,26 @@ export async function POST() {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
-    const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const admin = createServiceClient(
-      supabaseUrl,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
+    // No service-role client needed: "users write own profile assets"
+    // (0007_profile_company_branding.sql) already lets a user manage their
+    // own storage.objects, and delete_own_account (0078) is a
+    // security-definer RPC scoped to auth.uid() for the auth.users row
+    // itself, which the regular anon-key client can't touch directly.
 
     // Best-effort cleanup: a failure here shouldn't block account deletion
     // (the logo files are just orphaned storage, not user-facing data), but
     // it's still logged instead of silently swallowed.
-    const { data: logoFiles, error: listError } = await admin.storage.from('profile-assets').list(`${user.id}/logo`);
+    const { data: logoFiles, error: listError } = await supabase.storage.from('profile-assets').list(`${user.id}/logo`);
     if (listError) {
       console.error(listError);
     } else if (logoFiles && logoFiles.length > 0) {
-      const { error: removeError } = await admin.storage
+      const { error: removeError } = await supabase.storage
         .from('profile-assets')
         .remove(logoFiles.map((file) => `${user.id}/logo/${file.name}`));
       if (removeError) console.error(removeError);
     }
 
-    const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
+    const { error: deleteError } = await supabase.rpc('delete_own_account');
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
