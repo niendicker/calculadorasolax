@@ -155,6 +155,11 @@ export function AuthPanel({
     setToast(null);
 
     const origin = window.location.origin;
+    // full_name/phone/role/terms_accepted all land in profiles via
+    // handle_new_user (security definer, reads auth.users.raw_user_meta_data)
+    // instead of a follow-up client call — signUp() returns no session yet
+    // when email confirmation is required, so anything done here with the
+    // browser client would run unauthenticated and get silently dropped by RLS.
     const { data, error: authError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -164,6 +169,7 @@ export function AuthPanel({
           full_name: fullName.trim(),
           phone: phone.trim(),
           role: 'user',
+          terms_accepted: true,
         },
       },
     });
@@ -172,18 +178,6 @@ export function AuthPanel({
       setLoading(false);
       setToast({ message: authError.message, type: 'error' });
       return;
-    }
-
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        email: email.trim(),
-        full_name: fullName.trim(),
-        phone: phone.trim(),
-        role: 'user',
-        terms_accepted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
     }
 
     setLoading(false);

@@ -133,7 +133,9 @@ describe('AuthPanel: signup', () => {
     expect(signUp).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'novo@x.com',
-        options: expect.objectContaining({ data: expect.objectContaining({ full_name: 'Fulano', phone: '11999999999' }) }),
+        options: expect.objectContaining({
+          data: expect.objectContaining({ full_name: 'Fulano', phone: '11999999999', terms_accepted: true }),
+        }),
       })
     );
     // Back to the login form once signup without an active session completes.
