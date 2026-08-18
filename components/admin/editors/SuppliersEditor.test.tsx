@@ -259,6 +259,40 @@ describe('SuppliersEditor: saving a supplier', () => {
     expect(fieldNear('Email de contato')).toHaveValue('contato@acme.com');
   });
 
+  it('edits the logo URL and website, sending them (trimmed to null when blank) when saving', async () => {
+    const supabase = await renderEditor();
+    fireEvent.change(fieldNear('Nome'), { target: { value: 'Nova Distribuidora' } });
+    fireEvent.change(fieldNear('Identificador'), { target: { value: 'nova-distribuidora' } });
+    fireEvent.change(fieldNear('URL do logo'), { target: { value: 'https://nova.com/logo.png' } });
+    fireEvent.change(fieldNear('Site do fornecedor'), { target: { value: 'https://nova.com' } });
+    fireEvent.click(screen.getByText('Salvar fornecedor'));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Fornecedor salvo.'));
+    expect(supabase.from).toHaveBeenCalledWith('suppliers');
+  });
+
+  it('loads the existing logo URL and website when selecting a supplier', async () => {
+    await renderEditor({
+      suppliers: {
+        data: [{ ...supplierRow, logo_url: 'https://acme.com/logo.png', website_url: 'https://acme.com' }],
+        error: null,
+      },
+    });
+    fireEvent.click(screen.getByText('Acme Solar'));
+    await screen.findByDisplayValue('Acme Solar');
+    expect(fieldNear('URL do logo')).toHaveValue('https://acme.com/logo.png');
+    expect(fieldNear('Site do fornecedor')).toHaveValue('https://acme.com');
+  });
+
+  it('shows a logo preview once a logo URL is entered', async () => {
+    await renderEditor();
+    expect(screen.queryByAltText('Pré-visualização do logo')).not.toBeInTheDocument();
+
+    fireEvent.change(fieldNear('URL do logo'), { target: { value: 'https://nova.com/logo.png' } });
+
+    expect(screen.getByAltText('Pré-visualização do logo')).toHaveAttribute('src', 'https://nova.com/logo.png');
+  });
+
   it('toggles active and ordering_enabled checkboxes and edits description/order mode/minimum', async () => {
     await renderEditor();
     fireEvent.click(screen.getByLabelText('Fornecedor ativo'));

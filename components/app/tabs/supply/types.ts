@@ -39,6 +39,8 @@ export interface Supplier {
   is_default_for_all: boolean;
   supports_partner_orders: boolean;
   email: string | null;
+  logo_url: string | null;
+  website_url: string | null;
 }
 
 export interface DeliveryForm {

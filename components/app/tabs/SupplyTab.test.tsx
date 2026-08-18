@@ -61,7 +61,7 @@ const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 
 type QueryResult<T = unknown> = { data: T; error: null } | { data: null; error: { message: string } };
-type SupplierRow = { id: string; name?: string; description?: string | null; order_mode?: string; is_default_for_all?: boolean; supports_partner_orders?: boolean; email?: string | null };
+type SupplierRow = { id: string; name?: string; description?: string | null; order_mode?: string; is_default_for_all?: boolean; supports_partner_orders?: boolean; email?: string | null; logo_url?: string | null; website_url?: string | null };
 
 function makeQueryBuilder(result: QueryResult) {
   const builder: Record<string, unknown> = {
@@ -174,7 +174,7 @@ function setupSupabase({
   overrideFrom?: (table: string, builder: Record<string, unknown>) => Record<string, unknown>;
 } = {}) {
   const supplierRows = (suppliers ?? [...new Set(offers.map((offer) => offer.supplier_id))].map((id) => ({ id })))
-    .map((row) => ({ name: `Fornecedor ${row.id}`, description: null, order_mode: 'both', is_default_for_all: true, supports_partner_orders: false, email: null, ...row }));
+    .map((row) => ({ name: `Fornecedor ${row.id}`, description: null, order_mode: 'both', is_default_for_all: true, supports_partner_orders: false, email: null, logo_url: null, website_url: null, ...row }));
 
   // Toggling a preference triggers a reload of this same table, so the mock
   // needs to actually remember inserts/deletes rather than always resolving
@@ -420,6 +420,30 @@ describe('SupplyTab: "Meus fornecedores" picker', () => {
     expect(screen.getByText('Padrão')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /Fornecedor Padrão/ })).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /Fornecedor B/ })).toBeInTheDocument();
+  });
+
+  it('shows a supplier\'s logo and a link to its website when set', async () => {
+    setupSupabase({
+      suppliers: [
+        { id: 's1', name: 'Fornecedor A', is_default_for_all: false, logo_url: 'https://a.com/logo.png', website_url: 'https://www.fornecedora.com.br/loja' },
+      ],
+    });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await screen.findByText('Fornecedor A');
+    expect(screen.getByAltText('Logo de Fornecedor A')).toHaveAttribute('src', 'https://a.com/logo.png');
+    const link = screen.getByRole('link', { name: 'fornecedora.com.br' });
+    expect(link).toHaveAttribute('href', 'https://www.fornecedora.com.br/loja');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('falls back to a placeholder icon and no link when a supplier has no logo/website', async () => {
+    setupSupabase({ suppliers: [{ id: 's1', name: 'Fornecedor A', is_default_for_all: false }] });
+    renderWithShell(<SupplyTab onShowSummary={vi.fn()} />);
+
+    await screen.findByText('Fornecedor A');
+    expect(screen.queryByAltText('Logo de Fornecedor A')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('starts collapsed with a summary line once suppliers are already selected, and expands on demand', async () => {

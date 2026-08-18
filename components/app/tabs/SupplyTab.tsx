@@ -113,7 +113,7 @@ export function SupplyTab({
     const [supplierResult, settingsResult, preferencesResult, orderResult] = await Promise.all([
       supabase
         .from('suppliers')
-        .select('id, name, description, order_mode, is_default_for_all, supports_partner_orders, email')
+        .select('id, name, description, order_mode, is_default_for_all, supports_partner_orders, email, logo_url, website_url')
         .eq('active', true)
         .eq('ordering_enabled', true)
         .order('name'),
