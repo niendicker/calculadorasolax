@@ -421,6 +421,14 @@ export function SinglePageApp() {
     changeTab('purchases');
   }
 
+  function openPortfolioTab() {
+    if (!profile) {
+      router.push(`/${locale}/login?redirect=/${locale}`);
+      return;
+    }
+    changeTab('myStock');
+  }
+
   // "Cotar solução" (Dimensionamento) jumps straight to Fornecedores with the
   // current solution's items already in the cart — pendingSupplyImport tells
   // SupplyTab to run its own "Importar itens da solução atual" once its
@@ -909,6 +917,7 @@ export function SinglePageApp() {
               downloadingProjectId={downloadingProjectId}
               onManageClients={openClientsManager}
               onManageSuppliers={openPurchasesTab}
+              onManagePortfolio={openPortfolioTab}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}
             />

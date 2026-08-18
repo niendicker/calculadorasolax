@@ -63,6 +63,7 @@ export function ProjectTab({
   downloadingProjectId,
   onManageClients,
   onManageSuppliers,
+  onManagePortfolio,
   onShowSummary,
   onHideSummary,
 }: {
@@ -98,6 +99,10 @@ export function ProjectTab({
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
+  /** Sends the seller to Portfólio — used by the draft card's services empty
+   *  state, so "Portfólio" can be a clickable jump instead of just naming
+   *  the tab. */
+  onManagePortfolio: () => void;
   /** Brings the shell's summary panel into view (a slide-in drawer on
    * mobile/tablet) — selecting a project should surface its rich summary
    * immediately instead of waiting for the user to tap the nav badge. */
@@ -319,6 +324,7 @@ export function ProjectTab({
                   isDirty={isDraftDirty}
                   setProjectInfo={setProjectInfo}
                   onManageClients={onManageClients}
+                  onManagePortfolio={onManagePortfolio}
                   onAddClient={addClient}
                   onSave={handleSave}
                   onCancel={handleCancel}
@@ -340,6 +346,7 @@ export function ProjectTab({
                     isDirty={isDraftDirty}
                     setProjectInfo={setProjectInfo}
                     onManageClients={onManageClients}
+                    onManagePortfolio={onManagePortfolio}
                     onAddClient={addClient}
                     onSave={handleSave}
                     onCancel={handleCancel}

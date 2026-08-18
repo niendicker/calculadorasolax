@@ -63,6 +63,7 @@ export function ProjectDraftCard({
   isDirty,
   setProjectInfo,
   onManageClients,
+  onManagePortfolio,
   onAddClient,
   onSave,
   onCancel,
@@ -87,6 +88,9 @@ export function ProjectDraftCard({
   isDirty: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onManageClients: () => void;
+  /** Sends the seller to Portfólio — used by the "Portfólio" tag inline in
+   *  the services empty state below, for when there's nothing there yet. */
+  onManagePortfolio: () => void;
   onAddClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   onSave: () => void;
   onCancel: () => void;
@@ -195,7 +199,15 @@ export function ProjectDraftCard({
           <SectionLabel icon={<Wrench className="h-4 w-4" />}>Serviços</SectionLabel>
           {userServices.length === 0 ? (
             <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-              Cadastre serviços (instalação, frete...) em Portfólio para adicioná-los ao projeto.
+              Cadastre serviços (instalação, frete...) em{' '}
+              <button
+                type="button"
+                onClick={onManagePortfolio}
+                className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-medium text-primary transition-colors hover:bg-primary/20"
+              >
+                Portfólio
+              </button>{' '}
+              para adicioná-los ao projeto.
             </p>
           ) : (
             <div className="space-y-2">

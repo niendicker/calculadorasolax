@@ -152,6 +152,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     downloadingProjectId: null,
     onManageClients: vi.fn(),
     onManageSuppliers: vi.fn(),
+    onManagePortfolio: vi.fn(),
     onShowSummary: vi.fn(),
     onHideSummary: vi.fn(),
     ...propOverrides,
@@ -482,11 +483,16 @@ describe('ProjectTab: new project draft', () => {
     expect(screen.getByRole('button', { name: /Salvar projeto/ })).toBeEnabled();
   });
 
-  it('shows a placeholder when there are no user services registered yet', () => {
-    setup({ projectDetailsVisible: true, currentProjectId: null, userServices: [] });
-    expect(
-      screen.getByText('Cadastre serviços (instalação, frete...) em Portfólio para adicioná-los ao projeto.')
-    ).toBeInTheDocument();
+  it('shows a placeholder with a Portfólio link when there are no user services registered yet', () => {
+    const { props } = setup({ projectDetailsVisible: true, currentProjectId: null, userServices: [] });
+
+    const portfolioLink = screen.getByRole('button', { name: 'Portfólio' });
+    expect(portfolioLink.closest('p')).toHaveTextContent(
+      'Cadastre serviços (instalação, frete...) em Portfólio para adicioná-los ao projeto.'
+    );
+
+    fireEvent.click(portfolioLink);
+    expect(props.onManagePortfolio).toHaveBeenCalled();
   });
 
   it('adds a service to the draft, updates its quantity, and removes it', () => {
