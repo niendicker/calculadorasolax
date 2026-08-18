@@ -38,7 +38,7 @@ export function SupplierQuoteRequestModal({
   profile: InlineProfile;
   batteryCatalog: ShareableBatteryCatalog;
   onSent: () => void;
-  /** Sends the seller to Compras to pick suppliers, for when they haven't
+  /** Sends the seller to Fornecedores to pick suppliers, for when they haven't
    *  chosen any yet — see the `allowedCount === 0` empty state below. */
   onManageSuppliers: () => void;
 }) {
@@ -48,7 +48,7 @@ export function SupplierQuoteRequestModal({
 
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   // Suppliers the seller actually has access to (admin defaults + their own
-  // picks in Compras), before narrowing to the ones with an email on file —
+  // picks in Fornecedores), before narrowing to the ones with an email on file —
   // kept separate from `suppliers` so the empty state can tell "you haven't
   // chosen any supplier yet" apart from "none of your suppliers have an
   // email registered".
@@ -66,7 +66,7 @@ export function SupplierQuoteRequestModal({
     setLoadingSuppliers(true);
     const supabase = createClient();
 
-    // Same "fornecedores deste usuário" scoping Compras already uses (see
+    // Same "fornecedores deste usuário" scoping Fornecedores already uses (see
     // SupplyTab.tsx's allowedSupplierIds): suppliers the admin marked as
     // default for every account, plus whichever ones this seller picked for
     // themselves — not the full admin catalog, so this list stays consistent
@@ -176,7 +176,7 @@ export function SupplierQuoteRequestModal({
             ) : allowedCount === 0 ? (
               <div className="space-y-2 rounded-lg border border-dashed p-3">
                 <p className="text-xs text-muted-foreground">
-                  Você ainda não escolheu fornecedores. Escolha em Compras para poder solicitar orçamentos.
+                  Você ainda não escolheu fornecedores. Escolha em Fornecedores para poder solicitar orçamentos.
                 </p>
                 <Button
                   variant="outline"
@@ -186,7 +186,7 @@ export function SupplierQuoteRequestModal({
                     onManageSuppliers();
                   }}
                 >
-                  Ir para Compras
+                  Ir para Fornecedores
                 </Button>
               </div>
             ) : suppliers.length === 0 ? (

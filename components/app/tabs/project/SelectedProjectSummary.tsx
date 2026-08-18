@@ -93,7 +93,7 @@ export function SelectedProjectSummary({
   onClose: () => void;
   onOpenSizing: () => void;
   onUpdateStatus: (status: ProjectStatus) => void;
-  /** Sends the seller to Compras — used by the supplier quote-request modal
+  /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
 }) {

@@ -95,7 +95,7 @@ export function ProjectTab({
    * loading state on that project's "Baixar Relatório" button specifically. */
   downloadingProjectId: string | null;
   onManageClients: () => void;
-  /** Sends the seller to Compras — used by the supplier quote-request modal
+  /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
   /** Brings the shell's summary panel into view (a slide-in drawer on

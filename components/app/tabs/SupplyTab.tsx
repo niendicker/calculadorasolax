@@ -486,7 +486,7 @@ export function SupplyTab({
     <div className={`space-y-5 py-5 ${cartOffers.length > 0 ? 'pb-20 xl:pb-5' : ''}`}>
       <PageHeader>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Compras</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Fornecedores</h1>
           <p className="text-sm text-muted-foreground">
             Escolha seus fornecedores preferidos, compare ofertas e acompanhe seus pedidos.
           </p>

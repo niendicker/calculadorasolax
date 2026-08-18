@@ -975,14 +975,14 @@ describe('ProjectTab: selecting a project without opening it', () => {
     vi.unstubAllGlobals();
   });
 
-  it('points the seller to Compras when they haven\'t chosen any supplier there yet', async () => {
+  it('points the seller to Fornecedores when they haven\'t chosen any supplier there yet', async () => {
     createClientMock.mockReturnValue(
       createSupabaseMock({
         tableResults: {
           quote_shares: { data: { id: 'share-1' }, error: null },
           // Suppliers exist in the catalog, but none are default-for-all and
           // the seller has no user_supplier_preferences row — same as a
-          // brand-new Compras user.
+          // brand-new Fornecedores user.
           suppliers: {
             data: [{ id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: false }],
             error: null,
@@ -1015,7 +1015,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
     await within(dialog).findByText(/ainda não escolheu fornecedores/);
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Ir para Compras' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ir para Fornecedores' }));
 
     expect(props.onManageSuppliers).toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' })).not.toBeInTheDocument();

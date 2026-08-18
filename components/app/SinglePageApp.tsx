@@ -64,7 +64,7 @@ const SizingTab = dynamic(() => import('./tabs/SizingTab').then((m) => m.SizingT
 // currently open, instead of always showing the generic "Mais" — otherwise a
 // user has to reopen the sheet just to remember where they are.
 const moreNavTabLabels: Partial<Record<'purchases' | 'clients' | 'profile', string>> = {
-  purchases: 'Compras',
+  purchases: 'Fornecedores',
   clients: 'Clientes',
   profile: 'Perfil',
 };
@@ -421,7 +421,7 @@ export function SinglePageApp() {
     changeTab('purchases');
   }
 
-  // "Cotar solução" (Dimensionamento) jumps straight to Compras with the
+  // "Cotar solução" (Dimensionamento) jumps straight to Fornecedores with the
   // current solution's items already in the cart — pendingSupplyImport tells
   // SupplyTab to run its own "Importar itens da solução atual" once its
   // offers have loaded, then clear itself via onAutoImportHandled.
@@ -771,7 +771,7 @@ export function SinglePageApp() {
               )}
             >
               <ShoppingCart className="h-4 w-4" />
-              Compras
+              Fornecedores
             </button>
             <button
               type="button"
@@ -1164,7 +1164,7 @@ export function SinglePageApp() {
 
         {/* "Projeto"/"Catálogo" already have their own toggle built into their
          * bottom-nav icon (tap again to reopen the summary) — every other tab
-         * with a summary (Dimensionamento, Compras) is only reachable through
+         * with a summary (Dimensionamento, Fornecedores) is only reachable through
          * "Mais", whose entries are plain single-click links with no such
          * toggle, so they need this floating fallback instead. On mobile it's
          * lifted above the bottom nav bar; from lg up that bar is gone, so it
@@ -1211,7 +1211,7 @@ export function SinglePageApp() {
                 )}
               >
                 <ShoppingCart className="h-4 w-4" />
-                Compras
+                Fornecedores
               </button>
               <button
                 type="button"

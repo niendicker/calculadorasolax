@@ -203,7 +203,7 @@ export function SizingTab({
    *  to send the WhatsApp quote to — the button stays visible but disabled
    *  (with an explanatory title) otherwise, matching SelectedProjectSummary. */
   canSendQuoteByWhatsApp: boolean;
-  /** Sends the user to Compras with the current solution's inverter/battery/
+  /** Sends the user to Fornecedores with the current solution's inverter/battery/
    *  accessories pre-loaded into the cart — same items as "Importar itens da
    *  solução atual" over there, just reachable in one click from here. */
   onQuoteSolution: () => void;

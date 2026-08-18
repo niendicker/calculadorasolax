@@ -261,12 +261,12 @@ describe('SinglePageApp: login-gated navigation', () => {
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
   });
 
-  it('redirects to login when opening Compras without a profile', async () => {
+  it('redirects to login when opening Fornecedores without a profile', async () => {
     setupSupabase();
     renderApp();
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Compras' }));
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Fornecedores' }));
 
     expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
   });
@@ -291,8 +291,8 @@ describe('SinglePageApp: login-gated navigation', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^Clientes/ })).toBeInTheDocument());
     expect(routerMock.push).not.toHaveBeenCalled();
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Compras' }));
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Compras' })).toBeInTheDocument());
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Fornecedores' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fornecedores' })).toBeInTheDocument());
     expect(routerMock.push).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
@@ -840,7 +840,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     openSpy.mockRestore();
   });
 
-  it('sends a logged-in user to Compras when they click "Cotar solução"', async () => {
+  it('sends a logged-in user to Fornecedores when they click "Cotar solução"', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
@@ -851,7 +851,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Compras' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fornecedores' })).toBeInTheDocument());
   });
 
   it('redirects to login when clicking "Cotar solução" without a profile', async () => {
