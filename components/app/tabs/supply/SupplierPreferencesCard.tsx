@@ -128,7 +128,7 @@ export function SupplierPreferencesCard({
                 <ShieldCheck className="mr-1 inline h-3.5 w-3.5" />
                 Padrão para todas as contas: não contam na sua cota de {maxUserSuppliers}.
               </p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {defaultSuppliers.map((supplier) => (
                   <div key={supplier.id} className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
                     <SupplierCardHeader
@@ -156,7 +156,7 @@ export function SupplierPreferencesCard({
               Nenhum fornecedor disponível para seleção no momento.
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {selectableSuppliers.map((supplier) => {
                 const selected = preferredIds.includes(supplier.id);
                 const disabled = !userId || pendingSupplierId === supplier.id || (!selected && atSupplierLimit);
