@@ -5,6 +5,7 @@ import {
   BatteryCharging,
   Calculator,
   ChevronRight,
+  Copy,
   Gauge,
   Loader2,
   Mail,
@@ -15,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
@@ -62,10 +64,12 @@ function ProductNameLine({
   );
 }
 
-/** Rich, read-only summary of a saved project selected from the list —
- * lets the user inspect a project's own solution without loading it into
- * the editor (which "Abrir" already does). Rendered in the shell's summary
- * panel in place of the live "Configuração salva junto" summary. */
+/** Rich, read-only summary of a saved project — either one selected from the
+ * list ("Abrir"'s own live editor is a separate flow) or the one currently
+ * being edited in place, so the sidebar shows the exact same actions and
+ * data regardless of how the user got there. Rendered in the shell's
+ * summary panel in place of the "Configuração salva junto" summary, which
+ * is now only shown for a brand-new, not-yet-saved draft. */
 export function SelectedProjectSummary({
   project,
   client,
@@ -80,6 +84,8 @@ export function SelectedProjectSummary({
   onOpenSizing,
   onUpdateStatus,
   onManageSuppliers,
+  onRemove,
+  onDuplicate,
 }: {
   project: SavedProject;
   client: Client | undefined;
@@ -90,12 +96,17 @@ export function SelectedProjectSummary({
   userStockItems: UserStockItem[];
   userServices: UserServiceItem[];
   marginSettings: MarginSettings;
-  onClose: () => void;
+  /** Omitted while editing this project in place (no "unselect" concept
+   *  there — "Fechar" on the draft card itself is what exits editing,
+   *  complete with its own discard confirmation when dirty). */
+  onClose?: () => void;
   onOpenSizing: () => void;
   onUpdateStatus: (status: ProjectStatus) => void;
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
+  onRemove: () => void;
+  onDuplicate: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -205,9 +216,28 @@ export function SelectedProjectSummary({
             </p>
           )}
         </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Fechar resumo do projeto" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Duplicar projeto ${project.name}`}
+            onClick={onDuplicate}
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+          <ConfirmDeleteButton
+            ariaLabel={`Remover projeto ${project.name}`}
+            title="Remover projeto?"
+            description="O projeto salvo e sua configuração serão removidos deste navegador."
+            confirmLabel="Remover"
+            onConfirm={onRemove}
+          />
+          {onClose && (
+            <Button variant="ghost" size="icon-sm" aria-label="Fechar resumo do projeto" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {!isAddressEmpty(project.address) && (

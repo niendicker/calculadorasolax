@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Calculator,
   Clock,
-  Copy,
   Download,
   Loader2,
   Mail,
@@ -15,7 +14,6 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
@@ -44,8 +42,6 @@ export function ProjectCard({
   onSelect,
   onOpen,
   onOpenSizing,
-  onRemove,
-  onDuplicate,
   onRefreshSolution,
   refreshing,
   onUpdateStatus,
@@ -62,8 +58,6 @@ export function ProjectCard({
   onSelect: () => void;
   onOpen: () => void;
   onOpenSizing: () => void;
-  onRemove: () => void;
-  onDuplicate: () => void;
   onRefreshSolution: () => void;
   refreshing: boolean;
   onUpdateStatus: (status: ProjectStatus) => void;
@@ -123,26 +117,7 @@ export function ProjectCard({
         selected ? 'border-foreground/30 bg-muted/40 shadow-sm ring-1 ring-border' : 'hover:border-primary/30 hover:bg-muted/30'
       )}
     >
-      <div className="absolute right-2 top-2 flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Duplicar projeto ${project.name}`}
-          onClick={stopAnd(onDuplicate)}
-        >
-          <Copy className="h-4 w-4" />
-        </Button>
-        <span onClick={(event) => event.stopPropagation()}>
-          <ConfirmDeleteButton
-            ariaLabel={`Remover projeto ${project.name}`}
-            title="Remover projeto?"
-            description="O projeto salvo e sua configuração serão removidos deste navegador."
-            confirmLabel="Remover"
-            onConfirm={onRemove}
-          />
-        </span>
-      </div>
-      <div className="min-w-0 pr-16">
+      <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="min-w-0 truncate font-semibold">{project.name}</p>
           <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />

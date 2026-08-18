@@ -202,6 +202,15 @@ export function ProjectTab({
           services.length > 0
       );
 
+  // Whichever saved project the summary panel should show: one picked from
+  // the list, or — while editing — the one currently open, so the sidebar
+  // stays the exact same rich summary (and its delete/duplicate actions)
+  // instead of switching to a different, live-editing-only widget. Reflects
+  // the last-saved snapshot, not the live in-progress draft (see
+  // SelectedProjectSummary's own docstring) — that's intentional, matching
+  // what a plain click on the card already shows.
+  const summaryProject = selectedProject ?? (projectDetailsVisible ? editingProject ?? null : null);
+
   return (
     <div className="space-y-4">
       <PageHeader>
@@ -214,10 +223,10 @@ export function ProjectTab({
       </PageHeader>
 
       <PageSummary>
-        {selectedProject ? (
+        {summaryProject ? (
           <SelectedProjectSummary
-            project={selectedProject}
-            client={clients.find((client) => client.id === selectedProject.clientId)}
+            project={summaryProject}
+            client={clients.find((client) => client.id === summaryProject.clientId)}
             profile={profile}
             batteryCatalog={batteryCatalog}
             inverterCatalog={inverterCatalog}
@@ -225,13 +234,19 @@ export function ProjectTab({
             userStockItems={userStockItems}
             userServices={userServices}
             marginSettings={marginSettings}
-            onClose={() => {
-              setSelectedProjectId(null);
-              onHideSummary();
-            }}
-            onOpenSizing={() => onOpenSizing(selectedProject.id)}
-            onUpdateStatus={(status) => onUpdateStatus(selectedProject.id, status)}
+            onClose={
+              selectedProject
+                ? () => {
+                    setSelectedProjectId(null);
+                    onHideSummary();
+                  }
+                : undefined
+            }
+            onOpenSizing={() => onOpenSizing(summaryProject.id)}
+            onUpdateStatus={(status) => onUpdateStatus(summaryProject.id, status)}
             onManageSuppliers={onManageSuppliers}
+            onRemove={() => onRemove(summaryProject.id)}
+            onDuplicate={() => onDuplicate(summaryProject.id)}
           />
         ) : projectDetailsVisible ? (
           <>
@@ -375,8 +390,6 @@ export function ProjectTab({
                       onOpen(project.id);
                     }}
                     onOpenSizing={() => onOpenSizing(project.id)}
-                    onRemove={() => onRemove(project.id)}
-                    onDuplicate={() => onDuplicate(project.id)}
                     onRefreshSolution={() => onRefreshSolution(project.id)}
                     refreshing={refreshingProjectId === project.id}
                     onUpdateStatus={(status) => onUpdateStatus(project.id, status)}

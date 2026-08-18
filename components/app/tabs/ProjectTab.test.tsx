@@ -171,6 +171,12 @@ describe('ProjectTab: empty and list states', () => {
     expect(screen.queryByText('Novo por aqui?')).not.toBeInTheDocument();
   });
 
+  it('no longer shows Duplicar/Remover on the card itself — those moved to the summary panel', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    expect(screen.queryByRole('button', { name: 'Duplicar projeto Casa de praia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remover projeto Casa de praia' })).not.toBeInTheDocument();
+  });
+
   it('hides the onboarding hint while a draft is open, even with no saved projects yet', () => {
     setup({ savedProjects: [], projectDetailsVisible: true, currentProjectId: null });
     expect(screen.queryByText('Novo por aqui?')).not.toBeInTheDocument();
@@ -184,9 +190,27 @@ describe('ProjectTab: empty and list states', () => {
     expect(screen.queryByText('Configuração salva junto')).not.toBeInTheDocument();
   });
 
-  it('shows the live "Configuração salva junto" summary while editing a project draft', () => {
+  it('shows the live "Configuração salva junto" summary for a brand-new, not-yet-saved draft', () => {
     setup({ projectDetailsVisible: true, currentProjectId: null });
     expect(screen.getByText('Configuração salva junto')).toBeInTheDocument();
+  });
+
+  it('shows the same rich SelectedProjectSummary (not "Configuração salva junto") while editing an already-saved project', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
+    });
+
+    expect(screen.queryByText('Configuração salva junto')).not.toBeInTheDocument();
+    // The summary's own delete/duplicate actions (moved here from the card)
+    // are available even while editing, not just when viewing a card.
+    expect(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover projeto Casa de praia' })).toBeInTheDocument();
+    // No "unselect" affordance while editing — "Fechar" on the draft card
+    // itself (with its own discard confirmation) is what exits editing.
+    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
 
   it('shows filled-in requirements in the live summary panel once topology/battery/grid/loads/solution are set', () => {
@@ -651,11 +675,6 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
   });
 
-  it('clicking the duplicate button on a saved project delegates to onDuplicate with its id', () => {
-    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' }));
-    expect(props.onDuplicate).toHaveBeenCalledWith('p1');
-  });
 });
 
 describe('ProjectTab: selecting a project without opening it', () => {
@@ -716,6 +735,26 @@ describe('ProjectTab: selecting a project without opening it', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ir para Dimensionamento' }));
 
     expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
+  });
+
+  it('the "Duplicar" action in the summary delegates to onDuplicate with the selected project id', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' }));
+
+    expect(props.onDuplicate).toHaveBeenCalledWith('p1');
+  });
+
+  it('the "Remover" action in the summary confirms before delegating to onRemove with the selected project id', async () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    clickCard('Casa de praia');
+    fireEvent.click(screen.getByRole('button', { name: 'Remover projeto Casa de praia' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('p1'));
   });
 
   it('shows the solution value priced from the user stock, flagging a partial total when an item has no price', () => {
@@ -1210,14 +1249,6 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(props.onShowSummary).toHaveBeenCalledTimes(1);
   });
 
-  it('does not trigger selection when clicking the duplicate/remove card action buttons', () => {
-    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicar projeto Casa de praia' }));
-
-    expect(props.onDuplicate).toHaveBeenCalledWith('p1');
-    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
-  });
 });
 
 describe('ProjectTab: refreshing a project\'s solution from the card', () => {
@@ -1414,14 +1445,3 @@ describe('ProjectTab: downloading a PDF from the card', () => {
   });
 });
 
-describe('ProjectTab: removing a project', () => {
-  it('confirms via the delete popover before calling onRemove', async () => {
-    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remover projeto Casa de praia' }));
-    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
-    fireEvent.click(confirmButton);
-
-    await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('p1'));
-  });
-});
