@@ -30,9 +30,10 @@ describe('ResetPasswordPanel', () => {
     expect(screen.getByText('As senhas não conferem.')).toBeInTheDocument();
   });
 
-  it('updates the password and redirects to the profile page on success', async () => {
+  it('updates the password, signs out, and redirects to the login page on success', async () => {
     const updateUser = vi.fn().mockResolvedValue({ error: null });
-    createClientMock.mockReturnValue(createSupabaseMock({ auth: { updateUser } }));
+    const signOut = vi.fn().mockResolvedValue({ error: null });
+    createClientMock.mockReturnValue(createSupabaseMock({ auth: { updateUser, signOut } }));
     render(<ResetPasswordPanel locale="pt" />);
 
     fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'segredo123' } });
@@ -40,7 +41,8 @@ describe('ResetPasswordPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Salvar nova senha/ }));
 
     await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: 'segredo123' }));
-    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith('/pt/profile'));
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith('/pt/login'));
   });
 
   it('shows the Supabase error message when the update fails', async () => {

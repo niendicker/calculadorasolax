@@ -35,7 +35,12 @@ export function ResetPasswordPanel({ locale }: { locale: string }) {
       return;
     }
 
-    router.replace(`/${locale}/profile`);
+    // Signs out the session exchangeCodeForSession set up for this recovery
+    // link instead of leaving the user logged in on a screen that looks
+    // like login — going back to /login lets them confirm the new password
+    // actually works instead of just trusting the update succeeded.
+    await supabase.auth.signOut();
+    router.replace(`/${locale}/login`);
     router.refresh();
   }
 
