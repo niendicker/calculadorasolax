@@ -38,6 +38,17 @@ function withMappingInsertResult(supabase: SupabaseMock, insertResult: { data: u
   return supabase;
 }
 
+function withStorageMock(
+  supabase: SupabaseMock,
+  { uploadError = null as { message: string } | null, publicUrl = 'https://cdn.example.com/logo.png' } = {}
+) {
+  const upload = vi.fn().mockResolvedValue({ error: uploadError });
+  (supabase as unknown as { storage: unknown }).storage = {
+    from: () => ({ upload, getPublicUrl: () => ({ data: { publicUrl } }) }),
+  };
+  return { supabase, upload };
+}
+
 const supplierRow = {
   id: 'sup-1', name: 'Acme Solar', slug: 'acme-solar', active: true, ordering_enabled: true,
   order_mode: 'quote', currency: 'BRL', minimum_order_value: 500, description: 'Fornecedor principal',
@@ -291,6 +302,34 @@ describe('SuppliersEditor: saving a supplier', () => {
     fireEvent.change(fieldNear('URL do logo'), { target: { value: 'https://nova.com/logo.png' } });
 
     expect(screen.getByAltText('Pré-visualização do logo')).toHaveAttribute('src', 'https://nova.com/logo.png');
+  });
+
+  it('uploads a logo file and fills the URL field with the public URL on success', async () => {
+    const supabase = await renderEditor();
+    const { upload } = withStorageMock(supabase);
+    fireEvent.change(fieldNear('Identificador'), { target: { value: 'nova-distribuidora' } });
+    const file = new File(['x'], 'logo.png', { type: 'image/png' });
+
+    fireEvent.change(screen.getByLabelText('Enviar logo'), { target: { files: [file] } });
+
+    await waitFor(() => expect(fieldNear('URL do logo')).toHaveValue('https://cdn.example.com/logo.png'));
+    expect(screen.getByRole('status')).toHaveTextContent('Logo carregada. Salve o fornecedor para manter a alteração.');
+    expect(upload).toHaveBeenCalledWith(
+      expect.stringMatching(/^suppliers\/nova-distribuidora\/logo\/.+\.png$/),
+      file,
+      expect.objectContaining({ contentType: 'image/png' })
+    );
+  });
+
+  it('shows the Supabase error message when the logo upload fails', async () => {
+    const supabase = await renderEditor();
+    withStorageMock(supabase, { uploadError: { message: 'arquivo muito grande' } });
+    const file = new File(['x'], 'logo.png', { type: 'image/png' });
+
+    fireEvent.change(screen.getByLabelText('Enviar logo'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('arquivo muito grande'));
+    expect(fieldNear('URL do logo')).toHaveValue('');
   });
 
   it('toggles active and ordering_enabled checkboxes and edits description/order mode/minimum', async () => {

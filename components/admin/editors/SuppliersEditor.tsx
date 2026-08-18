@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { orderStatusLabels } from '@/lib/procurement/types';
+import { sanitizePathPart } from '../helpers';
 
 type Supplier = { id: string; name: string; slug: string; active: boolean; ordering_enabled: boolean; order_mode: string; currency: string; minimum_order_value: number; description: string | null; is_default_for_all: boolean; supports_partner_orders: boolean; email: string | null; logo_url: string | null; website_url: string | null };
 type Integration = { supplier_id: string; connector_type: string; base_url: string | null; products_path: string; auth_type: string; credential_env_key: string | null; api_key_header: string; enabled: boolean; mapping: Record<string, string>; last_sync_at: string | null; last_sync_status: string | null; last_sync_message: string | null };
@@ -33,6 +34,7 @@ export function SuppliersEditor() {
   const [mappingForm, setMappingForm] = useState({ product_type: 'inverter', product_model: '', supplier_sku: '', unit_price: '', stock_quantity: '' });
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const load = useCallback(async () => {
     const [supplierResult, integrationResult, mappingResult, orderResult, inverterResult, batteryResult, accessoryResult, settingsResult] = await Promise.all([
@@ -92,6 +94,30 @@ export function SuppliersEditor() {
     setBusy(false);
   }
 
+  // Reuses the catalog's own 'product-assets' bucket (public read, admin-only
+  // write — see migration 0006) under a suppliers/ prefix instead of standing
+  // up a dedicated bucket just for this one extra asset type. Works before
+  // the supplier itself is first saved, same as the catalog editors' own
+  // image upload — falls back to a generic path segment until there's a slug.
+  async function uploadSupplierLogo(file: File | undefined) {
+    if (!file) return;
+    setUploadingLogo(true);
+    setMessage(null);
+    const extension = file.name.split('.').pop();
+    const path = `suppliers/${sanitizePathPart(supplierForm.slug || 'fornecedor')}/logo/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
+    const { error: uploadError } = await supabase.storage
+      .from('product-assets')
+      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+    setUploadingLogo(false);
+    if (uploadError) {
+      setMessage(uploadError.message);
+      return;
+    }
+    const { data } = supabase.storage.from('product-assets').getPublicUrl(path);
+    setSupplierForm((current) => ({ ...current, logo_url: data.publicUrl }));
+    setMessage('Logo carregada. Salve o fornecedor para manter a alteração.');
+  }
+
   async function saveIntegration() {
     if (!selectedId) return setMessage('Salve ou selecione um fornecedor primeiro.');
     setBusy(true); setMessage(null);
@@ -149,7 +175,7 @@ export function SuppliersEditor() {
         <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Store className="h-4 w-4"/>Cadastro e capacidade</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2">
           <div><Label>Nome</Label><Input value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}/></div><div><Label>Identificador</Label><Input placeholder="fornecedor-x" value={supplierForm.slug} onChange={(e) => setSupplierForm({ ...supplierForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}/></div>
           <div className="sm:col-span-2"><Label>Email de contato</Label><Input type="email" placeholder="compras@fornecedor.com" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}/><p className="mt-1 text-xs text-muted-foreground">Usado para notificar o fornecedor por email sobre pedidos/cotações quando ele não tem integração de Partner API.</p></div>
-          <div><Label>URL do logo</Label><Input placeholder="https://fornecedor.com/logo.png" value={supplierForm.logo_url} onChange={(e) => setSupplierForm({ ...supplierForm, logo_url: e.target.value })}/></div><div><Label>Site do fornecedor</Label><Input placeholder="https://fornecedor.com" value={supplierForm.website_url} onChange={(e) => setSupplierForm({ ...supplierForm, website_url: e.target.value })}/></div>
+          <div><Label>URL do logo</Label><Input placeholder="https://fornecedor.com/logo.png" value={supplierForm.logo_url} onChange={(e) => setSupplierForm({ ...supplierForm, logo_url: e.target.value })}/><Input type="file" accept="image/*" aria-label="Enviar logo" className="mt-1.5" disabled={uploadingLogo} onChange={(e) => { void uploadSupplierLogo(e.target.files?.[0]); e.target.value = ''; }}/>{uploadingLogo && <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin"/>Enviando logo...</p>}</div><div><Label>Site do fornecedor</Label><Input placeholder="https://fornecedor.com" value={supplierForm.website_url} onChange={(e) => setSupplierForm({ ...supplierForm, website_url: e.target.value })}/></div>
           {/* eslint-disable-next-line @next/next/no-img-element -- admin-entered logo URL, not this project's Supabase storage bucket */}
           {supplierForm.logo_url && <div className="sm:col-span-2 rounded-lg border bg-card p-2"><img src={supplierForm.logo_url} alt="Pré-visualização do logo" className="h-12 max-w-40 object-contain"/></div>}
           <div><Label>Modalidade</Label><Select value={supplierForm.order_mode} onChange={(e) => setSupplierForm({ ...supplierForm, order_mode: e.target.value })}><option value="quote">Cotação</option><option value="direct">Pedido direto</option><option value="both">Ambos</option></Select></div><div><Label>Pedido mínimo (R$)</Label><Input type="number" min="0" step="0.01" value={supplierForm.minimum_order_value} onChange={(e) => setSupplierForm({ ...supplierForm, minimum_order_value: Number(e.target.value) })}/></div>
