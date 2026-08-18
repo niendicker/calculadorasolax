@@ -19,33 +19,35 @@ function websiteLabel(url: string): string {
   }
 }
 
-function SupplierLogo({ url, name }: { url: string | null; name: string }) {
+/** Fills the entire left side of the card (full height, not just a small
+ *  icon) so the logo reads as the card's primary visual instead of a
+ *  bullet-point next to the name. */
+function SupplierLogoPanel({ url, name }: { url: string | null; name: string }) {
   if (!url) {
     return (
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
-        <Truck className="h-5 w-5" />
+      <div className="flex w-24 shrink-0 items-center justify-center self-stretch rounded-l-lg border-r bg-muted text-muted-foreground">
+        <Truck className="h-6 w-6" />
       </div>
     );
   }
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-card">
+    <div className="flex w-24 shrink-0 items-center justify-center self-stretch overflow-hidden rounded-l-lg border-r bg-card">
       {/* Arbitrary admin-entered URLs, not just this project's own Supabase
        * storage bucket — next/image's remote-host allowlist can't cover
        * every supplier's own domain, so a plain <img> is used instead (same
        * approach as the company logo in Perfil). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={`Logo de ${name}`} className="h-full w-full object-contain p-1" />
+      <img src={url} alt={`Logo de ${name}`} className="h-full w-full object-contain p-2" />
     </div>
   );
 }
 
-/** Name + logo + website link header shared by every supplier card, default
- *  or selectable — `right` is whatever status affordance goes on that side
- *  (a locked "Padrão" badge, or the selection checkbox). */
+/** Name + website link header shared by every supplier card, default or
+ *  selectable — `right` is whatever status affordance goes on that side (a
+ *  locked "Padrão" badge, or the selection checkbox). */
 function SupplierCardHeader({ supplier, right }: { supplier: Supplier; right: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <SupplierLogo url={supplier.logo_url} name={supplier.name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{supplier.name}</p>
         {supplier.website_url && (
@@ -130,22 +132,25 @@ export function SupplierPreferencesCard({
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {defaultSuppliers.map((supplier) => (
-                  <div key={supplier.id} className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
-                    <SupplierCardHeader
-                      supplier={supplier}
-                      right={
-                        <Badge variant="outline" className="shrink-0">
-                          <Lock className="mr-1 h-3 w-3" />
-                          Padrão
-                        </Badge>
-                      }
-                    />
-                    {supplier.description && (
-                      <p className="line-clamp-2 text-xs text-muted-foreground">{supplier.description}</p>
-                    )}
-                    <Badge variant="outline" className="w-fit">
-                      {orderModeLabels[supplier.order_mode] ?? supplier.order_mode}
-                    </Badge>
+                  <div key={supplier.id} className="flex rounded-lg border text-sm">
+                    <SupplierLogoPanel url={supplier.logo_url} name={supplier.name} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 p-3">
+                      <SupplierCardHeader
+                        supplier={supplier}
+                        right={
+                          <Badge variant="outline" className="shrink-0">
+                            <Lock className="mr-1 h-3 w-3" />
+                            Padrão
+                          </Badge>
+                        }
+                      />
+                      {supplier.description && (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">{supplier.description}</p>
+                      )}
+                      <Badge variant="outline" className="w-fit">
+                        {orderModeLabels[supplier.order_mode] ?? supplier.order_mode}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -164,29 +169,32 @@ export function SupplierPreferencesCard({
                   <label
                     key={supplier.id}
                     className={cn(
-                      'flex cursor-pointer flex-col gap-2 rounded-lg border p-3 text-sm transition',
+                      'flex cursor-pointer rounded-lg border text-sm transition',
                       disabled && !selected && 'cursor-not-allowed opacity-50',
                       selected && 'border-primary bg-primary/5'
                     )}
                   >
-                    <SupplierCardHeader
-                      supplier={supplier}
-                      right={
-                        <input
-                          type="checkbox"
-                          className="mt-1 h-4 w-4 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                          checked={selected}
-                          disabled={disabled}
-                          onChange={() => onToggle(supplier)}
-                        />
-                      }
-                    />
-                    {supplier.description && (
-                      <p className="line-clamp-2 text-xs text-muted-foreground">{supplier.description}</p>
-                    )}
-                    <Badge variant="outline" className="w-fit">
-                      {orderModeLabels[supplier.order_mode] ?? supplier.order_mode}
-                    </Badge>
+                    <SupplierLogoPanel url={supplier.logo_url} name={supplier.name} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 p-3">
+                      <SupplierCardHeader
+                        supplier={supplier}
+                        right={
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            checked={selected}
+                            disabled={disabled}
+                            onChange={() => onToggle(supplier)}
+                          />
+                        }
+                      />
+                      {supplier.description && (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">{supplier.description}</p>
+                      )}
+                      <Badge variant="outline" className="w-fit">
+                        {orderModeLabels[supplier.order_mode] ?? supplier.order_mode}
+                      </Badge>
+                    </div>
                   </label>
                 );
               })}
