@@ -1020,7 +1020,7 @@ function AutosaveIndicator({ status, lastSavedAt }: { status: AutosaveStatus; la
       ) : status === 'pending' ? (
         <>
           <Save className="h-3.5 w-3.5" aria-hidden="true" />
-          Alterações pendentes de salvamento
+          Pendente
         </>
       ) : (
         timeLabel && (

@@ -216,7 +216,7 @@ describe('SizingTab: title bar', () => {
 
   it('shows a pending indicator once an edit is queued for autosave', () => {
     setup({ autosaveStatus: 'pending' });
-    expect(screen.getByRole('status')).toHaveTextContent('Alterações pendentes de salvamento');
+    expect(screen.getByRole('status')).toHaveTextContent('Pendente');
   });
 
   it('shows a saving indicator while the autosave request is in flight', () => {
