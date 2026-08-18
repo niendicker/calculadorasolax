@@ -203,10 +203,16 @@ export function AuthPanel({
     setToast(null);
 
     const origin = window.location.origin;
+    // Through /auth/callback (not straight to /reset-password) so its
+    // exchangeCodeForSession(code) runs first — the recovery link uses the
+    // same PKCE code flow as login/signup confirmation, and
+    // ResetPasswordPanel's updateUser() has no session to update without
+    // that exchange happening somewhere first (was failing with "Auth
+    // session missing!").
     const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        redirectTo: `${origin}/${locale}/reset-password`,
+        redirectTo: `${origin}/${locale}/auth/callback?next=${encodeURIComponent(`/${locale}/reset-password`)}`,
       }
     );
 

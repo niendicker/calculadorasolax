@@ -199,7 +199,14 @@ describe('AuthPanel: password recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar recuperação' }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Enviamos um link de recuperação'));
-    expect(resetPasswordForEmail).toHaveBeenCalledWith('user@x.com', expect.objectContaining({ redirectTo: expect.stringContaining('/pt/reset-password') }));
+    // Through /auth/callback (not straight to /reset-password) so its code
+    // exchange runs first — see AuthPanel's own comment on this call.
+    expect(resetPasswordForEmail).toHaveBeenCalledWith(
+      'user@x.com',
+      expect.objectContaining({
+        redirectTo: expect.stringContaining('/pt/auth/callback?next=%2Fpt%2Freset-password'),
+      })
+    );
   });
 
   it('shows the Supabase error message when the recovery request fails', async () => {
