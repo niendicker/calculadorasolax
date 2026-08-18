@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, FileText, MapPin, Plus, Save, StickyNote, User, UserPlus, Users, Wrench, X } from 'lucide-react';
+import { Calculator, FileText, MapPin, Plus, Save, StickyNote, User, UserPlus, Wrench, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -62,7 +62,6 @@ export function ProjectDraftCard({
   isNew,
   isDirty,
   setProjectInfo,
-  onManageClients,
   onManagePortfolio,
   onAddClient,
   onSave,
@@ -87,7 +86,6 @@ export function ProjectDraftCard({
    *  even blank so its "Informe um nome" validation can still surface. */
   isDirty: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
-  onManageClients: () => void;
   /** Sends the seller to Portfólio — used by the "Portfólio" tag inline in
    *  the services empty state below, for when there's nothing there yet. */
   onManagePortfolio: () => void;
@@ -160,10 +158,6 @@ export function ProjectDraftCard({
               onClick={() => setQuickAddOpen(true)}
             >
               <UserPlus className="h-4 w-4" />
-            </Button>
-            <Button type="button" variant="outline" className="shrink-0" onClick={onManageClients}>
-              <Users className="h-4 w-4" />
-              Gerenciar clientes
             </Button>
           </div>
         </div>

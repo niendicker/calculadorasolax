@@ -915,7 +915,6 @@ export function SinglePageApp() {
               onUpdateStatus={updateProjectStatusAction}
               onDownloadPdf={downloadProjectPdf}
               downloadingProjectId={downloadingProjectId}
-              onManageClients={openClientsManager}
               onManageSuppliers={openPurchasesTab}
               onManagePortfolio={openPortfolioTab}
               onShowSummary={() => setSummaryDrawerOpen(true)}

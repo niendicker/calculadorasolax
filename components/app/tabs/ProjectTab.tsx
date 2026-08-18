@@ -61,7 +61,6 @@ export function ProjectTab({
   onUpdateStatus,
   onDownloadPdf,
   downloadingProjectId,
-  onManageClients,
   onManageSuppliers,
   onManagePortfolio,
   onShowSummary,
@@ -95,7 +94,6 @@ export function ProjectTab({
   /** Id of the project currently generating its PDF, if any — used to show a
    * loading state on that project's "Baixar Relatório" button specifically. */
   downloadingProjectId: string | null;
-  onManageClients: () => void;
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
@@ -323,7 +321,6 @@ export function ProjectTab({
                   isNew
                   isDirty={isDraftDirty}
                   setProjectInfo={setProjectInfo}
-                  onManageClients={onManageClients}
                   onManagePortfolio={onManagePortfolio}
                   onAddClient={addClient}
                   onSave={handleSave}
@@ -345,7 +342,6 @@ export function ProjectTab({
                     isNew={false}
                     isDirty={isDraftDirty}
                     setProjectInfo={setProjectInfo}
-                    onManageClients={onManageClients}
                     onManagePortfolio={onManagePortfolio}
                     onAddClient={addClient}
                     onSave={handleSave}

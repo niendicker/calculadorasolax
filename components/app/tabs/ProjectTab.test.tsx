@@ -150,7 +150,6 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onUpdateStatus: vi.fn(),
     onDownloadPdf: vi.fn(),
     downloadingProjectId: null,
-    onManageClients: vi.fn(),
     onManageSuppliers: vi.fn(),
     onManagePortfolio: vi.fn(),
     onShowSummary: vi.fn(),
@@ -438,8 +437,8 @@ describe('ProjectTab: new project draft', () => {
     expect(props.onCancelNew).toHaveBeenCalled();
   });
 
-  it('edits the client, address and notes fields, and delegates "Gerenciar clientes"', () => {
-    const { props } = setup({
+  it('edits the client, address and notes fields', () => {
+    setup({
       projectDetailsVisible: true,
       currentProjectId: null,
       clients: [{ id: 'c1', name: 'Ana Souza' } as Client],
@@ -456,9 +455,11 @@ describe('ProjectTab: new project draft', () => {
 
     fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'Instalação em telhado inclinado.' } });
     expect(useWizardStore.getState().projectInfo.notes).toBe('Instalação em telhado inclinado.');
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: /Gerenciar clientes/ }));
-    expect(props.onManageClients).toHaveBeenCalled();
+  it('no longer shows a "Gerenciar clientes" button in the draft card', () => {
+    setup({ projectDetailsVisible: true, currentProjectId: null });
+    expect(screen.queryByRole('button', { name: /Gerenciar clientes/ })).not.toBeInTheDocument();
   });
 
   it('Salvar projeto in the draft card delegates to onSave when a name is set', () => {
