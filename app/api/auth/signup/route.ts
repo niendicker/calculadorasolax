@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     },
   });
 
-  if (linkError || !linkData?.properties?.action_link) {
+  if (linkError || !linkData?.properties?.hashed_token) {
     // email_exists/user_already_exists must not surface as a distinct
     // message — otherwise this becomes an account-enumeration oracle. No
     // email is sent in this case (nothing new to confirm); the client sees
@@ -94,7 +94,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Não foi possível concluir o cadastro. Tente novamente.' }, { status: 502 });
   }
 
-  const activationUrl = linkData.properties.action_link;
+  // Points at our own /auth/callback (verifyOtp) instead of sending
+  // GoTrue's action_link — that link's ?code= requires a code_verifier only
+  // a browser-initiated PKCE handshake ever sets, which never happens here
+  // since generateLink runs entirely server-side.
+  const activationUrl = `${origin}/${locale}/auth/callback?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=signup&next=${encodeURIComponent(redirectPath)}`;
 
   try {
     const response = await fetch('https://api.resend.com/emails', {

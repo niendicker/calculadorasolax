@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { exchangeCodeForSessionMock, fromMock, createServerClientMock } = vi.hoisted(() => {
+const { exchangeCodeForSessionMock, verifyOtpMock, fromMock, createServerClientMock } = vi.hoisted(() => {
   const exchangeCodeForSessionMock = vi.fn();
+  const verifyOtpMock = vi.fn();
   const fromMock = vi.fn();
   return {
     exchangeCodeForSessionMock,
+    verifyOtpMock,
     fromMock,
     createServerClientMock: vi.fn(() => ({
-      auth: { exchangeCodeForSession: exchangeCodeForSessionMock },
+      auth: { exchangeCodeForSession: exchangeCodeForSessionMock, verifyOtp: verifyOtpMock },
       from: fromMock,
     })),
   };
@@ -32,6 +34,7 @@ function singleResult(data: unknown) {
 
 beforeEach(() => {
   exchangeCodeForSessionMock.mockReset();
+  verifyOtpMock.mockReset();
   fromMock.mockReset();
 });
 
@@ -102,6 +105,58 @@ describe('GET /[locale]/auth/callback: code exchange', () => {
   });
 });
 
+describe('GET /[locale]/auth/callback: token_hash verification (admin-generated links)', () => {
+  it('verifies the token_hash instead of exchanging a code, and redirects to the default locale home when there is no admin profile', async () => {
+    verifyOtpMock.mockResolvedValue({ data: { user: { id: 'u1' } } });
+    fromMock.mockReturnValue({ select: () => singleResult({ role: 'user' }) });
+
+    const GET = await importRoute();
+    const response = await GET(
+      makeRequest('/pt/auth/callback?token_hash=abc&type=recovery', {
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'calculadora.solaxpowerbrasil.cloud',
+      }),
+      routeParams
+    );
+
+    expect(verifyOtpMock).toHaveBeenCalledWith({ token_hash: 'abc', type: 'recovery' });
+    expect(exchangeCodeForSessionMock).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe('https://calculadora.solaxpowerbrasil.cloud/pt');
+  });
+
+  it('redirects an admin user to /admin after verifying the token_hash', async () => {
+    verifyOtpMock.mockResolvedValue({ data: { user: { id: 'u1' } } });
+    fromMock.mockReturnValue({ select: () => singleResult({ role: 'admin' }) });
+
+    const GET = await importRoute();
+    const response = await GET(
+      makeRequest('/pt/auth/callback?token_hash=abc&type=signup', {
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'calculadora.solaxpowerbrasil.cloud',
+      }),
+      routeParams
+    );
+
+    expect(response.headers.get('location')).toBe('https://calculadora.solaxpowerbrasil.cloud/pt/admin');
+  });
+
+  it('honors an explicit "next" without a code, verifying the token_hash and skipping the admin check', async () => {
+    verifyOtpMock.mockResolvedValue({ data: { user: { id: 'u1' } } });
+
+    const GET = await importRoute();
+    const response = await GET(
+      makeRequest('/pt/auth/callback?token_hash=abc&type=recovery&next=%2Fpt%2Freset-password', {
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'calculadora.solaxpowerbrasil.cloud',
+      }),
+      routeParams
+    );
+
+    expect(fromMock).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe('https://calculadora.solaxpowerbrasil.cloud/pt/reset-password');
+  });
+});
+
 describe('GET /[locale]/auth/callback: no code (e.g. an expired/invalid link)', () => {
   it('skips the code exchange and redirects straight to "next", preserving the GoTrue error via the URL fragment', async () => {
     const GET = await importRoute();
@@ -114,6 +169,7 @@ describe('GET /[locale]/auth/callback: no code (e.g. an expired/invalid link)', 
     );
 
     expect(exchangeCodeForSessionMock).not.toHaveBeenCalled();
+    expect(verifyOtpMock).not.toHaveBeenCalled();
     expect(response.headers.get('location')).toBe('https://calculadora.solaxpowerbrasil.cloud/pt/reset-password');
   });
 });

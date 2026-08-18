@@ -78,9 +78,7 @@ describe('POST /api/auth/recover: happy path', () => {
   it('generates the recovery link through /auth/callback and emails it via the Resend template', async () => {
     generateLinkMock.mockResolvedValue({
       data: {
-        properties: {
-          action_link: 'https://supabase.example.com/auth/v1/verify?token=abc&type=recovery&redirect_to=x',
-        },
+        properties: { hashed_token: 'abc' },
         user: { user_metadata: { full_name: 'Fulano' } },
       },
       error: null,
@@ -110,9 +108,11 @@ describe('POST /api/auth/recover: happy path', () => {
       to: ['user@x.com'],
       template: {
         id: 'template-2',
+        // Our own /auth/callback link (verifyOtp), not GoTrue's action_link
+        // — that one needs a code_verifier no admin-generated link ever has.
         variables: {
           name: 'Fulano',
-          reset_password_url: 'https://supabase.example.com/auth/v1/verify?token=abc&type=recovery&redirect_to=x',
+          reset_password_url: 'https://calculadora.solaxpowerbrasil.cloud/pt/auth/callback?token_hash=abc&type=recovery&next=%2Fpt%2Freset-password',
         },
       },
     });
@@ -120,7 +120,7 @@ describe('POST /api/auth/recover: happy path', () => {
 
   it('falls back to an empty name when the user has none in metadata', async () => {
     generateLinkMock.mockResolvedValue({
-      data: { properties: { action_link: 'https://supabase.example.com/verify?x' }, user: { user_metadata: {} } },
+      data: { properties: { hashed_token: 'abc' }, user: { user_metadata: {} } },
       error: null,
     });
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({}) });
@@ -136,7 +136,7 @@ describe('POST /api/auth/recover: happy path', () => {
   it('uses SUPABASE_INTERNAL_URL for the admin client when set, instead of the public URL', async () => {
     process.env.SUPABASE_INTERNAL_URL = 'http://kong:8000';
     generateLinkMock.mockResolvedValue({
-      data: { properties: { action_link: 'https://supabase.example.com/verify?x' }, user: { user_metadata: {} } },
+      data: { properties: { hashed_token: 'abc' }, user: { user_metadata: {} } },
       error: null,
     });
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({}) });
@@ -176,7 +176,7 @@ describe('POST /api/auth/recover: error handling', () => {
 
   it('returns a generic error when Resend fails', async () => {
     generateLinkMock.mockResolvedValue({
-      data: { properties: { action_link: 'https://supabase.example.com/verify?x' }, user: { user_metadata: {} } },
+      data: { properties: { hashed_token: 'abc' }, user: { user_metadata: {} } },
       error: null,
     });
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({

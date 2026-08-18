@@ -91,13 +91,9 @@ describe('POST /api/auth/signup: validation', () => {
 });
 
 describe('POST /api/auth/signup: happy path', () => {
-  it('generates the signup link with the same metadata AuthPanel used to send directly, then emails it via the Resend template', async () => {
+  it('generates the signup link with the same metadata AuthPanel used to send directly, then emails our own /auth/callback link via the Resend template', async () => {
     generateLinkMock.mockResolvedValue({
-      data: {
-        properties: {
-          action_link: 'https://supabase.example.com/auth/v1/verify?token=abc&type=signup&redirect_to=x',
-        },
-      },
+      data: { properties: { hashed_token: 'abc' } },
       error: null,
     });
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({ id: 'email-1' }) });
@@ -132,9 +128,11 @@ describe('POST /api/auth/signup: happy path', () => {
       to: ['nova@x.com'],
       template: {
         id: 'template-1',
+        // Our own /auth/callback link (verifyOtp), not GoTrue's action_link
+        // — that one needs a code_verifier no admin-generated link ever has.
         variables: {
           name: 'Fulano',
-          activation_url: 'https://supabase.example.com/auth/v1/verify?token=abc&type=signup&redirect_to=x',
+          activation_url: 'http://localhost/pt/auth/callback?token_hash=abc&type=signup&next=%2Fpt',
         },
       },
     });
@@ -143,7 +141,7 @@ describe('POST /api/auth/signup: happy path', () => {
   it('uses SUPABASE_INTERNAL_URL for the admin client when set, instead of the public URL', async () => {
     process.env.SUPABASE_INTERNAL_URL = 'http://kong:8000';
     generateLinkMock.mockResolvedValue({
-      data: { properties: { action_link: 'https://supabase.example.com/verify?x' } },
+      data: { properties: { hashed_token: 'abc' } },
       error: null,
     });
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({}) });
@@ -183,7 +181,7 @@ describe('POST /api/auth/signup: error handling', () => {
 
   it('does not delete the created user and returns a generic error when Resend fails', async () => {
     generateLinkMock.mockResolvedValue({
-      data: { properties: { action_link: 'https://supabase.example.com/verify?x' } },
+      data: { properties: { hashed_token: 'abc' } },
       error: null,
     });
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({

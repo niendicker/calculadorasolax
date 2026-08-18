@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     options: { redirectTo },
   });
 
-  if (linkError || !linkData?.properties?.action_link) {
+  if (linkError || !linkData?.properties?.hashed_token) {
     // user_not_found must not surface as a distinct message — otherwise
     // this becomes an account-enumeration oracle. No email is sent in this
     // case; the client sees the same generic success response as a real
@@ -65,7 +65,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Não foi possível concluir a recuperação. Tente novamente.' }, { status: 502 });
   }
 
-  const resetPasswordUrl = linkData.properties.action_link;
+  // Points at our own /auth/callback (verifyOtp) instead of sending
+  // GoTrue's action_link — that link's ?code= requires a code_verifier only
+  // a browser-initiated PKCE handshake ever sets, which never happens here
+  // since generateLink runs entirely server-side (this is exactly what
+  // broke recovery right after switching it to this route: the old
+  // client-side resetPasswordForEmail() call always had that verifier,
+  // this admin-generated link never does).
+  const resetPasswordUrl = `${origin}/${locale}/auth/callback?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=recovery&next=${encodeURIComponent(`/${locale}/reset-password`)}`;
   const name = linkData.user?.user_metadata?.full_name ?? '';
 
   try {
