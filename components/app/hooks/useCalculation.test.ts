@@ -343,6 +343,38 @@ describe('useCalculation: calculate', () => {
   });
 });
 
+describe('useCalculation: hasUncalculatedChanges', () => {
+  it('starts true before any calculation has run', () => {
+    const { result } = renderCalculation(baseProps());
+    expect(result.current.hasUncalculatedChanges).toBe(true);
+  });
+
+  it('becomes false once calculate() succeeds for the current options, then true again after an edit', async () => {
+    const { supabase } = makeSupabase();
+    const { result, rerender } = renderCalculation(baseProps({ supabase }));
+
+    await act(async () => {
+      await result.current.calculate();
+    });
+    expect(result.current.hasUncalculatedChanges).toBe(false);
+
+    rerender(baseProps({ supabase, residentialOptions: { ...validResidentialOptions, operationHours: 6 } }));
+    expect(result.current.hasUncalculatedChanges).toBe(true);
+  });
+
+  it('stays true after a failed calculation even with no further edits, so the user can retry', async () => {
+    const { supabase } = makeSupabase({ invokeResult: { data: null, error: { message: 'boom' } } });
+    const { result } = renderCalculation(baseProps({ supabase }));
+
+    await act(async () => {
+      await result.current.calculate();
+    });
+
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.hasUncalculatedChanges).toBe(true);
+  });
+});
+
 describe('useCalculation: product media effect', () => {
   it('clears product media when there is no solution', async () => {
     const { supabase } = makeSupabase();

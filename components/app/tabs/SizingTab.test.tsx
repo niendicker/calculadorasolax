@@ -97,6 +97,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     peakW: 0,
     dailyKwh: 0,
     canCalculate: false,
+    hasUncalculatedChanges: true,
     loading: false,
     initialLoading: false,
     error: null,
@@ -240,6 +241,20 @@ describe('SizingTab: title bar', () => {
 
     setup({ canCalculate: true, loading: true });
     expect(screen.getByRole('button', { name: 'Calculando...' })).toBeDisabled();
+  });
+
+  it('disables Calcular once the current configuration was already calculated, with a tooltip explaining why', () => {
+    setup({ canCalculate: true, hasUncalculatedChanges: false });
+    const button = screen.getByRole('button', { name: 'Calcular' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Nenhuma alteração desde o último cálculo.');
+  });
+
+  it('keeps Calcular enabled when there are uncalculated changes', () => {
+    setup({ canCalculate: true, hasUncalculatedChanges: true });
+    const button = screen.getByRole('button', { name: 'Calcular' });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('title');
   });
 
   // "Baixar relatório" lives in both summary sub-tabs (Resumo and Solução,

@@ -45,6 +45,22 @@ export function useCalculation({
   const [secondaryError, setSecondaryError] = useState<string | null>(null);
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
 
+  // Tracks the residentialOptions snapshot as of the last calculate() call
+  // (set the moment it starts, not when it resolves) — lets the "Calcular"
+  // button disable itself once its own last click already covers the
+  // current inputs, instead of letting the user fire off redundant repeat
+  // calculations of the same configuration. This is state (not a ref) on
+  // purpose: a ref mutation is invisible to React's bail-out check, so if the
+  // rest of a calculate() call nets out to no visible state change (e.g. a
+  // fast success where `loading` goes true then back to false within the
+  // same batch), React can skip committing that render — silently stranding
+  // anything derived from the ref. An error always overrides this back to
+  // "needs calculating", even with zero further edits — otherwise a failed
+  // attempt would permanently lock the button with no way to retry.
+  const [lastCalculatedOptions, setLastCalculatedOptions] = useState<string | null>(null);
+  const serializedOptions = JSON.stringify(residentialOptions);
+  const hasUncalculatedChanges = lastCalculatedOptions !== serializedOptions || Boolean(error) || Boolean(secondaryError);
+
   useEffect(() => {
     async function loadProductMedia() {
       if (!solution && !secondarySolution) {
@@ -184,6 +200,7 @@ export function useCalculation({
   async function calculate() {
     if (!canCalculate) return;
 
+    setLastCalculatedOptions(serializedOptions);
     setLoading(true);
     setError(null);
     setSecondaryError(null);
@@ -200,5 +217,5 @@ export function useCalculation({
     setLoading(false);
   }
 
-  return { loading, error, secondaryError, canCalculate, calculate, productMedia };
+  return { loading, error, secondaryError, canCalculate, hasUncalculatedChanges, calculate, productMedia };
 }

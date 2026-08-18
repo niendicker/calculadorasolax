@@ -95,6 +95,7 @@ export function SizingTab({
   peakW,
   dailyKwh,
   canCalculate,
+  hasUncalculatedChanges,
   loading,
   initialLoading,
   error,
@@ -167,6 +168,7 @@ export function SizingTab({
   peakW: number;
   dailyKwh: number;
   canCalculate: boolean;
+  hasUncalculatedChanges: boolean;
   loading: boolean;
   initialLoading: boolean;
   error: string | null;
@@ -471,7 +473,11 @@ export function SizingTab({
             onConfirm={() => resetResidential()}
             triggerVariant="outline"
           />
-          <Button onClick={calculate} disabled={!canCalculate || loading}>
+          <Button
+            onClick={calculate}
+            disabled={!canCalculate || loading || !hasUncalculatedChanges}
+            title={canCalculate && !loading && !hasUncalculatedChanges ? 'Nenhuma alteração desde o último cálculo.' : undefined}
+          >
             <Calculator className="h-4 w-4" />
             {loading ? loadingLabel : calculateLabel}
           </Button>
