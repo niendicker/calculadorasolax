@@ -189,9 +189,9 @@ describe('AuthPanel: signup', () => {
 });
 
 describe('AuthPanel: password recovery', () => {
-  it('sends a recovery email and shows a success message', async () => {
-    const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
-    createClientMock.mockReturnValue(createSupabaseMock({ auth: { resetPasswordForEmail } }));
+  it('posts to /api/auth/recover and shows a success message', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
     setup();
 
     fireEvent.click(screen.getByRole('button', { name: 'Esqueci a senha' }));
@@ -199,19 +199,21 @@ describe('AuthPanel: password recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar recuperação' }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Enviamos um link de recuperação'));
-    // Through /auth/callback (not straight to /reset-password) so its code
-    // exchange runs first — see AuthPanel's own comment on this call.
-    expect(resetPasswordForEmail).toHaveBeenCalledWith(
-      'user@x.com',
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/auth/recover',
       expect.objectContaining({
-        redirectTo: expect.stringContaining('/pt/auth/callback?next=%2Fpt%2Freset-password'),
+        method: 'POST',
+        body: JSON.stringify({ email: 'user@x.com', locale: 'pt' }),
       })
     );
   });
 
-  it('shows the Supabase error message when the recovery request fails', async () => {
-    const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: { message: 'Muitas tentativas' } });
-    createClientMock.mockReturnValue(createSupabaseMock({ auth: { resetPasswordForEmail } }));
+  it('shows the API error message when the recovery request fails', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Muitas tentativas' }),
+    });
     setup();
 
     fireEvent.click(screen.getByRole('button', { name: 'Esqueci a senha' }));
@@ -219,6 +221,18 @@ describe('AuthPanel: password recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar recuperação' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Muitas tentativas'));
+  });
+
+  it('shows a generic error message when the request itself fails (e.g. offline)', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    (fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Esqueci a senha' }));
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@x.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar recuperação' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha de conexão'));
   });
 });
 

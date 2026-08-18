@@ -202,24 +202,29 @@ export function AuthPanel({
     setLoading(true);
     setToast(null);
 
-    const origin = window.location.origin;
-    // Through /auth/callback (not straight to /reset-password) so its
-    // exchangeCodeForSession(code) runs first — the recovery link uses the
-    // same PKCE code flow as login/signup confirmation, and
-    // ResetPasswordPanel's updateUser() has no session to update without
-    // that exchange happening somewhere first (was failing with "Auth
-    // session missing!").
-    const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: `${origin}/${locale}/auth/callback?next=${encodeURIComponent(`/${locale}/reset-password`)}`,
-      }
-    );
+    // The recovery link is generated and emailed server-side now (see
+    // app/api/auth/recover) — Supabase Admin's generateLink creates the
+    // link (same /auth/callback indirection this used to pass straight to
+    // resetPasswordForEmail()) and Resend sends it from its own template
+    // instead of GoTrue's built-in one.
+    let response: Response;
+    try {
+      response = await fetch('/api/auth/recover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), locale }),
+      });
+    } catch {
+      setLoading(false);
+      setToast({ message: 'Falha de conexão. Verifique sua internet e tente novamente.', type: 'error' });
+      return;
+    }
 
+    const result = await response.json().catch(() => null);
     setLoading(false);
 
-    if (recoveryError) {
-      setToast({ message: recoveryError.message, type: 'error' });
+    if (!response.ok) {
+      setToast({ message: result?.error || 'Não foi possível concluir a recuperação. Tente novamente.', type: 'error' });
       return;
     }
 
