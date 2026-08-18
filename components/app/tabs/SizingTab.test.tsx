@@ -214,24 +214,24 @@ describe('SizingTab: title bar', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('shows a pending indicator once an edit is queued for autosave', () => {
+  it('shows a pending indicator, with detail in its tooltip, once an edit is queued for autosave', () => {
     setup({ autosaveStatus: 'pending' });
-    expect(screen.getByRole('status')).toHaveTextContent('Pendente');
+    expect(screen.getByRole('status')).toHaveAccessibleName('Alterações pendentes de salvamento.');
   });
 
   it('shows a saving indicator while the autosave request is in flight', () => {
     setup({ autosaveStatus: 'saving' });
-    expect(screen.getByRole('status')).toHaveTextContent('Salvando...');
+    expect(screen.getByRole('status')).toHaveAccessibleName('Salvando alterações...');
   });
 
-  it('shows the last-saved time once autosave succeeds', () => {
+  it('shows the last-saved time in the indicator tooltip once autosave succeeds', () => {
     setup({ autosaveStatus: 'saved', autosaveLastSavedAt: new Date('2026-01-01T14:32:00') });
-    expect(screen.getByRole('status')).toHaveTextContent(/Salvo automaticamente às 14:32/);
+    expect(screen.getByRole('status')).toHaveAccessibleName('Salvo automaticamente às 14:32.');
   });
 
   it('shows an error indicator when autosave fails', () => {
     setup({ autosaveStatus: 'error' });
-    expect(screen.getByRole('status')).toHaveTextContent('Não foi possível salvar automaticamente');
+    expect(screen.getByRole('status')).toHaveAccessibleName('Não foi possível salvar automaticamente.');
   });
 
   it('disables Calcular until canCalculate is true, and shows the loading label while loading', () => {
@@ -242,12 +242,11 @@ describe('SizingTab: title bar', () => {
     expect(screen.getByRole('button', { name: 'Calculando...' })).toBeDisabled();
   });
 
-  // The header and the Resumo tab each have their own "Baixar relatório"
-  // button (same label/action, different spots) — always both on screen at
-  // once regardless of solution/tab state, since the header's copy is
-  // unconditional and the Resumo tab is also the default/auto-selected one
-  // whenever there's no solution yet. getAllByRole disambiguates instead of
-  // relying on the two buttons having different text.
+  // "Baixar relatório" lives in both summary sub-tabs (Resumo and Solução,
+  // not the title bar anymore) so it stays reachable regardless of which one
+  // a finished calculation auto-switches to — only one is actually mounted
+  // at a time (summaryTab), but getAllByRole is used defensively instead of
+  // assuming exactly one match.
   it('shows Baixar relatório disabled (not hidden) before a solution exists, and enabled once one does', () => {
     setup({ solution: null, canCalculate: true });
     for (const button of screen.getAllByRole('button', { name: /Baixar relatório/ })) {

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip } from '@/components/ui/tooltip';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import type {
   BatteryTopology,
@@ -410,6 +411,29 @@ export function SizingTab({
     (s) => s && !s.microgridAlternative && solutionHasInsufficientMargin(s, marginCheckParams)
   );
 
+  // Shared between both summary sub-tabs (see PageSummary below) so it stays
+  // reachable regardless of which one a calculation auto-switches to —
+  // previously lived only under "Resumo", which hid it right when it became
+  // enabled (the "Solução" tab is what a finished calculation jumps to).
+  const downloadReportButton = (
+    <Button
+      className="w-full"
+      variant="outline"
+      onClick={exportPdf}
+      disabled={!solution || !canCalculate || loading || hasInsufficientSolution || exportingPdf}
+      title={
+        !solution
+          ? 'Calcule uma solução antes de baixar o relatório.'
+          : hasInsufficientSolution
+            ? 'A solução encontrada não atende 100% aos requisitos de potência/energia. Ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
+            : undefined
+      }
+    >
+      {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+      {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
+    </Button>
+  );
+
   return (
     <>
       <PageHeader>
@@ -447,21 +471,6 @@ export function SizingTab({
             onConfirm={() => resetResidential()}
             triggerVariant="outline"
           />
-          <Button
-            variant="outline"
-            onClick={exportPdf}
-            disabled={!solution || !canCalculate || loading || hasInsufficientSolution || exportingPdf}
-            title={
-              !solution
-                ? 'Calcule uma solução antes de baixar o relatório.'
-                : hasInsufficientSolution
-                  ? 'A solução encontrada não atende 100% aos requisitos de potência/energia. Ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
-                  : undefined
-            }
-          >
-            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
-          </Button>
           <Button onClick={calculate} disabled={!canCalculate || loading}>
             <Calculator className="h-4 w-4" />
             {loading ? loadingLabel : calculateLabel}
@@ -606,22 +615,7 @@ export function SizingTab({
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
             />
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={exportPdf}
-              disabled={!solution || !canCalculate || loading || hasInsufficientSolution || exportingPdf}
-              title={
-                !solution
-                  ? 'Calcule uma solução antes de baixar o relatório.'
-                  : hasInsufficientSolution
-                    ? 'A solução encontrada não atende 100% aos requisitos de potência/energia. Ajuste as cargas ou escolha outro modelo para poder baixar o relatório.'
-                    : undefined
-              }
-            >
-              {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {exportingPdf ? 'Gerando relatório...' : 'Baixar relatório'}
-            </Button>
+            {downloadReportButton}
             <Button
               className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-50"
               disabled={!canSendQuoteByWhatsApp || sendingQuote}
@@ -702,6 +696,7 @@ export function SizingTab({
                 dailyKwh={dailyKwh}
               />
             )}
+            {downloadReportButton}
           </>
         )}
       </PageSummary>
@@ -999,37 +994,40 @@ function PickerPill({ item, active, onClick }: { item: PickerItem; active: boole
 }
 
 /** Replaces the old manual "Salvar projeto" button — reflects useAutosave's
- * status instead. Renders nothing while 'idle' (nothing worth saving yet,
- * e.g. logged out or an empty draft — see the `enabled` gate in
- * SinglePageApp). */
+ * status instead, icon-only with the detail (including the last-saved time)
+ * in a tooltip so it doesn't compete for space in the title bar. Renders
+ * nothing while 'idle' (nothing worth saving yet, e.g. logged out or an
+ * empty draft — see the `enabled` gate in SinglePageApp). */
 function AutosaveIndicator({ status, lastSavedAt }: { status: AutosaveStatus; lastSavedAt: Date | null }) {
   if (status === 'idle') return null;
   const timeLabel = lastSavedAt ? lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
+  const tip =
+    status === 'saving'
+      ? 'Salvando alterações...'
+      : status === 'error'
+        ? 'Não foi possível salvar automaticamente.'
+        : status === 'pending'
+          ? 'Alterações pendentes de salvamento.'
+          : `Salvo automaticamente${timeLabel ? ` às ${timeLabel}` : ''}.`;
+
   return (
-    <span role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      {status === 'saving' ? (
-        <>
-          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-          Salvando...
-        </>
-      ) : status === 'error' ? (
-        <>
-          <AlertTriangle className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />
-          <span className="text-destructive">Não foi possível salvar automaticamente</span>
-        </>
-      ) : status === 'pending' ? (
-        <>
-          <Save className="h-3.5 w-3.5" aria-hidden="true" />
-          Pendente
-        </>
-      ) : (
-        timeLabel && (
-          <>
-            <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-            Salvo automaticamente às {timeLabel}
-          </>
-        )
-      )}
-    </span>
+    <Tooltip content={tip}>
+      <span
+        role="status"
+        aria-label={tip}
+        tabIndex={0}
+        className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {status === 'saving' ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : status === 'error' ? (
+          <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+        ) : status === 'pending' ? (
+          <Save className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+        )}
+      </span>
+    </Tooltip>
   );
 }
