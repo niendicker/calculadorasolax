@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { getPublicOrigin } from '@/lib/auth/request-origin';
 
 interface SignupInput {
   email?: string;
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
   // same locale/next), just built server-side from the request's own origin
   // instead of window.location — an env-fixed redirect URL would drop
   // per-locale routing and the caller's original "next" destination.
-  const origin = new URL(request.url).origin;
+  const origin = getPublicOrigin(request);
   const redirectPath = (input.redirectTo ?? '').trim() || `/${locale}`;
   const emailRedirectTo = `${origin}/${locale}/auth/callback?next=${encodeURIComponent(redirectPath)}`;
 
