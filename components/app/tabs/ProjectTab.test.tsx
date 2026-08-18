@@ -477,6 +477,11 @@ describe('ProjectTab: new project draft', () => {
     expect(screen.getByText('Informe um nome para o projeto.')).toBeInTheDocument();
   });
 
+  it('keeps Salvar projeto enabled for a brand-new, still-blank draft so its name validation can surface', () => {
+    setup({ projectDetailsVisible: true, currentProjectId: null });
+    expect(screen.getByRole('button', { name: /Salvar projeto/ })).toBeEnabled();
+  });
+
   it('shows a placeholder when there are no user services registered yet', () => {
     setup({ projectDetailsVisible: true, currentProjectId: null, userServices: [] });
     expect(
@@ -559,6 +564,32 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
     expect(props.onCancelNew).toHaveBeenCalled();
+  });
+
+  it('disables Salvar projeto, with a tooltip, when editing an existing project with no unsaved changes', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
+    });
+
+    const button = screen.getByRole('button', { name: /Salvar projeto/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Nenhuma alteração para salvar.');
+  });
+
+  it('keeps Salvar projeto enabled once an existing project is edited', () => {
+    setup({
+      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
+      currentProjectId: 'p1',
+      projectDetailsVisible: true,
+      projectInfo: { name: 'Casa de praia editada', clientId: null, address: emptyAddress(), notes: '' },
+    });
+
+    const button = screen.getByRole('button', { name: /Salvar projeto/ });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('title');
   });
 
   it('asks for confirmation on Fechar when editing an existing project with unsaved changes', async () => {

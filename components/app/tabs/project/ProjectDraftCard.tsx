@@ -79,7 +79,11 @@ export function ProjectDraftCard({
   isNew: boolean;
   /** Whether the draft differs from its starting point (blank for a new
    *  project, last-saved values for one being edited) — gates a discard
-   *  confirmation on "Fechar" so a misclick can't silently lose input. */
+   *  confirmation on "Fechar" so a misclick can't silently lose input. Also
+   *  disables "Salvar projeto" once an EXISTING project's draft already
+   *  matches what's saved, so there's nothing to redundantly re-save — but
+   *  not for a brand-new (isNew) draft, where the button must stay clickable
+   *  even blank so its "Informe um nome" validation can still surface. */
   isDirty: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onManageClients: () => void;
@@ -263,7 +267,12 @@ export function ProjectDraftCard({
               Dimensionamento
             </Button>
           )}
-          <Button type="button" onClick={onSave}>
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={!isNew && !isDirty}
+            title={isNew || isDirty ? undefined : 'Nenhuma alteração para salvar.'}
+          >
             <Save className="h-4 w-4" />
             Salvar projeto
           </Button>
