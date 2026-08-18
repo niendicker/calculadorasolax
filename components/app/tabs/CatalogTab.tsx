@@ -24,6 +24,18 @@ const inverterPhaseGroups = [
   { phases: 3, label: 'Trifásico' },
 ];
 
+/** Groups battery topology; inverters also use a "BOTH" group (see
+ *  inverterTopologyGroups below) for models compatible with either. */
+const batteryTopologyGroups = [
+  { value: 'HV' as const, label: 'Alta tensão (HV)' },
+  { value: 'LV' as const, label: 'Baixa tensão (LV)' },
+];
+
+const inverterTopologyGroups = [
+  ...batteryTopologyGroups,
+  { value: 'BOTH' as const, label: 'Ambas as tensões (HV/LV)' },
+];
+
 export function CatalogTab({
   initialLoading,
   inverterCatalog,
@@ -103,38 +115,47 @@ export function CatalogTab({
               const inverters = inverterCatalog.filter((inverter) => inverter.phases === group.phases);
               if (inverters.length === 0) return null;
               return (
-                <div key={group.phases} className="space-y-2">
+                <div key={group.phases} className="space-y-3">
                   <p className="text-sm font-medium">{group.label}</p>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {inverters.map((inverter) => (
-                      <CatalogProductCard
-                        key={inverter.id}
-                        fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
-                        model={inverter.model}
-                        nickname={inverter.nickname}
-                        imageUrl={inverter.imageUrl}
-                        documents={inverter.documents}
-                        badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
-                        specs={[
-                          [
-                            'Potência',
-                            `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`,
-                          ],
-                          ['Garantia', `${inverter.warrantyYears ?? 10} anos`],
-                        ]}
-                        onPreviewImage={setPreviewImage}
-                        onPreviewDoc={setPreviewDoc}
-                        stockControl={
-                          <StockControl
-                            productType="inverter"
-                            productModel={inverter.model}
-                            userStockItems={userStockItems}
-                            onAdd={onAddToStock}
-                          />
-                        }
-                      />
-                    ))}
-                  </div>
+                  {inverterTopologyGroups.map((topologyGroup) => {
+                    const topologyInverters = inverters.filter((inverter) => inverter.topology === topologyGroup.value);
+                    if (topologyInverters.length === 0) return null;
+                    return (
+                      <div key={topologyGroup.value} className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">{topologyGroup.label}</p>
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          {topologyInverters.map((inverter) => (
+                            <CatalogProductCard
+                              key={inverter.id}
+                              fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
+                              model={inverter.model}
+                              nickname={inverter.nickname}
+                              imageUrl={inverter.imageUrl}
+                              documents={inverter.documents}
+                              badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
+                              specs={[
+                                [
+                                  'Potência',
+                                  `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`,
+                                ],
+                                ['Garantia', `${inverter.warrantyYears ?? 10} anos`],
+                              ]}
+                              onPreviewImage={setPreviewImage}
+                              onPreviewDoc={setPreviewDoc}
+                              stockControl={
+                                <StockControl
+                                  productType="inverter"
+                                  productModel={inverter.model}
+                                  userStockItems={userStockItems}
+                                  onAdd={onAddToStock}
+                                />
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -144,40 +165,51 @@ export function CatalogTab({
         batteryCatalog.length === 0 ? (
           <CatalogEmptyState label="Nenhuma bateria cadastrada." />
         ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {batteryCatalog.map((battery) => {
-              const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
-              const roleBadge = battery.expansionModel
-                ? 'Master'
-                : batteryExpansionModels.has(battery.model)
-                  ? 'Expansão'
-                  : null;
+          <div className="space-y-4">
+            {batteryTopologyGroups.map((group) => {
+              const batteries = batteryCatalog.filter((battery) => battery.topology === group.value);
+              if (batteries.length === 0) return null;
               return (
-                <CatalogProductCard
-                  key={battery.id}
-                  fallbackIcon={<Battery className="h-8 w-8 text-muted-foreground" />}
-                  model={battery.model}
-                  nickname={battery.nickname}
-                  imageUrl={battery.imageUrl}
-                  documents={battery.documents}
-                  badges={roleBadge ? [battery.topology, roleBadge] : [battery.topology]}
-                  specs={[
-                    ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
-                    ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
-                    ['Garantia', `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos`],
-                    ...(battery.expansionModel ? [['Expansão', battery.expansionModel] as [string, string]] : []),
-                  ]}
-                  onPreviewImage={setPreviewImage}
-                  onPreviewDoc={setPreviewDoc}
-                  stockControl={
-                    <StockControl
-                      productType="battery"
-                      productModel={battery.model}
-                      userStockItems={userStockItems}
-                      onAdd={onAddToStock}
-                    />
-                  }
-                />
+                <div key={group.value} className="space-y-2">
+                  <p className="text-sm font-medium">{group.label}</p>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {batteries.map((battery) => {
+                      const usefulEnergyKwh = battery.capacityKwh * (1 - battery.minSocPercent / 100);
+                      const roleBadge = battery.expansionModel
+                        ? 'Master'
+                        : batteryExpansionModels.has(battery.model)
+                          ? 'Expansão'
+                          : null;
+                      return (
+                        <CatalogProductCard
+                          key={battery.id}
+                          fallbackIcon={<Battery className="h-8 w-8 text-muted-foreground" />}
+                          model={battery.model}
+                          nickname={battery.nickname}
+                          imageUrl={battery.imageUrl}
+                          documents={battery.documents}
+                          badges={roleBadge ? [battery.topology, roleBadge] : [battery.topology]}
+                          specs={[
+                            ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
+                            ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
+                            ['Garantia', `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos`],
+                            ...(battery.expansionModel ? [['Expansão', battery.expansionModel] as [string, string]] : []),
+                          ]}
+                          onPreviewImage={setPreviewImage}
+                          onPreviewDoc={setPreviewDoc}
+                          stockControl={
+                            <StockControl
+                              productType="battery"
+                              productModel={battery.model}
+                              userStockItems={userStockItems}
+                              onAdd={onAddToStock}
+                            />
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>

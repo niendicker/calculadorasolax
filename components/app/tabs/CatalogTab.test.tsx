@@ -95,6 +95,30 @@ describe('CatalogTab: sections', () => {
     expect(screen.getByText('3 fases')).toBeInTheDocument();
   });
 
+  it('subdivides inverters within a phase group by topology (HV / LV / both)', () => {
+    const lvInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X1-LV-3.0kW', topology: 'LV' };
+    const bothInverter: InverterCatalogOption = { ...inverter, id: 'i4', model: 'X1-Flex-5.0kW', topology: 'BOTH' };
+    setup({ inverterCatalog: [inverter, lvInverter, bothInverter] });
+
+    expect(screen.getByText('Alta tensão (HV)')).toBeInTheDocument();
+    expect(screen.getByText('Baixa tensão (LV)')).toBeInTheDocument();
+    expect(screen.getByText('Ambas as tensões (HV/LV)')).toBeInTheDocument();
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+    expect(screen.getByText('X1-LV-3.0kW')).toBeInTheDocument();
+    expect(screen.getByText('X1-Flex-5.0kW')).toBeInTheDocument();
+  });
+
+  it('subdivides batteries by topology (HV / LV)', () => {
+    const lvBattery: BatteryCatalogOption = { ...battery, id: 'b4', model: 'TP-LV-5.0', topology: 'LV' };
+    setup({ batteryCatalog: [battery, lvBattery] });
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+
+    expect(screen.getByText('Alta tensão (HV)')).toBeInTheDocument();
+    expect(screen.getByText('Baixa tensão (LV)')).toBeInTheDocument();
+    expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
+    expect(screen.getByText('TP-LV-5.0')).toBeInTheDocument();
+  });
+
   it('switches to batteries and accessories', () => {
     setup();
     fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
