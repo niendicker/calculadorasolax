@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { AuthPanel } from './AuthPanel';
 
@@ -21,7 +21,12 @@ beforeEach(() => {
   routerMock.push.mockReset();
   routerMock.replace.mockReset();
   routerMock.refresh.mockReset();
+  vi.stubGlobal('fetch', vi.fn());
   vi.useRealTimers();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('AuthPanel: login', () => {
@@ -120,45 +125,47 @@ describe('AuthPanel: signup', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('As senhas não coincidem');
   });
 
-  it('creates the account and shows a confirmation message when there is no session yet (email confirmation required)', async () => {
-    const signUp = vi.fn().mockResolvedValue({ data: { user: { id: 'u1' }, session: null }, error: null });
-    createClientMock.mockReturnValue(createSupabaseMock({ auth: { signUp } }));
+  it('posts to /api/auth/signup with the same fields the old direct signUp() call used to send, and shows the confirmation message', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
     setup();
     fillSignupForm();
     fireEvent.click(screen.getByRole('checkbox'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Verifique seu email'));
-    expect(signUp).toHaveBeenCalledWith(
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Cadastro realizado. Enviamos um e-mail de confirmação para o endereço informado.'
+      )
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/auth/signup',
       expect.objectContaining({
-        email: 'novo@x.com',
-        options: expect.objectContaining({
-          data: expect.objectContaining({ full_name: 'Fulano', phone: '11999999999', terms_accepted: true }),
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'novo@x.com',
+          password: 'segredo123',
+          name: 'Fulano',
+          phone: '11999999999',
+          termsAccepted: true,
+          locale: 'pt',
+          redirectTo: '/pt',
         }),
       })
     );
-    // Back to the login form once signup without an active session completes.
+    // Never auto-authenticated — always back to the login form to wait for
+    // the confirmation email, regardless of what the API returns.
     await waitFor(() => expect(screen.getByRole('heading', { name: /Seja bem vindo/ })).toBeInTheDocument());
+    expect(routerMock.replace).not.toHaveBeenCalled();
   });
 
-  it('logs straight in and redirects when signup returns an active session', async () => {
-    const signUp = vi.fn().mockResolvedValue({ data: { user: { id: 'u1' }, session: { access_token: 't' } }, error: null });
-    createClientMock.mockReturnValue(
-      createSupabaseMock({ auth: { signUp }, tableResults: { profiles: { data: { role: 'user' }, error: null } } })
-    );
-    setup();
-    fillSignupForm();
-    fireEvent.click(screen.getByRole('checkbox'));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
-
-    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith('/pt'));
-  });
-
-  it('shows the Supabase error message when signup fails', async () => {
-    const signUp = vi.fn().mockResolvedValue({ data: { user: null, session: null }, error: { message: 'Email já cadastrado' } });
-    createClientMock.mockReturnValue(createSupabaseMock({ auth: { signUp } }));
+  it('shows the API error message when signup fails', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Email já cadastrado' }),
+    });
     setup();
     fillSignupForm();
     fireEvent.click(screen.getByRole('checkbox'));
@@ -166,6 +173,18 @@ describe('AuthPanel: signup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Email já cadastrado'));
+  });
+
+  it('shows a generic error message when the request itself fails (e.g. offline)', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    (fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
+    setup();
+    fillSignupForm();
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha de conexão'));
   });
 });
 

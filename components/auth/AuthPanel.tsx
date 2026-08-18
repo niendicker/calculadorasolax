@@ -154,47 +154,47 @@ export function AuthPanel({
     setLoading(true);
     setToast(null);
 
-    const origin = window.location.origin;
-    // full_name/phone/role/terms_accepted all land in profiles via
-    // handle_new_user (security definer, reads auth.users.raw_user_meta_data)
-    // instead of a follow-up client call — signUp() returns no session yet
-    // when email confirmation is required, so anything done here with the
-    // browser client would run unauthenticated and get silently dropped by RLS.
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: `${origin}/${locale}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
-        data: {
-          full_name: fullName.trim(),
+    // Account creation + the confirmation email both happen server-side now
+    // (see app/api/auth/signup) — Supabase Admin's generateLink creates the
+    // user (same handle_new_user trigger, same raw_user_meta_data columns
+    // this used to send straight to signUp()) and Resend sends the
+    // confirmation email from its own template instead of GoTrue's built-in
+    // one. This never returns a session: the user always has to confirm
+    // their email before they can log in.
+    let response: Response;
+    try {
+      response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: fullName.trim(),
           phone: phone.trim(),
-          role: 'user',
-          terms_accepted: true,
-        },
-      },
-    });
-
-    if (authError) {
+          termsAccepted: acceptedTerms,
+          locale,
+          redirectTo,
+        }),
+      });
+    } catch {
       setLoading(false);
-      setToast({ message: authError.message, type: 'error' });
+      setToast({ message: 'Falha de conexão. Verifique sua internet e tente novamente.', type: 'error' });
       return;
     }
 
+    const result = await response.json().catch(() => null);
     setLoading(false);
+
+    if (!response.ok) {
+      setToast({ message: result?.error || 'Não foi possível concluir o cadastro. Tente novamente.', type: 'error' });
+      return;
+    }
+
     setToast({
-      message: data.session
-        ? 'Cadastro criado. Redirecionando…'
-        : 'Cadastro criado. Verifique seu email para confirmar o acesso.',
+      message: 'Cadastro realizado. Enviamos um e-mail de confirmação para o endereço informado.',
       type: 'success',
     });
-
-    if (data.session) {
-      const next = await resolveRedirect(redirectTo);
-      router.replace(next);
-      router.refresh();
-    } else {
-      setMode('login');
-    }
+    setMode('login');
   }
 
   async function recoverPassword(event: React.FormEvent<HTMLFormElement>) {
