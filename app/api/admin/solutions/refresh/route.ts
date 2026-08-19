@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getProfileRole } from '@/lib/data/admin-repository';
 
+// PostgREST encodes `.in()` values into the DELETE URL. Updating the whole
+// generated catalog in one request can therefore exceed the proxy URI limit.
+const DELETE_BATCH_SIZE = 50;
+
 export async function POST(request: Request) {
   let body: { generatedSolutions?: unknown; previousIds?: unknown };
   try {
@@ -35,8 +39,11 @@ export async function POST(request: Request) {
   const previousIds = body.previousIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
 
   if (previousIds.length > 0) {
-    const { error } = await service.from('approved_solutions').delete().in('id', previousIds);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    for (let offset = 0; offset < previousIds.length; offset += DELETE_BATCH_SIZE) {
+      const batch = previousIds.slice(offset, offset + DELETE_BATCH_SIZE);
+      const { error } = await service.from('approved_solutions').delete().in('id', batch);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   const { error: upsertError } = await service
