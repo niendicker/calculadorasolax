@@ -55,7 +55,6 @@ export function ProjectTab({
   onOpen,
   onOpenSizing,
   onRemove,
-  onDuplicate,
   onRefreshSolution,
   refreshingProjectId,
   onUpdateStatus,
@@ -84,7 +83,6 @@ export function ProjectTab({
   onOpen: (id: string) => void;
   onOpenSizing: (id: string) => void;
   onRemove: (id: string) => void;
-  onDuplicate: (id: string) => void;
   onRefreshSolution: (id: string) => void;
   /** Id of the project currently being recalculated, if any — used to show a
    * loading state on that project's "Atualizar" button specifically. */
@@ -204,7 +202,7 @@ export function ProjectTab({
 
   // Whichever saved project the summary panel should show: one picked from
   // the list, or — while editing — the one currently open, so the sidebar
-  // stays the exact same rich summary (and its delete/duplicate actions)
+  // stays the exact same rich summary (and its delete action)
   // instead of switching to a different, live-editing-only widget. Reflects
   // the last-saved snapshot, not the live in-progress draft (see
   // SelectedProjectSummary's own docstring) — that's intentional, matching
@@ -245,8 +243,6 @@ export function ProjectTab({
             onOpenSizing={() => onOpenSizing(summaryProject.id)}
             onUpdateStatus={(status) => onUpdateStatus(summaryProject.id, status)}
             onManageSuppliers={onManageSuppliers}
-            onRemove={() => onRemove(summaryProject.id)}
-            onDuplicate={() => onDuplicate(summaryProject.id)}
           />
         ) : projectDetailsVisible ? (
           <>
@@ -390,6 +386,7 @@ export function ProjectTab({
                       onOpen(project.id);
                     }}
                     onOpenSizing={() => onOpenSizing(project.id)}
+                    onRemove={() => onRemove(project.id)}
                     onRefreshSolution={() => onRefreshSolution(project.id)}
                     refreshing={refreshingProjectId === project.id}
                     onUpdateStatus={(status) => onUpdateStatus(project.id, status)}

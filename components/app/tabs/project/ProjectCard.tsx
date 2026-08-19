@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
@@ -46,6 +47,7 @@ export function ProjectCard({
   refreshing,
   onUpdateStatus,
   onDownloadPdf,
+  onRemove,
   downloading,
 }: {
   project: SavedProject;
@@ -62,6 +64,7 @@ export function ProjectCard({
   refreshing: boolean;
   onUpdateStatus: (status: ProjectStatus) => void;
   onDownloadPdf: () => void;
+  onRemove: () => void;
   /** True while this project's PDF is being generated — the report can take
    * a moment to render (react-pdf isn't instant), so the button needs its
    * own feedback instead of looking unresponsive until the download fires. */
@@ -117,11 +120,12 @@ export function ProjectCard({
         selected ? 'border-foreground/30 bg-muted/40 shadow-sm ring-1 ring-border' : 'hover:border-primary/30 hover:bg-muted/30'
       )}
     >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center gap-2">
           <p className="min-w-0 truncate font-semibold">{project.name}</p>
           <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
-        </div>
+          </div>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Users className="h-3 w-3 shrink-0" />
           <span className="truncate">{client?.name || 'Cliente não informado'}</span>
@@ -169,7 +173,7 @@ export function ProjectCard({
             {project.residentialOptions.gridType ? gridLabels[project.residentialOptions.gridType] : 'Sem rede'}
           </Badge>
         </div>
-        {project.residentialOptions.desiredFeatures.length > 0 && (
+          {project.residentialOptions.desiredFeatures.length > 0 && (
           <div className="mt-1.5 flex items-center gap-2">
             {project.residentialOptions.desiredFeatures.map((feature) => {
               const Icon = featureIcons[feature];
@@ -180,7 +184,15 @@ export function ProjectCard({
               );
             })}
           </div>
-        )}
+          )}
+        </div>
+        <ConfirmDeleteButton
+          ariaLabel={`Remover projeto ${project.name}`}
+          title="Remover projeto?"
+          description="O projeto salvo e sua configuração serão removidos deste navegador."
+          confirmLabel="Remover"
+          onConfirm={onRemove}
+        />
       </div>
       <div className="mt-auto space-y-2 pt-1">
         {/* grid, not flex-wrap: three buttons squeezed onto one flex-wrap row

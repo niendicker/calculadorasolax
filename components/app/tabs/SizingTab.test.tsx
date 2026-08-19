@@ -810,6 +810,16 @@ describe('SizingTab: funcionalidades desejadas', () => {
     expect(screen.getByRole('tab', { name: 'Backup' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
+  it('shows an inline alert in the open Backup tab when no loads were added', () => {
+    setup({
+      residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [] },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Nenhuma carga adicionada ao projeto');
+    expect(screen.getByRole('alert')).toHaveTextContent('Adicione ao menos uma carga abaixo para dimensionar o backup.');
+  });
+
   it('hides the Backup warning icon once at least one load is registered', () => {
     setup({
       residentialOptions: {

@@ -7,6 +7,7 @@ import {
   Fuel,
   Gauge,
   HousePlug,
+  AlertTriangle,
   Layers,
   Network,
   ShieldCheck,
@@ -236,6 +237,19 @@ export function DesiredFeaturesPicker({
               <strong className="tabular-nums">{loadsCount}</strong>
               <span className="text-xs text-muted-foreground">{loadsCount === 1 ? 'carga' : 'cargas'}</span>
             </span>
+          </div>
+        )}
+
+        {isBackupTab && isActiveEnabled && loadsCount === 0 && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-amber-800 dark:text-amber-300"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium">Nenhuma carga adicionada ao projeto</p>
+              <p className="mt-0.5 text-xs">Adicione ao menos uma carga abaixo para dimensionar o backup.</p>
+            </div>
           </div>
         )}
 

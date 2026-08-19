@@ -107,8 +107,23 @@ export function ProjectDraftCard({
 
   return (
     <Card className="sm:col-span-2">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
         <CardTitle className="text-base">{isNew ? 'Novo projeto' : 'Editando projeto'}</CardTitle>
+        {isDirty ? (
+          <ConfirmDeleteButton
+            ariaLabel="Descartar alterações do projeto"
+            icon={<X className="h-4 w-4" />}
+            title="Descartar alterações?"
+            description="Os dados preenchidos neste projeto serão perdidos."
+            confirmLabel="Descartar"
+            triggerVariant="outline"
+            onConfirm={onCancel}
+          />
+        ) : (
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Fechar" onClick={onCancel}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <ProjectField label="Nome do projeto" id="projectName" icon={<FileText className="h-4 w-4" />}>
@@ -249,12 +264,29 @@ export function ProjectDraftCard({
             </div>
           )}
         </div>
+        {!isNew && onOpenSizing && (
+          <button
+            type="button"
+            aria-label="Dimensionamento"
+            onClick={onOpenSizing}
+            className="group flex items-center gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:col-span-2"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Calculator className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Abrir dimensionamento</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Clique aqui para revisar as cargas, configurações e equipamentos deste projeto.
+              </span>
+            </span>
+          </button>
+        )}
         <div className="flex justify-end gap-2 md:col-span-2">
           {isDirty ? (
             <ConfirmDeleteButton
-              ariaLabel="Descartar alterações do projeto"
-              label="Fechar"
-              icon={<X className="h-4 w-4" />}
+              ariaLabel="Cancelar edição do projeto"
+              label="Cancelar"
               title="Descartar alterações?"
               description="Os dados preenchidos neste projeto serão perdidos."
               confirmLabel="Descartar"
@@ -263,14 +295,7 @@ export function ProjectDraftCard({
             />
           ) : (
             <Button type="button" variant="outline" onClick={onCancel}>
-              <X className="h-4 w-4" />
-              Fechar
-            </Button>
-          )}
-          {!isNew && onOpenSizing && (
-            <Button type="button" variant="outline" onClick={onOpenSizing}>
-              <Calculator className="h-4 w-4" />
-              Dimensionamento
+              Cancelar
             </Button>
           )}
           <Button
@@ -280,7 +305,7 @@ export function ProjectDraftCard({
             title={isNew || isDirty ? undefined : 'Nenhuma alteração para salvar.'}
           >
             <Save className="h-4 w-4" />
-            Salvar projeto
+            Salvar
           </Button>
         </div>
       </CardContent>

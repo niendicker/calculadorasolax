@@ -5,7 +5,6 @@ import {
   BatteryCharging,
   Calculator,
   ChevronRight,
-  Copy,
   Gauge,
   Loader2,
   Mail,
@@ -16,7 +15,6 @@ import {
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
@@ -84,8 +82,6 @@ export function SelectedProjectSummary({
   onOpenSizing,
   onUpdateStatus,
   onManageSuppliers,
-  onRemove,
-  onDuplicate,
 }: {
   project: SavedProject;
   client: Client | undefined;
@@ -105,8 +101,6 @@ export function SelectedProjectSummary({
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
-  onRemove: () => void;
-  onDuplicate: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -193,9 +187,9 @@ export function SelectedProjectSummary({
 
   return (
     <>
-      <div className="flex items-start justify-between gap-2">
+      <div className="-mt-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="mb-3 flex items-center gap-2">
             <h2 className="min-w-0 truncate text-sm font-semibold">{project.name}</h2>
             <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
           </div>
@@ -217,21 +211,6 @@ export function SelectedProjectSummary({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Duplicar projeto ${project.name}`}
-            onClick={onDuplicate}
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-          <ConfirmDeleteButton
-            ariaLabel={`Remover projeto ${project.name}`}
-            title="Remover projeto?"
-            description="O projeto salvo e sua configuração serão removidos deste navegador."
-            confirmLabel="Remover"
-            onConfirm={onRemove}
-          />
           {onClose && (
             <Button variant="ghost" size="icon-sm" aria-label="Fechar resumo do projeto" onClick={onClose}>
               <X className="h-4 w-4" />

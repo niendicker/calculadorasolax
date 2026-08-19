@@ -241,7 +241,6 @@ export function SinglePageApp() {
     openProject,
     openProjectSizing,
     deleteProject,
-    duplicateProject: duplicateExistingProject,
     refreshProjectSolution,
     updateProjectStatus: updateProjectStatusAction,
     refreshingProjectId,
@@ -909,7 +908,6 @@ export function SinglePageApp() {
               onOpen={openProject}
               onOpenSizing={openProjectSizing}
               onRemove={deleteProject}
-              onDuplicate={duplicateExistingProject}
               onRefreshSolution={refreshProjectSolution}
               refreshingProjectId={refreshingProjectId}
               onUpdateStatus={updateProjectStatusAction}
