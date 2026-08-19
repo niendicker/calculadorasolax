@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   enqueuePendingSimulation,
   flushPendingSimulations,
@@ -40,19 +39,12 @@ function makePayload(partial: Partial<PendingSimulationPayload> = {}): PendingSi
   };
 }
 
-function makeSupabaseMock(insertImpl: (payload: unknown) => { error: unknown }) {
-  return {
-    from: () => ({
-      insert: (payload: unknown) => Promise.resolve(insertImpl(payload)),
-    }),
-  } as unknown as SupabaseClient;
-}
-
 let memoryStorage: MemoryStorage;
 
 beforeEach(() => {
   memoryStorage = new MemoryStorage();
   vi.stubGlobal('window', { localStorage: memoryStorage });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
 });
 
 describe('enqueuePendingSimulation / pendingSimulationCount', () => {
@@ -95,8 +87,7 @@ describe('enqueuePendingSimulation / pendingSimulationCount', () => {
 
 describe('flushPendingSimulations', () => {
   it('does nothing and reports zero when the queue is empty', async () => {
-    const supabase = makeSupabaseMock(() => ({ error: null }));
-    const result = await flushPendingSimulations(supabase);
+    const result = await flushPendingSimulations();
     expect(result).toEqual({ sent: 0, remaining: 0 });
   });
 
@@ -104,8 +95,7 @@ describe('flushPendingSimulations', () => {
     enqueuePendingSimulation(makePayload({ project_name: 'A' }));
     enqueuePendingSimulation(makePayload({ project_name: 'B' }));
 
-    const supabase = makeSupabaseMock(() => ({ error: null }));
-    const result = await flushPendingSimulations(supabase);
+    const result = await flushPendingSimulations();
 
     expect(result).toEqual({ sent: 2, remaining: 0 });
     expect(pendingSimulationCount()).toBe(0);
@@ -115,8 +105,8 @@ describe('flushPendingSimulations', () => {
     enqueuePendingSimulation(makePayload({ project_name: 'A' }));
     enqueuePendingSimulation(makePayload({ project_name: 'B' }));
 
-    const supabase = makeSupabaseMock(() => ({ error: new Error('still offline') }));
-    const result = await flushPendingSimulations(supabase);
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false });
+    const result = await flushPendingSimulations();
 
     expect(result).toEqual({ sent: 0, remaining: 2 });
     expect(pendingSimulationCount()).toBe(2);
@@ -127,12 +117,11 @@ describe('flushPendingSimulations', () => {
     enqueuePendingSimulation(makePayload({ project_name: 'fails' }));
     enqueuePendingSimulation(makePayload({ project_name: 'ok-2' }));
 
-    const supabase = makeSupabaseMock((payload) => {
-      const p = payload as PendingSimulationPayload;
-      return { error: p.project_name === 'fails' ? new Error('nope') : null };
-    });
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation(async (_url: string, init: RequestInit) => ({
+      ok: JSON.parse(String(init.body)).project_name !== 'fails',
+    }));
 
-    const result = await flushPendingSimulations(supabase);
+    const result = await flushPendingSimulations();
     expect(result).toEqual({ sent: 2, remaining: 1 });
     expect(pendingSimulationCount()).toBe(1);
   });
@@ -141,20 +130,16 @@ describe('flushPendingSimulations', () => {
     enqueuePendingSimulation(makePayload({ project_name: 'only-once' }));
 
     let insertCalls = 0;
-    // Slow the insert down so two concurrent flushes genuinely overlap.
-    const supabase = {
-      from: () => ({
-        insert: async () => {
-          insertCalls += 1;
-          await new Promise((resolve) => setTimeout(resolve, 10));
-          return { error: null };
-        },
-      }),
-    } as unknown as SupabaseClient;
+    // Slow the request down so two concurrent flushes genuinely overlap.
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      insertCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return { ok: true };
+    });
 
     const [resultA, resultB] = await Promise.all([
-      flushPendingSimulations(supabase),
-      flushPendingSimulations(supabase),
+      flushPendingSimulations(),
+      flushPendingSimulations(),
     ]);
 
     expect(insertCalls).toBe(1);

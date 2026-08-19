@@ -119,7 +119,7 @@ export function useInitialData({
           setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');
         }
 
-        flushPendingSimulations(supabase).catch((err) => console.error(err));
+        flushPendingSimulations().catch((err) => console.error(err));
       }
 
       if (catalogData) {
@@ -236,7 +236,7 @@ export function useInitialData({
 
   useEffect(() => {
     function handleOnline() {
-      flushPendingSimulations(supabase).catch((err) => console.error(err));
+      flushPendingSimulations().catch((err) => console.error(err));
     }
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);

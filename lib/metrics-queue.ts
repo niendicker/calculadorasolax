@@ -1,5 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-
 // Local retry queue for app_simulations inserts. The insert after a
 // dimensioning calculation is best-effort usage telemetry — it must never
 // block or fail the calculation itself, but losing it silently on a bad
@@ -71,7 +69,7 @@ export function pendingSimulationCount(): number {
 // every pending entry twice.
 let flushInFlight: Promise<{ sent: number; remaining: number }> | null = null;
 
-async function runFlush(supabase: SupabaseClient): Promise<{ sent: number; remaining: number }> {
+async function runFlush(): Promise<{ sent: number; remaining: number }> {
   const queue = readQueue();
   if (queue.length === 0) return { sent: 0, remaining: 0 };
 
@@ -79,12 +77,18 @@ async function runFlush(supabase: SupabaseClient): Promise<{ sent: number; remai
   let sent = 0;
 
   for (const entry of queue) {
-    const { error } = await supabase.from('app_simulations').insert(entry.payload);
-    if (error) {
+    try {
+      const response = await fetch('/api/metrics/simulations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry.payload),
+      });
+      if (!response.ok) throw new Error('metric request failed');
+    } catch {
       stillPending.push(entry);
-    } else {
-      sent += 1;
+      continue;
     }
+    sent += 1;
   }
 
   writeQueue(stillPending);
@@ -92,9 +96,7 @@ async function runFlush(supabase: SupabaseClient): Promise<{ sent: number; remai
 }
 
 /** Retries every queued simulation insert. Entries that fail again stay queued. */
-export function flushPendingSimulations(
-  supabase: SupabaseClient
-): Promise<{ sent: number; remaining: number }> {
+export function flushPendingSimulations(): Promise<{ sent: number; remaining: number }> {
   if (flushInFlight) return flushInFlight;
 
   // `.finally()` on the returned promise (rather than a try/finally inside
@@ -105,7 +107,7 @@ export function flushPendingSimulations(
   // the `flushInFlight = ...` assignment below completes and get
   // immediately clobbered back — permanently "stuck" after the first
   // empty-queue check.
-  flushInFlight = runFlush(supabase).finally(() => {
+  flushInFlight = runFlush().finally(() => {
     flushInFlight = null;
   });
 
