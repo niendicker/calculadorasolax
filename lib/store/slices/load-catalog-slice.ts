@@ -1,6 +1,15 @@
 import type { StateCreator } from 'zustand';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
+import {
+  deleteUserLoadCatalogRecord,
+  deleteUserLoadPreset,
+  insertUserLoadCatalogRecord,
+  insertUserLoadPreset,
+  listUserLoadCatalog,
+  listUserLoadPresets,
+  updateUserLoadCatalogRecord,
+} from '@/lib/data/load-catalog-repository';
 import type { LoadPresetLoad, UserLoadCatalogItem, UserLoadPresetItem } from '@/lib/types';
 import { userLoadFromRow, userLoadPresetFromRow } from '../row-mappers';
 import type { WizardStore } from '../wizard-store';
@@ -26,30 +35,22 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
 
   fetchUserLoadCatalog: async () => {
     const supabase = createClient();
-    const { data, error } = await supabase.from('user_load_catalog').select('*').order('name');
-    if (error) throw error;
+    const data = await listUserLoadCatalog(supabase);
     set({ userLoadCatalog: (data ?? []).map(userLoadFromRow) });
   },
 
   saveManualLoadToCatalog: async (input) => {
     const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error('not_authenticated');
-
     const existing = get().userLoadCatalog.find(
       (item) => item.name.trim().toLowerCase() === input.name.trim().toLowerCase()
     );
 
     if (existing) {
-      const { error } = await supabase
-        .from('user_load_catalog')
-        .update({
+      await updateUserLoadCatalogRecord(supabase, existing.id, {
           power_w: input.powerW,
           ip_in_ratio: input.ipInRatio,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
-      if (error) throw error;
+      });
 
       set((s) => ({
         userLoadCatalog: s.userLoadCatalog.map((item) =>
@@ -66,23 +67,16 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       )[0];
       if (oldest) {
-        const { error: deleteError } = await supabase.from('user_load_catalog').delete().eq('id', oldest.id);
-        if (deleteError) throw deleteError;
+        await deleteUserLoadCatalogRecord(supabase, oldest.id);
         set((s) => ({ userLoadCatalog: s.userLoadCatalog.filter((item) => item.id !== oldest.id) }));
       }
     }
 
-    const { data, error } = await supabase
-      .from('user_load_catalog')
-      .insert({
-        user_id: userData.user.id,
-        name: input.name.trim(),
-        power_w: input.powerW,
-        ip_in_ratio: input.ipInRatio,
-      })
-      .select()
-      .single();
-    if (error) throw error;
+    const data = await insertUserLoadCatalogRecord(supabase, {
+      name: input.name.trim(),
+      powerW: input.powerW,
+      ipInRatio: input.ipInRatio,
+    });
 
     const item = userLoadFromRow(data);
     set((s) => ({
@@ -97,8 +91,7 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
     if (partial.powerW !== undefined) payload.power_w = partial.powerW;
     if (partial.ipInRatio !== undefined) payload.ip_in_ratio = partial.ipInRatio;
 
-    const { error } = await supabase.from('user_load_catalog').update(payload).eq('id', id);
-    if (error) throw error;
+    await updateUserLoadCatalogRecord(supabase, id, payload);
 
     set((s) => ({
       userLoadCatalog: s.userLoadCatalog
@@ -109,8 +102,7 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
 
   removeUserLoadCatalogItem: async (id) => {
     const supabase = createClient();
-    const { error } = await supabase.from('user_load_catalog').delete().eq('id', id);
-    if (error) throw error;
+    await deleteUserLoadCatalogRecord(supabase, id);
 
     set((s) => ({
       userLoadCatalog: s.userLoadCatalog.filter((item) => item.id !== id),
@@ -119,34 +111,21 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
 
   fetchUserLoadPresets: async () => {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from('user_load_presets')
-      .select('id, name, description, loads')
-      .order('created_at');
-    if (error) throw error;
+    const data = await listUserLoadPresets(supabase);
     set({ userLoadPresets: (data ?? []).map(userLoadPresetFromRow) });
   },
 
   saveLoadsAsPreset: async (input) => {
     const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error('not_authenticated');
-
     if (get().userLoadPresets.length >= ACCOUNT_LIMITS.userPresets) {
       throw new Error(limitReachedMessage('predefinições pessoais', ACCOUNT_LIMITS.userPresets));
     }
 
-    const { data, error } = await supabase
-      .from('user_load_presets')
-      .insert({
-        user_id: userData.user.id,
-        name: input.name.trim(),
-        description: input.description.trim(),
-        loads: input.loads,
-      })
-      .select('id, name, description, loads')
-      .single();
-    if (error) throw error;
+    const data = await insertUserLoadPreset(supabase, {
+      name: input.name.trim(),
+      description: input.description.trim(),
+      loads: input.loads,
+    });
 
     const item = userLoadPresetFromRow(data);
     set((s) => ({ userLoadPresets: [...s.userLoadPresets, item] }));
@@ -154,8 +133,7 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
 
   removeUserLoadPreset: async (id) => {
     const supabase = createClient();
-    const { error } = await supabase.from('user_load_presets').delete().eq('id', id);
-    if (error) throw error;
+    await deleteUserLoadPreset(supabase, id);
 
     set((s) => ({
       userLoadPresets: s.userLoadPresets.filter((item) => item.id !== id),

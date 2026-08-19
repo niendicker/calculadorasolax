@@ -1046,27 +1046,29 @@ describe('refreshProjectSolution', () => {
     const supabase = createSupabaseMock({
       tableResults: { projects: { data: { ...projectRow, id: 'p1', solution: nextSolution }, error: null } },
     });
-    const invoke = vi.fn().mockResolvedValue({ data: nextSolution, error: null });
-    createClientMock.mockReturnValue({ ...supabase, functions: { invoke } });
+    createClientMock.mockReturnValue(supabase);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ solution: nextSolution }) });
+    vi.stubGlobal('fetch', fetchMock);
 
     const source = makeSavedProject({ id: 'p1' });
     useWizardStore.setState({ savedProjects: [source] });
 
     const updated = await useWizardStore.getState().refreshProjectSolution('p1');
 
-    expect(invoke).toHaveBeenCalledWith('calculate-residential', {
-      body: { ...source.residentialOptions, batteryModel: source.residentialOptions.batteryModel },
-    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/calculations/residential', expect.objectContaining({ method: 'POST' }));
+    const [, requestInit] = fetchMock.mock.calls[0];
+    expect(JSON.parse(requestInit.body as string)).toEqual(expect.objectContaining({
+      ...source.residentialOptions,
+      batteryModel: source.residentialOptions.batteryModel,
+    }));
     expect(updated.solution).toEqual(nextSolution);
     expect(useWizardStore.getState().savedProjects.find((p) => p.id === 'p1')?.solution).toEqual(nextSolution);
   });
 
   it('throws when the calculate-residential call fails, without changing savedProjects', async () => {
     const supabase = createSupabaseMock();
-    createClientMock.mockReturnValue({
-      ...supabase,
-      functions: { invoke: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }) },
-    });
+    createClientMock.mockReturnValue(supabase);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: 'Não foi possível calcular.' }) }));
 
     const source = makeSavedProject({ id: 'p1' });
     useWizardStore.setState({ savedProjects: [source] });
