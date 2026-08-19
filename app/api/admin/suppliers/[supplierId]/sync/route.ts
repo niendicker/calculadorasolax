@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildSupplierUrl, normalizeSupplierPayload } from '@/lib/procurement/generic-json';
 import { failSupplierSync, findSupplierIntegrationForSync, finishSupplierSync, listActiveSupplierMappings, saveExternalProductIds, saveSupplierOffers, startSupplierSync } from '@/lib/data/supplier-sync-repository';
+import { getProfileRole } from '@/lib/data/admin-repository';
 
 /** Every table this route writes to (supplier_integrations, supplier_offers,
  *  supplier_product_mappings, supplier_sync_runs) has an "admins manage ...
@@ -16,8 +17,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ su
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+  const { role } = await getProfileRole(supabase, user.id);
+  if (role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
 
   const integration = await findSupplierIntegrationForSync(supabase, supplierId);
   if (!integration) return NextResponse.json({ error: 'Integração não configurada.' }, { status: 404 });

@@ -12,6 +12,7 @@ import {
   SIMULATION_COLUMNS,
   fetchApprovedSolutions,
 } from '../helpers';
+import { listAdminCatalogRows } from '@/lib/data/admin-repository';
 import {
   type AccessoryRow,
   type AccessoryRuleRow,
@@ -141,18 +142,18 @@ export function useAdminData({
     async (key: ResourceKey) => {
       switch (key) {
         case 'inverters': {
-          const { data, error: fetchError } = await supabase.from('inverters').select(INVERTER_COLUMNS).order('model');
-          if (!fetchError) setInverters((data ?? []) as InverterRow[]);
+          const { data, error: fetchError } = await listAdminCatalogRows(supabase, 'inverters', INVERTER_COLUMNS);
+          if (!fetchError) setInverters((data ?? []) as unknown as InverterRow[]);
           return { error: fetchError };
         }
         case 'batteries': {
-          const { data, error: fetchError } = await supabase.from('batteries').select(BATTERY_COLUMNS).order('model');
-          if (!fetchError) setBatteries((data ?? []) as BatteryRow[]);
+          const { data, error: fetchError } = await listAdminCatalogRows(supabase, 'batteries', BATTERY_COLUMNS);
+          if (!fetchError) setBatteries((data ?? []) as unknown as BatteryRow[]);
           return { error: fetchError };
         }
         case 'accessories': {
-          const { data, error: fetchError } = await supabase.from('accessories').select(ACCESSORY_COLUMNS).order('model');
-          if (!fetchError) setAccessories((data ?? []) as AccessoryRow[]);
+          const { data, error: fetchError } = await listAdminCatalogRows(supabase, 'accessories', ACCESSORY_COLUMNS);
+          if (!fetchError) setAccessories((data ?? []) as unknown as AccessoryRow[]);
           return { error: fetchError };
         }
         case 'loadCatalog': {

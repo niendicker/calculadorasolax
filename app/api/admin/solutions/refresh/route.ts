@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { getProfileRole } from '@/lib/data/admin-repository';
 
 export async function POST(request: Request) {
   let body: { generatedSolutions?: unknown; previousIds?: unknown };
@@ -20,12 +21,8 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (profileError || profile?.role !== 'admin') {
+  const { role, error: profileError } = await getProfileRole(supabase, user.id);
+  if (profileError || role !== 'admin') {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
   }
 

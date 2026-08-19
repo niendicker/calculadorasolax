@@ -206,40 +206,6 @@ describe('useProjectActions: open/openSizing/delete', () => {
     expect(result.current.projectStatus).toBe('Não foi possível remover o projeto.');
   });
 
-  it('duplicateProject duplicates the project and reports success with its name', async () => {
-    const { result, props } = setup({
-      duplicateProject: vi.fn().mockResolvedValue({ ...fakeProject, name: 'Casa de praia (cópia)' }),
-    });
-
-    await act(async () => {
-      await result.current.duplicateProject('p1');
-    });
-
-    expect(props.duplicateProject).toHaveBeenCalledWith('p1');
-    expect(result.current.projectStatus).toBe('Projeto duplicado como "Casa de praia (cópia)".');
-  });
-
-  it('duplicateProject reports the limit message without throwing when the cap is reached', async () => {
-    const { result } = setup({
-      duplicateProject: vi.fn().mockRejectedValue(new Error('Limite de 15 projetos salvos atingido.')),
-    });
-
-    await act(async () => {
-      await result.current.duplicateProject('p1');
-    });
-
-    expect(result.current.projectStatus).toBe('Limite de 15 projetos salvos atingido.');
-  });
-
-  it('duplicateProject reports a generic failure without throwing on other errors', async () => {
-    const { result } = setup({ duplicateProject: vi.fn().mockRejectedValue(new Error('db exploded')) });
-
-    await act(async () => {
-      await result.current.duplicateProject('p1');
-    });
-
-    expect(result.current.projectStatus).toBe('Não foi possível duplicar o projeto. Tente novamente.');
-  });
 });
 
 describe('useProjectActions: refreshProjectSolution', () => {

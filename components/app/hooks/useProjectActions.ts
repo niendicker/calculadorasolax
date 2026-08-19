@@ -14,7 +14,6 @@ export function useProjectActions({
   cancelProjectDraft,
   loadProject,
   removeProject,
-  duplicateProject,
   refreshProjectSolution,
   updateProjectStatus,
   setActiveTab,
@@ -27,7 +26,6 @@ export function useProjectActions({
   cancelProjectDraft: () => void;
   loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
-  duplicateProject: (id: string) => Promise<SavedProject>;
   refreshProjectSolution: (id: string) => Promise<SavedProject>;
   updateProjectStatus: (id: string, status: ProjectStatus) => Promise<SavedProject>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
@@ -93,15 +91,6 @@ export function useProjectActions({
     }
   }
 
-  async function duplicateExistingProject(id: string) {
-    try {
-      const project = await duplicateProject(id);
-      report(`Projeto duplicado como "${project.name}".`);
-    } catch (error) {
-      report(isLimitError(error) ? error.message : 'Não foi possível duplicar o projeto. Tente novamente.');
-    }
-  }
-
   async function refreshSolution(id: string) {
     setRefreshingProjectId(id);
     try {
@@ -148,7 +137,6 @@ export function useProjectActions({
     openProject,
     openProjectSizing,
     deleteProject,
-    duplicateProject: duplicateExistingProject,
     refreshProjectSolution: refreshSolution,
     updateProjectStatus: updateStatus,
     refreshingProjectId,

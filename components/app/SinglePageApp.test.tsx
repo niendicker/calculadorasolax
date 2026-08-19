@@ -1038,9 +1038,12 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
         loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
       },
     }));
-    const supabase = setupSupabase({ batteries: { data: [batteryRow], error: null } });
-    const invoke = vi.fn().mockResolvedValue({ data: makeSolution(), error: null });
-    (supabase as unknown as { functions: unknown }).functions = { invoke };
+    setupSupabase({ batteries: { data: [batteryRow], error: null } });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ solution: makeSolution() }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     renderApp();
     await goToSizingViaProject();
@@ -1048,10 +1051,10 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
 
-    await waitFor(() => expect(invoke).toHaveBeenCalled());
-    expect(invoke).toHaveBeenCalledWith(
-      'calculate-residential',
-      expect.objectContaining({ body: expect.objectContaining({ batteryModel: 'TP-HS3.6' }) })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/calculations/residential',
+      expect.objectContaining({ body: expect.stringContaining('TP-HS3.6') })
     );
   });
 
@@ -1091,8 +1094,11 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
         error: null,
       },
     });
-    const invoke = vi.fn().mockResolvedValue({ data: makeSolution(), error: null });
-    (supabase as unknown as { functions: unknown }).functions = { invoke };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ solution: makeSolution() }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     renderApp();
     await goToSizingViaProject();
@@ -1100,10 +1106,10 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
 
-    await waitFor(() => expect(invoke).toHaveBeenCalled());
-    expect(invoke).toHaveBeenCalledWith(
-      'calculate-residential',
-      expect.objectContaining({ body: expect.objectContaining({ inverterModel: 'X1-Hybrid-5.0kW-G4' }) })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/calculations/residential',
+      expect.objectContaining({ body: expect.stringContaining('X1-Hybrid-5.0kW-G4') })
     );
   });
 

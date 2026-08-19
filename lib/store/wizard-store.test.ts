@@ -967,61 +967,6 @@ describe('removeProject', () => {
   });
 });
 
-describe('duplicateProject', () => {
-  beforeEach(() => resetStore());
-
-  it('throws project_not_found when the id is not in savedProjects', async () => {
-    createClientMock.mockReturnValue(createSupabaseMock());
-    useWizardStore.setState({ savedProjects: [] });
-
-    await expect(useWizardStore.getState().duplicateProject('missing')).rejects.toThrow('project_not_found');
-  });
-
-  it('throws a limit-reached error at ACCOUNT_LIMITS.projects', async () => {
-    createClientMock.mockReturnValue(createSupabaseMock());
-    const existing = Array.from({ length: ACCOUNT_LIMITS.projects }, (_, i) => makeSavedProject({ id: `p${i}` }));
-    useWizardStore.setState({ savedProjects: existing });
-
-    await expect(useWizardStore.getState().duplicateProject('p0')).rejects.toThrow(/Limite de/);
-  });
-
-  it('throws not_authenticated when there is no logged-in user', async () => {
-    createClientMock.mockReturnValue(createSupabaseMock({ user: null }));
-    useWizardStore.setState({ savedProjects: [makeSavedProject({ id: 'p1' })] });
-
-    await expect(useWizardStore.getState().duplicateProject('p1')).rejects.toThrow('not_authenticated');
-  });
-
-  it('inserts a new row named after the original with "(cópia)" and prepends it, leaving the source untouched', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({ tableResults: { projects: { data: { ...projectRow, id: 'row-copy' }, error: null } } })
-    );
-    const source = makeSavedProject({ id: 'p1', name: 'Casa de praia' });
-    useWizardStore.setState({ savedProjects: [source] });
-
-    const duplicated = await useWizardStore.getState().duplicateProject('p1');
-
-    expect(duplicated.id).toBe('row-copy');
-    const s = useWizardStore.getState();
-    expect(s.savedProjects.map((p) => p.id)).toEqual(['row-copy', 'p1']);
-    // The original in the list stays exactly as it was.
-    expect(s.savedProjects[1]).toEqual(source);
-    // duplicateProject never sets currentProjectId/projectInfo — it's a list-only action, unlike saveCurrentProject.
-    expect(s.currentProjectId).toBeNull();
-  });
-
-  it('propagates a Supabase error instead of updating state', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({ tableResults: { projects: { data: null, error: { message: 'db down' } } } })
-    );
-    const source = makeSavedProject({ id: 'p1' });
-    useWizardStore.setState({ savedProjects: [source] });
-
-    await expect(useWizardStore.getState().duplicateProject('p1')).rejects.toBeTruthy();
-    expect(useWizardStore.getState().savedProjects).toEqual([source]);
-  });
-});
-
 describe('refreshProjectSolution', () => {
   beforeEach(() => resetStore());
 

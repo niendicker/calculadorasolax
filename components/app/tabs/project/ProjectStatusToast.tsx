@@ -6,7 +6,7 @@ import { X } from 'lucide-react';
 
 const STATUS_TOAST_DURATION_MS = 5000;
 
-/** Feedback for save/load/remove/duplicate actions, as a popup pinned to the
+/** Feedback for save/load/remove actions, as a popup pinned to the
  * top of the page instead of an inline banner — it needs to be seen even
  * when the action happened lower on a long "Projetos salvos" list. The
  * progress bar shrinks over STATUS_TOAST_DURATION_MS and auto-dismisses;

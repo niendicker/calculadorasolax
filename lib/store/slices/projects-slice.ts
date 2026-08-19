@@ -35,7 +35,6 @@ export interface ProjectsSlice {
    * its PDF report) without switching the Projeto tab into edit mode. */
   loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
-  duplicateProject: (id: string) => Promise<SavedProject>;
   /** Recalculates a saved project's solution from its own stored
    * residentialOptions (same calculate-residential call the Dimensionamento
    * tab's "Calcular" makes), then persists the refreshed solution — so a
@@ -194,40 +193,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
           : {}),
       };
     });
-  },
-
-  duplicateProject: async (id) => {
-    const s = get();
-    const source = s.savedProjects.find((project) => project.id === id);
-    if (!source) throw new Error('project_not_found');
-
-    if (s.savedProjects.length >= ACCOUNT_LIMITS.projects) {
-      throw new Error(limitReachedMessage('projetos salvos', ACCOUNT_LIMITS.projects));
-    }
-
-    const userId = await getCurrentUserId();
-
-    const payload = {
-      user_id: userId,
-      client_id: source.clientId,
-      name: `${source.name} (cópia)`,
-      address: isAddressEmpty(source.address) ? null : source.address,
-      notes: source.notes || null,
-      residential_options: source.residentialOptions,
-      solution: source.solution,
-      services: source.services,
-      updated_at: new Date().toISOString(),
-    };
-
-    const data = await saveProjectRecord(null, payload);
-
-    const duplicated = projectFromRow(data);
-
-    set((st) => ({
-      savedProjects: [duplicated, ...st.savedProjects],
-    }));
-
-    return duplicated;
   },
 
   refreshProjectSolution: async (id) => {

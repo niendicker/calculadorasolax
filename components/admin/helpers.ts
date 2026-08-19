@@ -1,4 +1,5 @@
 import type { createClient } from '@/lib/supabase/client';
+import { listApprovedSolutions } from '@/lib/data/admin-repository';
 import {
   batteryQuantityBreakdown as sharedBatteryQuantityBreakdown,
   expansionModelSet as sharedExpansionModelSet,
@@ -537,23 +538,8 @@ export function sanitizePathPart(value: string) {
 }
 
 export async function fetchApprovedSolutions(supabase: ReturnType<typeof createClient>) {
-  const pageSize = 1000;
-  const rows: SolutionRow[] = [];
-
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from('approved_solutions')
-      .select(SOLUTION_COLUMNS)
-      .order('rated_power_w', { ascending: true })
-      .range(from, from + pageSize - 1);
-
-    if (error) return { data: rows, error };
-
-    const page = (data ?? []) as SolutionRow[];
-    rows.push(...page);
-
-    if (page.length < pageSize) return { data: rows, error: null };
-  }
+  const result = await listApprovedSolutions(supabase, SOLUTION_COLUMNS);
+  return { data: result.data as SolutionRow[], error: result.error };
 }
 
 /** Looks up the row being removed (for the activity log's beforeData/label)

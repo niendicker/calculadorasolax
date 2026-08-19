@@ -2,6 +2,37 @@ import type { createClient } from '@/lib/supabase/client';
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>;
 
+export async function listAdminCatalogRows(
+  supabase: BrowserSupabaseClient,
+  table: 'inverters' | 'batteries' | 'accessories',
+  columns: string
+) {
+  const { data, error } = await supabase.from(table).select(columns).order('model');
+  return { data, error };
+}
+
+export async function getProfileRole(supabase: BrowserSupabaseClient, userId: string) {
+  const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+  return { role: data?.role ?? null, error };
+}
+
+export async function listApprovedSolutions(supabase: BrowserSupabaseClient, columns: string) {
+  const pageSize = 1000;
+  const rows: unknown[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('approved_solutions')
+      .select(columns)
+      .order('rated_power_w', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) return { data: rows, error };
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < pageSize) return { data: rows, error: null };
+  }
+}
+
 export async function recordAdminActivity(supabase: BrowserSupabaseClient, input: {
   entityType: string; action: string; targetId?: string | null; targetLabel: string; summary: string; beforeData?: unknown; afterData?: unknown;
 }) {
