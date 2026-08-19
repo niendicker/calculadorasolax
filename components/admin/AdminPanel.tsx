@@ -575,21 +575,15 @@ export function AdminPanel() {
     }
 
     const previousIds = solutions.map((s) => s.id);
-    if (previousIds.length > 0) {
-      const { error: deleteError } = await supabase.from('approved_solutions').delete().in('id', previousIds);
-      if (deleteError) {
-        setSaving(false);
-        return setFailure(deleteError.message);
-      }
-    }
-
-    const { error: upsertError } = await supabase
-      .from('approved_solutions')
-      .upsert(regenerated, { onConflict: 'solution_code' });
-
-    if (upsertError) {
+    const refreshResponse = await fetch('/api/admin/solutions/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ generatedSolutions: regenerated, previousIds }),
+    });
+    const refreshResult = (await refreshResponse.json().catch(() => null)) as { error?: string } | null;
+    if (!refreshResponse.ok) {
       setSaving(false);
-      return setFailure(upsertError.message);
+      return setFailure(refreshResult?.error ?? 'Não foi possível atualizar as combinações.');
     }
 
     setSaving(false);
