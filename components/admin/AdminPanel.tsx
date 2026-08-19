@@ -6,6 +6,7 @@ import { LogOut, Menu, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { createClient } from '@/lib/supabase/client';
+import { listGeneratedSolutions, persistAdminEntity, recordAdminActivity, removeAdminEntities, removeAdminEntity } from '@/lib/data/admin-repository';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { AdminNav } from './AdminNav';
 import { ActivityLogsPanel, MetricsPanel, UsersPanel } from './DashboardPanels';
@@ -137,23 +138,11 @@ export function AdminPanel() {
     beforeData?: unknown;
     afterData?: unknown;
   }) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const { error: logError } = await supabase.from('admin_activity_logs').insert({
-      actor_id: user?.id ?? null,
-      actor_email: user?.email ?? null,
-      entity_type: entityType,
-      action,
-      target_id: targetId ?? null,
-      target_label: targetLabel || 'Registro sem nome',
-      summary,
-      before_data: beforeData ?? null,
-      after_data: afterData ?? null,
-    });
-
-    if (logError) setFailure(`Registro salvo, mas o log falhou: ${logError.message}`);
+    try {
+      await recordAdminActivity(supabase, { entityType, action, targetId, targetLabel, summary, beforeData, afterData });
+    } catch (error) {
+      setFailure(`Registro salvo, mas o log falhou: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+    }
   }
 
   /** Every save* handler below (inverter, battery, accessory, load-catalog
@@ -206,9 +195,8 @@ export function AdminPanel() {
       // literal — widen just for this call; buildPayload's actual return
       // type is still what targetLabel/summary below see.
       const row = payload as Record<string, unknown>;
-      const request = id ? supabase.from(table).update(row).eq('id', id) : supabase.from(table).insert(row);
-      const { error: saveError } = await request;
-      if (saveError) return setFailure(saveError.message);
+      try { await persistAdminEntity(supabase, table, id, row); }
+      catch (error) { return setFailure(error instanceof Error ? error.message : 'Não foi possível salvar o registro.'); }
 
       afterPersist?.();
       await recordActivityLog({
@@ -421,10 +409,7 @@ export function AdminPanel() {
       const touchedPairs = new Set(
         generatedSolutions.map((s) => `${s.inverter_model}::${s.battery_model}`)
       );
-      const { data: existingGenerated } = await supabase
-        .from('approved_solutions')
-        .select('id, solution_code, inverter_model, battery_model')
-        .eq('source_file', 'generated-rules');
+      const existingGenerated = await listGeneratedSolutions(supabase);
       const staleIds = (existingGenerated ?? [])
         .filter(
           (s) =>
@@ -433,7 +418,7 @@ export function AdminPanel() {
         )
         .map((s) => s.id);
       if (staleIds.length > 0) {
-        await supabase.from('approved_solutions').delete().in('id', staleIds);
+        await removeAdminEntities(supabase, 'approved_solutions', staleIds);
       }
     }
 
@@ -472,19 +457,17 @@ export function AdminPanel() {
       essRules,
       rules,
     });
-    const request = soft
-      ? supabase.from(table).update({ active: false }).eq('id', id)
-      : supabase.from(table).delete().eq('id', id);
-    const { error: removeError } = await request;
     setSaving(false);
 
-    if (removeError) {
+    try {
+      await removeAdminEntity(supabase, table, id, soft);
+    } catch (error) {
       setRemovingIds((current) => {
         const next = new Set(current);
         next.delete(id);
         return next;
       });
-      return setFailure(removeError.message);
+      return setFailure(error instanceof Error ? error.message : 'Não foi possível remover o registro.');
     }
     await recordActivityLog({
       entityType: logTarget.entityType,
@@ -514,16 +497,17 @@ export function AdminPanel() {
     setRemovingIds((current) => new Set([...current, ...ids]));
     setStatus(`Removendo ${ids.length} combinações...`);
     setError(null);
-    const { error: removeError } = await supabase.from('approved_solutions').delete().in('id', ids);
     setSaving(false);
 
-    if (removeError) {
+    try {
+      await removeAdminEntities(supabase, 'approved_solutions', ids);
+    } catch (error) {
       setRemovingIds((current) => {
         const next = new Set(current);
         for (const id of ids) next.delete(id);
         return next;
       });
-      return setFailure(removeError.message);
+      return setFailure(error instanceof Error ? error.message : 'Não foi possível remover as combinações.');
     }
     await recordActivityLog({
       entityType: 'solution',
