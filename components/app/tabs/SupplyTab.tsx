@@ -5,7 +5,7 @@ import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
-import { setUserSupplierPreference } from '@/lib/data/supplier-repository';
+import { loadSupplierWorkspace, setUserSupplierPreference } from '@/lib/data/supplier-repository';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { SupplierOfferView } from '@/lib/procurement/types';
 import type { Solution, StockProductType } from '@/lib/types';
@@ -101,74 +101,18 @@ export function SupplyTab({
   }, [status]);
 
   const load = useCallback(async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id ?? null;
-    setUserId(uid);
-
-    // Offers are scoped to suppliers the admin marked as defaults for every
-    // account, plus whichever suppliers this user picked below — see
-    // supabase/migrations/0064_user_supplier_preferences.sql. app_settings and
-    // user_supplier_preferences are both RLS-restricted to signed-in users, so
-    // a signed-out visitor skips them entirely instead of getting a raw
-    // Postgrest "no rows" error back from app_settings' .single().
-    const [supplierResult, settingsResult, preferencesResult, orderResult] = await Promise.all([
-      supabase
-        .from('suppliers')
-        .select('id, name, description, order_mode, is_default_for_all, supports_partner_orders, email, logo_url, website_url')
-        .eq('active', true)
-        .eq('ordering_enabled', true)
-        .order('name'),
-      uid
-        ? supabase.from('app_settings').select('max_user_suppliers').eq('id', true).single()
-        : Promise.resolve({ data: null as { max_user_suppliers: number } | null, error: null }),
-      uid
-        ? supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', uid)
-        : Promise.resolve({ data: [] as { supplier_id: string }[], error: null }),
-      supabase
-        .from('purchase_orders')
-        .select(
-          'id, supplier_id, created_at, request_type, status, currency, subtotal, total_amount, external_order_id, delivery_address, project_id, projects(name), suppliers(name), purchase_order_items(id, product_model, supplier_sku, quantity, unit_price, line_total)'
-        )
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ]);
-    const supplierList = (supplierResult.data ?? []) as Supplier[];
-    const defaultSupplierIds = new Set(
-      supplierList.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id)
-    );
-    // A supplier promoted to default-for-all after the user already picked
-    // it shouldn't keep eating into their quota — supabase/migrations/0072
-    // cleans up the underlying row, but this filter keeps the count correct
-    // client-side too regardless of when that cleanup has run.
-    const preferredSupplierIds = ((preferencesResult.data ?? []) as { supplier_id: string }[])
-      .map((row) => row.supplier_id)
-      .filter((id) => !defaultSupplierIds.has(id));
-    const allowedSupplierIds = [
-      ...new Set([
-        ...supplierList.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id),
-        ...preferredSupplierIds,
-      ]),
-    ];
-
-    const offerResult = await supabase
-      .from('supplier_offers')
-      .select(
-        'id, supplier_id, unit_price, stock_quantity, lead_time_days, minimum_quantity, valid_until, supplier_product_mappings!inner(product_type, product_model, supplier_sku, pack_quantity), suppliers!inner(name, currency, order_mode, minimum_order_value)'
-      )
-      .eq('active', true)
-      .in('supplier_id', allowedSupplierIds)
-      // Safety cap — this page has no pagination UI yet; revisit if a catalog
-      // ever legitimately needs more offers visible at once.
-      .limit(300)
-      .order('unit_price');
-
-    const loadError = supplierResult.error ?? settingsResult.error ?? preferencesResult.error ?? offerResult.error ?? orderResult.error;
-    if (loadError) setFailure(loadError.message);
-    setSuppliers(supplierList);
-    setMaxUserSuppliers(settingsResult.data?.max_user_suppliers ?? 2);
-    setPreferredIds(preferredSupplierIds);
-    setOffers((offerResult.data ?? []) as unknown as SupplierOfferView[]);
-    setOrders((orderResult.data ?? []) as unknown as Order[]);
+    try {
+      const workspace = await loadSupplierWorkspace(supabase);
+      const { data: userData } = await supabase.auth.getUser();
+      setUserId(userData.user?.id ?? null);
+      setSuppliers(workspace.suppliers as Supplier[]);
+      setMaxUserSuppliers(workspace.maxUserSuppliers);
+      setPreferredIds(workspace.preferredIds);
+      setOffers(workspace.offers as unknown as SupplierOfferView[]);
+      setOrders(workspace.orders as unknown as Order[]);
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : 'Não foi possível carregar os fornecedores.');
+    }
     setLoading(false);
   }, [supabase]);
 
