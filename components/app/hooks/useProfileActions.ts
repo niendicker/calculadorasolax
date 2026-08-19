@@ -3,6 +3,7 @@ import type { useRouter } from 'next/navigation';
 import { isAddressEmpty } from '@/lib/address';
 import type { createClient } from '@/lib/supabase/client';
 import type { InlineProfile } from '../types';
+import { uploadPublicAsset } from '@/lib/data/storage-repository';
 
 export function useProfileActions({
   supabase,
@@ -88,24 +89,15 @@ export function useProfileActions({
 
     const extension = file.name.split('.').pop();
     const path = `${profile.id}/logo/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
-    const { error: uploadError } = await supabase.storage
-      .from('profile-assets')
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type || undefined,
-      });
-
     setProfileSaving(false);
-
-    if (uploadError) {
-      setProfileError(uploadError.message);
+    try {
+      const publicUrl = await uploadPublicAsset(supabase, 'profile-assets', path, file);
+      setProfile({ ...profile, companyLogoUrl: publicUrl });
+      setProfileMessage('Logomarca carregada. Salve o perfil para manter a alteração.');
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Falha ao carregar a logomarca.');
       return;
     }
-
-    const { data } = supabase.storage.from('profile-assets').getPublicUrl(path);
-    setProfile({ ...profile, companyLogoUrl: data.publicUrl });
-    setProfileMessage('Logomarca carregada. Salve o perfil para manter a alteração.');
   }
 
   async function deleteAccount() {

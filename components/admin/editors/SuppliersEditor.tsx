@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
+import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { orderStatusLabels } from '@/lib/procurement/types';
 import { sanitizePathPart } from '../helpers';
 
@@ -105,16 +106,16 @@ export function SuppliersEditor() {
     setMessage(null);
     const extension = file.name.split('.').pop();
     const path = `suppliers/${sanitizePathPart(supplierForm.slug || 'fornecedor')}/logo/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
-    const { error: uploadError } = await supabase.storage
-      .from('product-assets')
-      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
-    setUploadingLogo(false);
-    if (uploadError) {
-      setMessage(uploadError.message);
+    let publicUrl: string;
+    try {
+      publicUrl = await uploadPublicAsset(supabase, 'product-assets', path, file);
+    } catch (error) {
+      setUploadingLogo(false);
+      setMessage(error instanceof Error ? error.message : 'Falha ao carregar a logo.');
       return;
     }
-    const { data } = supabase.storage.from('product-assets').getPublicUrl(path);
-    setSupplierForm((current) => ({ ...current, logo_url: data.publicUrl }));
+    setUploadingLogo(false);
+    setSupplierForm((current) => ({ ...current, logo_url: publicUrl }));
     setMessage('Logo carregada. Salve o fornecedor para manter a alteração.');
   }
 

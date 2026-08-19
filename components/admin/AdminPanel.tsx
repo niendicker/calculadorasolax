@@ -6,6 +6,7 @@ import { LogOut, Menu, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { createClient } from '@/lib/supabase/client';
+import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { AdminNav } from './AdminNav';
 import { ActivityLogsPanel, MetricsPanel, UsersPanel } from './DashboardPanels';
 import { AccessoriesEditor } from './editors/AccessoriesEditor';
@@ -240,18 +241,7 @@ export function AdminPanel() {
       extension ? `.${extension}` : ''
     }`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('product-assets')
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type || undefined,
-      });
-
-    if (uploadError) throw new Error(uploadError.message);
-
-    const { data } = supabase.storage.from('product-assets').getPublicUrl(path);
-    return data.publicUrl;
+    return uploadPublicAsset(supabase, 'product-assets', path, file);
   }
 
   function editSolution(solution: SolutionRow) {

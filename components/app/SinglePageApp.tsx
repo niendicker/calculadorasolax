@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import { buildClientQuoteText, buildPdfFileName, buildWhatsAppShareUrl, calculateSystemCost, expansionModelSet } from './helpers';
@@ -667,14 +668,7 @@ export function SinglePageApp() {
 
     const extension = file.name.split('.').pop();
     const path = `${profile.id}/feature-photos/${slot}/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
-    const { error: uploadError } = await supabase.storage
-      .from('profile-assets')
-      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from('profile-assets').getPublicUrl(path);
-    return data.publicUrl;
+    return uploadPublicAsset(supabase, 'profile-assets', path, file);
   }
 
   // Opening the summary drawer here is a no-op on desktop (xl:static already
