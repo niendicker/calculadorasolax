@@ -538,10 +538,13 @@ function ServiceCard({
   const [nameSaveState, saveName] = useInlineSave((name: string) => onUpdateName(service.id, name));
   const [valueSaveState, saveValue] = useInlineSave((value: number) => onUpdateValue(service.id, value));
   const [unitSaveState, saveUnit] = useInlineSave((unit: UserServicePricingUnit) => onUpdatePricingUnit(service.id, unit));
+  const pricingUnit = service.pricingUnit ?? 'project';
+  const pricingDescription = servicePricingDescription(pricingUnit);
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3">
-      <div className="min-w-0 flex-1 space-y-2">
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1 space-y-3">
         <div className="flex items-center gap-1.5">
           <Input
             key={service.id}
@@ -554,7 +557,8 @@ function ServiceCard({
           />
           <InlineSaveStatus state={nameSaveState} />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Preço unitário</span>
           <span className="text-xs text-muted-foreground">R$</span>
           <input
             key={`${service.id}-value`}
@@ -572,17 +576,23 @@ function ServiceCard({
           />
           <InlineSaveStatus state={valueSaveState} />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Cobrança</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor={`service-unit-${service.id}`} className="text-xs font-medium text-muted-foreground">Cobrar por</label>
           <select
+            id={`service-unit-${service.id}`}
             aria-label={`Unidade de cobrança do serviço ${service.name}`}
-            value={service.pricingUnit}
+            value={pricingUnit}
             onChange={(event) => void saveUnit(event.target.value as UserServicePricingUnit)}
             className="h-8 min-w-44 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
           </select>
           <InlineSaveStatus state={unitSaveState} />
+        </div>
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Como será calculado</p>
+          <p className="mt-0.5">{pricingDescription}</p>
+          <p className="mt-1 font-medium text-primary">{formatCurrencyBRL(service.unitValue)} × {pricingUnit === 'project' ? '1 projeto' : 'quantidade encontrada no dimensionamento'}</p>
         </div>
       </div>
       <ConfirmDeleteButton
@@ -593,7 +603,22 @@ function ServiceCard({
         onConfirm={() => onRemove(service.id)}
       />
     </div>
+    </div>
   );
+}
+
+function servicePricingDescription(unit: UserServicePricingUnit): string {
+  switch (unit) {
+    case 'project': return 'Valor fixo aplicado uma vez ao projeto.';
+    case 'pv_kwp': return 'Multiplica o preço pela potência fotovoltaica da solução, em kWp.';
+    case 'nominal_kva': return 'Multiplica o preço pela potência nominal da solução, em kVA.';
+    case 'peak_kva': return 'Multiplica o preço pela potência de pico da solução, em kVA.';
+    case 'daily_kwh': return 'Multiplica o preço pelo consumo diário calculado, em kWh/dia.';
+    case 'battery_qty': return 'Multiplica o preço pela quantidade de baterias da solução.';
+    case 'inverter_qty': return 'Multiplica o preço pela quantidade de inversores da solução.';
+    case 'accessory_qty': return 'Multiplica o preço pela quantidade de acessórios necessários.';
+    case 'load_qty': return 'Multiplica o preço pela quantidade de cargas cadastradas.';
+  }
 }
 
 function AddServiceCard({
@@ -661,9 +686,14 @@ function AddServiceCard({
   }
 
   return (
-    <div className="space-y-2 rounded-lg border bg-card p-3">
+    <div className="space-y-3 rounded-lg border border-dashed bg-card p-4">
+      <div>
+        <p className="text-sm font-medium">Novo serviço</p>
+        <p className="text-xs text-muted-foreground">Defina o preço e o critério usado no orçamento.</p>
+      </div>
       <Input aria-label="Nome do serviço" placeholder="Ex.: Instalação" value={name} onChange={(event) => setName(event.target.value)} />
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Preço unitário</span>
         <span className="text-xs text-muted-foreground">R$</span>
         <input
           type="number"
@@ -676,9 +706,14 @@ function AddServiceCard({
           className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
-      <select aria-label="Unidade de cobrança do serviço" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+      <label htmlFor="new-service-unit" className="text-xs font-medium text-muted-foreground">Cobrar por</label>
+      <select id="new-service-unit" aria-label="Unidade de cobrança do serviço" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
         {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
       </select>
+      <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground">{servicePricingDescription(pricingUnit)}</p>
+        <p className="mt-1">Ex.: R$ 350,00/kWp × 6,50 kWp.</p>
+      </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={!name.trim() || saving} onClick={handleAdd}>
