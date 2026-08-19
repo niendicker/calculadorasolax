@@ -700,6 +700,8 @@ export function SizingTab({
                 nominalW={nominalW}
                 peakW={peakW}
                 dailyKwh={dailyKwh}
+                loads={residentialOptions.loads as Array<{ qty: number; powerW: number; usageMode?: 'fixed' | 'fraction'; usageFactor?: number; fixedHours?: number }>}
+                operationHours={residentialOptions.operationHours}
               />
             )}
             {downloadReportButton}

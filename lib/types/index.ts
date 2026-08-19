@@ -262,6 +262,29 @@ export interface UserLoadCatalogItem {
 
 export type StockProductType = 'inverter' | 'battery' | 'accessory';
 
+export type UserServicePricingUnit =
+  | 'project'
+  | 'pv_kwp'
+  | 'nominal_kva'
+  | 'peak_kva'
+  | 'daily_kwh'
+  | 'battery_qty'
+  | 'inverter_qty'
+  | 'accessory_qty'
+  | 'load_qty';
+
+export const USER_SERVICE_PRICING_UNITS: { value: UserServicePricingUnit; label: string; suffix: string }[] = [
+  { value: 'project', label: 'Projeto', suffix: 'projeto' },
+  { value: 'pv_kwp', label: 'Potência fotovoltaica', suffix: 'kWp' },
+  { value: 'nominal_kva', label: 'Potência nominal', suffix: 'kVA nominal' },
+  { value: 'peak_kva', label: 'Potência de pico', suffix: 'kVA pico' },
+  { value: 'daily_kwh', label: 'Consumo diário', suffix: 'kWh/dia' },
+  { value: 'battery_qty', label: 'Quantidade de baterias', suffix: 'bateria' },
+  { value: 'inverter_qty', label: 'Quantidade de inversores', suffix: 'inversor' },
+  { value: 'accessory_qty', label: 'Quantidade de acessórios', suffix: 'acessório' },
+  { value: 'load_qty', label: 'Quantidade de cargas', suffix: 'carga' },
+];
+
 /** Per-category sell margin (%), applied on top of the user's own stock
  * price when computing a solution's total cost — see calculateSystemCost.
  * Services have no separate cost basis, so they're not included here. */
@@ -290,6 +313,7 @@ export interface UserServiceItem {
   id: string;
   name: string;
   unitValue: number;
+  pricingUnit?: UserServicePricingUnit;
   createdAt: string;
   updatedAt: string;
 }

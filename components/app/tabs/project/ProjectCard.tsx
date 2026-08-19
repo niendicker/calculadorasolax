@@ -75,7 +75,7 @@ export function ProjectCard({
   const isStale = !hasSolution && idleDays >= STALE_AFTER_DAYS;
   const systemCost =
     project.solution || project.services.length > 0
-      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog)
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog, project.residentialOptions)
       : null;
 
   // "Atualizar" recalculates the solution from the project's own saved loads

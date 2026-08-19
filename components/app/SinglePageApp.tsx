@@ -119,6 +119,7 @@ export function SinglePageApp() {
     addService,
     updateServiceName,
     updateServiceValue,
+    updateServicePricingUnit,
     removeService,
     clearUserData,
     setTopology,
@@ -534,7 +535,7 @@ export function SinglePageApp() {
     };
     const systemCost =
       solution || services.length > 0
-        ? calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog)
+        ? calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog, residentialOptions)
         : null;
     const quoteText = buildClientQuoteText(shareableProject, quoteClient.name, batteryCatalog, services, systemCost);
     const whatsAppUrl = buildWhatsAppShareUrl(quoteClient.phone, quoteText);
@@ -932,6 +933,7 @@ export function SinglePageApp() {
               onAddService={addService}
               onUpdateServiceName={updateServiceName}
               onUpdateServiceValue={updateServiceValue}
+              onUpdateServicePricingUnit={updateServicePricingUnit}
               onRemoveService={removeService}
               marginSettings={marginSettings}
               onUpdateMarginPercent={updateMarginPercent}

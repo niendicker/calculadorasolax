@@ -25,6 +25,7 @@ import {
   buildMarginSummary,
   calculateDegradedPaybackMonths,
   calculateSystemCost,
+  servicePricingUnitLabel,
   calculateTariffSavings,
   formatCurrencyBRL,
   maskDocument,
@@ -498,7 +499,19 @@ function ProductsSection({
         <View style={styles.subBox}>
           <Text style={styles.subBoxTitle}>Serviços</Text>
           {services.map((line, index) => {
-            const unitValue = userServices?.find((service) => service.id === line.serviceId)?.unitValue;
+            const service = userServices?.find((item) => item.id === line.serviceId);
+            const pricingUnit = service?.pricingUnit ?? 'project';
+            const quantity = service
+              ? pricingUnit === 'project' ? 1
+              : pricingUnit === 'pv_kwp' ? solution.pvPowerKw
+              : pricingUnit === 'nominal_kva' ? nominalW / 1000
+              : pricingUnit === 'peak_kva' ? peakW / 1000
+              : pricingUnit === 'daily_kwh' ? dailyKwh
+              : pricingUnit === 'battery_qty' ? solution.batteryQty
+              : pricingUnit === 'inverter_qty' ? solution.inverterQty ?? 1
+              : null
+              : null;
+            const effectiveQuantity = pricingUnit === 'project' ? line.qty : quantity;
             return (
               <View
                 key={line.serviceId}
@@ -507,10 +520,10 @@ function ProductsSection({
               >
                 <Text style={styles.subBoxRowLabel}>
                   {line.name}
-                  {line.qty !== 1 ? ` × ${line.qty}` : ''}
+                  {effectiveQuantity != null ? ` × ${effectiveQuantity.toFixed(2).replace(/\.00$/, '')} ${servicePricingUnitLabel(pricingUnit)}` : ''}
                 </Text>
                 <Text style={styles.subBoxRowValue}>
-                  {unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}
+                  {service?.unitValue != null && effectiveQuantity != null ? formatCurrencyBRL(service.unitValue * effectiveQuantity) : 'sem preço'}
                 </Text>
               </View>
             );
@@ -654,7 +667,7 @@ export function ProjectQuotePdfDocument({
     maxBatteryDischargePowerW: inverterPerformance?.maxBatteryDischargePowerW ?? null,
     maxBatteryChargePowerW: inverterPerformance?.maxBatteryChargePowerW ?? null,
   });
-  const reportSystemCost = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog);
+  const reportSystemCost = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog, { loads, operationHours });
   const reportPaybackMonths =
     tariffSavings?.tariffOrderValid && tariffSavings.annualSavings > 0 && reportSystemCost.isComplete
       ? calculateDegradedPaybackMonths(reportSystemCost.totalCost, tariffSavings)

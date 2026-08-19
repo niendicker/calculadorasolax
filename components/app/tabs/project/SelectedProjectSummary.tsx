@@ -26,6 +26,7 @@ import {
   buildQuoteShareSnapshot,
   buildWhatsAppShareUrl,
   calculateSystemCost,
+  servicePricingUnitLabel,
   formatCurrencyBRL,
   normalizeAccessoryLine,
   solutionMetrics,
@@ -106,7 +107,7 @@ export function SelectedProjectSummary({
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
     project.solution || project.services.length > 0
-      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog)
+      ? calculateSystemCost(project.solution, userStockItems, project.services, userServices, marginSettings, batteryCatalog, project.residentialOptions)
       : null;
   const batteryParts = project.solution
     ? batteryQuantityBreakdown(
@@ -335,15 +336,15 @@ export function SelectedProjectSummary({
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p className="font-medium text-foreground">Serviços</p>
                   {project.services.map((line) => {
-                    const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
+                    const detail = systemCost?.serviceDetails?.find((item) => item.serviceId === line.serviceId);
                     return (
                       <div key={line.serviceId} className="flex items-center justify-between gap-2">
                         <span className="truncate">
                           {line.name}
-                          {line.qty !== 1 ? ` × ${line.qty}` : ''}
+                          {detail?.quantity != null ? ` × ${detail.quantity.toFixed(2).replace(/\.00$/, '')} ${servicePricingUnitLabel(detail.pricingUnit)}` : ''}
                         </span>
                         <span className="shrink-0">
-                          {unitValue != null ? formatCurrencyBRL(unitValue * line.qty) : 'sem preço'}
+                          {detail?.total != null ? formatCurrencyBRL(detail.total) : 'sem preço'}
                         </span>
                       </div>
                     );

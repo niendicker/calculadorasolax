@@ -159,6 +159,8 @@ export function ResultSummary({
   nominalW,
   peakW,
   dailyKwh,
+  loads,
+  operationHours,
 }: {
   solution: Solution;
   batteryCatalog: BatteryCatalogOption[];
@@ -176,6 +178,8 @@ export function ResultSummary({
   nominalW: number;
   peakW: number;
   dailyKwh: number;
+  loads?: { qty: number; powerW: number; usageMode?: 'fixed' | 'fraction'; usageFactor?: number; fixedHours?: number }[];
+  operationHours?: number;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -192,6 +196,7 @@ export function ResultSummary({
     userServices,
     marginSettings,
     batteryCatalog
+    , { loads: loads ?? [], operationHours: operationHours ?? 0 }
   );
   const tariffSavings = calculateTariffSavings(whiteTariff, {
     totalMonthlyConsumptionKwh: whiteTariff?.totalMonthlyConsumptionKwh || pv?.monthlyConsumptionKwh || null,

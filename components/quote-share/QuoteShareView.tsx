@@ -125,7 +125,8 @@ export function QuoteShareView({
               {snapshot.services.map((service) => (
                 <li key={service.name}>
                   {service.name}
-                  {service.qty !== 1 ? ` × ${service.qty}` : ''}
+                  {service.qty != null ? ` × ${service.qty.toFixed(2).replace(/\.00$/, '')} ${service.unitLabel}` : ''}
+                  {service.total != null ? ` — ${formatCurrencyBRL(service.total)}` : ''}
                 </li>
               ))}
             </ul>

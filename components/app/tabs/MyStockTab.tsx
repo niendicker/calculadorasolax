@@ -10,7 +10,7 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import { listOrderingSuppliers, listSupplierOffers, listUserSupplierPreferences } from '@/lib/data/supplier-repository';
-import type { MarginSettings, ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
+import { USER_SERVICE_PRICING_UNITS, type MarginSettings, type ProductDocument, type StockProductType, type UserServiceItem, type UserServicePricingUnit, type UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { formatCurrencyBRL } from '../helpers';
 import { PageHeader } from '../shell/slots';
@@ -96,6 +96,7 @@ export function MyStockTab({
   onAddService,
   onUpdateServiceName,
   onUpdateServiceValue,
+  onUpdateServicePricingUnit = async () => {},
   onRemoveService,
   marginSettings,
   onUpdateMarginPercent,
@@ -108,9 +109,10 @@ export function MyStockTab({
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   userServices: UserServiceItem[];
-  onAddService: (input: { name: string; unitValue: number }) => Promise<void>;
+  onAddService: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
   onUpdateServiceName: (id: string, name: string) => Promise<void>;
   onUpdateServiceValue: (id: string, unitValue: number) => Promise<void>;
+  onUpdateServicePricingUnit?: (id: string, pricingUnit: UserServicePricingUnit) => Promise<void>;
   onRemoveService: (id: string) => Promise<void>;
   marginSettings: MarginSettings;
   onUpdateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
@@ -317,6 +319,7 @@ export function MyStockTab({
           onAddService={onAddService}
           onUpdateServiceName={onUpdateServiceName}
           onUpdateServiceValue={onUpdateServiceValue}
+          onUpdateServicePricingUnit={onUpdateServicePricingUnit}
           onRemoveService={onRemoveService}
         />
       )}
@@ -473,12 +476,14 @@ function ServicesSection({
   onAddService,
   onUpdateServiceName,
   onUpdateServiceValue,
+  onUpdateServicePricingUnit,
   onRemoveService,
 }: {
   userServices: UserServiceItem[];
-  onAddService: (input: { name: string; unitValue: number }) => Promise<void>;
+  onAddService: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
   onUpdateServiceName: (id: string, name: string) => Promise<void>;
   onUpdateServiceValue: (id: string, unitValue: number) => Promise<void>;
+  onUpdateServicePricingUnit: (id: string, pricingUnit: UserServicePricingUnit) => Promise<void>;
   onRemoveService: (id: string) => Promise<void>;
 }) {
   const atLimit = userServices.length >= ACCOUNT_LIMITS.userServices;
@@ -507,6 +512,7 @@ function ServicesSection({
             service={service}
             onUpdateName={onUpdateServiceName}
             onUpdateValue={onUpdateServiceValue}
+            onUpdatePricingUnit={onUpdateServicePricingUnit}
             onRemove={onRemoveService}
           />
         ))}
@@ -520,15 +526,18 @@ function ServiceCard({
   service,
   onUpdateName,
   onUpdateValue,
+  onUpdatePricingUnit,
   onRemove,
 }: {
   service: UserServiceItem;
   onUpdateName: (id: string, name: string) => Promise<void>;
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
+  onUpdatePricingUnit: (id: string, pricingUnit: UserServicePricingUnit) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
   const [nameSaveState, saveName] = useInlineSave((name: string) => onUpdateName(service.id, name));
   const [valueSaveState, saveValue] = useInlineSave((value: number) => onUpdateValue(service.id, value));
+  const [unitSaveState, saveUnit] = useInlineSave((unit: UserServicePricingUnit) => onUpdatePricingUnit(service.id, unit));
 
   return (
     <div className="flex items-start justify-between gap-3 rounded-lg border bg-card p-3">
@@ -563,6 +572,18 @@ function ServiceCard({
           />
           <InlineSaveStatus state={valueSaveState} />
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Cobrança</span>
+          <select
+            aria-label={`Unidade de cobrança do serviço ${service.name}`}
+            value={service.pricingUnit}
+            onChange={(event) => void saveUnit(event.target.value as UserServicePricingUnit)}
+            className="h-8 min-w-44 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
+          </select>
+          <InlineSaveStatus state={unitSaveState} />
+        </div>
       </div>
       <ConfirmDeleteButton
         ariaLabel={`Remover serviço ${service.name}`}
@@ -584,11 +605,12 @@ function AddServiceCard({
   atLimit: boolean;
   stockCount: number;
   stockLimit: number;
-  onAdd: (input: { name: string; unitValue: number }) => Promise<void>;
+  onAdd: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
+  const [pricingUnit, setPricingUnit] = useState<UserServicePricingUnit>('project');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -626,10 +648,11 @@ function AddServiceCard({
     setSaving(true);
     setError(null);
     try {
-      await onAdd({ name: trimmedName, unitValue: parsedValue });
+      await onAdd({ name: trimmedName, unitValue: parsedValue, ...(pricingUnit !== 'project' ? { pricingUnit } : {}) });
       setOpen(false);
       setName('');
       setValue('');
+      setPricingUnit('project');
     } catch (err) {
       setError(isLimitError(err) ? err.message : 'Não foi possível adicionar o serviço. Tente novamente.');
     } finally {
@@ -653,6 +676,9 @@ function AddServiceCard({
           className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
+      <select aria-label="Unidade de cobrança do serviço" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+        {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
+      </select>
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={!name.trim() || saving} onClick={handleAdd}>

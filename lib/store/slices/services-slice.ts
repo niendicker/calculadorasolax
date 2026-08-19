@@ -1,12 +1,13 @@
 import type { StateCreator } from 'zustand';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
-import type { ProjectServiceLine, UserServiceItem } from '@/lib/types';
+import type { ProjectServiceLine, UserServiceItem, UserServicePricingUnit } from '@/lib/types';
 import {
   deleteUserService,
   insertUserService,
   listUserServices,
   updateUserServiceName,
   updateUserServiceValue,
+  updateUserServicePricingUnit,
 } from '@/lib/data/catalog-repository';
 import { userServiceFromRow } from '../row-mappers';
 import type { WizardStore } from '../wizard-store';
@@ -18,9 +19,10 @@ export interface ServicesSlice {
    * the project, see saveCurrentProject/loadProject in the projects slice. */
   services: ProjectServiceLine[];
   fetchUserServices: () => Promise<void>;
-  addService: (input: { name: string; unitValue: number }) => Promise<void>;
+  addService: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
   updateServiceName: (id: string, name: string) => Promise<void>;
   updateServiceValue: (id: string, unitValue: number) => Promise<void>;
+  updateServicePricingUnit: (id: string, pricingUnit: UserServicePricingUnit) => Promise<void>;
   removeService: (id: string) => Promise<void>;
   /** Adds a line for this service to the project currently being edited, at
    * qty 1 — a no-op if it's already on the list. */
@@ -64,6 +66,11 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
     set((s) => ({
       userServices: s.userServices.map((item) => (item.id === id ? { ...item, unitValue } : item)),
     }));
+  },
+
+  updateServicePricingUnit: async (id, pricingUnit) => {
+    await updateUserServicePricingUnit(id, pricingUnit);
+    set((s) => ({ userServices: s.userServices.map((item) => (item.id === id ? { ...item, pricingUnit } : item)) }));
   },
 
   removeService: async (id) => {

@@ -14,6 +14,7 @@ import type {
   Solution,
   StockProductType,
   UserServiceItem,
+  UserServicePricingUnit,
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
@@ -176,6 +177,58 @@ export interface SystemCostEstimate {
   /** false when at least one item in the solution has no price in the user's stock. */
   isComplete: boolean;
   missingItems: string[];
+  serviceDetails?: ServiceCostDetail[];
+}
+
+export interface ServiceCostDetail {
+  serviceId: string;
+  name: string;
+  pricingUnit: UserServicePricingUnit;
+  quantity: number | null;
+  unitValue: number;
+  total: number | null;
+}
+
+type ServiceLoad = { qty: number; powerW: number; usageMode?: 'fixed' | 'fraction'; usageFactor?: number; fixedHours?: number };
+
+export function servicePricingUnitLabel(unit: UserServicePricingUnit): string {
+  return {
+    project: 'projeto', pv_kwp: 'kWp', nominal_kva: 'kVA nominal', peak_kva: 'kVA pico',
+    daily_kwh: 'kWh/dia', battery_qty: 'baterias', inverter_qty: 'inversores',
+    accessory_qty: 'acessórios', load_qty: 'cargas',
+  }[unit];
+}
+
+export function calculateServiceQuantity(
+  pricingUnit: UserServicePricingUnit,
+  solution: Solution | null,
+  residentialOptions?: { loads: ServiceLoad[]; operationHours: number },
+  batteryCatalog: { model: string; standardPowerKw: number | null; peakPowerKw: number | null }[] = []
+): number | null {
+  if (pricingUnit === 'project') return 1;
+  if (!solution) return null;
+  if (pricingUnit === 'pv_kwp') return solution.pvPowerKw;
+  if (pricingUnit === 'battery_qty') return solution.batteryQty;
+  if (pricingUnit === 'inverter_qty') return solution.inverterQty ?? 1;
+  if (pricingUnit === 'accessory_qty') {
+    return solution.accessories.reduce((sum, item) => {
+      const normalized = normalizeAccessoryLine(item);
+      return normalized.bundled || normalized.optional ? sum : sum + normalized.qty;
+    }, 0);
+  }
+  if (pricingUnit === 'load_qty') return residentialOptions?.loads.reduce((sum, load) => sum + load.qty, 0) ?? null;
+  if (pricingUnit === 'daily_kwh') {
+    return residentialOptions
+      ? residentialOptions.loads.reduce((sum, load) => {
+          const hours = load.usageMode === 'fixed' ? Math.max(0, load.fixedHours ?? 0) : residentialOptions.operationHours * (load.usageFactor ?? 1);
+          return sum + (load.powerW * load.qty * hours) / 1000;
+        }, 0)
+      : null;
+  }
+  const metrics = solutionMetrics(solution, batteryCatalog);
+  return (pricingUnit === 'nominal_kva' ? metrics.nominalW : metrics.peakW) == null
+    ? null
+    : (pricingUnit === 'nominal_kva' ? metrics.nominalW : metrics.peakW)! / 1000;
 }
 
 const noMargin: MarginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 };
@@ -202,7 +255,8 @@ export function calculateSystemCost(
   services: ProjectServiceLine[] = [],
   userServices: UserServiceItem[] = [],
   marginSettings: MarginSettings = noMargin,
-  batteryCatalog: { model: string; expansionModel?: string | null }[] = []
+  batteryCatalog: { model: string; expansionModel?: string | null; standardPowerKw?: number | null; peakPowerKw?: number | null }[] = [],
+  residentialOptions?: { loads: ServiceLoad[]; operationHours: number }
 ): SystemCostEstimate {
   function priceFor(productType: StockProductType, model: string): number | undefined {
     const unitValue = userStockItems.find(
@@ -239,6 +293,7 @@ export function calculateSystemCost(
   let totalCost = 0;
   let pricedItemsCount = 0;
   const missingItems: string[] = [];
+  const serviceDetails: ServiceCostDetail[] = [];
 
   for (const item of productItems) {
     const unitValue = priceFor(item.productType, item.model);
@@ -251,12 +306,17 @@ export function calculateSystemCost(
   }
 
   for (const line of services) {
-    const unitValue = userServices.find((service) => service.id === line.serviceId)?.unitValue;
-    if (unitValue !== undefined) {
-      totalCost += unitValue * line.qty;
+    const service = userServices.find((item) => item.id === line.serviceId);
+    const unitValue = service?.unitValue;
+    const pricingUnit = service?.pricingUnit ?? 'project';
+    const quantity = service ? calculateServiceQuantity(pricingUnit, solution, residentialOptions, batteryCatalog.map((item) => ({ model: item.model, standardPowerKw: item.standardPowerKw ?? null, peakPowerKw: item.peakPowerKw ?? null }))) : null;
+    const effectiveQuantity = pricingUnit === 'project' ? line.qty : quantity;
+    serviceDetails.push({ serviceId: line.serviceId, name: line.name, pricingUnit, quantity: effectiveQuantity, unitValue: unitValue ?? 0, total: unitValue != null && effectiveQuantity != null ? unitValue * effectiveQuantity : null });
+    if (unitValue !== undefined && effectiveQuantity !== null) {
+      totalCost += unitValue * effectiveQuantity;
       pricedItemsCount += 1;
     } else {
-      missingItems.push(line.name);
+      missingItems.push(service ? `${line.name} (aguardando dimensionamento)` : line.name);
     }
   }
 
@@ -268,6 +328,7 @@ export function calculateSystemCost(
     totalItemsCount,
     isComplete: pricedItemsCount === totalItemsCount,
     missingItems,
+    serviceDetails,
   };
 }
 
@@ -654,7 +715,12 @@ export function buildClientQuoteText(
   if (services.length > 0) {
     lines.push('', '*Serviços inclusos:*');
     for (const line of services) {
-      lines.push(`- ${line.name}${line.qty !== 1 ? ` × ${line.qty}` : ''}`);
+      const detail = systemCost?.serviceDetails?.find((item) => item.serviceId === line.serviceId);
+      const quantity = detail?.quantity != null
+        ? ` × ${detail.quantity.toFixed(2).replace(/\.00$/, '')} ${servicePricingUnitLabel(detail.pricingUnit)}`
+        : line.qty !== 1 ? ` × ${line.qty}` : '';
+      const total = detail?.total != null ? ` — ${formatCurrencyBRL(detail.total)}` : '';
+      lines.push(`- ${line.name}${quantity}${total}`);
     }
   }
 
@@ -707,7 +773,7 @@ export interface QuoteShareSnapshot {
   microgrid: MicrogridConfig | null;
   generator: GeneratorConfig | null;
   products: { category: string; model: string; qty: number }[];
-  services: { name: string; qty: number }[];
+  services: { name: string; qty: number | null; unitLabel: string; total: number | null }[];
   marginRows: MarginRow[];
   systemCost: { totalCost: number; isComplete: boolean } | null;
   tariffSavings: TariffSavingsEstimate | null;
@@ -763,7 +829,7 @@ export function buildQuoteShareSnapshot(
     maxBatteryChargePowerW: inverterPerformance?.maxBatteryChargePowerW ?? null,
   });
 
-  const systemCostEstimate = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog);
+  const systemCostEstimate = calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog, residentialOptions);
   const systemCost =
     systemCostEstimate.pricedItemsCount > 0
       ? { totalCost: systemCostEstimate.totalCost, isComplete: systemCostEstimate.isComplete }
@@ -816,7 +882,7 @@ export function buildQuoteShareSnapshot(
     microgrid: residentialOptions.microgrid,
     generator: residentialOptions.generator,
     products,
-    services: services.map((line) => ({ name: line.name, qty: line.qty })),
+    services: (systemCostEstimate.serviceDetails ?? []).map((detail) => ({ name: detail.name, qty: detail.quantity, unitLabel: servicePricingUnitLabel(detail.pricingUnit), total: detail.total })),
     marginRows,
     systemCost,
     tariffSavings,

@@ -16,6 +16,7 @@ import type {
   UserLoadCatalogItem,
   UserLoadPresetItem,
   UserServiceItem,
+  UserServicePricingUnit,
   UserStockItem,
 } from '@/lib/types';
 import type { LoadPresetLoad } from '@/lib/types';
@@ -97,6 +98,7 @@ export function userServiceFromRow(row: Record<string, unknown>): UserServiceIte
     id: row.id as string,
     name: (row.name as string) ?? '',
     unitValue: Number(row.unit_value) || 0,
+    pricingUnit: (row.pricing_unit as UserServicePricingUnit) || 'project',
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

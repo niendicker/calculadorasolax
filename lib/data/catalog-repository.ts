@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
-import type { StockProductType } from '@/lib/types';
+import type { StockProductType, UserServicePricingUnit } from '@/lib/types';
 
-export type ServiceInput = { name: string; unitValue: number };
+export type ServiceInput = { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit };
 export type StockInput = { productType: StockProductType; productModel: string; unitValue: number };
 
 export async function listUserServices() {
@@ -18,7 +18,7 @@ export async function insertUserService(input: ServiceInput) {
 
   const { data, error } = await supabase
     .from('user_services')
-    .insert({ user_id: userData.user.id, name: input.name.trim(), unit_value: input.unitValue })
+    .insert({ user_id: userData.user.id, name: input.name.trim(), unit_value: input.unitValue, pricing_unit: input.pricingUnit ?? 'project' })
     .select()
     .single();
   if (error) throw error;
@@ -39,6 +39,15 @@ export async function updateUserServiceValue(id: string, unitValue: number) {
   const { error } = await supabase
     .from('user_services')
     .update({ unit_value: unitValue, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateUserServicePricingUnit(id: string, pricingUnit: UserServicePricingUnit) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('user_services')
+    .update({ pricing_unit: pricingUnit, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw error;
 }

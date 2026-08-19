@@ -156,7 +156,8 @@ export function ProjectTab({
       project.services,
       userServices,
       marginSettings,
-      batteryCatalog
+      batteryCatalog,
+      project.residentialOptions
     );
     return cost.pricedItemsCount > 0 ? total + cost.totalCost : total;
   }, 0);

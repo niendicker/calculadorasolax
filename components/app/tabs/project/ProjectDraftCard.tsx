@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import type { Client, ProjectInfo, ProjectServiceLine, UserServiceItem } from '@/lib/types';
 import { AddressFields } from '../../address-fields';
-import { formatCurrencyBRL } from '../../helpers';
+import { formatCurrencyBRL, servicePricingUnitLabel } from '../../helpers';
 import { QuickAddClientModal } from './QuickAddClientModal';
 
 /** Small muted label + a left-aligned icon inside the field, same treatment
@@ -224,15 +224,14 @@ export function ProjectDraftCard({
                 <div className="space-y-1.5">
                   {services.map((line) => (
                     <div key={line.serviceId} className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm">
+                      {(() => {
+                        const service = userServices.find((item) => item.id === line.serviceId);
+                        const pricingUnit = service?.pricingUnit ?? 'project';
+                        return <>
                       <span className="min-w-0 flex-1 truncate">{line.name}</span>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={line.qty}
-                        aria-label={`Quantidade de ${line.name}`}
-                        onChange={(event) => onUpdateServiceQty(line.serviceId, Number(event.target.value) || 1)}
-                        className="h-8 w-16 text-xs"
-                      />
+                      {pricingUnit === 'project' ? (
+                        <Input type="number" min={1} value={line.qty} aria-label={`Quantidade de ${line.name}`} onChange={(event) => onUpdateServiceQty(line.serviceId, Number(event.target.value) || 1)} className="h-8 w-16 text-xs" />
+                      ) : <span className="shrink-0 text-xs text-muted-foreground">por {servicePricingUnitLabel(pricingUnit)}</span>}
                       <Button
                         type="button"
                         variant="ghost"
@@ -242,6 +241,8 @@ export function ProjectDraftCard({
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>
+                        </>;
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -257,7 +258,7 @@ export function ProjectDraftCard({
                       className="flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-foreground"
                     >
                       <Plus className="h-3 w-3" />
-                      {service.name} · {formatCurrencyBRL(service.unitValue)}
+                      {service.name} · {formatCurrencyBRL(service.unitValue)} / {servicePricingUnitLabel(service.pricingUnit ?? 'project')}
                     </button>
                   ))}
               </div>
