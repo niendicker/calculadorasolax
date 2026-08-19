@@ -238,7 +238,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
 
     const supabase = createClient();
     const result = await calculateResidentialSolution({
-      supabase,
       residentialOptions: project.residentialOptions,
       batteryModel,
       projectName: project.name,

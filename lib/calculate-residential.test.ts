@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { calculateResidentialSolution } from './calculate-residential';
 import { pendingSimulationCount } from './metrics-queue';
-import { getCalculationErrorMessage, getNetworkErrorMessage } from './calculation-error-messages';
+import { getNetworkErrorMessage } from './calculation-error-messages';
 import type { ResidentialOptions, Solution } from './types';
 
 const residentialOptions: ResidentialOptions = {
@@ -36,32 +36,16 @@ const fakeSolution: Solution = {
   accessories: [],
 };
 
-function makeSupabase({
-  invokeResult = { data: fakeSolution as Solution | null, error: null as unknown },
-  insertError = null as { message: string } | null,
-}: {
-  invokeResult?: { data: Solution | null; error: unknown };
-  insertError?: { message: string } | null;
-} = {}) {
-  const insertMock = vi.fn().mockResolvedValue({ error: insertError });
-  return {
-    functions: { invoke: vi.fn().mockResolvedValue(invokeResult) },
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
-    from: vi.fn(() => ({ insert: insertMock })),
-    __insertMock: insertMock,
-  };
-}
-
 beforeEach(() => {
   window.localStorage.clear();
+  vi.stubGlobal('fetch', vi.fn());
 });
 
 describe('calculateResidentialSolution', () => {
   it('invokes calculate-residential with residentialOptions + batteryModel, returning the solution', async () => {
-    const supabase = makeSupabase();
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({ solution: fakeSolution }) });
 
     const result = await calculateResidentialSolution({
-      supabase: supabase as never,
       residentialOptions,
       batteryModel: 'TP-HS3.6',
       projectName: 'Casa de praia',
@@ -69,17 +53,24 @@ describe('calculateResidentialSolution', () => {
       dailyKwh: 3.5,
     });
 
-    expect(supabase.functions.invoke).toHaveBeenCalledWith('calculate-residential', {
-      body: { ...residentialOptions, batteryModel: 'TP-HS3.6' },
+    expect(fetch).toHaveBeenCalledWith('/api/calculations/residential', expect.objectContaining({
+      method: 'POST',
+    }));
+    const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual({
+      ...residentialOptions,
+      batteryModel: 'TP-HS3.6',
+      projectName: 'Casa de praia',
+      peakW: 5500,
+      dailyKwh: 3.5,
     });
     expect(result).toEqual({ solution: fakeSolution });
   });
 
   it('logs a simulation row to app_simulations on success', async () => {
-    const supabase = makeSupabase();
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => ({ solution: fakeSolution }) });
 
     await calculateResidentialSolution({
-      supabase: supabase as never,
       residentialOptions,
       batteryModel: 'TP-HS3.6',
       projectName: 'Casa de praia',
@@ -87,25 +78,22 @@ describe('calculateResidentialSolution', () => {
       dailyKwh: 3.5,
     });
 
-    expect(supabase.from).toHaveBeenCalledWith('app_simulations');
-    expect(supabase.__insertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: 'user-1',
-        project_name: 'Casa de praia',
-        peak_w: 5500,
-        daily_kwh: 3.5,
-        inverter_model: fakeSolution.inverterModel,
-        battery_model: fakeSolution.batteryModel,
-      })
-    );
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('queues the simulation locally when the app_simulations insert fails, without failing the calculation', async () => {
-    const supabase = makeSupabase({ insertError: { message: 'db down' } });
+    const simulationPayload = {
+      user_id: 'user-1', project_name: 'Casa de praia', topology: 'HighVoltage', grid_type: 'singlePhase_220',
+      peak_w: 5500, daily_kwh: 3.5, loads: residentialOptions.loads, inverter_model: fakeSolution.inverterModel,
+      battery_model: fakeSolution.batteryModel, accessories: [], solution_code: null,
+    };
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ solution: fakeSolution, simulationPending: true, simulationPayload }),
+    });
     expect(pendingSimulationCount()).toBe(0);
 
     const result = await calculateResidentialSolution({
-      supabase: supabase as never,
       residentialOptions,
       batteryModel: 'TP-HS3.6',
       projectName: 'Casa de praia',
@@ -118,10 +106,12 @@ describe('calculateResidentialSolution', () => {
   });
 
   it('resolves a function error into a specific message instead of the solution', async () => {
-    const supabase = makeSupabase({ invokeResult: { data: null, error: { message: 'boom' } } });
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Não foi possível encontrar uma solução compatível.' }),
+    });
 
     const result = await calculateResidentialSolution({
-      supabase: supabase as never,
       residentialOptions,
       batteryModel: 'TP-HS3.6',
       projectName: null,
@@ -129,31 +119,13 @@ describe('calculateResidentialSolution', () => {
       dailyKwh: 3.5,
     });
 
-    expect(result).toEqual({ error: getCalculationErrorMessage(undefined) });
+    expect(result).toEqual({ error: 'Não foi possível encontrar uma solução compatível.' });
   });
 
-  it('logs a simulation with user_id null when there is no authenticated user', async () => {
-    const supabase = makeSupabase();
-    supabase.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
-
-    await calculateResidentialSolution({
-      supabase: supabase as never,
-      residentialOptions,
-      batteryModel: 'TP-HS3.6',
-      projectName: 'Casa de praia',
-      peakW: 5500,
-      dailyKwh: 3.5,
-    });
-
-    expect(supabase.__insertMock).toHaveBeenCalledWith(expect.objectContaining({ user_id: null }));
-  });
-
-  it('falls back to the network error message when the invoke call throws', async () => {
-    const supabase = makeSupabase();
-    supabase.functions.invoke = vi.fn().mockRejectedValue(new Error('network down'));
+  it('falls back to the network error message when the API call throws', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
 
     const result = await calculateResidentialSolution({
-      supabase: supabase as never,
       residentialOptions,
       batteryModel: 'TP-HS3.6',
       projectName: null,

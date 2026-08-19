@@ -64,11 +64,43 @@ function makeSupabase({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user } }) },
     from,
   };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init: RequestInit) => {
+      const requestBody = JSON.parse(String(init.body));
+      const result = await supabase.functions.invoke('calculate-residential', { body: requestBody });
+      if (result.error || !result.data) {
+        return { ok: false, json: async () => ({ error: getCalculationErrorMessage(undefined) }) };
+      }
+
+      const simulationPayload = {
+        user_id: user?.id ?? null,
+        project_name: requestBody.projectName ?? null,
+        topology: requestBody.topology,
+        grid_type: requestBody.gridType,
+        peak_w: requestBody.peakW,
+        daily_kwh: requestBody.dailyKwh,
+        loads: requestBody.loads,
+        inverter_model: result.data.inverterModel,
+        battery_model: result.data.batteryModel,
+        accessories: result.data.accessories.map((accessory: { model: string }) => accessory.model),
+        solution_code: result.data.solutionCode ?? null,
+      };
+      const { error: simulationError } = await insertMock(simulationPayload);
+      return {
+        ok: true,
+        json: async () => ({
+          solution: result.data,
+          ...(simulationError ? { simulationPending: true, simulationPayload } : {}),
+        }),
+      };
+    })
+  );
   return { supabase, insertMock };
 }
 
 function baseProps(overrides: Record<string, unknown> = {}) {
-  const { supabase } = makeSupabase();
+  const supabase = overrides.supabase ?? makeSupabase().supabase;
   return {
     supabase,
     residentialOptions: validResidentialOptions,

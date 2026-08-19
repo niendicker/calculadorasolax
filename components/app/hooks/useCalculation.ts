@@ -179,7 +179,6 @@ export function useCalculation({
     setResultError: (error: string | null) => void
   ) {
     const result = await calculateResidentialSolution({
-      supabase,
       residentialOptions,
       batteryModel,
       projectName: projectInfo.name || null,

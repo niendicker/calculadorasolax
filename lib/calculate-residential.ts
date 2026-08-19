@@ -6,10 +6,8 @@
 // logging simulations to app_simulations and resolving specific error
 // messages while the other doesn't.
 
-import type { createClient } from '@/lib/supabase/client';
-import { invokeResidentialCalculation, recordSimulation } from '@/lib/data/calculation-repository';
 import { enqueuePendingSimulation } from './metrics-queue';
-import { getNetworkErrorMessage, resolveCalculationErrorMessage } from './calculation-error-messages';
+import { getNetworkErrorMessage } from './calculation-error-messages';
 import type { ResidentialOptions, Solution } from './types';
 
 export type CalculateResidentialResult = { solution: Solution } | { error: string };
@@ -20,14 +18,12 @@ export type CalculateResidentialResult = { solution: Solution } | { error: strin
  * specific, user-facing message. `projectName`/`peakW`/`dailyKwh` are only
  * used for the app_simulations analytics row. */
 export async function calculateResidentialSolution({
-  supabase,
   residentialOptions,
   batteryModel,
   projectName,
   peakW,
   dailyKwh,
 }: {
-  supabase: ReturnType<typeof createClient>;
   residentialOptions: ResidentialOptions;
   batteryModel: string;
   projectName: string | null;
@@ -35,42 +31,33 @@ export async function calculateResidentialSolution({
   dailyKwh: number;
 }): Promise<CalculateResidentialResult> {
   try {
-    const { data, error: functionError } = await invokeResidentialCalculation(supabase, {
+    const response = await fetch('/api/calculations/residential', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
       ...residentialOptions,
       batteryModel,
+      projectName,
+      peakW,
+      dailyKwh,
+      }),
     });
-
-    if (functionError || !data) {
-      return { error: await resolveCalculationErrorMessage(functionError) };
-    }
-
-    const solution = data as Solution;
-
-    const { data: userData } = await supabase.auth.getUser();
-    const simulationPayload = {
-      user_id: userData.user?.id ?? null,
-      project_name: projectName,
-      topology: residentialOptions.topology,
-      grid_type: residentialOptions.gridType,
-      peak_w: peakW,
-      daily_kwh: dailyKwh,
-      loads: residentialOptions.loads,
-      inverter_model: solution.inverterModel,
-      battery_model: solution.batteryModel,
-      // app_simulations is an analytics table keyed on plain accessory
-      // names (see admin DashboardPanels.tsx countAccessories) — keep it
-      // decoupled from the richer Solution.accessories shape used for display.
-      accessories: solution.accessories.map((accessory) => accessory.model),
-      solution_code: solution.solutionCode ?? null,
+    const body = (await response.json()) as {
+      solution?: Solution;
+      error?: string;
+      simulationPending?: boolean;
+      simulationPayload?: Parameters<typeof enqueuePendingSimulation>[0];
     };
-    const { error: simulationError } = await recordSimulation(supabase, simulationPayload);
 
-    if (simulationError) {
-      console.error(simulationError);
-      enqueuePendingSimulation(simulationPayload);
+    if (!response.ok || !body.solution) {
+      return { error: body.error ?? getNetworkErrorMessage() };
     }
 
-    return { solution };
+    if (body.simulationPending && body.simulationPayload) {
+      enqueuePendingSimulation(body.simulationPayload);
+    }
+
+    return { solution: body.solution };
   } catch (err) {
     console.error(err);
     return { error: getNetworkErrorMessage() };
