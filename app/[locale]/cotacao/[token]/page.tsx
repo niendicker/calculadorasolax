@@ -3,6 +3,7 @@ import { QuoteShareView } from '@/components/quote-share/QuoteShareView';
 import { createServiceClient } from '@/lib/supabase/service';
 import type { QuoteShareSnapshot } from '@/components/app/helpers';
 import type { QuoteShareStatus } from '@/lib/types';
+import { isQuoteShareExpired } from '@/lib/quote-share';
 
 export const metadata = {
   title: 'Orçamento | Calculadora SolaX',
@@ -20,10 +21,10 @@ export default async function QuoteSharePage({ params }: { params: Promise<{ tok
 
   const { data } = await service
     .from('quote_shares')
-    .select('status, snapshot, responded_at, project_id, first_viewed_at')
+    .select('status, snapshot, responded_at, project_id, first_viewed_at, created_at')
     .eq('id', token)
     .maybeSingle();
-  if (!data) notFound();
+  if (!data || isQuoteShareExpired(data.created_at)) notFound();
 
   // Logged once (guarded by first_viewed_at) so a customer refreshing the
   // page repeatedly doesn't spam the seller's Histórico with duplicate

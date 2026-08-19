@@ -1,5 +1,7 @@
 # Especificações do Projeto
 
+> Este documento descreve o comportamento e o modelo do produto. Para o estado operacional atual, consulte também [`README.md`](../README.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`API.md`](API.md) e [`OPERATIONS.md`](OPERATIONS.md).
+
 ## Visão geral
 
 A Calculadora SolaX é um web app para dimensionamento de sistemas híbridos solar + bateria. A interface principal funciona como uma single-page web app responsiva para desktop, tablet e celular.
@@ -92,7 +94,7 @@ Regras:
 - `/admin` exige login e `role = admin`
 - RLS usa `public.is_admin()` para escrita administrativa
 - Qualquer rota autenticada (`/`, `/admin`, `/profile`) redireciona para `/aceite-termos` enquanto `terms_accepted_at` for nulo
-- Exclusão de conta: `POST /api/account/delete` autentica pela sessão do próprio usuário, usa a service role key só no servidor para chamar `auth.admin.deleteUser`, o que cascateia a remoção de `profiles`, `clients`, `projects` e `user_load_catalog`
+- Exclusão de conta: `POST /api/account/delete` autentica pela sessão do próprio usuário, remove a logomarca em modo best-effort e chama a RPC protegida `delete_own_account`; pedidos de compra podem permanecer sem o vínculo do usuário, conforme a migration `0079`
 
 ## Clientes e projetos
 
@@ -324,7 +326,7 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 | `components/admin/AdminPanel.tsx` | Painel administrativo |
 | `components/ui/confirm-delete-button.tsx` | Confirmação por popover para ações destrutivas, com reposicionamento para não sair da tela |
 | `components/ui/skeleton.tsx` | Skeletons de carregamento |
-| `app/api/account/delete/route.ts` | Exclusão de conta via service role |
+| `app/api/account/delete/route.ts` | Exclusão da própria conta via RPC protegida |
 | `supabase/functions/calculate-residential/index.ts` | Motor de recomendação |
 | `supabase/migrations/*.sql` | Schema, seeds e policies |
 | `proxy.ts` | Middleware/Proxy de locale |

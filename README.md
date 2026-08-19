@@ -4,6 +4,14 @@ Web app para dimensionamento de soluções híbridas SolaX solar + bateria.
 
 O app usa um fluxo single-page responsivo para cálculo residencial, projetos salvos, autenticação com Supabase Auth, painel administrativo para catálogo e uma Edge Function para selecionar combinações aprovadas de produtos.
 
+Documentação complementar:
+
+- [Arquitetura e fronteiras do sistema](docs/ARCHITECTURE.md)
+- [Inventário de APIs](docs/API.md)
+- [Variáveis de ambiente](docs/ENVIRONMENT.md)
+- [Operação, deploy e migração](docs/OPERATIONS.md)
+- [Segurança e permissões](docs/SECURITY.md)
+
 ## Stack
 
 - Next.js 16 App Router
@@ -28,7 +36,9 @@ Configure `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-# Only needed to notify a supplier by email from a purchase order
+# Usada somente no servidor para tarefas que realmente exigem privilégios elevados.
+# Nunca exponha esta chave no cliente.
+# Only needed to send account and supplier emails
 # (app/api/purchase-orders/[orderId]/notify-supplier-email) — get an API key
 # at resend.com and verify a sending domain there first.
 RESEND_API_KEY=...
@@ -68,7 +78,7 @@ npm run build
 | `/pt/wizard/residential/*` | Fluxo legado do wizard residencial |
 | `/pt/wizard/industrial/*` | Fluxo legado do wizard industrial |
 | `/pt/wizard/result` | Redirect compatível para o resultado residencial |
-| `/api/account/delete` | Route handler (POST) que apaga a conta do usuário autenticado via service role |
+| `/api/account/delete` | Route handler (POST) que remove a conta do próprio usuário via RPC protegido |
 
 Idiomas suportados: `pt`, `en`, `zh`.
 
@@ -118,7 +128,7 @@ A aba `Projeto` referencia um cliente cadastrado e permite salvar/reutilizar con
 
 Clientes e projetos são persistidos no Supabase (tabelas `clients` e `projects`, com RLS por `user_id`), não mais no localStorage do navegador. A aba `Clientes` tem cadastro próprio (nome, email, telefone, documento, observações), usado pela aba `Projeto` para vincular um cliente ao invés de duplicar os dados em cada projeto.
 
-A aba `Dimensionamento` também possui ação para salvar o projeto atual. A lista de projetos salvos mostra badges com topologia, bateria, rede e quantidade de cargas.
+A aba `Dimensionamento` persiste alterações do projeto conforme o fluxo de autosave. A lista de projetos salvos mostra badges com topologia, bateria, rede e quantidade de cargas.
 
 A aba `Catálogo` mostra todos os produtos cadastrados pelo admin (inversores, baterias, acessórios) e uma sub-aba "Minhas Cargas" com o catálogo pessoal de cargas do usuário (tabela `user_load_catalog`): cargas adicionadas manualmente durante o dimensionamento ficam salvas ali para reuso, sem propagar para o catálogo global gerenciado pelo admin.
 
@@ -135,7 +145,7 @@ O relatório pode ser exportado por impressão/PDF e inclui:
 
 - Cadastro exige aceite de Termos de Uso e Política de Privacidade (checkbox obrigatório); o aceite fica em `profiles.terms_accepted_at`.
 - Qualquer usuário autenticado sem esse campo preenchido é redirecionado para `/aceite-termos` antes de acessar `/`, `/admin` ou `/profile` — cobre tanto novos cadastros quanto contas já existentes na primeira vez que a política mudar.
-- O perfil do usuário (modal "Meu perfil") tem uma seção "Excluir conta": exige digitar `EXCLUIR` para confirmar e chama `POST /api/account/delete`, que roda no servidor com a service role key, apaga o usuário do Supabase Auth (cascateando `profiles`, `clients`, `projects` e `user_load_catalog` via FK) e remove a logomarca do storage.
+- O perfil do usuário (modal "Meu perfil") tem uma seção "Excluir conta": exige digitar `EXCLUIR` para confirmar e chama `POST /api/account/delete`. A rota usa a sessão do próprio usuário, remove a logomarca em modo best-effort e chama a RPC protegida `delete_own_account`; pedidos de compra podem permanecer sem o vínculo do usuário.
 - `app_simulations` não grava mais o nome do cliente (dado pessoal de terceiro sem uso real no produto).
 
 ## Banco de dados
@@ -210,6 +220,25 @@ Migrações Supabase:
 | `0064_user_supplier_preferences.sql` | Usuário escolhe fornecedores preferidos (limite definido pelo admin) |
 | `0065_partner_order_push.sql` | Envio de pedidos de compra à API de parceiro de um fornecedor específico |
 | `0066_product_warranty.sql` | Garantia por produto: anos (todos) e ciclos de carga/descarga (baterias) |
+| `0067_structured_addresses.sql` | Endereços estruturados em projetos e perfis |
+| `0068_supplier_email.sql` | Email de contato dos fornecedores |
+| `0069_tariff_source_tracking.sql` | Origem e validade das tarifas em `residential_options` |
+| `0070_project_status.sql` | Status do ciclo de cotação dos projetos |
+| `0071_raise_user_stock_items_limit_20.sql` | Aumenta o limite do catálogo pessoal para 20 itens |
+| `0072_fix_default_supplier_preference_overlap.sql` | Corrige contagem de preferências de fornecedores padrão |
+| `0073_quote_shares.sql` | Links públicos de cotação com snapshot e resposta do cliente |
+| `0074_project_events.sql` | Histórico append-only de eventos do projeto |
+| `0075_supplier_quote_email.sql` | Documento da empresa em solicitações de cotação |
+| `0076_security_fixes.sql` | Protege alteração de papel e políticas de compartilhamento |
+| `0077_supplier_sync_runs_admin_write.sql` | Permissões administrativas para sincronizações |
+| `0078_delete_own_account.sql` | RPC segura para exclusão da própria conta |
+| `0079_purchase_orders_user_id_set_null.sql` | Preserva pedidos ao excluir a conta do comprador |
+| `0080_terms_accepted_at_from_signup_metadata.sql` | Registra aceite de termos durante cadastro |
+| `0081_backfill_terms_accepted_at.sql` | Corrige aceites históricos afetados pelo fluxo anterior |
+| `0082_recreate_missing_signup_trigger.sql` | Recria trigger de criação de perfil |
+| `0083_reapply_missing_security_fixes.sql` | Reaplica correções de segurança ausentes em produção |
+| `0084_reapply_terms_accepted_at_trigger.sql` | Reaplica trigger com suporte ao aceite de termos |
+| `0085_reapply_missing_storage_policies.sql` | Reaplica políticas de Storage ausentes em produção |
 
 Aplicar migrações ao projeto linkado:
 
@@ -350,4 +379,6 @@ Os três rodam automaticamente em todo push/PR para `main` via GitHub Actions (`
 - `.env.local` é ignorado pelo Git.
 - O painel admin depende de RLS e `profiles.role = 'admin'`.
 - Usuários comuns não devem conseguir escrever nas tabelas administrativas.
-- A `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no ambiente servidor/local de manutenção, nunca exposta no cliente.
+- A `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no ambiente servidor/local de manutenção, nunca exposta no cliente. A exclusão da própria conta não depende dela; outras rotas administrativas ou tarefas de manutenção podem depender da chave.
+
+Para decisões de arquitetura, configuração de produção, migração e segurança, consulte a documentação complementar no início deste arquivo.

@@ -1,5 +1,7 @@
 # Tarefas de melhoria para agentes
 
+> **Documento histórico.** Este arquivo registra tarefas, decisões e verificações realizadas durante a evolução do projeto. Contagens de testes, tamanhos de arquivos, commits e descrições de arquitetura podem não refletir o estado atual. Para a documentação operacional vigente, consulte o README e os documentos em `docs/`.
+
 Este documento lista melhorias identificadas no projeto, em formato acionavel para outro agente executar. Cada tarefa deve ser implementada em commit separado quando possivel.
 
 ## Status
@@ -294,4 +296,3 @@ Adicionar filtros nas queries e indices para campos usados em matching: `active`
 Criterio de aceite:
 - Queries da function buscam menos linhas.
 - Plano de consulta usa indices nos filtros principais.
-

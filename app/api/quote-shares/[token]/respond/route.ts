@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { isQuoteShareExpired } from '@/lib/quote-share';
 
 interface RespondInput {
   decision?: string;
@@ -29,11 +30,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
   const { data: share, error: shareError } = await service
     .from('quote_shares')
-    .select('id, project_id, status')
+    .select('id, project_id, status, created_at')
     .eq('id', token)
     .maybeSingle();
   if (shareError) return NextResponse.json({ error: 'lookup_failed' }, { status: 500 });
   if (!share) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (isQuoteShareExpired(share.created_at)) return NextResponse.json({ error: 'expired' }, { status: 410 });
   if (share.status !== 'sent') return NextResponse.json({ error: 'already_responded' }, { status: 409 });
 
   const { error: updateShareError } = await service

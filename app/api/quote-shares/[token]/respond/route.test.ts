@@ -29,7 +29,7 @@ function singleResult(data: unknown, error: unknown = null) {
 }
 
 function setupServiceFrom({
-  share = { id: 'token-1', project_id: 'project-1', status: 'sent' } as unknown,
+  share = { id: 'token-1', project_id: 'project-1', status: 'sent', created_at: '2999-01-01T00:00:00.000Z' } as unknown,
   shareError = null as unknown,
   updateShareResult = { data: null, error: null } as unknown,
 }: { share?: unknown; shareError?: unknown; updateShareResult?: unknown } = {}) {
@@ -88,7 +88,7 @@ describe('POST /api/quote-shares/[token]/respond', () => {
   });
 
   it('returns 409 when the share already has a response', async () => {
-    setupServiceFrom({ share: { id: 'token-1', project_id: 'project-1', status: 'accepted' } });
+    setupServiceFrom({ share: { id: 'token-1', project_id: 'project-1', status: 'accepted', created_at: '2999-01-01T00:00:00.000Z' } });
     const POST = await importRoute();
 
     const response = await POST(makeRequest({ decision: 'rejected' }), routeParams);
@@ -107,6 +107,16 @@ describe('POST /api/quote-shares/[token]/respond', () => {
     expect(await response.json()).toEqual({ status: 'accepted' });
     expect(updateShare).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted', responded_at: expect.any(String) }));
     expect(updateProject).toHaveBeenCalledWith({ status: 'accepted', updated_at: expect.any(String) });
+  });
+
+  it('returns 410 when the quote link is older than seven days', async () => {
+    setupServiceFrom({ share: { id: 'token-1', project_id: 'project-1', status: 'sent', created_at: '2020-01-01T00:00:00.000Z' } });
+    const POST = await importRoute();
+
+    const response = await POST(makeRequest({ decision: 'accepted' }), routeParams);
+
+    expect(response.status).toBe(410);
+    expect(await response.json()).toEqual({ error: 'expired' });
   });
 
   it('logs a quote_accepted project_event with from_status/to_status', async () => {
