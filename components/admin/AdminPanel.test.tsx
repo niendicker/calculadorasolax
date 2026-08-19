@@ -384,6 +384,22 @@ describe('AdminPanel: sign out and mobile menu', () => {
 
 async function openAdminPanel(overrides?: Parameters<typeof setupSupabase>[0], auth?: Parameters<typeof setupSupabase>[1]) {
   const supabase = setupSupabase(overrides, auth);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { generatedSolutions: unknown[]; previousIds: string[] };
+      const adminTable = supabase.from as unknown as (table: string) => {
+        delete: () => { in: (column: string, values: string[]) => Promise<{ error: { message: string } | null }> };
+        upsert: (rows: unknown[], options: { onConflict: string }) => Promise<{ error: { message: string } | null }>;
+      };
+      if (body.previousIds.length > 0) {
+        const { error } = await adminTable('approved_solutions').delete().in('id', body.previousIds);
+        if (error) return { ok: false, json: async () => ({ error: error.message }) };
+      }
+      const { error } = await adminTable('approved_solutions').upsert(body.generatedSolutions, { onConflict: 'solution_code' });
+      return { ok: !error, json: async () => (error ? { error: error.message } : { ok: true }) };
+    })
+  );
   render(<AdminPanel />);
   await waitFor(() => expect(screen.queryByLabelText('Carregando dados administrativos')).not.toBeInTheDocument());
   return supabase;

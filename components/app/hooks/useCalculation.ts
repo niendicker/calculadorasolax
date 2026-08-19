@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
+import { listProductMedia } from '@/lib/data/product-media-repository';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
 import {
   isGeneratorAtsUnacknowledged,
@@ -119,23 +120,17 @@ export function useCalculation({
           accessories: missing.filter((item) => item.table === 'accessories').map((item) => item.model),
         };
 
-        const [inverterResult, batteryResult, accessoryResult] = await Promise.all([
-          missingByTable.inverters.length > 0
-            ? supabase.from('inverters').select('model, nickname, image_url, documents').in('model', missingByTable.inverters)
-            : Promise.resolve({ data: [] }),
-          missingByTable.batteries.length > 0
-            ? supabase.from('batteries').select('model, nickname, image_url, documents').in('model', missingByTable.batteries)
-            : Promise.resolve({ data: [] }),
-          missingByTable.accessories.length > 0
-            ? supabase.from('accessories').select('model, nickname, description, image_url, documents').in('model', missingByTable.accessories)
-            : Promise.resolve({ data: [] }),
+        const [inverterRows, batteryRows, accessoryRows] = await Promise.all([
+          listProductMedia(supabase, 'inverters', missingByTable.inverters),
+          listProductMedia(supabase, 'batteries', missingByTable.batteries),
+          listProductMedia(supabase, 'accessories', missingByTable.accessories),
         ]);
 
         const rows = [
-          ...(inverterResult.data ?? []),
-          ...(batteryResult.data ?? []),
-          ...(accessoryResult.data ?? []),
-        ] as {
+          ...inverterRows,
+          ...batteryRows,
+          ...accessoryRows,
+        ] as unknown as {
           model: string;
           nickname: string | null;
           description?: string | null;
