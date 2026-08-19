@@ -3,6 +3,14 @@ import { isAddressEmpty } from '@/lib/address';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
+import {
+  deleteProjectRecord,
+  getCurrentUserId,
+  insertProjectEvent,
+  listProjectRecords,
+  saveProjectRecord,
+  updateProjectStatusRecord,
+} from '@/lib/data/projects-repository';
 import type { ProjectInfo, ProjectStatus, SavedProject } from '@/lib/types';
 import { defaultProjectInfo, defaultResidential, sanitizeDesiredFeatures } from '../defaults';
 import { projectFromRow } from '../row-mappers';
@@ -103,9 +111,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     }),
 
   saveCurrentProject: async () => {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error('not_authenticated');
+    const userId = await getCurrentUserId();
 
     const s = get();
     if (!s.currentProjectId && s.savedProjects.length >= ACCOUNT_LIMITS.projects) {
@@ -114,7 +120,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
 
     const name = s.projectInfo.name.trim() || `Projeto ${new Date().toLocaleDateString('pt-BR')}`;
     const payload = {
-      user_id: userData.user.id,
+      user_id: userId,
       client_id: s.projectInfo.clientId,
       name,
       address: isAddressEmpty(s.projectInfo.address) ? null : s.projectInfo.address,
@@ -125,12 +131,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       updated_at: new Date().toISOString(),
     };
 
-    const request = s.currentProjectId
-      ? supabase.from('projects').update(payload).eq('id', s.currentProjectId).select().single()
-      : supabase.from('projects').insert(payload).select().single();
-
-    const { data, error } = await request;
-    if (error) throw error;
+    const data = await saveProjectRecord(s.currentProjectId, payload);
 
     const saved = projectFromRow(data);
 
@@ -170,9 +171,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     }),
 
   removeProject: async (id) => {
-    const supabase = createClient();
-    const { error } = await supabase.from('projects').delete().eq('id', id);
-    if (error) throw error;
+    await deleteProjectRecord(id);
 
     set((s) => {
       const wasCurrent = s.currentProjectId === id;
@@ -206,12 +205,10 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       throw new Error(limitReachedMessage('projetos salvos', ACCOUNT_LIMITS.projects));
     }
 
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error('not_authenticated');
+    const userId = await getCurrentUserId();
 
     const payload = {
-      user_id: userData.user.id,
+      user_id: userId,
       client_id: source.clientId,
       name: `${source.name} (cópia)`,
       address: isAddressEmpty(source.address) ? null : source.address,
@@ -222,8 +219,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('projects').insert(payload).select().single();
-    if (error) throw error;
+    const data = await saveProjectRecord(null, payload);
 
     const duplicated = projectFromRow(data);
 
@@ -268,15 +264,8 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
   },
 
   updateProjectStatus: async (id, status) => {
-    const supabase = createClient();
     const previous = get().savedProjects.find((item) => item.id === id);
-    const { data, error } = await supabase
-      .from('projects')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
+    const data = await updateProjectStatusRecord(id, status);
 
     const updated = projectFromRow(data);
     set((s) => ({
@@ -287,10 +276,10 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     // best-effort: a failure here shouldn't undo the status change itself,
     // which already succeeded above.
     if (previous && previous.status !== status) {
-      const { data: userData } = await supabase.auth.getUser();
-      await supabase.from('project_events').insert({
+      const userId = await getCurrentUserId();
+      await insertProjectEvent({
         project_id: id,
-        actor_id: userData.user?.id ?? null,
+        actor_id: userId,
         event_type: 'status_changed',
         from_status: previous.status,
         to_status: status,
@@ -301,12 +290,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
   },
 
   fetchProjects: async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .order('updated_at', { ascending: false });
-    if (error) throw error;
-    set({ savedProjects: (data ?? []).map(projectFromRow) });
+    const data = await listProjectRecords();
+    set({ savedProjects: data.map(projectFromRow) });
   },
 });
