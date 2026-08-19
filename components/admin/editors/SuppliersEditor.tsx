@@ -12,6 +12,16 @@ import { Select } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { orderStatusLabels } from '@/lib/procurement/types';
+import {
+  addSupplierMapping,
+  addSupplierOffer,
+  loadAdminSupplierWorkspace,
+  removeSupplierMapping,
+  saveSupplierIntegration,
+  saveSupplierLimit,
+  saveSupplierRecord,
+  transitionPurchaseOrder,
+} from '@/lib/data/admin-supplier-repository';
 import { sanitizePathPart } from '../helpers';
 
 type Supplier = { id: string; name: string; slug: string; active: boolean; ordering_enabled: boolean; order_mode: string; currency: string; minimum_order_value: number; description: string | null; is_default_for_all: boolean; supports_partner_orders: boolean; email: string | null; logo_url: string | null; website_url: string | null };
@@ -38,28 +48,14 @@ export function SuppliersEditor() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const load = useCallback(async () => {
-    const [supplierResult, integrationResult, mappingResult, orderResult, inverterResult, batteryResult, accessoryResult, settingsResult] = await Promise.all([
-      supabase.from('suppliers').select('*').order('name'),
-      supabase.from('supplier_integrations').select('*'),
-      supabase.from('supplier_product_mappings').select('*').order('product_model'),
-      supabase.from('purchase_orders').select('id, created_at, status, request_type, subtotal, currency, suppliers(name)').order('created_at', { ascending: false }).limit(100),
-      supabase.from('inverters').select('model').order('model'),
-      supabase.from('batteries').select('model').order('model'),
-      supabase.from('accessories').select('model').order('model'),
-      supabase.from('app_settings').select('max_user_suppliers').eq('id', true).single(),
-    ]);
-    const error = supplierResult.error ?? integrationResult.error ?? mappingResult.error ?? orderResult.error;
-    if (error) setMessage(error.message);
-    setSuppliers((supplierResult.data ?? []) as Supplier[]);
-    setMaxUserSuppliers(settingsResult.data?.max_user_suppliers ?? 2);
-    setIntegrations((integrationResult.data ?? []) as Integration[]);
-    setMappings((mappingResult.data ?? []) as Mapping[]);
-    setOrders((orderResult.data ?? []) as unknown as Order[]);
-    setPlatformModels({
-      inverter: ((inverterResult.data ?? []) as { model: string }[]).map((row) => row.model),
-      battery: ((batteryResult.data ?? []) as { model: string }[]).map((row) => row.model),
-      accessory: ((accessoryResult.data ?? []) as { model: string }[]).map((row) => row.model),
-    });
+    const workspace = await loadAdminSupplierWorkspace(supabase);
+    if (workspace.error) setMessage(workspace.error.message);
+    setSuppliers(workspace.suppliers as Supplier[]);
+    setMaxUserSuppliers(workspace.maxUserSuppliers);
+    setIntegrations(workspace.integrations as Integration[]);
+    setMappings(workspace.mappings as Mapping[]);
+    setOrders(workspace.orders as unknown as Order[]);
+    setPlatformModels(workspace.platformModels);
   }, [supabase]);
 
   useEffect(() => {
@@ -69,10 +65,12 @@ export function SuppliersEditor() {
   }, [load]);
 
   async function transitionOrder(orderId: string, status: string) {
-    const { error } = await supabase.rpc('admin_transition_purchase_order', {
-      p_order_id: orderId, p_status: status, p_message: null,
-    });
-    setMessage(error?.message ?? 'Status do pedido atualizado.');
+    try {
+      await transitionPurchaseOrder(supabase, orderId, status);
+      setMessage('Status do pedido atualizado.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o pedido.');
+    }
     await load();
   }
 
@@ -89,9 +87,10 @@ export function SuppliersEditor() {
   async function saveSupplier() {
     setBusy(true); setMessage(null);
     const payload = { ...supplierForm, currency: 'BRL', description: supplierForm.description || null, email: supplierForm.email.trim() || null, logo_url: supplierForm.logo_url.trim() || null, website_url: supplierForm.website_url.trim() || null };
-    const result = selectedId ? await supabase.from('suppliers').update(payload).eq('id', selectedId).select('id').single() : await supabase.from('suppliers').insert(payload).select('id').single();
-    if (result.error) setMessage(result.error.message);
-    else { setMessage('Fornecedor salvo.'); setSelectedId(result.data.id); await load(); }
+    try {
+      const result = await saveSupplierRecord(supabase, selectedId || null, payload);
+      setMessage('Fornecedor salvo.'); setSelectedId(result.id); await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível salvar o fornecedor.'); }
     setBusy(false);
   }
 
@@ -123,30 +122,32 @@ export function SuppliersEditor() {
     if (!selectedId) return setMessage('Salve ou selecione um fornecedor primeiro.');
     setBusy(true); setMessage(null);
     const payload = { supplier_id: selectedId, connector_type: integrationForm.connector_type, base_url: integrationForm.base_url || null, products_path: integrationForm.products_path, auth_type: integrationForm.auth_type, credential_env_key: integrationForm.credential_env_key || null, api_key_header: integrationForm.api_key_header, enabled: integrationForm.enabled, mapping: { items: integrationForm.items, sku: integrationForm.sku, price: integrationForm.price, stock: integrationForm.stock, lead_days: integrationForm.lead_days, catalog_id: integrationForm.catalog_id } };
-    const { error } = await supabase.from('supplier_integrations').upsert(payload, { onConflict: 'supplier_id' });
-    setMessage(error?.message ?? 'Integração salva.'); await load(); setBusy(false);
+    try { await saveSupplierIntegration(supabase, payload); setMessage('Integração salva.'); await load(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a integração.'); }
+    setBusy(false);
   }
 
   async function addMapping() {
     if (!selectedId || !mappingForm.product_model.trim() || !mappingForm.supplier_sku.trim()) return setMessage('Preencha fornecedor, produto e SKU.');
-    const { data, error } = await supabase.from('supplier_product_mappings').insert({ supplier_id: selectedId, product_type: mappingForm.product_type, product_model: mappingForm.product_model, supplier_sku: mappingForm.supplier_sku }).select('id').single();
-    let offerError = null;
-    if (!error && data && mappingForm.unit_price !== '') {
-      const result = await supabase.from('supplier_offers').insert({ mapping_id: data.id, supplier_id: selectedId, unit_price: Number(mappingForm.unit_price), stock_quantity: mappingForm.stock_quantity === '' ? null : Number(mappingForm.stock_quantity), active: true });
-      offerError = result.error;
-    }
-    setMessage((error ?? offerError)?.message ?? 'Produto vinculado e oferta publicada.'); if (!error && !offerError) setMappingForm((value) => ({ ...value, product_model: '', supplier_sku: '', unit_price: '', stock_quantity: '' })); await load();
+    try {
+      const data = await addSupplierMapping(supabase, { supplier_id: selectedId, product_type: mappingForm.product_type, product_model: mappingForm.product_model, supplier_sku: mappingForm.supplier_sku });
+      if (mappingForm.unit_price !== '') await addSupplierOffer(supabase, { mapping_id: data.id, supplier_id: selectedId, unit_price: Number(mappingForm.unit_price), stock_quantity: mappingForm.stock_quantity === '' ? null : Number(mappingForm.stock_quantity), active: true });
+      setMessage('Produto vinculado e oferta publicada.'); setMappingForm((value) => ({ ...value, product_model: '', supplier_sku: '', unit_price: '', stock_quantity: '' }));
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível vincular o produto.'); }
+    await load();
   }
 
   async function removeMapping(id: string) {
-    const { error } = await supabase.from('supplier_product_mappings').delete().eq('id', id);
-    setMessage(error?.message ?? 'Vínculo removido.'); await load();
+    try { await removeSupplierMapping(supabase, id); setMessage('Vínculo removido.'); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível remover o vínculo.'); }
+    await load();
   }
 
   async function saveMaxUserSuppliers() {
     setBusy(true); setMessage(null);
-    const { error } = await supabase.from('app_settings').update({ max_user_suppliers: maxUserSuppliers, updated_at: new Date().toISOString() }).eq('id', true);
-    setMessage(error?.message ?? 'Limite de fornecedores preferidos salvo.'); setBusy(false);
+    try { await saveSupplierLimit(supabase, maxUserSuppliers); setMessage('Limite de fornecedores preferidos salvo.'); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível salvar o limite.'); }
+    setBusy(false);
   }
 
   async function sync() {
