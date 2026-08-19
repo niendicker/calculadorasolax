@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { buildSupplierUrl } from '@/lib/procurement/generic-json';
+import { findOrderForPartner, findPartnerSupplier, findPurchaseOrderProfile, findSupplierIntegration, findSupplierProductMappings, submitOrderToPartner } from '@/lib/data/purchase-order-repository';
 
 interface DeliveryInput {
   name?: string;
@@ -35,28 +36,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   const missingField = requiredDeliveryFields.find((field) => !delivery[field]?.trim());
   if (missingField) return NextResponse.json({ error: 'Preencha o endereço de entrega completo.' }, { status: 400 });
 
-  const { data: order, error: orderError } = await supabase
-    .from('purchase_orders')
-    .select('id, supplier_id, currency, customer_notes, status, external_order_id, purchase_order_items(product_model, supplier_sku, quantity)')
-    .eq('id', orderId)
-    .single();
-  if (orderError || !order) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
+  const order = await findOrderForPartner(supabase, orderId);
+  if (!order) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
   if (order.status !== 'requested' || order.external_order_id) {
     return NextResponse.json({ error: 'Este pedido já foi enviado ao fornecedor ou não está mais disponível para envio.' }, { status: 409 });
   }
 
-  const { data: profile } = await supabase.from('profiles').select('full_name, company_name, email, phone').eq('id', user.id).single();
+  const profile = await findPurchaseOrderProfile(supabase, user.id);
 
   const service = createServiceClient();
-  const { data: supplier } = await service.from('suppliers').select('supports_partner_orders').eq('id', order.supplier_id).single();
+  const supplier = await findPartnerSupplier(service, order.supplier_id);
   if (!supplier?.supports_partner_orders) return NextResponse.json({ error: 'Este fornecedor não aceita envio automático de pedidos.' }, { status: 409 });
 
-  const { data: integration } = await service.from('supplier_integrations').select('base_url, auth_type, credential_env_key, api_key_header, enabled').eq('supplier_id', order.supplier_id).single();
+  const integration = await findSupplierIntegration(service, order.supplier_id);
   if (!integration || !integration.enabled || !integration.base_url) return NextResponse.json({ error: 'Integração do fornecedor não configurada.' }, { status: 409 });
 
   const items = (order.purchase_order_items ?? []) as { product_model: string; supplier_sku: string; quantity: number }[];
-  const { data: mappings } = await service.from('supplier_product_mappings').select('supplier_sku, external_product_id').eq('supplier_id', order.supplier_id).in('supplier_sku', items.map((item) => item.supplier_sku));
-  const externalIdBySku = new Map((mappings ?? []).map((row) => [row.supplier_sku, row.external_product_id]));
+  const mappings = await findSupplierProductMappings(service, order.supplier_id, items.map((item) => item.supplier_sku));
+  const externalIdBySku = new Map(mappings.map((row) => [row.supplier_sku, row.external_product_id]));
   const missingProduct = items.find((item) => !externalIdBySku.get(item.supplier_sku));
   if (missingProduct) {
     return NextResponse.json({ error: `Produto ${missingProduct.product_model} ainda não foi sincronizado com o catálogo do fornecedor.` }, { status: 422 });
@@ -100,12 +97,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     const saleNumber = payload?.sale?.sale_number ?? payload?.sale?.id ?? null;
     if (!saleNumber) throw new Error('Resposta do fornecedor não trouxe um identificador do pedido.');
 
-    const { error: rpcError } = await supabase.rpc('submit_purchase_order_to_partner', {
-      p_order_id: orderId,
-      p_external_order_id: saleNumber,
-      p_message: `Pedido enviado ao fornecedor. Nº ${saleNumber}.`,
-    });
-    if (rpcError) throw rpcError;
+    await submitOrderToPartner(supabase, orderId, saleNumber, `Pedido enviado ao fornecedor. Nº ${saleNumber}.`);
 
     return NextResponse.json({ saleNumber, status: 'submitted' });
   } catch (cause) {

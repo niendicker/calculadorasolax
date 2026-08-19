@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { renderPurchaseOrderPdf, type PurchaseOrderPdfDeliveryAddress, type PurchaseOrderPdfItem } from '@/lib/pdf/purchase-order-pdf';
+import { findLastSupplierEmailEvent, findOrderForEmail, findPurchaseOrderProfile, findSupplierContact, recordSupplierEmailEvent } from '@/lib/data/purchase-order-repository';
 
 interface NotifyInput {
   message?: string;
@@ -40,26 +41,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     return NextResponse.json({ error: 'Envio de email não está configurado no servidor.' }, { status: 500 });
   }
 
-  const { data: order, error: orderError } = await supabase
-    .from('purchase_orders')
-    .select(
-      'id, supplier_id, currency, subtotal, status, delivery_address, purchase_order_items(product_model, supplier_sku, quantity, unit_price, line_total)'
-    )
-    .eq('id', orderId)
-    .single();
-  if (orderError || !order) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
+  const order = await findOrderForEmail(supabase, orderId);
+  if (!order) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
   if (!['requested', 'under_review', 'quoted'].includes(order.status)) {
     return NextResponse.json({ error: 'Este pedido não está mais disponível para notificar o fornecedor.' }, { status: 409 });
   }
 
-  const { data: lastEmailEvent } = await supabase
-    .from('purchase_order_events')
-    .select('created_at')
-    .eq('order_id', orderId)
-    .eq('event_type', 'supplier_email_sent')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const lastEmailEvent = await findLastSupplierEmailEvent(supabase, orderId);
   if (lastEmailEvent) {
     const elapsedMs = Date.now() - new Date(lastEmailEvent.created_at).getTime();
     if (elapsedMs < SUPPLIER_EMAIL_COOLDOWN_MS) {
@@ -72,12 +60,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     }
   }
 
-  const { data: profile } = await supabase.from('profiles').select('full_name, company_name, phone, email').eq('id', user.id).single();
+  const profile = await findPurchaseOrderProfile(supabase, user.id);
   const userEmail = profile?.email || user.email;
   if (!userEmail) return NextResponse.json({ error: 'Não foi possível identificar seu email.' }, { status: 422 });
 
   const service = createServiceClient();
-  const { data: supplier } = await service.from('suppliers').select('name, email').eq('id', order.supplier_id).single();
+  const supplier = await findSupplierContact(service, order.supplier_id);
   if (!supplier?.email) return NextResponse.json({ error: 'Este fornecedor não tem um email cadastrado.' }, { status: 409 });
 
   const items = (order.purchase_order_items ?? []) as PurchaseOrderPdfItem[];
@@ -118,7 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new Error(payload?.message || `Falha ao enviar email (HTTP ${response.status}).`);
 
-    await service.from('purchase_order_events').insert({
+    await recordSupplierEmailEvent(service, {
       order_id: orderId,
       actor_id: user.id,
       event_type: 'supplier_email_sent',
