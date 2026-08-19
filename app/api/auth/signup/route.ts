@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
+import { createServiceClient } from '@/lib/supabase/service';
 
 interface SignupInput {
   email?: string;
@@ -53,10 +53,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Cadastro não está disponível no momento. Tente novamente mais tarde.' }, { status: 500 });
   }
 
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAdmin = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const supabaseAdmin = createServiceClient();
 
   // Mirrors AuthPanel's old emailRedirectTo exactly (same /auth/callback,
   // same locale/next), just built server-side from the request's own origin

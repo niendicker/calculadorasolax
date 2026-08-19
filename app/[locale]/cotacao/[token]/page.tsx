@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { QuoteShareView } from '@/components/quote-share/QuoteShareView';
+import { createServiceClient } from '@/lib/supabase/service';
 import type { QuoteShareSnapshot } from '@/components/app/helpers';
 import type { QuoteShareStatus } from '@/lib/types';
 
@@ -16,10 +16,7 @@ export const metadata = {
 export default async function QuoteSharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const service = createServiceClient();
 
   const { data } = await service
     .from('quote_shares')

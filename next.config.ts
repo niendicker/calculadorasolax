@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import { getPublicSupabaseUrl } from './lib/supabase/config';
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
@@ -18,7 +19,7 @@ function resolveCommitSha() {
 // that one env var — next/image's remote-host allowlist follows it
 // automatically instead of needing a matching next.config.ts edit + redeploy
 // every time (see the supabase-calculadora.solaxpowerbrasil.cloud migration).
-const supabaseUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
+const supabaseUrl = new URL(getPublicSupabaseUrl());
 
 const nextConfig: NextConfig = {
   env: {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 interface RequestInput {
   supplierIds?: string[];
@@ -88,10 +88,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const { data: preferences } = await supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', user.id);
   const preferredIds = new Set(((preferences ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id));
 
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const service = createServiceClient();
   const { data: suppliers } = await service
     .from('suppliers')
     .select('id, name, email, is_default_for_all')

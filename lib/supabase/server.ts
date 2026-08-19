@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { AUTH_COOKIE_NAME } from './auth-cookie-name';
+import { getSupabaseAnonKey, getSupabaseServerUrl } from './config';
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -8,11 +9,11 @@ export async function createClient() {
   // Server-side requests go over the Docker network directly to Kong
   // instead of round-tripping through the public hostname; falls back to
   // the public URL when SUPABASE_INTERNAL_URL isn't set (e.g. local dev).
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseUrl = getSupabaseServerUrl();
 
   return createServerClient(
     supabaseUrl,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseAnonKey(),
     {
       cookieOptions: { name: AUTH_COOKIE_NAME },
       cookies: {

@@ -1,7 +1,13 @@
 import type { StateCreator } from 'zustand';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
-import { createClient } from '@/lib/supabase/client';
 import type { ProjectServiceLine, UserServiceItem } from '@/lib/types';
+import {
+  deleteUserService,
+  insertUserService,
+  listUserServices,
+  updateUserServiceName,
+  updateUserServiceValue,
+} from '@/lib/data/catalog-repository';
 import { userServiceFromRow } from '../row-mappers';
 import type { WizardStore } from '../wizard-store';
 
@@ -28,10 +34,8 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
   services: [],
 
   fetchUserServices: async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase.from('user_services').select('*').order('name');
-    if (error) throw error;
-    set({ userServices: (data ?? []).map(userServiceFromRow) });
+    const data = await listUserServices();
+    set({ userServices: data.map(userServiceFromRow) });
   },
 
   addService: async (input) => {
@@ -39,16 +43,7 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
       throw new Error(limitReachedMessage('serviços no catálogo', ACCOUNT_LIMITS.userServices));
     }
 
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error('not_authenticated');
-
-    const { data, error } = await supabase
-      .from('user_services')
-      .insert({ user_id: userData.user.id, name: input.name.trim(), unit_value: input.unitValue })
-      .select()
-      .single();
-    if (error) throw error;
+    const data = await insertUserService(input);
 
     const item = userServiceFromRow(data);
     set((s) => ({ userServices: [...s.userServices, item].sort((a, b) => a.name.localeCompare(b.name)) }));
@@ -56,12 +51,7 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
 
   updateServiceName: async (id, name) => {
     const trimmed = name.trim();
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('user_services')
-      .update({ name: trimmed, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) throw error;
+    await updateUserServiceName(id, trimmed);
 
     set((s) => ({
       userServices: s.userServices.map((item) => (item.id === id ? { ...item, name: trimmed } : item)),
@@ -69,12 +59,7 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
   },
 
   updateServiceValue: async (id, unitValue) => {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('user_services')
-      .update({ unit_value: unitValue, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) throw error;
+    await updateUserServiceValue(id, unitValue);
 
     set((s) => ({
       userServices: s.userServices.map((item) => (item.id === id ? { ...item, unitValue } : item)),
@@ -82,9 +67,7 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
   },
 
   removeService: async (id) => {
-    const supabase = createClient();
-    const { error } = await supabase.from('user_services').delete().eq('id', id);
-    if (error) throw error;
+    await deleteUserService(id);
 
     set((s) => ({
       userServices: s.userServices.filter((item) => item.id !== id),

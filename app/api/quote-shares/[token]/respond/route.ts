@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/supabase/service';
 
 interface RespondInput {
   decision?: string;
@@ -25,10 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   }
   const decision = input.decision;
 
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const service = createServiceClient();
 
   const { data: share, error: shareError } = await service
     .from('quote_shares')

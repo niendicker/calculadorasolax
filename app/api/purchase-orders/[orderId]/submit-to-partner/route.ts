@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { buildSupplierUrl } from '@/lib/procurement/generic-json';
 
 interface DeliveryInput {
@@ -47,10 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
 
   const { data: profile } = await supabase.from('profiles').select('full_name, company_name, email, phone').eq('id', user.id).single();
 
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const service = createServiceClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const service = createServiceClient();
   const { data: supplier } = await service.from('suppliers').select('supports_partner_orders').eq('id', order.supplier_id).single();
   if (!supplier?.supports_partner_orders) return NextResponse.json({ error: 'Este fornecedor não aceita envio automático de pedidos.' }, { status: 409 });
 

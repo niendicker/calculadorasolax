@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 export async function POST(request: Request) {
   let body: { generatedSolutions?: unknown; previousIds?: unknown };
@@ -29,15 +29,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
   }
 
-  const supabaseUrl = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
+  let service;
+  try {
+    service = createServiceClient();
+  } catch {
     return NextResponse.json({ error: 'Supabase não está configurado no servidor.' }, { status: 500 });
   }
-
-  const service = createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
   const previousIds = body.previousIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
 
   if (previousIds.length > 0) {
