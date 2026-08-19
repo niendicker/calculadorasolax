@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
+import { listOrderingSuppliers, listSupplierOffers, listUserSupplierPreferences } from '@/lib/data/supplier-repository';
 import type { MarginSettings, ProductDocument, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { formatCurrencyBRL } from '../helpers';
@@ -129,26 +130,26 @@ export function MyStockTab({
       const uid = userData.user?.id ?? null;
       if (!uid) return;
 
-      const [supplierResult, preferencesResult] = await Promise.all([
-        supabase.from('suppliers').select('id, is_default_for_all').eq('active', true).eq('ordering_enabled', true),
-        supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', uid),
+      const [supplierList, preferenceRows] = await Promise.all([
+        listOrderingSuppliers(supabase, 'id, is_default_for_all'),
+        listUserSupplierPreferences(supabase, uid),
       ]);
-      const supplierList = (supplierResult.data ?? []) as { id: string; is_default_for_all: boolean }[];
-      const preferredIds = ((preferencesResult.data ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id);
+      const typedSuppliers = supplierList as unknown as { id: string; is_default_for_all: boolean }[];
+      const preferredIds = (preferenceRows as unknown as { supplier_id: string }[]).map((row) => row.supplier_id);
       const allowedSupplierIds = [
-        ...new Set([...supplierList.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id), ...preferredIds]),
+        ...new Set([...typedSuppliers.filter((supplier) => supplier.is_default_for_all).map((supplier) => supplier.id), ...preferredIds]),
       ];
       if (allowedSupplierIds.length === 0) return;
 
-      const { data: offers } = await supabase
-        .from('supplier_offers')
-        .select('unit_price, supplier_product_mappings!inner(product_type, product_model), suppliers!inner(currency)')
-        .eq('active', true)
-        .in('supplier_id', allowedSupplierIds);
+      const offers = await listSupplierOffers(
+        supabase,
+        allowedSupplierIds,
+        'unit_price, supplier_product_mappings!inner(product_type, product_model), suppliers!inner(currency)'
+      );
       if (cancelled) return;
 
       const costMap: SupplierCostMap = {};
-      for (const offer of (offers ?? []) as unknown as {
+      for (const offer of offers as unknown as {
         unit_price: number;
         supplier_product_mappings: { product_type: StockProductType; product_model: string };
         suppliers: { currency: string };

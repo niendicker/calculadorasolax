@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, Mail, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { listOrderingSuppliers, listUserSupplierPreferences } from '@/lib/data/supplier-repository';
 import { buildSupplierQuoteRequestEmail, type ShareableBatteryCatalog, type ShareableProject } from '../../helpers';
 import type { InlineProfile } from '../../types';
 
@@ -74,25 +75,18 @@ export function SupplierQuoteRequestModal({
     async function load() {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id ?? null;
-      const [supplierResult, preferencesResult] = await Promise.all([
-        supabase
-          .from('suppliers')
-          .select('id, name, email, is_default_for_all')
-          .eq('active', true)
-          .eq('ordering_enabled', true)
-          .order('name'),
-        uid
-          ? supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', uid)
-          : Promise.resolve({ data: [] as { supplier_id: string }[] }),
+      const [allSuppliers, preferenceRows] = await Promise.all([
+        listOrderingSuppliers(supabase, 'id, name, email, is_default_for_all'),
+        uid ? listUserSupplierPreferences(supabase, uid) : Promise.resolve([]),
       ]);
-      const allSuppliers = (supplierResult.data ?? []) as {
+      const typedSuppliers = allSuppliers as unknown as {
         id: string;
         name: string;
         email: string | null;
         is_default_for_all: boolean;
       }[];
-      const preferredIds = new Set(((preferencesResult.data ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id));
-      const allowed = allSuppliers.filter((supplier) => supplier.is_default_for_all || preferredIds.has(supplier.id));
+      const preferredIds = new Set(preferenceRows.map((row) => row.supplier_id));
+      const allowed = typedSuppliers.filter((supplier) => supplier.is_default_for_all || preferredIds.has(supplier.id));
 
       setAllowedCount(allowed.length);
       setSuppliers(
