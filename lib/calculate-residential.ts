@@ -7,6 +7,7 @@
 // messages while the other doesn't.
 
 import type { createClient } from '@/lib/supabase/client';
+import { invokeResidentialCalculation, recordSimulation } from '@/lib/data/calculation-repository';
 import { enqueuePendingSimulation } from './metrics-queue';
 import { getNetworkErrorMessage, resolveCalculationErrorMessage } from './calculation-error-messages';
 import type { ResidentialOptions, Solution } from './types';
@@ -34,8 +35,9 @@ export async function calculateResidentialSolution({
   dailyKwh: number;
 }): Promise<CalculateResidentialResult> {
   try {
-    const { data, error: functionError } = await supabase.functions.invoke('calculate-residential', {
-      body: { ...residentialOptions, batteryModel },
+    const { data, error: functionError } = await invokeResidentialCalculation(supabase, {
+      ...residentialOptions,
+      batteryModel,
     });
 
     if (functionError || !data) {
@@ -61,7 +63,7 @@ export async function calculateResidentialSolution({
       accessories: solution.accessories.map((accessory) => accessory.model),
       solution_code: solution.solutionCode ?? null,
     };
-    const { error: simulationError } = await supabase.from('app_simulations').insert(simulationPayload);
+    const { error: simulationError } = await recordSimulation(supabase, simulationPayload);
 
     if (simulationError) {
       console.error(simulationError);
