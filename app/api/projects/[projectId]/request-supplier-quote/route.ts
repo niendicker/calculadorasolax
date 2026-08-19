@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import {
+  findLastSupplierQuoteRequest,
+  findProjectForQuote,
+  findRequesterProfile,
+  listAllowedSupplierContacts,
+  listPreferredSupplierIds,
+  recordSupplierQuoteRequest,
+} from '@/lib/data/supplier-quote-repository';
 
 interface RequestInput {
   supplierIds?: string[];
@@ -47,21 +55,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: 'Envio de email não está configurado no servidor.' }, { status: 500 });
   }
 
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', projectId)
-    .single();
-  if (projectError || !project) return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 });
+  const project = await findProjectForQuote(supabase, projectId);
+  if (!project) return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 });
 
-  const { data: lastRequestEvent } = await supabase
-    .from('project_events')
-    .select('created_at')
-    .eq('project_id', projectId)
-    .eq('event_type', 'supplier_quote_requested')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const lastRequestEvent = await findLastSupplierQuoteRequest(supabase, projectId);
   if (lastRequestEvent) {
     const elapsedMs = Date.now() - new Date(lastRequestEvent.created_at).getTime();
     if (elapsedMs < QUOTE_REQUEST_COOLDOWN_MS) {
@@ -74,7 +71,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     }
   }
 
-  const { data: profile } = await supabase.from('profiles').select('full_name, company_name, email').eq('id', user.id).single();
+  const profile = await findRequesterProfile(supabase, user.id);
   const userEmail = profile?.email || user.email;
   if (!userEmail) return NextResponse.json({ error: 'Não foi possível identificar seu email.' }, { status: 422 });
   const requesterName = profile?.company_name?.trim() || profile?.full_name?.trim() || 'Cliente';
@@ -85,19 +82,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   // needs the service role (suppliers.email isn't exposed to the anon key),
   // which would otherwise let a caller quote-request *any* supplier id,
   // including ones this user isn't even supposed to see.
-  const { data: preferences } = await supabase.from('user_supplier_preferences').select('supplier_id').eq('user_id', user.id);
-  const preferredIds = new Set(((preferences ?? []) as { supplier_id: string }[]).map((row) => row.supplier_id));
+  const preferredIds = await listPreferredSupplierIds(supabase, user.id);
 
   const service = createServiceClient();
-  const { data: suppliers } = await service
-    .from('suppliers')
-    .select('id, name, email, is_default_for_all')
-    .eq('active', true)
-    .eq('ordering_enabled', true)
-    .in('id', supplierIds);
-  const allowedSuppliers = ((suppliers ?? []) as { id: string; name: string; email: string | null; is_default_for_all: boolean }[]).filter(
-    (supplier) => supplier.is_default_for_all || preferredIds.has(supplier.id)
-  );
+  const allowedSuppliers = await listAllowedSupplierContacts(service, supplierIds, preferredIds);
   const suppliersWithEmail = allowedSuppliers.filter(
     (supplier): supplier is { id: string; name: string; email: string; is_default_for_all: boolean } => Boolean(supplier.email)
   );
@@ -133,7 +121,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: 'Não foi possível enviar o email para nenhum fornecedor.' }, { status: 502 });
   }
 
-  await supabase.from('project_events').insert({
+  await recordSupplierQuoteRequest(supabase, {
     project_id: projectId,
     actor_id: user.id,
     event_type: 'supplier_quote_requested',
