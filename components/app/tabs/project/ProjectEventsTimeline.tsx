@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Activity, CheckCircle2, Eye, Mail, RefreshCw, Send, XCircle, type LucideIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { listProjectEvents } from '@/lib/data/project-events-repository';
 import { projectEventFromRow } from '@/lib/store/row-mappers';
 import type { ProjectEvent, ProjectStatus } from '@/lib/types';
 import { projectStatusLabels } from '../../types';
@@ -48,14 +49,9 @@ export function ProjectEventsTimeline({ projectId, refreshKey }: { projectId: st
 
   useEffect(() => {
     let cancelled = false;
-    createClient()
-      .from('project_events')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
-      .then(({ data }: { data: Record<string, unknown>[] | null }) => {
-        if (!cancelled) setEvents((data ?? []).map(projectEventFromRow));
-      });
+    listProjectEvents(createClient(), projectId).then(({ data }) => {
+      if (!cancelled) setEvents(data.map(projectEventFromRow));
+    });
     return () => {
       cancelled = true;
     };

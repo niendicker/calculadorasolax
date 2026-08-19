@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { addressFromJson } from '@/lib/address';
 import type { createClient } from '@/lib/supabase/client';
 import { flushPendingSimulations } from '@/lib/metrics-queue';
+import { listPublicLoadPresets } from '@/lib/data/public-catalog-repository';
 import type { CatalogItem, LoadPresetItem, ProductDocument } from '@/lib/types';
 import type {
   AccessoryCatalogOption,
@@ -78,7 +79,7 @@ export function useInitialData({
           .from('approved_solutions')
           .select('grid_topology, battery_topology, inverter_model')
           .eq('active', true),
-        supabase.from('load_presets').select('id, name, description, loads').order('display_order'),
+        listPublicLoadPresets(supabase),
       ]);
 
       setUserEmail(userData.user?.email ?? null);

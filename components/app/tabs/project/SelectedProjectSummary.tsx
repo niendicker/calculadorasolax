@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
+import { recordProjectEvent } from '@/lib/data/project-events-repository';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
@@ -171,7 +172,7 @@ export function SelectedProjectSummary({
       if (whatsAppUrl) window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
 
       const wasDraft = project.status === 'draft';
-      await supabase.from('project_events').insert({
+      await recordProjectEvent(supabase, {
         project_id: project.id,
         actor_id: profile.id,
         event_type: 'quote_shared',
