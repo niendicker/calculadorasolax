@@ -5,6 +5,7 @@ import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
+import { setUserSupplierPreference } from '@/lib/data/supplier-repository';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import type { SupplierOfferView } from '@/lib/procurement/types';
 import type { Solution, StockProductType } from '@/lib/types';
@@ -188,14 +189,12 @@ export function SupplyTab({
 
     setPendingSupplierId(supplier.id);
     setError(null);
-    const { error: toggleError } = selected
-      ? await supabase.from('user_supplier_preferences').delete().eq('user_id', userId).eq('supplier_id', supplier.id)
-      : await supabase.from('user_supplier_preferences').insert({ user_id: userId, supplier_id: supplier.id });
-    if (toggleError) {
-      setFailure(toggleError.message);
-    } else {
+    try {
+      await setUserSupplierPreference(supabase, userId, supplier.id, selected);
       setPreferredIds((current) => (selected ? current.filter((id) => id !== supplier.id) : [...current, supplier.id]));
       await load();
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : 'Não foi possível atualizar o fornecedor.');
     }
     setPendingSupplierId(null);
   }
