@@ -4,6 +4,7 @@ import { isAddressEmpty } from '@/lib/address';
 import type { createClient } from '@/lib/supabase/client';
 import type { InlineProfile } from '../types';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
+import { saveProfileRecord } from '@/lib/data/profile-repository';
 
 export function useProfileActions({
   supabase,
@@ -57,7 +58,8 @@ export function useProfileActions({
     setProfileMessage(null);
     setProfileError(null);
 
-    const { error: saveError } = await supabase.from('profiles').upsert({
+    try {
+      await saveProfileRecord(supabase, {
       id: profile.id,
       email: profile.email,
       full_name: profile.fullName.trim(),
@@ -68,14 +70,14 @@ export function useProfileActions({
       company_logo_url: profile.companyLogoUrl.trim(),
       company_document: profile.companyDocument.trim() || null,
       updated_at: new Date().toISOString(),
-    });
-
-    setProfileSaving(false);
-
-    if (saveError) {
-      setProfileError(saveError.message);
+      });
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Não foi possível salvar o perfil.');
+      setProfileSaving(false);
       return;
     }
+
+    setProfileSaving(false);
 
     setProfileMessage('Perfil atualizado.');
     setProfileSnapshot(profile);

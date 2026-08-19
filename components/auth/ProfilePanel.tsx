@@ -11,6 +11,7 @@ import { isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
 import type { Address } from '@/lib/types';
 import { AddressFields } from '@/components/app/address-fields';
+import { saveProfileRecord } from '@/lib/data/profile-repository';
 
 interface Profile {
   id: string;
@@ -43,7 +44,8 @@ export function ProfilePanel({
     setMessage(null);
     setError(null);
 
-    const { error: profileError } = await supabase.from('profiles').upsert({
+    try {
+      await saveProfileRecord(supabase, {
       id: profile.id,
       email: profile.email,
       full_name: profile.full_name.trim(),
@@ -52,14 +54,14 @@ export function ProfilePanel({
       company_address: isAddressEmpty(profile.company_address) ? null : profile.company_address,
       company_logo_url: profile.company_logo_url.trim(),
       updated_at: new Date().toISOString(),
-    });
-
-    setSaving(false);
-
-    if (profileError) {
-      setError(profileError.message);
+      });
+    } catch (error) {
+      setSaving(false);
+      setError(error instanceof Error ? error.message : 'Não foi possível salvar o perfil.');
       return;
     }
+
+    setSaving(false);
 
     setMessage('Perfil atualizado.');
   }

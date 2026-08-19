@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { acceptTermsRecord } from '@/lib/data/profile-repository';
 
 export function TermsAcceptanceForm({
   locale,
@@ -29,10 +30,12 @@ export function TermsAcceptanceForm({
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ terms_accepted_at: new Date().toISOString() })
-      .eq('id', userData.user.id);
+    let updateError: Error | null = null;
+    try {
+      await acceptTermsRecord(supabase, userData.user.id);
+    } catch (error) {
+      updateError = error instanceof Error ? error : new Error('Não foi possível aceitar os termos.');
+    }
 
     setSaving(false);
 
