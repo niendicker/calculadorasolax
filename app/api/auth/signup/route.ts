@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { createServiceClient } from '@/lib/supabase/service';
+import { CURRENT_LEGAL_DOCUMENT_VERSION } from '@/lib/legal-documents';
 
 interface SignupInput {
   email?: string;
@@ -73,7 +74,13 @@ export async function POST(request: Request) {
       // raw_user_meta_data regardless of which API created the auth.users
       // row; role is included for parity but the trigger ignores it (0076
       // hardened it to always insert 'user' server-side).
-      data: { full_name: name, phone, role: 'user', terms_accepted: true },
+      data: {
+        full_name: name,
+        phone,
+        role: 'user',
+        terms_accepted: true,
+        terms_accepted_version: CURRENT_LEGAL_DOCUMENT_VERSION,
+      },
       redirectTo: emailRedirectTo,
     },
   });

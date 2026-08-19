@@ -84,6 +84,7 @@ Campos:
 | `company_address` | Endereço da empresa |
 | `company_logo_url` | Logomarca usada no relatório |
 | `terms_accepted_at` | Data do aceite dos Termos de Uso / Política de Privacidade (LGPD); `null` bloqueia o uso do app |
+| `terms_accepted_version` | Versão dos Termos/Política aceita; diferente da versão vigente bloqueia o uso até novo aceite |
 | `created_at` | Criação |
 | `updated_at` | Atualização |
 
@@ -93,7 +94,7 @@ Regras:
 - Admin é definido manualmente no banco
 - `/admin` exige login e `role = admin`
 - RLS usa `public.is_admin()` para escrita administrativa
-- Qualquer rota autenticada (`/`, `/admin`, `/profile`) redireciona para `/aceite-termos` enquanto `terms_accepted_at` for nulo
+- Qualquer rota autenticada (`/`, `/admin`, `/profile`) redireciona para `/aceite-termos` enquanto o usuário não tiver aceitado a versão vigente dos documentos
 - Exclusão de conta: `POST /api/account/delete` autentica pela sessão do próprio usuário, remove a logomarca em modo best-effort e chama a RPC protegida `delete_own_account`; pedidos de compra podem permanecer sem o vínculo do usuário, conforme a migration `0079`
 
 ## Clientes e projetos

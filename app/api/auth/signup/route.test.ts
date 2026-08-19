@@ -109,7 +109,13 @@ describe('POST /api/auth/signup: happy path', () => {
       email: 'nova@x.com',
       password: 'segredo123',
       options: {
-        data: { full_name: 'Fulano', phone: '11999999999', role: 'user', terms_accepted: true },
+        data: {
+          full_name: 'Fulano',
+          phone: '11999999999',
+          role: 'user',
+          terms_accepted: true,
+          terms_accepted_version: '2026-08-19',
+        },
         redirectTo: 'http://localhost/pt/auth/callback?next=%2Fpt',
       },
     });

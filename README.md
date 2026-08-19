@@ -74,7 +74,7 @@ npm run build
 | `/pt/admin` | Administração de catálogo, apenas `role = admin` |
 | `/pt/termos` | Termos de Uso |
 | `/pt/privacidade` | Política de Privacidade (LGPD) |
-| `/pt/aceite-termos` | Bloqueio de aceite dos termos, exibido a qualquer usuário logado sem `terms_accepted_at` |
+| `/pt/aceite-termos` | Bloqueio de aceite dos termos, exibido a qualquer usuário logado sem aceite da versão vigente |
 | `/pt/wizard/residential/*` | Fluxo legado do wizard residencial |
 | `/pt/wizard/industrial/*` | Fluxo legado do wizard industrial |
 | `/pt/wizard/result` | Redirect compatível para o resultado residencial |
@@ -143,8 +143,9 @@ O relatório pode ser exportado por impressão/PDF e inclui:
 
 ## LGPD
 
-- Cadastro exige aceite de Termos de Uso e Política de Privacidade (checkbox obrigatório); o aceite fica em `profiles.terms_accepted_at`.
-- Qualquer usuário autenticado sem esse campo preenchido é redirecionado para `/aceite-termos` antes de acessar `/`, `/admin` ou `/profile` — cobre tanto novos cadastros quanto contas já existentes na primeira vez que a política mudar.
+- Cadastro exige aceite de Termos de Uso e Política de Privacidade (checkbox obrigatório); data e versão ficam em `profiles.terms_accepted_at` e `profiles.terms_accepted_version`.
+- Qualquer usuário autenticado sem aceite da versão vigente é redirecionado para `/aceite-termos` antes de acessar `/`, `/admin` ou `/profile`.
+- A versão vigente fica em `lib/legal-documents.ts` (`CURRENT_LEGAL_DOCUMENT_VERSION`). Ao alterar os documentos, atualize essa constante, crie uma migration compatível e publique a nova versão; usuários com versão diferente serão direcionados ao novo aceite.
 - O perfil do usuário (modal "Meu perfil") tem uma seção "Excluir conta": exige digitar `EXCLUIR` para confirmar e chama `POST /api/account/delete`. A rota usa a sessão do próprio usuário, remove a logomarca em modo best-effort e chama a RPC protegida `delete_own_account`; pedidos de compra podem permanecer sem o vínculo do usuário.
 - `app_simulations` não grava mais o nome do cliente (dado pessoal de terceiro sem uso real no produto).
 
@@ -239,6 +240,7 @@ Migrações Supabase:
 | `0083_reapply_missing_security_fixes.sql` | Reaplica correções de segurança ausentes em produção |
 | `0084_reapply_terms_accepted_at_trigger.sql` | Reaplica trigger com suporte ao aceite de termos |
 | `0085_reapply_missing_storage_policies.sql` | Reaplica políticas de Storage ausentes em produção |
+| `0086_terms_accepted_version.sql` | Registra a versão dos Termos e da Política aceita pelo usuário |
 
 Aplicar migrações ao projeto linkado:
 

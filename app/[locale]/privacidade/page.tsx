@@ -133,7 +133,7 @@ export default async function PrivacyPage({
           <p className="mt-2 text-muted-foreground">
             Esta política pode ser atualizada periodicamente. A versão vigente será disponibilizada nesta página
             e alterações relevantes poderão ser comunicadas pelos canais disponíveis. O sistema registra atualmente
-            a data do aceite, sem controle de versão individual do documento aceito.
+            a data e a versão dos documentos aceitos, para solicitar nova revisão quando a versão vigente mudar.
           </p>
         </section>
 

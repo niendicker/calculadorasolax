@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { ProfilePanel } from '@/components/auth/ProfilePanel';
 import { addressFromJson } from '@/lib/address';
 import { createClient } from '@/lib/supabase/server';
+import { hasAcceptedCurrentLegalDocuments } from '@/lib/legal-documents';
 
 export const metadata: Metadata = {
   title: 'Perfil | Calculadora SolaX',
@@ -24,11 +25,11 @@ export default async function ProfilePage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url, terms_accepted_at')
+    .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url, terms_accepted_at, terms_accepted_version')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (!profile?.terms_accepted_at) {
+  if (!hasAcceptedCurrentLegalDocuments(profile)) {
     redirect(`/${locale}/aceite-termos?redirect=${encodeURIComponent(`/${locale}/profile`)}`);
   }
 

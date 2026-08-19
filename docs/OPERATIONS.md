@@ -44,13 +44,27 @@ npx supabase functions deploy calculate-residential --project-ref SEU_PROJECT_RE
 Depois validar:
 
 - trigger de criação de `profiles`;
-- `terms_accepted_at` no cadastro;
+- `terms_accepted_at` e `terms_accepted_version` no cadastro; usuários sem a versão vigente devem ser direcionados ao aceite;
 - RLS de usuários e administradores;
 - policies de Storage;
 - RPC `delete_own_account`;
 - cálculo válido e cálculo inválido;
 - links públicos de cotação;
 - emails e integrações de fornecedor.
+
+## Atualização dos documentos legais
+
+Quando os Termos ou a Política forem alterados:
+
+1. atualizar os textos em `app/[locale]/termos/page.tsx` e `app/[locale]/privacidade/page.tsx`;
+2. alterar `CURRENT_LEGAL_DOCUMENT_VERSION` em `lib/legal-documents.ts`;
+3. criar uma migration que preserve o histórico e mantenha `terms_accepted_version` nulo para os usuários que devem revisar a nova versão;
+4. aplicar a migration no banco antes do deploy da aplicação;
+5. publicar a aplicação;
+6. testar um usuário antigo, um novo cadastro e o fluxo de aceite;
+7. registrar a versão publicada e a data da alteração.
+
+A migration `0086_terms_accepted_version.sql` implementa a primeira versão desse mecanismo. A versão atualmente publicada é `2026-08-19`.
 
 ## Migração para servidor próprio
 

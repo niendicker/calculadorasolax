@@ -115,7 +115,7 @@ export default async function TermsPage({
           <p className="mt-2 text-muted-foreground">
             Podemos atualizar estes termos periodicamente. A versão vigente será disponibilizada nesta página e
             alterações relevantes poderão ser comunicadas pelos canais disponíveis. O sistema registra atualmente
-            a data do aceite, sem controle de versão individual do documento aceito.
+            a data e a versão dos documentos aceitos, para solicitar nova revisão quando a versão vigente mudar.
           </p>
         </section>
 

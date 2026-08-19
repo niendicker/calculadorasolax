@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { TermsAcceptanceForm } from '@/components/auth/TermsAcceptanceForm';
 import { createClient } from '@/lib/supabase/server';
+import { hasAcceptedCurrentLegalDocuments } from '@/lib/legal-documents';
 
 export const metadata: Metadata = {
   title: 'Aceite dos termos | Calculadora SolaX',
@@ -28,11 +29,11 @@ export default async function AcceptTermsPage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('terms_accepted_at')
+    .select('terms_accepted_at, terms_accepted_version')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profile?.terms_accepted_at) redirect(target);
+  if (hasAcceptedCurrentLegalDocuments(profile)) redirect(target);
 
   return <TermsAcceptanceForm locale={locale} redirectTo={target} />;
 }

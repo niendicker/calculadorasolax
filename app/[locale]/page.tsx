@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { SinglePageApp } from '@/components/app/SinglePageApp';
 import { createClient } from '@/lib/supabase/server';
+import { hasAcceptedCurrentLegalDocuments } from '@/lib/legal-documents';
 
 export const metadata: Metadata = {
   title: 'Dimensionamento',
@@ -23,11 +24,11 @@ export default async function HomePage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('terms_accepted_at')
+    .select('terms_accepted_at, terms_accepted_version')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (!profile?.terms_accepted_at) {
+  if (!hasAcceptedCurrentLegalDocuments(profile)) {
     redirect(`/${locale}/aceite-termos?redirect=${encodeURIComponent(`/${locale}`)}`);
   }
 
