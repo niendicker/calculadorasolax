@@ -108,7 +108,11 @@ export function WhiteTariffPanel({
   const backupDailyKwh = value.includes('backup') ? dailyKwh : 0;
   const whiteBusinessDays = whiteTariff?.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH;
   const whiteInputMode = whiteTariff?.inputMode ?? 'advanced';
-  const tariffInputMode = whiteTariff?.tariffInputMode ?? 'manual';
+  // "automatic" (Automático pela ANEEL) is temporarily disabled — fall back to
+  // "manual" even for projects saved while it was still available.
+  const tariffInputMode = (
+    whiteTariff?.tariffInputMode === 'automatic' ? 'manual' : whiteTariff?.tariffInputMode ?? 'manual'
+  ) as 'automatic' | 'manual';
   const whiteTotalMonthlyKwh = whiteTariff?.totalMonthlyConsumptionKwh ?? 0;
   const whiteExpensiveMonthlyKwh = whiteTariff
     ? ((whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / 1000) * whiteBusinessDays
@@ -308,16 +312,19 @@ export function WhiteTariffPanel({
               type="button"
               role="tab"
               aria-selected={tariffInputMode === mode}
+              disabled={mode === 'automatic'}
               onClick={() => {
+                if (mode === 'automatic') return;
                 const next = { ...(whiteTariff ?? emptyWhiteTariffConfig), tariffInputMode: mode };
                 onWhiteTariffChange(next);
               }}
               className={cn(
                 'rounded-md px-3 py-2 text-sm font-medium',
-                tariffInputMode === mode ? 'bg-background shadow-sm ring-1 ring-border/70' : 'text-muted-foreground'
+                tariffInputMode === mode ? 'bg-background shadow-sm ring-1 ring-border/70' : 'text-muted-foreground',
+                mode === 'automatic' && 'cursor-not-allowed opacity-50'
               )}
             >
-              {mode === 'automatic' ? 'Automático pela ANEEL' : 'Manual'}
+              {mode === 'automatic' ? 'Automático pela ANEEL (em breve)' : 'Manual'}
             </button>
           ))}
         </div>
