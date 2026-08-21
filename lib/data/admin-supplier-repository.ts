@@ -4,9 +4,9 @@ type BrowserSupabaseClient = ReturnType<typeof createClient>;
 
 export async function loadAdminSupplierWorkspace(supabase: BrowserSupabaseClient) {
   const [suppliers, integrations, mappings, orders, inverters, batteries, accessories, settings] = await Promise.all([
-    supabase.from('suppliers').select('*').order('name'),
-    supabase.from('supplier_integrations').select('*'),
-    supabase.from('supplier_product_mappings').select('*').order('product_model'),
+    supabase.from('suppliers').select('id, name, slug, active, ordering_enabled, order_mode, currency, minimum_order_value, description, is_default_for_all, supports_partner_orders, email, logo_url, website_url').order('name'),
+    supabase.from('supplier_integrations').select('supplier_id, connector_type, base_url, products_path, auth_type, credential_env_key, api_key_header, enabled, mapping, last_sync_at, last_sync_status, last_sync_message'),
+    supabase.from('supplier_product_mappings').select('id, supplier_id, product_type, product_model, supplier_sku, active').order('product_model'),
     supabase.from('purchase_orders').select('id, created_at, status, request_type, subtotal, currency, suppliers(name)').order('created_at', { ascending: false }).limit(100),
     supabase.from('inverters').select('model').order('model'),
     supabase.from('batteries').select('model').order('model'),

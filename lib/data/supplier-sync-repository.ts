@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function findSupplierIntegrationForSync(supabase: SupabaseClient, supplierId: string) {
-  const { data } = await supabase.from('supplier_integrations').select('*').eq('supplier_id', supplierId).single();
+  const { data } = await supabase.from('supplier_integrations').select('supplier_id, connector_type, base_url, products_path, auth_type, credential_env_key, api_key_header, enabled, mapping').eq('supplier_id', supplierId).single();
   return data;
 }
 
