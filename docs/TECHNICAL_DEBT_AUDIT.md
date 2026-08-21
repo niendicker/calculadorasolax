@@ -4,6 +4,26 @@
 **Escopo:** repositório completo da Calculadora SolaX  
 **Tipo:** diagnóstico read-only; nenhum código foi alterado durante a auditoria
 
+## Status de implementação
+
+Após a auditoria, as seguintes etapas foram implementadas em commits separados:
+
+- `814ea36f`: RLS de `app_simulations` exige usuário autenticado e `user_id`
+  igual à sessão. A migration `0088_harden_simulation_metrics_insert.sql`
+  ainda precisa ser aplicada no ambiente alvo.
+- `4580d983`: validação runtime de métricas e metadados do cálculo.
+- `dc931d07`: update atômico de quote shares, validação SSRF e limite efetivo
+  de respostas externas.
+- `36533072`: contratos de cálculo e métricas centralizados.
+- `aa280ef2`: matemática de potência/energia compartilhada entre browser e
+  Edge Function.
+- `8e1aa8e3`: primeiro passo da refatoração estrutural, isolando o controlador
+  do modo demo do shell principal.
+
+A refatoração completa de `SinglePageApp` e do store global permanece
+incremental para evitar regressões em um componente que concentra vários
+fluxos críticos.
+
 ## Resumo executivo
 
 O projeto está funcional e possui boas proteções recentes: RLS, validação na
@@ -448,4 +468,3 @@ As lacunas principais são:
 4. Reduzir serializações completas de estado.
 5. Adicionar testes de integração para workflows críticos.
 6. Monitorar tempo e taxa de erro das integrações externas.
-

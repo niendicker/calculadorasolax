@@ -18,6 +18,8 @@ Pode acessar páginas institucionais, login, recuperação e endpoints de tarifa
 
 - RLS habilitado em tabelas com dados de usuário.
 - `user_id` derivado da sessão, nunca do body.
+- Inserts em `app_simulations` permitidos apenas para usuários autenticados e
+  apenas para o próprio `auth.uid()` (migration `0088`).
 - `service_role` ausente do bundle client-side.
 - Validação de payload no route handler e na Edge Function.
 - Limites de linhas, paginação e tamanho de requisição.
