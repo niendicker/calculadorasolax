@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage",
     "check:functions": "cd supabase/functions && deno check calculate-residential/index.ts",
     "test:functions": "cd supabase/functions && deno test --allow-env calculate-residential/index.test.ts",
+    "db:check": "bash scripts/check-migrations.sh",
     "rotate-keys": "bash scripts/rotate-keys.sh"
   },
   "dependencies": {

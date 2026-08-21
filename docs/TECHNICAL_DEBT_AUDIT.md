@@ -8,9 +8,13 @@
 
 Após a auditoria, as seguintes etapas foram implementadas em commits separados:
 
+- `db:check`: verificação somente leitura do estado local/remoto das migrations
+  e do dry-run antes de qualquer aplicação.
+
 - `814ea36f`: RLS de `app_simulations` exige usuário autenticado e `user_id`
-  igual à sessão. A migration `0088_harden_simulation_metrics_insert.sql`
-  ainda precisa ser aplicada no ambiente alvo.
+  igual à sessão. A migration `0088_harden_simulation_metrics_insert.sql` foi
+  aplicada no ambiente self-hosted; o estado de outros ambientes deve ser
+  confirmado com `npm run db:check`.
 - `4580d983`: validação runtime de métricas e metadados do cálculo.
 - `dc931d07`: update atômico de quote shares, validação SSRF e limite efetivo
   de respostas externas.

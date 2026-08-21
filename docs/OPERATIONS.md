@@ -33,6 +33,18 @@ Se o ambiente de teste não tiver uma base local configurada, valide as migratio
 
 ## Deploy do Supabase
 
+Antes de aplicar qualquer migration, execute a checagem somente leitura:
+
+```bash
+npm run db:check
+```
+
+O comando lista as migrations locais/remotas e executa `supabase db push
+--dry-run`. Ele exige `DB_URL` exportada ou um `.env.tunnel.local` local e
+nunca altera o banco. Em um ambiente self-hosted, o `scripts/db-push-tunnel.sh`
+continua sendo o fluxo de aplicação; a checagem deve ser feita pelo túnel ou
+contra uma URL que alcance o Postgres remoto.
+
 Aplicar migrations somente após revisar o diff e confirmar o ambiente alvo:
 
 ```bash
