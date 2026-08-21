@@ -11,8 +11,10 @@
 # everything).
 #
 # Requires .env.tunnel.local at the repo root with DB_URL set (see
-# .gitignore — that file is never committed). SSH_HOST, TUNNEL_REMOTE and
-# LOCAL_PORT have defaults but can be overridden in the same file.
+# .gitignore — that file is never committed). SSH_HOST, DB_CONTAINER,
+# TUNNEL_REMOTE and LOCAL_PORT can be overridden in the same file. When
+# TUNNEL_REMOTE is omitted, the script discovers the running supabase-db
+# container and selects a reachable Docker-network IP automatically.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -36,8 +38,43 @@ set +a
 
 : "${DB_URL:?DB_URL not set in $ENV_FILE}"
 SSH_HOST="${SSH_HOST:-hostinger}"
-TUNNEL_REMOTE="${TUNNEL_REMOTE:-10.0.1.4:5432}"
+TUNNEL_REMOTE="${TUNNEL_REMOTE:-}"
+DB_CONTAINER="${DB_CONTAINER:-}"
 LOCAL_PORT="${LOCAL_PORT:-5432}"
+
+if [ -z "$TUNNEL_REMOTE" ]; then
+  echo "Discovering the remote Supabase database container..."
+  if [ -z "$DB_CONTAINER" ]; then
+    DB_CONTAINER=$(ssh -o ConnectTimeout=10 "$SSH_HOST" \
+      "docker ps --filter 'name=^supabase-db-' --format '{{.Names}}' | head -n 1")
+  fi
+  if [ -z "$DB_CONTAINER" ]; then
+    echo "Error: no running supabase-db container was found on $SSH_HOST." >&2
+    echo "Set DB_CONTAINER in $ENV_FILE or verify the Supabase stack." >&2
+    exit 1
+  fi
+
+  NETWORK_ROWS=$(ssh -o ConnectTimeout=10 "$SSH_HOST" \
+    "docker inspect -f '{{range \$name,\$network := .NetworkSettings.Networks}}{{printf \"%s=%s\\n\" \$name \$network.IPAddress}}{{end}}' '$DB_CONTAINER'")
+  while IFS='=' read -r network_name ip_address; do
+    [ -n "$ip_address" ] || continue
+    case "$ip_address" in
+      (*[!0-9.]*|.*|*.) continue ;;
+    esac
+    if ssh -o ConnectTimeout=10 "$SSH_HOST" \
+      "timeout 2 bash -c '</dev/tcp/$ip_address/5432'" >/dev/null 2>&1; then
+      TUNNEL_REMOTE="${ip_address}:5432"
+      echo "Using database container $DB_CONTAINER on network $network_name ($TUNNEL_REMOTE)."
+      break
+    fi
+  done <<< "$NETWORK_ROWS"
+
+  if [ -z "$TUNNEL_REMOTE" ]; then
+    echo "Error: no reachable port 5432 was found on the networks of $DB_CONTAINER." >&2
+    echo "$NETWORK_ROWS" >&2
+    exit 1
+  fi
+fi
 
 # Mask the password for display only — never log the full DB_URL.
 DB_URL_MASKED=$(printf '%s' "$DB_URL" | sed -E 's#(://[^:/]+:)[^@]+(@)#\1***\2#')
