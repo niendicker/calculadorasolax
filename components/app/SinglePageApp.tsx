@@ -32,6 +32,7 @@ import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
 import { AppFooter } from './shell/AppFooter';
+import { useAppShellState } from './shell/useAppShellState';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { DemoBanner } from './demo/DemoBanner';
@@ -151,8 +152,6 @@ export function SinglePageApp() {
     convertDemoToSimulation,
   } = useWizardStore();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
   const [pendingSupplyImport, setPendingSupplyImport] = useState(false);
   // Feedback while exportPdf() is generating the (non-instant) PDF blob —
   // exportingPdf covers every "Baixar relatório" trigger (Dimensionamento's
@@ -165,14 +164,20 @@ export function SinglePageApp() {
     'project'
   );
 
-  // App shell: title bar and summary panel are persistent chrome around the
-  // scrollable content; tabs portal their header/summary into these targets
-  // (see components/app/shell/slots.tsx) instead of rendering their own.
-  const [titleBarEl, setTitleBarEl] = useState<HTMLDivElement | null>(null);
-  const [summaryEl, setSummaryEl] = useState<HTMLDivElement | null>(null);
-  const [summaryActive, setSummaryActive] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const scrollRef = useRef<HTMLElement | null>(null);
+  const {
+    mobileMenuOpen,
+    setMobileMenuOpen,
+    summaryDrawerOpen,
+    setSummaryDrawerOpen,
+    titleBarEl,
+    setTitleBarEl,
+    summaryEl,
+    setSummaryEl,
+    summaryActive,
+    setSummaryActive,
+    scrolled,
+    scrollRef,
+  } = useAppShellState(activeTab);
 
   // wizard-store persists to localStorage with skipHydration (see
   // lib/store/wizard-store.ts) so the server-rendered first paint always
@@ -181,20 +186,6 @@ export function SinglePageApp() {
   useEffect(() => {
     void useWizardStore.persist.rehydrate();
   }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    function onScroll() {
-      setScrolled((el as HTMLElement).scrollTop > 8);
-    }
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, []);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [activeTab]);
 
   const {
     userEmail,
