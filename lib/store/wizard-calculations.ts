@@ -3,53 +3,13 @@
 // wizard-store.ts so existing `import { totalPeakW } from '@/lib/store/wizard-store'`
 // call sites don't need to change.
 //
-// totalPeakW/totalNominalW/totalDailyKwh also have a manually-synced copy in
-// supabase/functions/calculate-residential/logic.ts (Deno can't import this
-// file); update both if you change the math here — mirrors.test.ts next to
-// that copy asserts they agree.
+// The load/power/energy primitives are shared with the Edge Function through
+// supabase/functions/_shared/calculation-math.ts. The remaining helpers below
+// depend on browser-side domain types and stay in this module.
 
-import type { LoadPhase, PeakCalcMode, ResidentialGridType, SingleLoad } from '@/lib/types';
+import type { LoadPhase, ResidentialGridType, SingleLoad } from '@/lib/types';
 
-/** Sum of nominal (steady-state) power, ignoring each load's IP/IN surge
- * factor — as opposed to totalPeakW, which accounts for startup surges. */
-export function totalNominalW(loads: SingleLoad[]): number {
-  return loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
-}
-
-/** operationHours is shared across every load — each load's usageFactor
- * still scales its own share of that shared time, unless the load opts out
- * with usageMode 'fixed', which uses its own fixedHours instead of the
- * shared time entirely (see SingleLoad). */
-export function totalDailyKwh(loads: SingleLoad[], operationHours: number): number {
-  return loads.reduce((acc, l) => {
-    const hours = l.usageMode === 'fixed' ? Math.max(0, l.fixedHours ?? 0) : operationHours * (l.usageFactor ?? 1);
-    return acc + (l.powerW * l.qty * hours) / 1000;
-  }, 0);
-}
-
-export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): number {
-  if (loads.length === 0) return 0;
-
-  if (mode === 'sum') {
-    return loads.reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
-  }
-
-  if (mode === 'select') {
-    return loads
-      .filter((l) => l.includedInPeak ?? true)
-      .reduce((acc, l) => acc + l.powerW * (l.ipInRatio ?? 1) * l.qty, 0);
-  }
-
-  // 'largest-surge': assume only one unit of the highest-surge load starts at a
-  // time; every other load (and the remaining units of that same load) runs at
-  // nominal power. Peak = nominal sum + the single largest surge "extra".
-  const nominalSum = loads.reduce((acc, l) => acc + l.powerW * l.qty, 0);
-  const largestExtra = loads.reduce((max, l) => {
-    const extra = l.powerW * ((l.ipInRatio ?? 1) - 1);
-    return extra > max ? extra : max;
-  }, 0);
-  return nominalSum + largestExtra;
-}
+export { totalDailyKwh, totalNominalW, totalPeakW } from '@/supabase/functions/_shared/calculation-math';
 
 /** Number of live phases the network topology provides. */
 export const gridTypePhaseCount: Record<ResidentialGridType, number> = {
