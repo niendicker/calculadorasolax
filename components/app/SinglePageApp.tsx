@@ -286,10 +286,10 @@ export function SinglePageApp() {
   const demoDataById = useMemo(() => {
     const entries = DEMO_SIMULATIONS.map((definition) => [
       definition.id,
-      buildDemoSimulation(definition, loadPresets, batteryCatalog, approvedInverterCombos),
+      buildDemoSimulation(definition, loadPresets, batteryCatalog, approvedInverterCombos, inverterCatalog),
     ] as const);
     return new Map(entries);
-  }, [loadPresets, batteryCatalog, approvedInverterCombos]);
+  }, [loadPresets, batteryCatalog, approvedInverterCombos, inverterCatalog]);
 
   function openDemoPicker() {
     setDemoPickerOpen(true);

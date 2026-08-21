@@ -1,4 +1,5 @@
-import type { BatteryCatalogOption, ApprovedInverterCombo } from '@/components/app/types';
+import type { BatteryCatalogOption, ApprovedInverterCombo, InverterCatalogOption } from '@/components/app/types';
+import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-calculations';
 import type { LoadPresetItem, ResidentialOptions } from '@/lib/types';
 import { defaultResidential } from '@/lib/store/defaults';
 import type { DemoSimulationData, DemoSimulationDefinition } from './types';
@@ -27,36 +28,6 @@ export const DEMO_SIMULATIONS: DemoSimulationDefinition[] = [
   },
 ];
 
-function smallestHighVoltageBattery(
-  batteryCatalog: BatteryCatalogOption[],
-  approvedInverterCombos: ApprovedInverterCombo[],
-  gridType: NonNullable<ResidentialOptions['gridType']>
-) {
-  const approvedModels = new Set(
-    approvedInverterCombos
-      .filter((combo) => combo.gridTopology === gridTopologyFor(gridType) && combo.batteryTopology === 'HV')
-      .map((combo) => combo.inverterModel)
-  );
-  if (approvedModels.size === 0) return null;
-
-  return (
-    batteryCatalog
-      .filter((battery) => battery.topology === 'HV')
-      .filter((battery) => !battery.expansionModel)
-      .sort((a, b) => (a.capacityKwh || Number.POSITIVE_INFINITY) - (b.capacityKwh || Number.POSITIVE_INFINITY))
-      .find((battery) =>
-        approvedInverterCombos.some(
-          (combo) =>
-            combo.gridTopology === gridTopologyFor(gridType) &&
-            combo.batteryTopology === 'HV' &&
-            approvedModels.has(combo.inverterModel) &&
-            combo.inverterModel.length > 0 &&
-            battery.model.length > 0
-        )
-      ) ?? null
-  );
-}
-
 function gridTopologyFor(gridType: NonNullable<ResidentialOptions['gridType']>) {
   return {
     singlePhase_220: '1p_220V',
@@ -80,17 +51,17 @@ export function buildDemoSimulation(
   definition: DemoSimulationDefinition,
   presets: LoadPresetItem[],
   batteryCatalog: BatteryCatalogOption[],
-  approvedInverterCombos: ApprovedInverterCombo[]
+  approvedInverterCombos: ApprovedInverterCombo[],
+  inverterCatalog: InverterCatalogOption[] = []
 ): DemoSimulationData | null {
   const preset = choosePreset(presets);
-  const battery = smallestHighVoltageBattery(batteryCatalog, approvedInverterCombos, definition.gridType);
-  if (!preset || !battery) return null;
+  if (!preset) return null;
 
   const base = { ...defaultResidential };
-  const residentialOptions: ResidentialOptions = {
+  const preliminaryOptions: ResidentialOptions = {
     ...base,
     topology: 'HighVoltage',
-    batteryModel: battery.model,
+    batteryModel: null,
     secondaryBatteryModel: null,
     inverterModel: null,
     minInverterQty: null,
@@ -126,6 +97,60 @@ export function buildDemoSimulation(
             foraPontaTariffPerKwh: 0.45,
           }
         : null,
+  };
+
+  const nominalW = totalNominalW(preliminaryOptions.loads);
+  const peakW = totalPeakW(preliminaryOptions.loads, preliminaryOptions.peakCalcMode);
+  const dailyKwh = totalDailyKwh(preliminaryOptions.loads, preliminaryOptions.operationHours);
+  const whitePowerW = preliminaryOptions.whiteTariff?.requiredPowerW ?? 0;
+  const targetRatedPowerW = Math.max(
+    preliminaryOptions.desiredFeatures.includes('backup') ? nominalW : 0,
+    preliminaryOptions.desiredFeatures.includes('white_tariff') ? whitePowerW : 0
+  );
+  const targetPeakPowerW = Math.max(
+    preliminaryOptions.desiredFeatures.includes('backup') ? peakW : 0,
+    preliminaryOptions.desiredFeatures.includes('white_tariff') ? whitePowerW : 0
+  );
+  const targetEnergyWh =
+    (preliminaryOptions.desiredFeatures.includes('backup') ? dailyKwh * 1000 : 0) +
+    (preliminaryOptions.whiteTariff
+      ? preliminaryOptions.whiteTariff.pontaEnergyWh + preliminaryOptions.whiteTariff.intermediateEnergyWh
+      : 0);
+
+  const candidateRows = approvedInverterCombos
+    .filter((combo) => combo.gridTopology === gridTopologyFor(definition.gridType) && combo.batteryTopology === 'HV')
+    .filter((combo) =>
+      (combo.ratedPowerW ?? 0) >= targetRatedPowerW &&
+      (combo.peakPowerW ?? 0) >= targetPeakPowerW &&
+      (combo.batteryPowerW ?? 0) >= targetRatedPowerW &&
+      (combo.availableEnergyWh ?? 0) >= targetEnergyWh
+    )
+    .filter((combo) => {
+      return preliminaryOptions.desiredFeatures.every((feature) => {
+        if (feature === 'pv') {
+          const inverter = inverterCatalog.find((item) => item.model === combo.inverterModel);
+          const desiredPvW = ((preliminaryOptions.pv?.monthlyConsumptionKwh ?? 0) / 30 / Math.max(1, preliminaryOptions.pv?.hsp ?? 1)) * 1000;
+          const oversizing = 1 + (inverter?.pvOversizingPercent ?? 100) / 100;
+          return Boolean(inverter) && (combo.ratedPowerW ?? 0) * oversizing >= desiredPvW;
+        }
+        return true;
+      });
+    })
+    .sort((a, b) =>
+      (a.ratedPowerW ?? Number.POSITIVE_INFINITY) - (b.ratedPowerW ?? Number.POSITIVE_INFINITY) ||
+      (a.availableEnergyWh ?? Number.POSITIVE_INFINITY) - (b.availableEnergyWh ?? Number.POSITIVE_INFINITY) ||
+      (a.batteryQuantity ?? Number.POSITIVE_INFINITY) - (b.batteryQuantity ?? Number.POSITIVE_INFINITY)
+    );
+
+  const candidate = candidateRows[0];
+  const battery = candidate
+    ? batteryCatalog.find((item) => item.model === candidate.batteryModel && item.topology === 'HV')
+    : null;
+  if (!candidate || !battery) return null;
+
+  const residentialOptions: ResidentialOptions = {
+    ...preliminaryOptions,
+    batteryModel: battery.model,
   };
 
   return { residentialOptions };

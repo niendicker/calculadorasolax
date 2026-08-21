@@ -72,6 +72,7 @@ export interface InverterCatalogOption {
   standbyConsumptionW?: number;
   maxBatteryChargePowerW?: number | null;
   maxBatteryDischargePowerW?: number | null;
+  pvOversizingPercent?: number | null;
   /** Manufacturer warranty duration, in years. */
   warrantyYears?: number;
   imageUrl: string | null;
@@ -95,6 +96,13 @@ export interface ApprovedInverterCombo {
   gridTopology: string;
   batteryTopology: 'HV' | 'LV';
   inverterModel: string;
+  batteryModel?: string;
+  inverterQuantity?: number;
+  batteryQuantity?: number;
+  ratedPowerW?: number;
+  peakPowerW?: number;
+  batteryPowerW?: number;
+  availableEnergyWh?: number;
 }
 
 export const gridOptions: { value: ResidentialGridType; label: string; detail: string }[] = [

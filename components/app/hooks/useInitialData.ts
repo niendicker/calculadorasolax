@@ -68,7 +68,7 @@ export function useInitialData({
           .order('model'),
         supabase
           .from('inverters')
-          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, battery_charge_efficiency_percent, battery_discharge_efficiency_percent, standby_consumption_w, max_battery_charge_power_w, max_battery_discharge_power_w, warranty_years, image_url, documents, flags')
+          .select('id, model, nickname, topology, phases, standard_power_kva, peak_power_kva, max_power_per_phase_w, battery_charge_efficiency_percent, battery_discharge_efficiency_percent, standby_consumption_w, max_battery_charge_power_w, max_battery_discharge_power_w, pv_oversizing_percent, warranty_years, image_url, documents, flags')
           .order('model'),
         supabase
           .from('accessories')
@@ -77,7 +77,7 @@ export function useInitialData({
           .order('model'),
         supabase
           .from('approved_solutions')
-          .select('grid_topology, battery_topology, inverter_model')
+          .select('grid_topology, battery_topology, inverter_model, battery_model, inverter_quantity, battery_quantity, rated_power_w, peak_power_w, battery_power_w, available_energy_wh')
           .eq('active', true),
         listPublicLoadPresets(supabase),
       ]);
@@ -186,6 +186,7 @@ export function useInitialData({
             standbyConsumptionW: Number(row.standby_consumption_w ?? 0),
             maxBatteryChargePowerW: row.max_battery_charge_power_w == null ? null : Number(row.max_battery_charge_power_w),
             maxBatteryDischargePowerW: row.max_battery_discharge_power_w == null ? null : Number(row.max_battery_discharge_power_w),
+            pvOversizingPercent: row.pv_oversizing_percent == null ? null : Number(row.pv_oversizing_percent),
             warrantyYears: Number(row.warranty_years ?? 10),
             imageUrl: row.image_url,
             documents: (row.documents ?? []) as ProductDocument[],
@@ -214,6 +215,13 @@ export function useInitialData({
             gridTopology: row.grid_topology,
             batteryTopology: row.battery_topology as 'HV' | 'LV',
             inverterModel: row.inverter_model,
+            ...(row.battery_model != null ? { batteryModel: row.battery_model } : {}),
+            ...(row.inverter_quantity != null ? { inverterQuantity: Number(row.inverter_quantity) } : {}),
+            ...(row.battery_quantity != null ? { batteryQuantity: Number(row.battery_quantity) } : {}),
+            ...(row.rated_power_w != null ? { ratedPowerW: Number(row.rated_power_w) } : {}),
+            ...(row.peak_power_w != null ? { peakPowerW: Number(row.peak_power_w) } : {}),
+            ...(row.battery_power_w != null ? { batteryPowerW: Number(row.battery_power_w) } : {}),
+            ...(row.available_energy_wh != null ? { availableEnergyWh: Number(row.available_energy_wh) } : {}),
           }))
         );
       }
