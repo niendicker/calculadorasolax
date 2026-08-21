@@ -22,6 +22,58 @@ export interface PendingSimulationPayload {
   solution_code: string | null;
 }
 
+const MAX_TEXT_LENGTH = 500;
+const MAX_LOADS = 50;
+const MAX_ACCESSORIES = 30;
+const MAX_JSON_DEPTH = 6;
+
+function isBoundedJsonValue(value: unknown, depth = 0): boolean {
+  if (depth > MAX_JSON_DEPTH || value === null) return value === null;
+  if (typeof value === 'string') return value.length <= MAX_TEXT_LENGTH;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value === 'boolean') return true;
+  if (Array.isArray(value)) return value.length <= MAX_LOADS && value.every((item) => isBoundedJsonValue(item, depth + 1));
+  if (typeof value !== 'object') return false;
+
+  const entries = Object.entries(value);
+  return entries.length <= 50 && entries.every(([key, item]) => key.length <= 100 && isBoundedJsonValue(item, depth + 1));
+}
+
+function nullableText(value: unknown): value is string | null {
+  return value === null || (typeof value === 'string' && value.length <= MAX_TEXT_LENGTH);
+}
+
+function nonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1_000_000_000;
+}
+
+/** Runtime validation for metrics arriving from the browser or local retry queue.
+ * Typescript interfaces disappear at runtime, so this boundary must reject
+ * malformed or oversized JSON before it reaches Postgres. */
+export function parsePendingSimulationPayload(value: unknown): PendingSimulationPayload | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const payload = value as Record<string, unknown>;
+  if (!nullableText(payload.user_id) || !nullableText(payload.project_name) || !nullableText(payload.topology) || !nullableText(payload.grid_type)) return null;
+  if (!nonNegativeFiniteNumber(payload.peak_w) || !nonNegativeFiniteNumber(payload.daily_kwh)) return null;
+  if (!Array.isArray(payload.loads) || payload.loads.length > MAX_LOADS || !isBoundedJsonValue(payload.loads)) return null;
+  if (!Array.isArray(payload.accessories) || payload.accessories.length > MAX_ACCESSORIES || !isBoundedJsonValue(payload.accessories)) return null;
+  if (!nullableText(payload.inverter_model) || !nullableText(payload.battery_model) || !nullableText(payload.solution_code)) return null;
+
+  return {
+    user_id: payload.user_id,
+    project_name: payload.project_name,
+    topology: payload.topology,
+    grid_type: payload.grid_type,
+    peak_w: payload.peak_w,
+    daily_kwh: payload.daily_kwh,
+    loads: payload.loads,
+    inverter_model: payload.inverter_model,
+    battery_model: payload.battery_model,
+    accessories: payload.accessories,
+    solution_code: payload.solution_code,
+  };
+}
+
 interface PendingSimulation {
   id: string;
   queuedAt: string;

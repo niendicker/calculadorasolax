@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   enqueuePendingSimulation,
   flushPendingSimulations,
+  parsePendingSimulationPayload,
   pendingSimulationCount,
   type PendingSimulationPayload,
 } from './metrics-queue';
@@ -82,6 +83,29 @@ describe('enqueuePendingSimulation / pendingSimulationCount', () => {
   it('treats a non-array parsed value as an empty queue', () => {
     memoryStorage.setItem('solax-pending-simulations', JSON.stringify({ not: 'an array' }));
     expect(pendingSimulationCount()).toBe(0);
+  });
+});
+
+describe('parsePendingSimulationPayload', () => {
+  it('accepts a valid metrics payload', () => {
+    expect(parsePendingSimulationPayload(makePayload())).toEqual(makePayload());
+  });
+
+  it.each([
+    ['missing numeric field', { peak_w: undefined }],
+    ['negative numeric field', { daily_kwh: -1 }],
+    ['wrong numeric type', { peak_w: '1000' }],
+    ['loads above the database limit', { loads: Array.from({ length: 51 }, () => ({})) }],
+    ['accessories above the database limit', { accessories: Array.from({ length: 31 }, () => 'A') }],
+    ['oversized text', { project_name: 'x'.repeat(501) }],
+  ])('rejects %s', (_name, partial) => {
+    expect(parsePendingSimulationPayload(makePayload(partial as unknown as Partial<PendingSimulationPayload>))).toBeNull();
+  });
+
+  it('rejects non-object JSON', () => {
+    expect(parsePendingSimulationPayload(null)).toBeNull();
+    expect(parsePendingSimulationPayload([])).toBeNull();
+    expect(parsePendingSimulationPayload('metric')).toBeNull();
   });
 });
 

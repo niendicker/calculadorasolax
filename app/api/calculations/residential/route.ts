@@ -20,7 +20,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Dados de cálculo inválidos.' }, { status: 400 });
   }
 
-  if (!body || typeof body.batteryModel !== 'string' || !Array.isArray(body.loads)) {
+  if (
+    !body ||
+    typeof body.batteryModel !== 'string' ||
+    body.batteryModel.trim().length === 0 ||
+    body.batteryModel.length > 200 ||
+    !Array.isArray(body.loads) ||
+    (body.projectName !== undefined && body.projectName !== null && (typeof body.projectName !== 'string' || body.projectName.length > 200)) ||
+    (body.peakW !== undefined && (typeof body.peakW !== 'number' || !Number.isFinite(body.peakW) || body.peakW < 0)) ||
+    (body.dailyKwh !== undefined && (typeof body.dailyKwh !== 'number' || !Number.isFinite(body.dailyKwh) || body.dailyKwh < 0)) ||
+    (body.isDemo !== undefined && typeof body.isDemo !== 'boolean')
+  ) {
     return NextResponse.json({ error: 'Dados de cálculo inválidos.' }, { status: 400 });
   }
 
@@ -55,7 +65,7 @@ export async function POST(request: Request) {
       accessories: solution.accessories.map((accessory) => accessory.model),
       solution_code: solution.solutionCode ?? null,
     };
-    const { error: simulationError } = isDemo ? { error: null } : await recordSimulation(supabase, simulationPayload);
+    const { error: simulationError } = isDemo === true ? { error: null } : await recordSimulation(supabase, simulationPayload);
 
     return NextResponse.json({
       solution,
