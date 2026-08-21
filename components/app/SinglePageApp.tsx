@@ -325,7 +325,6 @@ export function SinglePageApp() {
     inverterCatalog,
     batteryCatalog,
     accessoryCatalog,
-    isDemo,
   });
 
   // Selecting/clearing a battery (primary or secondary) or the inverter

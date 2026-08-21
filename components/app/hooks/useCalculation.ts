@@ -27,7 +27,6 @@ export function useCalculation({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
-  isDemo = false,
 }: {
   supabase: ReturnType<typeof createClient>;
   residentialOptions: ResidentialOptions;
@@ -41,7 +40,6 @@ export function useCalculation({
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
-  isDemo?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,7 +179,6 @@ export function useCalculation({
       projectName: projectInfo.name || null,
       peakW,
       dailyKwh,
-      isDemo,
     });
 
     if ('error' in result) {

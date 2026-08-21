@@ -44,9 +44,14 @@ export function useDemoController({
     setDemoPickerOpen(true);
   }
 
-  function selectDemo(id: string) {
+  async function selectDemo(id: string) {
     const data = demoDataById.get(id);
     if (!data) {
+      setUnavailableDemoIds((ids) => new Set(ids).add(id));
+      return;
+    }
+    const response = await fetch('/api/demo/session', { method: 'POST' }).catch(() => null);
+    if (!response || !response.ok) {
       setUnavailableDemoIds((ids) => new Set(ids).add(id));
       return;
     }
@@ -60,12 +65,18 @@ export function useDemoController({
     changeTab('sizing');
   }
 
-  function leaveDemo() {
+  async function closeDemoSession() {
+    await fetch('/api/demo/session', { method: 'DELETE' }).catch(() => undefined);
+  }
+
+  async function leaveDemo() {
+    await closeDemoSession();
     exitDemoMode();
     changeTab('project');
   }
 
-  function convertDemo() {
+  async function convertDemo() {
+    await closeDemoSession();
     convertDemoToSimulation();
     changeTab('project');
   }

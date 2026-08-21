@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import type { ResidentialCalculationRequest } from '@/lib/api-contracts';
 import { createClient } from '@/lib/supabase/server';
 import { invokeResidentialCalculation, recordSimulation } from '@/lib/data/calculation-repository';
 import { getNetworkErrorMessage, resolveCalculationErrorMessage } from '@/lib/calculation-error-messages';
 import type { Solution } from '@/lib/types';
+import { DEMO_SESSION_COOKIE, isValidDemoSessionToken } from '@/lib/demo/demo-session';
 
 export async function POST(request: Request) {
   let body: ResidentialCalculationRequest;
@@ -21,8 +23,7 @@ export async function POST(request: Request) {
     !Array.isArray(body.loads) ||
     (body.projectName !== undefined && body.projectName !== null && (typeof body.projectName !== 'string' || body.projectName.length > 200)) ||
     (body.peakW !== undefined && (typeof body.peakW !== 'number' || !Number.isFinite(body.peakW) || body.peakW < 0)) ||
-    (body.dailyKwh !== undefined && (typeof body.dailyKwh !== 'number' || !Number.isFinite(body.dailyKwh) || body.dailyKwh < 0)) ||
-    (body.isDemo !== undefined && typeof body.isDemo !== 'boolean')
+    (body.dailyKwh !== undefined && (typeof body.dailyKwh !== 'number' || !Number.isFinite(body.dailyKwh) || body.dailyKwh < 0))
   ) {
     return NextResponse.json({ error: 'Dados de cálculo inválidos.' }, { status: 400 });
   }
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
   try {
-    const { projectName, peakW, dailyKwh, isDemo, ...calculationInput } = body;
+    const { projectName, peakW, dailyKwh, ...calculationInput } = body;
     const { data, error: functionError } = await invokeResidentialCalculation(supabase, {
       ...calculationInput,
       batteryModel: body.batteryModel,
@@ -58,7 +59,8 @@ export async function POST(request: Request) {
       accessories: solution.accessories.map((accessory) => accessory.model),
       solution_code: solution.solutionCode ?? null,
     };
-    const { error: simulationError } = isDemo === true ? { error: null } : await recordSimulation(supabase, simulationPayload);
+    const demoSession = isValidDemoSessionToken((await cookies()).get(DEMO_SESSION_COOKIE)?.value);
+    const { error: simulationError } = demoSession ? { error: null } : await recordSimulation(supabase, simulationPayload);
 
     return NextResponse.json({
       solution,

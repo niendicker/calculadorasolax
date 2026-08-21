@@ -6,7 +6,6 @@ export type ResidentialCalculationRequest = ResidentialOptions & {
   projectName?: string | null;
   peakW?: number;
   dailyKwh?: number;
-  isDemo?: boolean;
 };
 
 /** Shape persisted by app_simulations and retried by the browser queue. */

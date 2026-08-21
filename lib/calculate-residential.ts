@@ -24,14 +24,12 @@ export async function calculateResidentialSolution({
   projectName,
   peakW,
   dailyKwh,
-  isDemo = false,
 }: {
   residentialOptions: ResidentialOptions;
   batteryModel: string;
   projectName: string | null;
   peakW: number;
   dailyKwh: number;
-  isDemo?: boolean;
 }): Promise<CalculateResidentialResult> {
   try {
     const response = await fetch('/api/calculations/residential', {
@@ -43,7 +41,6 @@ export async function calculateResidentialSolution({
       projectName,
       peakW,
       dailyKwh,
-      ...(isDemo ? { isDemo: true } : {}),
       }),
     });
     const body = (await response.json()) as {
