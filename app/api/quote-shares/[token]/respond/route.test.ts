@@ -33,7 +33,11 @@ function setupServiceFrom({
   shareError = null as unknown,
   updateShareResult = { data: null, error: null } as unknown,
 }: { share?: unknown; shareError?: unknown; updateShareResult?: unknown } = {}) {
-  const updateShare = vi.fn(() => ({ eq: () => Promise.resolve(updateShareResult) }));
+  const updateShare = vi.fn(() => {
+    const query = { eq: vi.fn() };
+    query.eq.mockImplementationOnce(() => query).mockImplementationOnce(() => Promise.resolve(updateShareResult));
+    return query;
+  });
   const updateProject = vi.fn(() => ({ eq: () => Promise.resolve({ data: null, error: null }) }));
   const insertEvent = vi.fn(() => Promise.resolve({ data: null, error: null }));
   serviceFromMock.mockImplementation((table: string) => {

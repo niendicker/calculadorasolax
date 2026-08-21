@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { buildSupplierUrl, normalizeSupplierPayload } from '@/lib/procurement/generic-json';
+import { buildSupplierUrl, normalizeSupplierPayload, readJsonResponse } from '@/lib/procurement/generic-json';
 import { failSupplierSync, findSupplierIntegrationForSync, finishSupplierSync, listActiveSupplierMappings, saveExternalProductIds, saveSupplierOffers, startSupplierSync } from '@/lib/data/supplier-sync-repository';
 import { getProfileRole } from '@/lib/data/admin-repository';
 
@@ -36,9 +36,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ su
     }
     const response = await fetch(url, { headers, cache: 'no-store', signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`Fornecedor respondeu HTTP ${response.status}.`);
-    const length = Number(response.headers.get('content-length') ?? 0);
-    if (length > 5_000_000) throw new Error('Resposta maior que o limite de 5 MB.');
-    const items = normalizeSupplierPayload(await response.json(), integration.mapping ?? {});
+    const items = normalizeSupplierPayload(await readJsonResponse(response, 5_000_000), integration.mapping ?? {});
     const mappings = await listActiveSupplierMappings(supabase, supplierId);
     const mappingBySku = new Map(mappings.map((item) => [item.supplier_sku, item.id]));
     const rows = items.flatMap((item) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSupplierUrl, normalizeSupplierPayload } from './generic-json';
+import { buildSupplierUrl, normalizeSupplierPayload, readJsonResponse } from './generic-json';
 
 describe('generic supplier JSON connector', () => {
   it('normalizes configured nested fields and skips invalid products', () => {
@@ -32,5 +32,20 @@ describe('generic supplier JSON connector', () => {
     expect(buildSupplierUrl('https://supplier.example/api/', 'v1/products').href).toBe('https://supplier.example/api/v1/products');
     expect(() => buildSupplierUrl('http://supplier.example', '')).toThrow(/HTTPS/);
     expect(() => buildSupplierUrl('https://127.0.0.1', '')).toThrow(/rede privada/);
+    expect(() => buildSupplierUrl('https://172.16.0.1', '')).toThrow(/rede privada/);
+    expect(() => buildSupplierUrl('https://[::1]', '')).toThrow(/rede privada/);
+    expect(() => buildSupplierUrl('https://user:secret@supplier.example', '')).toThrow(/credenciais/);
+  });
+
+  it('enforces a byte limit even when content-length is absent', async () => {
+    const response = new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"items":"'));
+        controller.enqueue(new Uint8Array(20));
+        controller.close();
+      },
+    }));
+
+    await expect(readJsonResponse(response, 10)).rejects.toThrow(/limite/);
   });
 });

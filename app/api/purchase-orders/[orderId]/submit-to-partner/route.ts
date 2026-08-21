@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { buildSupplierUrl } from '@/lib/procurement/generic-json';
+import { buildSupplierUrl, readJsonResponse } from '@/lib/procurement/generic-json';
 import { findOrderForPartner, findPartnerSupplier, findPurchaseOrderProfile, findSupplierIntegration, findSupplierProductMappings, submitOrderToPartner } from '@/lib/data/purchase-order-repository';
 
 interface DeliveryInput {
@@ -91,7 +91,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
       notes: order.customer_notes || undefined,
     };
     const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
-    const payload = await response.json().catch(() => null);
+    const payload = (await readJsonResponse(response, 1_000_000).catch(() => null)) as
+      | { error?: string; sale?: { sale_number?: string; id?: string } }
+      | null;
     if (!response.ok) throw new Error(payload?.error || `Fornecedor respondeu HTTP ${response.status}.`);
 
     const saleNumber = payload?.sale?.sale_number ?? payload?.sale?.id ?? null;

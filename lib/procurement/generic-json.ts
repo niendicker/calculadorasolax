@@ -46,10 +46,55 @@ export function normalizeSupplierPayload(payload: unknown, mapping: JsonRecord):
 export function buildSupplierUrl(baseUrl: string, productsPath: string) {
   const url = new URL(productsPath || '', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
   if (url.protocol !== 'https:') throw new Error('A integração exige HTTPS.');
-  const host = url.hostname.toLowerCase();
-  if (host === 'localhost' || host === '0.0.0.0' || host === '::1' || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host)) {
+  if (url.username || url.password) throw new Error('A URL da integração não pode conter credenciais.');
+
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const octets = host.split('.').map(Number);
+  const isIpv4 = octets.length === 4 && octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
+  const isPrivateIpv4 = isIpv4 && (
+    octets[0] === 0 ||
+    octets[0] === 10 ||
+    octets[0] === 127 ||
+    (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) ||
+    (octets[0] === 169 && octets[1] === 254) ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+    (octets[0] === 192 && octets[1] === 0 && octets[2] === 0) ||
+    (octets[0] === 192 && octets[1] === 168) ||
+    (octets[0] === 198 && octets[1] >= 18 && octets[1] <= 19)
+  );
+  const normalizedIpv6 = host.replace(/^0:0:0:0:0:ffff:/, '::ffff:');
+  const isPrivateIpv6 = normalizedIpv6 === '::1' || /^(fc|fd)[0-9a-f]{2}:/.test(normalizedIpv6) || /^fe80:/.test(normalizedIpv6);
+  if (host === 'localhost' || host === '0.0.0.0' || isPrivateIpv4 || isPrivateIpv6) {
     throw new Error('O endereço da integração não pode apontar para uma rede privada.');
   }
   return url;
 }
 
+/** Reads an external JSON response with a real byte limit. Checking only the
+ * content-length header is insufficient because chunked responses may omit it. */
+export async function readJsonResponse(response: Response, maxBytes: number): Promise<unknown> {
+  const declaredLength = Number(response.headers.get('content-length') ?? 0);
+  if (declaredLength > maxBytes) throw new Error(`Resposta maior que o limite de ${maxBytes} bytes.`);
+  if (!response.body) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maxBytes) throw new Error(`Resposta maior que o limite de ${maxBytes} bytes.`);
+    return JSON.parse(text);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error(`Resposta maior que o limite de ${maxBytes} bytes.`);
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  text += decoder.decode();
+  return JSON.parse(text);
+}

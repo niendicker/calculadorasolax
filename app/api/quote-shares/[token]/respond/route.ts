@@ -41,7 +41,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const { error: updateShareError } = await service
     .from('quote_shares')
     .update({ status: decision, responded_at: new Date().toISOString() })
-    .eq('id', token);
+    .eq('id', token)
+    .eq('status', 'sent');
   if (updateShareError) return NextResponse.json({ error: 'update_failed' }, { status: 500 });
 
   // updated_at is set explicitly (not just left to a DB default) so the
