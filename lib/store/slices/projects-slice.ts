@@ -231,7 +231,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       .from('projects')
       .update({ solution: result.solution, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select()
+      .select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
       .single();
     if (error) throw error;
 
@@ -256,14 +256,18 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     // best-effort: a failure here shouldn't undo the status change itself,
     // which already succeeded above.
     if (previous && previous.status !== status) {
-      const userId = await getCurrentUserId();
-      await insertProjectEvent({
-        project_id: id,
-        actor_id: userId,
-        event_type: 'status_changed',
-        from_status: previous.status,
-        to_status: status,
-      });
+      try {
+        const userId = await getCurrentUserId();
+        await insertProjectEvent({
+          project_id: id,
+          actor_id: userId,
+          event_type: 'status_changed',
+          from_status: previous.status,
+          to_status: status,
+        });
+      } catch (error) {
+        console.warn('[projects] status updated but history event could not be recorded', error);
+      }
     }
 
     return updated;
