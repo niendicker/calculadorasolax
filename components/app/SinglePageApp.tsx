@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -22,15 +22,15 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
-import { uploadPublicAsset } from '@/lib/data/storage-repository';
-import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW, gridTypePhaseCount } from '@/lib/store/wizard-store';
+import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
-import { buildClientQuoteText, buildPdfFileName, buildWhatsAppShareUrl, calculateSystemCost, expansionModelSet } from './helpers';
+import { buildClientQuoteText, buildPdfFileName, buildWhatsAppShareUrl, calculateSystemCost } from './helpers';
 import { useAutosave } from './hooks/useAutosave';
 import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
+import { useSizingController } from './hooks/useSizingController';
 import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
@@ -41,8 +41,6 @@ import { DemoBanner } from './demo/DemoBanner';
 import { DemoPickerDialog } from './demo/DemoPickerDialog';
 import { useDemoController } from './demo/useDemoController';
 import { ProjectTab } from './tabs/ProjectTab';
-import { batteryTopologyToCatalog } from '@/lib/types';
-import { gridTypeToApprovedTopology } from './types';
 
 /** Centered spinner shown while a tab's own chunk is still downloading —
  * only the initial tab (Projeto) is a static import, so every other tab
@@ -327,92 +325,36 @@ export function SinglePageApp() {
     accessoryCatalog,
   });
 
-  // Selecting/clearing a battery (primary or secondary) or the inverter
-  // should refresh the solution without making the user press "Calcular"
-  // again — but this must stay opt-in per change (via the ref below), not a
-  // plain effect on these fields: they also change when a saved project
-  // loads, and re-calculating there would clobber the project's own saved
-  // solution. `canCalculate` already reflects whether every other tab
-  // (loads, grid type, features, etc.) is currently valid, so a change made
-  // while something else is broken elsewhere just updates the selection
-  // without forcing a doomed recalculation.
-  const pendingAutoCalcRef = useRef(false);
-
-  function setBatteryModelAndRecalc(model: string | null) {
-    pendingAutoCalcRef.current = true;
-    setBatteryModel(model);
-  }
-
-  function setSecondaryBatteryModelAndRecalc(model: string | null) {
-    pendingAutoCalcRef.current = true;
-    setSecondaryBatteryModel(model);
-  }
-
-  function setInverterModelAndRecalc(model: string | null) {
-    pendingAutoCalcRef.current = true;
-    setInverterModel(model);
-  }
-
-  function setMinInverterQtyAndRecalc(qty: number | null) {
-    pendingAutoCalcRef.current = true;
-    setMinInverterQty(qty);
-  }
-
-  useEffect(() => {
-    if (!pendingAutoCalcRef.current) return;
-    pendingAutoCalcRef.current = false;
-    if (canCalculate) calculate();
-  }, [
-    residentialOptions.batteryModel,
-    residentialOptions.secondaryBatteryModel,
-    residentialOptions.inverterModel,
-    residentialOptions.minInverterQty,
-    canCalculate,
-    calculate,
-  ]);
-
-  // Split by battery topology (not just the currently-selected one) so the
-  // HV/LV tabs in InverterModelPicker can each show their own accurate count
-  // and model list — computing both from a single combo set already scoped
-  // to "whichever topology happens to be active" would make the inactive
-  // tab's numbers wrong (see availableInverterModels below, kept for every
-  // other consumer that only cares about the current selection's validity).
-  const availableInverterModelsByTopology = useMemo(() => {
-    if (!residentialOptions.gridType) return null;
-    const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
-    const modelsFor = (batteryTopology: 'HV' | 'LV') =>
-      new Set(
-        approvedInverterCombos
-          .filter((combo) => combo.gridTopology === approvedTopology && combo.batteryTopology === batteryTopology)
-          .map((combo) => combo.inverterModel)
-      );
-    return { HV: modelsFor('HV'), LV: modelsFor('LV') };
-  }, [approvedInverterCombos, residentialOptions.gridType]);
-
-  const availableInverterModels = useMemo(() => {
-    if (!availableInverterModelsByTopology) return null;
-    const batteryTopology = residentialOptions.topology ? batteryTopologyToCatalog[residentialOptions.topology] : 'HV';
-    return availableInverterModelsByTopology[batteryTopology];
-  }, [availableInverterModelsByTopology, residentialOptions.topology]);
-
-  useEffect(() => {
-    const phaseCount = residentialOptions.gridType ? gridTypePhaseCount[residentialOptions.gridType] : 1;
-    if (!residentialOptions.gridType || phaseCount <= 1) {
-      if (residentialOptions.maxPowerPerPhaseW !== null) setMaxPowerPerPhaseW(null);
-      return;
-    }
-    const inverter = inverterCatalog.find((item) => item.model === residentialOptions.inverterModel);
-    const computed =
-      inverter?.maxPowerPerPhaseW ??
-      (inverter?.standardPowerKva ? (inverter.standardPowerKva * 1000) / phaseCount : null);
-    if (computed !== residentialOptions.maxPowerPerPhaseW) setMaxPowerPerPhaseW(computed);
-  }, [
-    residentialOptions.gridType,
-    residentialOptions.inverterModel,
-    residentialOptions.maxPowerPerPhaseW,
+  const {
+    availableInverterModels,
+    availableInverterModelsByTopology,
+    setBatteryModelAndRecalc,
+    setSecondaryBatteryModelAndRecalc,
+    setInverterModelAndRecalc,
+    setMinInverterQtyAndRecalc,
+    resetResidentialToDefaults,
+    chooseMicrogridVariant,
+    uploadFeaturePhoto,
+    calculateAndShowSummary,
+  } = useSizingController({
+    supabase,
+    profile,
+    residentialOptions,
+    batteryCatalog,
     inverterCatalog,
+    approvedInverterCombos,
+    canCalculate: Boolean(canCalculate),
+    calculate,
+    solution,
+    setSolution,
+    setSummaryDrawerOpen,
+    setBatteryModel,
+    setSecondaryBatteryModel,
+    setInverterModel,
+    setMinInverterQty,
     setMaxPowerPerPhaseW,
-  ]);
+    resetResidential,
+  });
 
   // Reached from a client's own project list (Clientes tab) — loads the
   // project into the wizard and jumps to Projeto, same as opening it from
@@ -628,44 +570,6 @@ export function SinglePageApp() {
     } finally {
       setDownloadingProjectId(null);
     }
-  }
-
-  // resetResidential() already brings topology/gridType back to the store's
-  // HV/monofásico 220V defaults — this just goes one step further and also
-  // pre-selects a battery, so "Limpar" leaves a ready-to-calculate starting
-  // point instead of an empty battery picker (the catalog isn't known to the
-  // store, so it can't be part of the static defaults there).
-  function resetResidentialToDefaults() {
-    resetResidential();
-    const expansionModels = expansionModelSet(batteryCatalog);
-    const defaultBattery = batteryCatalog.find((battery) => battery.topology === 'HV' && !expansionModels.has(battery.model));
-    if (defaultBattery) setBatteryModel(defaultBattery.model);
-  }
-
-  function chooseMicrogridVariant(variant: 'economic' | 'microgrid') {
-    if (!solution?.microgridAlternative) return;
-    if (variant === 'economic') {
-      setSolution({ ...solution, microgridAlternative: undefined });
-    } else {
-      setSolution({ ...solution.microgridAlternative, microgridAlternative: undefined });
-    }
-  }
-
-  async function uploadFeaturePhoto(file: File, slot: 'ats' | 'microgrid' | 'generator') {
-    if (!profile) throw new Error('Não foi possível identificar o usuário.');
-
-    const extension = file.name.split('.').pop();
-    const path = `${profile.id}/feature-photos/${slot}/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
-    return uploadPublicAsset(supabase, 'profile-assets', path, file);
-  }
-
-  // Opening the summary drawer here is a no-op on desktop (xl:static already
-  // shows it as a fixed column regardless of this state) but on mobile/tablet
-  // it means the result surfaces immediately instead of staying hidden behind
-  // a tap-the-active-tab-again gesture the user has to already know about.
-  function calculateAndShowSummary() {
-    calculate();
-    setSummaryDrawerOpen(true);
   }
 
   function openMobilePurchasesTab() {
