@@ -46,17 +46,31 @@ const fallbackMeta = { icon: Activity, label: (event: ProjectEvent) => event.mes
  *  message — most projects start with none and that's not noteworthy. */
 export function ProjectEventsTimeline({ projectId, refreshKey }: { projectId: string; refreshKey: string }) {
   const [events, setEvents] = useState<ProjectEvent[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    listProjectEvents(createClient(), projectId).then(({ data }) => {
-      if (!cancelled) setEvents(data.map(projectEventFromRow));
-    });
+    void listProjectEvents(createClient(), projectId)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setLoadError(true);
+          return;
+        }
+        setLoadError(false);
+        setEvents(data.map(projectEventFromRow));
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [projectId, refreshKey]);
 
+  if (loadError && events.length === 0) {
+    return <p className="text-xs text-muted-foreground">Não foi possível carregar o histórico.</p>;
+  }
   if (events.length === 0) return null;
 
   return (

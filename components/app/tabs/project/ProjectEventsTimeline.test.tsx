@@ -31,6 +31,16 @@ describe('ProjectEventsTimeline', () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
+  it('shows a recoverable message when the history query fails', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { project_events: { data: null, error: { message: 'database unavailable' } } } })
+    );
+
+    render(<ProjectEventsTimeline projectId="p1" refreshKey="k1" />);
+
+    expect(await screen.findByText('Não foi possível carregar o histórico.')).toBeInTheDocument();
+  });
+
   it('renders every known event type with its friendly label', async () => {
     createClientMock.mockReturnValue(
       createSupabaseMock({
