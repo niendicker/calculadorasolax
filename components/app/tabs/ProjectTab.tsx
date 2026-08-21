@@ -51,6 +51,8 @@ export function ProjectTab({
   hasSolution,
   onSave,
   onNew,
+  onDemo = () => {},
+  demoDisabled = false,
   onCancelNew,
   onOpen,
   onOpenSizing,
@@ -79,6 +81,8 @@ export function ProjectTab({
   hasSolution: boolean;
   onSave: () => void;
   onNew: () => void;
+  onDemo?: () => void;
+  demoDisabled?: boolean;
   onCancelNew: () => void;
   onOpen: (id: string) => void;
   onOpenSizing: (id: string) => void;
@@ -325,7 +329,7 @@ export function ProjectTab({
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
-              {!projectDetailsVisible && <NewProjectCard onClick={onNew} />}
+              {!projectDetailsVisible && <NewProjectCard onClick={onNew} onDemo={onDemo} demoDisabled={demoDisabled} />}
               {projectDetailsVisible && !currentProjectId && (
                 <ProjectDraftCard
                   projectInfo={projectInfo}

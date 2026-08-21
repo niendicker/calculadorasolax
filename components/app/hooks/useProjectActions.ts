@@ -17,6 +17,7 @@ export function useProjectActions({
   refreshProjectSolution,
   updateProjectStatus,
   setActiveTab,
+  isDemo = false,
 }: {
   profile: InlineProfile | null;
   router: ReturnType<typeof useRouter>;
@@ -29,6 +30,7 @@ export function useProjectActions({
   refreshProjectSolution: (id: string) => Promise<SavedProject>;
   updateProjectStatus: (id: string, status: ProjectStatus) => Promise<SavedProject>;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
+  isDemo?: boolean;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   // Bumped on every new status message (even repeats of the same text) so the
@@ -46,6 +48,10 @@ export function useProjectActions({
   }
 
   async function saveProject() {
+    if (isDemo) {
+      report('Converta o exemplo em uma nova simulação antes de salvar.');
+      return;
+    }
     if (!profile) {
       router.push(`/${locale}/login?redirect=/${locale}`);
       return;

@@ -9,6 +9,7 @@ type RequestBody = ResidentialOptions & {
   projectName?: string | null;
   peakW?: number;
   dailyKwh?: number;
+  isDemo?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
   try {
-    const { projectName, peakW, dailyKwh, ...calculationInput } = body;
+    const { projectName, peakW, dailyKwh, isDemo, ...calculationInput } = body;
     const { data, error: functionError } = await invokeResidentialCalculation(supabase, {
       ...calculationInput,
       batteryModel: body.batteryModel,
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       accessories: solution.accessories.map((accessory) => accessory.model),
       solution_code: solution.solutionCode ?? null,
     };
-    const { error: simulationError } = await recordSimulation(supabase, simulationPayload);
+    const { error: simulationError } = isDemo ? { error: null } : await recordSimulation(supabase, simulationPayload);
 
     return NextResponse.json({
       solution,

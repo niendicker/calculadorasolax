@@ -6,6 +6,9 @@ import { useWizardStore } from '@/lib/store/wizard-store';
  *  cases, since Zustand state otherwise persists across tests in the same file. */
 export function resetWizardStore() {
   useWizardStore.setState({
+    isDemo: false,
+    demoId: null,
+    demoSnapshot: null,
     projectInfo: { name: '', clientId: null, address: emptyAddress(), notes: '' },
     currentProjectId: null,
     projectDetailsVisible: false,

@@ -34,6 +34,10 @@ import { useProjectActions } from './hooks/useProjectActions';
 import { AppFooter } from './shell/AppFooter';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
+import { DemoBanner } from './demo/DemoBanner';
+import { DemoPickerDialog } from './demo/DemoPickerDialog';
+import { DEMO_SIMULATIONS, buildDemoSimulation } from '@/lib/demo/demo-simulations';
+import type { DemoTab } from '@/lib/demo/types';
 import { ProjectTab } from './tabs/ProjectTab';
 import { batteryTopologyToCatalog } from '@/lib/types';
 import { gridTypeToApprovedTopology } from './types';
@@ -141,6 +145,11 @@ export function SinglePageApp() {
     setLoadCatalog,
     setLoadPresets,
     resetResidential,
+    isDemo,
+    loadPresets,
+    loadDemoSimulation,
+    exitDemoMode,
+    convertDemoToSimulation,
   } = useWizardStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -156,6 +165,8 @@ export function SinglePageApp() {
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
+  const [demoPickerOpen, setDemoPickerOpen] = useState(false);
+  const [unavailableDemoIds, setUnavailableDemoIds] = useState<Set<string>>(new Set());
 
   // App shell: title bar and summary panel are persistent chrome around the
   // scrollable content; tabs portal their header/summary into these targets
@@ -257,6 +268,7 @@ export function SinglePageApp() {
     refreshProjectSolution: refreshProjectSolutionAction,
     updateProjectStatus,
     setActiveTab: changeTab,
+    isDemo,
   });
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
@@ -266,10 +278,48 @@ export function SinglePageApp() {
   // saving immediately (a project just finishing its load looks like a
   // "change" too, but isn't an edit).
   const { status: autosaveStatus, lastSavedAt: autosaveLastSavedAt } = useAutosave({
-    enabled: Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
+    enabled: !isDemo && Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
     data: { projectInfo, residentialOptions, solution },
     saveCurrentProject,
   });
+
+  const demoDataById = useMemo(() => {
+    const entries = DEMO_SIMULATIONS.map((definition) => [
+      definition.id,
+      buildDemoSimulation(definition, loadPresets, batteryCatalog, approvedInverterCombos),
+    ] as const);
+    return new Map(entries);
+  }, [loadPresets, batteryCatalog, approvedInverterCombos]);
+
+  function openDemoPicker() {
+    setDemoPickerOpen(true);
+  }
+
+  function selectDemo(id: string) {
+    const data = demoDataById.get(id);
+    if (!data) {
+      setUnavailableDemoIds((ids) => new Set(ids).add(id));
+      return;
+    }
+    loadDemoSimulation(id, data, activeTab as DemoTab);
+    setUnavailableDemoIds((ids) => {
+      const next = new Set(ids);
+      next.delete(id);
+      return next;
+    });
+    setDemoPickerOpen(false);
+    changeTab('sizing');
+  }
+
+  function leaveDemo() {
+    exitDemoMode();
+    changeTab('project');
+  }
+
+  function convertDemo() {
+    convertDemoToSimulation();
+    changeTab('project');
+  }
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
@@ -288,6 +338,7 @@ export function SinglePageApp() {
     inverterCatalog,
     batteryCatalog,
     accessoryCatalog,
+    isDemo,
   });
 
   // Selecting/clearing a battery (primary or secondary) or the inverter
@@ -881,6 +932,15 @@ export function SinglePageApp() {
                       </Button>
                     </div>
                   )}
+                  {isDemo && <DemoBanner onExit={leaveDemo} onConvert={convertDemo} />}
+                  {demoPickerOpen && (
+                    <DemoPickerDialog
+                      examples={DEMO_SIMULATIONS}
+                      unavailable={unavailableDemoIds}
+                      onSelect={selectDemo}
+                      onClose={() => setDemoPickerOpen(false)}
+                    />
+                  )}
                   {activeTab === 'project' ? (
             <ProjectTab
               profile={profile}
@@ -897,6 +957,8 @@ export function SinglePageApp() {
               hasSolution={Boolean(solution)}
               onSave={saveProject}
               onNew={startNewProject}
+              onDemo={openDemoPicker}
+              demoDisabled={isDemo || initialLoading || loadPresets.length === 0 || batteryCatalog.length === 0}
               onCancelNew={cancelNewProject}
               onOpen={openProject}
               onOpenSizing={openProjectSizing}
