@@ -34,6 +34,7 @@ import { useProjectActions } from './hooks/useProjectActions';
 import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
+import { useAuthenticatedNavigation } from './shell/useAuthenticatedNavigation';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { DemoBanner } from './demo/DemoBanner';
@@ -238,6 +239,13 @@ export function SinglePageApp() {
     setMobileMenuOpen,
   });
 
+  const { openClientsManager, openPurchasesTab, openPortfolioTab, quoteSolution } = useAuthenticatedNavigation({
+    authenticated: Boolean(profile),
+    onRequireAuthentication: () => router.push(`/${locale}/login?redirect=/${locale}`),
+    changeTab,
+    setPendingSupplyImport,
+  });
+
   const {
     projectStatus,
     statusId,
@@ -407,14 +415,6 @@ export function SinglePageApp() {
     setMaxPowerPerPhaseW,
   ]);
 
-  function openClientsManager() {
-    if (!profile) {
-      router.push(`/${locale}/login?redirect=/${locale}`);
-      return;
-    }
-    changeTab('clients');
-  }
-
   // Reached from a client's own project list (Clientes tab) — loads the
   // project into the wizard and jumps to Projeto, same as opening it from
   // there directly.
@@ -429,35 +429,6 @@ export function SinglePageApp() {
   // that project's card instead of landing on the plain list.
   function backToProject() {
     changeTab('project');
-  }
-
-  function openPurchasesTab() {
-    if (!profile) {
-      router.push(`/${locale}/login?redirect=/${locale}`);
-      return;
-    }
-    changeTab('purchases');
-  }
-
-  function openPortfolioTab() {
-    if (!profile) {
-      router.push(`/${locale}/login?redirect=/${locale}`);
-      return;
-    }
-    changeTab('myStock');
-  }
-
-  // "Cotar solução" (Dimensionamento) jumps straight to Fornecedores with the
-  // current solution's items already in the cart — pendingSupplyImport tells
-  // SupplyTab to run its own "Importar itens da solução atual" once its
-  // offers have loaded, then clear itself via onAutoImportHandled.
-  function quoteSolution() {
-    if (!profile) {
-      router.push(`/${locale}/login?redirect=/${locale}`);
-      return;
-    }
-    setPendingSupplyImport(true);
-    changeTab('purchases');
   }
 
   async function signOut() {
