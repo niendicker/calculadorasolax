@@ -33,6 +33,7 @@ import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
 import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
+import { useTabNavigation } from './shell/useTabNavigation';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { DemoBanner } from './demo/DemoBanner';
@@ -230,6 +231,13 @@ export function SinglePageApp() {
     deleteAccount,
   } = useProfileActions({ supabase, profile, setProfile, router, locale, clearUserData, setActiveTab });
 
+  const { changeTab, openMobileTab } = useTabNavigation({
+    activeTab,
+    setActiveTab,
+    profileDirty,
+    setMobileMenuOpen,
+  });
+
   const {
     projectStatus,
     statusId,
@@ -398,17 +406,6 @@ export function SinglePageApp() {
     inverterCatalog,
     setMaxPowerPerPhaseW,
   ]);
-
-  // Single gate for every navigation away from Perfil: that tab has no
-  // autosave, so leaving it via any of the shell's several nav paths
-  // (sidebar, bottom nav, "Mais" sheet) would otherwise discard edits
-  // silently — see profileDirty in useProfileActions.
-  function changeTab(tab: typeof activeTab) {
-    if (activeTab === 'profile' && tab !== 'profile' && profileDirty) {
-      if (!window.confirm('Você tem alterações não salvas no perfil. Sair sem salvar?')) return;
-    }
-    setActiveTab(tab);
-  }
 
   function openClientsManager() {
     if (!profile) {
@@ -699,11 +696,6 @@ export function SinglePageApp() {
   function calculateAndShowSummary() {
     calculate();
     setSummaryDrawerOpen(true);
-  }
-
-  function openMobileTab(tab: 'project' | 'catalog' | 'myStock' | 'clients') {
-    changeTab(tab);
-    setMobileMenuOpen(false);
   }
 
   function openMobilePurchasesTab() {
