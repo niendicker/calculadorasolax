@@ -37,6 +37,7 @@ import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
 import { useAuthenticatedNavigation } from './shell/useAuthenticatedNavigation';
+import { useAppNavigationActions } from './shell/useAppNavigationActions';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { DemoBanner } from './demo/DemoBanner';
@@ -244,6 +245,28 @@ export function SinglePageApp() {
   });
 
   const {
+    openProjectFromClient,
+    backToProject,
+    signOut,
+    openMobilePurchasesTab,
+    openMobileProfile,
+    openMobileClientsManager,
+  } = useAppNavigationActions({
+    supabase,
+    router,
+    locale,
+    loadProject,
+    changeTab,
+    setProfile,
+    setUserEmail,
+    clearUserData,
+    setMobileMenuOpen,
+    openPurchasesTab,
+    openProfile,
+    openClientsManager,
+  });
+
+  const {
     projectStatus,
     statusId,
     dismissProjectStatus,
@@ -412,47 +435,6 @@ export function SinglePageApp() {
     dailyKwh,
     updateProjectStatus: updateProjectStatusAction,
   });
-
-  // Reached from a client's own project list (Clientes tab) — loads the
-  // project into the wizard and jumps to Projeto, same as opening it from
-  // there directly.
-  function openProjectFromClient(id: string) {
-    loadProject(id);
-    changeTab('project');
-  }
-
-  // Project-name link in Dimensionamento's header — the wizard state already
-  // holds whichever project got us here (currentProjectId), so this is just
-  // a tab switch; ProjectTab picks currentProjectId up on mount to select
-  // that project's card instead of landing on the plain list.
-  function backToProject() {
-    changeTab('project');
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    setProfile(null);
-    setUserEmail(null);
-    setMobileMenuOpen(false);
-    clearUserData();
-    router.replace(`/${locale}/login`);
-    router.refresh();
-  }
-
-  function openMobilePurchasesTab() {
-    setMobileMenuOpen(false);
-    openPurchasesTab();
-  }
-
-  function openMobileProfile() {
-    setMobileMenuOpen(false);
-    openProfile();
-  }
-
-  function openMobileClientsManager() {
-    setMobileMenuOpen(false);
-    openClientsManager();
-  }
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-background">
