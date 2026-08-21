@@ -1,21 +1,14 @@
 import { NextResponse } from 'next/server';
+import type { ResidentialCalculationRequest } from '@/lib/api-contracts';
 import { createClient } from '@/lib/supabase/server';
 import { invokeResidentialCalculation, recordSimulation } from '@/lib/data/calculation-repository';
 import { getNetworkErrorMessage, resolveCalculationErrorMessage } from '@/lib/calculation-error-messages';
-import type { ResidentialOptions, Solution } from '@/lib/types';
-
-type RequestBody = ResidentialOptions & {
-  batteryModel: string;
-  projectName?: string | null;
-  peakW?: number;
-  dailyKwh?: number;
-  isDemo?: boolean;
-};
+import type { Solution } from '@/lib/types';
 
 export async function POST(request: Request) {
-  let body: RequestBody;
+  let body: ResidentialCalculationRequest;
   try {
-    body = (await request.json()) as RequestBody;
+    body = (await request.json()) as ResidentialCalculationRequest;
   } catch {
     return NextResponse.json({ error: 'Dados de cálculo inválidos.' }, { status: 400 });
   }

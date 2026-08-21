@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { PendingSimulationPayload } from '@/lib/metrics-queue';
+import type { PendingSimulationPayload } from '@/lib/api-contracts';
 
 /** Infrastructure boundary for the residential calculation feature. Keeping
  * the function invocation and analytics write here makes it possible to move

@@ -4,8 +4,8 @@ import {
   flushPendingSimulations,
   parsePendingSimulationPayload,
   pendingSimulationCount,
-  type PendingSimulationPayload,
 } from './metrics-queue';
+import type { PendingSimulationPayload } from './api-contracts';
 
 class MemoryStorage {
   private store = new Map<string, string>();

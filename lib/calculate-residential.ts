@@ -7,6 +7,7 @@
 // messages while the other doesn't.
 
 import { enqueuePendingSimulation } from './metrics-queue';
+import type { PendingSimulationPayload } from './api-contracts';
 import { getNetworkErrorMessage } from './calculation-error-messages';
 import type { ResidentialOptions, Solution } from './types';
 
@@ -49,7 +50,7 @@ export async function calculateResidentialSolution({
       solution?: Solution;
       error?: string;
       simulationPending?: boolean;
-      simulationPayload?: Parameters<typeof enqueuePendingSimulation>[0];
+      simulationPayload?: PendingSimulationPayload;
     };
 
     if (!response.ok || !body.solution) {

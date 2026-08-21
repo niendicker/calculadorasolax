@@ -1,3 +1,7 @@
+import type { PendingSimulationPayload } from '@/lib/api-contracts';
+
+export type { PendingSimulationPayload } from '@/lib/api-contracts';
+
 // Local retry queue for app_simulations inserts. The insert after a
 // dimensioning calculation is best-effort usage telemetry — it must never
 // block or fail the calculation itself, but losing it silently on a bad
@@ -7,20 +11,6 @@
 
 const STORAGE_KEY = 'solax-pending-simulations';
 const MAX_QUEUE_SIZE = 50;
-
-export interface PendingSimulationPayload {
-  user_id: string | null;
-  project_name: string | null;
-  topology: string | null;
-  grid_type: string | null;
-  peak_w: number;
-  daily_kwh: number;
-  loads: unknown;
-  inverter_model: string | null;
-  battery_model: string | null;
-  accessories: unknown;
-  solution_code: string | null;
-}
 
 const MAX_TEXT_LENGTH = 500;
 const MAX_LOADS = 50;
