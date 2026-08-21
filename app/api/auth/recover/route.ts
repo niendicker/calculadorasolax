@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { createServiceClient } from '@/lib/supabase/service';
+import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
 interface RecoverInput {
   email?: string;
@@ -12,6 +13,8 @@ interface RecoverInput {
  *  just without GoTrue auto-sending its own unstyled email) and hands the
  *  resulting action_link to Resend's recovery template instead. */
 export async function POST(request: Request) {
+  const rate = consumeRateLimit(`recover:${getRequestClientKey(request)}`, { limit: 20, windowMs: 15 * 60_000 });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
   let input: RecoverInput;
   try {
     input = await request.json();

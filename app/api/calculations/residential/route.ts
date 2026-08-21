@@ -6,6 +6,7 @@ import { invokeResidentialCalculation, recordSimulation } from '@/lib/data/calcu
 import { getNetworkErrorMessage, resolveCalculationErrorMessage } from '@/lib/calculation-error-messages';
 import type { Solution } from '@/lib/types';
 import { DEMO_SESSION_COOKIE, isValidDemoSessionToken } from '@/lib/demo/demo-session';
+import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
 export async function POST(request: Request) {
   let body: ResidentialCalculationRequest;
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+  const rate = consumeRateLimit(`calculation:${user.id}:${getRequestClientKey(request)}`, { limit: 30, windowMs: 60_000 });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
 
   try {
     const { projectName, peakW, dailyKwh, ...calculationInput } = body;

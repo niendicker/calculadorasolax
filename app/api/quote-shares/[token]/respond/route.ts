@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { isQuoteShareExpired } from '@/lib/quote-share';
+import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
 interface RespondInput {
   decision?: string;
@@ -14,6 +15,8 @@ interface RespondInput {
  *  customer's decision without any extra sync mechanism. */
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const rate = consumeRateLimit(`quote-response:${token}:${getRequestClientKey(request)}`, { limit: 20, windowMs: 60 * 60_000 });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
 
   let input: RespondInput;
   try {

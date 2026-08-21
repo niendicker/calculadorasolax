@@ -27,6 +27,9 @@ Pode acessar páginas institucionais, login, recuperação e endpoints de tarifa
 - Logs administrativos sem dados pessoais desnecessários.
 - Tokens públicos com alta entropia, expiração ou revogação quando aplicável.
 - Testes de autorização para cada recurso público ou administrativo.
+- Rate limiting local para cálculo, respostas públicas de cotação, cadastro e
+  recuperação de senha; em múltiplas réplicas, complementar com um limitador
+  compartilhado (Redis/serviço equivalente) para enforcement global.
 
 ## Dados pessoais relevantes
 

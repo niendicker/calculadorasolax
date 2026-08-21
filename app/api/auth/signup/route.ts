@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { createServiceClient } from '@/lib/supabase/service';
 import { CURRENT_LEGAL_DOCUMENT_VERSION } from '@/lib/legal-documents';
+import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
 interface SignupInput {
   email?: string;
@@ -21,6 +22,8 @@ interface SignupInput {
  *  supabase.auth.signUp() — that would create a second, redundant user
  *  creation attempt against the same email. */
 export async function POST(request: Request) {
+  const rate = consumeRateLimit(`signup:${getRequestClientKey(request)}`, { limit: 20, windowMs: 15 * 60_000 });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
   let input: SignupInput;
   try {
     input = await request.json();
