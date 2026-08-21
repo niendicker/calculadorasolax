@@ -1068,7 +1068,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
         loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
       },
     }));
-    const supabase = setupSupabase({
+    setupSupabase({
       batteries: { data: [batteryRow], error: null },
       inverters: {
         data: [

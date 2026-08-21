@@ -197,6 +197,7 @@ describe('userServiceFromRow', () => {
       id: 'sv1',
       name: 'Instalação',
       unitValue: 500,
+      pricingUnit: 'project',
       createdAt: '2026-01-01',
       updatedAt: '2026-01-02',
     });
@@ -207,6 +208,7 @@ describe('userServiceFromRow', () => {
       id: 'sv1',
       name: '',
       unitValue: 0,
+      pricingUnit: 'project',
       createdAt: undefined,
       updatedAt: undefined,
     });

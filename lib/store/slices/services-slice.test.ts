@@ -35,6 +35,7 @@ describe('fetchUserServices', () => {
         id: 'row-s1',
         name: 'Instalação',
         unitValue: 500,
+        pricingUnit: 'project',
         createdAt: serviceRow.created_at,
         updatedAt: serviceRow.updated_at,
       },

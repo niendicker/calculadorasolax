@@ -134,7 +134,7 @@ export const options = {
   },
 };
 
-export default function () {
+function runLoadTest() {
   const scenarioIndex = Math.floor(Math.random() * SCENARIOS.length);
   const scenario = SCENARIOS[scenarioIndex];
   const payload = JSON.stringify(buildPayload(scenario));
@@ -162,3 +162,5 @@ export default function () {
 
   sleep(1);
 }
+
+export default runLoadTest;
