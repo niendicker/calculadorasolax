@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { defaultProjectInfo, defaultResidential, sanitizeDesiredFeatures } from './defaults';
+import { defaultProjectInfo } from './defaults';
 import type { DemoSimulationData, DemoSnapshot, DemoTab } from '@/lib/demo/types';
 import { type ClientsSlice, createClientsSlice } from './slices/clients-slice';
 import { createLoadCatalogSlice, type LoadCatalogSlice } from './slices/load-catalog-slice';
@@ -11,6 +11,7 @@ import { createProjectsSlice, type ProjectsSlice } from './slices/projects-slice
 import { createResidentialSlice, type ResidentialSlice } from './slices/residential-slice';
 import { createServicesSlice, type ServicesSlice } from './slices/services-slice';
 import { createStockSlice, type StockSlice } from './slices/stock-slice';
+import { wizardPersistenceOptions } from './wizard-persistence';
 
 // wizard-store.ts is just the composition point: each domain's own state and
 // actions live in lib/store/slices/*, split out because this file had grown
@@ -115,48 +116,7 @@ export const useWizardStore = create<WizardStore>()(
           demoSnapshot: null,
         }),
     }),
-    {
-      name: 'solax-wizard',
-      // Persisted state is only available in the browser, so rehydrating
-      // synchronously at store-creation time (zustand's default) makes the
-      // client's first render diverge from the server-rendered HTML — which
-      // never sees localStorage — and React throws a hydration error for any
-      // returning user with saved data. Deferring rehydration to the effect
-      // below keeps the client's first paint aligned with the server.
-      skipHydration: true,
-      partialize: (state) => ({
-        projectInfo: state.isDemo ? defaultProjectInfo : state.projectInfo,
-        currentProjectId: state.isDemo ? null : state.currentProjectId,
-        // Deliberately not persisted: a project left open in edit mode
-        // (e.g. via "Editar" or mid-draft) shouldn't still be in edit mode
-        // after a page reload — reloading the Projeto tab should always
-        // start from the read-only list.
-        residentialOptions: state.isDemo ? defaultResidential : state.residentialOptions,
-        industrialOptions: state.industrialOptions,
-        solution: state.isDemo ? null : state.solution,
-        secondarySolution: state.isDemo ? null : state.secondarySolution,
-        services: state.isDemo ? [] : state.services,
-        loadCatalog: state.loadCatalog,
-        loadPresets: state.loadPresets,
-      }),
-      // Zustand's default merge only shallow-merges top-level keys, so a
-      // browser with residentialOptions/industrialOptions persisted before a
-      // field was added (e.g. desiredFeatures/whiteTariff) would end up with
-      // that field missing entirely instead of falling back to its default.
-      merge: (persistedState, currentState) => {
-        const persisted = (persistedState ?? {}) as Partial<WizardStore>;
-        const residentialOptions = { ...currentState.residentialOptions, ...persisted.residentialOptions };
-        return {
-          ...currentState,
-          ...persisted,
-          residentialOptions: {
-            ...residentialOptions,
-            desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),
-          },
-          industrialOptions: { ...currentState.industrialOptions, ...persisted.industrialOptions },
-        };
-      },
-    }
+    wizardPersistenceOptions
   )
 );
 
