@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
-import { buildClientQuoteText, buildPdfFileName, buildWhatsAppShareUrl, calculateSystemCost } from './helpers';
 import { useAutosave } from './hooks/useAutosave';
 import { useCalculation } from './hooks/useCalculation';
 import { useInitialData } from './hooks/useInitialData';
@@ -33,6 +32,7 @@ import { useProjectActions } from './hooks/useProjectActions';
 import { useSizingController } from './hooks/useSizingController';
 import { useProjectPdfDownload } from './hooks/useProjectPdfDownload';
 import { useLivePdfExport } from './hooks/useLivePdfExport';
+import { useQuoteSharing } from './hooks/useQuoteSharing';
 import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
@@ -159,7 +159,6 @@ export function SinglePageApp() {
   // exportingPdf covers every "Baixar relatório" trigger (Dimensionamento's
   // own buttons), downloadingProjectId additionally pins which saved
   // project's card button to spin, since several can be on screen at once.
-  const [sendingQuote, setSendingQuote] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
@@ -391,6 +390,29 @@ export function SinglePageApp() {
     reportStatus,
   });
 
+  const { sendingQuote, canSendQuoteByWhatsApp, sendQuoteByWhatsApp } = useQuoteSharing({
+    projectInfo,
+    residentialOptions,
+    solution,
+    secondarySolution,
+    clients,
+    profile,
+    savedProjects,
+    currentProjectId,
+    batteryCatalog,
+    inverterCatalog,
+    accessoryCatalog,
+    productMedia,
+    userStockItems,
+    marginSettings,
+    services,
+    userServices,
+    nominalW,
+    peakW,
+    dailyKwh,
+    updateProjectStatus: updateProjectStatusAction,
+  });
+
   // Reached from a client's own project list (Clientes tab) — loads the
   // project into the wizard and jumps to Projeto, same as opening it from
   // there directly.
@@ -415,97 +437,6 @@ export function SinglePageApp() {
     clearUserData();
     router.replace(`/${locale}/login`);
     router.refresh();
-  }
-
-  const quoteClient = clients.find((c) => c.id === projectInfo.clientId) ?? null;
-  const canSendQuoteByWhatsApp = Boolean(quoteClient?.phone);
-
-  // Client-facing counterpart to exportPdf() above, for the live wizard
-  // state's own "Compartilhar cotação" (Dimensionamento's Resumo tab)
-  // — same handleSendQuote approach as SelectedProjectSummary (try sharing
-  // the actual PDF file via the OS share sheet, fall back to a plain wa.me
-  // text link), just built straight from live state instead of a
-  // SavedProject, since this quote may not even be saved as a project yet.
-  async function sendQuoteByWhatsApp() {
-    if (!quoteClient?.phone) return;
-    const shareableProject = {
-      name: projectInfo.name,
-      address: projectInfo.address,
-      topology: residentialOptions.topology,
-      gridType: residentialOptions.gridType,
-      loadsCount: residentialOptions.loads.length,
-      peakW,
-      dailyKwh,
-      solution,
-    };
-    const systemCost =
-      solution || services.length > 0
-        ? calculateSystemCost(solution, userStockItems, services, userServices, marginSettings, batteryCatalog, residentialOptions)
-        : null;
-    const quoteText = buildClientQuoteText(shareableProject, quoteClient.name, batteryCatalog, services, systemCost);
-    const whatsAppUrl = buildWhatsAppShareUrl(quoteClient.phone, quoteText);
-    if (!whatsAppUrl) return;
-
-    // Sharing the quote is the real-world signal that it left "Rascunho" —
-    // only advances from 'draft' (no-op if this live state isn't a saved
-    // project at all yet) so a re-share after the client already responded
-    // doesn't quietly undo an 'accepted'/'rejected' status.
-    function markSent() {
-      if (!currentProjectId) return;
-      const current = savedProjects.find((p) => p.id === currentProjectId);
-      if (current?.status === 'draft') void updateProjectStatusAction(currentProjectId, 'sent');
-    }
-
-    if (solution && typeof navigator.canShare === 'function') {
-      try {
-        setSendingQuote(true);
-        const { buildProjectQuotePdfBlob } = await import('./project-quote-pdf');
-        const blob = await buildProjectQuotePdfBlob({
-          projectInfo,
-          client: quoteClient,
-          profile,
-          solution,
-          secondarySolution,
-          secondaryBatteryModel: residentialOptions.secondaryBatteryModel,
-          loads: residentialOptions.loads,
-          operationHours: residentialOptions.operationHours,
-          topology: residentialOptions.topology,
-          selectedBatteryModel: residentialOptions.batteryModel,
-          gridType: residentialOptions.gridType,
-          nominalW,
-          peakW,
-          dailyKwh,
-          userStockItems,
-          marginSettings,
-          services,
-          userServices,
-          whiteTariff: residentialOptions.whiteTariff,
-          pv: residentialOptions.pv,
-          desiredFeatures: residentialOptions.desiredFeatures,
-          microgrid: residentialOptions.microgrid,
-          generator: residentialOptions.generator,
-          atsPhotoUrl: residentialOptions.atsPhotoUrl,
-          atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
-          batteryCatalog,
-          inverterCatalog,
-          accessoryCatalog,
-          productMedia,
-        });
-        const file = new File([blob], `${buildPdfFileName(projectInfo.name)}.pdf`, { type: 'application/pdf' });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], text: quoteText });
-          markSent();
-          return;
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') return;
-      } finally {
-        setSendingQuote(false);
-      }
-    }
-
-    window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
-    markSent();
   }
 
   function openMobilePurchasesTab() {
