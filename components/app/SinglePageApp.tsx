@@ -32,6 +32,7 @@ import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
 import { useSizingController } from './hooks/useSizingController';
 import { useProjectPdfDownload } from './hooks/useProjectPdfDownload';
+import { useLivePdfExport } from './hooks/useLivePdfExport';
 import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
@@ -158,7 +159,6 @@ export function SinglePageApp() {
   // exportingPdf covers every "Baixar relatório" trigger (Dimensionamento's
   // own buttons), downloadingProjectId additionally pins which saved
   // project's card button to spin, since several can be on screen at once.
-  const [exportingPdf, setExportingPdf] = useState(false);
   const [sendingQuote, setSendingQuote] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
@@ -369,6 +369,28 @@ export function SinglePageApp() {
     reportStatus,
   });
 
+  const { exportingPdf, exportPdf } = useLivePdfExport({
+    projectInfo,
+    residentialOptions,
+    solution,
+    secondarySolution,
+    client: clients.find((client) => client.id === projectInfo.clientId) ?? null,
+    profile,
+    batteryCatalog,
+    inverterCatalog,
+    accessoryCatalog,
+    productMedia,
+    userStockItems,
+    marginSettings,
+    services,
+    userServices,
+    nominalW,
+    peakW,
+    dailyKwh,
+    canCalculate: Boolean(canCalculate),
+    reportStatus,
+  });
+
   // Reached from a client's own project list (Clientes tab) — loads the
   // project into the wizard and jumps to Projeto, same as opening it from
   // there directly.
@@ -393,67 +415,6 @@ export function SinglePageApp() {
     clearUserData();
     router.replace(`/${locale}/login`);
     router.refresh();
-  }
-
-  function triggerBlobDownload(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  // @react-pdf/renderer is a sizable library only needed once the user
-  // actually exports — dynamically imported here instead of joining the
-  // rest of this already-static-imported component's bundle. Only for the
-  // live Dimensionamento state (the "Baixar relatório" buttons there); a
-  // saved project's own card downloads independently via downloadProjectPdf
-  // below, straight from its stored data.
-  async function exportPdf() {
-    if (!solution || !canCalculate) return;
-    setExportingPdf(true);
-    try {
-      const { buildProjectQuotePdfBlob } = await import('./project-quote-pdf');
-      const blob = await buildProjectQuotePdfBlob({
-        projectInfo,
-        client: clients.find((c) => c.id === projectInfo.clientId) ?? null,
-        profile,
-        solution,
-        secondarySolution,
-        secondaryBatteryModel: residentialOptions.secondaryBatteryModel,
-        loads: residentialOptions.loads,
-        operationHours: residentialOptions.operationHours,
-        topology: residentialOptions.topology,
-        selectedBatteryModel: residentialOptions.batteryModel,
-        gridType: residentialOptions.gridType,
-        nominalW,
-        peakW,
-        dailyKwh,
-        userStockItems,
-        marginSettings,
-        services,
-        userServices,
-        whiteTariff: residentialOptions.whiteTariff,
-        pv: residentialOptions.pv,
-        desiredFeatures: residentialOptions.desiredFeatures,
-        microgrid: residentialOptions.microgrid,
-        generator: residentialOptions.generator,
-        atsPhotoUrl: residentialOptions.atsPhotoUrl,
-        atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
-        batteryCatalog,
-        inverterCatalog,
-        accessoryCatalog,
-        productMedia,
-      });
-      triggerBlobDownload(blob, `${buildPdfFileName(projectInfo.name)}.pdf`);
-    } catch {
-      reportStatus('Não foi possível gerar o PDF. Tente novamente.');
-    } finally {
-      setExportingPdf(false);
-    }
   }
 
   const quoteClient = clients.find((c) => c.id === projectInfo.clientId) ?? null;
