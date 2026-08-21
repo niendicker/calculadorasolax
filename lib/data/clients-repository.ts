@@ -39,7 +39,7 @@ export async function insertClient(input: ClientInput) {
       document: nullableText(input.document),
       notes: nullableText(input.notes),
     })
-    .select()
+    .select('id, user_id, name, email, phone, document, notes, created_at, updated_at')
     .single();
   if (error) throw error;
   return data;

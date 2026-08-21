@@ -34,7 +34,7 @@ export async function insertUserLoadCatalogRecord(
   const { data, error } = await supabase
     .from('user_load_catalog')
     .insert({ user_id: await currentUserId(supabase), name: input.name, power_w: input.powerW, ip_in_ratio: input.ipInRatio })
-    .select()
+    .select('id, user_id, name, power_w, ip_in_ratio, created_at, updated_at')
     .single();
   if (error) throw error;
   return data;

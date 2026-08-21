@@ -22,7 +22,7 @@ export async function insertUserService(input: ServiceInput) {
   const { data, error } = await supabase
     .from('user_services')
     .insert({ user_id: userData.user.id, name: input.name.trim(), unit_value: input.unitValue, pricing_unit: input.pricingUnit ?? 'project' })
-    .select()
+    .select('id, user_id, name, unit_value, pricing_unit, created_at, updated_at')
     .single();
   if (error) throw error;
   return data;
@@ -88,7 +88,7 @@ export async function upsertUserStockItem(input: StockInput) {
       },
       { onConflict: 'user_id,product_type,product_model' }
     )
-    .select()
+    .select('id, user_id, product_type, product_model, unit_value, created_at, updated_at')
     .single();
   if (error) throw error;
   return data;

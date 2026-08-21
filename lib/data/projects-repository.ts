@@ -16,8 +16,8 @@ export type ProjectRecord = {
 export async function saveProjectRecord(id: string | null, payload: ProjectRecord) {
   const supabase = createClient();
   const request = id
-    ? supabase.from('projects').update(payload).eq('id', id).select().single()
-    : supabase.from('projects').insert(payload).select().single();
+    ? supabase.from('projects').update(payload).eq('id', id).select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at').single()
+    : supabase.from('projects').insert(payload).select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at').single();
   const { data, error } = await request;
   if (error) throw error;
   return data;
@@ -35,7 +35,7 @@ export async function updateProjectStatusRecord(id: string, status: ProjectStatu
     .from('projects')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select()
+    .select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
     .single();
   if (error) throw error;
   return data;
