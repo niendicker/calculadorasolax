@@ -1,9 +1,10 @@
 import type { createClient } from '@/lib/supabase/client';
 import { CURRENT_LEGAL_DOCUMENT_VERSION } from '@/lib/legal-documents';
+import type { TablesInsert } from '@/lib/database.types';
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>;
 
-export async function saveProfileRecord(supabase: BrowserSupabaseClient, profile: Record<string, unknown>) {
+export async function saveProfileRecord(supabase: BrowserSupabaseClient, profile: TablesInsert<'profiles'>) {
   const { error } = await supabase.from('profiles').upsert(profile);
   if (error) throw new Error(error.message);
 }

@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import type { Json } from '@/lib/database.types';
 import { isAddressEmpty } from '@/lib/address';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
@@ -132,11 +133,11 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       user_id: userId,
       client_id: s.projectInfo.clientId,
       name,
-      address: isAddressEmpty(s.projectInfo.address) ? null : s.projectInfo.address,
+      address: (isAddressEmpty(s.projectInfo.address) ? null : s.projectInfo.address) as Json,
       notes: s.projectInfo.notes.trim() || null,
-      residential_options: s.residentialOptions,
-      solution: s.solution,
-      services: s.services,
+      residential_options: s.residentialOptions as unknown as Json,
+      solution: s.solution as unknown as Json,
+      services: s.services as unknown as Json,
       updated_at: new Date().toISOString(),
     };
 
@@ -229,7 +230,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
 
     const { data: row, error } = await supabase
       .from('projects')
-      .update({ solution: result.solution, updated_at: new Date().toISOString() })
+      .update({ solution: result.solution as unknown as Json, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
       .single();

@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import { createClient } from '@/lib/supabase/client';
 import type { MarginSettings, StockProductType } from '@/lib/types';
+import type { TablesUpdate } from '@/lib/database.types';
 import type { WizardStore } from '../wizard-store';
 
 export interface MarginSlice {
@@ -36,11 +37,11 @@ export const createMarginSlice: StateCreator<WizardStore, [], [], MarginSlice> =
   },
 
   updateMarginPercent: async (category, percent) => {
-    const column = {
+    const column: keyof Pick<TablesUpdate<'profiles'>, 'margin_inverter_percent' | 'margin_battery_percent' | 'margin_accessory_percent'> = ({
       inverter: 'margin_inverter_percent',
       battery: 'margin_battery_percent',
       accessory: 'margin_accessory_percent',
-    }[category];
+    } as const)[category];
     const field = {
       inverter: 'inverterPercent',
       battery: 'batteryPercent',
@@ -51,9 +52,10 @@ export const createMarginSlice: StateCreator<WizardStore, [], [], MarginSlice> =
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('not_authenticated');
 
+    const profileUpdate: TablesUpdate<'profiles'> = { [column]: percent, updated_at: new Date().toISOString() };
     const { error } = await supabase
       .from('profiles')
-      .update({ [column]: percent, updated_at: new Date().toISOString() })
+      .update(profileUpdate)
       .eq('id', userData.user.id);
     if (error) throw error;
 

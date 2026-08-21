@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import type { TablesUpdate } from '@/lib/database.types';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -86,7 +87,7 @@ export const createLoadCatalogSlice: StateCreator<WizardStore, [], [], LoadCatal
 
   updateUserLoadCatalogItem: async (id, partial) => {
     const supabase = createClient();
-    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const payload: TablesUpdate<'user_load_catalog'> = { updated_at: new Date().toISOString() };
     if (partial.name !== undefined) payload.name = partial.name.trim();
     if (partial.powerW !== undefined) payload.power_w = partial.powerW;
     if (partial.ipInRatio !== undefined) payload.ip_in_ratio = partial.ipInRatio;

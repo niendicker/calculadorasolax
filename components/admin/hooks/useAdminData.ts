@@ -170,7 +170,7 @@ export function useAdminData({
             .from('load_presets')
             .select(PRESET_COLUMNS)
             .order('display_order');
-          if (!fetchError) setPresets((data ?? []) as PresetRow[]);
+          if (!fetchError) setPresets((data ?? []) as unknown as PresetRow[]);
           return { error: fetchError };
         }
         case 'rules': {
@@ -186,7 +186,7 @@ export function useAdminData({
             .from('ess_compatibility_rules')
             .select(ESS_RULE_COLUMNS)
             .order('created_at', { ascending: false });
-          if (!fetchError) setEssRules((data ?? []) as EssCompatibilityRuleRow[]);
+          if (!fetchError) setEssRules((data ?? []) as unknown as EssCompatibilityRuleRow[]);
           return { error: fetchError };
         }
         case 'solutions': {

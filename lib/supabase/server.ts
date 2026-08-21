@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { AUTH_COOKIE_NAME } from './auth-cookie-name';
 import { getSupabaseAnonKey, getSupabaseServerUrl } from './config';
+import type { Database } from '@/lib/database.types';
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -11,7 +12,7 @@ export async function createClient() {
   // the public URL when SUPABASE_INTERNAL_URL isn't set (e.g. local dev).
   const supabaseUrl = getSupabaseServerUrl();
 
-  return createServerClient(
+  return createServerClient<Database>(
     supabaseUrl,
     getSupabaseAnonKey(),
     {

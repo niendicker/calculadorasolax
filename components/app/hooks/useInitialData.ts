@@ -141,7 +141,7 @@ export function useInitialData({
             id: row.id,
             name: row.name,
             description: row.description,
-            loads: (row.loads ?? []) as LoadPresetItem['loads'],
+            loads: (row.loads ?? []) as unknown as LoadPresetItem['loads'],
           }))
         );
       }
@@ -165,7 +165,7 @@ export function useInitialData({
             warrantyYears: Number(row.warranty_years ?? 10),
             warrantyCycles: Number(row.warranty_cycles ?? 6000),
             imageUrl: row.image_url,
-            documents: (row.documents ?? []) as ProductDocument[],
+            documents: (row.documents ?? []) as unknown as ProductDocument[],
           }))
         );
       }
@@ -189,7 +189,7 @@ export function useInitialData({
             pvOversizingPercent: row.pv_oversizing_percent == null ? null : Number(row.pv_oversizing_percent),
             warrantyYears: Number(row.warranty_years ?? 10),
             imageUrl: row.image_url,
-            documents: (row.documents ?? []) as ProductDocument[],
+            documents: (row.documents ?? []) as unknown as ProductDocument[],
             flags: (row.flags ?? []) as InverterCatalogOption['flags'],
           }))
         );
@@ -204,7 +204,7 @@ export function useInitialData({
             description: row.description,
             warrantyYears: Number(row.warranty_years ?? 2),
             imageUrl: row.image_url,
-            documents: (row.documents ?? []) as ProductDocument[],
+            documents: (row.documents ?? []) as unknown as ProductDocument[],
           }))
         );
       }

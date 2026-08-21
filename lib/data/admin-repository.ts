@@ -1,4 +1,5 @@
 import type { createClient } from '@/lib/supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>;
 
@@ -40,25 +41,28 @@ export async function recordAdminActivity(supabase: BrowserSupabaseClient, input
   const { error } = await supabase.from('admin_activity_logs').insert({
     actor_id: user?.id ?? null, actor_email: user?.email ?? null, entity_type: input.entityType,
     action: input.action, target_id: input.targetId ?? null, target_label: input.targetLabel || 'Registro sem nome',
-    summary: input.summary, before_data: input.beforeData ?? null, after_data: input.afterData ?? null,
+    summary: input.summary, before_data: (input.beforeData ?? null) as never, after_data: (input.afterData ?? null) as never,
   });
   if (error) throw new Error(error.message);
 }
 
 export async function persistAdminEntity(supabase: BrowserSupabaseClient, table: string, id: string | null | undefined, payload: Record<string, unknown>) {
-  const request = id ? supabase.from(table).update(payload).eq('id', id) : supabase.from(table).insert(payload);
+  const dynamicClient = supabase as unknown as SupabaseClient;
+  const request = id ? dynamicClient.from(table).update(payload).eq('id', id) : dynamicClient.from(table).insert(payload);
   const { error } = await request;
   if (error) throw new Error(error.message);
 }
 
 export async function removeAdminEntity(supabase: BrowserSupabaseClient, table: string, id: string, soft: boolean) {
-  const request = soft ? supabase.from(table).update({ active: false }).eq('id', id) : supabase.from(table).delete().eq('id', id);
+  const dynamicClient = supabase as unknown as SupabaseClient;
+  const request = soft ? dynamicClient.from(table).update({ active: false }).eq('id', id) : dynamicClient.from(table).delete().eq('id', id);
   const { error } = await request;
   if (error) throw new Error(error.message);
 }
 
 export async function removeAdminEntities(supabase: BrowserSupabaseClient, table: string, ids: string[]) {
-  const { error } = await supabase.from(table).delete().in('id', ids);
+  const dynamicClient = supabase as unknown as SupabaseClient;
+  const { error } = await dynamicClient.from(table).delete().in('id', ids);
   if (error) throw new Error(error.message);
 }
 

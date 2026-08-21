@@ -43,7 +43,7 @@ export default async function QuoteSharePage({ params }: { params: Promise<{ tok
     <QuoteShareView
       token={token}
       status={data.status as QuoteShareStatus}
-      snapshot={data.snapshot as QuoteShareSnapshot}
+      snapshot={data.snapshot as unknown as QuoteShareSnapshot}
       respondedAt={data.responded_at as string | null}
     />
   );

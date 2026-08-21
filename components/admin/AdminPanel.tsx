@@ -394,7 +394,7 @@ export function AdminPanel() {
 
     const { error: upsertError } = await supabase
       .from('approved_solutions')
-      .upsert(generatedSolutions, { onConflict: 'solution_code' });
+      .upsert(generatedSolutions.map((solution) => ({ ...solution, raw_solution: solution.raw_solution as never })), { onConflict: 'solution_code' });
 
     if (upsertError) {
       setSaving(false);

@@ -1,4 +1,5 @@
 import type { createClient } from '@/lib/supabase/client';
+import type { TablesInsert, TablesUpdate } from '@/lib/database.types';
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>;
 
@@ -30,31 +31,31 @@ export async function loadAdminSupplierWorkspace(supabase: BrowserSupabaseClient
 }
 
 export async function transitionPurchaseOrder(supabase: BrowserSupabaseClient, orderId: string, status: string) {
-  const { error } = await supabase.rpc('admin_transition_purchase_order', { p_order_id: orderId, p_status: status, p_message: null });
+  const { error } = await supabase.rpc('admin_transition_purchase_order', { p_order_id: orderId, p_status: status, p_message: null as unknown as string });
   if (error) throw new Error(error.message);
 }
 
-export async function saveSupplierRecord(supabase: BrowserSupabaseClient, id: string | null, payload: Record<string, unknown>) {
+export async function saveSupplierRecord(supabase: BrowserSupabaseClient, id: string | null, payload: TablesInsert<'suppliers'> | TablesUpdate<'suppliers'>) {
   const request = id
-    ? supabase.from('suppliers').update(payload).eq('id', id).select('id').single()
-    : supabase.from('suppliers').insert(payload).select('id').single();
+    ? supabase.from('suppliers').update(payload as TablesUpdate<'suppliers'>).eq('id', id).select('id').single()
+    : supabase.from('suppliers').insert(payload as TablesInsert<'suppliers'>).select('id').single();
   const { data, error } = await request;
   if (error) throw new Error(error.message);
   return data;
 }
 
-export async function saveSupplierIntegration(supabase: BrowserSupabaseClient, payload: Record<string, unknown>) {
+export async function saveSupplierIntegration(supabase: BrowserSupabaseClient, payload: TablesInsert<'supplier_integrations'>) {
   const { error } = await supabase.from('supplier_integrations').upsert(payload, { onConflict: 'supplier_id' });
   if (error) throw new Error(error.message);
 }
 
-export async function addSupplierMapping(supabase: BrowserSupabaseClient, payload: Record<string, unknown>) {
+export async function addSupplierMapping(supabase: BrowserSupabaseClient, payload: TablesInsert<'supplier_product_mappings'>) {
   const { data, error } = await supabase.from('supplier_product_mappings').insert(payload).select('id').single();
   if (error) throw new Error(error.message);
   return data;
 }
 
-export async function addSupplierOffer(supabase: BrowserSupabaseClient, payload: Record<string, unknown>) {
+export async function addSupplierOffer(supabase: BrowserSupabaseClient, payload: TablesInsert<'supplier_offers'>) {
   const { error } = await supabase.from('supplier_offers').insert(payload);
   if (error) throw new Error(error.message);
 }

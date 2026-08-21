@@ -162,7 +162,7 @@ export function SelectedProjectSummary({
       const supabase = createClient();
       const { data, error } = await supabase
         .from('quote_shares')
-        .insert({ project_id: project.id, user_id: profile.id, snapshot })
+        .insert({ project_id: project.id, user_id: profile.id, snapshot: snapshot as unknown as import('@/lib/database.types').Json })
         .select('id')
         .single();
       if (error || !data) return;

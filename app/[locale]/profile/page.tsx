@@ -41,7 +41,7 @@ export default async function ProfilePage({
         email: profile?.email ?? user.email ?? '',
         full_name: profile?.full_name ?? user.user_metadata?.full_name ?? '',
         phone: profile?.phone ?? user.user_metadata?.phone ?? '',
-        role: profile?.role ?? 'user',
+        role: profile?.role === 'admin' ? 'admin' : 'user',
         company_name: profile?.company_name ?? '',
         company_address: addressFromJson(profile?.company_address),
         company_logo_url: profile?.company_logo_url ?? '',

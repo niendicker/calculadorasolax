@@ -1,5 +1,6 @@
 import type { createClient } from '@/lib/supabase/client';
 import type { LoadPresetLoad } from '@/lib/types';
+import type { Json, TablesUpdate } from '@/lib/database.types';
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>;
 
@@ -21,7 +22,7 @@ export async function listUserLoadCatalog(supabase: BrowserSupabaseClient) {
 export async function updateUserLoadCatalogRecord(
   supabase: BrowserSupabaseClient,
   id: string,
-  payload: Record<string, unknown>
+  payload: TablesUpdate<'user_load_catalog'>
 ) {
   const { error } = await supabase.from('user_load_catalog').update(payload).eq('id', id);
   if (error) throw error;
@@ -60,7 +61,7 @@ export async function insertUserLoadPreset(
 ) {
   const { data, error } = await supabase
     .from('user_load_presets')
-    .insert({ user_id: await currentUserId(supabase), name: input.name, description: input.description, loads: input.loads })
+    .insert({ user_id: await currentUserId(supabase), name: input.name, description: input.description, loads: input.loads as unknown as Json })
     .select('id, name, description, loads')
     .single();
   if (error) throw error;

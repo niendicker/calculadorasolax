@@ -66,7 +66,7 @@ export function useProfileActions({
       phone: profile.phone.trim(),
       role: profile.role,
       company_name: profile.companyName.trim(),
-      company_address: isAddressEmpty(profile.companyAddress) ? null : profile.companyAddress,
+      company_address: (isAddressEmpty(profile.companyAddress) ? null : profile.companyAddress) as unknown as import('@/lib/database.types').Json,
       company_logo_url: profile.companyLogoUrl.trim(),
       company_document: profile.companyDocument.trim() || null,
       updated_at: new Date().toISOString(),

@@ -51,7 +51,7 @@ export function ProfilePanel({
       full_name: profile.full_name.trim(),
       phone: profile.phone.trim(),
       company_name: profile.company_name.trim(),
-      company_address: isAddressEmpty(profile.company_address) ? null : profile.company_address,
+      company_address: (isAddressEmpty(profile.company_address) ? null : profile.company_address) as unknown as import('@/lib/database.types').Json,
       company_logo_url: profile.company_logo_url.trim(),
       updated_at: new Date().toISOString(),
       });

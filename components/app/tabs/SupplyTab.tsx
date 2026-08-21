@@ -175,9 +175,9 @@ export function SupplyTab({
       p_request_type: requestType,
       p_items: cartOffers.map((offer) => ({ offer_id: offer.id, quantity: cart[offer.id] })),
       p_idempotency_key: crypto.randomUUID(),
-      p_project_id: cartProjectId,
-      p_delivery_address: nonEmptyDeliveryFields(checkoutDelivery),
-      p_customer_notes: notes || null,
+      p_project_id: cartProjectId as unknown as string,
+      p_delivery_address: nonEmptyDeliveryFields(checkoutDelivery) as unknown as import('@/lib/database.types').Json,
+      p_customer_notes: (notes || null) as unknown as string,
     });
     if (createError) {
       setFailure(createError.message);

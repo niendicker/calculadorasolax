@@ -1,15 +1,16 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ProjectStatus } from '@/lib/types';
+import type { Json } from '@/lib/database.types';
 
 export type ProjectRecord = {
   user_id: string;
   client_id: string | null;
   name: string;
-  address: unknown;
+  address: Json;
   notes: string | null;
-  residential_options: unknown;
-  solution: unknown;
-  services: unknown;
+  residential_options: Json;
+  solution: Json;
+  services: Json;
   updated_at: string;
 };
 
