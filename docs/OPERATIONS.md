@@ -51,6 +51,18 @@ do próprio túnel:
 
 Ele abre o túnel, executa a mesma verificação e o fecha sem aplicar nada.
 
+Depois de aplicar migrations no ambiente alvo, regenere os tipos a partir do
+mesmo banco:
+
+```bash
+npm run db:types
+```
+
+O comando grava `lib/database.types.ts`. Em ambiente self-hosted, execute-o
+com o túnel aberto ou use uma `DB_URL` que alcance o Postgres remoto. Não crie
+tipos manuais para substituir esse arquivo: mudanças de schema devem ser
+refletidas pela geração oficial.
+
 Aplicar migrations somente após revisar o diff e confirmar o ambiente alvo:
 
 ```bash

@@ -13,6 +13,7 @@
     "check:functions": "cd supabase/functions && deno check calculate-residential/index.ts",
     "test:functions": "cd supabase/functions && deno test --allow-env calculate-residential/index.test.ts",
     "db:check": "bash scripts/check-migrations.sh",
+    "db:types": "bash scripts/generate-database-types.sh",
     "rotate-keys": "bash scripts/rotate-keys.sh"
   },
   "dependencies": {
