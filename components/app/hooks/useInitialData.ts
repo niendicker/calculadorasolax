@@ -228,7 +228,10 @@ export function useInitialData({
       setInitialLoading(false);
     }
 
-    loadInitialData();
+    void loadInitialData().catch(() => {
+      setUserDataError('Não foi possível carregar os dados iniciais. Verifique sua conexão e tente novamente.');
+      setInitialLoading(false);
+    });
   }, [
     setLoadCatalog,
     setLoadPresets,
