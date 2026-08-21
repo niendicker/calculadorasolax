@@ -6,9 +6,10 @@
 #
 # Interactive by default: confirms the target (SSH host + database, password
 # masked) before connecting, then confirms again showing the pending
-# migrations (via dry-run) before applying for real. Pass --yes to skip both
-# confirmations (e.g. running from a larger script that already validated
-# everything).
+# migrations (via dry-run) before applying for real. Pass --check-only to
+# inspect migration drift and close the tunnel without applying anything.
+# Pass --yes to skip confirmations (e.g. running from a larger script that
+# already validated everything).
 #
 # Requires .env.tunnel.local at the repo root with DB_URL set (see
 # .gitignore — that file is never committed). SSH_HOST, DB_CONTAINER,
@@ -20,9 +21,11 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 ASSUME_YES=false
+CHECK_ONLY=false
 for arg in "$@"; do
   case "$arg" in
     --yes|-y) ASSUME_YES=true ;;
+    --check-only) CHECK_ONLY=true ;;
   esac
 done
 
@@ -137,6 +140,9 @@ fi
 echo "Tunnel ready."
 echo
 
+echo "=== Applied migration list (read-only) ==="
+supabase migration list --db-url "$DB_URL"
+echo
 echo "=== Checking pending migrations (dry-run) ==="
 DRY_RUN_OUTPUT=$(supabase db push --db-url "$DB_URL" --dry-run 2>&1) || {
   echo "$DRY_RUN_OUTPUT"
@@ -145,6 +151,11 @@ DRY_RUN_OUTPUT=$(supabase db push --db-url "$DB_URL" --dry-run 2>&1) || {
 }
 echo "$DRY_RUN_OUTPUT"
 echo
+
+if [ "$CHECK_ONLY" = true ]; then
+  echo "Migration drift check completed. No database changes were made."
+  exit 0
+fi
 
 if echo "$DRY_RUN_OUTPUT" | grep -qi "up to date"; then
   exit 0
