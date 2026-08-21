@@ -36,8 +36,7 @@ import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { DemoBanner } from './demo/DemoBanner';
 import { DemoPickerDialog } from './demo/DemoPickerDialog';
-import { DEMO_SIMULATIONS, buildDemoSimulation } from '@/lib/demo/demo-simulations';
-import type { DemoTab } from '@/lib/demo/types';
+import { useDemoController } from './demo/useDemoController';
 import { ProjectTab } from './tabs/ProjectTab';
 import { batteryTopologyToCatalog } from '@/lib/types';
 import { gridTypeToApprovedTopology } from './types';
@@ -165,8 +164,6 @@ export function SinglePageApp() {
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
-  const [demoPickerOpen, setDemoPickerOpen] = useState(false);
-  const [unavailableDemoIds, setUnavailableDemoIds] = useState<Set<string>>(new Set());
 
   // App shell: title bar and summary panel are persistent chrome around the
   // scrollable content; tabs portal their header/summary into these targets
@@ -283,43 +280,26 @@ export function SinglePageApp() {
     saveCurrentProject,
   });
 
-  const demoDataById = useMemo(() => {
-    const entries = DEMO_SIMULATIONS.map((definition) => [
-      definition.id,
-      buildDemoSimulation(definition, loadPresets, batteryCatalog, approvedInverterCombos, inverterCatalog),
-    ] as const);
-    return new Map(entries);
-  }, [loadPresets, batteryCatalog, approvedInverterCombos, inverterCatalog]);
-
-  function openDemoPicker() {
-    setDemoPickerOpen(true);
-  }
-
-  function selectDemo(id: string) {
-    const data = demoDataById.get(id);
-    if (!data) {
-      setUnavailableDemoIds((ids) => new Set(ids).add(id));
-      return;
-    }
-    loadDemoSimulation(id, data, activeTab as DemoTab);
-    setUnavailableDemoIds((ids) => {
-      const next = new Set(ids);
-      next.delete(id);
-      return next;
-    });
-    setDemoPickerOpen(false);
-    changeTab('sizing');
-  }
-
-  function leaveDemo() {
-    exitDemoMode();
-    changeTab('project');
-  }
-
-  function convertDemo() {
-    convertDemoToSimulation();
-    changeTab('project');
-  }
+  const {
+    examples: demoExamples,
+    demoPickerOpen,
+    setDemoPickerOpen,
+    unavailableDemoIds,
+    openDemoPicker,
+    selectDemo,
+    leaveDemo,
+    convertDemo,
+  } = useDemoController({
+    activeTab,
+    loadPresets,
+    batteryCatalog,
+    approvedInverterCombos,
+    inverterCatalog,
+    loadDemoSimulation,
+    exitDemoMode,
+    convertDemoToSimulation,
+    changeTab,
+  });
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
@@ -935,7 +915,7 @@ export function SinglePageApp() {
                   {isDemo && <DemoBanner onExit={leaveDemo} onConvert={convertDemo} />}
                   {demoPickerOpen && (
                     <DemoPickerDialog
-                      examples={DEMO_SIMULATIONS}
+                      examples={demoExamples}
                       unavailable={unavailableDemoIds}
                       onSelect={selectDemo}
                       onClose={() => setDemoPickerOpen(false)}
