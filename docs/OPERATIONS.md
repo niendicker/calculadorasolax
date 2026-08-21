@@ -63,6 +63,15 @@ com o túnel aberto ou use uma `DB_URL` que alcance o Postgres remoto. Não crie
 tipos manuais para substituir esse arquivo: mudanças de schema devem ser
 refletidas pela geração oficial.
 
+Para gerar os tipos usando a descoberta automática do túnel self-hosted:
+
+```bash
+./scripts/db-push-tunnel.sh --types-only
+```
+
+Esse modo também executa a verificação de migrations antes de gerar o arquivo
+e não aplica nenhuma alteração no banco.
+
 Aplicar migrations somente após revisar o diff e confirmar o ambiente alvo:
 
 ```bash

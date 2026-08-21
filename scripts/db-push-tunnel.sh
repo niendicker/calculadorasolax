@@ -8,6 +8,8 @@
 # masked) before connecting, then confirms again showing the pending
 # migrations (via dry-run) before applying for real. Pass --check-only to
 # inspect migration drift and close the tunnel without applying anything.
+# Pass --types-only to regenerate lib/database.types.ts and close the tunnel
+# without applying migrations.
 # Pass --yes to skip confirmations (e.g. running from a larger script that
 # already validated everything).
 #
@@ -22,10 +24,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 ASSUME_YES=false
 CHECK_ONLY=false
+TYPES_ONLY=false
 for arg in "$@"; do
   case "$arg" in
     --yes|-y) ASSUME_YES=true ;;
     --check-only) CHECK_ONLY=true ;;
+    --types-only) TYPES_ONLY=true ;;
   esac
 done
 
@@ -154,6 +158,13 @@ echo
 
 if [ "$CHECK_ONLY" = true ]; then
   echo "Migration drift check completed. No database changes were made."
+  exit 0
+fi
+
+if [ "$TYPES_ONLY" = true ]; then
+  echo "=== Generating database types (read-only) ==="
+  bash scripts/generate-database-types.sh
+  echo "Database types regenerated. No database changes were made."
   exit 0
 fi
 
