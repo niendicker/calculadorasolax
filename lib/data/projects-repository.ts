@@ -43,7 +43,10 @@ export async function updateProjectStatusRecord(id: string, status: ProjectStatu
 
 export async function listProjectRecords() {
   const supabase = createClient();
-  const { data, error } = await supabase.from('projects').select('*').order('updated_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, user_id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
+    .order('updated_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
 }

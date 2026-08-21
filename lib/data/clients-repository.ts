@@ -16,7 +16,10 @@ function nullableText(value: string | undefined) {
 
 export async function listClients() {
   const supabase = createClient();
-  const { data, error } = await supabase.from('clients').select('*').order('name');
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, user_id, name, email, phone, document, notes, created_at, updated_at')
+    .order('name');
   if (error) throw error;
   return data ?? [];
 }

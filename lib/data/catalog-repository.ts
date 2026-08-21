@@ -6,7 +6,10 @@ export type StockInput = { productType: StockProductType; productModel: string; 
 
 export async function listUserServices() {
   const supabase = createClient();
-  const { data, error } = await supabase.from('user_services').select('*').order('name');
+  const { data, error } = await supabase
+    .from('user_services')
+    .select('id, user_id, name, unit_value, pricing_unit, created_at, updated_at')
+    .order('name');
   if (error) throw error;
   return data ?? [];
 }
@@ -60,7 +63,10 @@ export async function deleteUserService(id: string) {
 
 export async function listUserStockItems() {
   const supabase = createClient();
-  const { data, error } = await supabase.from('user_stock_items').select('*').order('product_model');
+  const { data, error } = await supabase
+    .from('user_stock_items')
+    .select('id, user_id, product_type, product_model, unit_value, created_at, updated_at')
+    .order('product_model');
   if (error) throw error;
   return data ?? [];
 }

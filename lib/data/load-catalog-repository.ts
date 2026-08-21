@@ -10,7 +10,10 @@ async function currentUserId(supabase: BrowserSupabaseClient) {
 }
 
 export async function listUserLoadCatalog(supabase: BrowserSupabaseClient) {
-  const { data, error } = await supabase.from('user_load_catalog').select('*').order('name');
+  const { data, error } = await supabase
+    .from('user_load_catalog')
+    .select('id, user_id, name, power_w, ip_in_ratio, created_at, updated_at')
+    .order('name');
   if (error) throw error;
   return data ?? [];
 }
