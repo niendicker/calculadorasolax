@@ -31,6 +31,7 @@ import { useInitialData } from './hooks/useInitialData';
 import { useProfileActions } from './hooks/useProfileActions';
 import { useProjectActions } from './hooks/useProjectActions';
 import { useSizingController } from './hooks/useSizingController';
+import { useProjectPdfDownload } from './hooks/useProjectPdfDownload';
 import { AppFooter } from './shell/AppFooter';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
@@ -158,7 +159,6 @@ export function SinglePageApp() {
   // own buttons), downloadingProjectId additionally pins which saved
   // project's card button to spin, since several can be on screen at once.
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [downloadingProjectId, setDownloadingProjectId] = useState<string | null>(null);
   const [sendingQuote, setSendingQuote] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
@@ -356,6 +356,19 @@ export function SinglePageApp() {
     resetResidential,
   });
 
+  const { downloadingProjectId, downloadProjectPdf } = useProjectPdfDownload({
+    savedProjects,
+    clients,
+    profile,
+    userStockItems,
+    marginSettings,
+    userServices,
+    batteryCatalog,
+    inverterCatalog,
+    accessoryCatalog,
+    reportStatus,
+  });
+
   // Reached from a client's own project list (Clientes tab) — loads the
   // project into the wizard and jumps to Projeto, same as opening it from
   // there directly.
@@ -532,44 +545,6 @@ export function SinglePageApp() {
 
     window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
     markSent();
-  }
-
-  // "Baixar Relatório" on a project card in the list — builds the PDF
-  // straight from that project's own saved data instead of first loading it
-  // into the live wizard state (which the old implementation did, reusing
-  // exportPdf() above via an effect keyed off currentProjectId). That
-  // indirection broke down as soon as two downloads landed close together,
-  // or the target project already happened to be loaded: the effect only
-  // fires on an actual *change* of currentProjectId, so a second click could
-  // silently never call exportPdf() again (stuck "Gerando relatório...") or
-  // end up exporting whichever project's data was loaded last instead of the
-  // one actually clicked. Being self-contained per call sidesteps all of it.
-  async function downloadProjectPdf(id: string) {
-    const project = savedProjects.find((p) => p.id === id);
-    if (!project) return;
-    setDownloadingProjectId(id);
-    try {
-      const { buildProjectQuotePdfBlob, buildProjectQuotePdfInputFromSavedProject } = await import(
-        './project-quote-pdf'
-      );
-      const input = buildProjectQuotePdfInputFromSavedProject(project, {
-        client: clients.find((c) => c.id === project.clientId) ?? null,
-        profile,
-        userStockItems,
-        marginSettings,
-        userServices,
-        batteryCatalog,
-        inverterCatalog,
-        accessoryCatalog,
-      });
-      if (!input) return;
-      const blob = await buildProjectQuotePdfBlob(input);
-      triggerBlobDownload(blob, `${buildPdfFileName(project.name)}.pdf`);
-    } catch {
-      reportStatus('Não foi possível gerar o PDF. Tente novamente.');
-    } finally {
-      setDownloadingProjectId(null);
-    }
   }
 
   function openMobilePurchasesTab() {
