@@ -43,6 +43,8 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   métricas.
 - `bccaebf1` e `022bf74f`: estado de sessão/demo extraído para slice próprio
   e teste de integração do fluxo cálculo → métrica.
+- `67157789`: conexões HTTPS de fornecedores fixadas ao IP público validado,
+  mantendo o hostname original para TLS e `Host`.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
