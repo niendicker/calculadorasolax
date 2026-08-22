@@ -41,10 +41,10 @@ A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
 de negócio e integrações críticas estão em hooks e módulos próprios.
 
-Permanecem como melhorias futuras: execução do pgTAP no CI/produção, testes de
-integração ponta a ponta, pinning do endereço no socket para eliminar a janela
-residual de DNS rebinding, medição de bundle e redução do catálogo carregado no
-primeiro acesso.
+Permanecem como melhorias futuras: execução do pgTAP no ambiente de produção,
+testes de integração ponta a ponta, pinning do endereço no socket para eliminar
+a janela residual de DNS rebinding, medição de bundle e redução do catálogo
+carregado no primeiro acesso.
 
 ## Resumo executivo
 
@@ -417,7 +417,7 @@ cálculo tem boa cobertura, incluindo testes de espelho.
 As lacunas principais são:
 
 - ainda há route handlers sem testes diretos;
-- o pgTAP de RLS/ownership foi criado, mas depende de Postgres local/CI;
+- o pgTAP de RLS/ownership é executado no CI quando `SUPABASE_DB_URL` está configurado;
 - concorrência de quote share, limites de payload e SSRF já possuem testes;
 - pouca cobertura de integração do fluxo cálculo → métrica → projeto salvo.
 
@@ -431,7 +431,6 @@ As lacunas principais são:
 1. Separar estado de sessão, draft, cache e persistência no Zustand.
 2. Centralizar envio de emails.
 3. Validar JSONB em runtime nos limites de domínio restantes.
-4. Automatizar execução do pgTAP no CI.
 5. Validar IP resolvido para cenários de DNS rebinding.
 
 ## O que não vale a pena refatorar agora
@@ -450,26 +449,20 @@ As lacunas principais são:
 
 ### Fase 1 — Segurança e bugs críticos
 
-1. Validar migrations em produção.
-2. Criar teste de drift do schema.
-3. Corrigir update não atômico de quote shares.
-4. Validar payloads de métricas e cálculo.
-5. Reforçar SSRF e limites de respostas externas.
-6. Revisar redirecionamentos de autenticação.
+1. Manter o teste de drift do schema e pgTAP configurados no CI.
+2. Validar o pinning do endereço no socket para eliminar a janela residual de DNS rebinding.
 
 ### Fase 2 — Quick wins e duplicações
 
 1. Centralizar constantes.
-2. Centralizar envio de email.
-3. Criar testes para endpoints ainda sem cobertura.
+2. Criar testes para endpoints ainda sem cobertura.
 
 ### Fase 3 — Centralização das regras de negócio
 
 1. Definir tipos de domínio compartilhados.
 2. Criar fonte única para validações.
-3. Reduzir duplicação entre cálculo frontend e Edge Function.
-4. Formalizar mappers de banco.
-5. Separar regra de negócio de helpers de UI.
+3. Formalizar mappers de banco.
+4. Separar regra de negócio de helpers de UI.
 
 ### Fase 4 — Melhorias arquiteturais
 

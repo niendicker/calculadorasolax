@@ -20,6 +20,11 @@ npm run check:functions
 npm run test:functions
 ```
 
+No CI, o job `Database migrations and RLS tests` é executado quando o secret
+`SUPABASE_DB_URL` está configurado. Ele executa `supabase db push --dry-run`
+para detectar migrations pendentes e `supabase test db` para validar os testes
+pgTAP de ownership/RLS, sem aplicar migrations automaticamente.
+
 Se o ambiente de teste não tiver uma base local configurada, valide as migrations no ambiente de staging antes do deploy.
 
 ## Deploy da aplicação

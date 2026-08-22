@@ -29,3 +29,27 @@ jobs:
 
       - name: Test
         run: npm test
+
+  database:
+    name: Database migrations and RLS tests
+    # Secrets are unavailable to pull requests from forks. The application
+    # checks above remain required there; this job runs whenever the repository
+    # has a configured database URL secret.
+    if: ${{ secrets.SUPABASE_DB_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check migration drift
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Run pgTAP ownership and RLS tests
+        run: supabase test db --db-url "$SUPABASE_DB_URL"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
