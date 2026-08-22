@@ -194,6 +194,32 @@ function styleIf<T extends object>(condition: boolean | undefined, style: T): T 
   return condition ? style : {};
 }
 
+/** Presentation-only unit helpers. The calculation layer keeps power values
+ * in watts; the report makes the electrical domain explicit for the reader. */
+export function formatAcPower(valueW: number): string {
+  return Math.abs(valueW) >= 1000
+    ? `${(valueW / 1000).toFixed(2)} kVA`
+    : `${Math.round(valueW)} VA`;
+}
+
+export function formatDcPower(valueW: number): string {
+  return Math.abs(valueW) >= 1000
+    ? `${(valueW / 1000).toFixed(2)} kW`
+    : `${Math.round(valueW)} W`;
+}
+
+export function formatEnergy(valueWh: number): string {
+  return Math.abs(valueWh) >= 1000
+    ? `${(valueWh / 1000).toFixed(2)} kWh`
+    : `${Math.round(valueWh)} Wh`;
+}
+
+function formatPvPower(valueKw: number): string {
+  return Math.abs(valueKw) >= 1
+    ? `${valueKw.toFixed(2)} kWp`
+    : `${Math.round(valueKw * 1000)} Wp`;
+}
+
 /** Produces a compact, stable reference for customer-facing areas while the
  * complete rule identifier remains available in the technical appendix. */
 function shortSolutionReference(solutionCode?: string) {
@@ -243,14 +269,14 @@ function DesiredFeatureDetail({
       if (!whiteTariff) return <Text style={styles.featureDetail}>-</Text>;
       return (
         <Text style={styles.featureDetail}>
-          Potência {(whiteTariff.requiredPowerW / 1000).toFixed(2)} kW
+          Potência CA {formatAcPower(whiteTariff.requiredPowerW)}
           {whiteTariff.totalMonthlyConsumptionKwh
             ? ` · consumo ${whiteTariff.totalMonthlyConsumptionKwh.toFixed(1)} kWh/mês`
             : ''}
           {' · energia ponta '}
-          <Text style={styles.featureDetailBold}>{(whiteTariff.pontaEnergyWh / 1000).toFixed(2)} kWh</Text>
+          <Text style={styles.featureDetailBold}>{formatEnergy(whiteTariff.pontaEnergyWh)}</Text>
           {' · energia intermediária '}
-          <Text style={styles.featureDetailBold}>{(whiteTariff.intermediateEnergyWh / 1000).toFixed(2)} kWh</Text>
+          <Text style={styles.featureDetailBold}>{formatEnergy(whiteTariff.intermediateEnergyWh)}</Text>
           {` · ${backupEnabled ? 'com' : 'sem'} reserva de backup · tarifa ponta `}
           <Text style={styles.featureDetailBold}>{formatCurrencyBRL(whiteTariff.pontaTariffPerKwh)}/kWh</Text>
           {' · tarifa intermediária '}
@@ -264,7 +290,7 @@ function DesiredFeatureDetail({
       if (!microgrid) return <Text style={styles.featureDetail}>-</Text>;
       return (
         <Text style={styles.featureDetail}>
-          {`Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · ${(microgrid.onGridApparentPowerVA / 1000).toFixed(1)} kW · margem de potência 20%`}
+          {`Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · Pot. CA on-grid ${formatAcPower(microgrid.onGridApparentPowerVA)} · margem de potência 20%`}
           {microgrid.photoUrl ? ' · foto anexada' : ''}
         </Text>
       );
@@ -272,7 +298,7 @@ function DesiredFeatureDetail({
       if (!generator) return <Text style={styles.featureDetail}>-</Text>;
       return (
         <Text style={styles.featureDetail}>
-          {`Gerador ${generator.voltageV}V · ${generator.phases}F · ${(generator.apparentPowerVA / 1000).toFixed(1)} kVA · FP ${(generator.powerFactor ?? 0.8).toFixed(2)} · margem ${((generator.safetyMarginW ?? 1000) / 1000).toFixed(2)} kW · chave ATS própria ${generator.ownAtsAcknowledged ? 'confirmada' : 'pendente'}`}
+          {`Gerador ${generator.voltageV}V · ${generator.phases}F · Pot. CA ${formatAcPower(generator.apparentPowerVA)} · FP ${(generator.powerFactor ?? 0.8).toFixed(2)} · margem CA ${formatAcPower(generator.safetyMarginW ?? 1000)} · chave ATS própria ${generator.ownAtsAcknowledged ? 'confirmada' : 'pendente'}`}
           {generator.photoUrl ? ' · foto anexada' : ''}
         </Text>
       );
@@ -418,10 +444,10 @@ function ProductsSection({
     <ProductLine
       key="inverter"
       category="Inversor"
-      nickname={productMedia[solution.inverterModel]?.nickname}
+      nickname={productMedia[solution.inverterModel]?.nickname || inverterCatalog.find((item) => item.model === solution.inverterModel)?.nickname}
       model={solution.inverterModel}
       qty={`×${solution.inverterQty ?? 1}`}
-      note={solution.inverterRatedPowerW ? `${solution.inverterRatedPowerW} VA nominal` : undefined}
+      note={solution.inverterRatedPowerW ? `Pot. CA nominal ${formatAcPower(solution.inverterRatedPowerW)}` : undefined}
       warranty={formatWarranty(inverterCatalog.find((item) => item.model === solution.inverterModel))}
     />
   );
@@ -430,12 +456,12 @@ function ProductsSection({
       <ProductLine
         key={part.model}
         category={index === 0 ? 'Bateria' : 'Bateria (expansão)'}
-        nickname={productMedia[part.model]?.nickname}
+        nickname={productMedia[part.model]?.nickname || batteryCatalog.find((item) => item.model === part.model)?.nickname}
         model={part.model}
         qty={`×${part.qty}`}
         note={
           index === 0 && solution.availableEnergyWh
-            ? `${(solution.availableEnergyWh / 1000).toFixed(2)} kWh disponíveis`
+            ? `${formatEnergy(solution.availableEnergyWh)} disponíveis`
             : undefined
         }
         warranty={formatWarranty(batteryCatalog.find((item) => item.model === part.model))}
@@ -446,12 +472,12 @@ function ProductsSection({
     productLines.push(
       <ProductLine
         key="pv"
-        category="Potência FV recomendada"
+        category="Potência FV (CC) recomendada"
         model="Arranjo fotovoltaico"
-        qty={`${solution.pvPowerKw.toFixed(2)} kWp`}
+        qty={formatPvPower(solution.pvPowerKw)}
         note={
           solution.pvMonthlyGenerationKwh != null
-            ? `${solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês estimados`
+            ? `${formatEnergy(solution.pvMonthlyGenerationKwh * 1000)}/mês estimados`
             : undefined
         }
       />
@@ -466,7 +492,7 @@ function ProductsSection({
       <ProductLine
         key={model}
         category="Acessório"
-        nickname={productMedia[model]?.nickname}
+        nickname={productMedia[model]?.nickname || catalogAccessory?.nickname}
         model={model}
         qty={`×${qty}`}
         note={bundled ? bundledLabel : optional ? `Opcional${comment ? `: ${comment}` : ''}` : (comment ?? undefined)}
@@ -484,9 +510,9 @@ function ProductsSection({
       <Text style={styles.sectionTitle}>{title}</Text>
       <MetricRows
         metrics={[
-          { label: 'Potência nominal', value: metrics.nominalW != null ? `${(metrics.nominalW / 1000).toFixed(2)} kVA` : '-' },
-          { label: 'Potência máxima', value: metrics.peakW != null ? `${(metrics.peakW / 1000).toFixed(2)} kVA` : '-' },
-          { label: 'Energia disponível', value: `${metrics.energyKwh.toFixed(2)} kWh` },
+          { label: 'Potência CA nominal', value: metrics.nominalW != null ? formatAcPower(metrics.nominalW) : '-' },
+          { label: 'Potência CA máxima', value: metrics.peakW != null ? formatAcPower(metrics.peakW) : '-' },
+          { label: 'Energia disponível', value: formatEnergy(metrics.energyKwh * 1000) },
         ]}
       />
       <View style={styles.productBox}>
@@ -537,8 +563,10 @@ function ProductsSection({
           {marginRows.map((row, index) => {
             const marginPct = row.requiredValue > 0 ? ((row.providedValue - row.requiredValue) / row.requiredValue) * 100 : null;
             const insufficient = marginPct !== null && marginPct < 0;
-            const unitLabel = row.unit === 'W' ? 'kVA' : 'kWh';
-            const toKilo = (value: number) => (value / 1000).toFixed(2);
+            const isDcPower = row.key === 'microgrid_battery';
+            const formatValue = (value: number) => row.unit === 'W'
+              ? (isDcPower ? formatDcPower(value) : formatAcPower(value))
+              : formatEnergy(value);
             const delta = row.providedValue - row.requiredValue;
             return (
               <View
@@ -548,8 +576,8 @@ function ProductsSection({
               >
                 <Text style={styles.subBoxRowLabel}>{(insufficient ? '⚠ ' : '') + row.label}</Text>
                 <Text style={[styles.subBoxRowValue, styleIf(insufficient, styles.subBoxRowValueAlert)]}>
-                  {`Necessário ${toKilo(row.requiredValue)} ${unitLabel} · Solução oferece ${toKilo(row.providedValue)} ${unitLabel}`}
-                  {marginPct !== null && ` (${delta >= 0 ? '+' : '-'}${toKilo(Math.abs(delta))} ${unitLabel})`}
+                  {`Necessário ${formatValue(row.requiredValue)} · Solução oferece ${formatValue(row.providedValue)}`}
+                  {marginPct !== null && ` (${delta >= 0 ? '+' : '-'}${formatValue(Math.abs(delta))})`}
                 </Text>
               </View>
             );
@@ -683,7 +711,7 @@ export function ProjectQuotePdfDocument({
   const totalLoadPowerW = loads.reduce((total, load) => total + load.powerW * load.qty, 0);
   const totalLoadEnergyKwh = loads.reduce((total, load) => total + loadEnergyKwh(load), 0);
 
-  const showLoadsTable = !desiredFeatures || desiredFeatures.includes('backup');
+  const showLoadsTable = loads.length > 0;
   const showEconomics = reportSystemCost.pricedItemsCount > 0 || Boolean(tariffSavings);
 
   return (
@@ -710,7 +738,7 @@ export function ProjectQuotePdfDocument({
         <View style={styles.section}>
           <MetricRows
             metrics={[
-              { label: 'Pico de carga', value: `${(peakW / 1000).toFixed(2)} kVA` },
+              { label: 'Pico de carga (CA)', value: formatAcPower(peakW) },
               { label: 'Consumo diário', value: `${dailyKwh.toFixed(2)} kWh/dia` },
               { label: 'Topologia', value: topology ? topologyLabels[topology] : '-' },
               {
@@ -799,7 +827,7 @@ export function ProjectQuotePdfDocument({
           />
         )}
 
-        {showLoadsTable && (
+        {showLoadsTable ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Cargas informadas</Text>
             <Text style={{ fontSize: 7.5, color: COLORS.muted, marginBottom: 6 }}>
@@ -808,28 +836,33 @@ export function ProjectQuotePdfDocument({
             <View style={styles.table}>
               <View style={styles.tableHeaderRow} fixed>
                 <Text style={[styles.tableCellName, styles.tableHeaderText]}>Carga</Text>
-                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Potência</Text>
+                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pot. CA</Text>
                 <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Qtd.</Text>
-                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pico</Text>
+                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pico CA</Text>
                 <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Consumo</Text>
               </View>
               {loads.map((load) => (
                 <View key={load.id} style={styles.tableRow} wrap={false}>
                   <Text style={styles.tableCellName}>{load.name}</Text>
-                  <Text style={styles.tableCellNum}>{load.powerW} VA</Text>
+                  <Text style={styles.tableCellNum}>{formatAcPower(load.powerW)}</Text>
                   <Text style={styles.tableCellNum}>{load.qty}</Text>
-                  <Text style={styles.tableCellNum}>{load.powerW * load.qty} VA</Text>
-                  <Text style={styles.tableCellNum}>{loadEnergyKwh(load).toFixed(2)} kWh</Text>
+                  <Text style={styles.tableCellNum}>{formatAcPower(load.powerW * load.qty)}</Text>
+                  <Text style={styles.tableCellNum}>{formatEnergy(loadEnergyKwh(load) * 1000)}</Text>
                 </View>
               ))}
               <View style={styles.tableFooterRow} wrap={false}>
                 <Text style={[styles.tableCellName, styles.tableFooterText]}>Total</Text>
                 <Text style={styles.tableCellNum} />
                 <Text style={styles.tableCellNum} />
-                <Text style={[styles.tableCellNum, styles.tableFooterText]}>{totalLoadPowerW} VA</Text>
-                <Text style={[styles.tableCellNum, styles.tableFooterText]}>{totalLoadEnergyKwh.toFixed(2)} kWh</Text>
+                <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatAcPower(totalLoadPowerW)}</Text>
+                <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatEnergy(totalLoadEnergyKwh * 1000)}</Text>
               </View>
             </View>
+          </View>
+        ) : (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Cargas informadas</Text>
+            <Text style={styles.assumptionsText}>Nenhuma carga foi informada para este dimensionamento.</Text>
           </View>
         )}
 
@@ -902,10 +935,13 @@ export function ProjectQuotePdfDocument({
         )}
 
         <View style={styles.footer} fixed>
-          <Text>
-            {profile?.companyName || 'SolaX Power Brasil'} · {projectInfo.name || 'Projeto'}
-            {documentReference ? ` · Ref. ${documentReference}` : ''}
-          </Text>
+          <Text
+            render={({ pageNumber, totalPages }) =>
+              `${profile?.companyName || 'SolaX Power Brasil'} · ${projectInfo.name || 'Projeto'}${
+                documentReference ? ` · Ref. ${documentReference}` : ''
+              } · Página ${pageNumber}/${totalPages}`
+            }
+          />
         </View>
       </Page>
     </Document>

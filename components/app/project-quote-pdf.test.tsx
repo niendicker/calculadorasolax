@@ -2,7 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { emptyAddress } from '@/lib/address';
 import type { Client, ProjectInfo, Solution, UserStockItem } from '@/lib/types';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from './types';
-import { buildProjectQuotePdfBlob, type ProjectQuotePdfInput } from './project-quote-pdf';
+import {
+  buildProjectQuotePdfBlob,
+  formatAcPower,
+  formatDcPower,
+  formatEnergy,
+  type ProjectQuotePdfInput,
+} from './project-quote-pdf';
+
+describe('formatadores de grandezas do relatório', () => {
+  it('apresenta potência CA em kVA ou VA', () => {
+    expect(formatAcPower(5000)).toBe('5.00 kVA');
+    expect(formatAcPower(750)).toBe('750 VA');
+  });
+
+  it('apresenta potência CC em kW ou W', () => {
+    expect(formatDcPower(3600)).toBe('3.60 kW');
+    expect(formatDcPower(450)).toBe('450 W');
+  });
+
+  it('apresenta energia em kWh ou Wh', () => {
+    expect(formatEnergy(3200)).toBe('3.20 kWh');
+    expect(formatEnergy(640)).toBe('640 Wh');
+  });
+});
 
 const projectInfo: ProjectInfo = {
   name: 'Casa de praia',
