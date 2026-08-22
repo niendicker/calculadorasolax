@@ -2,17 +2,19 @@ import { createClient } from '@/lib/supabase/server';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { NextResponse } from 'next/server';
 import type { EmailOtpType } from '@supabase/supabase-js';
+import { isSupportedLocale, safeLocalRedirect } from '@/lib/auth/redirect-safety';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ locale: string }> }
 ) {
   const { locale } = await params;
+  if (!isSupportedLocale(locale)) return NextResponse.redirect(new URL('/', getPublicOrigin(request)));
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const tokenHash = requestUrl.searchParams.get('token_hash');
   const type = requestUrl.searchParams.get('type') as EmailOtpType | null;
-  let next = requestUrl.searchParams.get('next') ?? `/${locale}`;
+  let next = safeLocalRedirect(requestUrl.searchParams.get('next') ?? undefined, `/${locale}`);
 
   if (tokenHash || code) {
     const supabase = await createClient();

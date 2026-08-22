@@ -3,6 +3,7 @@ import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { createServiceClient } from '@/lib/supabase/service';
 import { sendResendEmail } from '@/lib/email/resend';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
+import { isSupportedLocale } from '@/lib/auth/redirect-safety';
 
 interface RecoverInput {
   email?: string;
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
   const email = (input.email ?? '').trim();
   const locale = (input.locale ?? '').trim();
 
-  if (!email || !locale) {
+  if (!email || !isSupportedLocale(locale)) {
     return NextResponse.json({ error: 'Informe o email.' }, { status: 400 });
   }
 

@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { sendResendEmail } from '@/lib/email/resend';
 import { CURRENT_LEGAL_DOCUMENT_VERSION } from '@/lib/legal-documents';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
+import { isSupportedLocale, safeLocalRedirect } from '@/lib/auth/redirect-safety';
 
 interface SignupInput {
   email?: string;
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   const phone = (input.phone ?? '').trim();
   const locale = (input.locale ?? '').trim();
 
-  if (!email || !password || !locale) {
+  if (!email || !password || !isSupportedLocale(locale)) {
     return NextResponse.json({ error: 'Preencha email, senha e os demais campos obrigatórios.' }, { status: 400 });
   }
   // The client already blocks submission without this checked (see
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
   // instead of window.location — an env-fixed redirect URL would drop
   // per-locale routing and the caller's original "next" destination.
   const origin = getPublicOrigin(request);
-  const redirectPath = (input.redirectTo ?? '').trim() || `/${locale}`;
+  const redirectPath = safeLocalRedirect(input.redirectTo, `/${locale}`);
   const emailRedirectTo = `${origin}/${locale}/auth/callback?next=${encodeURIComponent(redirectPath)}`;
 
   const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({

@@ -424,8 +424,7 @@ As lacunas principais são:
 ## Quick wins
 
 1. Remover ou documentar o `catch {}` silencioso.
-2. Adicionar whitelist de locale e redirecionamentos locais.
-3. Adicionar testes para endpoints ainda sem cobertura.
+2. Adicionar testes para endpoints ainda sem cobertura.
 
 ## Refatorações estruturais
 
