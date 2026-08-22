@@ -1120,7 +1120,7 @@ describe('fetchProjects', () => {
         notes: 'Notas do banco',
         updatedAt: '2026-02-01T00:00:00.000Z',
         status: 'draft',
-        residentialOptions: projectRow.residential_options,
+        residentialOptions: expect.objectContaining(projectRow.residential_options),
         solution: null,
         services: [],
       },

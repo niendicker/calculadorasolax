@@ -67,5 +67,6 @@ export async function insertProjectEvent(event: {
   to_status: ProjectStatus;
 }) {
   const supabase = createClient();
-  await supabase.from('project_events').insert(event);
+  const { error } = await supabase.from('project_events').insert(event);
+  if (error) throw error;
 }
