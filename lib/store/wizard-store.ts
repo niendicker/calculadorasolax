@@ -2,15 +2,14 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { defaultProjectInfo } from './defaults';
-import type { DemoSimulationData, DemoSnapshot, DemoTab } from '@/lib/demo/types';
 import { type ClientsSlice, createClientsSlice } from './slices/clients-slice';
 import { createLoadCatalogSlice, type LoadCatalogSlice } from './slices/load-catalog-slice';
-import { createMarginSlice, type MarginSlice, zeroMargins } from './slices/margin-slice';
+import { createMarginSlice, type MarginSlice } from './slices/margin-slice';
 import { createProjectsSlice, type ProjectsSlice } from './slices/projects-slice';
 import { createResidentialSlice, type ResidentialSlice } from './slices/residential-slice';
 import { createServicesSlice, type ServicesSlice } from './slices/services-slice';
 import { createStockSlice, type StockSlice } from './slices/stock-slice';
+import { createSessionSlice, type SessionSlice } from './slices/session-slice';
 import { wizardPersistenceOptions } from './wizard-persistence';
 
 // wizard-store.ts is just the composition point: each domain's own state and
@@ -27,15 +26,8 @@ export interface WizardStore
     StockSlice,
     ServicesSlice,
     MarginSlice,
-    ResidentialSlice {
-  clearUserData: () => void;
-  isDemo: boolean;
-  demoId: string | null;
-  demoSnapshot: DemoSnapshot | null;
-  loadDemoSimulation: (id: string, data: DemoSimulationData, activeTab: DemoTab) => void;
-  exitDemoMode: () => DemoTab | null;
-  convertDemoToSimulation: () => void;
-}
+    ResidentialSlice,
+    SessionSlice {}
 
 export const useWizardStore = create<WizardStore>()(
   persist(
@@ -47,74 +39,7 @@ export const useWizardStore = create<WizardStore>()(
       ...createServicesSlice(set, get, api),
       ...createMarginSlice(set, get, api),
       ...createResidentialSlice(set, get, api),
-
-      isDemo: false,
-      demoId: null,
-      demoSnapshot: null,
-      loadDemoSimulation: (id, data, activeTab) =>
-        set((s) => ({
-          isDemo: true,
-          demoId: id,
-          demoSnapshot: s.demoSnapshot ?? {
-            projectInfo: s.projectInfo,
-            currentProjectId: s.currentProjectId,
-            projectDetailsVisible: s.projectDetailsVisible,
-            residentialOptions: s.residentialOptions,
-            solution: s.solution,
-            secondarySolution: s.secondarySolution,
-            services: s.services,
-            activeTab,
-          },
-          residentialOptions: data.residentialOptions,
-          solution: null,
-          secondarySolution: null,
-        })),
-      exitDemoMode: () => {
-        const snapshot = get().demoSnapshot;
-        if (!snapshot) {
-          set({ isDemo: false, demoId: null });
-          return null;
-        }
-        set({
-          isDemo: false,
-          demoId: null,
-          demoSnapshot: null,
-          projectInfo: snapshot.projectInfo,
-          currentProjectId: snapshot.currentProjectId,
-          projectDetailsVisible: snapshot.projectDetailsVisible,
-          residentialOptions: snapshot.residentialOptions,
-          solution: snapshot.solution,
-          secondarySolution: snapshot.secondarySolution,
-          services: snapshot.services,
-        });
-        return snapshot.activeTab;
-      },
-      convertDemoToSimulation: () =>
-        set({
-          isDemo: false,
-          demoId: null,
-          demoSnapshot: null,
-          projectInfo: defaultProjectInfo,
-          currentProjectId: null,
-          projectDetailsVisible: true,
-          services: [],
-        }),
-
-      clearUserData: () =>
-        set({
-          clients: [],
-          savedProjects: [],
-          userLoadCatalog: [],
-          userStockItems: [],
-          userLoadPresets: [],
-          userServices: [],
-          marginSettings: zeroMargins,
-          currentProjectId: null,
-          projectDetailsVisible: false,
-          isDemo: false,
-          demoId: null,
-          demoSnapshot: null,
-        }),
+      ...createSessionSlice(set, get, api),
     }),
     wizardPersistenceOptions
   )
