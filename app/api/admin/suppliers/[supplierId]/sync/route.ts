@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { buildSupplierUrl, normalizeSupplierPayload, readJsonResponse } from '@/lib/procurement/generic-json';
+import { buildSupplierUrl, normalizeSupplierPayload } from '@/lib/procurement/generic-json';
+import { fetchExternalJson, SUPPLIER_CATALOG_RESPONSE_LIMIT } from '@/lib/procurement/http-client';
 import { failSupplierSync, findSupplierIntegrationForSync, finishSupplierSync, listActiveSupplierMappings, saveExternalProductIds, saveSupplierOffers, startSupplierSync } from '@/lib/data/supplier-sync-repository';
 import { getProfileRole } from '@/lib/data/admin-repository';
 
@@ -34,9 +35,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ su
       if (integration.auth_type === 'bearer') headers.authorization = `Bearer ${secret}`;
       else headers[integration.api_key_header || 'x-api-key'] = secret;
     }
-    const response = await fetch(url, { headers, cache: 'no-store', signal: AbortSignal.timeout(20_000) });
+    const { response, payload } = await fetchExternalJson(url, { headers, cache: 'no-store' }, SUPPLIER_CATALOG_RESPONSE_LIMIT);
     if (!response.ok) throw new Error(`Fornecedor respondeu HTTP ${response.status}.`);
-    const items = normalizeSupplierPayload(await readJsonResponse(response, 5_000_000), integration.mapping ?? {});
+    const items = normalizeSupplierPayload(payload, integration.mapping ?? {});
     const mappings = await listActiveSupplierMappings(supabase, supplierId);
     const mappingBySku = new Map(mappings.map((item) => [item.supplier_sku, item.id]));
     const rows = items.flatMap((item) => {
