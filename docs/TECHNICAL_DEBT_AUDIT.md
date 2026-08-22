@@ -41,6 +41,8 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   centralizado, validação para Postgres privado, validação runtime de JSONB,
   persistência via repositories e observabilidade de falhas de histórico e
   métricas.
+- `bccaebf1` e `022bf74f`: estado de sessão/demo extraído para slice próprio
+  e teste de integração do fluxo cálculo → métrica.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
@@ -436,7 +438,8 @@ As lacunas principais são:
 
 ## Refatorações estruturais
 
-1. Separar estado de sessão, draft, cache e persistência no Zustand.
+1. Separar estado de sessão, draft, cache e persistência no Zustand; sessão e
+   modo demo já estão isolados em `session-slice.ts`.
 2. Centralizar envio de emails.
 3. Validar JSONB em runtime nos limites de domínio restantes.
 4. Implementar pinning do IP resolvido no socket, caso o runtime de produção
@@ -475,16 +478,20 @@ As lacunas principais são:
 
 ### Fase 4 — Melhorias arquiteturais
 
-1. Separar stores por domínio real.
-2. Padronizar acesso a dados via repositories.
+1. Separar stores por domínio real; slices de projetos, catálogo, estoque,
+   serviços, margens, residencial e sessão já estão isolados.
+2. Padronizar acesso a dados via repositories; os fluxos principais de projeto
+   já seguem essa fronteira.
 3. Isolar integrações externas e observabilidade.
 4. Definir contratos claros entre browser, API e Edge Function.
 
 ### Fase 5 — Performance e manutenção
 
-1. Reduzir catálogo carregado inicialmente.
+1. Reduzir catálogo carregado inicialmente, após definir loading sob demanda
+   para o dimensionamento sem bloquear a seleção de equipamentos.
 2. Avaliar cache compartilhado da ANEEL.
 3. Medir bundle client-side.
 4. Reduzir serializações completas de estado.
-5. Adicionar testes de integração para workflows críticos.
+5. Adicionar testes de integração para workflows críticos; a rota de cálculo
+   residencial já cobre sucesso, erro e modo demo.
 6. Monitorar tempo e taxa de erro das integrações externas.
