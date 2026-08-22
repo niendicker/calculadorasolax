@@ -32,6 +32,7 @@ export function useAppNavigationActions({
   profileDirty: boolean;
 }) {
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   function openProjectFromClient(id: string) {
     loadProject(id);
@@ -43,21 +44,29 @@ export function useAppNavigationActions({
   }
 
   async function signOut() {
+    if (signingOut) return;
     if (profileDirty && !window.confirm('Você tem alterações não salvas no perfil. Deseja sair mesmo assim?')) return;
 
     setSignOutError(null);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      setSignOutError('Não foi possível sair agora. Tente novamente.');
-      return;
-    }
+    setSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        setSignOutError('Não foi possível sair agora. Tente novamente.');
+        return;
+      }
 
-    setProfile(null);
-    setUserEmail(null);
-    setMobileMenuOpen(false);
-    clearUserData();
-    router.replace(`/${locale}/login`);
-    router.refresh();
+      setProfile(null);
+      setUserEmail(null);
+      setMobileMenuOpen(false);
+      clearUserData();
+      router.replace(`/${locale}/login`);
+      router.refresh();
+    } catch {
+      setSignOutError('Não foi possível sair agora. Tente novamente.');
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   function openMobilePurchasesTab() {
@@ -75,5 +84,5 @@ export function useAppNavigationActions({
     openClientsManager();
   }
 
-  return { openProjectFromClient, backToProject, signOut, signOutError, openMobilePurchasesTab, openMobileProfile, openMobileClientsManager };
+  return { openProjectFromClient, backToProject, signOut, signOutError, signingOut, openMobilePurchasesTab, openMobileProfile, openMobileClientsManager };
 }

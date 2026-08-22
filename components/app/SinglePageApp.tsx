@@ -258,6 +258,8 @@ export function SinglePageApp() {
     openProjectFromClient,
     backToProject,
     signOut,
+    signOutError,
+    signingOut,
     openMobilePurchasesTab,
     openMobileProfile,
     openMobileClientsManager,
@@ -274,6 +276,7 @@ export function SinglePageApp() {
     openPurchasesTab,
     openProfile,
     openClientsManager,
+    profileDirty,
   });
 
   const {
@@ -582,7 +585,14 @@ export function SinglePageApp() {
               <Info className="h-4 w-4" />
               Sobre e contribuir
             </button>
-            <SessionCard profile={profile} userEmail={userEmail} onOpenProfile={openProfile} onSignOut={signOut} />
+            <SessionCard
+              profile={profile}
+              userEmail={userEmail}
+              onOpenProfile={openProfile}
+              onSignOut={signOut}
+              signingOut={signingOut}
+              signOutError={signOutError}
+            />
           </div>
         </aside>
 
@@ -1062,6 +1072,8 @@ export function SinglePageApp() {
                   openProfile();
                 }}
                 onSignOut={signOut}
+                signingOut={signingOut}
+                signOutError={signOutError}
               />
             </div>
           </aside>

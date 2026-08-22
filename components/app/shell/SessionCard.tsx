@@ -15,11 +15,15 @@ export function SessionCard({
   userEmail,
   onOpenProfile,
   onSignOut,
+  signingOut,
+  signOutError,
 }: {
   profile: InlineProfile | null;
   userEmail: string | null;
   onOpenProfile: () => void;
   onSignOut: () => void;
+  signingOut: boolean;
+  signOutError: string | null;
 }) {
   const displayEmail = userEmail || profile?.email || '';
 
@@ -61,9 +65,10 @@ export function SessionCard({
           </span>
         </span>
       </button>
-      <Button variant="outline" className="w-full justify-start" onClick={onSignOut}>
+      {signOutError && <p className="text-xs text-destructive" role="alert">{signOutError}</p>}
+      <Button variant="outline" className="w-full justify-start" onClick={onSignOut} disabled={signingOut}>
         <LogOut className="h-4 w-4" />
-        Sair
+        {signingOut ? 'Saindo...' : 'Sair'}
       </Button>
     </div>
   );
