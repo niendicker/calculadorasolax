@@ -36,6 +36,20 @@ const baseProfile: InlineProfile = {
   companyDocument: '',
 };
 
+const completeProfile: InlineProfile = {
+  ...baseProfile,
+  companyDocument: '12.345.678/0001-90',
+  companyAddress: {
+    postalCode: '01310-100',
+    street: 'Avenida Paulista',
+    number: '1000',
+    complement: '',
+    district: 'Bela Vista',
+    city: 'São Paulo',
+    state: 'SP',
+  },
+};
+
 function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
   return {
     name: 'Projeto salvo',
@@ -1001,7 +1015,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     setup({
-      profile: baseProfile,
+      profile: completeProfile,
       savedProjects: [
         makeProject({
           id: 'p1',
@@ -1063,7 +1077,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
       })
     );
     const { props } = setup({
-      profile: baseProfile,
+      profile: completeProfile,
       savedProjects: [
         makeProject({
           id: 'p1',
@@ -1085,7 +1099,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
-    await within(dialog).findByText(/ainda não escolheu fornecedores/);
+    await within(dialog).findByText(/ainda não selecionou nenhum fornecedor/);
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Ir para Fornecedores' }));
 

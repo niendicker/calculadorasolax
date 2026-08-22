@@ -2329,46 +2329,6 @@ describe('SizingTab: cargas', () => {
   });
 });
 
-describe('SizingTab: Resumo tab "Copiar dados"', () => {
-  it('shows a single-view preview of the WhatsApp-friendly summary, copying only when confirmed', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-
-    setup({
-      projectName: 'Casa de praia',
-      residentialOptions: {
-        ...emptyResidentialOptions,
-        topology: 'HighVoltage',
-        gridType: 'singlePhase_220',
-        loads: [{ id: 'l1' }],
-      },
-      peakW: 3000,
-      dailyKwh: 12,
-      solution: fakeSolution,
-    });
-
-    // A fresh solution auto-jumps the summary panel to "Solução" — switch back to "Resumo".
-    fireEvent.click(screen.getByRole('tab', { name: /^Resumo/ }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar dados para fornecedor' }));
-
-    const dialog = screen.getByRole('dialog', { name: 'Prévia da mensagem' });
-    expect(writeText).not.toHaveBeenCalled();
-    expect(within(dialog).getByText(/Casa de praia/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/X1-Hybrid-5\.0kW-G4/)).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar' }));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    expect(within(dialog).getByRole('button', { name: 'Dados copiados!' })).toBeInTheDocument();
-
-    // The preview closes itself shortly after a successful copy.
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia da mensagem' })).not.toBeInTheDocument(), {
-      timeout: 2000,
-    });
-  });
-});
-
 describe('SizingTab: Resumo tab "Cotar solução"', () => {
   it('calls onQuoteSolution when a solution is available', () => {
     const { props } = setup({

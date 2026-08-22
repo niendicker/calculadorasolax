@@ -705,7 +705,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     expect(buildProjectQuotePdfBlobMock).not.toHaveBeenCalled();
   });
 
-  it('disables "Compartilhar cotação" when there is no client phone on file', async () => {
+  it('disables "Enviar ao cliente" when there is no client phone on file', async () => {
     setupSupabase();
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
@@ -714,7 +714,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
 
-    expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Enviar ao cliente' })).toBeDisabled();
   });
 
   it('opens wa.me pointed at the client\'s number when the browser can\'t share files', async () => {
@@ -733,7 +733,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
 
     await waitFor(() =>
       expect(openSpy).toHaveBeenCalledWith(
@@ -767,7 +767,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
 
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
     const [{ files }] = share.mock.calls[0];
@@ -803,7 +803,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
 
     await waitFor(() => expect(updateProjectStatusMock).toHaveBeenCalledWith('p1', 'sent'));
 
@@ -832,7 +832,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     await goToSizingViaProject();
     fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
 
     await waitFor(() => expect(openSpy).toHaveBeenCalled());
     expect(updateProjectStatusMock).not.toHaveBeenCalled();
