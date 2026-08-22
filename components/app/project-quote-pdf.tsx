@@ -358,6 +358,61 @@ function InfoRows({ rows }: { rows: { label: string; value: string }[] }) {
   );
 }
 
+type ReportLoad = {
+  id: string;
+  name: string;
+  powerW: number;
+  qty: number;
+  usageFactor?: number;
+  usageMode?: 'fraction' | 'fixed';
+  fixedHours?: number;
+};
+
+function LoadsSection({ loads, operationHours }: { loads: ReportLoad[]; operationHours: number }) {
+  if (loads.length === 0) return null;
+
+  const loadEnergyKwh = (load: ReportLoad) => {
+    const hours = load.usageMode === 'fixed' ? Math.max(0, load.fixedHours ?? 0) : operationHours * (load.usageFactor ?? 1);
+    return (load.powerW * load.qty * hours) / 1000;
+  };
+  const totalLoadPowerW = loads.reduce((total, load) => total + load.powerW * load.qty, 0);
+  const totalLoadEnergyKwh = loads.reduce((total, load) => total + loadEnergyKwh(load), 0);
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Cargas informadas</Text>
+      <Text style={{ fontSize: 7.5, color: COLORS.muted, marginBottom: 6 }}>
+        Tempo de operação considerado: {operationHours} h
+      </Text>
+      <View style={styles.table}>
+        <View style={styles.tableHeaderRow} fixed>
+          <Text style={[styles.tableCellName, styles.tableHeaderText]}>Carga</Text>
+          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pot. CA</Text>
+          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Qtd.</Text>
+          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pico CA</Text>
+          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Consumo</Text>
+        </View>
+        {loads.map((load) => (
+          <View key={load.id} style={styles.tableRow} wrap={false}>
+            <Text style={styles.tableCellName}>{load.name}</Text>
+            <Text style={styles.tableCellNum}>{formatAcPower(load.powerW)}</Text>
+            <Text style={styles.tableCellNum}>{load.qty}</Text>
+            <Text style={styles.tableCellNum}>{formatAcPower(load.powerW * load.qty)}</Text>
+            <Text style={styles.tableCellNum}>{formatEnergy(loadEnergyKwh(load) * 1000)}</Text>
+          </View>
+        ))}
+        <View style={styles.tableFooterRow} wrap={false}>
+          <Text style={[styles.tableCellName, styles.tableFooterText]}>Total</Text>
+          <Text style={styles.tableCellNum} />
+          <Text style={styles.tableCellNum} />
+          <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatAcPower(totalLoadPowerW)}</Text>
+          <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatEnergy(totalLoadEnergyKwh * 1000)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function ProductLine({
   category,
   nickname,
@@ -601,15 +656,7 @@ export interface ProjectQuotePdfInput {
   solution: Solution;
   secondarySolution?: Solution | null;
   secondaryBatteryModel?: string | null;
-  loads: {
-    id: string;
-    name: string;
-    powerW: number;
-    qty: number;
-    usageFactor?: number;
-    usageMode?: 'fraction' | 'fixed';
-    fixedHours?: number;
-  }[];
+  loads: ReportLoad[];
   operationHours: number;
   topology: BatteryTopology | null;
   selectedBatteryModel: string | null;
@@ -675,11 +722,6 @@ export function ProjectQuotePdfDocument({
   const generatedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
   const documentReference = shortSolutionReference(solution.solutionCode);
 
-  const loadEnergyKwh = (load: (typeof loads)[number]) => {
-    const hours = load.usageMode === 'fixed' ? Math.max(0, load.fixedHours ?? 0) : operationHours * (load.usageFactor ?? 1);
-    return (load.powerW * load.qty * hours) / 1000;
-  };
-
   const batteryPerformance = batteryCatalog.find((item) => item.model === solution.batteryModel);
   const inverterPerformance = inverterCatalog.find((item) => item.model === solution.inverterModel);
   const tariffSavings = calculateTariffSavings(whiteTariff, {
@@ -708,10 +750,7 @@ export function ProjectQuotePdfDocument({
         : reportPaybackMonths % 12 === 0
           ? `${reportPaybackMonths / 12} ${reportPaybackMonths === 12 ? 'ano' : 'anos'}`
           : `${Math.floor(reportPaybackMonths / 12)} ${Math.floor(reportPaybackMonths / 12) === 1 ? 'ano' : 'anos'} e ${reportPaybackMonths % 12} ${reportPaybackMonths % 12 === 1 ? 'mês' : 'meses'}`;
-  const totalLoadPowerW = loads.reduce((total, load) => total + load.powerW * load.qty, 0);
-  const totalLoadEnergyKwh = loads.reduce((total, load) => total + loadEnergyKwh(load), 0);
-
-  const showLoadsTable = loads.length > 0;
+  const showLoadsTable = Boolean(desiredFeatures?.includes('backup')) && loads.length > 0;
   const showEconomics = reportSystemCost.pricedItemsCount > 0 || Boolean(tariffSavings);
 
   return (
@@ -736,21 +775,6 @@ export function ProjectQuotePdfDocument({
         </View>
 
         <View style={styles.section}>
-          <MetricRows
-            metrics={[
-              { label: 'Pico de carga (CA)', value: formatAcPower(peakW) },
-              { label: 'Consumo diário', value: `${dailyKwh.toFixed(2)} kWh/dia` },
-              { label: 'Topologia', value: topology ? topologyLabels[topology] : '-' },
-              {
-                label: 'Bateria selecionada',
-                value: (selectedBatteryModel && (productMedia?.[selectedBatteryModel]?.nickname || selectedBatteryModel)) || '-',
-              },
-              { label: 'Rede', value: gridType ? gridLabels[gridType] : '-' },
-            ]}
-          />
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Dados do projeto</Text>
           <InfoRows
             rows={[
@@ -761,6 +785,22 @@ export function ProjectQuotePdfDocument({
               { label: 'CPF/CNPJ', value: client?.document ? maskDocument(client.document) : '-' },
               { label: 'Endereço', value: formatAddress(projectInfo.address) || '-' },
               ...(projectInfo.notes ? [{ label: 'Observações', value: projectInfo.notes }] : []),
+            ]}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Resumo das escolhas</Text>
+          <MetricRows
+            metrics={[
+              { label: 'Pico de carga (CA)', value: formatAcPower(peakW) },
+              { label: 'Consumo diário', value: `${dailyKwh.toFixed(2)} kWh/dia` },
+              { label: 'Topologia', value: topology ? topologyLabels[topology] : '-' },
+              {
+                label: 'Bateria selecionada',
+                value: (selectedBatteryModel && (productMedia?.[selectedBatteryModel]?.nickname || selectedBatteryModel)) || '-',
+              },
+              { label: 'Rede', value: gridType ? gridLabels[gridType] : '-' },
             ]}
           />
         </View>
@@ -790,6 +830,8 @@ export function ProjectQuotePdfDocument({
             </View>
           </View>
         )}
+
+        {showLoadsTable && <LoadsSection loads={loads} operationHours={operationHours} />}
 
         <ProductsSection
           title={secondarySolution ? `Produtos recomendados: Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
@@ -825,45 +867,6 @@ export function ProjectQuotePdfDocument({
             peakW={peakW}
             dailyKwh={dailyKwh}
           />
-        )}
-
-        {showLoadsTable ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Cargas informadas</Text>
-            <Text style={{ fontSize: 7.5, color: COLORS.muted, marginBottom: 6 }}>
-              Tempo de operação considerado: {operationHours} h
-            </Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeaderRow} fixed>
-                <Text style={[styles.tableCellName, styles.tableHeaderText]}>Carga</Text>
-                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pot. CA</Text>
-                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Qtd.</Text>
-                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pico CA</Text>
-                <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Consumo</Text>
-              </View>
-              {loads.map((load) => (
-                <View key={load.id} style={styles.tableRow} wrap={false}>
-                  <Text style={styles.tableCellName}>{load.name}</Text>
-                  <Text style={styles.tableCellNum}>{formatAcPower(load.powerW)}</Text>
-                  <Text style={styles.tableCellNum}>{load.qty}</Text>
-                  <Text style={styles.tableCellNum}>{formatAcPower(load.powerW * load.qty)}</Text>
-                  <Text style={styles.tableCellNum}>{formatEnergy(loadEnergyKwh(load) * 1000)}</Text>
-                </View>
-              ))}
-              <View style={styles.tableFooterRow} wrap={false}>
-                <Text style={[styles.tableCellName, styles.tableFooterText]}>Total</Text>
-                <Text style={styles.tableCellNum} />
-                <Text style={styles.tableCellNum} />
-                <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatAcPower(totalLoadPowerW)}</Text>
-                <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatEnergy(totalLoadEnergyKwh * 1000)}</Text>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.section} wrap={false}>
-            <Text style={styles.sectionTitle}>Cargas informadas</Text>
-            <Text style={styles.assumptionsText}>Nenhuma carga foi informada para este dimensionamento.</Text>
-          </View>
         )}
 
         {showEconomics && (
