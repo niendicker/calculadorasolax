@@ -23,10 +23,28 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   Edge Function.
 - `8e1aa8e3`: primeiro passo da refatoração estrutural, isolando o controlador
   do modo demo do shell principal.
+- `63980a43`: autoridade server-side para sessões demo.
+- `93dce6bf`: tipos gerados do schema Supabase aplicados aos clients e
+  repositories principais.
+- `938f5885`: rate limit nos endpoints sensíveis.
+- `06b78ea0`, `f60f6de4`, `e439b703`, `94033cf5` e `321e8cc6`: decomposição
+  incremental do `SinglePageApp`, cobrindo dimensionamento, PDFs, WhatsApp,
+  downloads e navegação.
+- `c24a81b7`: política de persistência do wizard isolada do store.
+- `2bf302b1`, `bdab57f1` e `19bfa7b2`: contratos de métricas, proteção SSRF
+  adicional e concorrência de quote shares cobertos por testes.
+- `3d44e415`: testes pgTAP para policies de ownership/RLS.
+- `d35e8c75` e `9916be8d`: cliente HTTP externo compartilhado e contexto de
+  request ID para integrações de fornecedores.
 
-A refatoração completa de `SinglePageApp` e do store global permanece
-incremental para evitar regressões em um componente que concentra vários
-fluxos críticos.
+A refatoração estrutural principal foi concluída de forma incremental. O JSX
+restante do `SinglePageApp` é composição visual do shell e das abas; as regras
+de negócio e integrações críticas estão em hooks e módulos próprios.
+
+Permanecem como melhorias futuras: execução do pgTAP no CI/produção, testes de
+integração ponta a ponta, centralização do envio de emails, validação completa
+contra DNS rebinding, medição de bundle e redução do catálogo carregado no
+primeiro acesso.
 
 ## Resumo executivo
 
