@@ -42,6 +42,18 @@ export async function updateProjectStatusRecord(id: string, status: ProjectStatu
   return data;
 }
 
+export async function updateProjectSolutionRecord(id: string, solution: Json) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ solution, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function listProjectRecords() {
   const supabase = createClient();
   const { data, error } = await supabase

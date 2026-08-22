@@ -2,7 +2,6 @@ import type { StateCreator } from 'zustand';
 import type { Json } from '@/lib/database.types';
 import { isAddressEmpty } from '@/lib/address';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
-import { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
 import {
   deleteProjectRecord,
@@ -10,6 +9,7 @@ import {
   insertProjectEvent,
   listProjectRecords,
   saveProjectRecord,
+  updateProjectSolutionRecord,
   updateProjectStatusRecord,
 } from '@/lib/data/projects-repository';
 import type { ProjectInfo, ProjectStatus, SavedProject } from '@/lib/types';
@@ -218,7 +218,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     const batteryModel = project.residentialOptions.batteryModel;
     if (!batteryModel) throw new Error('missing_battery_model');
 
-    const supabase = createClient();
     const result = await calculateResidentialSolution({
       residentialOptions: project.residentialOptions,
       batteryModel,
@@ -228,13 +227,7 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     });
     if ('error' in result) throw new Error(result.error);
 
-    const { data: row, error } = await supabase
-      .from('projects')
-      .update({ solution: result.solution as unknown as Json, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
-      .single();
-    if (error) throw error;
+    const row = await updateProjectSolutionRecord(id, result.solution as unknown as Json);
 
     const updated = projectFromRow(row);
     set((s) => ({
