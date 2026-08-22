@@ -10,9 +10,6 @@ export interface GuideContent {
   eyebrow: string;
   title: string;
   intro: string;
-  cta: string;
-  demoCta: string;
-  demoNote: string;
   stepsTitle: string;
   steps: GuideStep[];
   faqTitle: string;
@@ -27,9 +24,6 @@ export const guideContentByLocale: Record<string, GuideContent> = {
     eyebrow: 'Comece aqui',
     title: 'Guia básico da Calculadora SolaX',
     intro: 'Aprenda o fluxo principal para criar uma simulação residencial completa, do projeto ao resultado.',
-    cta: 'Abrir a calculadora',
-    demoCta: 'Ver o exemplo na calculadora',
-    demoNote: 'Dentro da calculadora, escolha “Ver exemplo preenchido” para conhecer o fluxo com dados fictícios.',
     stepsTitle: 'Fluxo recomendado',
     steps: [
       {
