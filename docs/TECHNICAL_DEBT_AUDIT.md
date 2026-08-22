@@ -149,9 +149,14 @@ cobre todos os ranges IPv4 e IPv6, IPv4-mapped IPv6 e possíveis variações de
 DNS rebinding. O sync também depende de `content-length` para limitar a
 resposta; respostas chunked podem escapar dessa proteção.
 
-**Status:** cliente HTTP, timeout, limites de bytes e proteção contra IPv4
-mapeado privado foram centralizados em `d35e8c75` e `bdab57f1`. Continua
-pendente a validação do IP resolvido para cenários de DNS rebinding.
+**Status:** cliente HTTP, timeout, limites de bytes, proteção contra IPv4
+mapeado privado e validação dos endereços retornados pelo DNS foram
+centralizados em `d35e8c75`, `bdab57f1` e na camada
+`lib/procurement/network-safety.ts`. A chamada falha fechada quando o hostname
+não pode ser resolvido ou algum endereço resolvido pertence a uma rede privada.
+Ainda permanece uma limitação residual: o runtime `fetch` pode resolver o DNS
+novamente depois da validação, portanto o pinning do endereço no socket ainda
+não está implementado.
 
 **Recomendação remanescente:** centralizar o cliente HTTP externo, validar todos os ranges
 privados, validar o IP resolvido e impor limite real de bytes lidos. As respostas

@@ -1,3 +1,5 @@
+import { isPrivateNetworkAddress } from './network-safety';
+
 type JsonRecord = Record<string, unknown>;
 
 function atPath(value: unknown, path: string): unknown {
@@ -49,33 +51,7 @@ export function buildSupplierUrl(baseUrl: string, productsPath: string) {
   if (url.username || url.password) throw new Error('A URL da integração não pode conter credenciais.');
 
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  const octets = host.split('.').map(Number);
-  const isIpv4 = octets.length === 4 && octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
-  const isPrivateIpv4 = isIpv4 && (
-    octets[0] === 0 ||
-    octets[0] === 10 ||
-    octets[0] === 127 ||
-    (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) ||
-    (octets[0] === 169 && octets[1] === 254) ||
-    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
-    (octets[0] === 192 && octets[1] === 0 && octets[2] === 0) ||
-    (octets[0] === 192 && octets[1] === 168) ||
-    (octets[0] === 198 && octets[1] >= 18 && octets[1] <= 19)
-  );
-  const normalizedIpv6 = host.replace(/^0:0:0:0:0:ffff:/, '::ffff:');
-  const isPrivateIpv6 = normalizedIpv6 === '::1' || /^(fc|fd)[0-9a-f]{2}:/.test(normalizedIpv6) || /^fe80:/.test(normalizedIpv6);
-  const mappedIpv4 = normalizedIpv6.match(/^::ffff:(?:(\d+)\.(\d+)\.(\d+)\.(\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/);
-  const mappedIpv4Octets = mappedIpv4
-    ? mappedIpv4[1]
-      ? mappedIpv4.slice(1, 5).map(Number)
-      : [parseInt(mappedIpv4[5], 16) >> 8, parseInt(mappedIpv4[5], 16) & 255, parseInt(mappedIpv4[6], 16) >> 8, parseInt(mappedIpv4[6], 16) & 255]
-    : null;
-  const isPrivateMappedIpv4 = mappedIpv4Octets
-    ? mappedIpv4Octets[0] === 10 || mappedIpv4Octets[0] === 127 ||
-      (mappedIpv4Octets[0] === 172 && mappedIpv4Octets[1] >= 16 && mappedIpv4Octets[1] <= 31) ||
-      (mappedIpv4Octets[0] === 192 && mappedIpv4Octets[1] === 168)
-    : false;
-  if (host === 'localhost' || host === '0.0.0.0' || isPrivateIpv4 || isPrivateIpv6 || isPrivateMappedIpv4) {
+  if (host === 'localhost' || isPrivateNetworkAddress(host)) {
     throw new Error('O endereço da integração não pode apontar para uma rede privada.');
   }
   return url;

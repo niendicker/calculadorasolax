@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSupplierUrl, normalizeSupplierPayload, readJsonResponse } from './generic-json';
+import { isPrivateNetworkAddress } from './network-safety';
 
 describe('generic supplier JSON connector', () => {
   it('normalizes configured nested fields and skips invalid products', () => {
@@ -36,6 +37,14 @@ describe('generic supplier JSON connector', () => {
     expect(() => buildSupplierUrl('https://[::1]', '')).toThrow(/rede privada/);
     expect(() => buildSupplierUrl('https://[::ffff:c0a8:101]', '')).toThrow(/rede privada/);
     expect(() => buildSupplierUrl('https://user:secret@supplier.example', '')).toThrow(/credenciais/);
+  });
+
+  it('classifies private, link-local, documentation and mapped addresses before connecting', () => {
+    expect(isPrivateNetworkAddress('10.0.0.8')).toBe(true);
+    expect(isPrivateNetworkAddress('169.254.1.2')).toBe(true);
+    expect(isPrivateNetworkAddress('::ffff:c0a8:0101')).toBe(true);
+    expect(isPrivateNetworkAddress('203.0.113.10')).toBe(true);
+    expect(isPrivateNetworkAddress('8.8.8.8')).toBe(false);
   });
 
   it('enforces a byte limit even when content-length is absent', async () => {
