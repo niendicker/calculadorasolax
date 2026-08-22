@@ -15,7 +15,6 @@ import {
   Menu,
   ShieldUser,
   ShoppingCart,
-  Sun,
   UserRound,
   Users,
   Wallet,
@@ -594,8 +593,14 @@ export function SinglePageApp() {
               scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
             )}
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground lg:hidden">
-              <Sun className="h-4 w-4" />
+            <div className="flex h-8 w-[4.75rem] shrink-0 items-center lg:hidden">
+              <Image
+                src="/images/login/solax-logo.png"
+                alt="SolaX"
+                width={96}
+                height={33}
+                className="h-auto w-full object-contain"
+              />
             </div>
             <div
               ref={setTitleBarEl}
