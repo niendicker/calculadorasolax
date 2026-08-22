@@ -124,9 +124,10 @@ O banner **Exemplo demonstrativo** oferece:
 - **Usar como nova simulação**: remove a identificação e o vínculo do projeto
   anterior, abre um novo formulário e mantém os dados técnicos atuais.
 
-O modo demo é controlado pelo estado `isDemo` no Zustand. Enquanto ativo, não
-há autosave, salvamento de projeto ou registro de métricas em
-`app_simulations`. O estado demo não sobrevive a um reload da página.
+O Zustand controla a experiência local com `isDemo`, mas a autoridade server-side
+é uma sessão demo assinada em cookie HttpOnly criada por `/api/demo/session`.
+Enquanto ativo, não há autosave, salvamento de projeto ou registro de métricas
+em `app_simulations`. O estado demo não sobrevive a um reload da página.
 
 O modo demonstrativo não cria resultados fake, não ignora validações e não
 altera regras de dimensionamento. Novos exemplos devem ser adicionados como
@@ -344,9 +345,10 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 | `/[locale]/privacidade` | Política de Privacidade |
 | `/[locale]/aceite-termos` | Bloqueio de aceite de termos (LGPD) |
 | `/[locale]/auth/callback` | Callback de confirmação/recuperação |
-| `/[locale]/wizard/residential/*` | Wizard residencial legado |
-| `/[locale]/wizard/industrial/*` | Wizard industrial legado |
+| `/[locale]/cotacao/[token]` | Visualização pública de uma cotação compartilhada |
 | `/api/account/delete` | Route handler (POST) para exclusão de conta |
+| `/api/demo/session` | Criação e encerramento da sessão server-side do modo demo |
+| `/api/metrics/simulations` | Registro autenticado de métricas de simulação |
 
 ## Arquivos-chave
 

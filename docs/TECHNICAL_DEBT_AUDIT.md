@@ -95,23 +95,19 @@ check automatizado de drift, testar RLS em CI e documentar o processo de
 promoção de migrations. Migrations de reapply devem ser exceção, não o
 mecanismo principal de sincronização.
 
-### 2. `isDemo` é controlado pelo cliente
+### 2. `isDemo` era controlado pelo cliente — resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** M
 - **Arquivo:** `app/api/calculations/residential/route.ts:7-13,58`.
 
-O backend decide não registrar a simulação baseado diretamente no campo
-`isDemo` recebido no JSON. Um cliente pode marcar uma simulação real como demo.
+O risco original era a rota confiar no campo `isDemo` enviado pelo cliente, o
+que permitiria adulterar métricas e contornar a regra de registro.
 
-Isso não permite acessar dados de outro usuário, mas permite adulterar métricas
-e contornar a regra de registro de execução.
+**Status:** resolvido em `63980a43`, com sessão demo assinada pelo servidor e
+cookie HttpOnly.
 
-**Recomendação:** validar o modo demo no servidor, associá-lo a um contexto
-temporário de sessão ou registrar o evento em uma categoria separada. O cliente
-não deve ser a única autoridade para decidir se uma operação impacta métricas.
-
-### 3. Endpoint de métricas aceita payload sem validação estrutural
+### 3. Endpoint de métricas aceitava payload sem validação estrutural — resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** M
@@ -122,10 +118,10 @@ tamanhos, limites ou campos obrigatórios.
 
 Isso pode gerar métricas inconsistentes, payloads grandes e dados adulterados.
 
-**Recomendação:** usar schema de runtime para o payload, limitar tamanho de
-strings e arrays e rejeitar dados inválidos antes do repository.
+**Status:** resolvido em `4580d983`; o payload é validado e limitado antes do
+repository.
 
-### 4. Resposta pública de cotação não é atômica
+### 4. Resposta pública de cotação não era atômica — resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** M
@@ -137,11 +133,10 @@ resposta pode sobrescrever a outra.
 
 O endpoint também não possui limitação de tentativas.
 
-**Recomendação:** executar o update com `id` e `status = 'sent'` na mesma
-operação e verificar a quantidade de linhas afetadas. Adicionar rate limit por
-token/IP.
+**Status:** resolvido em `dc931d07` e `19bfa7b2`, com update condicional,
+verificação de linha afetada e rate limit por token/IP.
 
-### 5. Integrações externas têm proteção incompleta contra SSRF e respostas grandes
+### 5. Integrações externas tinham proteção incompleta contra SSRF e respostas grandes — parcialmente resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** M
@@ -154,11 +149,15 @@ cobre todos os ranges IPv4 e IPv6, IPv4-mapped IPv6 e possíveis variações de
 DNS rebinding. O sync também depende de `content-length` para limitar a
 resposta; respostas chunked podem escapar dessa proteção.
 
-**Recomendação:** centralizar o cliente HTTP externo, validar todos os ranges
+**Status:** cliente HTTP, timeout, limites de bytes e proteção contra IPv4
+mapeado privado foram centralizados em `d35e8c75` e `bdab57f1`. Continua
+pendente a validação do IP resolvido para cenários de DNS rebinding.
+
+**Recomendação remanescente:** centralizar o cliente HTTP externo, validar todos os ranges
 privados, validar o IP resolvido e impor limite real de bytes lidos. As respostas
 do parceiro também devem possuir limite de tamanho.
 
-### 6. Regra de cálculo duplicada entre frontend e Edge Function
+### 6. Regra de cálculo duplicada entre frontend e Edge Function — resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** L
@@ -170,27 +169,33 @@ As funções `totalPeakW`, `totalNominalW` e `totalDailyKwh` existem em duas
 implementações. Os testes de espelho reduzem o risco, mas ainda é necessário
 alterar dois locais manualmente.
 
-**Recomendação:** compartilhar um módulo compatível com browser e Deno, ou
+**Status:** resolvido em `aa280ef2`, com matemática compartilhada entre browser
+e Edge Function e testes de espelho mantidos como proteção de regressão.
+
+**Recomendação histórica:** compartilhar um módulo compatível com browser e Deno, ou
 gerar a implementação da Edge Function. Manter os testes de espelho enquanto a
 duplicação existir.
 
-### 7. `SinglePageApp` concentra responsabilidades demais
+### 7. `SinglePageApp` concentrava responsabilidades demais — resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** XL
 - **Arquivo:** `components/app/SinglePageApp.tsx`.
 
-O componente possui aproximadamente 1.343 linhas e coordena autenticação,
+O componente possuía aproximadamente 1.343 linhas e coordenava autenticação,
 carregamento, navegação, Zustand, autosave, cálculo, modo demo, PDF, uploads,
 clientes, projetos, perfil e fornecedores.
 
 Isso aumenta o custo de manutenção e torna alterações transversais mais
 propensas a regressões.
 
-**Recomendação:** extrair gradualmente os domínios de projetos, cálculo,
+**Status:** resolvido incrementalmente; os hooks de cálculo, dimensionamento,
+demo, navegação, PDFs, compartilhamento e ações de projeto foram extraídos.
+
+**Recomendação histórica:** extrair gradualmente os domínios de projetos, cálculo,
 perfil/uploads, navegação e modo demo. Não é necessário reescrever o componente.
 
-### 8. Tipos do banco não são a fonte única de verdade
+### 8. Tipos do banco não eram a fonte única de verdade — resolvido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** L
@@ -198,17 +203,20 @@ perfil/uploads, navegação e modo demo. Não é necessário reescrever o compon
   `components/admin/types.ts`, `lib/store/row-mappers.ts` e
   `components/app/hooks/useInitialData.ts:168-224`.
 
-Não foi identificado um arquivo de tipos gerado do schema Supabase. Há casts de
-documentos, flags, topologias e payloads JSONB.
+Havia tipos manuais e casts de documentos, flags, topologias e payloads JSONB.
 
 O compilador pode continuar passando mesmo quando o schema e a aplicação
 divergem.
 
-**Recomendação:** gerar tipos do banco, usar tipos das tabelas nos repositories
+**Status:** resolvido em `93dce6bf`; os tipos do schema foram gerados e
+aplicados aos clients e repositories principais. JSONB ainda exige validação
+runtime em alguns limites de domínio.
+
+**Recomendação remanescente:** usar tipos das tabelas nos repositories
 e validar JSONB em runtime. Mappers devem fazer conversão de banco para domínio,
 não mascarar dados inválidos.
 
-### 9. Uso recorrente de `select('*')`
+### 9. Uso recorrente de `select('*')` — resolvido
 
 - **Severidade:** 🟡 Médio
 - **Esforço:** M
@@ -220,8 +228,8 @@ não mascarar dados inválidos.
 As consultas ficam acopladas a todas as colunas do schema, transferem dados
 desnecessários e podem expor novas colunas sem intenção.
 
-**Recomendação:** declarar campos por caso de uso e criar tipos de retorno
-específicos.
+**Status:** não há ocorrências de `select('*')` nos repositories atuais; as
+consultas declaram colunas por caso de uso.
 
 ### 10. Persistência global e estado de edição possuem alto acoplamento
 
@@ -285,7 +293,8 @@ Problemas:
 
 ### Tratamento de erros
 
-- `lib/supabase/server.ts:23-29` possui `catch {}` silencioso ao definir cookies.
+- `lib/supabase/server.ts:23-29` possui `catch {}` silencioso ao definir cookies
+  (aceitável para streaming, mas ainda sem observabilidade).
 - `lib/data/projects-repository.ts:66` ignora erro de inserção de evento.
 - Logs são majoritariamente `console.error`, sem request ID ou contexto
   estruturado.
@@ -306,11 +315,7 @@ Proteções existentes:
 Riscos remanescentes:
 
 - drift de migrations;
-- `isDemo` confiado ao cliente;
-- endpoint público sem rate limit;
-- atualização não atômica de quote share;
-- SSRF incompleto;
-- limite de resposta externa baseado parcialmente em header do fornecedor;
+- DNS rebinding ainda não validado após resolução;
 - `locale` e redirecionamentos de autenticação sem whitelist explícita.
 
 ### Banco de dados
@@ -319,7 +324,7 @@ Riscos remanescentes:
 - Migrations corretivas indicam risco de divergência entre ambientes.
 - Índices importantes já existem para vários relacionamentos.
 - Não foi identificado N+1 grave no cálculo.
-- `select('*')` é o principal problema de acesso aos dados.
+- As consultas principais já usam colunas explícitas.
 - Regras importantes estão distribuídas entre frontend, Edge Function e banco.
 
 ### React / Next.js
@@ -351,17 +356,14 @@ confirmar o fluxo de geração de componentes.
 ### Performance
 
 - Catálogos completos são carregados no início.
-- Repositories usam `select('*')`.
-- Autosave e cálculo serializam partes do estado com `JSON.stringify`.
+- A primeira sessão ainda carrega catálogos completos.
 - O shell client-side envia bastante JavaScript ao navegador.
 - A rota ANEEL pode carregar até 10.000 registros e filtrar em memória.
+- Serializações do autosave e cálculo foram memoizadas, mas continuam sendo
+  snapshots completos quando o estado realmente muda.
 - O carregamento dinâmico das tabs já reduz o bundle inicial.
 
 ### Código morto e documentação
-
-`README.md:78-80` e `docs/SPECS.md:347-348` ainda mencionam rotas legadas
-`/wizard/residential/*` e `/wizard/industrial/*`, que não aparecem na estrutura
-atual.
 
 Também há caminhos de compatibilidade legada em `lib/types/index.ts`,
 `components/admin/helpers.ts` e `lib/address.ts`. Não devem ser removidos sem
@@ -406,34 +408,25 @@ cálculo tem boa cobertura, incluindo testes de espelho.
 
 As lacunas principais são:
 
-- apenas 6 dos 15 route handlers possuem testes diretos;
-- cobertura limitada de RLS;
-- ausência de teste de concorrência de quote share;
-- ausência de testes de limite de payload;
-- ausência de testes específicos de SSRF;
+- ainda há route handlers sem testes diretos;
+- o pgTAP de RLS/ownership foi criado, mas depende de Postgres local/CI;
+- concorrência de quote share, limites de payload e SSRF já possuem testes;
 - pouca cobertura de integração do fluxo cálculo → métrica → projeto salvo.
 
 ## Quick wins
 
-1. Tornar o update de `quote_shares` condicional ao status `sent`.
-2. Adicionar validação runtime ao endpoint de métricas.
-3. Remover ou documentar o `catch {}` silencioso.
-4. Substituir `select('*')` nas consultas mais sensíveis.
-5. Adicionar whitelist de locale e redirecionamentos locais.
-6. Centralizar timeouts, limites e status compartilhados.
-7. Atualizar README e SPECS sobre as rotas legadas.
-8. Criar testes para concorrência, SSRF, payload inválido e respostas grandes.
+1. Remover ou documentar o `catch {}` silencioso.
+2. Adicionar whitelist de locale e redirecionamentos locais.
+3. Centralizar envio de email.
+4. Adicionar testes para endpoints ainda sem cobertura.
 
 ## Refatorações estruturais
 
-1. Gerar tipos do schema Supabase.
-2. Separar estado de sessão, draft, cache e persistência no Zustand.
-3. Extrair domínios de `SinglePageApp`.
-4. Centralizar cliente HTTP externo e envio de emails.
-5. Compartilhar ou gerar a lógica de cálculo frontend/Edge.
-6. Centralizar validação de payloads de API.
-7. Automatizar verificação de migrations aplicadas.
-8. Adicionar testes automatizados de RLS e ownership.
+1. Separar estado de sessão, draft, cache e persistência no Zustand.
+2. Centralizar envio de emails.
+3. Validar JSONB em runtime nos limites de domínio restantes.
+4. Automatizar execução do pgTAP no CI.
+5. Validar IP resolvido para cenários de DNS rebinding.
 
 ## O que não vale a pena refatorar agora
 
@@ -460,11 +453,9 @@ As lacunas principais são:
 
 ### Fase 2 — Quick wins e duplicações
 
-1. Remover `select('*')` das queries prioritárias.
-2. Centralizar constantes.
-3. Centralizar envio de email.
-4. Atualizar documentação obsoleta.
-5. Criar testes para endpoints sem cobertura.
+1. Centralizar constantes.
+2. Centralizar envio de email.
+3. Criar testes para endpoints ainda sem cobertura.
 
 ### Fase 3 — Centralização das regras de negócio
 
@@ -476,11 +467,10 @@ As lacunas principais são:
 
 ### Fase 4 — Melhorias arquiteturais
 
-1. Reduzir responsabilidades de `SinglePageApp`.
-2. Separar stores por domínio real.
-3. Padronizar acesso a dados via repositories.
-4. Isolar integrações externas e observabilidade.
-5. Definir contratos claros entre browser, API e Edge Function.
+1. Separar stores por domínio real.
+2. Padronizar acesso a dados via repositories.
+3. Isolar integrações externas e observabilidade.
+4. Definir contratos claros entre browser, API e Edge Function.
 
 ### Fase 5 — Performance e manutenção
 

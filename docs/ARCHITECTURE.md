@@ -69,7 +69,8 @@ Durante o demo:
 
 - autosave e salvamento de projeto ficam desabilitados;
 - `currentProjectId` não é usado para persistência;
-- a API recebe `isDemo` e não registra a execução em `app_simulations`;
+- o servidor mantém uma sessão demo assinada em cookie HttpOnly e a API usa
+  essa sessão para não registrar a execução em `app_simulations`;
 - o estado demo não é persistido no localStorage;
 - sair restaura o snapshot e retorna à aba Projetos;
 - converter o demo limpa a identificação, remove o vínculo com o projeto

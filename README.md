@@ -75,9 +75,7 @@ npm run build
 | `/pt/termos` | Termos de Uso |
 | `/pt/privacidade` | Política de Privacidade (LGPD) |
 | `/pt/aceite-termos` | Bloqueio de aceite dos termos, exibido a qualquer usuário logado sem aceite da versão vigente |
-| `/pt/wizard/residential/*` | Fluxo legado do wizard residencial |
-| `/pt/wizard/industrial/*` | Fluxo legado do wizard industrial |
-| `/pt/wizard/result` | Redirect compatível para o resultado residencial |
+| `/pt/cotacao/[token]` | Visualização pública de uma cotação compartilhada |
 | `/api/account/delete` | Route handler (POST) que remove a conta do próprio usuário via RPC protegido |
 
 Idiomas suportados: `pt`, `en`, `zh`.
