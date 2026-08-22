@@ -9,7 +9,6 @@
 | `SUPABASE_INTERNAL_URL` | servidor | não | URL interna para reduzir dependência de proxy externo |
 | `SUPABASE_SERVICE_ROLE_KEY` | somente servidor | conforme rota | Operações administrativas que não podem usar RLS |
 | `DEMO_SESSION_SECRET` | somente servidor | sim | Segredo usado para assinar a sessão HttpOnly do modo demonstrativo |
-| `NEXT_PUBLIC_FEEDBACK_EMAIL` | cliente | não | Destinatário dos links de bug e sugestões na área Contribuir |
 
 ## Email
 
@@ -17,6 +16,7 @@
 |---|---|
 | `RESEND_API_KEY` | Envio de confirmação, recuperação e emails de fornecedores |
 | `RESEND_FROM_EMAIL` | Remetente verificado |
+| `FEEDBACK_TO_EMAIL` | Destinatário interno dos feedbacks enviados pela aplicação |
 | `RESEND_CONFIRM_TEMPLATE_ID` | Template de confirmação, quando configurado |
 | `RESEND_RECOVERY_TEMPLATE_ID` | Template de recuperação, quando configurado |
 

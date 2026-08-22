@@ -5,6 +5,7 @@ export interface ResendEmailPayload {
   from: string;
   to: string[];
   cc?: string[];
+  reply_to?: string[];
   subject?: string;
   text?: string;
   template?: { id: string; variables: Record<string, string> };

@@ -15,7 +15,6 @@ const supabaseUrl = new URL(getPublicSupabaseUrl());
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
-    NEXT_PUBLIC_FEEDBACK_EMAIL: process.env.NEXT_PUBLIC_FEEDBACK_EMAIL ?? '',
   },
   images: {
     // Product photos, documents thumbnails and company logos are all served
