@@ -371,6 +371,23 @@ describe('SinglePageApp: unsaved profile edits', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
     confirmSpy.mockRestore();
   });
+
+  it('asks before signing out when Perfil has unsaved edits', async () => {
+    const supabase = setupSupabase({}, { loggedIn: true });
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Nome Editado' } });
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sair' })[0]);
+
+    expect(confirmSpy).toHaveBeenCalledWith('Você tem alterações não salvas no perfil. Deseja sair mesmo assim?');
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
 });
 
 describe('SinglePageApp: sign out', () => {

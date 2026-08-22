@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import type { createClient } from '@/lib/supabase/client';
 
@@ -14,6 +15,7 @@ export function useAppNavigationActions({
   openPurchasesTab,
   openProfile,
   openClientsManager,
+  profileDirty,
 }: {
   supabase: ReturnType<typeof createClient>;
   router: ReturnType<typeof useRouter>;
@@ -27,7 +29,10 @@ export function useAppNavigationActions({
   openPurchasesTab: () => void;
   openProfile: () => void;
   openClientsManager: () => void;
+  profileDirty: boolean;
 }) {
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
   function openProjectFromClient(id: string) {
     loadProject(id);
     changeTab('project');
@@ -38,7 +43,15 @@ export function useAppNavigationActions({
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    if (profileDirty && !window.confirm('Você tem alterações não salvas no perfil. Deseja sair mesmo assim?')) return;
+
+    setSignOutError(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setSignOutError('Não foi possível sair agora. Tente novamente.');
+      return;
+    }
+
     setProfile(null);
     setUserEmail(null);
     setMobileMenuOpen(false);
@@ -62,5 +75,5 @@ export function useAppNavigationActions({
     openClientsManager();
   }
 
-  return { openProjectFromClient, backToProject, signOut, openMobilePurchasesTab, openMobileProfile, openMobileClientsManager };
+  return { openProjectFromClient, backToProject, signOut, signOutError, openMobilePurchasesTab, openMobileProfile, openMobileClientsManager };
 }
