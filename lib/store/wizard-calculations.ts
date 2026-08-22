@@ -9,7 +9,13 @@
 
 import type { LoadPhase, ResidentialGridType, SingleLoad } from '@/lib/types';
 
-export { totalDailyKwh, totalNominalW, totalPeakW } from '@/supabase/functions/_shared/calculation-math';
+export {
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
+  totalDailyKwh,
+  totalNominalW,
+  totalPeakW,
+} from '@/supabase/functions/_shared/calculation-math';
 
 /** Number of live phases the network topology provides. */
 export const gridTypePhaseCount: Record<ResidentialGridType, number> = {

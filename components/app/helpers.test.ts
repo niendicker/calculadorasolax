@@ -788,6 +788,38 @@ describe('buildSupplierQuoteRequestEmail', () => {
     expect(text).toContain('X1-Hybrid-5.0-D');
     expect(text).toContain('T-BAT-SYS HV 5.8 V2');
   });
+
+  it('includes every selected feature and its relevant inputs', () => {
+    const profile = makeProfile();
+    const text = buildSupplierQuoteRequestEmail(
+      {
+        ...shareableProject,
+        desiredFeatures: ['backup', 'external_ats', 'microgrid', 'external_generator', 'pv', 'white_tariff'],
+        microgrid: makeMicrogrid({ onGridApparentPowerVA: 7500, onGridPhases: 3, voltageV: 380 }),
+        generator: makeGenerator({ apparentPowerVA: 12000, phases: 3, voltageV: 380 }),
+        pv: { monthlyConsumptionKwh: 900, hsp: 5.2 },
+        whiteTariff: {
+          requiredPowerW: 6000,
+          totalMonthlyConsumptionKwh: 900,
+          pontaEnergyWh: 6000,
+          intermediateEnergyWh: 2000,
+          pontaTariffPerKwh: 1.2,
+          intermediateTariffPerKwh: 0.95,
+          foraPontaTariffPerKwh: 0.7,
+        },
+      },
+      profile,
+      []
+    );
+
+    expect(text).toContain('Funcionalidades selecionadas:');
+    expect(text).toContain('- Backup');
+    expect(text).toContain('- Backup Total');
+    expect(text).toContain('- Microrrede: inversor on-grid existente de 7.50 kVA, 3 fase(s), 380 V');
+    expect(text).toContain('- Gerador: gerador de 12.00 kVA, 3 fase(s), 380 V');
+    expect(text).toContain('- Fotovoltaico: consumo médio de 900.00 kWh/mês, HSP de 5.2 h/dia');
+    expect(text).toContain('- Tarifa Branca: energia diária de 12.00 kWh/dia, potência requerida de 6.00 kW');
+  });
 });
 
 describe('buildClientQuoteText', () => {

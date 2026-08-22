@@ -95,12 +95,14 @@ export function UsersPanel({
 
 export function MetricsPanel({
   simulations,
+  supplierQuoteRequests = 0,
   users,
   hasMoreSimulations = false,
   loadingMoreSimulations = false,
   onLoadMoreSimulations,
 }: {
   simulations: SimulationRow[];
+  supplierQuoteRequests?: number;
   users: UserProfileRow[];
   hasMoreSimulations?: boolean;
   loadingMoreSimulations?: boolean;
@@ -148,9 +150,10 @@ export function MetricsPanel({
       </div>
 
       {activeTab === 'overview' && (
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <MetricCard label="Usuários" value={String(users.length)} />
           <MetricCard label="Simulações" value={String(simulations.length)} />
+          <MetricCard label="Cotações a fornecedores" value={String(supplierQuoteRequests)} />
           <MetricCard label="Pico médio" value={simulations.length ? `${(totalPeakW / simulations.length / 1000).toFixed(2)} kVA` : '0 kVA'} />
           <MetricCard label="Consumo médio" value={simulations.length ? `${(totalDailyKwh / simulations.length).toFixed(2)} kWh/dia` : '0 kWh/dia'} />
         </div>

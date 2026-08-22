@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   BatteryCharging,
   Calculator,
+  AlertTriangle,
   ChevronRight,
   Gauge,
   Loader2,
@@ -84,6 +85,7 @@ export function SelectedProjectSummary({
   onOpenSizing,
   onUpdateStatus,
   onManageSuppliers,
+  onOpenProfile,
 }: {
   project: SavedProject;
   client: Client | undefined;
@@ -103,6 +105,7 @@ export function SelectedProjectSummary({
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
+  onOpenProfile: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -118,6 +121,7 @@ export function SelectedProjectSummary({
       )
     : [];
   const [supplierQuoteModalOpen, setSupplierQuoteModalOpen] = useState(false);
+  const [profileRequirementsOpen, setProfileRequirementsOpen] = useState(false);
   const [sharingQuote, setSharingQuote] = useState(false);
   const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
 
@@ -130,10 +134,22 @@ export function SelectedProjectSummary({
     peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
     dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
     solution: project.solution,
+    desiredFeatures: project.residentialOptions.desiredFeatures,
+    microgrid: project.residentialOptions.microgrid,
+    generator: project.residentialOptions.generator,
+    pv: project.residentialOptions.pv,
+    whiteTariff: project.residentialOptions.whiteTariff,
   };
 
   const canShareQuote = Boolean(project.solution && client?.phone && profile);
-  const canRequestSupplierQuote = Boolean(project.solution && profile);
+  const hasCompleteCompanyAddress = Boolean(
+    profile &&
+      ['postalCode', 'street', 'number', 'district', 'city', 'state'].every((field) =>
+        profile.companyAddress[field as keyof typeof profile.companyAddress]?.trim()
+      )
+  );
+  const canRequestSupplierQuote = Boolean(project.solution);
+  const profileRequirementsMissing = !profile || !profile.companyDocument.trim() || !hasCompleteCompanyAddress;
 
   // Generates the public quote-share link (same snapshot the old separate
   // "Compartilhar orçamento (link)" button used to build) and opens WhatsApp
@@ -387,11 +403,54 @@ export function SelectedProjectSummary({
         className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
         disabled={!canRequestSupplierQuote}
         title={!project.solution ? 'Calcule uma solução para este projeto antes de solicitar orçamento.' : undefined}
-        onClick={() => setSupplierQuoteModalOpen(true)}
+        onClick={() => {
+          if (profileRequirementsMissing) setProfileRequirementsOpen(true);
+          else setSupplierQuoteModalOpen(true);
+        }}
       >
         <Mail className="h-4 w-4" />
         Solicitar orçamento ao fornecedor
       </Button>
+      {profileRequirementsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="supplier-profile-requirements-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setProfileRequirementsOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md rounded-lg border bg-card p-5 shadow-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+              <div>
+                <h2 id="supplier-profile-requirements-title" className="font-semibold">
+                  Complete os dados da empresa
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Para solicitar uma cotação ao fornecedor, é necessário cadastrar o CNPJ e o endereço completo da empresa.
+                  Esses dados serão enviados ao fornecedor junto com a solicitação.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setProfileRequirementsOpen(false)}>
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setProfileRequirementsOpen(false);
+                  onOpenProfile();
+                }}
+              >
+                Ir para Perfil
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {profile && (
         <SupplierQuoteRequestModal
           open={supplierQuoteModalOpen}

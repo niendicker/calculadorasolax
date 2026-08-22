@@ -39,10 +39,11 @@ export type ResourceKey =
   | 'solutions'
   | 'users'
   | 'simulations'
+  | 'supplierQuoteRequests'
   | 'activityLogs';
 
 export const TAB_RESOURCES: Record<TabKey, ResourceKey[]> = {
-  metrics: ['simulations', 'users'],
+  metrics: ['simulations', 'users', 'supplierQuoteRequests'],
   users: ['users'],
   solutions: ['solutions', 'inverters', 'batteries', 'rules', 'essRules'],
   inverters: ['inverters', 'batteries', 'essRules'],
@@ -96,6 +97,7 @@ export function useAdminData({
   const [solutions, setSolutions] = useState<SolutionRow[]>([]);
   const [users, setUsers] = useState<UserProfileRow[]>([]);
   const [simulations, setSimulations] = useState<SimulationRow[]>([]);
+  const [supplierQuoteRequests, setSupplierQuoteRequests] = useState(0);
   const [activityLogs, setActivityLogs] = useState<AdminActivityLogRow[]>([]);
 
   const loadedResourcesRef = useRef<Set<ResourceKey>>(new Set());
@@ -204,6 +206,14 @@ export function useAdminData({
         }
         case 'simulations':
           return loadSimulationsPage(0, true);
+        case 'supplierQuoteRequests': {
+          const { count, error: fetchError } = await supabase
+            .from('project_events')
+            .select('id', { count: 'exact', head: true })
+            .eq('event_type', 'supplier_quote_requested');
+          if (!fetchError) setSupplierQuoteRequests(count ?? 0);
+          return { error: fetchError };
+        }
         case 'activityLogs':
           return loadActivityLogsPage(0, true);
       }
@@ -265,6 +275,7 @@ export function useAdminData({
     solutions,
     users,
     simulations,
+    supplierQuoteRequests,
     activityLogs,
     simulationsHasMore,
     loadingMoreSimulations,

@@ -8,7 +8,12 @@ import { Label } from '@/components/ui/label';
 import type { DesiredFeatureId, PvConfig, WhiteTariffConfig } from '@/lib/types';
 import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
 import { cn } from '@/lib/utils';
-import { TARIFF_BUSINESS_DAYS_PER_MONTH, calculateTariffSavings, isWhiteTariffConfigIncomplete } from '../../../helpers';
+import {
+  TARIFF_BUSINESS_DAYS_PER_MONTH,
+  WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT,
+  calculateTariffSavings,
+  isWhiteTariffConfigIncomplete,
+} from '../../../helpers';
 import { AutomaticTariffPanel } from './AutomaticTariffPanel';
 
 export const emptyWhiteTariffConfig: WhiteTariffConfig = {
@@ -90,7 +95,7 @@ function WhiteTariffEnergyField({
  *  loss assumption instead of one silently being lossless — replaced by the
  *  chosen battery's real round_trip_efficiency_percent once a solution is
  *  picked (see calculateSystemCost/buildMarginSummary call sites). */
-const PRELIMINARY_ROUND_TRIP_EFFICIENCY_PERCENT = 90;
+const PRELIMINARY_ROUND_TRIP_EFFICIENCY_PERCENT = WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT;
 
 export function WhiteTariffPanel({
   value,

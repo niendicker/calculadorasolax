@@ -63,6 +63,7 @@ export function ProjectTab({
   onDownloadPdf,
   downloadingProjectId,
   onManageSuppliers,
+  onOpenProfile = () => {},
   onManagePortfolio,
   onShowSummary,
   onHideSummary,
@@ -99,6 +100,7 @@ export function ProjectTab({
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
   onManageSuppliers: () => void;
+  onOpenProfile?: () => void;
   /** Sends the seller to Portfólio — used by the draft card's services empty
    *  state, so "Portfólio" can be a clickable jump instead of just naming
    *  the tab. */
@@ -248,6 +250,7 @@ export function ProjectTab({
             onOpenSizing={() => onOpenSizing(summaryProject.id)}
             onUpdateStatus={(status) => onUpdateStatus(summaryProject.id, status)}
             onManageSuppliers={onManageSuppliers}
+            onOpenProfile={onOpenProfile}
           />
         ) : projectDetailsVisible ? (
           <>

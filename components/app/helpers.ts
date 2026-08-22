@@ -18,9 +18,16 @@ import type {
   UserStockItem,
   WhiteTariffConfig,
 } from '@/lib/types';
+import { desiredFeatureLabel } from '@/lib/desired-features';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
-import { totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-calculations';
+import {
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
+  totalDailyKwh,
+  totalNominalW,
+  totalPeakW,
+} from '@/lib/store/wizard-calculations';
 import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfile, type InverterCatalogOption } from './types';
 
 export { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart };
@@ -362,39 +369,13 @@ export function solutionMetrics(
   };
 }
 
-/** Mirrors supabase/functions/calculate-residential/logic.ts's effectiveTargetPowerW:
- * raises a power floor to cover whichever of Backup/Tarifa Branca demands
- * more (baseW only counts when 'backup' is a desired feature — an outage and
- * a normal grid-connected tariff window can't happen at the same instant, so
- * the two floors are never summed, just maxed). Kept in sync manually since
- * the Edge Function runs on Deno and can't be imported here — this is what
- * the server actually gated the solution on. If you change this, update the
- * Deno copy too — mirrors.test.ts next to that file asserts both sides agree. */
-export function effectiveTargetPowerW(
-  desiredFeatures: DesiredFeatureId[],
-  whiteTariff: WhiteTariffConfig | null,
-  baseW: number
-): number {
-  const backupFloor = desiredFeatures.includes('backup') ? baseW : 0;
-  const whiteTariffFloor = desiredFeatures.includes('white_tariff') && whiteTariff ? whiteTariff.requiredPowerW : 0;
-  return Math.max(backupFloor, whiteTariffFloor);
-}
+export { effectiveTargetEnergyWh, effectiveTargetPowerW } from '@/lib/store/wizard-calculations';
 
-/** Mirrors effectiveTargetEnergyWh from the same Edge Function file: Backup's
- * reserve and Tarifa Branca's daily arbitrage cycle stack (unlike power),
- * since a customer wanting both needs capacity for both at once. Same
- * manual-sync caveat as effectiveTargetPowerW above — see mirrors.test.ts. */
-export function effectiveTargetEnergyWh(
-  desiredFeatures: DesiredFeatureId[],
-  whiteTariff: WhiteTariffConfig | null,
-  baseTargetEnergyWh: number,
-  roundTripEfficiencyPercent = 100
-): number {
-  const backupFloor = desiredFeatures.includes('backup') ? baseTargetEnergyWh : 0;
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return backupFloor;
-  const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
-  return backupFloor + (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency;
-}
+/** Efficiency used by the sizing UI when presenting the estimated storage
+ * requirement. The calculation service selects a solution from raw usable
+ * energy, while the UI's preliminary and "Necessário" values include this
+ * conservative loss allowance. */
+export const WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT = 90;
 
 export interface MarginRow {
   key: string;
@@ -445,7 +426,12 @@ export function buildMarginSummary({
     {
       key: 'energy',
       label: 'Energia',
-      requiredValue: effectiveTargetEnergyWh(desiredFeatures, whiteTariff, dailyKwh * 1000),
+      requiredValue: effectiveTargetEnergyWh(
+        desiredFeatures,
+        whiteTariff,
+        dailyKwh * 1000,
+        WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT
+      ),
       providedValue: solution.availableEnergyWh ?? 0,
       unit: 'Wh',
     },
@@ -583,6 +569,11 @@ export type ShareableProject = {
   peakW: number;
   dailyKwh: number;
   solution: Solution | null;
+  desiredFeatures?: DesiredFeatureId[];
+  microgrid?: MicrogridConfig | null;
+  generator?: GeneratorConfig | null;
+  pv?: PvConfig | null;
+  whiteTariff?: WhiteTariffConfig | null;
 };
 
 export type ShareableBatteryCatalog = {
@@ -600,6 +591,30 @@ function buildConfigLines(project: ShareableProject): string[] {
   lines.push(`- ${loadsCount} carga(s) cadastrada(s)`);
   lines.push(`- Pico: ${(peakW / 1000).toFixed(2)} kVA`);
   lines.push(`- Consumo: ${dailyKwh.toFixed(2)} kWh/dia`);
+  return lines;
+}
+
+function buildFeatureLines(project: ShareableProject): string[] {
+  const features = project.desiredFeatures ?? [];
+  if (features.length === 0) return [];
+
+  const lines: string[] = ['*Funcionalidades selecionadas:*'];
+  for (const feature of features) {
+    if (feature === 'microgrid' && project.microgrid) {
+      const config = project.microgrid;
+      lines.push(`- ${desiredFeatureLabel(feature)}: inversor on-grid existente de ${(config.onGridApparentPowerVA / 1000).toFixed(2)} kVA, ${config.onGridPhases} fase(s), ${config.voltageV} V`);
+    } else if (feature === 'external_generator' && project.generator) {
+      const config = project.generator;
+      lines.push(`- ${desiredFeatureLabel(feature)}: gerador de ${(config.apparentPowerVA / 1000).toFixed(2)} kVA, ${config.phases} fase(s), ${config.voltageV} V`);
+    } else if (feature === 'pv' && project.pv) {
+      lines.push(`- ${desiredFeatureLabel(feature)}: consumo médio de ${project.pv.monthlyConsumptionKwh.toFixed(2)} kWh/mês, HSP de ${project.pv.hsp.toFixed(1)} h/dia`);
+    } else if (feature === 'white_tariff' && project.whiteTariff) {
+      const config = project.whiteTariff;
+      lines.push(`- ${desiredFeatureLabel(feature)}: energia diária de ${project.dailyKwh.toFixed(2)} kWh/dia, potência requerida de ${(config.requiredPowerW / 1000).toFixed(2)} kW`);
+    } else {
+      lines.push(`- ${desiredFeatureLabel(feature)}`);
+    }
+  }
   return lines;
 }
 
@@ -652,7 +667,7 @@ export function buildProjectShareText(
   if (clientName) lines.push(`Cliente: ${clientName}`);
   if (project.address && !isAddressEmpty(project.address)) lines.push(`Endereço: ${formatAddress(project.address)}`);
 
-  lines.push('', ...buildConfigLines(project));
+  lines.push('', ...buildConfigLines(project), ...buildFeatureLines(project));
   lines.push('', ...(project.solution ? buildSolutionLines(project.solution, batteryCatalog) : ['Solução ainda não calculada.']));
   lines.push('', 'Poderia me passar um orçamento para essa solução?');
 
@@ -683,7 +698,7 @@ export function buildSupplierQuoteRequestEmail(
     lines.push(`- Endereço de entrega: ${formatAddress(profile.companyAddress)}`);
   }
 
-  lines.push('', ...buildConfigLines(project));
+  lines.push('', ...buildConfigLines(project), ...buildFeatureLines(project));
   lines.push('', ...(project.solution ? buildSolutionLines(project.solution, batteryCatalog) : ['Solução ainda não calculada.']));
   lines.push('', 'Poderiam nos passar valores e prazo de entrega/frete para esses itens?');
 

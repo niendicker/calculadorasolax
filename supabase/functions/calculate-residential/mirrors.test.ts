@@ -16,7 +16,7 @@
 // When you add a new "Mirrors ..." duplicate to logic.ts, add a case here
 // too if the counterpart is a runtime value/function (not just a type).
 //
-// Covers, today: DESIRED_FEATURE_DEFINITIONS, effectiveTargetPowerW/EnergyWh,
+// Covers, today: DESIRED_FEATURE_DEFINITIONS,
 // totalPeakW/totalNominalW/totalDailyKwh, clampNumber, solutionTotalBatteryPorts,
 // ruleMetricValue (~ solutionRuleMetricValue), accessoryRuleAppliedQuantity.
 //
@@ -35,7 +35,6 @@
 
 import { describe, expect, it } from 'vitest';
 import { DESIRED_FEATURE_DEFINITIONS as NEXT_DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import { effectiveTargetEnergyWh as nextEffectiveTargetEnergyWh, effectiveTargetPowerW as nextEffectiveTargetPowerW } from '@/components/app/helpers';
 import { totalDailyKwh as nextTotalDailyKwh, totalNominalW as nextTotalNominalW, totalPeakW as nextTotalPeakW } from '@/lib/store/wizard-calculations';
 import {
   accessoryRuleAppliedQuantity as nextAccessoryRuleAppliedQuantity,
@@ -43,13 +42,11 @@ import {
   solutionRuleMetricValue as nextRuleMetricValue,
   solutionTotalBatteryPorts as nextSolutionTotalBatteryPorts,
 } from '@/components/admin/helpers';
-import type { SingleLoad, WhiteTariffConfig } from '@/lib/types';
+import type { SingleLoad } from '@/lib/types';
 import {
   DESIRED_FEATURE_DEFINITIONS as DENO_DESIRED_FEATURE_DEFINITIONS,
   accessoryRuleAppliedQuantity as denoAccessoryRuleAppliedQuantity,
   clampNumber as denoClampNumber,
-  effectiveTargetEnergyWh as denoEffectiveTargetEnergyWh,
-  effectiveTargetPowerW as denoEffectiveTargetPowerW,
   ruleMetricValue as denoRuleMetricValue,
   solutionTotalBatteryPorts as denoSolutionTotalBatteryPorts,
   totalDailyKwh as denoTotalDailyKwh,
@@ -62,46 +59,6 @@ describe('drift check: DESIRED_FEATURE_DEFINITIONS (logic.ts vs lib/desired-feat
     const nextShape = NEXT_DESIRED_FEATURE_DEFINITIONS.map((f) => ({ id: f.id, requiresInverterFlag: f.requiresInverterFlag }));
     const denoShape = DENO_DESIRED_FEATURE_DEFINITIONS.map((f) => ({ id: f.id, requiresInverterFlag: f.requiresInverterFlag }));
     expect(denoShape).toEqual(nextShape);
-  });
-});
-
-const whiteTariff: WhiteTariffConfig = {
-  requiredPowerW: 3000,
-  pontaEnergyWh: 6000,
-  intermediateEnergyWh: 2000,
-  pontaTariffPerKwh: 1.6,
-  intermediateTariffPerKwh: 1.0,
-  foraPontaTariffPerKwh: 0.8,
-};
-
-describe('drift check: effectiveTargetPowerW (logic.ts vs components/app/helpers.ts)', () => {
-  it.each([
-    { desiredFeatures: [] as const, whiteTariff: null, baseW: 5000 },
-    { desiredFeatures: [] as const, whiteTariff, baseW: 5000 },
-    { desiredFeatures: ['backup'] as const, whiteTariff: null, baseW: 5000 },
-    { desiredFeatures: ['white_tariff'] as const, whiteTariff: null, baseW: 5000 },
-    { desiredFeatures: ['white_tariff'] as const, whiteTariff, baseW: 5000 },
-    { desiredFeatures: ['white_tariff'] as const, whiteTariff, baseW: 1000 },
-    { desiredFeatures: ['backup', 'white_tariff'] as const, whiteTariff, baseW: 1000 },
-    { desiredFeatures: ['backup', 'white_tariff'] as const, whiteTariff, baseW: 5000 },
-  ])('matches for %j', ({ desiredFeatures, whiteTariff: wt, baseW }) => {
-    expect(denoEffectiveTargetPowerW([...desiredFeatures], wt, baseW)).toBe(
-      nextEffectiveTargetPowerW([...desiredFeatures], wt, baseW)
-    );
-  });
-});
-
-describe('drift check: effectiveTargetEnergyWh (logic.ts vs components/app/helpers.ts)', () => {
-  it.each([
-    { desiredFeatures: [] as const, whiteTariff: null, baseTargetEnergyWh: 10000 },
-    { desiredFeatures: ['backup'] as const, whiteTariff: null, baseTargetEnergyWh: 10000 },
-    { desiredFeatures: ['white_tariff'] as const, whiteTariff: null, baseTargetEnergyWh: 10000 },
-    { desiredFeatures: ['white_tariff'] as const, whiteTariff, baseTargetEnergyWh: 10000 },
-    { desiredFeatures: ['backup', 'white_tariff'] as const, whiteTariff, baseTargetEnergyWh: 10000 },
-  ])('matches for %j', ({ desiredFeatures, whiteTariff: wt, baseTargetEnergyWh }) => {
-    expect(denoEffectiveTargetEnergyWh([...desiredFeatures], wt, baseTargetEnergyWh)).toBe(
-      nextEffectiveTargetEnergyWh([...desiredFeatures], wt, baseTargetEnergyWh)
-    );
   });
 });
 

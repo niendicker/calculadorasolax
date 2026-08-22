@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { LoaderCircle, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Address } from '@/lib/types';
@@ -65,16 +66,29 @@ export function AddressFields({
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}PostalCode`}>CEP</Label>
-        <Input
-          id={`${idPrefix}PostalCode`}
-          value={address.postalCode}
-          onChange={(event) => {
-            onChange({ postalCode: event.target.value });
-            reset();
-          }}
-          onBlur={(event) => void lookup(event.target.value)}
-          placeholder="00000-000"
-        />
+        <div className="relative">
+          <Input
+            id={`${idPrefix}PostalCode`}
+            className="pr-10"
+            value={address.postalCode}
+            onChange={(event) => {
+              onChange({ postalCode: event.target.value });
+              reset();
+            }}
+            onBlur={(event) => void lookup(event.target.value)}
+            placeholder="00000-000"
+          />
+          <button
+            type="button"
+            aria-label="Preencher endereço pelo CEP"
+            title="Preencher endereço pelo CEP"
+            disabled={cepState === 'loading'}
+            onClick={() => void lookup(address.postalCode)}
+            className="absolute top-1/2 right-2 inline-flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          >
+            {cepState === 'loading' ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <MapPin className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        </div>
         {cepState === 'loading' ? (
           <p className="text-xs text-muted-foreground">Buscando endereço...</p>
         ) : cepState === 'not-found' ? (

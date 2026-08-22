@@ -161,20 +161,23 @@ do parceiro também devem possuir limite de tamanho.
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** L
-- **Arquivos:** `lib/store/wizard-calculations.ts:15-52`,
-  `supabase/functions/calculate-residential/logic.ts:503-539` e
-  `supabase/functions/calculate-residential/mirrors.test.ts`.
+- **Arquivos:** `supabase/functions/_shared/calculation-math.ts`,
+  `lib/store/wizard-calculations.ts` e
+  `supabase/functions/calculate-residential/logic.ts`.
 
-As funções `totalPeakW`, `totalNominalW` e `totalDailyKwh` existem em duas
-implementações. Os testes de espelho reduzem o risco, mas ainda é necessário
-alterar dois locais manualmente.
+As funções de carga e os alvos de dimensionamento (`totalPeakW`,
+`totalNominalW`, `totalDailyKwh`, `effectiveTargetPowerW` e
+`effectiveTargetEnergyWh`) precisam ser idênticos no browser e na Edge Function.
 
-**Status:** resolvido em `aa280ef2`, com matemática compartilhada entre browser
-e Edge Function e testes de espelho mantidos como proteção de regressão.
+**Status:** resolvido em março de 2026. A implementação foi centralizada em
+`supabase/functions/_shared/calculation-math.ts`; o frontend e a Edge Function
+agora importam as mesmas funções. Os testes específicos de cada consumidor
+continuam cobrindo o comportamento, sem manter uma segunda implementação para
+comparar.
 
-**Recomendação histórica:** compartilhar um módulo compatível com browser e Deno, ou
-gerar a implementação da Edge Function. Manter os testes de espelho enquanto a
-duplicação existir.
+**Proteção:** o módulo compartilhado permanece puro, sem dependências de React,
+Supabase ou APIs de runtime, e é validado tanto pelo typecheck do frontend quanto
+por `npm run check:functions`.
 
 ### 7. `SinglePageApp` concentrava responsabilidades demais — resolvido
 

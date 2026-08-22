@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Lightbulb, List, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { GuideContent } from '@/content/guide';
+import { PageHeader } from '@/components/app/shell/slots';
 
 interface GuidePageProps {
   content: GuideContent;
@@ -59,14 +60,28 @@ export function GuidePage({ content, embedded = false }: GuidePageProps) {
           <aside className="sticky top-4 hidden lg:block">{renderIndex()}</aside>
 
           <div className="min-w-0">
+            {embedded && (
+              <PageHeader>
+                <div className="min-w-0">
+                  <h1 className="max-w-[18rem] font-heading text-[clamp(1rem,3.5vw,1.5rem)] font-semibold leading-tight tracking-tight sm:max-w-[24rem]">
+                    {content.title}
+                  </h1>
+                  <p className="mt-0.5 max-w-[28rem] truncate whitespace-nowrap text-[clamp(0.55rem,2.4vw,0.875rem)] leading-4 text-muted-foreground sm:leading-5">
+                    {content.intro}
+                  </p>
+                </div>
+              </PageHeader>
+            )}
             <header className="max-w-3xl">
-              <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                {content.title}
-              </h1>
-              <p className="mt-4 text-base leading-7 text-muted-foreground">{content.intro}</p>
+              {!embedded && (
+                <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                  {content.title}
+                </h1>
+              )}
+              {!embedded && <p className="mt-4 text-base leading-7 text-muted-foreground">{content.intro}</p>}
             </header>
 
-            <section className="mt-12" aria-labelledby="guide-steps-title">
+            <section className={embedded ? 'mt-4' : 'mt-12'} aria-labelledby="guide-steps-title">
               <h2 id="guide-steps-title" className="font-heading text-xl font-semibold">
                 {content.stepsTitle}
               </h2>

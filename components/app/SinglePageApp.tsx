@@ -685,6 +685,7 @@ export function SinglePageApp() {
               onDownloadPdf={downloadProjectPdf}
               downloadingProjectId={downloadingProjectId}
               onManageSuppliers={openPurchasesTab}
+              onOpenProfile={openProfile}
               onManagePortfolio={openPortfolioTab}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}

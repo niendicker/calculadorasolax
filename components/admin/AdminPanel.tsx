@@ -76,6 +76,7 @@ export function AdminPanel() {
     solutions,
     users,
     simulations,
+    supplierQuoteRequests,
     activityLogs,
     simulationsHasMore,
     loadingMoreSimulations,
@@ -664,6 +665,7 @@ export function AdminPanel() {
                 {activeTab === 'metrics' && (
                   <MetricsPanel
                     simulations={simulations}
+                    supplierQuoteRequests={supplierQuoteRequests}
                     users={users}
                     hasMoreSimulations={simulationsHasMore}
                     loadingMoreSimulations={loadingMoreSimulations}

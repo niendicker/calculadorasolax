@@ -53,7 +53,6 @@ export function SupplierQuoteRequestModal({
   // kept separate from `suppliers` so the empty state can tell "you haven't
   // chosen any supplier yet" apart from "none of your suppliers have an
   // email registered".
-  const [allowedCount, setAllowedCount] = useState<number | null>(null);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
@@ -88,7 +87,6 @@ export function SupplierQuoteRequestModal({
       const preferredIds = new Set(preferenceRows.map((row) => row.supplier_id));
       const allowed = typedSuppliers.filter((supplier) => supplier.is_default_for_all || preferredIds.has(supplier.id));
 
-      setAllowedCount(allowed.length);
       setSuppliers(
         allowed
           .filter((supplier) => Boolean(supplier.email))
@@ -167,10 +165,10 @@ export function SupplierQuoteRequestModal({
             <p className="mb-2 text-xs font-medium text-muted-foreground">Enviar para</p>
             {loadingSuppliers ? (
               <p className="text-xs text-muted-foreground">Carregando fornecedores...</p>
-            ) : allowedCount === 0 ? (
+            ) : suppliers.length === 0 ? (
               <div className="space-y-2 rounded-lg border border-dashed p-3">
                 <p className="text-xs text-muted-foreground">
-                  Você ainda não escolheu fornecedores. Escolha em Fornecedores para poder solicitar orçamentos.
+                  Você ainda não selecionou nenhum fornecedor para receber esta cotação. Escolha um fornecedor em Fornecedores para continuar.
                 </p>
                 <Button
                   variant="outline"
@@ -183,8 +181,6 @@ export function SupplierQuoteRequestModal({
                   Ir para Fornecedores
                 </Button>
               </div>
-            ) : suppliers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Nenhum dos seus fornecedores tem email cadastrado.</p>
             ) : (
               <div className="space-y-1.5">
                 {suppliers.map((supplier) => (

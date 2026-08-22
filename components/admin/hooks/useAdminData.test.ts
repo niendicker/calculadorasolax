@@ -10,7 +10,7 @@ function makeSupabase(tableResults: Record<string, { data: unknown; error: null 
 }
 
 describe('useAdminData: initial load', () => {
-  it('fetches only the metrics tab resources (simulations, users) on mount', async () => {
+    it('fetches only the metrics tab resources on mount', async () => {
     const simulation = { id: 'sim-1' };
     const user = { id: 'user-1', email: 'a@x.com' };
     const supabase = makeSupabase({
@@ -47,6 +47,7 @@ describe('useAdminData: ensureTabData lazy loading', () => {
   it('only fetches a tab´s resources once, skipping already-loaded ones on a later call', async () => {
     const fromSpy = vi.fn<(table: string) => unknown>(() => ({
       select: () => ({
+        eq: () => Promise.resolve({ count: 0, data: null, error: null }),
         order: () => ({
           order: () => Promise.resolve({ data: [], error: null }),
           range: () => Promise.resolve({ data: [], error: null }),
@@ -61,7 +62,7 @@ describe('useAdminData: ensureTabData lazy loading', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const callsAfterMount = fromSpy.mock.calls.map((call) => call[0]);
-    expect(new Set(callsAfterMount)).toEqual(new Set(['app_simulations', 'profiles']));
+    expect(new Set(callsAfterMount)).toEqual(new Set(['app_simulations', 'profiles', 'project_events']));
 
     fromSpy.mockClear();
     await act(async () => {
@@ -114,6 +115,9 @@ describe('useAdminData: pagination', () => {
     let call = 0;
     const supabase = {
       from: vi.fn((table: string) => {
+        if (table === 'project_events') {
+          return { select: () => ({ eq: () => Promise.resolve({ count: 0, data: null, error: null }) }) };
+        }
         if (table !== 'app_simulations') {
           return { select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) };
         }

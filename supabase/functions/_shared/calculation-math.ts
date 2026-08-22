@@ -2,6 +2,12 @@
 
 export type PeakCalcMode = 'sum' | 'largest-surge' | 'select';
 
+export interface WhiteTariffEnergyRequirement {
+  requiredPowerW: number;
+  pontaEnergyWh: number;
+  intermediateEnergyWh: number;
+}
+
 export interface SingleLoad {
   powerW: number;
   qty: number;
@@ -37,4 +43,30 @@ export function totalPeakW(loads: SingleLoad[], mode: PeakCalcMode = 'sum'): num
     return extra > max ? extra : max;
   }, 0);
   return totalNominalW(loads) + largestExtra;
+}
+
+/** Shared sizing floor for rated/peak power. Backup and Tarifa Branca are
+ * alternative operating modes, so the larger requirement wins. */
+export function effectiveTargetPowerW(
+  desiredFeatures: readonly string[],
+  whiteTariff: WhiteTariffEnergyRequirement | null,
+  baseW: number
+): number {
+  const backupFloor = desiredFeatures.includes('backup') ? baseW : 0;
+  const whiteTariffFloor = desiredFeatures.includes('white_tariff') && whiteTariff ? whiteTariff.requiredPowerW : 0;
+  return Math.max(backupFloor, whiteTariffFloor);
+}
+
+/** Shared battery-energy floor. Backup reserve and the Tarifa Branca daily
+ * arbitrage cycle stack because they are separate capacity requirements. */
+export function effectiveTargetEnergyWh(
+  desiredFeatures: readonly string[],
+  whiteTariff: WhiteTariffEnergyRequirement | null,
+  baseTargetEnergyWh: number,
+  roundTripEfficiencyPercent = 100
+): number {
+  const backupFloor = desiredFeatures.includes('backup') ? baseTargetEnergyWh : 0;
+  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return backupFloor;
+  const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
+  return backupFloor + (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency;
 }

@@ -8,7 +8,6 @@ import {
   Calculator,
   Check,
   ChevronLeft,
-  ClipboardCopy,
   CircleCheck,
   CheckCircle2,
   Download,
@@ -49,14 +48,14 @@ import type {
 import { cn } from '@/lib/utils';
 import {
   buildMarginSummary,
-  buildProjectShareText,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
   solutionHasInsufficientMargin,
+  WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT,
 } from '../helpers';
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import { PageHeader, PageSummary } from '../shell/slots';
-import { Metric, SharePreviewModal, SolutionSkeleton, WhatsAppIcon } from '../shared-ui';
+import { Metric, SolutionSkeleton, WhatsAppIcon } from '../shared-ui';
 import { gridLabels, gridOptions, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
 import { ConfigurationSummary } from './sizing/ConfigurationSummary';
 import { DesiredFeaturesPicker, featureIcons } from './sizing/DesiredFeaturesPicker';
@@ -232,7 +231,6 @@ export function SizingTab({
   const [activeItem, setActiveItem] = useState<PickerItemId | null>(null);
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
-  const [previewText, setPreviewText] = useState<string | null>(null);
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
 
   const hasSecondaryBattery = Boolean(residentialOptions.secondaryBatteryModel);
@@ -371,7 +369,12 @@ export function SizingTab({
   const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, nominalW);
   const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, peakW);
   const summaryDailyKwh =
-    effectiveTargetEnergyWh(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, dailyKwh * 1000) / 1000;
+    effectiveTargetEnergyWh(
+      residentialOptions.desiredFeatures,
+      residentialOptions.whiteTariff,
+      dailyKwh * 1000,
+      WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT
+    ) / 1000;
 
   // Resumo tab shows the same alert as soon as anything on the page (either
   // section tab) is pending review — no need to switch tabs to notice. A
@@ -637,7 +640,7 @@ export function SizingTab({
               onClick={onSendQuote}
             >
               {sendingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
-              Compartilhar cotação
+              Enviar ao cliente
             </Button>
             {/* Sticky to the bottom of the summary aside (same cancel-the-padding
              * trick as the sticky header above — see its comment) so this stays
@@ -652,30 +655,7 @@ export function SizingTab({
                 <ShoppingCart className="h-5 w-5 md:h-4 md:w-4" />
                 Cotar solução
               </Button>
-              <Button
-                className="h-12 w-full gap-2 text-base shadow-md md:h-9 md:text-sm"
-                onClick={() => {
-                  const text = buildProjectShareText(
-                    {
-                      name: projectName || 'Sem nome',
-                      topology: residentialOptions.topology,
-                      gridType: residentialOptions.gridType,
-                      loadsCount: residentialOptions.loads.length,
-                      peakW,
-                      dailyKwh,
-                      solution,
-                    },
-                    undefined,
-                    batteryCatalog
-                  );
-                  setPreviewText(text);
-                }}
-              >
-                <ClipboardCopy className="h-5 w-5 md:h-4 md:w-4" />
-                Copiar dados para fornecedor
-              </Button>
             </div>
-            <SharePreviewModal text={previewText} onClose={() => setPreviewText(null)} />
           </div>
         ) : (
           <>

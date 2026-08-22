@@ -51,16 +51,18 @@ function SupplierCardHeader({ supplier, right }: { supplier: Supplier; right: Re
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{supplier.name}</p>
         {supplier.website_url && (
-          <a
-            href={supplier.website_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => event.stopPropagation()}
-            className="flex items-center gap-1 truncate text-xs text-primary hover:underline"
-          >
-            <Globe className="h-3 w-3 shrink-0" />
-            <span className="truncate">{websiteLabel(supplier.website_url)}</span>
-          </a>
+          <span className="flex min-w-0 items-center gap-1 text-xs">
+            <Globe className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <a
+              href={supplier.website_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-block max-w-full truncate text-primary hover:underline"
+            >
+              {websiteLabel(supplier.website_url)}
+            </a>
+          </span>
         )}
       </div>
       {right}

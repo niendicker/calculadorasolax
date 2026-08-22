@@ -4,10 +4,24 @@
 // regular Node-based test runner (see logic.test.ts) instead of requiring a
 // Deno test setup.
 
-import { totalDailyKwh, totalNominalW, totalPeakW, type PeakCalcMode, type SingleLoad } from '../_shared/calculation-math.ts';
+import {
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
+  totalDailyKwh,
+  totalNominalW,
+  totalPeakW,
+  type PeakCalcMode,
+  type SingleLoad,
+} from '../_shared/calculation-math.ts';
 
 export type { PeakCalcMode, SingleLoad } from '../_shared/calculation-math.ts';
-export { totalDailyKwh, totalNominalW, totalPeakW } from '../_shared/calculation-math.ts';
+export {
+  effectiveTargetEnergyWh,
+  effectiveTargetPowerW,
+  totalDailyKwh,
+  totalNominalW,
+  totalPeakW,
+} from '../_shared/calculation-math.ts';
 
 /** Mirrors lib/types.ts InverterFlag — kept in sync manually since this file
  * runs on Deno and can't import from the Next.js app. */
@@ -213,43 +227,6 @@ export function resolveMicrogridSelection(
   const microgridTop = microgridCompatibleSolutions[0] ?? null;
   const microgridAlternativeSolution = microgridTop && microgridTop.id !== economicTop.id ? microgridTop : null;
   return { compatibleSolutions, microgridAlternativeSolution, blocked: false };
-}
-
-/** Raises a power floor (continuous/rated or surge/peak) to cover whichever
- * of Backup/Tarifa Branca is active and demands more. baseW only counts when
- * 'backup' is a desired feature — it isn't a generic always-on heuristic
- * anymore, it's specifically what Backup asks for. The two floors are never
- * summed: an outage (backup) and a normal grid-connected tariff window
- * (white tariff) can't happen at the same instant, so the inverter only ever
- * needs to sustain whichever one is bigger, not both at once. Callers pass
- * nominalW as baseW for the rated_power_w check, and peakW as baseW for the
- * peak_power_w check. */
-export function effectiveTargetPowerW(
-  desiredFeatures: DesiredFeatureId[],
-  whiteTariff: WhiteTariffConfig | null,
-  baseW: number
-): number {
-  const backupFloor = desiredFeatures.includes('backup') ? baseW : 0;
-  const whiteTariffFloor = desiredFeatures.includes('white_tariff') && whiteTariff ? whiteTariff.requiredPowerW : 0;
-  return Math.max(backupFloor, whiteTariffFloor);
-}
-
-/** Minimum battery energy the recommended solution must provide. Unlike
- * power, Backup's reserve and Tarifa Branca's daily arbitrage cycle *do*
- * stack: a customer wanting both a guaranteed outage reserve and daily
- * ponta/intermediária savings needs capacity for both at once, so this sums
- * the two floors instead of taking the larger one. baseTargetEnergyWh only
- * counts when 'backup' is a desired feature. */
-export function effectiveTargetEnergyWh(
-  desiredFeatures: DesiredFeatureId[],
-  whiteTariff: WhiteTariffConfig | null,
-  baseTargetEnergyWh: number,
-  roundTripEfficiencyPercent = 100
-): number {
-  const backupFloor = desiredFeatures.includes('backup') ? baseTargetEnergyWh : 0;
-  if (!desiredFeatures.includes('white_tariff') || !whiteTariff) return backupFloor;
-  const efficiency = Math.max(0.01, Math.min(1, roundTripEfficiencyPercent / 100));
-  return backupFloor + (whiteTariff.pontaEnergyWh + whiteTariff.intermediateEnergyWh) / efficiency;
 }
 
 /** Mirrors lib/types.ts WhiteTariffConfig. */

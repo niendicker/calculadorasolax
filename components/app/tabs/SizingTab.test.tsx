@@ -516,11 +516,12 @@ describe('SizingTab: summary panel', () => {
     });
     // Power floor is a plain max(), applied to both Nominal and Pico the same
     // way, so both cards land on the same 6.00 value; energy uses just
-    // pontaEnergyWh + intermediateEnergyWh (8000 Wh = 8.00 kWh/dia) since
+    // pontaEnergyWh + intermediateEnergyWh, adjusted by the same 90%
+    // efficiency used in the Tarifa Branca panel (8.89 kWh/dia) since
     // Backup isn't selected, not added on top of the loads.
     const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
     expect(within(resumo).getAllByText('6.00')).toHaveLength(2);
-    expect(within(resumo).getByText('8.00')).toBeInTheDocument();
+    expect(within(resumo).getByText('8.89')).toBeInTheDocument();
     expect(within(resumo).queryByText('3.00')).not.toBeInTheDocument();
   });
 
@@ -545,8 +546,9 @@ describe('SizingTab: summary panel', () => {
     // Power floor (500W) is below the loads (1000W), so the loads value wins.
     const resumo = screen.getByRole('group', { name: 'Resumo do sistema' });
     expect(within(resumo).getByText('1.00')).toBeInTheDocument();
-    // Energy: pontaEnergyWh + intermediateEnergyWh + base (8000 + 0 + 3000 = 11000 Wh = 11.00 kWh/dia).
-    expect(within(resumo).getByText('11.00')).toBeInTheDocument();
+    // Energy: (pontaEnergyWh + intermediateEnergyWh) / 90% + base
+    // (8000 / 0.9 + 3000 = 11.89 kWh/dia).
+    expect(within(resumo).getByText('11.89')).toBeInTheDocument();
   });
 
   it('shows solution Nominal/Pico/Energia on the Solução tab, capped by the weaker of battery vs inverter', () => {
