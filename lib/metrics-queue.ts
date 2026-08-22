@@ -77,7 +77,8 @@ function readQueue(): PendingSimulation[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (error) {
+    console.warn('[metrics] unable to read pending simulation queue', error);
     return [];
   }
 }
@@ -86,9 +87,10 @@ function writeQueue(queue: PendingSimulation[]): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
-  } catch {
+  } catch (error) {
     // Storage full or unavailable (private browsing, quota, etc.) — the
     // metric is dropped, but this must never throw into the calculation flow.
+    console.warn('[metrics] unable to persist pending simulation queue', error);
   }
 }
 
@@ -126,8 +128,9 @@ async function runFlush(): Promise<{ sent: number; remaining: number }> {
         body: JSON.stringify(entry.payload),
       });
       if (!response.ok) throw new Error('metric request failed');
-    } catch {
+    } catch (error) {
       stillPending.push(entry);
+      console.warn('[metrics] pending simulation retry failed', { id: entry.id, error });
       continue;
     }
     sent += 1;
