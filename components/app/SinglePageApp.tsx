@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Boxes,
+  BookOpen,
   ClipboardList,
   FolderOpen,
   Loader2,
@@ -44,6 +45,8 @@ import { DemoBanner } from './demo/DemoBanner';
 import { DemoPickerDialog } from './demo/DemoPickerDialog';
 import { useDemoController } from './demo/useDemoController';
 import { ProjectTab } from './tabs/ProjectTab';
+import { GuidePage } from '../guide/GuidePage';
+import { getGuideContent } from '@/content/guide';
 
 /** Centered spinner shown while a tab's own chunk is still downloading —
  * only the initial tab (Projeto) is a static import, so every other tab
@@ -163,6 +166,8 @@ export function SinglePageApp() {
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
+  const [guideOpen, setGuideOpen] = useState(false);
+  const guideContent = useMemo(() => getGuideContent(locale), [locale]);
 
   const {
     mobileMenuOpen,
@@ -467,7 +472,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'project' ? 'page' : undefined}
-              onClick={() => changeTab('project')}
+              onClick={() => { setGuideOpen(false); changeTab('project'); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'project' &&
@@ -480,7 +485,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'catalog' ? 'page' : undefined}
-              onClick={() => changeTab('catalog')}
+              onClick={() => { setGuideOpen(false); changeTab('catalog'); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'catalog' &&
@@ -493,7 +498,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'myStock' ? 'page' : undefined}
-              onClick={() => changeTab('myStock')}
+              onClick={() => { setGuideOpen(false); changeTab('myStock'); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'myStock' &&
@@ -506,7 +511,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'purchases' ? 'page' : undefined}
-              onClick={openPurchasesTab}
+              onClick={() => { setGuideOpen(false); openPurchasesTab(); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'purchases' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
@@ -518,7 +523,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'clients' ? 'page' : undefined}
-              onClick={openClientsManager}
+              onClick={() => { setGuideOpen(false); openClientsManager(); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'clients' &&
@@ -531,7 +536,7 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={activeTab === 'profile' ? 'page' : undefined}
-              onClick={openProfile}
+              onClick={() => { setGuideOpen(false); openProfile(); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                 activeTab === 'profile' && 'border border-primary/20 bg-primary/10 font-medium text-foreground'
@@ -539,6 +544,14 @@ export function SinglePageApp() {
             >
               <UserRound className="h-4 w-4" />
               Perfil
+            </button>
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <BookOpen className="h-4 w-4" />
+              Guia básico
             </button>
             {profile?.role === 'admin' && (
               <Link
@@ -638,7 +651,9 @@ export function SinglePageApp() {
                       onClose={() => setDemoPickerOpen(false)}
                     />
                   )}
-                  {activeTab === 'project' ? (
+                  {guideOpen ? (
+                    <GuidePage locale={locale} content={guideContent} embedded onClose={() => setGuideOpen(false)} />
+                  ) : activeTab === 'project' ? (
             <ProjectTab
               profile={profile}
               batteryCatalog={batteryCatalog}
@@ -963,7 +978,7 @@ export function SinglePageApp() {
               <button
                 type="button"
                 aria-current={activeTab === 'purchases' ? 'page' : undefined}
-                onClick={openMobilePurchasesTab}
+              onClick={() => { setGuideOpen(false); openMobilePurchasesTab(); }}
                 className={cn(
                   'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                   activeTab === 'purchases' && 'bg-primary/10 font-medium text-foreground'
@@ -975,7 +990,7 @@ export function SinglePageApp() {
               <button
                 type="button"
                 aria-current={activeTab === 'clients' ? 'page' : undefined}
-                onClick={openMobileClientsManager}
+                onClick={() => { setGuideOpen(false); openMobileClientsManager(); }}
                 className={cn(
                   'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                   activeTab === 'clients' && 'bg-primary/10 font-medium text-foreground'
@@ -987,7 +1002,7 @@ export function SinglePageApp() {
               <button
                 type="button"
                 aria-current={activeTab === 'profile' ? 'page' : undefined}
-                onClick={openMobileProfile}
+                onClick={() => { setGuideOpen(false); openMobileProfile(); }}
                 className={cn(
                   'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
                   activeTab === 'profile' && 'bg-primary/10 font-medium text-foreground'
@@ -995,6 +1010,17 @@ export function SinglePageApp() {
               >
                 <UserRound className="h-4 w-4" />
                 Perfil
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setGuideOpen(true);
+                }}
+                className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <BookOpen className="h-4 w-4" />
+                Guia básico
               </button>
               {profile?.role === 'admin' && (
                 <Link
