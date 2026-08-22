@@ -49,9 +49,8 @@ restante do `SinglePageApp` é composição visual do shell e das abas; as regra
 de negócio e integrações críticas estão em hooks e módulos próprios.
 
 Permanecem como melhorias futuras: execução contínua do pgTAP no ambiente de
-produção, testes de integração ponta a ponta, pinning do endereço no socket
-para eliminar a janela residual de DNS rebinding, medição de bundle e redução
-do catálogo carregado no primeiro acesso.
+produção, testes de integração ponta a ponta, medição de bundle e redução do
+catálogo carregado no primeiro acesso.
 
 ## Resumo executivo
 
@@ -157,17 +156,14 @@ DNS rebinding. O sync também depende de `content-length` para limitar a
 resposta; respostas chunked podem escapar dessa proteção.
 
 **Status:** cliente HTTP, timeout, limites de bytes, proteção contra IPv4
-mapeado privado e validação dos endereços retornados pelo DNS foram
-centralizados em `d35e8c75`, `bdab57f1` e na camada
-`lib/procurement/network-safety.ts`. A chamada falha fechada quando o hostname
-não pode ser resolvido ou algum endereço resolvido pertence a uma rede privada.
-Ainda permanece uma limitação residual: o runtime `fetch` pode resolver o DNS
-novamente depois da validação, portanto o pinning do endereço no socket ainda
-não está implementado.
+mapeado privado, validação dos endereços retornados pelo DNS e pinning do IP
+resolvido no socket foram centralizados em `d35e8c75`, `bdab57f1`,
+`lib/procurement/network-safety.ts` e no cliente HTTPS de
+`lib/procurement/http-client.ts`. A conexão usa o IP público validado, mas
+mantém o hostname original no TLS e no cabeçalho `Host`.
 
-**Recomendação remanescente:** centralizar o cliente HTTP externo, validar todos os ranges
-privados, validar o IP resolvido e impor limite real de bytes lidos. As respostas
-do parceiro também devem possuir limite de tamanho.
+As respostas do parceiro também possuem limite real de bytes lidos, inclusive
+quando usam transferência em chunks.
 
 ### 6. Regra de cálculo duplicada entre frontend e Edge Function — resolvido
 
@@ -332,9 +328,9 @@ Proteções existentes:
 Riscos remanescentes:
 
 - drift de migrations;
-- DNS rebinding ainda não validado após resolução;
-- pinning do endereço no socket ainda não está implementado para eliminar
-  completamente a janela residual de DNS rebinding.
+- redirects automáticos não são seguidos pelo transporte pinado; caso um
+  fornecedor dependa de redirect, o destino deve ser configurado explicitamente
+  e passar pela mesma validação.
 
 ### Banco de dados
 
@@ -442,8 +438,6 @@ As lacunas principais são:
    modo demo já estão isolados em `session-slice.ts`.
 2. Centralizar envio de emails.
 3. Validar JSONB em runtime nos limites de domínio restantes.
-4. Implementar pinning do IP resolvido no socket, caso o runtime de produção
-   permita substituir o transporte padrão do `fetch`.
 
 ## O que não vale a pena refatorar agora
 
@@ -462,7 +456,6 @@ As lacunas principais são:
 ### Fase 1 — Segurança e bugs críticos
 
 1. Manter o teste de drift do schema e pgTAP configurados no CI.
-2. Validar o pinning do endereço no socket para eliminar a janela residual de DNS rebinding.
 
 ### Fase 2 — Quick wins e duplicações
 
