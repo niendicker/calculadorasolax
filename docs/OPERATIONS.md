@@ -25,6 +25,12 @@ No CI, o job `Database migrations and RLS tests` é executado quando o secret
 para detectar migrations pendentes e `supabase test db` para validar os testes
 pgTAP de ownership/RLS, sem aplicar migrations automaticamente.
 
+Para Postgres não exposto publicamente, use o job `Private database migrations
+and RLS tests` com os secrets `SUPABASE_SSH_PRIVATE_KEY`,
+`SUPABASE_SSH_HOST`, `SUPABASE_TUNNEL_REMOTE` (por exemplo,
+`10.0.1.17:5432`) e `SUPABASE_DB_URL_PRIVATE` apontando para o banco através
+do túnel (`localhost:5432`). O túnel é encerrado mesmo quando os testes falham.
+
 Se o ambiente de teste não tiver uma base local configurada, valide as migrations no ambiente de staging antes do deploy.
 
 ## Deploy da aplicação

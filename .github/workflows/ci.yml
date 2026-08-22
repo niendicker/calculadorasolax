@@ -53,3 +53,55 @@ jobs:
         run: supabase test db --db-url "$SUPABASE_DB_URL"
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+  database-private:
+    name: Private database migrations and RLS tests
+    # Use this job when Postgres is reachable only through the application
+    # host's private network. It is intentionally separate from the public URL
+    # job so either deployment model can be enabled independently.
+    if: ${{ secrets.SUPABASE_SSH_PRIVATE_KEY != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SUPABASE_SSH_PRIVATE_KEY }}
+
+      - name: Open private database tunnel
+        env:
+          SUPABASE_SSH_HOST: ${{ secrets.SUPABASE_SSH_HOST }}
+          SUPABASE_TUNNEL_REMOTE: ${{ secrets.SUPABASE_TUNNEL_REMOTE }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_SSH_HOST"
+          test -n "$SUPABASE_TUNNEL_REMOTE"
+          ssh -o StrictHostKeyChecking=accept-new -N -L 5432:"$SUPABASE_TUNNEL_REMOTE":5432 "$SUPABASE_SSH_HOST" &
+          echo $! > "$RUNNER_TEMP/supabase-tunnel.pid"
+          for attempt in $(seq 1 20); do
+            (echo >/dev/tcp/127.0.0.1/5432) >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo 'O túnel SSH não ficou disponível.' >&2
+          exit 1
+
+      - name: Check migrations and run pgTAP
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL_PRIVATE }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL"
+          supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+          supabase test db --db-url "$SUPABASE_DB_URL"
+
+      - name: Close private database tunnel
+        if: ${{ always() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/supabase-tunnel.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/supabase-tunnel.pid")" || true
+          fi
