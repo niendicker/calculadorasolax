@@ -301,9 +301,10 @@ export function SinglePageApp() {
   // project). See useAutosave for why enabling it re-baselines instead of
   // saving immediately (a project just finishing its load looks like a
   // "change" too, but isn't an edit).
+  const autosaveData = useMemo(() => ({ projectInfo, residentialOptions, solution }), [projectInfo, residentialOptions, solution]);
   const { status: autosaveStatus, lastSavedAt: autosaveLastSavedAt } = useAutosave({
     enabled: !isDemo && Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
-    data: { projectInfo, residentialOptions, solution },
+    data: autosaveData,
     saveCurrentProject,
   });
 

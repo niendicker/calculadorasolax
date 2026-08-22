@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
 import { listProductMedia } from '@/lib/data/product-media-repository';
@@ -59,7 +59,7 @@ export function useCalculation({
   // "needs calculating", even with zero further edits — otherwise a failed
   // attempt would permanently lock the button with no way to retry.
   const [lastCalculatedOptions, setLastCalculatedOptions] = useState<string | null>(null);
-  const serializedOptions = JSON.stringify(residentialOptions);
+  const serializedOptions = useMemo(() => JSON.stringify(residentialOptions), [residentialOptions]);
   const hasUncalculatedChanges = lastCalculatedOptions !== serializedOptions || Boolean(error) || Boolean(secondaryError);
 
   useEffect(() => {

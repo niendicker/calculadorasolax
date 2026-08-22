@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { isAddressEmpty } from '@/lib/address';
 import type { createClient } from '@/lib/supabase/client';
@@ -35,7 +35,12 @@ export function useProfileActions({
   // ProfileTab has no autosave and the shell has several distinct nav paths
   // (sidebar, bottom nav, "Mais" sheet) that can all leave this tab.
   const [profileSnapshot, setProfileSnapshot] = useState<InlineProfile | null>(null);
-  const profileDirty = Boolean(profile && profileSnapshot && JSON.stringify(profile) !== JSON.stringify(profileSnapshot));
+  const serializedProfile = useMemo(() => (profile ? JSON.stringify(profile) : null), [profile]);
+  const serializedProfileSnapshot = useMemo(
+    () => (profileSnapshot ? JSON.stringify(profileSnapshot) : null),
+    [profileSnapshot]
+  );
+  const profileDirty = Boolean(profile && profileSnapshot && serializedProfile !== serializedProfileSnapshot);
 
   function openProfile() {
     setProfileMessage(null);

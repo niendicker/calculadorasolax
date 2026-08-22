@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SavedProject } from '@/lib/types';
 
 // Long on purpose: this fires with no explicit "Salvar" button anymore, so it
@@ -25,7 +25,7 @@ export function useAutosave({
 }) {
   const [status, setStatus] = useState<AutosaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const serialized = JSON.stringify(data);
+  const serialized = useMemo(() => JSON.stringify(data), [data]);
   const baselineRef = useRef(serialized);
   const wasEnabledRef = useRef(enabled);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
