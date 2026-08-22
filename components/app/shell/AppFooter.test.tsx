@@ -9,25 +9,20 @@ afterEach(() => {
 });
 
 describe('AppFooter', () => {
+  const renderFooter = () => render(<AppFooter version="0.1.0" onOpenAbout={vi.fn()} />);
+
   it('renders the current year and description', () => {
-    render(<AppFooter />);
+    renderFooter();
     const footer = screen.getByRole('contentinfo');
     expect(footer).toHaveTextContent(String(new Date().getFullYear()));
     expect(footer).toHaveTextContent('Dimensionamento de sistemas híbridos solar + bateria');
+    expect(footer).toHaveTextContent('v0.1.0');
   });
 
-  it('shows nothing extra when NEXT_PUBLIC_COMMIT_SHA is unset', () => {
-    vi.stubEnv('NEXT_PUBLIC_COMMIT_SHA', '');
-    render(<AppFooter />);
-    expect(screen.getByRole('contentinfo').textContent?.trim()).toBe(
-      `${new Date().getFullYear()} · Dimensionamento de sistemas híbridos solar + bateria`
-    );
-  });
-
-  it('shows the short commit hash, with the full hash available in a tooltip', () => {
-    vi.stubEnv('NEXT_PUBLIC_COMMIT_SHA', 'abc1234def5678');
-    render(<AppFooter />);
-    expect(screen.getByRole('contentinfo')).toHaveTextContent('abc1234');
-    expect(screen.getByText('abc1234def5678')).toBeInTheDocument();
+  it('opens the about area when requested', () => {
+    const onOpenAbout = vi.fn();
+    render(<AppFooter version="2.3.0" onOpenAbout={onOpenAbout} />);
+    screen.getByRole('button', { name: 'Sobre e contribuir' }).click();
+    expect(onOpenAbout).toHaveBeenCalledOnce();
   });
 });

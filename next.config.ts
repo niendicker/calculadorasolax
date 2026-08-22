@@ -1,18 +1,9 @@
-import { execSync } from 'node:child_process';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import packageJson from './package.json';
 import { getPublicSupabaseUrl } from './lib/supabase/config';
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
-
-function resolveCommitSha() {
-  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA;
-  try {
-    return execSync('git rev-parse HEAD').toString().trim();
-  } catch {
-    return '';
-  }
-}
 
 // Derived from NEXT_PUBLIC_SUPABASE_URL instead of a hardcoded hostname, so
 // migrating the Supabase project (self-hosted or not) only requires updating
@@ -23,7 +14,8 @@ const supabaseUrl = new URL(getPublicSupabaseUrl());
 
 const nextConfig: NextConfig = {
   env: {
-    NEXT_PUBLIC_COMMIT_SHA: resolveCommitSha(),
+    NEXT_PUBLIC_APP_VERSION: packageJson.version,
+    NEXT_PUBLIC_FEEDBACK_EMAIL: process.env.NEXT_PUBLIC_FEEDBACK_EMAIL ?? '',
   },
   images: {
     // Product photos, documents thumbnails and company logos are all served

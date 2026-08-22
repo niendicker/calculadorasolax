@@ -11,6 +11,7 @@ import {
   BookOpen,
   ClipboardList,
   FolderOpen,
+  Info,
   Loader2,
   LogOut,
   Menu,
@@ -35,6 +36,7 @@ import { useProjectPdfDownload } from './hooks/useProjectPdfDownload';
 import { useLivePdfExport } from './hooks/useLivePdfExport';
 import { useQuoteSharing } from './hooks/useQuoteSharing';
 import { AppFooter } from './shell/AppFooter';
+import { AboutDialog } from './shell/AboutDialog';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
 import { useAuthenticatedNavigation } from './shell/useAuthenticatedNavigation';
@@ -167,6 +169,9 @@ export function SinglePageApp() {
     'project'
   );
   const [guideOpen, setGuideOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0';
+  const feedbackEmail = process.env.NEXT_PUBLIC_FEEDBACK_EMAIL ?? '';
   const guideContent = useMemo(() => getGuideContent(locale), [locale]);
 
   const {
@@ -569,6 +574,14 @@ export function SinglePageApp() {
           </nav>
 
           <div className="mt-auto space-y-2">
+            <button
+              type="button"
+              onClick={() => setAboutOpen(true)}
+              className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Info className="h-4 w-4" />
+              Sobre e contribuir
+            </button>
             <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
               {userEmail ? (
                 <>
@@ -816,7 +829,7 @@ export function SinglePageApp() {
             </TitleBarPortalProvider>
           </section>
 
-          <AppFooter />
+          <AppFooter version={appVersion} onOpenAbout={() => setAboutOpen(true)} />
         </div>
 
         {/* Below xl this becomes a slide-in drawer (same pattern as the nav
@@ -1032,6 +1045,17 @@ export function SinglePageApp() {
                 <BookOpen className="h-4 w-4" />
                 Guia básico
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setAboutOpen(true);
+                }}
+                className="flex h-11 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Info className="h-4 w-4" />
+                Sobre e contribuir
+              </button>
               {profile?.role === 'admin' && (
                 <Link
                   href={`/${locale}/admin`}
@@ -1071,6 +1095,13 @@ export function SinglePageApp() {
           </aside>
         </div>
       )}
+
+      <AboutDialog
+        open={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+        version={appVersion}
+        feedbackEmail={feedbackEmail}
+      />
     </main>
   );
 }

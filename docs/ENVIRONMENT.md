@@ -9,7 +9,7 @@
 | `SUPABASE_INTERNAL_URL` | servidor | não | URL interna para reduzir dependência de proxy externo |
 | `SUPABASE_SERVICE_ROLE_KEY` | somente servidor | conforme rota | Operações administrativas que não podem usar RLS |
 | `DEMO_SESSION_SECRET` | somente servidor | sim | Segredo usado para assinar a sessão HttpOnly do modo demonstrativo |
-| `NEXT_PUBLIC_COMMIT_SHA` | cliente | não | Identificação da versão exibida no rodapé |
+| `NEXT_PUBLIC_FEEDBACK_EMAIL` | cliente | não | Destinatário dos links de bug e sugestões na área Contribuir |
 
 ## Email
 
