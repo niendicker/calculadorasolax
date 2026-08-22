@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { buildSupplierUrl } from '@/lib/procurement/generic-json';
 import { fetchExternalJson, SUPPLIER_ORDER_RESPONSE_LIMIT } from '@/lib/procurement/http-client';
 import { findOrderForPartner, findPartnerSupplier, findPurchaseOrderProfile, findSupplierIntegration, findSupplierProductMappings, submitOrderToPartner } from '@/lib/data/purchase-order-repository';
+import { getRequestId, logExternalFailure, requestIdHeaders } from '@/lib/observability/request-context';
 
 interface DeliveryInput {
   name?: string;
@@ -23,6 +24,7 @@ interface DeliveryInput {
  *  that contract rather than trying to generalize it. */
 export async function POST(request: Request, { params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
+  const requestId = getRequestId(request);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -105,6 +107,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     return NextResponse.json({ saleNumber, status: 'submitted' });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'Falha inesperada ao enviar o pedido ao fornecedor.';
-    return NextResponse.json({ error: message }, { status: 502 });
+    logExternalFailure('supplier_partner_order_submit', requestId, cause);
+    return NextResponse.json({ error: message }, { status: 502, headers: requestIdHeaders(requestId) });
   }
 }

@@ -4,6 +4,7 @@ import { buildSupplierUrl, normalizeSupplierPayload } from '@/lib/procurement/ge
 import { fetchExternalJson, SUPPLIER_CATALOG_RESPONSE_LIMIT } from '@/lib/procurement/http-client';
 import { failSupplierSync, findSupplierIntegrationForSync, finishSupplierSync, listActiveSupplierMappings, saveExternalProductIds, saveSupplierOffers, startSupplierSync } from '@/lib/data/supplier-sync-repository';
 import { getProfileRole } from '@/lib/data/admin-repository';
+import { getRequestId, logExternalFailure, requestIdHeaders } from '@/lib/observability/request-context';
 
 /** Every table this route writes to (supplier_integrations, supplier_offers,
  *  supplier_product_mappings, supplier_sync_runs) has an "admins manage ...
@@ -13,8 +14,9 @@ import { getProfileRole } from '@/lib/data/admin-repository';
  *  client instead means Postgres independently re-checks is_admin() on every
  *  write, instead of the admin gate below being the only thing standing
  *  between a non-admin caller and these tables. */
-export async function POST(_request: Request, { params }: { params: Promise<{ supplierId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ supplierId: string }> }) {
   const { supplierId } = await params;
+  const requestId = getRequestId(request);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -70,7 +72,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ su
     });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'Falha inesperada na sincronização.';
+    logExternalFailure('supplier_catalog_sync', requestId, cause);
     await failSupplierSync(supabase, supplierId, run?.id, message);
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: message }, { status: 502, headers: requestIdHeaders(requestId) });
   }
 }
