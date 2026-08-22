@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { sendResendEmail } from '@/lib/email/resend';
 import {
   findLastSupplierQuoteRequest,
   findProjectForQuote,
@@ -98,19 +99,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
   for (const supplier of suppliersWithEmail) {
     try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
+      await sendResendEmail({
           from: process.env.RESEND_FROM_EMAIL,
           to: [supplier.email],
           cc: [userEmail],
           subject: `Solicitação de cotação — ${requesterName} — ${project.name}`,
           text: message,
-        }),
-        signal: AbortSignal.timeout(20_000),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       sentTo.push(supplier.name);
     } catch {
       failedTo.push(supplier.name);

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { renderPurchaseOrderPdf, type PurchaseOrderPdfDeliveryAddress, type PurchaseOrderPdfItem } from '@/lib/pdf/purchase-order-pdf';
 import { findLastSupplierEmailEvent, findOrderForEmail, findPurchaseOrderProfile, findSupplierContact, recordSupplierEmailEvent } from '@/lib/data/purchase-order-repository';
+import { sendResendEmail } from '@/lib/email/resend';
 
 interface NotifyInput {
   message?: string;
@@ -90,21 +91,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   }
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
+    await sendResendEmail({
         from: process.env.RESEND_FROM_EMAIL,
         to: [supplier.email],
         cc: [userEmail],
         subject: `Solicitação de cotação — ${customerName}`,
         text: message,
         attachments: [{ filename: `proposta-${orderId.slice(0, 8)}.pdf`, content: pdfBase64 }],
-      }),
-      signal: AbortSignal.timeout(20_000),
     });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.message || `Falha ao enviar email (HTTP ${response.status}).`);
 
     await recordSupplierEmailEvent(service, {
       order_id: orderId,

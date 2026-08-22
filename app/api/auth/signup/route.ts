@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { createServiceClient } from '@/lib/supabase/service';
+import { sendResendEmail } from '@/lib/email/resend';
 import { CURRENT_LEGAL_DOCUMENT_VERSION } from '@/lib/legal-documents';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
@@ -108,10 +109,7 @@ export async function POST(request: Request) {
   const activationUrl = `${origin}/${locale}/auth/callback?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}&type=signup&next=${encodeURIComponent(redirectPath)}`;
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
+    await sendResendEmail({
         from: process.env.RESEND_FROM_EMAIL,
         to: [email],
         // No `subject` override — the template already has its own.
@@ -119,11 +117,7 @@ export async function POST(request: Request) {
           id: process.env.RESEND_CONFIRM_TEMPLATE_ID,
           variables: { name: name || '', activation_url: activationUrl },
         },
-      }),
-      signal: AbortSignal.timeout(20_000),
     });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.message || `Falha ao enviar email (HTTP ${response.status}).`);
   } catch (cause) {
     // The user was already created by generateLink above — per spec, never
     // delete it here. The resend-confirmation flow is handled separately;

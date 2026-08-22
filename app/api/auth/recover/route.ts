@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPublicOrigin } from '@/lib/auth/request-origin';
 import { createServiceClient } from '@/lib/supabase/service';
+import { sendResendEmail } from '@/lib/email/resend';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
 interface RecoverInput {
@@ -76,21 +77,14 @@ export async function POST(request: Request) {
   const name = linkData.user?.user_metadata?.full_name ?? '';
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
+    await sendResendEmail({
         from: process.env.RESEND_FROM_EMAIL,
         to: [email],
         template: {
           id: process.env.RESEND_RECOVERY_TEMPLATE_ID,
           variables: { name, reset_password_url: resetPasswordUrl },
         },
-      }),
-      signal: AbortSignal.timeout(20_000),
     });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.message || `Falha ao enviar email (HTTP ${response.status}).`);
   } catch (cause) {
     console.error('[api/auth/recover] Resend send failed', cause);
     return NextResponse.json(

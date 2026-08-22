@@ -42,8 +42,8 @@ restante do `SinglePageApp` é composição visual do shell e das abas; as regra
 de negócio e integrações críticas estão em hooks e módulos próprios.
 
 Permanecem como melhorias futuras: execução do pgTAP no CI/produção, testes de
-integração ponta a ponta, centralização do envio de emails, validação completa
-contra DNS rebinding, medição de bundle e redução do catálogo carregado no
+integração ponta a ponta, pinning do endereço no socket para eliminar a janela
+residual de DNS rebinding, medição de bundle e redução do catálogo carregado no
 primeiro acesso.
 
 ## Resumo executivo
@@ -260,7 +260,7 @@ persistidos do usuário.
 - Cálculos duplicados entre frontend e Edge Function.
 - Mappers de banco distribuídos em vários pontos.
 - Consultas de perfil e projeto repetidas em repositories, páginas e hooks.
-- Envio de email ao Resend repetido em vários endpoints.
+- Envio de email ao Resend centralizado em `lib/email/resend.ts`.
 - Diálogos e confirmações implementados em componentes diferentes.
 - Cache e consultas da ANEEL distribuídos entre serviço e rotas.
 
@@ -425,8 +425,7 @@ As lacunas principais são:
 
 1. Remover ou documentar o `catch {}` silencioso.
 2. Adicionar whitelist de locale e redirecionamentos locais.
-3. Centralizar envio de email.
-4. Adicionar testes para endpoints ainda sem cobertura.
+3. Adicionar testes para endpoints ainda sem cobertura.
 
 ## Refatorações estruturais
 
