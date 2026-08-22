@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -450,12 +451,16 @@ export function SinglePageApp() {
       >
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sun className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-semibold leading-tight">SolaX</p>
-              <p className="text-xs text-muted-foreground">Calculator</p>
+            <Image
+              src="/images/login/solax-logo.png"
+              alt="SolaX"
+              width={116}
+              height={40}
+              priority
+              className="h-8 w-auto object-contain"
+            />
+            <div className="border-l pl-3">
+              <p className="font-semibold leading-tight">Calculator</p>
             </div>
           </div>
 
