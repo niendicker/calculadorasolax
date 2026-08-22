@@ -36,15 +36,20 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
 - `3d44e415`: testes pgTAP para policies de ownership/RLS.
 - `d35e8c75` e `9916be8d`: cliente HTTP externo compartilhado e contexto de
   request ID para integrações de fornecedores.
+- `d5a0bb79`, `12f76ee3`, `c34e5c6c`, `815ce13d`, `aed627f2`, `c2c9b271`,
+  `98d99e76` e `0afd1300`: validação de DNS/locale, envio de email
+  centralizado, validação para Postgres privado, validação runtime de JSONB,
+  persistência via repositories e observabilidade de falhas de histórico e
+  métricas.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
 de negócio e integrações críticas estão em hooks e módulos próprios.
 
-Permanecem como melhorias futuras: execução do pgTAP no ambiente de produção,
-testes de integração ponta a ponta, pinning do endereço no socket para eliminar
-a janela residual de DNS rebinding, medição de bundle e redução do catálogo
-carregado no primeiro acesso.
+Permanecem como melhorias futuras: execução contínua do pgTAP no ambiente de
+produção, testes de integração ponta a ponta, pinning do endereço no socket
+para eliminar a janela residual de DNS rebinding, medição de bundle e redução
+do catálogo carregado no primeiro acesso.
 
 ## Resumo executivo
 
@@ -303,7 +308,9 @@ Problemas:
 
 - `lib/supabase/server.ts:23-29` possui `catch {}` silencioso ao definir cookies
   (aceitável para streaming, mas ainda sem observabilidade).
-- `lib/data/projects-repository.ts:66` ignora erro de inserção de evento.
+- falhas de inserção de evento e da fila local de métricas agora são
+  propagadas ou registradas com contexto; as operações continuam best effort
+  quando não devem bloquear o fluxo principal.
 - Logs são majoritariamente `console.error`, sem request ID ou contexto
   estruturado.
 - Nem todos os endpoints possuem testes correspondentes.
@@ -324,7 +331,8 @@ Riscos remanescentes:
 
 - drift de migrations;
 - DNS rebinding ainda não validado após resolução;
-- `locale` e redirecionamentos de autenticação sem whitelist explícita.
+- pinning do endereço no socket ainda não está implementado para eliminar
+  completamente a janela residual de DNS rebinding.
 
 ### Banco de dados
 
@@ -405,9 +413,10 @@ Devem ser inventariados e, quando compartilhados, centralizados:
 
 ### Observabilidade
 
-Há logs de autenticação, eventos de projeto e identificação de commit. Ainda
-faltam request IDs, logs estruturados, correlação de chamadas externas e
-visibilidade consistente de falhas de persistência.
+Há logs de autenticação, eventos de projeto, identificação de commit e falhas
+da fila local de métricas. Ainda faltam request IDs em todos os endpoints,
+logs estruturados de forma consistente e correlação completa de chamadas
+externas.
 
 ### Testabilidade
 
@@ -423,15 +432,15 @@ As lacunas principais são:
 
 ## Quick wins
 
-1. Remover ou documentar o `catch {}` silencioso.
-2. Adicionar testes para endpoints ainda sem cobertura.
+1. Adicionar testes para endpoints ainda sem cobertura.
 
 ## Refatorações estruturais
 
 1. Separar estado de sessão, draft, cache e persistência no Zustand.
 2. Centralizar envio de emails.
 3. Validar JSONB em runtime nos limites de domínio restantes.
-5. Validar IP resolvido para cenários de DNS rebinding.
+4. Implementar pinning do IP resolvido no socket, caso o runtime de produção
+   permita substituir o transporte padrão do `fetch`.
 
 ## O que não vale a pena refatorar agora
 
