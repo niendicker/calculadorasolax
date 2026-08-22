@@ -41,12 +41,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   if (isQuoteShareExpired(share.created_at)) return NextResponse.json({ error: 'expired' }, { status: 410 });
   if (share.status !== 'sent') return NextResponse.json({ error: 'already_responded' }, { status: 409 });
 
-  const { error: updateShareError } = await service
+  const { data: updatedShare, error: updateShareError } = await service
     .from('quote_shares')
     .update({ status: decision, responded_at: new Date().toISOString() })
     .eq('id', token)
-    .eq('status', 'sent');
+    .eq('status', 'sent')
+    .select('id')
+    .maybeSingle();
   if (updateShareError) return NextResponse.json({ error: 'update_failed' }, { status: 500 });
+  if (!updatedShare) return NextResponse.json({ error: 'already_responded' }, { status: 409 });
 
   // updated_at is set explicitly (not just left to a DB default) so the
   // seller's project summary — which keys its Histórico refetch off this

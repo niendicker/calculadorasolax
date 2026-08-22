@@ -31,11 +31,13 @@ function singleResult(data: unknown, error: unknown = null) {
 function setupServiceFrom({
   share = { id: 'token-1', project_id: 'project-1', status: 'sent', created_at: '2999-01-01T00:00:00.000Z' } as unknown,
   shareError = null as unknown,
-  updateShareResult = { data: null, error: null } as unknown,
+  updateShareResult = { data: { id: 'token-1' }, error: null } as unknown,
 }: { share?: unknown; shareError?: unknown; updateShareResult?: unknown } = {}) {
   const updateShare = vi.fn(() => {
     const query = { eq: vi.fn() };
-    query.eq.mockImplementationOnce(() => query).mockImplementationOnce(() => Promise.resolve(updateShareResult));
+    query.eq.mockImplementationOnce(() => query).mockImplementationOnce(() => ({
+      select: () => ({ maybeSingle: () => Promise.resolve(updateShareResult) }),
+    }));
     return query;
   });
   const updateProject = vi.fn(() => ({ eq: () => Promise.resolve({ data: null, error: null }) }));
@@ -99,6 +101,18 @@ describe('POST /api/quote-shares/[token]/respond', () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: 'already_responded' });
+  });
+
+  it('returns 409 when a concurrent response already changed the share', async () => {
+    const { updateProject, insertEvent } = setupServiceFrom({ updateShareResult: { data: null, error: null } });
+    const POST = await importRoute();
+
+    const response = await POST(makeRequest({ decision: 'accepted' }), routeParams);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'already_responded' });
+    expect(updateProject).not.toHaveBeenCalled();
+    expect(insertEvent).not.toHaveBeenCalled();
   });
 
   it('accepts: updates quote_shares.status/responded_at and projects.status/updated_at, returns 200', async () => {
