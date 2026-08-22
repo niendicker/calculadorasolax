@@ -3,6 +3,7 @@ import { emptyAddress } from '@/lib/address';
 import {
   clientFromRow,
   projectFromRow,
+  residentialOptionsFromJson,
   userLoadFromRow,
   userLoadPresetFromRow,
   userServiceFromRow,
@@ -157,7 +158,7 @@ describe('projectFromRow', () => {
       notes: 'nota',
       updatedAt: '2026-01-01',
       status: 'sent',
-      residentialOptions: { topology: 'HighVoltage' },
+      residentialOptions: expect.objectContaining({ topology: 'HighVoltage' }),
       solution: { batteryModel: 'X' },
       services: [{ serviceId: 's1', name: 'Serviço', qty: 1 }],
     });
@@ -180,6 +181,20 @@ describe('projectFromRow', () => {
 
   it('defaults services to [] when the column is not an array', () => {
     expect(projectFromRow({ id: 'pr1', residential_options: {}, services: 'not-an-array' }).services).toEqual([]);
+  });
+
+  it('normalizes malformed or legacy residential JSONB before it reaches the store', () => {
+    const options = residentialOptionsFromJson({
+      topology: 'HighVoltage',
+      desiredFeatures: ['backup', 'legacy_feature'],
+      loads: [{ powerW: 1000, qty: 2, ipInRatio: 3 }, { powerW: 'invalid', qty: 1 }, null],
+    });
+
+    expect(options.topology).toBe('HighVoltage');
+    expect(options.desiredFeatures).toEqual(['backup']);
+    expect(options.loads).toEqual([{ powerW: 1000, qty: 2, ipInRatio: 3 }]);
+    expect(options.whiteTariff).toBeNull();
+    expect(options.operationHours).toBe(0);
   });
 });
 

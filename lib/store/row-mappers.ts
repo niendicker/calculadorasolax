@@ -4,6 +4,7 @@
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
 import { addressFromJson } from '@/lib/address';
+import { defaultResidential, sanitizeDesiredFeatures } from './defaults';
 import type {
   Client,
   ProjectEvent,
@@ -19,7 +20,46 @@ import type {
   UserServicePricingUnit,
   UserStockItem,
 } from '@/lib/types';
-import type { LoadPresetLoad } from '@/lib/types';
+import type { LoadPresetLoad, SingleLoad } from '@/lib/types';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function singleLoadFromJson(value: unknown): SingleLoad | null {
+  if (!isRecord(value)) return null;
+  const powerW = finiteNumber(value.powerW, -1);
+  const qty = finiteNumber(value.qty, -1);
+  if (powerW < 0 || qty <= 0) return null;
+  return {
+    ...(value as Omit<SingleLoad, 'powerW' | 'qty'>),
+    powerW,
+    qty,
+    ipInRatio: finiteNumber(value.ipInRatio, 1),
+  };
+}
+
+/** Converts the projects JSONB boundary into a safe domain object. Legacy
+ * rows may omit fields added later; malformed rows must not enter the store as
+ * an unchecked ResidentialOptions cast. */
+export function residentialOptionsFromJson(value: unknown): ResidentialOptions {
+  if (!isRecord(value)) return { ...defaultResidential, loads: [] };
+  const loads = Array.isArray(value.loads)
+    ? value.loads.map(singleLoadFromJson).filter((load): load is SingleLoad => load !== null)
+    : [];
+  return {
+    ...defaultResidential,
+    ...value,
+    loads,
+    desiredFeatures: sanitizeDesiredFeatures(
+      Array.isArray(value.desiredFeatures) ? (value.desiredFeatures as ResidentialOptions['desiredFeatures']) : undefined
+    ),
+  };
+}
 
 export function clientFromRow(row: Record<string, unknown>): Client {
   return {
@@ -74,7 +114,7 @@ export function projectFromRow(row: Record<string, unknown>): SavedProject {
     notes: (row.notes as string | null) ?? '',
     updatedAt: row.updated_at as string,
     status: (row.status as ProjectStatus | undefined) ?? 'draft',
-    residentialOptions: row.residential_options as ResidentialOptions,
+    residentialOptions: residentialOptionsFromJson(row.residential_options),
     solution: (row.solution as Solution | null) ?? null,
     services: Array.isArray(row.services) ? (row.services as ProjectServiceLine[]) : [],
   };
