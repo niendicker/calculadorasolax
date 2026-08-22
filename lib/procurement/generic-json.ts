@@ -64,7 +64,18 @@ export function buildSupplierUrl(baseUrl: string, productsPath: string) {
   );
   const normalizedIpv6 = host.replace(/^0:0:0:0:0:ffff:/, '::ffff:');
   const isPrivateIpv6 = normalizedIpv6 === '::1' || /^(fc|fd)[0-9a-f]{2}:/.test(normalizedIpv6) || /^fe80:/.test(normalizedIpv6);
-  if (host === 'localhost' || host === '0.0.0.0' || isPrivateIpv4 || isPrivateIpv6) {
+  const mappedIpv4 = normalizedIpv6.match(/^::ffff:(?:(\d+)\.(\d+)\.(\d+)\.(\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/);
+  const mappedIpv4Octets = mappedIpv4
+    ? mappedIpv4[1]
+      ? mappedIpv4.slice(1, 5).map(Number)
+      : [parseInt(mappedIpv4[5], 16) >> 8, parseInt(mappedIpv4[5], 16) & 255, parseInt(mappedIpv4[6], 16) >> 8, parseInt(mappedIpv4[6], 16) & 255]
+    : null;
+  const isPrivateMappedIpv4 = mappedIpv4Octets
+    ? mappedIpv4Octets[0] === 10 || mappedIpv4Octets[0] === 127 ||
+      (mappedIpv4Octets[0] === 172 && mappedIpv4Octets[1] >= 16 && mappedIpv4Octets[1] <= 31) ||
+      (mappedIpv4Octets[0] === 192 && mappedIpv4Octets[1] === 168)
+    : false;
+  if (host === 'localhost' || host === '0.0.0.0' || isPrivateIpv4 || isPrivateIpv6 || isPrivateMappedIpv4) {
     throw new Error('O endereço da integração não pode apontar para uma rede privada.');
   }
   return url;

@@ -34,6 +34,7 @@ describe('generic supplier JSON connector', () => {
     expect(() => buildSupplierUrl('https://127.0.0.1', '')).toThrow(/rede privada/);
     expect(() => buildSupplierUrl('https://172.16.0.1', '')).toThrow(/rede privada/);
     expect(() => buildSupplierUrl('https://[::1]', '')).toThrow(/rede privada/);
+    expect(() => buildSupplierUrl('https://[::ffff:c0a8:101]', '')).toThrow(/rede privada/);
     expect(() => buildSupplierUrl('https://user:secret@supplier.example', '')).toThrow(/credenciais/);
   });
 
