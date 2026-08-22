@@ -13,7 +13,6 @@ import {
   FolderOpen,
   Info,
   Loader2,
-  LogOut,
   Menu,
   ShieldUser,
   ShoppingCart,
@@ -37,6 +36,7 @@ import { useLivePdfExport } from './hooks/useLivePdfExport';
 import { useQuoteSharing } from './hooks/useQuoteSharing';
 import { AppFooter } from './shell/AppFooter';
 import { AboutDialog } from './shell/AboutDialog';
+import { SessionCard } from './shell/SessionCard';
 import { useAppShellState } from './shell/useAppShellState';
 import { useTabNavigation } from './shell/useTabNavigation';
 import { useAuthenticatedNavigation } from './shell/useAuthenticatedNavigation';
@@ -582,25 +582,7 @@ export function SinglePageApp() {
               <Info className="h-4 w-4" />
               Sobre e contribuir
             </button>
-            <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-              {userEmail ? (
-                <>
-                  <p className="font-medium text-foreground">Sessão ativa</p>
-                  <p className="mt-1 truncate">{userEmail}</p>
-                </>
-              ) : (
-                <>
-                  <p className="font-medium text-foreground">Acesso restrito</p>
-                  <p className="mt-1">Entre para editar perfil e catálogo.</p>
-                </>
-              )}
-            </div>
-            {userEmail && (
-              <Button variant="outline" className="w-full justify-start" onClick={signOut}>
-                <LogOut className="h-4 w-4" />
-                Sair
-              </Button>
-            )}
+            <SessionCard profile={profile} userEmail={userEmail} onOpenProfile={openProfile} onSignOut={signOut} />
           </div>
         </aside>
 
@@ -1072,25 +1054,15 @@ export function SinglePageApp() {
               className="shrink-0 space-y-2 border-t pt-3 pb-3"
               style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
             >
-              <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-                {userEmail ? (
-                  <>
-                    <p className="font-medium text-foreground">Sessão ativa</p>
-                    <p className="mt-1 truncate">{userEmail}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium text-foreground">Acesso restrito</p>
-                    <p className="mt-1">Entre para editar perfil e catálogo.</p>
-                  </>
-                )}
-              </div>
-              {userEmail && (
-                <Button variant="outline" className="w-full justify-start" onClick={signOut}>
-                  <LogOut className="h-4 w-4" />
-                  Sair
-                </Button>
-              )}
+              <SessionCard
+                profile={profile}
+                userEmail={userEmail}
+                onOpenProfile={() => {
+                  setMobileMenuOpen(false);
+                  openProfile();
+                }}
+                onSignOut={signOut}
+              />
             </div>
           </aside>
         </div>
