@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, CheckCircle2, Lightbulb, List, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Lightbulb, List, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { GuideContent } from '@/content/guide';
 
@@ -17,6 +17,10 @@ export function GuidePage({ content, embedded = false }: GuidePageProps) {
     ...content.steps.map((step, index) => ({
       label: `${index + 1}. ${step.title}`,
       href: `#guide-step-${step.id}`,
+    })),
+    ...content.sections.map((section) => ({
+      label: section.title,
+      href: `#guide-section-${section.id}`,
     })),
     ...content.faqs.map((faq, index) => ({
       label: faq.question,
@@ -110,6 +114,48 @@ export function GuidePage({ content, embedded = false }: GuidePageProps) {
                 ))}
               </div>
             </section>
+
+            {content.sections.map((section) => (
+              <section key={section.id} id={`guide-section-${section.id}`} className="mt-12 scroll-mt-6" aria-labelledby={`guide-section-title-${section.id}`}>
+                <h2 id={`guide-section-title-${section.id}`} className="font-heading text-xl font-semibold">
+                  {section.title}
+                </h2>
+                <Card className="mt-4">
+                  <CardContent className="pt-5">
+                    <p className="text-sm leading-6 text-muted-foreground">{section.intro}</p>
+                    {section.attention && (
+                      <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm leading-6 text-amber-900 dark:text-amber-200">
+                        <AlertTriangle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <p><span className="font-semibold">Atenção:</span> {section.attention}</p>
+                      </div>
+                    )}
+                    <ul className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
+                      {section.details.map((detail) => (
+                        <li key={detail} className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                          <span>{detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {section.tips && (
+                      <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 p-3 text-sm text-muted-foreground">
+                        <p className="flex items-center gap-2 font-medium text-foreground">
+                          <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
+                          Resumo
+                        </p>
+                        <ul className="mt-2 space-y-1 pl-6">
+                          {section.tips.map((tip) => (
+                            <li key={tip} className="list-disc">
+                              {tip}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </section>
+            ))}
 
             <section className="mt-12" aria-labelledby="guide-faq-title">
               <h2 id="guide-faq-title" className="font-heading text-xl font-semibold">

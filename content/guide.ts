@@ -6,12 +6,22 @@ export interface GuideStep {
   tips?: string[];
 }
 
+export interface GuideSection {
+  id: string;
+  title: string;
+  intro: string;
+  attention?: string;
+  details: string[];
+  tips?: string[];
+}
+
 export interface GuideContent {
   eyebrow: string;
   title: string;
   intro: string;
   stepsTitle: string;
   steps: GuideStep[];
+  sections: GuideSection[];
   faqTitle: string;
   faqs: { question: string; answer: string }[];
 }
@@ -89,6 +99,21 @@ export const guideContentByLocale: Record<string, GuideContent> = {
           'Se houver um cliente com telefone cadastrado, você poderá compartilhar a cotação pelo WhatsApp.',
         ],
         tips: ['Revise os dados antes de enviar uma cotação.', 'O modo demo precisa ser convertido em nova simulação antes de salvar.'],
+      },
+    ],
+    sections: [
+      {
+        id: 'microgrid',
+        title: 'Microrrede',
+        intro: 'A microrrede permite que o inversor híbrido mantenha um inversor on-grid funcionando durante a falta da rede, usando a saída EPS como referência de tensão e frequência.',
+        attention: 'Pot. (on-grid) < Pot. (EPS) e Pot. (on-grid) < Pot. (carga da bateria).',
+        details: [
+          'O controle da geração do inversor on-grid é feito pela frequência da microrrede.',
+          'Em sistemas de 60 Hz e com SOC abaixo de 80%, a frequência permanece em 60 Hz. Acima de 80%, ela começa a subir; acima de 90%, a elevação é acelerada para reduzir ou desligar a geração do inversor on-grid por sobrefrequência.',
+          'Para sistemas de 60 Hz, o documento indica os pontos correspondentes de 61 Hz e 63 Hz. Se a capacidade de carga da bateria ficar menor que a potência do inversor on-grid, o híbrido pode elevar a frequência até 63 Hz para limitar sua geração.',
+          'Limitações de carga da bateria causadas pelo SOC, pela temperatura ou por outros fatores podem impedir a operação normal da microrrede.',
+        ],
+        tips: ['O híbrido forma a rede e controla o inversor on-grid pela frequência, elevando-a conforme o SOC aumenta para evitar excesso de geração.'],
       },
     ],
     faqTitle: 'Dúvidas comuns',
