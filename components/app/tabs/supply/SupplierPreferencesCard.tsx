@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Globe, Lock, ShieldCheck, Truck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { orderModeLabels, type Supplier } from './types';
 
@@ -102,24 +101,29 @@ export function SupplierPreferencesCard({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Truck className="h-4 w-4" />
-            Meus fornecedores ({preferredIds.length}/{maxUserSuppliers})
-          </CardTitle>
-          {canCollapse && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={expanded ? 'Recolher fornecedores' : 'Expandir fornecedores'}
-              onClick={() => setExpanded((current) => !current)}
-            >
+      <CardHeader className="pb-3">
+        {canCollapse ? (
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Recolher fornecedores' : 'Expandir fornecedores'}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            <span className="flex min-w-0 items-center gap-2 text-base font-semibold">
+              <Truck className="h-4 w-4 shrink-0" />
+              <span className="truncate">Meus fornecedores ({preferredIds.length}/{maxUserSuppliers})</span>
+            </span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          )}
-        </div>
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 text-base font-semibold">
+            <Truck className="h-4 w-4 shrink-0" />
+            Meus fornecedores ({preferredIds.length}/{maxUserSuppliers})
+          </div>
+        )}
         {!expanded && selectedNames.length > 0 && (
           <p className="text-xs text-muted-foreground">{selectedNames.join(', ')}</p>
         )}

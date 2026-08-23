@@ -12,7 +12,7 @@ import { MyStockTab } from './MyStockTab';
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 
-// StockProductCard's "cost de fornecedor" reference fetches supplier offers
+// StockProductCard's supplier cost reference fetches supplier offers
 // on mount — tests that don't care about that feature just want it to no-op,
 // as if the visitor were signed out (getUser resolves to no user, so the
 // fetch bails before touching `from`).
@@ -88,7 +88,7 @@ describe('MyStockTab: listing', () => {
   it('lists items already in stock under their section', () => {
     setup({ userStockItems: [stockItem] });
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
-    expect(screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4')).toHaveValue(1000);
+    expect(screen.getByLabelText('Meu custo para X1-Hybrid-5.0kW-G4')).toHaveValue(1000);
   });
 
   it('shows the nickname as the card title, with the model kept as a caption', () => {
@@ -124,7 +124,7 @@ describe('MyStockTab: listing', () => {
       })),
     });
 
-    expect(screen.queryByRole('button', { name: /Adicionar inversor ao catálogo/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adicionar produto' })).not.toBeInTheDocument();
     expect(screen.getByText('Limite atingido')).toBeInTheDocument();
     expect(screen.getByText(`${ACCOUNT_LIMITS.userStockItems}/${ACCOUNT_LIMITS.userStockItems} produtos`, { exact: false })).toBeInTheDocument();
   });
@@ -152,12 +152,33 @@ describe('MyStockTab: listing', () => {
     expect(within(screen.getByRole('tab', { name: /Inversores/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
     expect(within(screen.getByRole('tab', { name: /^Produtos/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
   });
+
+  it('filters the active category by model or nickname', () => {
+    const secondItem: UserStockItem = { ...stockItem, id: 's2', productModel: 'X1-Mini-3.0kW' };
+    setup({
+      userStockItems: [stockItem, secondItem],
+      inverterCatalog: [inverter, { ...inverter, id: 'i2', model: 'X1-Mini-3.0kW', nickname: 'Inversor compacto' }],
+    });
+
+    fireEvent.change(screen.getByLabelText('Buscar produto no portfólio'), { target: { value: 'compacto' } });
+
+    expect(screen.getByText('Inversor compacto')).toBeInTheDocument();
+    expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
+  });
+
+  it('offers a way to restore a no-result search', () => {
+    setup({ userStockItems: [stockItem, { ...stockItem, id: 's2', productModel: 'X1-Mini-3.0kW', unitValue: 0 }] });
+
+    fireEvent.change(screen.getByLabelText('Buscar produto no portfólio'), { target: { value: 'não existe' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar busca' }));
+    expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
+  });
 });
 
 describe('MyStockTab: editing price', () => {
   it('calls onUpdateValue on blur when the value changed', () => {
     const { props } = setup({ userStockItems: [stockItem] });
-    const input = screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4');
+    const input = screen.getByLabelText('Meu custo para X1-Hybrid-5.0kW-G4');
 
     fireEvent.change(input, { target: { value: '1500' } });
     fireEvent.blur(input);
@@ -167,7 +188,7 @@ describe('MyStockTab: editing price', () => {
 
   it('does not call onUpdateValue on blur when the value is unchanged', () => {
     const { props } = setup({ userStockItems: [stockItem] });
-    const input = screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4');
+    const input = screen.getByLabelText('Meu custo para X1-Hybrid-5.0kW-G4');
 
     fireEvent.blur(input);
 
@@ -176,7 +197,7 @@ describe('MyStockTab: editing price', () => {
 
   it('shows a saved indicator after a successful inline price edit', async () => {
     setup({ userStockItems: [stockItem] });
-    const input = screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4');
+    const input = screen.getByLabelText('Meu custo para X1-Hybrid-5.0kW-G4');
 
     fireEvent.change(input, { target: { value: '1500' } });
     fireEvent.blur(input);
@@ -187,7 +208,7 @@ describe('MyStockTab: editing price', () => {
   it('surfaces an error instead of silently discarding a failed inline price edit', async () => {
     const onUpdateValue = vi.fn().mockRejectedValue(new Error('boom'));
     setup({ userStockItems: [stockItem], onUpdateValue });
-    const input = screen.getByLabelText('Meu preço para X1-Hybrid-5.0kW-G4');
+    const input = screen.getByLabelText('Meu custo para X1-Hybrid-5.0kW-G4');
 
     fireEvent.change(input, { target: { value: '1500' } });
     fireEvent.blur(input);
@@ -207,7 +228,7 @@ describe('MyStockTab: editing price', () => {
 
   it('shows an empty-category hint when a section has no items yet', () => {
     setup({ userStockItems: [] });
-    expect(screen.getByText(/Você ainda não adicionou nenhum produto desta categoria/)).toBeInTheDocument();
+    expect(screen.getByText(/Seu portfólio ainda não tem inversores/)).toBeInTheDocument();
   });
 });
 
@@ -215,7 +236,9 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
   it('shows the resulting sale price based on the category margin', () => {
     setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 20, batteryPercent: 0, accessoryPercent: 0 } });
 
-    expect(screen.getByText(/Preço de venda \(20% de markup\)/)).toHaveTextContent('R$ 1.200,00');
+    const salePrice = screen.getByText('Preço de venda estimado');
+    expect(salePrice.parentElement).toHaveTextContent('R$ 1.200,00');
+    expect(salePrice.parentElement).toHaveTextContent('markup de 20%');
   });
 
   it('does not show a sale price for a product with no price defined yet', () => {
@@ -249,7 +272,7 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
     );
     setup({ userStockItems: [stockItem] });
 
-    await waitFor(() => expect(screen.getByText(/Custo de fornecedor: R\$\s*750,00/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Referência de fornecedor: R\$\s*750,00/)).toBeInTheDocument());
   });
 
   it('does not show a cost reference when no supplier offers that model', async () => {
@@ -265,14 +288,14 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
     setup({ userStockItems: [stockItem] });
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument());
-    expect(screen.queryByText(/Custo de fornecedor/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Referência de fornecedor/)).not.toBeInTheDocument();
   });
 
   it('does not show a cost reference for a signed-out visitor', () => {
     createClientMock.mockReturnValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
     setup({ userStockItems: [stockItem] });
 
-    expect(screen.queryByText(/Custo de fornecedor/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Referência de fornecedor/)).not.toBeInTheDocument();
   });
 });
 
@@ -292,7 +315,7 @@ describe('MyStockTab: adding from the catalog', () => {
   it('opens the picker grouped by phase and adds the chosen inverter', async () => {
     const { props } = setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
     expect(within(dialog).getByRole('tab', { name: 'Monofásico' })).toHaveAttribute('aria-selected', 'true');
@@ -307,10 +330,10 @@ describe('MyStockTab: adding from the catalog', () => {
   it('excludes products already in stock from the picker', async () => {
     setup({ userStockItems: [stockItem] });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
-    expect(within(dialog).getByText('Todos os produtos desse filtro já estão no seu catálogo.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Todos os produtos dessa categoria já estão no seu catálogo.')).toBeInTheDocument();
   });
 
   it('shows a limit-reached error verbatim when adding fails', async () => {
@@ -318,7 +341,7 @@ describe('MyStockTab: adding from the catalog', () => {
     setup({ onAddToStock });
 
     fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar acessório ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
     fireEvent.click(within(dialog).getByText('Smart Meter'));
 
@@ -532,7 +555,7 @@ describe('MyStockTab: adding a product from the picker', () => {
     const onAddToStock = vi.fn().mockRejectedValue(new Error('boom'));
     setup({ onAddToStock });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
     fireEvent.click(within(dialog).getByText('X1-Hybrid-5.0kW-G4'));
 
@@ -545,7 +568,7 @@ describe('MyStockTab: adding a product from the picker', () => {
     const twoPhaseInverter: InverterCatalogOption = { ...inverter, id: 'i2', model: 'X3-Hybrid-8.0kW', phases: 3 };
     setup({ inverterCatalog: [inverter, twoPhaseInverter] });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
 
     expect(within(dialog).queryByText('X3-Hybrid-8.0kW')).not.toBeInTheDocument();
@@ -560,7 +583,7 @@ describe('MyStockTab: adding a product from the picker', () => {
   it('closes the picker when clicking outside of it', async () => {
     setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
 
     fireEvent.mouseDown(document.body);
@@ -573,7 +596,7 @@ describe('MyStockTab: adding a product from the picker', () => {
   it('closes the picker when pressing Escape', async () => {
     setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
 
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -586,7 +609,7 @@ describe('MyStockTab: adding a product from the picker', () => {
   it('does not close the picker when clicking inside it', async () => {
     setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar inversor ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
 
     fireEvent.mouseDown(dialog);

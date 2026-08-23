@@ -561,7 +561,7 @@ function ProductsSection({
   const visibleComments = (solution.comments ?? []).filter((comment) => !comment.startsWith('Gerada por regra ESS'));
 
   return (
-    <View style={styles.section} wrap>
+    <View style={styles.section} wrap minPresenceAhead={120}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <MetricRows
         metrics={[

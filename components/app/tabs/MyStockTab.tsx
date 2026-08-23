@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Battery, Boxes, Check, Loader2, Lock, Package, Plus, Truck, Wrench, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Battery, Boxes, Check, Loader2, Lock, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -13,7 +13,7 @@ import { listOrderingSuppliers, listSupplierOffers, listUserSupplierPreferences 
 import { USER_SERVICE_PRICING_UNITS, type MarginSettings, type ProductDocument, type StockProductType, type UserServiceItem, type UserServicePricingUnit, type UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { formatCurrencyBRL } from '../helpers';
-import { PageHeader } from '../shell/slots';
+import { PageHeader, PageSummary } from '../shell/slots';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 
@@ -32,6 +32,7 @@ interface CatalogEntry {
   id: string;
   model: string;
   imageUrl: string | null;
+  nickname?: string | null;
   groupKey?: string;
 }
 
@@ -121,6 +122,8 @@ export function MyStockTab({
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [activeSection, setActiveSection] = useState<StockProductType>('inverter');
   const [activeMainSection, setActiveMainSection] = useState<'products' | 'services'>('products');
+  const [summaryAddOpen, setSummaryAddOpen] = useState(false);
+  const [productQuery, setProductQuery] = useState('');
   const [supplierCosts, setSupplierCosts] = useState<SupplierCostMap>({});
   const supabase = useMemo(() => createClient(), []);
 
@@ -180,20 +183,28 @@ export function MyStockTab({
       id: inverter.id,
       model: inverter.model,
       imageUrl: inverter.imageUrl,
+      nickname: inverter.nickname,
       groupKey: String(inverter.phases),
     })),
     battery: batteryCatalog.map((battery) => ({
       id: battery.id,
       model: battery.model,
       imageUrl: battery.imageUrl,
+      nickname: battery.nickname,
       groupKey: battery.topology,
     })),
     accessory: accessoryCatalog.map((accessory) => ({
       id: accessory.id,
       model: accessory.model,
       imageUrl: accessory.imageUrl,
+      nickname: accessory.nickname,
     })),
   };
+
+  const pricedProductCount = userStockItems.filter((item) => item.unitValue > 0).length;
+  const unpricedProductCount = userStockItems.length - pricedProductCount;
+  const portfolioCost = userStockItems.reduce((total, item) => total + item.unitValue, 0);
+  const configuredMarginCount = Object.values(marginSettings).filter((value) => value > 0).length;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
@@ -207,6 +218,27 @@ export function MyStockTab({
         </div>
       </PageHeader>
 
+      <PageSummary>
+        <div className="space-y-3" aria-label="Resumo do portfólio">
+          <div>
+            <h2 className="text-sm font-semibold">Resumo do portfólio</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Visão geral dos itens cadastrados.</p>
+          </div>
+          <div className="space-y-2">
+            <PortfolioMetricCard icon={Package} label="Produtos" value={String(userStockItems.length)} detail={`${pricedProductCount} com custo definido`} />
+            <PortfolioMetricCard icon={Wrench} label="Serviços" value={String(userServices.length)} detail={`${configuredMarginCount}/3 categorias com markup`} />
+            <PortfolioMetricCard
+              icon={unpricedProductCount > 0 || hasUnpricedService ? AlertTriangle : Check}
+              label="Pendências de preço"
+              value={String(unpricedProductCount + (hasUnpricedService ? userServices.filter((service) => service.unitValue === 0).length : 0))}
+              detail={unpricedProductCount + (hasUnpricedService ? userServices.filter((service) => service.unitValue === 0).length : 0) === 0 ? 'Tudo pronto para orçamento' : 'Itens precisam de custo'}
+              warn={unpricedProductCount > 0 || hasUnpricedService}
+            />
+            <PortfolioMetricCard icon={Truck} label="Custos cadastrados" value={formatCurrencyBRL(portfolioCost)} detail="Soma dos custos unitários" />
+          </div>
+        </div>
+      </PageSummary>
+
       <div className="grid grid-cols-2 gap-3" role="tablist" aria-label="Seções do catálogo">
         <PortfolioSectionCard
           active={activeMainSection === 'products'}
@@ -215,6 +247,8 @@ export function MyStockTab({
           count={userStockItems.length}
           countLabel={userStockItems.length === 1 ? 'produto' : 'produtos'}
           warn={hasUnpricedProduct}
+          actionLabel={!atLimit ? 'Adicionar produto' : undefined}
+          onAction={!atLimit ? () => setSummaryAddOpen(true) : undefined}
           onClick={() => setActiveMainSection('products')}
         />
         <PortfolioSectionCard
@@ -224,11 +258,13 @@ export function MyStockTab({
           count={userServices.length}
           countLabel={userServices.length === 1 ? 'serviço' : 'serviços'}
           warn={hasUnpricedService}
+          actionLabel={userServices.length < ACCOUNT_LIMITS.userServices ? 'Adicionar serviço' : undefined}
+          onAction={userServices.length < ACCOUNT_LIMITS.userServices ? () => setSummaryAddOpen(true) : undefined}
           onClick={() => setActiveMainSection('services')}
         />
       </div>
 
-      {activeMainSection === 'products' && (
+        {activeMainSection === 'products' && (
         <>
           {atLimit && (
             <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -238,7 +274,7 @@ export function MyStockTab({
           )}
 
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3" role="tablist" aria-label="Tipo de produto">
+            <div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Tipo de produto">
               {sectionDefinitions.map((section) => {
                 const sectionItems = userStockItems.filter((item) => item.productType === section.type);
                 return (
@@ -250,21 +286,35 @@ export function MyStockTab({
                     count={sectionItems.length}
                     countLabel={sectionItems.length === 1 ? 'item' : 'itens'}
                     warn={sectionItems.some((item) => item.unitValue === 0)}
+                    compact
                     onClick={() => setActiveSection(section.type)}
                   />
                 );
               })}
             </div>
 
-            {sectionDefinitions.map((section) => {
+            <div className="min-w-0 space-y-4">
+              <div className="rounded-xl border bg-muted/20 p-3">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  aria-label="Buscar produto no portfólio"
+                  placeholder="Buscar modelo ou nome"
+                  value={productQuery}
+                  onChange={(event) => setProductQuery(event.target.value)}
+                  className="!pl-11"
+                />
+              </label>
+              </div>
+
+              {sectionDefinitions.map((section) => {
               if (section.type !== activeSection) return null;
               const items = userStockItems.filter((item) => item.productType === section.type);
-              const availableToAdd = catalogByType[section.type].filter(
-                (product) =>
-                  !userStockItems.some(
-                    (item) => item.productType === section.type && item.productModel === product.model
-                  )
-              );
+              const normalizedQuery = productQuery.trim().toLowerCase();
+              const filteredItems = items.filter((item) => {
+                const catalogProduct = catalogByType[section.type].find((product) => product.model === item.productModel);
+                return !normalizedQuery || `${item.productModel} ${catalogProduct?.nickname ?? ''}`.toLowerCase().includes(normalizedQuery);
+              });
               const marginPercent = marginSettings[marginFieldByProductType[section.type]];
               return (
                 <div key={section.type} className="space-y-3">
@@ -273,13 +323,19 @@ export function MyStockTab({
                     marginSettings={marginSettings}
                     onUpdateMarginPercent={onUpdateMarginPercent}
                   />
-                  {items.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Você ainda não adicionou nenhum produto desta categoria ao seu catálogo. Escolha um abaixo.
-                    </p>
-                  )}
+                  {items.length === 0 ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-5">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><section.icon className="h-5 w-5" aria-hidden="true" /></span>
+                      <div><p className="text-sm font-medium">Seu portfólio ainda não tem {section.label.toLowerCase()}.</p><p className="mt-1 text-xs text-muted-foreground">Use o card “Adicionar” abaixo para escolher um item do catálogo.</p></div>
+                    </div>
+                  ) : filteredItems.length === 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/20 p-4">
+                      <p className="text-sm text-muted-foreground">Nenhum item corresponde à busca ou aos filtros atuais.</p>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setProductQuery('')}>Limpar busca</Button>
+                    </div>
+                  ) : null}
                   <div className="grid gap-3 lg:grid-cols-2">
-                    {items.map((item) => (
+                    {filteredItems.map((item) => (
                       <StockProductCard
                         key={item.id}
                         item={item}
@@ -295,25 +351,30 @@ export function MyStockTab({
                         supplierCost={supplierCosts[supplierCostKey(item.productType, item.productModel)]}
                       />
                     ))}
-                    <AddProductCard
-                      productType={section.type}
-                      availableProducts={availableToAdd}
-                      groupTabs={section.groupTabs}
-                      smallIcon={section.smallIcon}
-                      atLimit={atLimit}
-                      stockCount={userStockItems.length}
-                      stockLimit={ACCOUNT_LIMITS.userStockItems}
-                      onAdd={(model) => onAddToStock({ productType: section.type, productModel: model, unitValue: 0 })}
-                    />
                   </div>
                 </div>
               );
-            })}
+              })}
+              <AddProductCard
+                key={activeSection}
+                sections={sectionDefinitions}
+                catalogByType={catalogByType}
+                userStockItems={userStockItems}
+                defaultProductType={activeSection}
+                atLimit={atLimit}
+                stockCount={userStockItems.length}
+                stockLimit={ACCOUNT_LIMITS.userStockItems}
+                hideTrigger
+                open={summaryAddOpen}
+                onOpenChange={setSummaryAddOpen}
+                onAdd={(productType, model) => onAddToStock({ productType, productModel: model, unitValue: 0 })}
+              />
+            </div>
           </div>
         </>
       )}
 
-      {activeMainSection === 'services' && (
+        {activeMainSection === 'services' && (
         <ServicesSection
           userServices={userServices}
           onAddService={onAddService}
@@ -321,9 +382,10 @@ export function MyStockTab({
           onUpdateServiceValue={onUpdateServiceValue}
           onUpdateServicePricingUnit={onUpdateServicePricingUnit}
           onRemoveService={onRemoveService}
+          addOpen={summaryAddOpen}
+          onAddOpenChange={setSummaryAddOpen}
         />
-      )}
-
+        )}
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
@@ -344,6 +406,9 @@ function PortfolioSectionCard({
   count,
   countLabel,
   warn,
+  compact = false,
+  actionLabel,
+  onAction,
   onClick,
 }: {
   active: boolean;
@@ -352,34 +417,47 @@ function PortfolioSectionCard({
   count: number;
   countLabel: string;
   warn: boolean;
+  compact?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
   onClick: () => void;
 }) {
-  return (
+  const tabButton = (
     <button
       type="button"
       role="tab"
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'flex flex-col items-center gap-1.5 rounded-lg border p-4 text-center transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-row sm:gap-3 sm:text-left',
-        active
-          ? 'border-primary bg-primary/5 shadow-sm'
-          : warn
-            ? 'border-destructive/30 bg-card hover:bg-muted/40'
-            : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
+        compact
+          ? 'flex shrink-0 items-center gap-2 border-b-2 border-transparent px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
+          : 'flex min-w-0 flex-1 items-center gap-3 rounded-lg p-4 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        compact
+          ? active
+            ? 'border-primary text-primary'
+            : warn
+              ? 'text-destructive hover:bg-destructive/5'
+              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+          : active
+            ? 'text-primary'
+            : warn
+              ? 'text-foreground'
+              : 'text-foreground'
       )}
     >
       <span
         className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground',
-          active && 'bg-primary/15 text-primary',
-          !active && warn && 'bg-destructive/10 text-destructive'
+          compact
+            ? 'flex h-7 w-7 shrink-0 items-center justify-center text-current'
+            : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground',
+          !compact && active && 'bg-primary/15 text-primary',
+          !compact && !active && warn && 'bg-destructive/10 text-destructive'
         )}
       >
-        <Icon className="h-5 w-5" aria-hidden="true" />
+          <Icon className={compact ? 'h-4 w-4' : 'h-5 w-5'} aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={cn('flex items-center gap-1.5 text-sm font-semibold', active ? 'text-primary' : 'text-foreground')}>
+        <p className={cn('flex items-center gap-1.5 text-sm font-semibold', compact ? 'text-current' : active ? 'text-primary' : 'text-foreground')}>
           {label}
           {warn && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label="Item sem preço definido" />}
         </p>
@@ -388,6 +466,53 @@ function PortfolioSectionCard({
         </p>
       </div>
     </button>
+  );
+
+  if (compact || !actionLabel || !onAction) return tabButton;
+
+  return (
+    <div className={cn(
+      'flex w-full min-w-0 items-center rounded-lg border transition',
+      active ? 'border-primary bg-primary/5 shadow-sm' : warn ? 'border-destructive/30 bg-card hover:bg-muted/40' : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
+    )}>
+      {tabButton}
+      <button
+        type="button"
+        aria-label={actionLabel}
+        onClick={onAction}
+        className="my-3 mr-3 flex h-12 w-32 shrink-0 flex-row items-center justify-center gap-2 rounded-md border border-dashed border-primary/40 bg-background/70 px-2 text-center text-xs font-medium text-primary transition hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <Plus className="h-5 w-5" aria-hidden="true" />
+        <span>Adicionar</span>
+      </button>
+    </div>
+  );
+}
+
+function PortfolioMetricCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  warn = false,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  detail: string;
+  warn?: boolean;
+}) {
+  return (
+    <div className={cn('flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm', warn && 'border-amber-500/30 bg-amber-500/5')}>
+      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary', warn && 'bg-amber-500/10 text-amber-700')}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-lg font-semibold text-foreground">{value}</p>
+        <p className="truncate text-[11px] text-muted-foreground">{detail}</p>
+      </div>
+    </div>
   );
 }
 
@@ -449,24 +574,29 @@ function CategoryMarginInline({
   const [saveState, save] = useInlineSave((percent: number) => onUpdateMarginPercent(productType, percent));
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <label htmlFor={`margin-${productType}`}>Markup de venda</label>
-      <input
-        key={value}
-        id={`margin-${productType}`}
-        type="number"
-        min={0}
-        step={0.1}
-        defaultValue={value}
-        onBlur={(event) => {
-          const parsed = Number(event.target.value);
-          const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-          if (nextValue !== value) void save(nextValue);
-        }}
-        className="h-7 w-16 rounded-md border border-input bg-background px-1.5 text-center text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      <span>%</span>
-      <InlineSaveStatus state={saveState} />
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+      <div className="min-w-0">
+        <label htmlFor={`margin-${productType}`} className="block text-xs font-semibold text-foreground">Markup de venda</label>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Aplicado ao custo dos {productType === 'inverter' ? 'inversores' : productType === 'battery' ? 'baterias' : 'acessórios'}.</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <input
+          key={value}
+          id={`margin-${productType}`}
+          type="number"
+          min={0}
+          step={0.1}
+          defaultValue={value}
+          onBlur={(event) => {
+            const parsed = Number(event.target.value);
+            const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+            if (nextValue !== value) void save(nextValue);
+          }}
+          className="h-9 w-20 rounded-md border border-input bg-background px-2 text-right text-sm font-semibold tabular-nums text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+        <span className="text-sm font-medium text-muted-foreground">%</span>
+        <InlineSaveStatus state={saveState} />
+      </div>
     </div>
   );
 }
@@ -478,6 +608,8 @@ function ServicesSection({
   onUpdateServiceValue,
   onUpdateServicePricingUnit,
   onRemoveService,
+  addOpen,
+  onAddOpenChange,
 }: {
   userServices: UserServiceItem[];
   onAddService: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
@@ -485,6 +617,8 @@ function ServicesSection({
   onUpdateServiceValue: (id: string, unitValue: number) => Promise<void>;
   onUpdateServicePricingUnit: (id: string, pricingUnit: UserServicePricingUnit) => Promise<void>;
   onRemoveService: (id: string) => Promise<void>;
+  addOpen: boolean;
+  onAddOpenChange: (open: boolean) => void;
 }) {
   const atLimit = userServices.length >= ACCOUNT_LIMITS.userServices;
 
@@ -516,7 +650,7 @@ function ServicesSection({
             onRemove={onRemoveService}
           />
         ))}
-        <AddServiceCard atLimit={atLimit} stockCount={userServices.length} stockLimit={ACCOUNT_LIMITS.userServices} onAdd={onAddService} />
+        <AddServiceCard atLimit={atLimit} stockCount={userServices.length} stockLimit={ACCOUNT_LIMITS.userServices} open={addOpen} onOpenChange={onAddOpenChange} onAdd={onAddService} />
       </div>
     </div>
   );
@@ -625,19 +759,28 @@ function AddServiceCard({
   atLimit,
   stockCount,
   stockLimit,
+  open: controlledOpen,
+  onOpenChange,
   onAdd,
 }: {
   atLimit: boolean;
   stockCount: number;
   stockLimit: number;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onAdd: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
   const [pricingUnit, setPricingUnit] = useState<UserServicePricingUnit>('project');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   if (atLimit) {
     return (
@@ -686,69 +829,75 @@ function AddServiceCard({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-dashed bg-card p-4">
-      <div>
-        <p className="text-sm font-medium">Novo serviço</p>
-        <p className="text-xs text-muted-foreground">Defina o preço e o critério usado no orçamento.</p>
-      </div>
-      <Input aria-label="Nome do serviço" placeholder="Ex.: Instalação" value={name} onChange={(event) => setName(event.target.value)} />
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">Preço unitário</span>
-        <span className="text-xs text-muted-foreground">R$</span>
-        <input
-          type="number"
-          min={0}
-          step={0.01}
-          placeholder="0,00"
-          aria-label="Preço do serviço"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        />
-      </div>
-      <label htmlFor="new-service-unit" className="text-xs font-medium text-muted-foreground">Cobrar por</label>
-      <select id="new-service-unit" aria-label="Unidade de cobrança do serviço" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
-        {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
-      </select>
-      <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-        <p className="font-medium text-foreground">{servicePricingDescription(pricingUnit)}</p>
-        <p className="mt-1">Ex.: R$ 350,00/kWp × 6,50 kWp.</p>
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="flex gap-2">
-        <Button type="button" size="sm" disabled={!name.trim() || saving} onClick={handleAdd}>
-          {saving ? 'Salvando...' : 'Salvar'}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setOpen(false);
-            setError(null);
-          }}
-        >
-          Cancelar
-        </Button>
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setOpen(false);
+      }}
+    >
+      <div role="dialog" aria-modal="true" aria-label="Adicionar serviço" className="w-full max-w-lg space-y-4 rounded-xl border bg-popover p-5 text-popover-foreground shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-base font-semibold">Novo serviço</p>
+            <p className="mt-1 text-sm text-muted-foreground">Defina o preço e como ele será aplicado no orçamento.</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Fechar" onClick={() => setOpen(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <Input aria-label="Nome do serviço" placeholder="Ex.: Instalação" value={name} onChange={(event) => setName(event.target.value)} autoFocus />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Preço unitário</span>
+          <span className="text-xs text-muted-foreground">R$</span>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            placeholder="0,00"
+            aria-label="Preço do serviço"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </div>
+        <label htmlFor="new-service-unit" className="text-xs font-medium text-muted-foreground">Cobrar por</label>
+        <select id="new-service-unit" aria-label="Unidade de cobrança do serviço" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+          {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
+        </select>
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">{servicePricingDescription(pricingUnit)}</p>
+          <p className="mt-1">Ex.: R$ 350,00/kWp × 6,50 kWp.</p>
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => { setOpen(false); setError(null); }}>Cancelar</Button>
+          <Button type="button" size="sm" disabled={!name.trim() || saving} onClick={handleAdd}>{saving ? 'Salvando...' : 'Salvar'}</Button>
+        </div>
       </div>
     </div>
   );
 }
 
 function AddProductCard({
-  productType,
-  availableProducts,
-  groupTabs,
-  smallIcon,
+  sections,
+  catalogByType,
+  userStockItems,
+  defaultProductType,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
   atLimit,
   stockCount,
   stockLimit,
   onAdd,
 }: {
-  productType: StockProductType;
-  availableProducts: CatalogEntry[];
-  groupTabs?: GroupTab[];
-  smallIcon: React.ReactNode;
+  sections: typeof sectionDefinitions;
+  catalogByType: Record<StockProductType, CatalogEntry[]>;
+  userStockItems: UserStockItem[];
+  defaultProductType: StockProductType;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
   /** Once the account-wide stock limit is reached, this card can't open the
    * picker at all — showing the count here (not just after a failed add
    * attempt) is the point where the user is actually looking to add
@@ -756,16 +905,23 @@ function AddProductCard({
   atLimit: boolean;
   stockCount: number;
   stockLimit: number;
-  onAdd: (model: string) => Promise<void>;
+  onAdd: (productType: StockProductType, model: string) => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
   const [addingModel, setAddingModel] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
-  const [activeGroup, setActiveGroup] = useState(groupTabs?.[0]?.value ?? null);
+  const [activeProductType, setActiveProductType] = useState<StockProductType>(defaultProductType);
+  const [activeGroup, setActiveGroup] = useState<string | null>(sections.find((section) => section.type === defaultProductType)?.groupTabs?.[0]?.value ?? null);
+  const [query, setQuery] = useState('');
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean | ((current: boolean) => boolean)) => {
+    const resolved = typeof next === 'function' ? next(open) : next;
+    if (controlledOpen === undefined) setInternalOpen(resolved);
+    onOpenChange?.(resolved);
+  };
 
   // Gates the createPortal call below until after client mount — document
   // doesn't exist during SSR, so this can't be a lazy useState initializer
@@ -773,42 +929,21 @@ function AddProductCard({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
-  useLayoutEffect(() => {
-    if (!open) return;
-    const rect = triggerRef.current?.getBoundingClientRect();
-    const popRect = popoverRef.current?.getBoundingClientRect();
-    if (!rect || !popRect) return;
-
-    const gap = 8;
-    const margin = 12;
-
-    let left = rect.left;
-    left = Math.min(Math.max(margin, left), window.innerWidth - popRect.width - margin);
-
-    const spaceBelow = window.innerHeight - rect.bottom - gap;
-    const spaceAbove = rect.top - gap;
-    let top =
-      spaceBelow >= popRect.height || spaceBelow >= spaceAbove ? rect.bottom + gap : rect.top - gap - popRect.height;
-    top = Math.min(Math.max(margin, top), window.innerHeight - popRect.height - margin);
-
-    setPosition({ top, left });
-  }, [open, activeGroup]);
-
-  const visibleProducts = groupTabs
-    ? availableProducts.filter((product) => product.groupKey === activeGroup)
-    : availableProducts;
-
   useEffect(() => {
     if (!open) return;
 
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
-      setOpen(false);
+      if (triggerRef.current?.contains(target) || dialogRef.current?.contains(target)) return;
+      if (controlledOpen === undefined) setInternalOpen(false);
+      onOpenChange?.(false);
     }
 
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        if (controlledOpen === undefined) setInternalOpen(false);
+        onOpenChange?.(false);
+      }
     }
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -817,13 +952,22 @@ function AddProductCard({
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [open]);
+  }, [open, controlledOpen, onOpenChange]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const activeSection = sections.find((section) => section.type === activeProductType) ?? sections[0];
+  const availableProducts = catalogByType[activeProductType].filter(
+    (product) => !userStockItems.some((item) => item.productType === activeProductType && item.productModel === product.model)
+  );
+  const visibleProducts = availableProducts
+    .filter((product) => !activeSection.groupTabs || product.groupKey === activeGroup)
+    .filter((product) => !normalizedQuery || `${product.nickname ?? ''} ${product.model}`.toLowerCase().includes(normalizedQuery));
 
   async function handleAdd(model: string) {
     setAddingModel(model);
     setAddError(null);
     try {
-      await onAdd(model);
+      await onAdd(activeProductType, model);
       setOpen(false);
     } catch (error) {
       setAddError(isLimitError(error) ? error.message : 'Não foi possível adicionar ao catálogo. Tente novamente.');
@@ -832,7 +976,7 @@ function AddProductCard({
     }
   }
 
-  const productLabel = productType === 'inverter' ? 'inversor' : productType === 'battery' ? 'bateria' : 'acessório';
+  const productLabel = activeProductType === 'inverter' ? 'inversor' : activeProductType === 'battery' ? 'bateria' : 'acessório';
 
   if (atLimit) {
     return (
@@ -851,94 +995,116 @@ function AddProductCard({
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-expanded={open}
-        aria-label={`Adicionar ${productLabel} ao catálogo`}
-        onClick={() => setOpen((current) => !current)}
-        className="grid min-h-[104px] cursor-pointer place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
-      >
-        <Plus className="h-6 w-6" />
-        <span className="text-sm font-medium">Adicionar</span>
-      </button>
+      {!hideTrigger && (
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-expanded={open}
+          aria-label="Adicionar produto ao catálogo"
+          onClick={() => setOpen((current) => !current)}
+          className="grid min-h-[104px] cursor-pointer place-items-center gap-1.5 rounded-lg border border-dashed border-input p-3 text-center text-muted-foreground transition hover:border-primary/50 hover:bg-muted/60 hover:text-foreground"
+        >
+          <Plus className="h-6 w-6" />
+          <span className="text-sm font-medium">Adicionar</span>
+        </button>
+      )}
 
       {open &&
         mounted &&
         createPortal(
           <div
-            ref={popoverRef}
-            role="dialog"
-            aria-label="Escolha um produto do catálogo"
-            className="fixed z-[1000] max-h-96 w-80 overflow-y-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-lg"
-            style={{
-              top: position.top,
-              left: position.left,
-              visibility: position.top === 0 && position.left === 0 ? 'hidden' : 'visible',
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setOpen(false);
             }}
           >
-            {addError && <p className="mb-2 text-xs text-destructive">{addError}</p>}
-            {groupTabs && (
-              <div
-                className="mb-2 grid gap-1 rounded-lg bg-muted p-1"
-                style={{ gridTemplateColumns: `repeat(${groupTabs.length}, minmax(0, 1fr))` }}
-                role="tablist"
-              >
-                {groupTabs.map((tab) => {
-                  const active = activeGroup === tab.value;
+            <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Escolha um produto do catálogo" className="flex max-h-[min(46rem,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl">
+              <div className="flex items-start justify-between gap-4 border-b p-5">
+                <div>
+                  <p className="text-base font-semibold">Adicionar produto</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Escolha a categoria e depois um item disponível no catálogo.</p>
+                </div>
+                <Button type="button" variant="ghost" size="icon" aria-label="Fechar" onClick={() => setOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex gap-1 overflow-x-auto border-b px-4 pt-3" role="tablist" aria-label="Categoria do produto">
+                {sections.map((section) => {
+                  const active = activeProductType === section.type;
+                  const count = catalogByType[section.type].filter((product) => !userStockItems.some((item) => item.productType === section.type && item.productModel === product.model)).length;
                   return (
                     <button
-                      key={tab.value}
+                      key={section.type}
                       type="button"
                       role="tab"
                       aria-selected={active}
-                      onClick={() => setActiveGroup(tab.value)}
-                      className={cn(
-                        'h-8 rounded-md text-xs font-medium transition',
-                        active
-                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                          : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                      )}
+                      onClick={() => { setActiveProductType(section.type); setActiveGroup(section.groupTabs?.[0]?.value ?? null); setQuery(''); }}
+                      className={cn('flex shrink-0 items-center gap-2 border-b-2 border-transparent px-3 py-2 text-sm font-medium transition', active ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}
                     >
-                      {tab.label}
+                      <section.icon className="h-4 w-4" aria-hidden="true" />
+                      {section.label}
+                      <span className="text-xs text-muted-foreground">{count}</span>
                     </button>
                   );
                 })}
               </div>
-            )}
-            {visibleProducts.length === 0 ? (
-              <p className="p-2 text-xs text-muted-foreground">
-                {groupTabs
-                  ? 'Todos os produtos desse filtro já estão no seu catálogo.'
-                  : 'Todos os produtos desse grupo já estão no seu catálogo.'}
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {visibleProducts.map((product) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    disabled={addingModel !== null}
-                    onClick={() => handleAdd(product.model)}
-                    className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm transition hover:bg-muted disabled:opacity-60"
-                  >
-                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border bg-card">
-                      {product.imageUrl ? (
-                        <Image src={product.imageUrl} alt={product.model} fill sizes="36px" className="object-contain p-1" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">{smallIcon}</div>
-                      )}
-                    </div>
-                    <span className="min-w-0 flex-1 truncate font-medium">{product.model}</span>
-                    {addingModel === product.model ? (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
-                  </button>
-                ))}
+              <div className="border-b p-4">
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input aria-label="Buscar no catálogo" placeholder="Buscar por nome ou modelo" value={query} onChange={(event) => setQuery(event.target.value)} className="!pl-11" autoFocus />
+                </label>
               </div>
-            )}
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row">
+                {activeSection.groupTabs && (
+                  <div className="flex shrink-0 gap-1 overflow-x-auto border-b bg-muted/30 p-2 sm:w-44 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r" role="tablist" aria-label="Subcategoria">
+                    {activeSection.groupTabs.map((tab) => {
+                      const active = activeGroup === tab.value;
+                      return (
+                        <button
+                          key={tab.value}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setActiveGroup(tab.value)}
+                          className={cn('whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium transition', active ? 'bg-background text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 overflow-y-auto p-4">
+                  {addError && <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{addError}</p>}
+                  {visibleProducts.length === 0 ? (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      {normalizedQuery ? 'Nenhum produto corresponde à busca.' : 'Todos os produtos dessa categoria já estão no seu catálogo.'}
+                    </p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {visibleProducts.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          disabled={addingModel !== null}
+                          onClick={() => handleAdd(product.model)}
+                          className="flex items-center gap-3 rounded-lg border bg-card p-3 text-left transition hover:border-primary/50 hover:bg-muted/40 disabled:opacity-60"
+                        >
+                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border bg-card">
+                            {product.imageUrl ? <Image src={product.imageUrl} alt={product.model} fill sizes="44px" className="object-contain p-1" /> : <div className="flex h-full w-full items-center justify-center">{activeSection.smallIcon}</div>}
+                          </div>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{product.nickname || product.model}</span>
+                            {product.nickname && <span className="block truncate text-xs text-muted-foreground">{product.model}</span>}
+                          </span>
+                          {addingModel === product.model ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" /> : <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>,
           document.body
         )}
@@ -1046,7 +1212,7 @@ function StockProductCard({
       stockControl={
         <div className="space-y-1 border-t pt-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Meu preço</span>
+            <span className="text-xs text-muted-foreground">Meu custo</span>
             <div className="flex items-center gap-1">
               <span className="text-xs text-muted-foreground">R$</span>
               <input
@@ -1055,7 +1221,7 @@ function StockProductCard({
                 min={0}
                 step={0.01}
                 defaultValue={item.unitValue}
-                aria-label={`Meu preço para ${item.productModel}`}
+                aria-label={`Meu custo para ${item.productModel}`}
                 onBlur={(event) => {
                   const parsed = Number(event.target.value);
                   const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -1072,16 +1238,16 @@ function StockProductCard({
           {supplierCost && (
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <Truck className="h-3 w-3 shrink-0" />
-              Custo de fornecedor: {formatCurrencyBRL(supplierCost.unitPrice)}
+              Referência de fornecedor: {formatCurrencyBRL(supplierCost.unitPrice)}
             </p>
           )}
           {item.unitValue > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Preço de venda ({marginPercent}% de markup):{' '}
-              <span className="font-medium text-foreground">
-                {formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))}
-              </span>
-            </p>
+            <div className="rounded-md bg-primary/5 px-3 py-2 text-xs">
+              <p className="font-medium text-foreground">Preço de venda estimado</p>
+              <p className="mt-0.5 text-muted-foreground">
+                {formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))} · custo {formatCurrencyBRL(item.unitValue)} + markup de {marginPercent}%
+              </p>
+            </div>
           )}
         </div>
       }

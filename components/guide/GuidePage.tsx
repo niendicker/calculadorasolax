@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, ArrowRight, CheckCircle2, Lightbulb, List, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Lightbulb, List, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { GuideContent } from '@/content/guide';
 import { PageHeader } from '@/components/app/shell/slots';
@@ -56,10 +56,24 @@ export function GuidePage({ content, embedded = false }: GuidePageProps) {
   return (
     <main className={embedded ? 'bg-background' : 'min-h-screen bg-background'}>
       <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 sm:py-12">
-        <div className="grid gap-10 lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start lg:gap-16">
-          <aside className="sticky top-4 hidden lg:block">{renderIndex()}</aside>
+        <div className="grid gap-10 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-16">
+          <aside className="sticky top-4 hidden rounded-xl border bg-card p-4 shadow-sm lg:block">{renderIndex()}</aside>
 
           <div className="min-w-0">
+            {!embedded && (
+              <div className="mb-10 overflow-hidden rounded-2xl border bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-sm sm:p-8">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                    <BookOpen className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-primary-foreground/75">{content.eyebrow}</p>
+                    <h1 className="mt-1 font-heading text-2xl font-semibold tracking-tight sm:text-3xl">{content.title}</h1>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-primary-foreground/80">{content.intro}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {embedded && (
               <PageHeader>
                 <div className="min-w-0">
@@ -73,21 +87,28 @@ export function GuidePage({ content, embedded = false }: GuidePageProps) {
               </PageHeader>
             )}
             <header className="max-w-3xl">
-              {!embedded && (
-                <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                  {content.title}
-                </h1>
+              {embedded && (
+                <div className="mt-4 rounded-xl border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <BookOpen className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{content.steps.length} etapas para começar</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">Siga a sequência abaixo e consulte as seções complementares quando precisar.</p>
+                    </div>
+                  </div>
+                </div>
               )}
-              {!embedded && <p className="mt-4 text-base leading-7 text-muted-foreground">{content.intro}</p>}
             </header>
 
-            <section className={embedded ? 'mt-4' : 'mt-12'} aria-labelledby="guide-steps-title">
-              <h2 id="guide-steps-title" className="font-heading text-xl font-semibold">
+            <section className={embedded ? 'mt-6' : 'mt-0'} aria-labelledby="guide-steps-title">
+              <h2 id="guide-steps-title" className="font-heading text-xl font-semibold tracking-tight">
                 {content.stepsTitle}
               </h2>
               <div className="mt-4 space-y-3">
                 {content.steps.map((step, index) => (
-                  <Card key={step.id} id={`guide-step-${step.id}`}>
+                  <Card key={step.id} id={`guide-step-${step.id}`} className="overflow-hidden shadow-sm transition-shadow hover:shadow-md">
                     <details open={index === 0} className="group">
                       <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-4 [&::-webkit-details-marker]:hidden sm:px-5">
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
@@ -132,10 +153,10 @@ export function GuidePage({ content, embedded = false }: GuidePageProps) {
 
             {content.sections.map((section) => (
               <section key={section.id} id={`guide-section-${section.id}`} className="mt-12 scroll-mt-6" aria-labelledby={`guide-section-title-${section.id}`}>
-                <h2 id={`guide-section-title-${section.id}`} className="font-heading text-xl font-semibold">
+                <h2 id={`guide-section-title-${section.id}`} className="font-heading text-xl font-semibold tracking-tight">
                   {section.title}
                 </h2>
-                <Card className="mt-4">
+                <Card className="mt-4 shadow-sm">
                   <CardContent className="pt-5">
                     <p className="text-sm leading-6 text-muted-foreground">{section.intro}</p>
                     {section.attention && (
