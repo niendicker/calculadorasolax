@@ -33,3 +33,7 @@ npm-debug.log*
 
 # Test coverage reports
 coverage/
+
+# Playwright reports and failure artifacts
+playwright-report/
+test-results/

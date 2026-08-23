@@ -13,6 +13,9 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const supabaseUrl = new URL(getPublicSupabaseUrl());
 
 const nextConfig: NextConfig = {
+  // Playwright uses 127.0.0.1 locally; allow Next's dev resources from that
+  // origin so browser-side auth can run during visual tests.
+  allowedDevOrigins: ['127.0.0.1'],
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },

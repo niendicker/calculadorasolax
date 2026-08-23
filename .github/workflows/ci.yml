@@ -30,6 +30,37 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Install Playwright browser
+        if: ${{ secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Build application for visual tests
+        if: ${{ secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Visual Tests
+        if: ${{ secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        run: npm run test:visual
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Upload visual test artifacts
+        if: ${{ failure() && secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   database:
     name: Database migrations and RLS tests
     # Secrets are unavailable to pull requests from forks. The application

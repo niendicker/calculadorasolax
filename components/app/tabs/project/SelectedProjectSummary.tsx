@@ -34,6 +34,7 @@ import {
 } from '../../helpers';
 import { Metric, WhatsAppIcon } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
+import { gridLabels } from '../../types';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
 import { SupplierQuoteRequestModal } from './SupplierQuoteRequestModal';
@@ -47,20 +48,23 @@ function ProductNameLine({
   model,
   nickname,
   suffix,
+  detail,
 }: {
   category: string;
   model: string;
   nickname?: string | null;
   suffix?: string;
+  detail?: string;
 }) {
   return (
-    <div>
-      <p className="text-muted-foreground">{category}</p>
-      <p className="font-medium text-foreground">
+    <div className="space-y-0.5">
+      <p className="text-xs font-semibold text-foreground">{category}</p>
+      {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
+      <p className="text-sm font-medium text-foreground">
         {nickname || model}
         {suffix}
       </p>
-      {nickname && <p className="text-[0.7rem] text-muted-foreground">{model}</p>}
+      {nickname && <p className="text-[0.7rem] font-mono text-muted-foreground">{model}</p>}
     </div>
   );
 }
@@ -268,6 +272,7 @@ export function SelectedProjectSummary({
                 category="Inversor"
                 model={project.solution.inverterModel}
                 nickname={inverterCatalog.find((item) => item.model === project.solution?.inverterModel)?.nickname}
+                detail={`${project.residentialOptions.gridType ? gridLabels[project.residentialOptions.gridType] : 'Rede não informada'} · ${metrics.nominalW != null ? `${(metrics.nominalW / 1000).toFixed(2)} kVA` : 'potência não informada'}`}
               />
               {batteryParts.map((part, index) => (
                 <ProductNameLine

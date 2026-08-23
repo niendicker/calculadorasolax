@@ -22,6 +22,7 @@ const eslintConfig = defineConfig([
     'coverage/**',
     'next-env.d.ts',
     'supabase/functions/**',
+    'supabase/.temp/**',
     '.claude/**',
   ]),
 ]);

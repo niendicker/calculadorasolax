@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
@@ -62,6 +62,7 @@ describe('ProjectEventsTimeline', () => {
     render(<ProjectEventsTimeline projectId="p1" refreshKey="k1" />);
 
     expect(await screen.findByText('Cotação compartilhada por WhatsApp')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver histórico' }));
     expect(screen.getByText('Cliente visualizou o orçamento')).toBeInTheDocument();
     expect(screen.getByText('Cliente aceitou o orçamento')).toBeInTheDocument();
     expect(screen.getByText('Cliente recusou o orçamento')).toBeInTheDocument();

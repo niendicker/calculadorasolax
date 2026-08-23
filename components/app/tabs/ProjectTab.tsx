@@ -267,7 +267,7 @@ export function ProjectTab({
               <Requirement done={Boolean(batteryModel)} label={batteryModel || 'Modelo da bateria'} />
               <Requirement done={Boolean(gridType)} label={gridType ? gridLabels[gridType] : 'Tipo de rede'} />
               <Requirement done={loadsCount > 0} label={`${loadsCount} carga(s) cadastrada(s)`} />
-              <Requirement done={hasSolution} label={hasSolution ? 'Solução calculada' : 'Solução ainda não calculada'} />
+              <Requirement done={hasSolution} label={hasSolution ? 'Dimensionamento concluído' : 'Dimensionamento ainda não concluído'} />
             </ul>
           </>
         ) : (
@@ -331,7 +331,7 @@ export function ProjectTab({
                 </p>
               </div>
             )}
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
               {!projectDetailsVisible && <NewProjectCard onClick={onNew} onDemo={onDemo} demoDisabled={demoDisabled} />}
               {projectDetailsVisible && !currentProjectId && (
                 <ProjectDraftCard

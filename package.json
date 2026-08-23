@@ -9,6 +9,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
+    "test:e2e": "set -a; [ ! -f .env.test.local ] || . ./.env.test.local; set +a; playwright test",
+    "test:visual": "set -a; [ ! -f .env.test.local ] || . ./.env.test.local; set +a; playwright test tests/visual",
+    "test:visual:update": "set -a; [ ! -f .env.test.local ] || . ./.env.test.local; set +a; playwright test tests/visual --update-snapshots",
+    "test:visual:report": "playwright show-report",
     "test:coverage": "vitest run --coverage",
     "check:functions": "cd supabase/functions && deno check calculate-residential/index.ts",
     "test:functions": "cd supabase/functions && deno test --allow-env calculate-residential/index.test.ts",
@@ -35,6 +39,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",

@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import {
   AlertTriangle,
   Calculator,
@@ -7,6 +8,7 @@ import {
   Download,
   Loader2,
   Mail,
+  MoreHorizontal,
   Pencil,
   Phone,
   RefreshCw,
@@ -30,6 +32,124 @@ const STALE_AFTER_DAYS = 7;
 
 function daysSince(dateStr: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000));
+}
+
+function ProjectActionsMenu({
+  projectName,
+  hasSolution,
+  hasSolutionAlert,
+  refreshing,
+  downloading,
+  onRefreshSolution,
+  onDownloadPdf,
+  onRemove,
+}: {
+  projectName: string;
+  hasSolution: boolean;
+  hasSolutionAlert: boolean;
+  refreshing: boolean;
+  downloading: boolean;
+  onRefreshSolution: () => void;
+  onDownloadPdf: () => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  const firstItemRef = React.useRef<HTMLButtonElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function closeOnOutside(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    firstItemRef.current?.focus();
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  function toggle(event: React.MouseEvent) {
+    event.stopPropagation();
+    setOpen((value) => !value);
+  }
+
+  function run(event: React.MouseEvent, action: () => void) {
+    event.stopPropagation();
+    setOpen(false);
+    action();
+  }
+
+  return (
+    <div ref={menuRef} className="relative shrink-0" onClick={(event) => event.stopPropagation()}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Mais ações para ${projectName}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Mais ações"
+        onClick={toggle}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={`Ações de ${projectName}`}
+          className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setOpen(false);
+            }
+          }}
+        >
+          {hasSolution && (
+            <button
+              ref={firstItemRef}
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+              disabled={refreshing}
+              title={hasSolutionAlert ? 'A solução salva não atende 100% aos requisitos. Recalcule para atualizar.' : undefined}
+              onClick={(event) => run(event, onRefreshSolution)}
+            >
+              {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Atualizar
+            </button>
+          )}
+          <button
+            ref={!hasSolution ? firstItemRef : undefined}
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+            disabled={!hasSolution || downloading}
+            title={hasSolution ? undefined : 'Calcule uma solução para este projeto antes de baixar o relatório.'}
+            onClick={(event) => run(event, onDownloadPdf)}
+          >
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {downloading ? 'Gerando relatório...' : 'Baixar relatório'}
+          </button>
+          <div className="my-1 border-t" />
+          <ConfirmDeleteButton
+            ariaLabel={`Remover projeto ${projectName}`}
+            title="Remover projeto?"
+            description="O projeto salvo e sua configuração serão removidos deste navegador."
+            confirmLabel="Remover"
+            label="Excluir"
+            onConfirm={onRemove}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ProjectCard({
@@ -149,9 +269,9 @@ export function ProjectCard({
             {!systemCost.isComplete && <span className="text-muted-foreground"> (parcial)</span>}
           </p>
         )}
-        <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex flex-wrap gap-1.5">
           {hasSolution ? (
-            <Badge variant="secondary">Solução calculada</Badge>
+            <Badge variant="secondary">Dimensionamento concluído</Badge>
           ) : (
             <Badge className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
               <AlertTriangle className="h-3 w-3" />
@@ -186,64 +306,28 @@ export function ProjectCard({
           </div>
           )}
         </div>
-        <ConfirmDeleteButton
-          ariaLabel={`Remover projeto ${project.name}`}
-          title="Remover projeto?"
-          description="O projeto salvo e sua configuração serão removidos deste navegador."
-          confirmLabel="Remover"
-          onConfirm={onRemove}
+        <ProjectActionsMenu
+          projectName={project.name}
+          hasSolution={hasSolution}
+          hasSolutionAlert={hasSolutionAlert}
+          refreshing={refreshing}
+          downloading={downloading}
+          onRefreshSolution={onRefreshSolution}
+          onDownloadPdf={onDownloadPdf}
+          onRemove={onRemove}
         />
       </div>
       <div className="mt-auto space-y-2 pt-1">
-        {/* grid, not flex-wrap: three buttons squeezed onto one flex-wrap row
-         * left barely 100px each, cramping "Dimensionamento" into a
-         * multi-line/overflowing label on narrow phones. Two even columns
-         * give each button real width, with "Atualizar" (only sometimes
-         * present) spanning its own full-width row below instead of
-         * fighting the other two for space. */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <Button size="sm" onClick={stopAnd(onOpenSizing)}>
+            <Calculator className="h-4 w-4" />
+            Dimensionamento
+          </Button>
           <Button variant="outline" size="sm" onClick={stopAnd(onOpen)}>
             <Pencil className="h-4 w-4" />
             Editar
           </Button>
-          <Button variant="outline" size="sm" onClick={stopAnd(onOpenSizing)}>
-            <Calculator className="h-4 w-4" />
-            Dimensionamento
-          </Button>
-          {hasSolution && (
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                'col-span-2',
-                hasSolutionAlert && 'border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40'
-              )}
-              disabled={refreshing}
-              title={hasSolutionAlert ? 'A solução salva não atende 100% aos requisitos. Recalcule para atualizar.' : undefined}
-              onClick={stopAnd(onRefreshSolution)}
-            >
-              {refreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : hasSolutionAlert ? (
-                <AlertTriangle className="h-4 w-4" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Atualizar
-            </Button>
-          )}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          disabled={!hasSolution || downloading}
-          title={hasSolution ? undefined : 'Calcule uma solução para este projeto antes de baixar o relatório.'}
-          onClick={stopAnd(onDownloadPdf)}
-        >
-          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          {downloading ? 'Gerando relatório...' : 'Baixar Relatório'}
-        </Button>
         <p className="pt-0.5 text-center text-[0.7rem] text-muted-foreground/70">
           Atualizado em{' '}
           {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(

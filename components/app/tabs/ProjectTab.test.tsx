@@ -173,6 +173,10 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
   return { ...utils, props };
 }
 
+function openProjectActions(projectName: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Mais ações para ${projectName}` }));
+}
+
 describe('ProjectTab: empty and list states', () => {
   it('shows an onboarding hint for a brand-new user with no saved projects', () => {
     setup({ savedProjects: [] });
@@ -187,6 +191,7 @@ describe('ProjectTab: empty and list states', () => {
   it('shows the remove action on the project card', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     expect(screen.queryByRole('button', { name: 'Duplicar projeto Casa de praia' })).not.toBeInTheDocument();
+    openProjectActions('Casa de praia');
     expect(screen.getByRole('button', { name: 'Remover projeto Casa de praia' })).toBeInTheDocument();
   });
 
@@ -236,7 +241,7 @@ describe('ProjectTab: empty and list states', () => {
     });
 
     expect(screen.getByText('TP-HS3.6')).toBeInTheDocument();
-    expect(screen.getByText('Solução calculada')).toBeInTheDocument();
+    expect(screen.getByText('Dimensionamento concluído')).toBeInTheDocument();
     expect(screen.getByText('3 carga(s) cadastrada(s)')).toBeInTheDocument();
   });
 
@@ -759,6 +764,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
     clickCard('Casa de praia');
+    openProjectActions('Casa de praia');
     fireEvent.click(screen.getByRole('button', { name: 'Remover projeto Casa de praia' }));
     const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
     fireEvent.click(confirmButton);
@@ -1285,7 +1291,8 @@ describe('ProjectTab: refreshing a project\'s solution from the card', () => {
       ],
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    openProjectActions('Casa de praia');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Atualizar' }));
 
     expect(props.onRefreshSolution).toHaveBeenCalledWith('p1');
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
@@ -1311,7 +1318,8 @@ describe('ProjectTab: refreshing a project\'s solution from the card', () => {
       refreshingProjectId: 'p1',
     });
 
-    expect(screen.getByRole('button', { name: 'Atualizar' })).toBeDisabled();
+    openProjectActions('Casa de praia');
+    expect(screen.getByRole('menuitem', { name: 'Atualizar' })).toBeDisabled();
   });
 
   it('flags the "Atualizar" button when the saved solution no longer meets its own requirements', () => {
@@ -1355,7 +1363,8 @@ describe('ProjectTab: refreshing a project\'s solution from the card', () => {
       ],
     });
 
-    expect(screen.getByRole('button', { name: 'Atualizar' })).toHaveAttribute(
+    openProjectActions('Casa de praia');
+    expect(screen.getByRole('menuitem', { name: 'Atualizar' })).toHaveAttribute(
       'title',
       'A solução salva não atende 100% aos requisitos. Recalcule para atualizar.'
     );
@@ -1390,7 +1399,8 @@ describe('ProjectTab: quotation status', () => {
 describe('ProjectTab: downloading a PDF from the card', () => {
   it('is disabled when the project has no calculated solution', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', solution: null })] });
-    expect(screen.getByRole('button', { name: 'Baixar Relatório' })).toBeDisabled();
+    openProjectActions('Casa de praia');
+    expect(screen.getByRole('menuitem', { name: 'Baixar relatório' })).toBeDisabled();
   });
 
   it('delegates to onDownloadPdf with the project id when a solution exists', () => {
@@ -1412,7 +1422,8 @@ describe('ProjectTab: downloading a PDF from the card', () => {
       ],
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Baixar Relatório' }));
+    openProjectActions('Casa de praia');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Baixar relatório' }));
     expect(props.onDownloadPdf).toHaveBeenCalledWith('p1');
   });
 
@@ -1449,7 +1460,10 @@ describe('ProjectTab: downloading a PDF from the card', () => {
       downloadingProjectId: 'p1',
     });
 
-    expect(screen.getByRole('button', { name: 'Gerando relatório...' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Baixar Relatório' })).not.toBeDisabled();
+    openProjectActions('Casa de praia');
+    expect(screen.getByRole('menuitem', { name: 'Gerando relatório...' })).toBeDisabled();
+    // The second project keeps its report action available in its own menu.
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações para Escritório' }));
+    expect(screen.getByRole('menuitem', { name: 'Baixar relatório' })).not.toBeDisabled();
   });
 });

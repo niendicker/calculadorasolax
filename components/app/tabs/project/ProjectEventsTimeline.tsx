@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Activity, CheckCircle2, Eye, Mail, RefreshCw, Send, XCircle, type LucideIcon } from 'lucide-react';
+import { Activity, CheckCircle2, Eye, Mail, RefreshCw, Send, X, XCircle, type LucideIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { listProjectEvents } from '@/lib/data/project-events-repository';
 import { projectEventFromRow } from '@/lib/store/row-mappers';
@@ -34,6 +35,22 @@ const eventTypeMeta: Record<string, { icon: LucideIcon; label: (event: ProjectEv
 
 const fallbackMeta = { icon: Activity, label: (event: ProjectEvent) => event.message ?? event.eventType };
 
+function EventRow({ event }: { event: ProjectEvent }) {
+  const meta = eventTypeMeta[event.eventType] ?? fallbackMeta;
+  const Icon = meta.icon;
+  return (
+    <div className="flex items-start gap-2 text-xs">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="text-foreground">{meta.label(event)}</p>
+        <p className="text-muted-foreground">
+          {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(event.createdAt))}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** Chronological "Histórico" of a project's communication/negotiation
  *  milestones (project_events table) — quote shared, link viewed, accepted/
  *  rejected, manual status changes. Fetches its own data (keyed by
@@ -47,6 +64,7 @@ const fallbackMeta = { icon: Activity, label: (event: ProjectEvent) => event.mes
 export function ProjectEventsTimeline({ projectId, refreshKey }: { projectId: string; refreshKey: string }) {
   const [events, setEvents] = useState<ProjectEvent[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,25 +92,45 @@ export function ProjectEventsTimeline({ projectId, refreshKey }: { projectId: st
   if (events.length === 0) return null;
 
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-muted-foreground">Histórico</p>
-      <div className="space-y-2">
-        {events.map((event) => {
-          const meta = eventTypeMeta[event.eventType] ?? fallbackMeta;
-          const Icon = meta.icon;
-          return (
-            <div key={event.id} className="flex items-start gap-2 text-xs">
-              <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="text-foreground">{meta.label(event)}</p>
-                <p className="text-muted-foreground">
-                  {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(event.createdAt))}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+    <>
+      <div className="space-y-2 rounded-lg border bg-background p-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Histórico</p>
+            <p className="text-[0.7rem] text-muted-foreground">{events.length} evento{events.length !== 1 ? 's' : ''}</p>
+          </div>
+          <Button type="button" variant="link" size="xs" onClick={() => setHistoryOpen(true)}>
+            Ver histórico
+          </Button>
+        </div>
+        <EventRow event={events[0]} />
       </div>
-    </div>
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="project-history-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setHistoryOpen(false);
+          }}
+        >
+          <div className="max-h-[min(34rem,calc(100vh-2rem))] w-full max-w-md overflow-y-auto rounded-lg border bg-card p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="project-history-title" className="font-semibold">Histórico do projeto</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{events.length} evento{events.length !== 1 ? 's' : ''}</p>
+              </div>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="Fechar histórico" onClick={() => setHistoryOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="mt-5 space-y-3">
+              {events.map((event) => <EventRow key={event.id} event={event} />)}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
