@@ -32,6 +32,12 @@ import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfi
 
 export { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart };
 
+function phaseLabel(phases: number): string {
+  if (phases === 1) return 'Monofásico';
+  if (phases === 2) return 'Bifásico';
+  return 'Trifásico';
+}
+
 /** Network phases/voltage implied by each ResidentialGridType, so the
  * Microrrede/Gerador phase+voltage selection can be checked against
  * whatever grid type is chosen in Configurações. */
@@ -602,10 +608,10 @@ function buildFeatureLines(project: ShareableProject): string[] {
   for (const feature of features) {
     if (feature === 'microgrid' && project.microgrid) {
       const config = project.microgrid;
-      lines.push(`- ${desiredFeatureLabel(feature)}: inversor on-grid existente de ${(config.onGridApparentPowerVA / 1000).toFixed(2)} kVA, ${config.onGridPhases} fase(s), ${config.voltageV} V`);
+      lines.push(`- ${desiredFeatureLabel(feature)}: inversor on-grid existente de ${(config.onGridApparentPowerVA / 1000).toFixed(2)} kVA, ${phaseLabel(config.onGridPhases)}, ${config.voltageV} V`);
     } else if (feature === 'external_generator' && project.generator) {
       const config = project.generator;
-      lines.push(`- ${desiredFeatureLabel(feature)}: gerador de ${(config.apparentPowerVA / 1000).toFixed(2)} kVA, ${config.phases} fase(s), ${config.voltageV} V`);
+      lines.push(`- ${desiredFeatureLabel(feature)}: gerador de ${(config.apparentPowerVA / 1000).toFixed(2)} kVA, ${phaseLabel(config.phases)}, ${config.voltageV} V`);
     } else if (feature === 'pv' && project.pv) {
       lines.push(`- ${desiredFeatureLabel(feature)}: consumo médio de ${project.pv.monthlyConsumptionKwh.toFixed(2)} kWh/mês, HSP de ${project.pv.hsp.toFixed(1)} h/dia`);
     } else if (feature === 'white_tariff' && project.whiteTariff) {

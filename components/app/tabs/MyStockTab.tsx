@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Battery, Boxes, Check, Loader2, Lock, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Battery, Boxes, Check, Info, Loader2, Lock, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -205,6 +205,7 @@ export function MyStockTab({
   const unpricedProductCount = userStockItems.length - pricedProductCount;
   const portfolioCost = userStockItems.reduce((total, item) => total + item.unitValue, 0);
   const configuredMarginCount = Object.values(marginSettings).filter((value) => value > 0).length;
+  const activeSectionDefinition = sectionDefinitions.find((section) => section.type === activeSection) ?? sectionDefinitions[0];
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
@@ -212,8 +213,7 @@ export function MyStockTab({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Portfólio</h1>
           <p className="text-sm text-muted-foreground">
-            Seus preços de produtos e serviços, usados nos orçamentos. Para adicionar um novo produto, escolha-o na
-            aba Catálogo.
+            Gerencie produtos, serviços e preços usados nos seus orçamentos.
           </p>
         </div>
       </PageHeader>
@@ -225,8 +225,8 @@ export function MyStockTab({
             <p className="mt-1 text-xs text-muted-foreground">Visão geral dos itens cadastrados.</p>
           </div>
           <div className="space-y-2">
-            <PortfolioMetricCard icon={Package} label="Produtos" value={String(userStockItems.length)} detail={`${pricedProductCount} com custo definido`} />
-            <PortfolioMetricCard icon={Wrench} label="Serviços" value={String(userServices.length)} detail={`${configuredMarginCount}/3 categorias com markup`} />
+            <PortfolioMetricCard icon={Package} label="Produtos" value={`${userStockItems.length}/${ACCOUNT_LIMITS.userStockItems}`} detail={`${pricedProductCount} com custo definido`} />
+            <PortfolioMetricCard icon={Wrench} label="Serviços" value={`${userServices.length}/${ACCOUNT_LIMITS.userServices}`} detail={`${configuredMarginCount}/3 categorias com markup`} />
             <PortfolioMetricCard
               icon={unpricedProductCount > 0 || hasUnpricedService ? AlertTriangle : Check}
               label="Pendências de preço"
@@ -248,7 +248,7 @@ export function MyStockTab({
           countLabel={userStockItems.length === 1 ? 'produto' : 'produtos'}
           warn={hasUnpricedProduct}
           actionLabel={!atLimit ? 'Adicionar produto' : undefined}
-          onAction={!atLimit ? () => setSummaryAddOpen(true) : undefined}
+          onAction={!atLimit ? () => { setActiveMainSection('products'); setSummaryAddOpen(true); } : undefined}
           onClick={() => setActiveMainSection('products')}
         />
         <PortfolioSectionCard
@@ -259,7 +259,7 @@ export function MyStockTab({
           countLabel={userServices.length === 1 ? 'serviço' : 'serviços'}
           warn={hasUnpricedService}
           actionLabel={userServices.length < ACCOUNT_LIMITS.userServices ? 'Adicionar serviço' : undefined}
-          onAction={userServices.length < ACCOUNT_LIMITS.userServices ? () => setSummaryAddOpen(true) : undefined}
+          onAction={userServices.length < ACCOUNT_LIMITS.userServices ? () => { setActiveMainSection('services'); setSummaryAddOpen(true); } : undefined}
           onClick={() => setActiveMainSection('services')}
         />
       </div>
@@ -294,17 +294,23 @@ export function MyStockTab({
             </div>
 
             <div className="min-w-0 space-y-4">
-              <div className="rounded-xl border bg-muted/20 p-3">
-              <label className="relative block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                <Input
-                  aria-label="Buscar produto no portfólio"
-                  placeholder="Buscar modelo ou nome"
-                  value={productQuery}
-                  onChange={(event) => setProductQuery(event.target.value)}
-                  className="!pl-11"
+              <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-3 sm:flex-row sm:items-center">
+                <label className="relative block min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input
+                    aria-label="Buscar produto no portfólio"
+                    placeholder="Buscar modelo ou nome"
+                    value={productQuery}
+                    onChange={(event) => setProductQuery(event.target.value)}
+                    className="!pl-11"
+                  />
+                </label>
+                <CategoryMarginInline
+                  productType={activeSection}
+                  productLabel={activeSectionDefinition.label}
+                  marginSettings={marginSettings}
+                  onUpdateMarginPercent={onUpdateMarginPercent}
                 />
-              </label>
               </div>
 
               {sectionDefinitions.map((section) => {
@@ -318,11 +324,6 @@ export function MyStockTab({
               const marginPercent = marginSettings[marginFieldByProductType[section.type]];
               return (
                 <div key={section.type} className="space-y-3">
-                  <CategoryMarginInline
-                    productType={section.type}
-                    marginSettings={marginSettings}
-                    onUpdateMarginPercent={onUpdateMarginPercent}
-                  />
                   {items.length === 0 ? (
                     <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-5">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><section.icon className="h-5 w-5" aria-hidden="true" /></span>
@@ -562,10 +563,12 @@ const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> =
  * own tab, next to its product grid, rather than a separate settings card. */
 function CategoryMarginInline({
   productType,
+  productLabel,
   marginSettings,
   onUpdateMarginPercent,
 }: {
   productType: StockProductType;
+  productLabel: string;
   marginSettings: MarginSettings;
   onUpdateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
 }) {
@@ -574,15 +577,20 @@ function CategoryMarginInline({
   const [saveState, save] = useInlineSave((percent: number) => onUpdateMarginPercent(productType, percent));
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:min-w-[15rem] sm:border-l sm:pl-3">
       <div className="min-w-0">
-        <label htmlFor={`margin-${productType}`} className="block text-xs font-semibold text-foreground">Markup de venda</label>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">Aplicado ao custo dos {productType === 'inverter' ? 'inversores' : productType === 'battery' ? 'baterias' : 'acessórios'}.</p>
+        <div className="flex items-center gap-1">
+          <label htmlFor={`margin-${productType}`} className="text-xs font-semibold text-foreground">Markup · {productLabel}</label>
+          <span title={`Aplicado ao custo dos ${productLabel.toLowerCase()}.`} aria-label={`Markup aplicado aos ${productLabel.toLowerCase()}`}>
+            <Info className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          </span>
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <input
           key={value}
           id={`margin-${productType}`}
+          aria-label="Markup de venda"
           type="number"
           min={0}
           step={0.1}
@@ -624,10 +632,10 @@ function ServicesSection({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Serviços que você presta (instalação, frete, mão de obra...), com o preço que você define. Somam ao custo
-        final da solução quando adicionados a um projeto.
-      </p>
+      <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+        <p><span className="font-medium text-foreground">Serviços do seu catálogo.</span> Cadastre valores para instalação, frete e mão de obra. Eles entram no custo quando usados em um projeto.</p>
+      </div>
       {atLimit && (
         <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           Você atingiu o limite de {ACCOUNT_LIMITS.userServices} serviços no seu catálogo. Remova um item para
@@ -636,7 +644,7 @@ function ServicesSection({
       )}
       {userServices.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          Você ainda não cadastrou nenhum serviço. Use o card ao lado para adicionar um.
+          Você ainda não cadastrou nenhum serviço. Use o botão “Adicionar serviço” acima para cadastrar um.
         </p>
       )}
       <div className="grid gap-3 lg:grid-cols-2">
@@ -650,8 +658,8 @@ function ServicesSection({
             onRemove={onRemoveService}
           />
         ))}
-        <AddServiceCard atLimit={atLimit} stockCount={userServices.length} stockLimit={ACCOUNT_LIMITS.userServices} open={addOpen} onOpenChange={onAddOpenChange} onAdd={onAddService} />
       </div>
+      <AddServiceCard atLimit={atLimit} stockCount={userServices.length} stockLimit={ACCOUNT_LIMITS.userServices} hideTrigger open={addOpen} onOpenChange={onAddOpenChange} onAdd={onAddService} />
     </div>
   );
 }
@@ -676,67 +684,85 @@ function ServiceCard({
   const pricingDescription = servicePricingDescription(pricingUnit);
 
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex items-center gap-1.5">
-          <Input
-            key={service.id}
-            defaultValue={service.name}
-            aria-label={`Nome do serviço ${service.name}`}
-            onBlur={(event) => {
-              const nextName = event.target.value.trim();
-              if (nextName && nextName !== service.name) void saveName(nextName);
-            }}
-          />
-          <InlineSaveStatus state={nameSaveState} />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Wrench className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <p className="min-w-0 flex-1 truncate pt-1 text-sm font-semibold" title={`Serviço de ${service.name}`}>
+          Serviço de {service.name}
+        </p>
+        <ConfirmDeleteButton
+          ariaLabel={`Remover serviço ${service.name}`}
+          title="Remover serviço?"
+          description="Esse serviço sai do seu catálogo pessoal. Projetos que já o incluem deixam de ter o preço resolvido."
+          confirmLabel="Remover"
+          onConfirm={() => onRemove(service.id)}
+        />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-lg border bg-muted/10">
+        <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.65fr)_minmax(0,1.35fr)] sm:items-center">
+          <label htmlFor={`${service.id}-service-name`} className="text-xs font-medium text-muted-foreground">Nome</label>
+          <div className="flex items-center gap-1.5">
+            <Input
+              id={`${service.id}-service-name`}
+              key={service.id}
+              defaultValue={service.name}
+              aria-label={`Nome do serviço ${service.name}`}
+              onBlur={(event) => {
+                const nextName = event.target.value.trim();
+                if (nextName && nextName !== service.name) void saveName(nextName);
+              }}
+              className="h-9 bg-background font-medium"
+            />
+            <InlineSaveStatus state={nameSaveState} />
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Preço unitário</span>
-          <span className="text-xs text-muted-foreground">R$</span>
-          <input
-            key={`${service.id}-value`}
-            type="number"
-            min={0}
-            step={0.01}
-            defaultValue={service.unitValue}
-            aria-label={`Preço do serviço ${service.name}`}
-            onBlur={(event) => {
-              const parsed = Number(event.target.value);
-              const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-              if (nextValue !== service.unitValue) void saveValue(nextValue);
-            }}
-            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-          <InlineSaveStatus state={valueSaveState} />
+        <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.65fr)_minmax(0,1.35fr)] sm:items-center">
+          <label htmlFor={`${service.id}-service-value`} className="text-xs font-medium text-muted-foreground">Preço unitário</label>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">R$</span>
+            <input
+              id={`${service.id}-service-value`}
+              key={`${service.id}-value`}
+              type="number"
+              min={0}
+              step={0.01}
+              defaultValue={service.unitValue}
+              aria-label={`Preço do serviço ${service.name}`}
+              onBlur={(event) => {
+                const parsed = Number(event.target.value);
+                const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+                if (nextValue !== service.unitValue) void saveValue(nextValue);
+              }}
+              className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+            <InlineSaveStatus state={valueSaveState} />
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid gap-2 p-3 sm:grid-cols-[minmax(8rem,0.65fr)_minmax(0,1.35fr)] sm:items-center">
           <label htmlFor={`service-unit-${service.id}`} className="text-xs font-medium text-muted-foreground">Cobrar por</label>
-          <select
-            id={`service-unit-${service.id}`}
-            aria-label={`Unidade de cobrança do serviço ${service.name}`}
-            value={pricingUnit}
-            onChange={(event) => void saveUnit(event.target.value as UserServicePricingUnit)}
-            className="h-8 min-w-44 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
-          </select>
-          <InlineSaveStatus state={unitSaveState} />
-        </div>
-        <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Como será calculado</p>
-          <p className="mt-0.5">{pricingDescription}</p>
-          <p className="mt-1 font-medium text-primary">{formatCurrencyBRL(service.unitValue)} × {pricingUnit === 'project' ? '1 projeto' : 'quantidade encontrada no dimensionamento'}</p>
+          <div className="flex items-center gap-1.5">
+            <select
+              id={`service-unit-${service.id}`}
+              aria-label={`Unidade de cobrança do serviço ${service.name}`}
+              value={pricingUnit}
+              onChange={(event) => void saveUnit(event.target.value as UserServicePricingUnit)}
+              className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
+            </select>
+            <InlineSaveStatus state={unitSaveState} />
+          </div>
         </div>
       </div>
-      <ConfirmDeleteButton
-        ariaLabel={`Remover serviço ${service.name}`}
-        title="Remover serviço?"
-        description="Esse serviço sai do seu catálogo pessoal. Projetos que já o incluem deixam de ter o preço resolvido."
-        confirmLabel="Remover"
-        onConfirm={() => onRemove(service.id)}
-      />
-    </div>
+
+      <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2.5 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground">Como será calculado</p>
+        <p className="mt-0.5">{pricingDescription}</p>
+        <p className="mt-1 font-medium text-primary">{formatCurrencyBRL(service.unitValue)} × {pricingUnit === 'project' ? '1 projeto' : 'quantidade encontrada no dimensionamento'}</p>
+      </div>
     </div>
   );
 }
@@ -761,6 +787,7 @@ function AddServiceCard({
   stockLimit,
   open: controlledOpen,
   onOpenChange,
+  hideTrigger = false,
   onAdd,
 }: {
   atLimit: boolean;
@@ -768,6 +795,7 @@ function AddServiceCard({
   stockLimit: number;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
   onAdd: (input: { name: string; unitValue: number; pricingUnit?: UserServicePricingUnit }) => Promise<void>;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
@@ -783,6 +811,7 @@ function AddServiceCard({
   };
 
   if (atLimit) {
+    if (hideTrigger) return null;
     return (
       <div
         role="status"
@@ -796,6 +825,7 @@ function AddServiceCard({
   }
 
   if (!open) {
+    if (hideTrigger) return null;
     return (
       <button
         type="button"
@@ -870,8 +900,8 @@ function AddServiceCard({
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { setOpen(false); setError(null); }}>Cancelar</Button>
-          <Button type="button" size="sm" disabled={!name.trim() || saving} onClick={handleAdd}>{saving ? 'Salvando...' : 'Salvar'}</Button>
+          <Button type="button" variant="ghost" size="default" className="min-w-24" onClick={() => { setOpen(false); setError(null); }}>Cancelar</Button>
+          <Button type="button" size="default" className="min-w-32" disabled={!name.trim() || saving} onClick={handleAdd}>{saving ? 'Salvando...' : 'Salvar'}</Button>
         </div>
       </div>
     </div>
@@ -1157,7 +1187,10 @@ function StockProductCard({
       nickname = inverter.nickname;
       imageUrl = inverter.imageUrl;
       documents = inverter.documents;
-      badges = [inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`];
+      badges = [
+        inverter.topology,
+        inverter.phases === 1 ? 'Monofásico' : inverter.phases === 2 ? 'Bifásico' : 'Trifásico',
+      ];
       specs = [
         ['Potência', `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`],
         ['Garantia', `${inverter.warrantyYears ?? 10} anos`],
@@ -1210,44 +1243,44 @@ function StockProductCard({
         />
       }
       stockControl={
-        <div className="space-y-1 border-t pt-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Meu custo</span>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">R$</span>
-              <input
-                key={item.id}
-                type="number"
-                min={0}
-                step={0.01}
-                defaultValue={item.unitValue}
-                aria-label={`Meu custo para ${item.productModel}`}
-                onBlur={(event) => {
-                  const parsed = Number(event.target.value);
-                  const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-                  if (nextValue !== item.unitValue) void saveValue(nextValue);
-                }}
-                className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
+        <div className="space-y-2 border-t pt-3">
+          <div className="overflow-hidden rounded-lg border bg-muted/10 text-xs">
+            <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-center">
+              <span className="font-medium text-muted-foreground">Meu custo</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">R$</span>
+                <input
+                  key={item.id}
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  defaultValue={item.unitValue}
+                  aria-label={`Meu custo para ${item.productModel}`}
+                  onBlur={(event) => {
+                    const parsed = Number(event.target.value);
+                    const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+                    if (nextValue !== item.unitValue) void saveValue(nextValue);
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                <InlineSaveStatus state={valueSaveState} />
+              </div>
             </div>
-            <InlineSaveStatus state={valueSaveState} />
+            {supplierCost && (
+              <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-center">
+                <span className="flex items-center gap-1.5 font-medium text-muted-foreground"><Truck className="h-3.5 w-3.5" aria-hidden="true" />Fornecedor</span>
+                <span className="font-medium text-foreground">{formatCurrencyBRL(supplierCost.unitPrice)}</span>
+              </div>
+            )}
+            {item.unitValue > 0 && (
+              <div className="grid gap-2 bg-primary/5 p-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-center">
+                <span className="font-medium text-muted-foreground">Venda estimada</span>
+                <span className="font-semibold text-primary">{formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))}<span className="ml-1 text-[11px] font-normal text-muted-foreground">({marginPercent}% markup)</span></span>
+              </div>
+            )}
           </div>
           {item.unitValue === 0 && (
-            <p className="text-xs text-amber-600">Defina um preço: sem ele, este item entra como R$ 0 nos orçamentos.</p>
-          )}
-          {supplierCost && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Truck className="h-3 w-3 shrink-0" />
-              Referência de fornecedor: {formatCurrencyBRL(supplierCost.unitPrice)}
-            </p>
-          )}
-          {item.unitValue > 0 && (
-            <div className="rounded-md bg-primary/5 px-3 py-2 text-xs">
-              <p className="font-medium text-foreground">Preço de venda estimado</p>
-              <p className="mt-0.5 text-muted-foreground">
-                {formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))} · custo {formatCurrencyBRL(item.unitValue)} + markup de {marginPercent}%
-              </p>
-            </div>
+            <p className="text-xs text-amber-600">Defina um custo: sem ele, este item entra como R$ 0 nos orçamentos.</p>
           )}
         </div>
       }

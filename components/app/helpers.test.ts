@@ -815,8 +815,8 @@ describe('buildSupplierQuoteRequestEmail', () => {
     expect(text).toContain('Funcionalidades selecionadas:');
     expect(text).toContain('- Backup');
     expect(text).toContain('- Backup Total');
-    expect(text).toContain('- Microrrede: inversor on-grid existente de 7.50 kVA, 3 fase(s), 380 V');
-    expect(text).toContain('- Gerador: gerador de 12.00 kVA, 3 fase(s), 380 V');
+    expect(text).toContain('- Microrrede: inversor on-grid existente de 7.50 kVA, Trifásico, 380 V');
+    expect(text).toContain('- Gerador: gerador de 12.00 kVA, Trifásico, 380 V');
     expect(text).toContain('- Fotovoltaico: consumo médio de 900.00 kWh/mês, HSP de 5.2 h/dia');
     expect(text).toContain('- Tarifa Branca: energia diária de 12.00 kWh/dia, potência requerida de 6.00 kW');
   });

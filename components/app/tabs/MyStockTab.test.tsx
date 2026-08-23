@@ -125,7 +125,7 @@ describe('MyStockTab: listing', () => {
     });
 
     expect(screen.queryByRole('button', { name: 'Adicionar produto' })).not.toBeInTheDocument();
-    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
+    expect(screen.getByText(/Você atingiu o limite de .* produtos/)).toBeInTheDocument();
     expect(screen.getByText(`${ACCOUNT_LIMITS.userStockItems}/${ACCOUNT_LIMITS.userStockItems} produtos`, { exact: false })).toBeInTheDocument();
   });
 
@@ -218,12 +218,12 @@ describe('MyStockTab: editing price', () => {
 
   it('warns when a stock item still has no price defined', () => {
     setup({ userStockItems: [{ ...stockItem, unitValue: 0 }] });
-    expect(screen.getByText(/Defina um preço/)).toBeInTheDocument();
+    expect(screen.getByText(/Defina um custo/)).toBeInTheDocument();
   });
 
   it('does not warn once a price has been set', () => {
     setup({ userStockItems: [stockItem] });
-    expect(screen.queryByText(/Defina um preço/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Defina um custo/)).not.toBeInTheDocument();
   });
 
   it('shows an empty-category hint when a section has no items yet', () => {
@@ -236,9 +236,9 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
   it('shows the resulting sale price based on the category margin', () => {
     setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 20, batteryPercent: 0, accessoryPercent: 0 } });
 
-    const salePrice = screen.getByText('Preço de venda estimado');
+    const salePrice = screen.getByText('Venda estimada');
     expect(salePrice.parentElement).toHaveTextContent('R$ 1.200,00');
-    expect(salePrice.parentElement).toHaveTextContent('markup de 20%');
+    expect(salePrice.parentElement).toHaveTextContent('20% markup');
   });
 
   it('does not show a sale price for a product with no price defined yet', () => {
@@ -272,7 +272,7 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
     );
     setup({ userStockItems: [stockItem] });
 
-    await waitFor(() => expect(screen.getByText(/Referência de fornecedor: R\$\s*750,00/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Fornecedor').parentElement).toHaveTextContent('R$ 750,00'));
   });
 
   it('does not show a cost reference when no supplier offers that model', async () => {
@@ -288,14 +288,14 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
     setup({ userStockItems: [stockItem] });
 
     await waitFor(() => expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument());
-    expect(screen.queryByText(/Referência de fornecedor/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Fornecedor')).not.toBeInTheDocument();
   });
 
   it('does not show a cost reference for a signed-out visitor', () => {
     createClientMock.mockReturnValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
     setup({ userStockItems: [stockItem] });
 
-    expect(screen.queryByText(/Referência de fornecedor/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Fornecedor')).not.toBeInTheDocument();
   });
 });
 
@@ -372,7 +372,7 @@ describe('MyStockTab: services', () => {
     const { props } = setup({ onAddService });
 
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }));
     fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
     fireEvent.change(screen.getByLabelText('Preço do serviço'), { target: { value: '150' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -433,8 +433,8 @@ describe('MyStockTab: services', () => {
     setup({ userServices: services });
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
 
-    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Adicionar serviço ao catálogo' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Você atingiu o limite de .* serviços/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adicionar serviço' })).not.toBeInTheDocument();
   });
 });
 
@@ -514,7 +514,7 @@ describe('MyStockTab: adding a service', () => {
     setup({ onAddService });
 
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }));
     fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
     fireEvent.change(screen.getByLabelText('Preço do serviço'), { target: { value: '-5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -527,7 +527,7 @@ describe('MyStockTab: adding a service', () => {
     setup({ onAddService });
 
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }));
     fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
     fireEvent.change(screen.getByLabelText('Preço do serviço'), { target: { value: '100' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -541,12 +541,12 @@ describe('MyStockTab: adding a service', () => {
     setup();
 
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }));
     fireEvent.change(screen.getByLabelText('Nome do serviço'), { target: { value: 'Frete' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
     expect(screen.queryByLabelText('Nome do serviço')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Adicionar serviço ao catálogo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adicionar serviço' })).toBeInTheDocument();
   });
 });
 

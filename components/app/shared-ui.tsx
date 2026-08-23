@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ClipboardCopy, Search, X, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ClipboardCopy, FileText, Paperclip, Search, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -533,8 +533,12 @@ export function CatalogProductCard({
    * own actions. */
   topRightAction?: React.ReactNode;
 }) {
+  const [showAllDocuments, setShowAllDocuments] = useState(false);
+  const visibleDocuments = showAllDocuments ? documents : documents.slice(0, 2);
+  const hiddenDocumentsCount = documents.length - visibleDocuments.length;
+
   return (
-    <div className="relative grid gap-3 rounded-lg border bg-card p-3 text-left sm:grid-cols-[112px_1fr]">
+    <div className="relative grid gap-3 rounded-xl border bg-card p-3 text-left shadow-sm sm:grid-cols-[112px_1fr]">
       {topRightAction && <div className="absolute right-2 top-2 z-10">{topRightAction}</div>}
       <div
         className={cn(
@@ -557,47 +561,63 @@ export function CatalogProductCard({
       <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9')}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="break-words text-sm font-semibold leading-snug">{nickname || model}</p>
-            {nickname && <p className="break-words text-xs text-muted-foreground">{model}</p>}
+            <p className="break-words text-base font-semibold leading-snug">{nickname || model}</p>
+            {nickname && <p className="mt-0.5 break-words text-xs text-muted-foreground">{model}</p>}
           </div>
-          {badges && badges.length > 0 && (
-            <div className="flex shrink-0 flex-wrap justify-end gap-1">
+        </div>
+        {badges && badges.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
               {badges.map((badge) => (
                 <Badge key={badge} variant="secondary">
                   {badge}
                 </Badge>
               ))}
             </div>
-          )}
-        </div>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        )}
+        {description && <p className="text-xs leading-5 text-muted-foreground">{description}</p>}
         {specs && specs.length > 0 && (
-          <div className="grid gap-1 text-xs text-muted-foreground">
-            {specs.map(([label, value]) => (
-              <span key={label}>
-                {label}: {value}
-              </span>
+          <div className="overflow-hidden rounded-md border bg-muted/10 text-xs">
+            {specs.map(([label, value], index) => (
+              <div key={label} className={cn('grid grid-cols-[minmax(4.5rem,0.65fr)_minmax(0,1.35fr)] gap-2 px-2.5 py-1.5', index > 0 && 'border-t')}>
+                <span className="font-medium text-muted-foreground">{label}</span>
+                <span className="text-foreground">{value}</span>
+              </div>
             ))}
           </div>
         )}
-        <div className="flex min-w-0 flex-wrap gap-1">
-          {documents.length > 0 ? (
-            documents.map((document) => (
+      </div>
+      {documents.length > 0 && (
+        <div className="min-w-0 border-t pt-2 sm:col-span-2">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Documentos ({documents.length})</span>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-2">
+            {visibleDocuments.map((document) => (
               <button
                 key={`${model}-${document.url}`}
                 type="button"
-                className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                title={document.name || 'Documento'}
+                className="flex min-w-0 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-primary transition hover:bg-primary/10"
                 onClick={() => onPreviewDoc(document)}
               >
-                {document.name || 'Documento'}
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">{document.name || 'Documento'}</span>
               </button>
-            ))
-          ) : (
-            <span className="text-xs text-muted-foreground">Sem anexos</span>
+            ))}
+          </div>
+          {documents.length > 2 && (
+            <button
+              type="button"
+              className="mt-1 px-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => setShowAllDocuments((current) => !current)}
+            >
+              {showAllDocuments ? 'Mostrar menos' : `Ver mais ${hiddenDocumentsCount}`}
+            </button>
           )}
         </div>
-        {stockControl}
-      </div>
+      )}
+      {stockControl && <div className="min-w-0 sm:col-span-2">{stockControl}</div>}
     </div>
   );
 }

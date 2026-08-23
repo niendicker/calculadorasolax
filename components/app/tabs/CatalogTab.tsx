@@ -132,7 +132,7 @@ export function CatalogTab({
                               nickname={inverter.nickname}
                               imageUrl={inverter.imageUrl}
                               documents={inverter.documents}
-                              badges={[inverter.topology, `${inverter.phases} fase${inverter.phases === 1 ? '' : 's'}`]}
+                              badges={[inverter.topology, group.label]}
                               specs={[
                                 [
                                   'Potência',

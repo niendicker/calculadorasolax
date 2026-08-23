@@ -77,7 +77,7 @@ function setup(overrides: Partial<Parameters<typeof CatalogTab>[0]> = {}) {
 describe('CatalogTab: sections', () => {
   it('shows inverters by default, grouped by phase count', () => {
     setup();
-    expect(screen.getByText('Monofásico')).toBeInTheDocument();
+    expect(screen.getAllByText('Monofásico').length).toBeGreaterThan(0);
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
   });
 
@@ -87,12 +87,10 @@ describe('CatalogTab: sections', () => {
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
   });
 
-  it('groups multiple inverter phase counts and singularizes "1 fase"', () => {
+  it('groups multiple inverter phase counts using descriptive labels', () => {
     setup({ inverterCatalog: [inverter, threePhaseInverter] });
-    expect(screen.getByText('Monofásico')).toBeInTheDocument();
-    expect(screen.getByText('Trifásico')).toBeInTheDocument();
-    expect(screen.getByText('1 fase')).toBeInTheDocument();
-    expect(screen.getByText('3 fases')).toBeInTheDocument();
+    expect(screen.getAllByText('Monofásico').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Trifásico').length).toBeGreaterThan(0);
   });
 
   it('subdivides inverters within a phase group by topology (HV / LV / both)', () => {
@@ -148,7 +146,7 @@ describe('CatalogTab: sections', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
 
     expect(screen.getByText('Master')).toBeInTheDocument();
-    expect(screen.getByText('Expansão')).toBeInTheDocument();
+    expect(screen.getAllByText('Expansão').length).toBeGreaterThan(0);
   });
 
   it('shows the loading skeleton while loading', () => {
@@ -227,12 +225,12 @@ describe('CatalogTab: stock control', () => {
 describe('CatalogTab: missing power specs', () => {
   it('falls back to "-" when inverter power specs are null', () => {
     setup({ inverterCatalog: [{ ...inverter, standardPowerKva: null, peakPowerKva: null }] });
-    expect(screen.getByText('Potência: - kVA · pico - kVA')).toBeInTheDocument();
+    expect(screen.getByText('Potência').parentElement).toHaveTextContent('- kVA · pico - kVA');
   });
 
   it('falls back to "-" when battery power specs are null', () => {
     setup({ batteryCatalog: [{ ...battery, standardPowerKw: null, peakPowerKw: null }] });
     fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
-    expect(screen.getByText('Potência: - kW · pico - kW')).toBeInTheDocument();
+    expect(screen.getByText('Potência').parentElement).toHaveTextContent('- kW · pico - kW');
   });
 });

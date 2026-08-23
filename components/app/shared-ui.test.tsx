@@ -316,7 +316,7 @@ describe('CatalogEmptyState', () => {
 });
 
 describe('CatalogProductCard', () => {
-  it('renders the fallback icon when there is no image, and "Sem anexos" when there are no documents', () => {
+  it('renders the fallback icon and hides the document section when there are no documents', () => {
     render(
       <CatalogProductCard
         fallbackIcon={<span>icon</span>}
@@ -328,7 +328,7 @@ describe('CatalogProductCard', () => {
       />
     );
     expect(screen.getByText('icon')).toBeInTheDocument();
-    expect(screen.getByText('Sem anexos')).toBeInTheDocument();
+    expect(screen.queryByText(/Documentos/)).not.toBeInTheDocument();
   });
 
   it('opens the image preview on click, lists documents, badges, specs, description and stockControl', () => {
@@ -358,9 +358,36 @@ describe('CatalogProductCard', () => {
 
     expect(screen.getByText('HV')).toBeInTheDocument();
     expect(screen.getByText('Novo')).toBeInTheDocument();
-    expect(screen.getByText('Capacidade: 3.6 kWh')).toBeInTheDocument();
+    expect(screen.getByText('Capacidade').parentElement).toHaveTextContent('3.6 kWh');
     expect(screen.getByText('Descrição do produto')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'No estoque' })).toBeInTheDocument();
+  });
+
+  it('shows only two documents initially and lets the user expand the list', () => {
+    const documents = [
+      { name: 'Manual', url: 'https://cdn.example.com/manual.pdf' },
+      { name: 'Ficha técnica', url: 'https://cdn.example.com/ficha.pdf' },
+      { name: 'Instalação', url: 'https://cdn.example.com/instalacao.pdf' },
+    ];
+    render(
+      <CatalogProductCard
+        fallbackIcon={<span>icon</span>}
+        model="X1"
+        imageUrl={null}
+        documents={documents}
+        onPreviewImage={vi.fn()}
+        onPreviewDoc={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Documentos (3)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Manual' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ficha técnica' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Instalação' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver mais 1' }));
+    expect(screen.getByRole('button', { name: 'Instalação' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mostrar menos' })).toBeInTheDocument();
   });
 
   it('shows the model as the title when there is no nickname', () => {

@@ -38,7 +38,7 @@ export function AboutDialog({ open, onClose, version }: { open: boolean; onClose
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="about-dialog-title">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Fechar" onClick={onClose} />
-      <div className="relative z-10 my-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-card shadow-2xl">
+      <div className="relative z-10 my-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-card shadow-2xl lg:max-w-5xl">
         <div className="bg-gradient-to-br from-primary to-primary/80 px-6 py-7 text-primary-foreground sm:px-8">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
