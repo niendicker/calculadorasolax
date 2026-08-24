@@ -329,8 +329,8 @@ export function MyStockTab({
                 <div key={section.type} className="space-y-3">
                   {items.length === 0 ? (
                     <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-5">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><section.icon className="h-5 w-5" aria-hidden="true" /></span>
-                      <div><p className="text-sm font-medium">Seu portfólio ainda não tem {section.label.toLowerCase()}.</p><p className="mt-1 text-xs text-muted-foreground">Use o botão “Adicionar produto” acima para escolher um item disponível no catálogo.</p></div>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Package className="h-5 w-5" aria-hidden="true" /></span>
+                      <div><p className="text-sm font-medium">Nenhum produto cadastrado</p><p className="mt-1 text-xs text-muted-foreground">Cadastre um produto pelo botão “Adicionar produto” acima para incluí-lo no seu portfólio.</p></div>
                     </div>
                   ) : filteredItems.length === 0 ? (
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/20 p-4">
@@ -685,10 +685,12 @@ function ServicesSection({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-        <p><span className="font-medium text-foreground">Serviços do seu catálogo.</span> Cadastre valores para instalação, frete e mão de obra. Eles entram no custo quando usados em um projeto.</p>
-      </div>
+      {userServices.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <p><span className="font-medium text-foreground">Serviços do seu catálogo.</span> Cadastre valores para instalação, frete e mão de obra. Eles entram no custo quando usados em um projeto.</p>
+        </div>
+      )}
       {atLimit && (
         <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           Você atingiu o limite de {ACCOUNT_LIMITS.userServices} serviços no seu catálogo. Remova um item para

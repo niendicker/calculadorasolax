@@ -241,11 +241,11 @@ describe('MyStockTab: editing price', () => {
 
   it('shows an empty-category hint when a section has no items yet', () => {
     setup({ userStockItems: [] });
-    expect(screen.getByText(/Seu portfólio ainda não tem inversores/)).toBeInTheDocument();
+    expect(screen.getByText('Nenhum produto cadastrado')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Inversores/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Buscar produto no portfólio')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Markup de venda')).not.toBeInTheDocument();
-    expect(screen.getByText(/Adicionar produto.*acima.*catálogo/)).toBeInTheDocument();
+    expect(screen.getByText(/Cadastre um produto pelo botão.*Adicionar produto.*portfólio/)).toBeInTheDocument();
   });
 });
 
@@ -495,6 +495,7 @@ describe('MyStockTab: services', () => {
 
     expect(screen.getByText('Nenhum serviço cadastrado')).toBeInTheDocument();
     expect(screen.getByText(/Cadastre instalação, frete ou mão de obra/)).toBeInTheDocument();
+    expect(screen.queryByText(/Serviços do seu catálogo/)).not.toBeInTheDocument();
   });
 
   it('surfaces an error instead of silently discarding a failed inline service price edit', async () => {
