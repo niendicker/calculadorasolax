@@ -210,7 +210,7 @@ export function useAdminData({
         case 'supplierQuoteRequests': {
           const { data, error: fetchError } = await supabase
             .from('supplier_quote_requests')
-            .select('id, project_id, supplier_id, user_id, status, created_at, sent_at, last_attempt_at, send_count, error_message, suppliers(name), projects(name), profiles(full_name, email)')
+            .select('id, project_id, supplier_id, user_id, status, created_at, sent_at, last_attempt_at, send_count, error_message, suppliers(name), projects(name)')
             .order('created_at', { ascending: false });
           if (!fetchError) {
             const rows = (data ?? []) as unknown as {
@@ -226,8 +226,15 @@ export function useAdminData({
               error_message: string | null;
               suppliers?: { name?: string | null } | null;
               projects?: { name?: string | null } | null;
-              profiles?: { full_name?: string | null; email?: string | null } | null;
             }[];
+            const userIds = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+            const { data: profileData, error: profileError } = userIds.length
+              ? await supabase.from('profiles').select('id, full_name, email').in('id', userIds)
+              : { data: [], error: null };
+            if (profileError) return { error: profileError };
+            const profileById = new Map(
+              ((profileData ?? []) as { id: string; full_name?: string | null; email?: string | null }[]).map((profile) => [profile.id, profile])
+            );
             setSupplierQuoteRequests(rows.map((row) => ({
               id: row.id,
               project_id: row.project_id,
@@ -241,8 +248,8 @@ export function useAdminData({
               error_message: row.error_message,
               supplier_name: row.suppliers?.name || 'Fornecedor não identificado',
               project_name: row.projects?.name || 'Projeto não identificado',
-              requester_name: row.profiles?.full_name ?? null,
-              requester_email: row.profiles?.email ?? null,
+              requester_name: profileById.get(row.user_id)?.full_name ?? null,
+              requester_email: profileById.get(row.user_id)?.email ?? null,
             })));
           }
           return { error: fetchError };
