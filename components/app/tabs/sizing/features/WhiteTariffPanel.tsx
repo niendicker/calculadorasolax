@@ -5,6 +5,7 @@ import { AlertTriangle, Clock, Moon, Zap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InfoLabel } from '@/components/ui/tooltip';
 import type { DesiredFeatureId, PvConfig, WhiteTariffConfig } from '@/lib/types';
 import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,8 @@ function WhiteTariffEnergyField({
   onChange,
   businessDays,
   disabled = false,
+  error,
+  onBlur,
 }: {
   id: string;
   section: string;
@@ -53,6 +56,8 @@ function WhiteTariffEnergyField({
   onChange: (energyWh: number) => void;
   businessDays: number;
   disabled?: boolean;
+  error?: string;
+  onBlur?: () => void;
 }) {
   const [text, setText] = useState(() => energyWh ? String(Math.round(((energyWh * businessDays) / 1000) * 100) / 100) : '');
   const lastEmittedRef = useRef(energyWh);
@@ -74,9 +79,13 @@ function WhiteTariffEnergyField({
         type="number"
         min={0}
         step={0.01}
+        inputMode="decimal"
         placeholder="Ex.: 110"
         value={text}
         disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onBlur={onBlur}
         onChange={(event) => {
           const raw = event.target.value;
           setText(raw);
@@ -85,8 +94,29 @@ function WhiteTariffEnergyField({
           onChange(wh);
         }}
       />
+      <FieldError id={`${id}-error`} message={error} />
       {energyWh ? <p className="text-xs text-muted-foreground">{(energyWh / 1000).toFixed(2)} kWh/dia</p> : null}
     </>
+  );
+}
+
+type WhiteTariffField =
+  | 'totalMonthlyConsumptionKwh'
+  | 'requiredPowerW'
+  | 'pontaConsumptionPercent'
+  | 'intermediateConsumptionPercent'
+  | 'pontaEnergyWh'
+  | 'intermediateEnergyWh'
+  | 'pontaTariffPerKwh'
+  | 'intermediateTariffPerKwh'
+  | 'foraPontaTariffPerKwh';
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-xs text-destructive" role="alert">
+      {message}
+    </p>
   );
 }
 
@@ -143,6 +173,48 @@ export function WhiteTariffPanel({
     pvMonthlyGenerationKwh: preliminaryPvMonthlyGenerationKwh,
     batteryRoundTripEfficiencyPercent: PRELIMINARY_ROUND_TRIP_EFFICIENCY_PERCENT,
   });
+  const summaryReady = Boolean(whiteTariff) && !isWhiteTariffConfigIncomplete(value, whiteTariff);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<WhiteTariffField, string>>>({});
+
+  function validateField(field: WhiteTariffField): string | undefined {
+    const config = whiteTariff ?? emptyWhiteTariffConfig;
+    const total = config.totalMonthlyConsumptionKwh ?? 0;
+    const valueForField = config[field] ?? 0;
+    if (field === 'requiredPowerW' && whiteInputMode === 'basic') return undefined;
+    if (field === 'pontaConsumptionPercent' || field === 'intermediateConsumptionPercent') {
+      return valueForField < 0 || valueForField > 100 ? 'Informe um percentual entre 0 e 100.' : undefined;
+    }
+    if (field === 'pontaEnergyWh' || field === 'intermediateEnergyWh') {
+      if (whiteInputMode === 'basic') return undefined;
+      if (!(valueForField > 0)) return field === 'pontaEnergyWh'
+        ? 'Informe a energia mensal na ponta.'
+        : 'Informe a energia mensal intermediária.';
+      const expensiveMonthlyKwh = ((config.pontaEnergyWh + config.intermediateEnergyWh) / 1000) * whiteBusinessDays;
+      if (expensiveMonthlyKwh > total && total > 0) return 'A energia dos períodos não pode superar o consumo total.';
+      return undefined;
+    }
+    if (field === 'totalMonthlyConsumptionKwh' && !(valueForField > 0)) return 'Informe o consumo mensal.';
+    if (field === 'requiredPowerW' && !(valueForField > 0)) return 'Informe a potência máxima nos horários caros.';
+    if (field.endsWith('TariffPerKwh')) {
+      if (!(valueForField > 0)) return 'Informe uma tarifa válida.';
+      if ((field === 'pontaTariffPerKwh' || field === 'intermediateTariffPerKwh') && valueForField < config.foraPontaTariffPerKwh) {
+        return 'A tarifa deve ser maior ou igual à tarifa fora ponta.';
+      }
+    }
+    return undefined;
+  }
+
+  function validateAndSet(field: WhiteTariffField) {
+    setFieldErrors((current) => ({ ...current, [field]: validateField(field) }));
+  }
+
+  function fieldError(field: WhiteTariffField) {
+    return fieldErrors[field];
+  }
+
+  function fieldDescription(field: WhiteTariffField) {
+    return fieldError(field) ? `${field}-error` : undefined;
+  }
 
   const [distributors, setDistributors] = useState<string[]>([]);
   const [loadingDistributors, setLoadingDistributors] = useState(true);
@@ -317,6 +389,7 @@ export function WhiteTariffPanel({
               type="button"
               role="tab"
               aria-selected={tariffInputMode === mode}
+              aria-disabled={mode === 'automatic'}
               disabled={mode === 'automatic'}
               onClick={() => {
                 if (mode === 'automatic') return;
@@ -329,7 +402,12 @@ export function WhiteTariffPanel({
                 mode === 'automatic' && 'cursor-not-allowed opacity-50'
               )}
             >
-              {mode === 'automatic' ? 'Automático pela ANEEL (em breve)' : 'Manual'}
+              {mode === 'automatic' ? (
+                <span className="flex flex-col items-center gap-0.5 leading-tight">
+                  <span>Automático pela ANEEL</span>
+                  <span className="text-[11px] font-normal">Em breve</span>
+                </span>
+              ) : 'Manual'}
             </button>
           ))}
         </div>
@@ -374,52 +452,66 @@ export function WhiteTariffPanel({
       )}
 
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1" role="tablist" aria-label="Modo de preenchimento da Tarifa Branca">
-        {(['basic', 'advanced'] as const).map((mode) => (
-          <button key={mode} type="button" role="tab" aria-selected={whiteInputMode === mode}
-            onClick={() => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), inputMode: mode })}
-            className={cn('rounded-md px-3 py-2 text-sm font-medium', whiteInputMode === mode ? 'bg-background shadow-sm ring-1 ring-border/70' : 'text-muted-foreground')}>
-            {mode === 'basic' ? 'Básico' : 'Avançado'}
-          </button>
-        ))}
+          {(['basic', 'advanced'] as const).map((mode) => (
+            <button key={mode} type="button" role="tab" aria-label={mode === 'basic' ? 'Básico' : 'Avançado'} aria-selected={whiteInputMode === mode}
+              onClick={() => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), inputMode: mode })}
+              className={cn('rounded-md px-3 py-2 text-sm font-medium', whiteInputMode === mode ? 'bg-background shadow-sm ring-1 ring-border/70' : 'text-muted-foreground')}>
+            <InfoLabel
+              label={mode === 'basic' ? 'Básico' : 'Avançado'}
+              tip={mode === 'basic'
+                ? 'Informe os dados essenciais para uma estimativa rápida.'
+                : 'Permite configurar períodos e premissas com maior detalhe.'}
+            />
+            </button>
+          ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {whiteInputMode === 'basic'
-          ? 'Informe os dados da fatura; o sistema estima a energia e a potência necessárias.'
-          : 'Informe diretamente a potência e a energia consumida em cada período tarifário.'}
-      </p>
       <div className="rounded-lg border bg-muted/20 p-3">
         <p className="text-sm font-semibold">1. Consumo</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="whiteTariffTotalConsumption">Consumo total mensal (kWh/mês)</Label>
-            <Input id="whiteTariffTotalConsumption" type="number" min={0} step={0.01} placeholder="Ex.: 450"
+            <Input id="whiteTariffTotalConsumption" type="number" min={0} step={0.01} inputMode="decimal" placeholder="Ex.: 450"
+              aria-invalid={Boolean(fieldError('totalMonthlyConsumptionKwh'))}
+              aria-describedby={fieldDescription('totalMonthlyConsumptionKwh')}
               value={whiteTotalMonthlyKwh || ''}
               onChange={(event) => {
                 const totalMonthlyConsumptionKwh = Number(event.target.value) || 0;
                 if (whiteInputMode === 'basic') updateBasicWhiteTariff({ totalMonthlyConsumptionKwh });
                 else onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), totalMonthlyConsumptionKwh });
-              }}/>
+                setFieldErrors((current) => ({ ...current, totalMonthlyConsumptionKwh: undefined }));
+              }}
+              onBlur={() => validateAndSet('totalMonthlyConsumptionKwh')}/>
+            <FieldError id="totalMonthlyConsumptionKwh-error" message={fieldError('totalMonthlyConsumptionKwh')} />
             <p className="text-xs text-muted-foreground">Use o consumo total exibido na fatura, sem depender da configuração Fotovoltaico.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="whiteTariffPower">Potência máxima nos horários caros (kW)</Label>
-            <Input id="whiteTariffPower" type="number" min={0} step={0.01} placeholder="Ex.: 3,0"
+            <Input id="whiteTariffPower" type="number" min={0} step={0.01} inputMode="decimal" placeholder="Ex.: 3,0"
               disabled={whiteInputMode === 'basic'}
+              aria-invalid={Boolean(fieldError('requiredPowerW'))}
+              aria-describedby={fieldDescription('requiredPowerW')}
               value={whiteTariff?.requiredPowerW ? whiteTariff.requiredPowerW / 1000 : ''}
-              onChange={(event) => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), requiredPowerW: (Number(event.target.value) || 0) * 1000 })}/>
+              onChange={(event) => {
+                onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), requiredPowerW: (Number(event.target.value) || 0) * 1000 });
+                setFieldErrors((current) => ({ ...current, requiredPowerW: undefined }));
+              }}
+              onBlur={() => validateAndSet('requiredPowerW')}/>
+            <FieldError id="requiredPowerW-error" message={fieldError('requiredPowerW')} />
             <p className="text-xs text-muted-foreground">Maior potência simultânea que a bateria deverá atender na ponta ou intermediária.</p>
           </div>
         </div>
         {whiteInputMode === 'basic' && <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5"><Label htmlFor="whitePontaPercent">Consumo na ponta (%)</Label><Input id="whitePontaPercent" type="number" min={0} max={100} value={whiteTariff?.pontaConsumptionPercent ?? 20} onChange={(event) => updateBasicWhiteTariff({ pontaConsumptionPercent: Number(event.target.value) || 0 })}/></div>
-          <div className="space-y-1.5"><Label htmlFor="whiteIntermediatePercent">Consumo intermediário (%)</Label><Input id="whiteIntermediatePercent" type="number" min={0} max={100} value={whiteTariff?.intermediateConsumptionPercent ?? 10} onChange={(event) => updateBasicWhiteTariff({ intermediateConsumptionPercent: Number(event.target.value) || 0 })}/></div>
+          <div className="space-y-1.5"><Label htmlFor="whitePontaPercent">Consumo na ponta (%)</Label><Input id="whitePontaPercent" type="number" min={0} max={100} inputMode="decimal" aria-invalid={Boolean(fieldError('pontaConsumptionPercent'))} aria-describedby={fieldDescription('pontaConsumptionPercent')} value={whiteTariff?.pontaConsumptionPercent ?? 20} onChange={(event) => { updateBasicWhiteTariff({ pontaConsumptionPercent: Number(event.target.value) || 0 }); setFieldErrors((current) => ({ ...current, pontaConsumptionPercent: undefined })); }} onBlur={() => validateAndSet('pontaConsumptionPercent')} /><FieldError id="pontaConsumptionPercent-error" message={fieldError('pontaConsumptionPercent')} /></div>
+          <div className="space-y-1.5"><Label htmlFor="whiteIntermediatePercent">Consumo intermediário (%)</Label><Input id="whiteIntermediatePercent" type="number" min={0} max={100} inputMode="decimal" aria-invalid={Boolean(fieldError('intermediateConsumptionPercent'))} aria-describedby={fieldDescription('intermediateConsumptionPercent')} value={whiteTariff?.intermediateConsumptionPercent ?? 10} onChange={(event) => { updateBasicWhiteTariff({ intermediateConsumptionPercent: Number(event.target.value) || 0 }); setFieldErrors((current) => ({ ...current, intermediateConsumptionPercent: undefined })); }} onBlur={() => validateAndSet('intermediateConsumptionPercent')} /><FieldError id="intermediateConsumptionPercent-error" message={fieldError('intermediateConsumptionPercent')} /></div>
         </div>}
       </div>
       <div className="space-y-1.5">
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Zap className="h-3.5 w-3.5 shrink-0 text-primary" />
           {value.includes('backup')
-            ? `Backup está ativo — +${backupDailyKwh.toFixed(1)} kWh/dia somados à energia da Tarifa Branca.`
+            ? summaryReady && backupDailyKwh > 0
+              ? `Backup está ativo: +${backupDailyKwh.toFixed(2)} kWh/dia considerados.`
+              : 'Backup está ativo. A energia necessária para backup será adicionada ao cálculo.'
             : 'Ative "Backup" para somar a energia das cargas à energia da Tarifa Branca.'}
         </p>
       </div>
@@ -443,8 +535,10 @@ export function WhiteTariffPanel({
                 businessDays={whiteBusinessDays}
                 disabled={whiteInputMode === 'basic'}
                 energyWh={whiteTariff?.pontaEnergyWh ?? 0}
+                error={fieldError('pontaEnergyWh')}
+                onBlur={() => validateAndSet('pontaEnergyWh')}
                 onChange={(pontaEnergyWh) =>
-                  onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), pontaEnergyWh })
+                  (onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), pontaEnergyWh }), setFieldErrors((current) => ({ ...current, pontaEnergyWh: undefined })))
                 }
               />
             </div>
@@ -457,7 +551,10 @@ export function WhiteTariffPanel({
                 type="number"
                 min={0}
                 step={0.01}
+                inputMode="decimal"
                 placeholder="Ex.: 1.20"
+                aria-invalid={Boolean(fieldError('pontaTariffPerKwh'))}
+                aria-describedby={fieldDescription('pontaTariffPerKwh')}
                 value={whiteTariff?.pontaTariffPerKwh || ''}
                 onChange={(event) => {
                   markFieldAsEdited('pontaTariffPerKwh');
@@ -465,8 +562,11 @@ export function WhiteTariffPanel({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
                     pontaTariffPerKwh: Number(event.target.value) || 0,
                   });
+                  setFieldErrors((current) => ({ ...current, pontaTariffPerKwh: undefined }));
                 }}
+                onBlur={() => validateAndSet('pontaTariffPerKwh')}
               />
+              <FieldError id="pontaTariffPerKwh-error" message={fieldError('pontaTariffPerKwh')} />
             </div>
           </div>
           {Boolean(whiteTariff?.pontaTariffPerKwh || whiteTariff?.foraPontaTariffPerKwh) && (
@@ -495,8 +595,10 @@ export function WhiteTariffPanel({
                 businessDays={whiteBusinessDays}
                 disabled={whiteInputMode === 'basic'}
                 energyWh={whiteTariff?.intermediateEnergyWh ?? 0}
+                error={fieldError('intermediateEnergyWh')}
+                onBlur={() => validateAndSet('intermediateEnergyWh')}
                 onChange={(intermediateEnergyWh) =>
-                  onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), intermediateEnergyWh })
+                  (onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), intermediateEnergyWh }), setFieldErrors((current) => ({ ...current, intermediateEnergyWh: undefined })))
                 }
               />
             </div>
@@ -509,7 +611,10 @@ export function WhiteTariffPanel({
                 type="number"
                 min={0}
                 step={0.01}
+                inputMode="decimal"
                 placeholder="Ex.: 0.95"
+                aria-invalid={Boolean(fieldError('intermediateTariffPerKwh'))}
+                aria-describedby={fieldDescription('intermediateTariffPerKwh')}
                 value={whiteTariff?.intermediateTariffPerKwh || ''}
                 onChange={(event) => {
                   markFieldAsEdited('intermediateTariffPerKwh');
@@ -517,8 +622,11 @@ export function WhiteTariffPanel({
                     ...(whiteTariff ?? emptyWhiteTariffConfig),
                     intermediateTariffPerKwh: Number(event.target.value) || 0,
                   });
+                  setFieldErrors((current) => ({ ...current, intermediateTariffPerKwh: undefined }));
                 }}
+                onBlur={() => validateAndSet('intermediateTariffPerKwh')}
               />
+              <FieldError id="intermediateTariffPerKwh-error" message={fieldError('intermediateTariffPerKwh')} />
             </div>
           </div>
           {Boolean(whiteTariff?.intermediateTariffPerKwh || whiteTariff?.foraPontaTariffPerKwh) && (
@@ -539,31 +647,42 @@ export function WhiteTariffPanel({
               </span>
             )}
           </p>
-          <div className="mt-2 space-y-1.5 sm:max-w-[calc(50%-0.375rem)]">
-            <Label htmlFor="whiteTariffForaPonta">
-              <span className="sr-only">Fora ponta · </span>Tarifa (R$/kWh)
-            </Label>
-            <Input
-              id="whiteTariffForaPonta"
-              type="number"
-              min={0}
-              step={0.01}
-              placeholder="Ex.: 0.75"
-              value={whiteTariff?.foraPontaTariffPerKwh || ''}
-              onChange={(event) => {
-                markFieldAsEdited('foraPontaTariffPerKwh');
-                onWhiteTariffChange({
-                  ...(whiteTariff ?? emptyWhiteTariffConfig),
-                  foraPontaTariffPerKwh: Number(event.target.value) || 0,
-                });
-              }}
-            />
-            {whiteTotalMonthlyKwh > 0 && (
-              <p className="text-xs text-muted-foreground">{whiteOffPeakDailyKwh.toFixed(2)} kWh/dia</p>
-            )}
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Energia calculada</p>
+              <p className="min-h-8 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm font-medium tabular-nums">
+                {summaryReady ? `${whiteOffPeakMonthlyKwh.toFixed(1)} kWh/mês` : '—'}
+              </p>
+              {summaryReady && <p className="text-xs text-muted-foreground">{whiteOffPeakDailyKwh.toFixed(2)} kWh/dia</p>}
+              <p className="text-xs text-muted-foreground">Consumo total − ponta − intermediária</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="whiteTariffForaPonta"><span className="sr-only">Fora ponta · </span>Tarifa (R$/kWh)</Label>
+              <Input
+                id="whiteTariffForaPonta"
+                type="number"
+                min={0}
+                step={0.01}
+                inputMode="decimal"
+                placeholder="Ex.: 0.75"
+                aria-invalid={Boolean(fieldError('foraPontaTariffPerKwh'))}
+                aria-describedby={fieldDescription('foraPontaTariffPerKwh')}
+                value={whiteTariff?.foraPontaTariffPerKwh || ''}
+                onChange={(event) => {
+                  markFieldAsEdited('foraPontaTariffPerKwh');
+                  onWhiteTariffChange({
+                    ...(whiteTariff ?? emptyWhiteTariffConfig),
+                    foraPontaTariffPerKwh: Number(event.target.value) || 0,
+                  });
+                  setFieldErrors((current) => ({ ...current, foraPontaTariffPerKwh: undefined }));
+                }}
+                onBlur={() => validateAndSet('foraPontaTariffPerKwh')}
+              />
+              <FieldError id="foraPontaTariffPerKwh-error" message={fieldError('foraPontaTariffPerKwh')} />
+            </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            A energia fora ponta é calculada automaticamente: consumo total (Fotovoltaico) menos ponta e intermediária.
+            A energia fora ponta é calculada automaticamente: consumo total mensal menos ponta e intermediária.
           </p>
         </div>
         {whiteTariff &&
@@ -577,24 +696,35 @@ export function WhiteTariffPanel({
         {isWhiteTariffConfigIncomplete(value, whiteTariff) && (
           <p role="alert" className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Complete consumo mensal, potência, energia dos períodos e as três tarifas. A energia de ponta e intermediária não pode superar o consumo total.
+            Preencha os campos obrigatórios para visualizar a estimativa. A energia de ponta e intermediária não pode superar o consumo total.
           </p>
         )}
-        {whiteTariff && <div className="rounded-lg border bg-primary/[0.03] p-3">
+        {whiteTariff && <div className="rounded-lg border bg-primary/[0.03] p-3" aria-live="polite">
           <p className="text-sm font-semibold">Resumo instantâneo</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-            <div><p className="text-xs text-muted-foreground">Energia deslocada</p><strong>{whiteExpensiveMonthlyKwh.toFixed(1)} kWh/mês</strong></div>
-            <div><p className="text-xs text-muted-foreground">Fora de ponta</p><strong>{whiteTotalMonthlyKwh > 0 ? `${whiteOffPeakMonthlyKwh.toFixed(1)} kWh/mês` : 'Informe o consumo'}</strong></div>
-            <div><p className="text-xs text-muted-foreground">Potência mínima</p><strong>{(whiteTariff.requiredPowerW / 1000).toFixed(2)} kW</strong></div>
-            <div><p className="text-xs text-muted-foreground">Armazenamento preliminar</p><strong>{preliminaryStorageKwh.toFixed(2)} kWh</strong></div>
-            <div><p className="text-xs text-muted-foreground">Consumo deslocado</p><strong>{whiteTotalMonthlyKwh > 0 ? `${whiteShiftPercent.toFixed(1)}%` : '-'}</strong></div>
-            <div><p className="text-xs text-muted-foreground">Economia preliminar</p><strong>{preliminaryTariffSavings ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(preliminaryTariffSavings.monthlySavings) + '/mês' : 'Preencha as tarifas'}</strong></div>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div className="col-span-2 rounded-md border border-primary/20 bg-background/70 p-2.5 sm:col-span-2">
+              <p className="text-xs text-muted-foreground">Economia preliminar</p>
+              <strong className="text-base">{summaryReady && preliminaryTariffSavings
+                ? `${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(preliminaryTariffSavings.monthlySavings)}/mês`
+                : '—'}</strong>
+            </div>
+            <div><p className="text-xs text-muted-foreground">Energia deslocada</p><strong>{summaryReady ? `${whiteExpensiveMonthlyKwh.toFixed(1)} kWh/mês` : '—'}</strong></div>
+            <div><p className="text-xs text-muted-foreground">Potência mínima</p><strong>{summaryReady ? `${(whiteTariff.requiredPowerW / 1000).toFixed(2)} kW` : '—'}</strong></div>
+            <div><p className="text-xs text-muted-foreground">Armazenamento preliminar</p><strong>{summaryReady ? `${preliminaryStorageKwh.toFixed(2)} kWh` : '—'}</strong></div>
+            <div><p className="text-xs text-muted-foreground">Fora de ponta</p><strong>{summaryReady ? `${whiteOffPeakMonthlyKwh.toFixed(1)} kWh/mês` : '—'}</strong></div>
+            <div><p className="text-xs text-muted-foreground">Consumo deslocado</p><strong>{summaryReady ? `${whiteShiftPercent.toFixed(1)}%` : '—'}</strong></div>
           </div>
-          {preliminaryTariffSavings && <p className={cn('mt-3 text-xs font-medium', preliminaryTariffSavings.monthlySavings > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300')}>
-            {preliminaryTariffSavings.monthlySavings > 0
-              ? 'A arbitragem é economicamente favorável com as premissas preliminares.'
-              : 'A diferença tarifária não compensa as perdas e o consumo do sistema.'}
-          </p>}
+          {!summaryReady && <p className="mt-3 text-xs text-muted-foreground">Preencha os campos obrigatórios para visualizar a estimativa.</p>}
+          {summaryReady && preliminaryTariffSavings && preliminaryTariffSavings.monthlySavings <= 0 && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="font-medium">Economia não identificada nesta configuração</p>
+                <p className="mt-0.5">A diferença tarifária não compensa as perdas e o consumo do sistema.</p>
+              </div>
+            </div>
+          )}
+          {summaryReady && preliminaryTariffSavings && preliminaryTariffSavings.monthlySavings > 0 && <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-400">A arbitragem é economicamente favorável com as premissas preliminares.</p>}
           <p className="mt-3 text-xs text-muted-foreground">A estimativa final usa a capacidade, RTE, SOH, limites de potência e consumo em espera dos produtos selecionados.</p>
         </div>}
         <details className="rounded-lg border bg-background p-3 text-sm">

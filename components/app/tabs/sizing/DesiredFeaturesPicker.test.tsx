@@ -273,7 +273,7 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
       dailyKwh: 4.5,
     });
     expect(screen.getByText(/Backup está ativo/)).toBeInTheDocument();
-    expect(screen.getByText(/\+4\.5 kWh\/dia somados à energia da Tarifa Branca/)).toBeInTheDocument();
+    expect(screen.getByText(/\+4\.50 kWh\/dia considerados/)).toBeInTheDocument();
   });
 
   it('prompts to enable Backup when it is not selected', () => {
@@ -368,6 +368,32 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
+  it('keeps the summary neutral while required data is missing', () => {
+    renderPicker({
+      activeTab: 'white_tariff',
+      value: ['white_tariff'],
+      whiteTariff: { ...wt, totalMonthlyConsumptionKwh: 0, requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0 },
+    });
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
+    expect(screen.getByText('Preencha os campos obrigatórios para visualizar a estimativa.')).toBeInTheDocument();
+    expect(screen.getByText('Requer atenção')).toBeInTheDocument();
+    expect(screen.getByText('Complete os dados necessários para calcular a Tarifa Branca.')).toBeInTheDocument();
+  });
+
+  it('shows a local validation message after an invalid field loses focus', () => {
+    renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: { ...wt, totalMonthlyConsumptionKwh: 0 } });
+    const input = screen.getByLabelText('Consumo total mensal (kWh/mês)');
+    fireEvent.blur(input);
+    expect(screen.getByText('Informe o consumo mensal.')).toBeInTheDocument();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('exposes the enable action as an accessible switch and marks ANEEL as disabled', () => {
+    renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt });
+    expect(screen.getByRole('button', { name: 'Habilitado' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tab', { name: /Automático pela ANEEL/ })).toBeDisabled();
+  });
+
   it('renders the instant summary block with savings copy when favorable', () => {
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt });
     expect(screen.getByText('Resumo instantâneo')).toBeInTheDocument();
@@ -380,6 +406,8 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
       whiteTariff: { ...wt, pontaTariffPerKwh: 0.75, intermediateTariffPerKwh: 0.75, foraPontaTariffPerKwh: 0.75 },
     });
     expect(screen.getByText('Resumo instantâneo')).toBeInTheDocument();
+    expect(screen.getByText('Economia não identificada nesta configuração')).toBeInTheDocument();
+    expect(screen.getByText(/R\$ 0,00\/mês/)).toBeInTheDocument();
   });
 
   it('feeds the preliminary PV generation into the arbitrage savings estimate when pv is also selected', () => {

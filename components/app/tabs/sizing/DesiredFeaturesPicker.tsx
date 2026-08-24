@@ -144,6 +144,15 @@ export function DesiredFeaturesPicker({
     }
   }
 
+  const activeFeatureHasPendingIssue = hasPendingIssue(activeTab);
+  const activeFeatureStatus = activeFeatureHasPendingIssue
+    ? 'Requer atenção'
+    : activeTab === 'white_tariff' && isActiveEnabled
+      ? 'Configuração completa'
+      : isActiveEnabled
+        ? 'Ativo'
+        : 'Desativado';
+
   return (
     <div className="space-y-3">
       {/* The Backup tab's own content (LoadSelector) is already a rich set of
@@ -167,14 +176,14 @@ export function DesiredFeaturesPicker({
               <Badge
                 variant="outline"
                 className={cn(
-                  hasPendingIssue(activeTab)
+                  activeFeatureHasPendingIssue
                     ? 'border-destructive/30 bg-destructive/5 text-destructive'
                     : isActiveEnabled
                       ? 'border-primary/30 bg-primary/5 text-primary'
                       : 'text-muted-foreground'
                 )}
               >
-                {hasPendingIssue(activeTab) ? 'Requer atenção' : isActiveEnabled ? 'Ativo' : 'Desativado'}
+                {activeFeatureStatus}
               </Badge>
             </div>
             {isBackupTab ? (
@@ -186,6 +195,11 @@ export function DesiredFeaturesPicker({
                 <p className="mt-1 text-xs text-muted-foreground">{activeFeature.description}</p>
               )
             )}
+            {activeFeatureHasPendingIssue && activeTab === 'white_tariff' && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                Complete os dados necessários para calcular a Tarifa Branca.
+              </p>
+            )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -194,6 +208,7 @@ export function DesiredFeaturesPicker({
               variant={isActiveEnabled ? 'secondary' : 'outline'}
               size="sm"
               className="min-w-28"
+              aria-pressed={isActiveEnabled}
               onClick={() => toggle(activeTab)}
             >
               {isActiveEnabled ? (
