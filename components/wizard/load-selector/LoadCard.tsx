@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BatteryCharging, ChevronDown, Copy, Plug, Trash2, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InfoLabel, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
@@ -65,7 +66,6 @@ function NumberFieldWithClear({
         <button
           type="button"
           aria-label="Limpar campo"
-          tabIndex={-1}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onClear}
           className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground md:size-5"
@@ -759,6 +759,7 @@ export function LoadCard({
     <div
       className={cn(
         'relative rounded-lg border bg-card text-sm',
+        expanded && !presetSelectionMode && 'sm:col-span-2',
         canDragToPhase && !presetSelectionMode && 'cursor-grab active:cursor-grabbing',
         presetSelectionMode && presetSelected && 'border-primary ring-2 ring-primary/30 bg-primary/5'
       )}
@@ -773,21 +774,22 @@ export function LoadCard({
           : undefined
       }
     >
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={presetSelectionMode ? undefined : expanded}
-        aria-pressed={presetSelectionMode ? Boolean(presetSelected) : undefined}
-        onClick={() => (presetSelectionMode ? onTogglePresetSelected?.() : setExpanded((current) => !current))}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
+      <div className="flex w-full items-start gap-2 p-3 text-left">
+        <button
+          type="button"
+          role="button"
+          aria-label={`${presetSelectionMode ? (presetSelected ? 'Desmarcar' : 'Selecionar') : expanded ? 'Recolher' : 'Expandir'} ${load.name || 'carga'}`}
+          aria-expanded={presetSelectionMode ? undefined : expanded}
+          aria-pressed={presetSelectionMode ? Boolean(presetSelected) : undefined}
+          onClick={() => (presetSelectionMode ? onTogglePresetSelected?.() : setExpanded((current) => !current))}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
             event.preventDefault();
             if (presetSelectionMode) onTogglePresetSelected?.();
             else setExpanded((current) => !current);
-          }
-        }}
-        className="flex w-full cursor-pointer items-start justify-between gap-2 p-3 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
+          }}
+          className="flex min-w-0 flex-1 cursor-pointer items-start text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
         <div className="flex min-w-0 items-start gap-2">
           {presetSelectionMode && (
             <input
@@ -800,7 +802,7 @@ export function LoadCard({
             />
           )}
           <div className="min-w-0">
-          <p className="font-medium truncate">{load.name}</p>
+          <p className="truncate font-semibold text-foreground">{load.name}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span
               ref={powerTipRef}
@@ -835,7 +837,7 @@ export function LoadCard({
                   : 'Potência máxima (nominal × IP/IN × quantidade)'}
               </TooltipBubble>
             </span>
-            <span>
+            <span className="hidden xl:inline">
               {usageMode === 'fixed'
                 ? `${load.fixedHours ?? 0} h/dia`
                 : `${Math.round((load.usageFactor ?? 1) * 100)}% de ${operationHours} h`}
@@ -876,6 +878,7 @@ export function LoadCard({
           </div>
           </div>
         </div>
+        </button>
         {!presetSelectionMode && (
         <div className="flex shrink-0 items-center gap-1">
           {peakCalcMode === 'select' && (
@@ -920,18 +923,15 @@ export function LoadCard({
           >
             <Copy className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 md:h-7 md:w-7"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemove(load.id);
-            }}
-            aria-label={`Remover ${load.name}`}
-          >
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-          </Button>
+          <ConfirmDeleteModalButton
+            ariaLabel={`Remover ${load.name}`}
+            itemName={load.name || 'carga sem nome'}
+            itemType="carga"
+            description={`A carga “${load.name || 'carga sem nome'}” será removida do dimensionamento. Esta ação não poderá ser desfeita.`}
+            label="Excluir"
+            showIcon={false}
+            onConfirm={() => onRemove(load.id)}
+          />
           <ChevronDown
             className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')}
             aria-hidden="true"

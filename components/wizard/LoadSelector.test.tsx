@@ -950,6 +950,7 @@ describe('LoadSelector: added loads list', () => {
     renderLoadSelector();
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir carga' }));
 
     expect(useWizardStore.getState().residentialOptions.loads).toEqual([]);
   });

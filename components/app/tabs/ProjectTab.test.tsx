@@ -192,7 +192,7 @@ describe('ProjectTab: empty and list states', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     expect(screen.queryByRole('button', { name: 'Duplicar projeto Casa de praia' })).not.toBeInTheDocument();
     openProjectActions('Casa de praia');
-    expect(screen.getByRole('button', { name: 'Remover projeto Casa de praia' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Excluir projeto Casa de praia' })).toBeInTheDocument();
   });
 
   it('hides the onboarding hint while a draft is open, even with no saved projects yet', () => {
@@ -223,7 +223,7 @@ describe('ProjectTab: empty and list states', () => {
 
     expect(screen.queryByText('Configuração salva junto')).not.toBeInTheDocument();
     // The project card action is not shown while editing its draft.
-    expect(screen.queryByRole('button', { name: 'Remover projeto Casa de praia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir projeto Casa de praia' })).not.toBeInTheDocument();
     // No "unselect" affordance while editing — "Fechar" on the draft card
     // itself (with its own discard confirmation) is what exits editing.
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
@@ -760,13 +760,15 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.queryByRole('button', { name: 'Duplicar projeto Casa de praia' })).not.toBeInTheDocument();
   });
 
-  it('the "Remover" action in the project card confirms before delegating to onRemove with the selected project id', async () => {
+  it('the "Excluir" action in the project card opens a modal before delegating to onRemove', async () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
     clickCard('Casa de praia');
     openProjectActions('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Remover projeto Casa de praia' }));
-    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir projeto Casa de praia' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Excluir projeto?' });
+    expect(dialog).toHaveTextContent('O projeto “Casa de praia” será removido do seu portfólio. Esta ação não poderá ser desfeita.');
+    const confirmButton = within(dialog).getByRole('button', { name: 'Excluir projeto' });
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('p1'));

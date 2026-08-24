@@ -146,6 +146,19 @@ describe('MyStockTab: listing', () => {
     expect(within(screen.getByRole('tab', { name: /Baterias/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
   });
 
+  it('makes the active portfolio context explicit and labels the summary counts', () => {
+    setup({ userStockItems: [stockItem], userServices: [serviceItem] });
+
+    expect(screen.getByText('Produtos cadastrados')).toBeInTheDocument();
+    expect(screen.getByText('Serviços cadastrados')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Produtos/ })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    expect(screen.getByRole('tab', { name: /Serviços/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Produtos/ })).toHaveAttribute('aria-selected', 'false');
+  });
+
   it('does not flag any tab once every item in stock has a price', () => {
     setup({ userStockItems: [stockItem] });
 
@@ -300,14 +313,69 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
 });
 
 describe('MyStockTab: removing', () => {
-  it('confirms via the delete popover before calling onRemove', async () => {
+  function openProductDelete() {
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações para X1-Hybrid-5.0kW-G4' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir X1-Hybrid-5.0kW-G4 do meu catálogo' }));
+  }
+
+  it('opens a destructive modal from the context menu and confirms before calling onRemove', async () => {
     const { props } = setup({ userStockItems: [stockItem] });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover X1-Hybrid-5.0kW-G4 do meu catálogo' }));
-    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    openProductDelete();
+
+    const dialog = await screen.findByRole('dialog', { name: 'Excluir produto?' });
+    expect(dialog).toHaveTextContent('O produto “X1-Hybrid-5.0kW-G4” será removido do seu portfólio. Esta ação não poderá ser desfeita.');
+    const confirmButton = within(dialog).getByRole('button', { name: 'Excluir produto' });
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('s1'));
+  });
+
+  it('cancels the modal with Cancelar and returns focus to the menu action', async () => {
+    setup({ userStockItems: [stockItem] });
+
+    openProductDelete();
+    const deleteTrigger = screen.getByRole('button', { name: 'Excluir X1-Hybrid-5.0kW-G4 do meu catálogo' });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Excluir produto?' })).not.toBeInTheDocument());
+    expect(deleteTrigger).toHaveFocus();
+  });
+
+  it('closes with Escape without deleting', async () => {
+    const { props } = setup({ userStockItems: [stockItem] });
+
+    openProductDelete();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Excluir produto?' })).not.toBeInTheDocument());
+    expect(props.onRemove).not.toHaveBeenCalled();
+  });
+
+  it('blocks repeated confirmation while deletion is loading', async () => {
+    let resolveDelete!: () => void;
+    const onRemove = vi.fn(() => new Promise<void>((resolve) => { resolveDelete = resolve; }));
+    setup({ userStockItems: [stockItem], onRemove });
+
+    openProductDelete();
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir produto' }));
+
+    const loadingButton = await screen.findByRole('button', { name: 'Excluindo produto...' });
+    expect(loadingButton).toBeDisabled();
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    resolveDelete();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Excluir produto?' })).not.toBeInTheDocument());
+  });
+
+  it('keeps the modal open and shows the operation error', async () => {
+    const onRemove = vi.fn().mockRejectedValue(new Error('Falha ao excluir produto'));
+    setup({ userStockItems: [stockItem], onRemove });
+
+    openProductDelete();
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir produto' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Falha ao excluir produto');
+    expect(screen.getByRole('dialog', { name: 'Excluir produto?' })).toBeInTheDocument();
   });
 });
 
@@ -317,7 +385,7 @@ describe('MyStockTab: adding from the catalog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
 
-    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
     expect(within(dialog).getByRole('tab', { name: 'Monofásico' })).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.click(within(dialog).getByText('X1-Hybrid-5.0kW-G4'));
@@ -327,13 +395,14 @@ describe('MyStockTab: adding from the catalog', () => {
     );
   });
 
-  it('excludes products already in stock from the picker', async () => {
+  it('shows an explicit already-added state for products already in stock', async () => {
     setup({ userStockItems: [stockItem] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
 
-    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
-    expect(within(dialog).getByText('Todos os produtos dessa categoria já estão no seu catálogo.')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
+    expect(within(dialog).getByRole('button', { name: /já está no portfólio/ })).toBeDisabled();
+    expect(within(dialog).getByText('No portfólio')).toBeInTheDocument();
   });
 
   it('shows a limit-reached error verbatim when adding fails', async () => {
@@ -342,7 +411,7 @@ describe('MyStockTab: adding from the catalog', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
     fireEvent.click(within(dialog).getByText('Smart Meter'));
 
     await waitFor(() => expect(within(dialog).getByText('Limite de 14 itens no catálogo atingido.')).toBeInTheDocument());
@@ -364,7 +433,18 @@ describe('MyStockTab: services', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
 
     expect(screen.getByLabelText('Nome do serviço Instalação')).toHaveValue('Instalação');
-    expect(screen.getByLabelText('Preço do serviço Instalação')).toHaveValue(500);
+    expect(screen.getByLabelText('Preço do serviço Instalação')).toHaveValue('500,00');
+    expect(screen.getByText('Valor fixo aplicado uma vez ao projeto.')).toBeInTheDocument();
+
+  });
+
+  it('uses a contextual value label and calculation example for kWp pricing', () => {
+    setup({ userServices: [{ ...serviceItem, pricingUnit: 'pv_kwp' }] });
+    fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
+
+    expect(screen.getByText('Valor por kWp')).toBeInTheDocument();
+    expect(screen.getByText('O valor é multiplicado pela potência fotovoltaica dimensionada.')).toBeInTheDocument();
+    expect(screen.getByText(/6,50 kWp/)).toBeInTheDocument();
   });
 
   it('adds a new service with name and price', async () => {
@@ -393,12 +473,13 @@ describe('MyStockTab: services', () => {
     expect(props.onUpdateServiceValue).toHaveBeenCalledWith('sv1', 600);
   });
 
-  it('removes a service via the confirm popover', async () => {
+  it('removes a service via the context menu and confirmation modal', async () => {
     const { props } = setup({ userServices: [serviceItem] });
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover serviço Instalação' }));
-    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações para Instalação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir serviço Instalação do meu catálogo' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Excluir serviço' }, { timeout: 1000 });
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemoveService).toHaveBeenCalledWith('sv1'));
@@ -556,7 +637,7 @@ describe('MyStockTab: adding a product from the picker', () => {
     setup({ onAddToStock });
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
     fireEvent.click(within(dialog).getByText('X1-Hybrid-5.0kW-G4'));
 
     await waitFor(() =>
@@ -569,7 +650,7 @@ describe('MyStockTab: adding a product from the picker', () => {
     setup({ inverterCatalog: [inverter, twoPhaseInverter] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
 
     expect(within(dialog).queryByText('X3-Hybrid-8.0kW')).not.toBeInTheDocument();
 
@@ -584,37 +665,51 @@ describe('MyStockTab: adding a product from the picker', () => {
     setup();
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
-    await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    await screen.findByRole('dialog', { name: 'Adicionar produto' });
 
     fireEvent.mouseDown(document.body);
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Escolha um produto do catálogo' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Adicionar produto' })).not.toBeInTheDocument()
     );
   });
 
   it('closes the picker when pressing Escape', async () => {
     setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
-    await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    const trigger = screen.getByRole('button', { name: 'Adicionar produto' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await screen.findByRole('dialog', { name: 'Adicionar produto' });
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Escolha um produto do catálogo' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Adicionar produto' })).not.toBeInTheDocument()
     );
+    expect(trigger).toHaveFocus();
+  });
+
+  it('shows a guided empty state when the search has no matches', async () => {
+    setup();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Buscar no catálogo' }), { target: { value: 'não existe' } });
+
+    expect(within(dialog).getByText('Nenhum produto encontrado')).toBeInTheDocument();
+    expect(within(dialog).getByText('Altere a busca ou selecione outra categoria ou filtro.')).toBeInTheDocument();
   });
 
   it('does not close the picker when clicking inside it', async () => {
     setup();
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Escolha um produto do catálogo' });
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
 
     fireEvent.mouseDown(dialog);
 
-    expect(screen.getByRole('dialog', { name: 'Escolha um produto do catálogo' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Adicionar produto' })).toBeInTheDocument();
   });
 });
 

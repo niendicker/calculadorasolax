@@ -62,6 +62,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
   const [presetName, setPresetName] = useState('');
   const [dragOverPhase, setDragOverPhase] = useState<LoadPhase | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<LoadPhase | 'all'>('all');
+  const [advancedOpen, setAdvancedOpen] = useState(true);
 
   const handleSubTabClick = (tab: 'presets' | 'catalog') => {
     if (activeSubTab === tab) {
@@ -562,15 +563,37 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
 
       <div className="flex flex-col gap-4">
           <section className="order-1 space-y-3 rounded-xl border bg-background p-4">
-          <div>
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
-              Configurações avançadas
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Ajuste como os picos de partida e a distribuição entre fases entram no dimensionamento.
+          <button
+            type="button"
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((current) => !current)}
+            className="flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span>
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
+                Configurações avançadas
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Ajuste picos de partida e distribuição entre fases quando necessário.
+              </span>
+            </span>
+            <ChevronDown className={cn('mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform', advancedOpen && 'rotate-180')} aria-hidden="true" />
+          </button>
+          {!advancedOpen && residentialOptions.loads.length > 0 && (
+            <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Máxima: <span className="font-medium text-foreground">{(residentialOptions.peakCalcMode ?? 'sum') === 'sum' ? 'todas as partidas' : (residentialOptions.peakCalcMode ?? 'sum') === 'largest-surge' ? 'maior pico' : 'cargas selecionadas'}</span>
+              {gridType && gridTypePhaseCount[gridType] > 1 ? ' · distribuição por fase disponível' : ''}
             </p>
-          </div>
+          )}
+          {!advancedOpen && maxPowerPerPhaseW && Object.values(phaseTotals).some((value) => value > maxPowerPerPhaseW) && (
+            <p role="alert" className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              Uma ou mais fases ultrapassam o máximo configurado. Abra as configurações para redistribuir as cargas.
+            </p>
+          )}
+          {advancedOpen && (
+          <div className="space-y-3">
           {residentialOptions.loads.length > 0 && (
           <div>
             <p className="text-xs font-medium">
@@ -624,8 +647,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 />
               </p>
               <div
-                className="mt-2 grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${visiblePhases.length + 1}, minmax(0, 1fr))` }}
+                className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"
               >
                 <button
                   type="button"
@@ -705,12 +727,20 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                   Uma ou mais fases ultrapassam o máximo configurado ({maxPowerPerPhaseW.toFixed(0)} VA). Redistribua as cargas entre as fases.
                 </p>
               )}
+              {!maxPowerPerPhaseW && visiblePhases.length > 1 && Object.values(phaseTotals).filter((value) => value > 0).length === 1 && (
+                <p role="status" className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  As cargas estão concentradas em uma única fase. Revise a distribuição antes de calcular a solução.
+                </p>
+              )}
             </div>
           )}
           {residentialOptions.loads.length === 0 && (
             <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
               Adicione ao menos uma carga para liberar estas configurações.
             </p>
+          )}
+          </div>
           )}
           </section>
           <section className="order-2 space-y-3">

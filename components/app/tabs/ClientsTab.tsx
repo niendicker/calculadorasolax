@@ -5,7 +5,7 @@ import { ChevronDown, Eye, EyeOff, FolderOpen, Save, UserRound } from 'lucide-re
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { ConfirmDeleteButton, ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
@@ -142,7 +142,9 @@ export function ClientsTab({
     try {
       await onRemove(id);
     } catch {
-      setActionError('Não foi possível remover o cliente. Verifique sua conexão e tente novamente.');
+      const message = 'Não foi possível remover o cliente. Verifique sua conexão e tente novamente.';
+      setActionError(message);
+      throw new Error(message);
     } finally {
       setRemovingIds((current) => {
         const next = new Set(current);
@@ -240,11 +242,11 @@ export function ClientsTab({
                               >
                                 Editar
                               </Button>
-                              <ConfirmDeleteButton
-                                ariaLabel={`Remover cliente ${client.name}`}
-                                title="Remover cliente?"
-                                description="Os projetos que usam esse cliente ficarão sem cliente associado."
-                                confirmLabel="Remover"
+                              <ConfirmDeleteModalButton
+                                ariaLabel={`Excluir cliente ${client.name}`}
+                                itemName={client.name}
+                                itemType="cliente"
+                                label="Excluir"
                                 disabled={removingIds.has(client.id)}
                                 onConfirm={() => handleRemove(client.id)}
                               />

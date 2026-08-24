@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -149,6 +149,157 @@ export function ConfirmDeleteButton({
             <Button type="button" variant="destructive" size="sm" onClick={confirm}>
               {confirmLabel}
             </Button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+interface ConfirmDeleteModalButtonProps {
+  ariaLabel: string;
+  itemName: string;
+  itemType?: string;
+  label?: string;
+  title?: string;
+  confirmLabel?: string;
+  triggerVariant?: 'destructive' | 'outline';
+  icon?: React.ReactNode;
+  disabled?: boolean;
+  showIcon?: boolean;
+  description?: string;
+  onConfirm: () => Promise<void> | void;
+}
+
+/** Modal confirmation variant for destructive actions that need a deliberate
+ * decision. The legacy ConfirmDeleteButton above remains a popover because
+ * other screens still use that interaction pattern. */
+export function ConfirmDeleteModalButton({
+  ariaLabel,
+  itemName,
+  itemType = 'produto',
+  label = 'Excluir',
+  title,
+  confirmLabel,
+  triggerVariant = 'destructive',
+  icon,
+  disabled = false,
+  showIcon = true,
+  description,
+  onConfirm,
+}: ConfirmDeleteModalButtonProps) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setMounted(true); }, []);
+
+  const close = useCallback(() => {
+    if (saving) return;
+    setOpen(false);
+    setError(null);
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  }, [saving]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function getFocusableElements() {
+      return Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    requestAnimationFrame(() => cancelRef.current?.focus());
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [close, open, saving]);
+
+  async function confirm() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onConfirm();
+      setOpen(false);
+      requestAnimationFrame(() => triggerRef.current?.focus());
+    } catch (caughtError) {
+      setSaving(false);
+      setError(caughtError instanceof Error ? caughtError.message : `Não foi possível excluir ${itemType}. Tente novamente.`);
+    }
+  }
+
+  return (
+    <div className="relative inline-flex">
+      <Button
+        ref={triggerRef}
+        type="button"
+        variant={triggerVariant}
+        size="sm"
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => { setError(null); setOpen(true); }}
+      >
+        {showIcon && (icon ?? <Trash2 className="h-4 w-4" aria-hidden="true" />)}
+        {label}
+      </Button>
+
+      {open && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4"
+          aria-hidden={false}
+        >
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+            className="w-full max-w-md rounded-xl border bg-card p-5 text-card-foreground shadow-2xl"
+          >
+            <h2 id={titleId} className="text-base font-semibold">{title ?? `Excluir ${itemType}?`}</h2>
+            <p id={descriptionId} className="mt-2 text-sm leading-5 text-muted-foreground">
+              {description ?? `O ${itemType} “${itemName}” será removido do seu portfólio. Esta ação não poderá ser desfeita.`}
+            </p>
+            {error && <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button ref={cancelRef} type="button" variant="ghost" disabled={saving} onClick={close}>
+                Cancelar
+              </Button>
+              <Button type="button" variant="destructive" disabled={saving} onClick={() => void confirm()}>
+                {saving ? `Excluindo ${itemType}...` : (confirmLabel ?? `Excluir ${itemType}`)}
+              </Button>
+            </div>
           </div>
         </div>,
         document.body

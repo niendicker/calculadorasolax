@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { emptyAddress } from '@/lib/address';
 import type { Client, SavedProject } from '@/lib/types';
@@ -261,13 +261,15 @@ describe('ClientsTab: edit flow', () => {
 });
 
 describe('ClientsTab: remove flow', () => {
-  it('confirms via the delete popover before calling onRemove', async () => {
+  it('opens a destructive modal before calling onRemove', async () => {
     const client = makeClient({ id: 'c1', name: 'Ana' });
     const { props } = setup({ clients: [client] });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover cliente Ana' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir cliente Ana' }));
 
-    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    const dialog = await screen.findByRole('dialog', { name: 'Excluir cliente?' });
+    expect(dialog).toHaveTextContent('O cliente “Ana” será removido do seu portfólio. Esta ação não poderá ser desfeita.');
+    const confirmButton = within(dialog).getByRole('button', { name: 'Excluir cliente' });
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('c1'));
@@ -278,15 +280,11 @@ describe('ClientsTab: remove flow', () => {
     const client = makeClient({ id: 'c1', name: 'Ana' });
     setup({ clients: [client], onRemove });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover cliente Ana' }));
-    const confirmButton = await screen.findByRole('button', { name: 'Remover' }, { timeout: 1000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir cliente Ana' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Excluir cliente' }, { timeout: 1000 });
     fireEvent.click(confirmButton);
 
-    await waitFor(() =>
-      expect(
-        screen.getByText('Não foi possível remover o cliente. Verifique sua conexão e tente novamente.')
-      ).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getAllByText('Não foi possível remover o cliente. Verifique sua conexão e tente novamente.')).toHaveLength(2));
     // Once the failed removal settles, the edit button is enabled again.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Editar' })).toBeEnabled());
   });

@@ -93,6 +93,7 @@ export function useQuoteSharing({
           gridType: residentialOptions.gridType,
           nominalW,
           peakW,
+          peakCalcMode: residentialOptions.peakCalcMode,
           dailyKwh,
           userStockItems,
           marginSettings,

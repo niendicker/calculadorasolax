@@ -7,6 +7,13 @@ type FeedbackKind = 'bug' | 'suggestion';
 interface FeedbackInput {
   kind?: FeedbackKind;
   message?: string;
+  metadata?: {
+    version?: string;
+    route?: string;
+    viewport?: string;
+    userAgent?: string;
+    timestamp?: string;
+  };
 }
 
 const kindLabels: Record<FeedbackKind, string> = {
@@ -30,6 +37,7 @@ export async function POST(request: Request) {
 
   const kind = input.kind;
   const message = typeof input.message === 'string' ? input.message.trim() : '';
+  const metadata = kind === 'bug' && input.metadata ? input.metadata : undefined;
   if (!kind || !kindLabels[kind]) return NextResponse.json({ error: 'Selecione o tipo de contribuição.' }, { status: 400 });
   if (message.length < 10) return NextResponse.json({ error: 'Descreva sua contribuição com pelo menos 10 caracteres.' }, { status: 400 });
   if (message.length > 5000) return NextResponse.json({ error: 'A contribuição deve ter no máximo 5.000 caracteres.' }, { status: 400 });
@@ -47,9 +55,15 @@ export async function POST(request: Request) {
       subject: `[Calculadora] ${kindLabels[kind]}`,
       text: [
         `Tipo: ${kindLabels[kind]}`,
-        `Versão: ${process.env.NEXT_PUBLIC_APP_VERSION ?? 'desconhecida'}`,
+        `Versão: ${metadata?.version ?? process.env.NEXT_PUBLIC_APP_VERSION ?? 'desconhecida'}`,
         `Usuário: ${user.email ?? user.id}`,
         `ID: ${user.id}`,
+        ...(metadata ? [
+          `Rota: ${metadata.route ?? 'desconhecida'}`,
+          `Viewport: ${metadata.viewport ?? 'desconhecido'}`,
+          `User-agent: ${metadata.userAgent ?? 'desconhecido'}`,
+          `Timestamp: ${metadata.timestamp ?? 'desconhecido'}`,
+        ] : []),
         '',
         message,
       ].join('\n'),

@@ -457,7 +457,7 @@ export function SinglePageApp() {
       <div
         className={cn(
           'mx-auto grid h-full w-full max-w-[1920px] grid-rows-[minmax(0,1fr)] lg:grid-cols-[264px_minmax(0,1fr)] lg:grid-rows-[1fr]',
-          summaryActive ? 'xl:grid-cols-[264px_minmax(0,1fr)_460px]' : 'xl:grid-cols-[264px_minmax(0,1fr)]'
+          summaryActive ? 'xl:grid-cols-[264px_minmax(0,1fr)_380px]' : 'xl:grid-cols-[264px_minmax(0,1fr)]'
         )}
       >
         <aside className="hidden border-r bg-card px-4 py-5 lg:flex lg:flex-col">

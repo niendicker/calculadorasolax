@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
@@ -138,11 +138,10 @@ function ProjectActionsMenu({
             {downloading ? 'Gerando relatório...' : 'Baixar relatório'}
           </button>
           <div className="my-1 border-t" />
-          <ConfirmDeleteButton
-            ariaLabel={`Remover projeto ${projectName}`}
-            title="Remover projeto?"
-            description="O projeto salvo e sua configuração serão removidos deste navegador."
-            confirmLabel="Remover"
+          <ConfirmDeleteModalButton
+            ariaLabel={`Excluir projeto ${projectName}`}
+            itemName={projectName}
+            itemType="projeto"
             label="Excluir"
             onConfirm={onRemove}
           />

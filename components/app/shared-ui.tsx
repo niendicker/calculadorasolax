@@ -513,6 +513,7 @@ export function CatalogProductCard({
   onPreviewDoc,
   stockControl,
   topRightAction,
+  compactContent = false,
 }: {
   fallbackIcon: React.ReactNode;
   model: string;
@@ -532,6 +533,8 @@ export function CatalogProductCard({
    * from stockControl, which sits at the bottom with the rest of the card's
    * own actions. */
   topRightAction?: React.ReactNode;
+  /** Keeps portfolio cards stable when friendly names or model codes are long. */
+  compactContent?: boolean;
 }) {
   const [showAllDocuments, setShowAllDocuments] = useState(false);
   const visibleDocuments = showAllDocuments ? documents : documents.slice(0, 2);
@@ -561,8 +564,8 @@ export function CatalogProductCard({
       <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9')}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="break-words text-base font-semibold leading-snug">{nickname || model}</p>
-            {nickname && <p className="mt-0.5 break-words text-xs text-muted-foreground">{model}</p>}
+            <p className={cn('break-words text-base font-semibold leading-snug', compactContent && 'line-clamp-2')} title={nickname || model}>{nickname || model}</p>
+            {nickname && <p className={cn('mt-0.5 break-words text-xs text-muted-foreground', compactContent && 'line-clamp-2')} title={model}>{model}</p>}
           </div>
         </div>
         {badges && badges.length > 0 && (
@@ -592,7 +595,7 @@ export function CatalogProductCard({
             <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Documentos ({documents.length})</span>
           </div>
-          <div className="grid gap-1 sm:grid-cols-2">
+          <div className={cn('grid gap-1 sm:grid-cols-2', showAllDocuments && 'max-h-24 overflow-y-auto pr-1')}>
             {visibleDocuments.map((document) => (
               <button
                 key={`${model}-${document.url}`}

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip } from '@/components/ui/tooltip';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
@@ -358,6 +358,20 @@ export function SizingTab({
 
   const isConfigItem = activeItem === 'gridType' || activeItem === 'battery';
 
+  const calculateRequirements = [
+    !residentialOptions.gridType && 'selecione o tipo de rede',
+    !residentialOptions.topology && 'selecione a topologia da bateria',
+    !residentialOptions.batteryModel && 'selecione o modelo da bateria',
+    residentialOptions.loads.length === 0 && 'adicione ao menos uma carga',
+  ].filter(Boolean) as string[];
+  const calculateHelpText = !hasUncalculatedChanges
+    ? 'Nenhuma alteração desde o último cálculo.'
+    : canCalculate
+      ? undefined
+      : calculateRequirements.length > 0
+        ? `Para calcular, ${calculateRequirements.join(', ')}.`
+        : 'Revise as configurações pendentes antes de calcular.';
+
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
   // floor, same targets the Edge Function actually sizes against (see
@@ -474,24 +488,35 @@ export function SizingTab({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AutosaveIndicator status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
-          <ConfirmDeleteButton
+          <ConfirmDeleteModalButton
             ariaLabel="Limpar dimensionamento"
+            itemName="dimensionamento atual"
+            itemType="dimensionamento"
             title="Limpar dimensionamento?"
             description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-            confirmLabel="Limpar"
             label="Limpar"
             icon={<Eraser className="h-4 w-4" />}
-            onConfirm={() => resetResidential()}
+            confirmLabel="Limpar"
             triggerVariant="outline"
+            onConfirm={() => resetResidential()}
           />
-          <Button
-            onClick={calculate}
-            disabled={!canCalculate || loading || !hasUncalculatedChanges}
-            title={canCalculate && !loading && !hasUncalculatedChanges ? 'Nenhuma alteração desde o último cálculo.' : undefined}
-          >
-            <Calculator className="h-4 w-4" />
-            {loading ? loadingLabel : calculateLabel}
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              onClick={calculate}
+              disabled={!canCalculate || loading || !hasUncalculatedChanges}
+              title={calculateHelpText}
+              aria-describedby="calculate-help"
+              aria-busy={loading}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+              {loading ? loadingLabel : calculateLabel}
+            </Button>
+            {calculateHelpText && (
+              <span id="calculate-help" className="max-w-56 text-right text-[0.68rem] leading-tight text-muted-foreground">
+                {calculateHelpText}
+              </span>
+            )}
+          </div>
         </div>
       </PageHeader>
 

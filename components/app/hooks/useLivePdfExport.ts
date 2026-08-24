@@ -65,6 +65,7 @@ export function useLivePdfExport({
         gridType: residentialOptions.gridType,
         nominalW,
         peakW,
+        peakCalcMode: residentialOptions.peakCalcMode,
         dailyKwh,
         userStockItems,
         marginSettings,

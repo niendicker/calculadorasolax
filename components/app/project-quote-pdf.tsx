@@ -9,6 +9,7 @@ import type {
   MicrogridConfig,
   ProjectInfo,
   ProjectServiceLine,
+  PeakCalcMode,
   PvConfig,
   ResidentialGridType,
   SavedProject,
@@ -271,7 +272,7 @@ function DesiredFeatureDetail({
         <Text style={styles.featureDetail}>
           Potência CA {formatAcPower(whiteTariff.requiredPowerW)}
           {whiteTariff.totalMonthlyConsumptionKwh
-            ? ` · consumo ${whiteTariff.totalMonthlyConsumptionKwh.toFixed(1)} kWh/mês`
+            ? ` · consumo mensal da unidade ${whiteTariff.totalMonthlyConsumptionKwh.toFixed(1)} kWh/mês`
             : ''}
           {' · energia ponta '}
           <Text style={styles.featureDetailBold}>{formatEnergy(whiteTariff.pontaEnergyWh)}</Text>
@@ -363,12 +364,14 @@ type ReportLoad = {
   name: string;
   powerW: number;
   qty: number;
+  ipInRatio?: number;
+  includedInPeak?: boolean;
   usageFactor?: number;
   usageMode?: 'fraction' | 'fixed';
   fixedHours?: number;
 };
 
-function LoadsSection({ loads, operationHours }: { loads: ReportLoad[]; operationHours: number }) {
+function LoadsSection({ loads, operationHours, peakCalcMode }: { loads: ReportLoad[]; operationHours: number; peakCalcMode: PeakCalcMode }) {
   if (loads.length === 0) return null;
 
   const loadEnergyKwh = (load: ReportLoad) => {
@@ -376,10 +379,25 @@ function LoadsSection({ loads, operationHours }: { loads: ReportLoad[]; operatio
     return (load.powerW * load.qty * hours) / 1000;
   };
   const totalLoadPowerW = loads.reduce((total, load) => total + load.powerW * load.qty, 0);
+  const largestSurgeLoad = loads.reduce<ReportLoad | null>((largest, load) => {
+    const extra = load.powerW * Math.max(0, (load.ipInRatio ?? 1) - 1) * load.qty;
+    const largestExtra = largest ? largest.powerW * Math.max(0, (largest.ipInRatio ?? 1) - 1) * largest.qty : -1;
+    return extra > largestExtra ? load : largest;
+  }, null);
+  const peakPowerForLoad = (load: ReportLoad) => {
+    const nominalPowerW = load.powerW * load.qty;
+    const surgePowerW = load.powerW * (load.ipInRatio ?? 1) * load.qty;
+    if (peakCalcMode === 'select' && load.includedInPeak === false) return 0;
+    if (peakCalcMode === 'largest-surge') {
+      return nominalPowerW + (largestSurgeLoad?.id === load.id ? Math.max(0, surgePowerW - nominalPowerW) : 0);
+    }
+    return surgePowerW;
+  };
+  const totalLoadPeakW = loads.reduce((total, load) => total + peakPowerForLoad(load), 0);
   const totalLoadEnergyKwh = loads.reduce((total, load) => total + loadEnergyKwh(load), 0);
 
   return (
-    <View style={styles.section}>
+    <View style={styles.section} wrap={loads.length > 12} minPresenceAhead={120}>
       <Text style={styles.sectionTitle}>Cargas informadas</Text>
       <Text style={{ fontSize: 7.5, color: COLORS.muted, marginBottom: 6 }}>
         Tempo de operação considerado: {operationHours} h
@@ -387,9 +405,9 @@ function LoadsSection({ loads, operationHours }: { loads: ReportLoad[]; operatio
       <View style={styles.table}>
         <View style={styles.tableHeaderRow} fixed>
           <Text style={[styles.tableCellName, styles.tableHeaderText]}>Carga</Text>
-          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pot. CA</Text>
+          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pot. nominal</Text>
           <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Qtd.</Text>
-          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pico CA</Text>
+          <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Pico considerado</Text>
           <Text style={[styles.tableCellNum, styles.tableHeaderText]}>Consumo</Text>
         </View>
         {loads.map((load) => (
@@ -397,15 +415,15 @@ function LoadsSection({ loads, operationHours }: { loads: ReportLoad[]; operatio
             <Text style={styles.tableCellName}>{load.name}</Text>
             <Text style={styles.tableCellNum}>{formatAcPower(load.powerW)}</Text>
             <Text style={styles.tableCellNum}>{load.qty}</Text>
-            <Text style={styles.tableCellNum}>{formatAcPower(load.powerW * load.qty)}</Text>
+          <Text style={styles.tableCellNum}>{formatAcPower(peakPowerForLoad(load))}</Text>
             <Text style={styles.tableCellNum}>{formatEnergy(loadEnergyKwh(load) * 1000)}</Text>
           </View>
         ))}
         <View style={styles.tableFooterRow} wrap={false}>
           <Text style={[styles.tableCellName, styles.tableFooterText]}>Total</Text>
-          <Text style={styles.tableCellNum} />
-          <Text style={styles.tableCellNum} />
           <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatAcPower(totalLoadPowerW)}</Text>
+          <Text style={styles.tableCellNum} />
+          <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatAcPower(totalLoadPeakW)}</Text>
           <Text style={[styles.tableCellNum, styles.tableFooterText]}>{formatEnergy(totalLoadEnergyKwh * 1000)}</Text>
         </View>
       </View>
@@ -502,7 +520,7 @@ function ProductsSection({
       nickname={productMedia[solution.inverterModel]?.nickname || inverterCatalog.find((item) => item.model === solution.inverterModel)?.nickname}
       model={solution.inverterModel}
       qty={`×${solution.inverterQty ?? 1}`}
-      note={solution.inverterRatedPowerW ? `Pot. CA nominal ${formatAcPower(solution.inverterRatedPowerW)}` : undefined}
+      note={solution.inverterRatedPowerW ? `Potência nominal do inversor ${formatAcPower(solution.inverterRatedPowerW)}` : undefined}
       warranty={formatWarranty(inverterCatalog.find((item) => item.model === solution.inverterModel))}
     />
   );
@@ -516,7 +534,7 @@ function ProductsSection({
         qty={`×${part.qty}`}
         note={
           index === 0 && solution.availableEnergyWh
-            ? `${formatEnergy(solution.availableEnergyWh)} disponíveis`
+            ? `${formatEnergy(solution.availableEnergyWh)} disponíveis pelas baterias`
             : undefined
         }
         warranty={formatWarranty(batteryCatalog.find((item) => item.model === part.model))}
@@ -565,9 +583,9 @@ function ProductsSection({
       <Text style={styles.sectionTitle}>{title}</Text>
       <MetricRows
         metrics={[
-          { label: 'Potência CA nominal', value: metrics.nominalW != null ? formatAcPower(metrics.nominalW) : '-' },
-          { label: 'Potência CA máxima', value: metrics.peakW != null ? formatAcPower(metrics.peakW) : '-' },
-          { label: 'Energia disponível', value: formatEnergy(metrics.energyKwh * 1000) },
+          { label: 'Potência nominal disponível', value: metrics.nominalW != null ? formatAcPower(metrics.nominalW) : '-', note: 'Limite efetivo entre inversor e banco de baterias' },
+          { label: 'Potência de pico disponível', value: metrics.peakW != null ? formatAcPower(metrics.peakW) : '-', note: 'Limite efetivo entre inversor e banco de baterias' },
+          { label: 'Energia disponível pelas baterias', value: formatEnergy(metrics.energyKwh * 1000) },
         ]}
       />
       <View style={styles.productBox}>
@@ -631,8 +649,8 @@ function ProductsSection({
               >
                 <Text style={styles.subBoxRowLabel}>{(insufficient ? '⚠ ' : '') + row.label}</Text>
                 <Text style={[styles.subBoxRowValue, styleIf(insufficient, styles.subBoxRowValueAlert)]}>
-                  {`Necessário ${formatValue(row.requiredValue)} · Solução oferece ${formatValue(row.providedValue)}`}
-                  {marginPct !== null && ` (${delta >= 0 ? '+' : '-'}${formatValue(Math.abs(delta))})`}
+                  {`Necessário ${formatValue(row.requiredValue)} · ${row.key === 'nominal' || row.key === 'peak' ? 'Inversor selecionado' : 'Solução oferece'} ${formatValue(row.providedValue)}`}
+                  {marginPct !== null && ` (${delta >= 0 ? '+' : '-'}${formatValue(Math.abs(delta))}${row.requiredValue > 0 ? `, ${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(0)}%` : ''})`}
                 </Text>
               </View>
             );
@@ -663,6 +681,7 @@ export interface ProjectQuotePdfInput {
   gridType: ResidentialGridType | null;
   nominalW: number;
   peakW: number;
+  peakCalcMode?: PeakCalcMode;
   dailyKwh: number;
   userStockItems: UserStockItem[];
   marginSettings?: MarginSettings;
@@ -702,6 +721,7 @@ export function ProjectQuotePdfDocument({
   gridType,
   nominalW,
   peakW,
+  peakCalcMode = 'sum',
   dailyKwh,
   userStockItems,
   marginSettings,
@@ -774,7 +794,7 @@ export function ProjectQuotePdfDocument({
           <Text style={styles.headerRight}>Calculadora SolaX</Text>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Dados do projeto</Text>
           <InfoRows
             rows={[
@@ -793,8 +813,11 @@ export function ProjectQuotePdfDocument({
           <Text style={styles.sectionTitle}>Resumo das escolhas</Text>
           <MetricRows
             metrics={[
-              { label: 'Pico de carga (CA)', value: formatAcPower(peakW) },
-              { label: 'Consumo diário', value: `${dailyKwh.toFixed(2)} kWh/dia` },
+              { label: 'Pico de carga considerado', value: formatAcPower(peakW), note: 'Inclui fatores de partida e o modo de pico configurado' },
+              { label: desiredFeatures?.includes('backup') ? 'Energia diária das cargas de backup' : 'Energia diária das cargas informadas', value: `${dailyKwh.toFixed(2)} kWh/dia` },
+              ...((pv?.monthlyConsumptionKwh ?? whiteTariff?.totalMonthlyConsumptionKwh ?? 0) > 0
+                ? [{ label: 'Consumo mensal da unidade', value: `${(pv?.monthlyConsumptionKwh ?? whiteTariff?.totalMonthlyConsumptionKwh ?? 0).toFixed(2)} kWh/mês` }]
+                : []),
               { label: 'Topologia', value: topology ? topologyLabels[topology] : '-' },
               {
                 label: 'Bateria selecionada',
@@ -831,7 +854,7 @@ export function ProjectQuotePdfDocument({
           </View>
         )}
 
-        {showLoadsTable && <LoadsSection loads={loads} operationHours={operationHours} />}
+        {showLoadsTable && <LoadsSection loads={loads} operationHours={operationHours} peakCalcMode={peakCalcMode} />}
 
         <ProductsSection
           title={secondarySolution ? `Produtos recomendados: Bateria ${solution.batteryModel}` : 'Produtos recomendados'}
@@ -870,7 +893,7 @@ export function ProjectQuotePdfDocument({
         )}
 
         {showEconomics && (
-          <View style={styles.section}>
+          <View style={styles.section} wrap={false}>
             <Text style={styles.sectionTitle}>Análise econômica</Text>
             <MetricRows
               perRow={2}
@@ -903,10 +926,10 @@ export function ProjectQuotePdfDocument({
                   ? [{ label: 'Retorno simples estimado', value: reportPaybackLabel ?? '-' }]
                   : []),
                 ...(tariffSavings?.tariffOrderValid && tariffSavings.monthlyCostWithoutSolaxBrl != null
-                  ? [{ label: 'Custo estimado sem SolaX', value: `${formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês` }]
+                  ? [{ label: 'Custo energético estimado sem SolaX', value: `${formatCurrencyBRL(tariffSavings.monthlyCostWithoutSolaxBrl)}/mês` }]
                   : []),
                 ...(tariffSavings?.tariffOrderValid && tariffSavings.monthlyCostWithSolaxBrl != null
-                  ? [{ label: 'Custo estimado com SolaX', value: `${formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês` }]
+                  ? [{ label: 'Custo energético estimado com SolaX', value: `${formatCurrencyBRL(tariffSavings.monthlyCostWithSolaxBrl)}/mês` }]
                   : []),
               ]}
             />
@@ -917,6 +940,9 @@ export function ProjectQuotePdfDocument({
                   tarifa fora de ponta.
                 </Text>
               </View>
+            )}
+            {tariffSavings?.tariffOrderValid && (
+              <Text style={styles.assumptionsText}>Os custos energéticos estimados não representam o valor final da fatura de energia.</Text>
             )}
             {tariffSavings?.tariffOrderValid && (
               <Text style={styles.assumptionsText}>
@@ -1008,6 +1034,7 @@ export function buildProjectQuotePdfInputFromSavedProject(
     gridType: project.residentialOptions.gridType,
     nominalW: totalNominalW(project.residentialOptions.loads),
     peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
+    peakCalcMode: project.residentialOptions.peakCalcMode ?? 'sum',
     dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
     userStockItems,
     marginSettings,

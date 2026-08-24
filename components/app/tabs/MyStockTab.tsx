@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Battery, Boxes, Check, Info, Loader2, Lock, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Battery, Boxes, Check, Info, Loader2, Lock, MoreHorizontal, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import { listOrderingSuppliers, listSupplierOffers, listUserSupplierPreferences } from '@/lib/data/supplier-repository';
@@ -225,8 +225,8 @@ export function MyStockTab({
             <p className="mt-1 text-xs text-muted-foreground">Visão geral dos itens cadastrados.</p>
           </div>
           <div className="space-y-2">
-            <PortfolioMetricCard icon={Package} label="Produtos" value={`${userStockItems.length}/${ACCOUNT_LIMITS.userStockItems}`} detail={`${pricedProductCount} com custo definido`} />
-            <PortfolioMetricCard icon={Wrench} label="Serviços" value={`${userServices.length}/${ACCOUNT_LIMITS.userServices}`} detail={`${configuredMarginCount}/3 categorias com markup`} />
+            <PortfolioMetricCard icon={Package} label="Produtos cadastrados" value={`${userStockItems.length}/${ACCOUNT_LIMITS.userStockItems}`} detail={`${pricedProductCount} com custo definido`} />
+            <PortfolioMetricCard icon={Wrench} label="Serviços cadastrados" value={`${userServices.length}/${ACCOUNT_LIMITS.userServices}`} detail={`${configuredMarginCount}/3 categorias com markup`} />
             <PortfolioMetricCard
               icon={unpricedProductCount > 0 || hasUnpricedService ? AlertTriangle : Check}
               label="Pendências de preço"
@@ -234,12 +234,12 @@ export function MyStockTab({
               detail={unpricedProductCount + (hasUnpricedService ? userServices.filter((service) => service.unitValue === 0).length : 0) === 0 ? 'Tudo pronto para orçamento' : 'Itens precisam de custo'}
               warn={unpricedProductCount > 0 || hasUnpricedService}
             />
-            <PortfolioMetricCard icon={Truck} label="Custos cadastrados" value={formatCurrencyBRL(portfolioCost)} detail="Soma dos custos unitários" />
+            <PortfolioMetricCard icon={Truck} label="Custos unitários cadastrados" value={formatCurrencyBRL(portfolioCost)} detail="Soma dos custos unitários dos produtos cadastrados" />
           </div>
         </div>
       </PageSummary>
 
-      <div className="grid grid-cols-2 gap-3" role="tablist" aria-label="Seções do catálogo">
+      <div className="grid grid-cols-2 gap-3" role="tablist" aria-label="Contextos do portfólio">
         <PortfolioSectionCard
           active={activeMainSection === 'products'}
           icon={Package}
@@ -462,9 +462,9 @@ function PortfolioSectionCard({
           {label}
           {warn && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label="Item sem preço definido" />}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {count} {countLabel}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+          <span>{count} {countLabel}</span>
+        </div>
       </div>
     </button>
   );
@@ -513,6 +513,57 @@ function PortfolioMetricCard({
         <p className="truncate text-lg font-semibold text-foreground">{value}</p>
         <p className="truncate text-[11px] text-muted-foreground">{detail}</p>
       </div>
+    </div>
+  );
+}
+
+function CardContextMenu({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      {open && (
+        <div role="menu" aria-label={label} className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -681,7 +732,7 @@ function ServiceCard({
   const [valueSaveState, saveValue] = useInlineSave((value: number) => onUpdateValue(service.id, value));
   const [unitSaveState, saveUnit] = useInlineSave((unit: UserServicePricingUnit) => onUpdatePricingUnit(service.id, unit));
   const pricingUnit = service.pricingUnit ?? 'project';
-  const pricingDescription = servicePricingDescription(pricingUnit);
+  const pricingExample = servicePricingExample(pricingUnit, service.unitValue);
 
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -692,13 +743,16 @@ function ServiceCard({
         <p className="min-w-0 flex-1 truncate pt-1 text-sm font-semibold" title={`Serviço de ${service.name}`}>
           Serviço de {service.name}
         </p>
-        <ConfirmDeleteButton
-          ariaLabel={`Remover serviço ${service.name}`}
-          title="Remover serviço?"
-          description="Esse serviço sai do seu catálogo pessoal. Projetos que já o incluem deixam de ter o preço resolvido."
-          confirmLabel="Remover"
-          onConfirm={() => onRemove(service.id)}
-        />
+        <CardContextMenu label={`Mais ações para ${service.name}`}>
+          <ConfirmDeleteModalButton
+            ariaLabel={`Excluir serviço ${service.name} do meu catálogo`}
+            itemName={service.name}
+            itemType="serviço"
+            label="Excluir"
+            showIcon={false}
+            onConfirm={() => onRemove(service.id)}
+          />
+        </CardContextMenu>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-lg border bg-muted/10">
@@ -720,20 +774,21 @@ function ServiceCard({
           </div>
         </div>
         <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.65fr)_minmax(0,1.35fr)] sm:items-center">
-          <label htmlFor={`${service.id}-service-value`} className="text-xs font-medium text-muted-foreground">Preço unitário</label>
+          <label htmlFor={`${service.id}-service-value`} className="text-xs font-medium text-muted-foreground">{servicePricingValueLabel(pricingUnit)}</label>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">R$</span>
             <input
               id={`${service.id}-service-value`}
               key={`${service.id}-value`}
-              type="number"
+              type="text"
+              inputMode="decimal"
               min={0}
               step={0.01}
-              defaultValue={service.unitValue}
+              defaultValue={formatServicePriceInput(String(service.unitValue))}
               aria-label={`Preço do serviço ${service.name}`}
               onBlur={(event) => {
-                const parsed = Number(event.target.value);
-                const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+                const nextValue = parseServicePrice(event.target.value) ?? 0;
+                event.currentTarget.value = formatServicePriceInput(String(nextValue));
                 if (nextValue !== service.unitValue) void saveValue(nextValue);
               }}
               className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -742,7 +797,7 @@ function ServiceCard({
           </div>
         </div>
         <div className="grid gap-2 p-3 sm:grid-cols-[minmax(8rem,0.65fr)_minmax(0,1.35fr)] sm:items-center">
-          <label htmlFor={`service-unit-${service.id}`} className="text-xs font-medium text-muted-foreground">Cobrar por</label>
+          <label htmlFor={`service-unit-${service.id}`} className="text-xs font-medium text-muted-foreground">Forma de cobrança</label>
           <div className="flex items-center gap-1.5">
             <select
               id={`service-unit-${service.id}`}
@@ -751,7 +806,7 @@ function ServiceCard({
               onChange={(event) => void saveUnit(event.target.value as UserServicePricingUnit)}
               className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
+              {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{servicePricingOptionLabel(unit.value)}</option>)}
             </select>
             <InlineSaveStatus state={unitSaveState} />
           </div>
@@ -760,25 +815,99 @@ function ServiceCard({
 
       <div className="mt-4 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2.5 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">Como será calculado</p>
-        <p className="mt-0.5">{pricingDescription}</p>
-        <p className="mt-1 font-medium text-primary">{formatCurrencyBRL(service.unitValue)} × {pricingUnit === 'project' ? '1 projeto' : 'quantidade encontrada no dimensionamento'}</p>
+        <p className="mt-0.5">{pricingExample.explanation}</p>
+        <p className="mt-1 font-medium text-primary">Exemplo: {pricingExample.example}</p>
       </div>
     </div>
   );
 }
 
-function servicePricingDescription(unit: UserServicePricingUnit): string {
+function servicePricingOptionLabel(unit: UserServicePricingUnit): string {
   switch (unit) {
-    case 'project': return 'Valor fixo aplicado uma vez ao projeto.';
-    case 'pv_kwp': return 'Multiplica o preço pela potência fotovoltaica da solução, em kWp.';
-    case 'nominal_kva': return 'Multiplica o preço pela potência nominal da solução, em kVA.';
-    case 'peak_kva': return 'Multiplica o preço pela potência de pico da solução, em kVA.';
-    case 'daily_kwh': return 'Multiplica o preço pelo consumo diário calculado, em kWh/dia.';
-    case 'battery_qty': return 'Multiplica o preço pela quantidade de baterias da solução.';
-    case 'inverter_qty': return 'Multiplica o preço pela quantidade de inversores da solução.';
-    case 'accessory_qty': return 'Multiplica o preço pela quantidade de acessórios necessários.';
-    case 'load_qty': return 'Multiplica o preço pela quantidade de cargas cadastradas.';
+    case 'project': return 'Por projeto';
+    case 'pv_kwp': return 'Por kWp';
+    case 'nominal_kva': return 'Por kVA nominal';
+    case 'peak_kva': return 'Por kVA de pico';
+    case 'daily_kwh': return 'Por kWh/dia';
+    case 'battery_qty': return 'Por bateria';
+    case 'inverter_qty': return 'Por inversor';
+    case 'accessory_qty': return 'Por acessório';
+    case 'load_qty': return 'Por carga';
   }
+}
+
+function servicePricingValueLabel(unit: UserServicePricingUnit): string {
+  switch (unit) {
+    case 'project': return 'Valor por projeto';
+    case 'pv_kwp': return 'Valor por kWp';
+    case 'nominal_kva': return 'Valor por kVA nominal';
+    case 'peak_kva': return 'Valor por kVA de pico';
+    case 'daily_kwh': return 'Valor por kWh/dia';
+    case 'battery_qty': return 'Valor por bateria';
+    case 'inverter_qty': return 'Valor por inversor';
+    case 'accessory_qty': return 'Valor por acessório';
+    case 'load_qty': return 'Valor por carga';
+  }
+}
+
+function servicePricingExample(unit: UserServicePricingUnit, unitValue?: number): { explanation: string; example: string } {
+  const defaults: Record<UserServicePricingUnit, number> = {
+    project: 500,
+    pv_kwp: 1500,
+    nominal_kva: 350,
+    peak_kva: 350,
+    daily_kwh: 2.5,
+    battery_qty: 500,
+    inverter_qty: 500,
+    accessory_qty: 150,
+    load_qty: 100,
+  };
+  const quantities: Record<UserServicePricingUnit, { value: number; label: string }> = {
+    project: { value: 1, label: 'projeto' },
+    pv_kwp: { value: 6.5, label: 'kWp' },
+    nominal_kva: { value: 6, label: 'kVA' },
+    peak_kva: { value: 8, label: 'kVA' },
+    daily_kwh: { value: 12, label: 'kWh' },
+    battery_qty: { value: 2, label: 'baterias' },
+    inverter_qty: { value: 2, label: 'inversores' },
+    accessory_qty: { value: 3, label: 'acessórios' },
+    load_qty: { value: 4, label: 'cargas' },
+  };
+  const amount = unitValue ?? defaults[unit];
+  const quantity = quantities[unit];
+  const rateSuffix = unit === 'project' ? '' : `/${quantity.label}`;
+  const quantityValue = quantity.value.toLocaleString('pt-BR', { minimumFractionDigits: unit === 'project' ? 0 : 2, maximumFractionDigits: 2 });
+  const explanations: Record<UserServicePricingUnit, string> = {
+    project: 'Valor fixo aplicado uma vez ao projeto.',
+    pv_kwp: 'O valor é multiplicado pela potência fotovoltaica dimensionada.',
+    nominal_kva: 'O valor é multiplicado pela potência nominal dimensionada.',
+    peak_kva: 'O valor é multiplicado pela potência máxima dimensionada.',
+    daily_kwh: 'O valor é multiplicado pelo consumo diário calculado.',
+    battery_qty: 'O valor é multiplicado pela quantidade de baterias necessárias.',
+    inverter_qty: 'O valor é multiplicado pela quantidade de inversores necessários.',
+    accessory_qty: 'O valor é multiplicado pela quantidade de acessórios necessários.',
+    load_qty: 'O valor é multiplicado pela quantidade de cargas cadastradas.',
+  };
+  return {
+    explanation: explanations[unit],
+    example: `${formatCurrencyBRL(amount)}${rateSuffix} × ${quantityValue} ${quantity.label} = ${formatCurrencyBRL(amount * quantity.value)}`,
+  };
+}
+
+function parseServicePrice(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.includes(',')
+    ? trimmed.replace(/\./g, '').replace(',', '.')
+    : trimmed;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function formatServicePriceInput(input: string): string {
+  const parsed = parseServicePrice(input);
+  if (parsed == null) return input.trim().startsWith('-') ? '' : input;
+  return parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function AddServiceCard({
@@ -804,11 +933,56 @@ function AddServiceCard({
   const [pricingUnit, setPricingUnit] = useState<UserServicePricingUnit>('project');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameTouched, setNameTouched] = useState(false);
+  const [valueTouched, setValueTouched] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const open = controlledOpen ?? internalOpen;
   const setOpen = (next: boolean) => {
     if (controlledOpen === undefined) setInternalOpen(next);
     onOpenChange?.(next);
   };
+
+  const closeModal = useCallback(() => {
+    setOpen(false);
+    setError(null);
+  }, [controlledOpen, onOpenChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null;
+
+    const getFocusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    ) ?? []);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeModal();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (!focusable.length) return;
+      if (event.shiftKey && document.activeElement === focusable[0]) {
+        event.preventDefault();
+        focusable[focusable.length - 1].focus();
+      } else if (!event.shiftKey && document.activeElement === focusable[focusable.length - 1]) {
+        event.preventDefault();
+        focusable[0].focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>('input')?.focus());
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      requestAnimationFrame(() => (previousFocusRef.current ?? triggerRef.current)?.focus());
+    };
+  }, [closeModal, open]);
 
   if (atLimit) {
     if (hideTrigger) return null;
@@ -841,8 +1015,9 @@ function AddServiceCard({
 
   async function handleAdd() {
     const trimmedName = name.trim();
-    const parsedValue = Number(value);
-    if (!trimmedName || !Number.isFinite(parsedValue) || parsedValue < 0) return;
+    const parsedValue = parseServicePrice(value);
+    setSubmitAttempted(true);
+    if (!trimmedName || parsedValue == null) return;
     setSaving(true);
     setError(null);
     try {
@@ -851,6 +1026,9 @@ function AddServiceCard({
       setName('');
       setValue('');
       setPricingUnit('project');
+      setNameTouched(false);
+      setValueTouched(false);
+      setSubmitAttempted(false);
     } catch (err) {
       setError(isLimitError(err) ? err.message : 'Não foi possível adicionar o serviço. Tente novamente.');
     } finally {
@@ -858,51 +1036,56 @@ function AddServiceCard({
     }
   }
 
+  const pricingExample = servicePricingExample(pricingUnit);
+
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) setOpen(false);
+        if (event.target === event.currentTarget) closeModal();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Adicionar serviço" className="w-full max-w-lg space-y-4 rounded-xl border bg-popover p-5 text-popover-foreground shadow-xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="new-service-title" aria-describedby="new-service-description" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border bg-popover p-5 text-popover-foreground shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-base font-semibold">Novo serviço</p>
-            <p className="mt-1 text-sm text-muted-foreground">Defina o preço e como ele será aplicado no orçamento.</p>
+            <h2 id="new-service-title" className="text-base font-semibold">Novo serviço</h2>
+            <p id="new-service-description" className="mt-1 text-sm text-muted-foreground">Defina o preço e como ele será aplicado no orçamento.</p>
           </div>
-          <Button type="button" variant="ghost" size="icon" aria-label="Fechar" onClick={() => setOpen(false)}>
+          <Button type="button" variant="ghost" size="icon" aria-label="Fechar" onClick={closeModal}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <Input aria-label="Nome do serviço" placeholder="Ex.: Instalação" value={name} onChange={(event) => setName(event.target.value)} autoFocus />
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Preço unitário</span>
-          <span className="text-xs text-muted-foreground">R$</span>
-          <input
-            type="number"
-            min={0}
-            step={0.01}
-            placeholder="0,00"
-            aria-label="Preço do serviço"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-        </div>
-        <label htmlFor="new-service-unit" className="text-xs font-medium text-muted-foreground">Cobrar por</label>
-        <select id="new-service-unit" aria-label="Unidade de cobrança do serviço" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
-          {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label} ({unit.suffix})</option>)}
-        </select>
-        <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">{servicePricingDescription(pricingUnit)}</p>
-          <p className="mt-1">Ex.: R$ 350,00/kWp × 6,50 kWp.</p>
-        </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" size="default" className="min-w-24" onClick={() => { setOpen(false); setError(null); }}>Cancelar</Button>
-          <Button type="button" size="default" className="min-w-32" disabled={!name.trim() || saving} onClick={handleAdd}>{saving ? 'Salvando...' : 'Salvar'}</Button>
-        </div>
+        <form className="mt-4 space-y-4" onSubmit={(event) => { event.preventDefault(); void handleAdd(); }}>
+          <div className="space-y-1.5">
+            <label htmlFor="new-service-name" className="text-xs font-medium text-muted-foreground">Nome do serviço</label>
+            <Input id="new-service-name" aria-label="Nome do serviço" aria-invalid={(nameTouched || submitAttempted) && !name.trim()} aria-describedby={(nameTouched || submitAttempted) && !name.trim() ? 'new-service-name-error' : undefined} placeholder="Ex.: Instalação" value={name} onChange={(event) => setName(event.target.value)} onBlur={() => setNameTouched(true)} />
+            {(nameTouched || submitAttempted) && !name.trim() && <p id="new-service-name-error" className="text-xs text-destructive">Informe o nome do serviço.</p>}
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="new-service-price" className="text-xs font-medium text-muted-foreground">Preço</label>
+            <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
+              <span className="text-sm text-muted-foreground" aria-hidden="true">R$</span>
+              <input id="new-service-price" type="text" inputMode="decimal" min={0} step={0.01} placeholder="0,00" aria-label="Preço do serviço" aria-invalid={(valueTouched || submitAttempted) && parseServicePrice(value) == null} aria-describedby={(valueTouched || submitAttempted) && parseServicePrice(value) == null ? 'new-service-price-error' : undefined} value={value} onChange={(event) => setValue(event.target.value.replace(/[^0-9.,-]/g, ''))} onBlur={() => { setValueTouched(true); setValue(formatServicePriceInput(value)); }} className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-sm outline-none focus:ring-0" />
+            </div>
+            {(valueTouched || submitAttempted) && parseServicePrice(value) == null && <p id="new-service-price-error" className="text-xs text-destructive">Informe um preço válido.</p>}
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="new-service-unit" className="text-xs font-medium text-muted-foreground">Forma de cobrança</label>
+            <select id="new-service-unit" aria-label="Forma de cobrança" value={pricingUnit} onChange={(event) => setPricingUnit(event.target.value as UserServicePricingUnit)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
+              {USER_SERVICE_PRICING_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{servicePricingOptionLabel(unit.value)}</option>)}
+            </select>
+          </div>
+          <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">Como será calculado</p>
+            <p className="mt-1">{pricingExample.explanation}</p>
+            <p className="mt-1 font-medium text-primary">Exemplo: {pricingExample.example}</p>
+          </div>
+          {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="default" className="min-h-10 min-w-24" onClick={closeModal}>Cancelar</Button>
+            <Button type="submit" size="default" className="min-h-10 min-w-32" disabled={!name.trim() || parseServicePrice(value) == null || saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -946,12 +1129,19 @@ function AddProductCard({
   const [query, setQuery] = useState('');
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const open = controlledOpen ?? internalOpen;
   const setOpen = (next: boolean | ((current: boolean) => boolean)) => {
     const resolved = typeof next === 'function' ? next(open) : next;
     if (controlledOpen === undefined) setInternalOpen(resolved);
     onOpenChange?.(resolved);
   };
+
+  const closePicker = useCallback(() => {
+    if (controlledOpen === undefined) setInternalOpen(false);
+    onOpenChange?.(false);
+  }, [controlledOpen, onOpenChange]);
 
   // Gates the createPortal call below until after client mount — document
   // doesn't exist during SSR, so this can't be a lazy useState initializer
@@ -962,34 +1152,71 @@ function AddProductCard({
   useEffect(() => {
     if (!open) return;
 
+    previousFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : triggerRef.current;
+
+    function getFocusableElements() {
+      return Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+    }
+
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as Node;
       if (triggerRef.current?.contains(target) || dialogRef.current?.contains(target)) return;
-      if (controlledOpen === undefined) setInternalOpen(false);
-      onOpenChange?.(false);
+      closePicker();
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        if (controlledOpen === undefined) setInternalOpen(false);
-        onOpenChange?.(false);
+        event.preventDefault();
+        closePicker();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
     document.addEventListener('mousedown', handlePointerDown);
     document.addEventListener('keydown', handleEscape);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [open, controlledOpen, onOpenChange]);
+  }, [closePicker, open]);
+
+  useEffect(() => {
+    if (open) return;
+    const focusTarget = previousFocusRef.current ?? triggerRef.current;
+    if (focusTarget) {
+      focusTarget.focus();
+      previousFocusRef.current = null;
+    }
+  }, [open]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const activeSection = sections.find((section) => section.type === activeProductType) ?? sections[0];
-  const availableProducts = catalogByType[activeProductType].filter(
-    (product) => !userStockItems.some((item) => item.productType === activeProductType && item.productModel === product.model)
+  const productsInPortfolio = new Set(
+    userStockItems
+      .filter((item) => item.productType === activeProductType)
+      .map((item) => item.productModel)
   );
-  const visibleProducts = availableProducts
+  const visibleProducts = catalogByType[activeProductType]
     .filter((product) => !activeSection.groupTabs || product.groupKey === activeGroup)
     .filter((product) => !normalizedQuery || `${product.nickname ?? ''} ${product.model}`.toLowerCase().includes(normalizedQuery));
 
@@ -998,7 +1225,7 @@ function AddProductCard({
     setAddError(null);
     try {
       await onAdd(activeProductType, model);
-      setOpen(false);
+      closePicker();
     } catch (error) {
       setAddError(isLimitError(error) ? error.message : 'Não foi possível adicionar ao catálogo. Tente novamente.');
     } finally {
@@ -1043,18 +1270,18 @@ function AddProductCard({
         mounted &&
         createPortal(
           <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4"
             onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setOpen(false);
+              if (event.target === event.currentTarget) closePicker();
             }}
           >
-            <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Escolha um produto do catálogo" className="flex max-h-[min(46rem,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl">
+            <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="add-product-dialog-title" aria-describedby="add-product-dialog-description" className="flex h-[min(46rem,85dvh)] max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-4xl min-h-0 flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl">
               <div className="flex items-start justify-between gap-4 border-b p-5">
                 <div>
-                  <p className="text-base font-semibold">Adicionar produto</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Escolha a categoria e depois um item disponível no catálogo.</p>
+                  <h2 id="add-product-dialog-title" className="text-base font-semibold">Adicionar produto</h2>
+                  <p id="add-product-dialog-description" className="mt-1 text-sm text-muted-foreground">Escolha a categoria e depois um item disponível no catálogo.</p>
                 </div>
-                <Button type="button" variant="ghost" size="icon" aria-label="Fechar" onClick={() => setOpen(false)}>
+                <Button type="button" variant="ghost" size="icon" aria-label="Fechar" onClick={closePicker}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -1081,10 +1308,10 @@ function AddProductCard({
               <div className="border-b p-4">
                 <label className="relative block">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                  <Input aria-label="Buscar no catálogo" placeholder="Buscar por nome ou modelo" value={query} onChange={(event) => setQuery(event.target.value)} className="!pl-11" autoFocus />
+                  <Input ref={searchInputRef} aria-label="Buscar no catálogo" placeholder="Buscar por nome ou modelo" value={query} onChange={(event) => setQuery(event.target.value)} className="!pl-11" />
                 </label>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row">
                 {activeSection.groupTabs && (
                   <div className="flex shrink-0 gap-1 overflow-x-auto border-b bg-muted/30 p-2 sm:w-44 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r" role="tablist" aria-label="Subcategoria">
                     {activeSection.groupTabs.map((tab) => {
@@ -1104,32 +1331,42 @@ function AddProductCard({
                     })}
                   </div>
                 )}
-                <div className="min-w-0 flex-1 overflow-y-auto p-4">
+                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
                   {addError && <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{addError}</p>}
                   {visibleProducts.length === 0 ? (
-                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      {normalizedQuery ? 'Nenhum produto corresponde à busca.' : 'Todos os produtos dessa categoria já estão no seu catálogo.'}
-                    </p>
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground">Nenhum produto encontrado</p>
+                      <p className="mt-1">Altere a busca ou selecione outra categoria ou filtro.</p>
+                    </div>
                   ) : (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {visibleProducts.map((product) => (
+                      {visibleProducts.map((product) => {
+                        const isAdded = productsInPortfolio.has(product.model);
+                        return (
                         <button
                           key={product.id}
                           type="button"
-                          disabled={addingModel !== null}
-                          onClick={() => handleAdd(product.model)}
-                          className="flex items-center gap-3 rounded-lg border bg-card p-3 text-left transition hover:border-primary/50 hover:bg-muted/40 disabled:opacity-60"
+                          disabled={addingModel !== null || isAdded}
+                          aria-label={`${product.nickname || product.model}${isAdded ? ', já está no portfólio' : ', adicionar ao portfólio'}`}
+                          onClick={() => { if (!isAdded) void handleAdd(product.model); }}
+                          className={cn(
+                            'flex min-h-20 w-full touch-manipulation items-center gap-3 rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                            isAdded
+                              ? 'cursor-default border-primary/20 bg-primary/5 text-muted-foreground'
+                              : 'cursor-pointer bg-card hover:border-primary/50 hover:bg-muted/40'
+                          )}
                         >
                           <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border bg-card">
                             {product.imageUrl ? <Image src={product.imageUrl} alt={product.model} fill sizes="44px" className="object-contain p-1" /> : <div className="flex h-full w-full items-center justify-center">{activeSection.smallIcon}</div>}
                           </div>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{product.nickname || product.model}</span>
-                            {product.nickname && <span className="block truncate text-xs text-muted-foreground">{product.model}</span>}
+                            <span className="block line-clamp-2 truncate text-sm font-medium" title={product.nickname || product.model}>{product.nickname || product.model}</span>
+                            {product.nickname && <span className="block truncate text-xs text-muted-foreground" title={product.model}>{product.model}</span>}
                           </span>
-                          {addingModel === product.model ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" /> : <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                          {addingModel === product.model ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-label="Adicionando" /> : isAdded ? <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary"><Check className="h-4 w-4" aria-hidden="true" />No portfólio</span> : <Plus className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Adicionar" />}
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1231,16 +1468,18 @@ function StockProductCard({
       badges={badges}
       specs={specs}
       description={description}
+      compactContent
       onPreviewImage={onPreviewImage}
       onPreviewDoc={onPreviewDoc}
       topRightAction={
-        <ConfirmDeleteButton
-          ariaLabel={`Remover ${item.productModel} do meu catálogo`}
-          title="Remover do catálogo?"
-          description="Esse item sai do seu catálogo pessoal. Você pode adicioná-lo novamente pela aba Catálogo quando quiser."
-          confirmLabel="Remover"
-          onConfirm={() => onRemove(item.id)}
-        />
+        <CardContextMenu label={`Mais ações para ${item.productModel}`}>
+          <ConfirmDeleteModalButton
+            ariaLabel={`Excluir ${item.productModel} do meu catálogo`}
+            itemName={nickname || item.productModel}
+            label="Excluir"
+            onConfirm={() => onRemove(item.id)}
+          />
+        </CardContextMenu>
       }
       stockControl={
         <div className="space-y-2 border-t pt-3">
