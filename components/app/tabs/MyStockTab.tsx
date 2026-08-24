@@ -274,44 +274,47 @@ export function MyStockTab({
           )}
 
           <div className="space-y-4">
-            <div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Tipo de produto">
-              {sectionDefinitions.map((section) => {
-                const sectionItems = userStockItems.filter((item) => item.productType === section.type);
-                return (
-                  <PortfolioSectionCard
-                    key={section.type}
-                    active={activeSection === section.type}
-                    icon={section.icon}
-                    label={section.label}
-                    count={sectionItems.length}
-                    countLabel={sectionItems.length === 1 ? 'item' : 'itens'}
-                    warn={sectionItems.some((item) => item.unitValue === 0)}
-                    compact
-                    onClick={() => setActiveSection(section.type)}
-                  />
-                );
-              })}
-            </div>
+            {userStockItems.length > 0 && (
+              <>
+                <div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Tipo de produto">
+                  {sectionDefinitions.map((section) => {
+                    const sectionItems = userStockItems.filter((item) => item.productType === section.type);
+                    return (
+                      <PortfolioSectionCard
+                        key={section.type}
+                        active={activeSection === section.type}
+                        icon={section.icon}
+                        label={section.label}
+                        count={sectionItems.length}
+                        countLabel={sectionItems.length === 1 ? 'item' : 'itens'}
+                        warn={sectionItems.some((item) => item.unitValue === 0)}
+                        compact
+                        onClick={() => setActiveSection(section.type)}
+                      />
+                    );
+                  })}
+                </div>
 
-            <div className="min-w-0 space-y-4">
-              <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-3 sm:flex-row sm:items-center">
-                <label className="relative block min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                  <Input
-                    aria-label="Buscar produto no portfólio"
-                    placeholder="Buscar modelo ou nome"
-                    value={productQuery}
-                    onChange={(event) => setProductQuery(event.target.value)}
-                    className="!pl-11"
+                <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-3 sm:flex-row sm:items-center">
+                  <label className="relative block min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <Input
+                      aria-label="Buscar produto no portfólio"
+                      placeholder="Buscar modelo ou nome"
+                      value={productQuery}
+                      onChange={(event) => setProductQuery(event.target.value)}
+                      className="!pl-11"
+                    />
+                  </label>
+                  <CategoryMarginInline
+                    productType={activeSection}
+                    productLabel={activeSectionDefinition.label}
+                    marginSettings={marginSettings}
+                    onUpdateMarginPercent={onUpdateMarginPercent}
                   />
-                </label>
-                <CategoryMarginInline
-                  productType={activeSection}
-                  productLabel={activeSectionDefinition.label}
-                  marginSettings={marginSettings}
-                  onUpdateMarginPercent={onUpdateMarginPercent}
-                />
-              </div>
+                </div>
+              </>
+            )}
 
               {sectionDefinitions.map((section) => {
               if (section.type !== activeSection) return null;
@@ -327,7 +330,7 @@ export function MyStockTab({
                   {items.length === 0 ? (
                     <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-5">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><section.icon className="h-5 w-5" aria-hidden="true" /></span>
-                      <div><p className="text-sm font-medium">Seu portfólio ainda não tem {section.label.toLowerCase()}.</p><p className="mt-1 text-xs text-muted-foreground">Use o card “Adicionar” abaixo para escolher um item do catálogo.</p></div>
+                      <div><p className="text-sm font-medium">Seu portfólio ainda não tem {section.label.toLowerCase()}.</p><p className="mt-1 text-xs text-muted-foreground">Use o botão “Adicionar produto” acima para escolher um item disponível no catálogo.</p></div>
                     </div>
                   ) : filteredItems.length === 0 ? (
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/20 p-4">
@@ -371,7 +374,6 @@ export function MyStockTab({
                 onAdd={(productType, model) => onAddToStock({ productType, productModel: model, unitValue: 0 })}
               />
             </div>
-          </div>
         </>
       )}
 
@@ -694,9 +696,17 @@ function ServicesSection({
         </p>
       )}
       {userServices.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          Você ainda não cadastrou nenhum serviço. Use o botão “Adicionar serviço” acima para cadastrar um.
-        </p>
+        <div className="flex items-start gap-3 rounded-xl border border-dashed bg-muted/20 p-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Wrench className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-sm font-medium">Nenhum serviço cadastrado</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Cadastre instalação, frete ou mão de obra pelo botão “Adicionar serviço” acima para incluí-los nos seus orçamentos.
+            </p>
+          </div>
+        </div>
       )}
       <div className="grid gap-3 lg:grid-cols-2">
         {userServices.map((service) => (

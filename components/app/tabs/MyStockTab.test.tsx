@@ -242,6 +242,10 @@ describe('MyStockTab: editing price', () => {
   it('shows an empty-category hint when a section has no items yet', () => {
     setup({ userStockItems: [] });
     expect(screen.getByText(/Seu portfólio ainda não tem inversores/)).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Inversores/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar produto no portfólio')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Markup de venda')).not.toBeInTheDocument();
+    expect(screen.getByText(/Adicionar produto.*acima.*catálogo/)).toBeInTheDocument();
   });
 });
 
@@ -407,7 +411,7 @@ describe('MyStockTab: adding from the catalog', () => {
 
   it('shows a limit-reached error verbatim when adding fails', async () => {
     const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 14 itens no catálogo atingido.'));
-    setup({ onAddToStock });
+    setup({ onAddToStock, userStockItems: [stockItem] });
 
     fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
@@ -489,7 +493,8 @@ describe('MyStockTab: services', () => {
     setup({ userServices: [] });
     fireEvent.click(screen.getByRole('tab', { name: /Serviços/ }));
 
-    expect(screen.getByText(/Você ainda não cadastrou nenhum serviço/)).toBeInTheDocument();
+    expect(screen.getByText('Nenhum serviço cadastrado')).toBeInTheDocument();
+    expect(screen.getByText(/Cadastre instalação, frete ou mão de obra/)).toBeInTheDocument();
   });
 
   it('surfaces an error instead of silently discarding a failed inline service price edit', async () => {
@@ -715,7 +720,7 @@ describe('MyStockTab: adding a product from the picker', () => {
 
 describe('MyStockTab: sell margins', () => {
   it('shows the margin inline within each product category tab, scoped to that category', () => {
-    setup({ marginSettings: { inverterPercent: 10, batteryPercent: 20, accessoryPercent: 5 } });
+    setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 10, batteryPercent: 20, accessoryPercent: 5 } });
 
     // "Inversores" is the default tab.
     expect(screen.getByLabelText('Markup de venda')).toHaveValue(10);
@@ -728,7 +733,7 @@ describe('MyStockTab: sell margins', () => {
   });
 
   it('saves a category margin on blur when it changes', () => {
-    const { props } = setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
+    const { props } = setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
 
     const input = screen.getByLabelText('Markup de venda');
     fireEvent.change(input, { target: { value: '15' } });
@@ -738,7 +743,7 @@ describe('MyStockTab: sell margins', () => {
   });
 
   it('does not save on blur when the margin value is unchanged', () => {
-    const { props } = setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
+    const { props } = setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 } });
 
     const input = screen.getByLabelText('Markup de venda');
     fireEvent.blur(input);
@@ -748,7 +753,7 @@ describe('MyStockTab: sell margins', () => {
 
   it('surfaces an error instead of silently discarding a failed margin edit', async () => {
     const onUpdateMarginPercent = vi.fn().mockRejectedValue(new Error('boom'));
-    setup({ marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 }, onUpdateMarginPercent });
+    setup({ userStockItems: [stockItem], marginSettings: { inverterPercent: 10, batteryPercent: 0, accessoryPercent: 0 }, onUpdateMarginPercent });
 
     const input = screen.getByLabelText('Markup de venda');
     fireEvent.change(input, { target: { value: '15' } });
