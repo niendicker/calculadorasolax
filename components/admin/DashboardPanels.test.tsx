@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { AdminActivityLogRow, SimulationRow, UserProfileRow } from './types';
+import type { AdminActivityLogRow, SimulationRow, SupplierQuoteRequestAdminRow, UserProfileRow } from './types';
 import { ActivityLogsPanel, MetricsPanel, UsersPanel } from './DashboardPanels';
 
 function makeUser(partial: Partial<UserProfileRow> & Pick<UserProfileRow, 'id' | 'email'>): UserProfileRow {
@@ -32,6 +32,25 @@ function makeSimulation(partial: Partial<SimulationRow> & Pick<SimulationRow, 'i
     accessories: [],
     solution_code: null,
     created_at: '2026-01-05T14:00:00.000Z', // a Monday
+    ...partial,
+  };
+}
+
+function makeQuoteRequest(partial: Partial<SupplierQuoteRequestAdminRow> & Pick<SupplierQuoteRequestAdminRow, 'id'>): SupplierQuoteRequestAdminRow {
+  return {
+    project_id: 'p1',
+    supplier_id: 'supplier-a',
+    user_id: 'u1',
+    status: 'sent',
+    created_at: '2026-01-05T14:00:00.000Z',
+    sent_at: '2026-01-05T14:01:00.000Z',
+    last_attempt_at: '2026-01-05T14:01:00.000Z',
+    send_count: 1,
+    error_message: null,
+    supplier_name: 'Fornecedor A',
+    project_name: 'Projeto solar',
+    requester_name: 'Ana',
+    requester_email: 'ana@x.com',
     ...partial,
   };
 }
@@ -89,6 +108,27 @@ describe('UsersPanel', () => {
 });
 
 describe('MetricsPanel', () => {
+  it('shows real supplier email status metrics and recent requests', () => {
+    const recentSent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    render(
+      <MetricsPanel
+        users={[]}
+        simulations={[]}
+        supplierQuoteRequests={[
+          makeQuoteRequest({ id: 'q1', sent_at: recentSent, created_at: recentSent }),
+          makeQuoteRequest({ id: 'q2', supplier_id: 'supplier-b', supplier_name: 'Fornecedor B', status: 'failed', sent_at: null, error_message: 'Provedor indisponível' }),
+        ]}
+      />
+    );
+
+    expect(screen.getByText('E-mails enviados').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getByText('Falhas de envio').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getByText('Últimas 24 horas').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getAllByText('Fornecedor A').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Fornecedor B').length).toBeGreaterThan(0);
+    expect(screen.getByText('Falha: Provedor indisponível')).toBeInTheDocument();
+  });
+
   it('computes user/simulation counts and averages', () => {
     render(
       <MetricsPanel

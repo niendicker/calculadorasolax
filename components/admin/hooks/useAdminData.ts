@@ -23,6 +23,7 @@ import {
   type LoadCatalogRow,
   type PresetRow,
   type SimulationRow,
+  type SupplierQuoteRequestAdminRow,
   type SolutionRow,
   type TabKey,
   type UserProfileRow,
@@ -97,7 +98,7 @@ export function useAdminData({
   const [solutions, setSolutions] = useState<SolutionRow[]>([]);
   const [users, setUsers] = useState<UserProfileRow[]>([]);
   const [simulations, setSimulations] = useState<SimulationRow[]>([]);
-  const [supplierQuoteRequests, setSupplierQuoteRequests] = useState(0);
+  const [supplierQuoteRequests, setSupplierQuoteRequests] = useState<SupplierQuoteRequestAdminRow[]>([]);
   const [activityLogs, setActivityLogs] = useState<AdminActivityLogRow[]>([]);
 
   const loadedResourcesRef = useRef<Set<ResourceKey>>(new Set());
@@ -207,11 +208,43 @@ export function useAdminData({
         case 'simulations':
           return loadSimulationsPage(0, true);
         case 'supplierQuoteRequests': {
-          const { count, error: fetchError } = await supabase
-            .from('project_events')
-            .select('id', { count: 'exact', head: true })
-            .eq('event_type', 'supplier_quote_requested');
-          if (!fetchError) setSupplierQuoteRequests(count ?? 0);
+          const { data, error: fetchError } = await supabase
+            .from('supplier_quote_requests')
+            .select('id, project_id, supplier_id, user_id, status, created_at, sent_at, last_attempt_at, send_count, error_message, suppliers(name), projects(name), profiles(full_name, email)')
+            .order('created_at', { ascending: false });
+          if (!fetchError) {
+            const rows = (data ?? []) as unknown as {
+              id: string;
+              project_id: string;
+              supplier_id: string;
+              user_id: string;
+              status: SupplierQuoteRequestAdminRow['status'];
+              created_at: string;
+              sent_at: string | null;
+              last_attempt_at: string;
+              send_count: number;
+              error_message: string | null;
+              suppliers?: { name?: string | null } | null;
+              projects?: { name?: string | null } | null;
+              profiles?: { full_name?: string | null; email?: string | null } | null;
+            }[];
+            setSupplierQuoteRequests(rows.map((row) => ({
+              id: row.id,
+              project_id: row.project_id,
+              supplier_id: row.supplier_id,
+              user_id: row.user_id,
+              status: row.status,
+              created_at: row.created_at,
+              sent_at: row.sent_at,
+              last_attempt_at: row.last_attempt_at,
+              send_count: row.send_count,
+              error_message: row.error_message,
+              supplier_name: row.suppliers?.name || 'Fornecedor não identificado',
+              project_name: row.projects?.name || 'Projeto não identificado',
+              requester_name: row.profiles?.full_name ?? null,
+              requester_email: row.profiles?.email ?? null,
+            })));
+          }
           return { error: fetchError };
         }
         case 'activityLogs':

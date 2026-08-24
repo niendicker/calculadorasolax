@@ -8,7 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { DetailItem, SectionHeader, SegmentedTabs } from './shared-ui';
-import type { AdminActivityLogRow, AdminLogAction, AdminLogEntity, SimulationRow, UserProfileRow } from './types';
+import type {
+  AdminActivityLogRow,
+  AdminLogAction,
+  AdminLogEntity,
+  SimulationRow,
+  SupplierQuoteRequestAdminRow,
+  UserProfileRow,
+} from './types';
 
 export function UsersPanel({
   users,
@@ -95,14 +102,14 @@ export function UsersPanel({
 
 export function MetricsPanel({
   simulations,
-  supplierQuoteRequests = 0,
+  supplierQuoteRequests = [],
   users,
   hasMoreSimulations = false,
   loadingMoreSimulations = false,
   onLoadMoreSimulations,
 }: {
   simulations: SimulationRow[];
-  supplierQuoteRequests?: number;
+  supplierQuoteRequests?: SupplierQuoteRequestAdminRow[];
   users: UserProfileRow[];
   hasMoreSimulations?: boolean;
   loadingMoreSimulations?: boolean;
@@ -120,6 +127,7 @@ export function MetricsPanel({
   const hourCounts = countSimulationHours(simulations);
   const totalDailyKwh = simulations.reduce((acc, simulation) => acc + Number(simulation.daily_kwh || 0), 0);
   const totalPeakW = simulations.reduce((acc, simulation) => acc + Number(simulation.peak_w || 0), 0);
+  const quoteMetrics = useMemo(() => buildSupplierQuoteMetrics(supplierQuoteRequests), [supplierQuoteRequests]);
 
   const tabs: { value: typeof activeTab; label: string }[] = [
     { value: 'overview', label: 'Visão geral' },
@@ -150,12 +158,17 @@ export function MetricsPanel({
       </div>
 
       {activeTab === 'overview' && (
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-5">
           <MetricCard label="Usuários" value={String(users.length)} />
           <MetricCard label="Simulações" value={String(simulations.length)} />
-          <MetricCard label="Cotações a fornecedores" value={String(supplierQuoteRequests)} />
+          <MetricCard label="E-mails enviados" value={String(quoteMetrics.sent)} />
+          <MetricCard label="Falhas de envio" value={String(quoteMetrics.failed)} />
+          <MetricCard label="Últimas 24 horas" value={String(quoteMetrics.sentLast24Hours)} />
           <MetricCard label="Pico médio" value={simulations.length ? `${(totalPeakW / simulations.length / 1000).toFixed(2)} kVA` : '0 kVA'} />
           <MetricCard label="Consumo médio" value={simulations.length ? `${(totalDailyKwh / simulations.length).toFixed(2)} kWh/dia` : '0 kWh/dia'} />
+          </div>
+          <SupplierQuoteMetricsPanel metrics={quoteMetrics} />
         </div>
       )}
 
@@ -186,6 +199,130 @@ export function MetricsPanel({
       )}
     </div>
   );
+}
+
+function SupplierQuoteMetricsPanel({
+  metrics,
+}: {
+  metrics: ReturnType<typeof buildSupplierQuoteMetrics>;
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Envios por fornecedor</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {metrics.bySupplier.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Ainda não há solicitações de orçamento registradas.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {metrics.bySupplier.map((supplier) => (
+                <div key={supplier.name} className="space-y-1">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="truncate">{supplier.name}</span>
+                    <span className="shrink-0 font-medium tabular-nums">
+                      {supplier.sent} enviados / {supplier.total} solicitações
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${Math.max(4, (supplier.sent / Math.max(1, supplier.total)) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {supplier.failed} falhas · {supplier.processing} em processamento
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Solicitações recentes</CardTitle>
+            <span className="text-xs text-muted-foreground">{metrics.total} registros</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {metrics.recent.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Ainda não há solicitações de orçamento registradas.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {metrics.recent.map((request) => (
+                <div key={request.id} className="rounded-lg border p-3 text-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{request.supplier_name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {request.project_name} · {request.requester_email || request.requester_name || 'Usuário não identificado'}
+                      </p>
+                    </div>
+                    <Badge variant={request.status === 'sent' ? 'secondary' : request.status === 'failed' ? 'outline' : 'default'}>
+                      {quoteStatusLabel(request.status)}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{formatAdminDate(request.sent_at || request.last_attempt_at)}</span>
+                    <span>{request.send_count} tentativa{request.send_count === 1 ? '' : 's'}</span>
+                  </div>
+                  {request.status === 'failed' && request.error_message && (
+                    <p className="mt-2 line-clamp-2 text-xs text-destructive">Falha: {request.error_message}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function buildSupplierQuoteMetrics(requests: SupplierQuoteRequestAdminRow[]) {
+  const sent = requests.filter((request) => request.status === 'sent').length;
+  const failed = requests.filter((request) => request.status === 'failed').length;
+  const processing = requests.filter((request) => request.status === 'pending' || request.status === 'sending').length;
+  const last24Hours = Date.now() - 24 * 60 * 60 * 1000;
+  const sentLast24Hours = requests.filter((request) => request.status === 'sent' && new Date(request.sent_at || '').getTime() >= last24Hours).length;
+  const supplierMap = new Map<string, { name: string; total: number; sent: number; failed: number; processing: number }>();
+
+  for (const request of requests) {
+    const current = supplierMap.get(request.supplier_id) ?? { name: request.supplier_name, total: 0, sent: 0, failed: 0, processing: 0 };
+    current.total += 1;
+    if (request.status === 'sent') current.sent += 1;
+    if (request.status === 'failed') current.failed += 1;
+    if (request.status === 'pending' || request.status === 'sending') current.processing += 1;
+    supplierMap.set(request.supplier_id, current);
+  }
+
+  return {
+    total: requests.length,
+    sent,
+    failed,
+    processing,
+    sentLast24Hours,
+    bySupplier: Array.from(supplierMap.values()).sort((a, b) => b.sent - a.sent || b.total - a.total),
+    recent: requests.slice(0, 10),
+  };
+}
+
+function quoteStatusLabel(status: SupplierQuoteRequestAdminRow['status']) {
+  return { sent: 'Enviado', failed: 'Falhou', sending: 'Enviando', pending: 'Pendente' }[status];
+}
+
+function formatAdminDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Data não informada';
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
 export function ActivityLogsPanel({

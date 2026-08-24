@@ -62,7 +62,7 @@ describe('useAdminData: ensureTabData lazy loading', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const callsAfterMount = fromSpy.mock.calls.map((call) => call[0]);
-    expect(new Set(callsAfterMount)).toEqual(new Set(['app_simulations', 'profiles', 'project_events']));
+    expect(new Set(callsAfterMount)).toEqual(new Set(['app_simulations', 'profiles', 'supplier_quote_requests']));
 
     fromSpy.mockClear();
     await act(async () => {

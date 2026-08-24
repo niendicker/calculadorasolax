@@ -311,6 +311,25 @@ export interface UserProfileRow {
   updated_at: string;
 }
 
+export type SupplierQuoteRequestStatus = 'pending' | 'sending' | 'sent' | 'failed';
+
+export interface SupplierQuoteRequestAdminRow {
+  id: string;
+  project_id: string;
+  supplier_id: string;
+  user_id: string;
+  status: SupplierQuoteRequestStatus;
+  created_at: string;
+  sent_at: string | null;
+  last_attempt_at: string;
+  send_count: number;
+  error_message: string | null;
+  supplier_name: string;
+  project_name: string;
+  requester_name: string | null;
+  requester_email: string | null;
+}
+
 export interface SimulationRow {
   id: string;
   user_id: string | null;
