@@ -13,6 +13,7 @@ out/
 # Supabase local
 supabase/.temp/
 supabase/.branches/
+.local-backups/
 
 # OS
 .DS_Store
