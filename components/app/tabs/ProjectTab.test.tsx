@@ -1018,7 +1018,10 @@ describe('ProjectTab: selecting a project without opening it', () => {
     );
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ status: 'sent', sentTo: ['Fornecedor A'], failedTo: [] }),
+      json: () => Promise.resolve({
+        status: 'sent',
+        results: [{ supplierId: 'sup-1', supplierName: 'Fornecedor A', status: 'sent', sentAt: new Date().toISOString() }],
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -1051,20 +1054,21 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(within(dialog).getByText(/X1-Hybrid/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Poderiam nos passar valores e prazo/)).toBeInTheDocument();
 
-    const sendButton = within(dialog).getByRole('button', { name: 'Enviar solicitação' });
+    const sendButton = within(dialog).getByRole('button', { name: 'Revisar solicitação' });
     expect(sendButton).toBeDisabled();
 
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /Fornecedor A/ }));
     expect(sendButton).not.toBeDisabled();
 
     fireEvent.click(sendButton);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar solicitações' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/request-supplier-quote', expect.anything()));
     const [, requestInit] = fetchMock.mock.calls[0];
     const sentBody = JSON.parse(requestInit.body);
     expect(sentBody.supplierIds).toEqual(['sup-1']);
 
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' })).not.toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByText('Resultado das solicitações')).toBeInTheDocument());
 
     vi.unstubAllGlobals();
   });

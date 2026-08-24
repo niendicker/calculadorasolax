@@ -167,17 +167,26 @@ export type Database = {
       app_settings: {
         Row: {
           id: boolean
+          max_quote_sends_24h: number
+          max_quote_suppliers: number
           max_user_suppliers: number
+          quote_cooldown_hours: number
           updated_at: string
         }
         Insert: {
           id?: boolean
+          max_quote_sends_24h?: number
+          max_quote_suppliers?: number
           max_user_suppliers?: number
+          quote_cooldown_hours?: number
           updated_at?: string
         }
         Update: {
           id?: boolean
+          max_quote_sends_24h?: number
+          max_quote_suppliers?: number
           max_user_suppliers?: number
+          quote_cooldown_hours?: number
           updated_at?: string
         }
         Relationships: []
@@ -722,6 +731,79 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      supplier_quote_requests: {
+        Row: {
+          attempt_started_at: string | null
+          claim_token: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          idempotency_key: string
+          last_attempt_at: string
+          last_sent_at: string | null
+          project_id: string
+          send_count: number
+          sent_at: string | null
+          status: string
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          attempt_started_at?: string | null
+          claim_token?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key: string
+          last_attempt_at?: string
+          last_sent_at?: string | null
+          project_id: string
+          send_count?: number
+          sent_at?: string | null
+          status?: string
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          attempt_started_at?: string | null
+          claim_token?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string
+          last_attempt_at?: string
+          last_sent_at?: string | null
+          project_id?: string
+          send_count?: number
+          sent_at?: string | null
+          status?: string
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_quote_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_quote_requests_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_quote_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
         ]
       }
       projects: {
@@ -1457,6 +1539,21 @@ export type Database = {
         Returns: string[]
       }
       is_admin: { Args: never; Returns: boolean }
+      claim_supplier_quote_requests: {
+        Args: {
+          p_idempotency_key: string
+          p_project_id: string
+          p_supplier_ids: string[]
+        }
+        Returns: {
+          claim_token: string | null
+          claimed: boolean
+          request_id: string
+          retry_at: string | null
+          status: string
+          supplier_id: string
+        }[]
+      }
       submit_purchase_order_to_partner: {
         Args: {
           p_external_order_id: string
@@ -1597,4 +1694,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

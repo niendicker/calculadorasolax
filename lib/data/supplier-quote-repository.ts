@@ -9,18 +9,6 @@ export async function findProjectForQuote(supabase: SupabaseClient, projectId: s
   return data as Project | null;
 }
 
-export async function findLastSupplierQuoteRequest(supabase: SupabaseClient, projectId: string) {
-  const { data } = await supabase
-    .from('project_events')
-    .select('created_at')
-    .eq('project_id', projectId)
-    .eq('event_type', 'supplier_quote_requested')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data as { created_at: string } | null;
-}
-
 export async function findRequesterProfile(supabase: SupabaseClient, userId: string) {
   const { data } = await supabase.from('profiles').select('full_name, company_name, email').eq('id', userId).single();
   return data as Profile | null;
@@ -51,3 +39,24 @@ export async function listAllowedSupplierContacts(
 export async function recordSupplierQuoteRequest(supabase: SupabaseClient, event: Record<string, unknown>) {
   await supabase.from('project_events').insert(event);
 }
+
+export async function listSupplierQuoteRequests(supabase: SupabaseClient, projectId: string) {
+  const { data, error } = await supabase
+    .from('supplier_quote_requests')
+    .select('id, project_id, supplier_id, status, created_at, sent_at, last_sent_at, send_count, error_message')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  return { data: (data ?? []) as unknown as SupplierQuoteRequestRow[], error };
+}
+
+export type SupplierQuoteRequestRow = {
+  id: string;
+  project_id: string;
+  supplier_id: string;
+  status: string;
+  created_at: string;
+  sent_at: string | null;
+  last_sent_at: string | null;
+  send_count: number;
+  error_message: string | null;
+};

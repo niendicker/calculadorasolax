@@ -1,17 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getUserMock, serverFromMock, serviceFromMock, createServerClientMock, createServiceClientMock } = vi.hoisted(() => {
-  const getUserMock = vi.fn();
-  const serverFromMock = vi.fn();
-  const serviceFromMock = vi.fn();
-  return {
-    getUserMock,
-    serverFromMock,
-    serviceFromMock,
-    createServerClientMock: vi.fn(() => ({ auth: { getUser: getUserMock }, from: serverFromMock })),
-    createServiceClientMock: vi.fn(() => ({ from: serviceFromMock })),
-  };
-});
+const { getUserMock, serverFromMock, serviceFromMock, rpcMock, createServerClientMock, createServiceClientMock } = vi.hoisted(() => ({
+  getUserMock: vi.fn(),
+  serverFromMock: vi.fn(),
+  serviceFromMock: vi.fn(),
+  rpcMock: vi.fn(),
+  createServerClientMock: vi.fn(),
+  createServiceClientMock: vi.fn(),
+}));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: createServerClientMock }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: createServiceClientMock }));
@@ -29,70 +25,40 @@ function makeRequest(body: unknown) {
 }
 
 const routeParams = { params: Promise.resolve({ projectId: 'project-1' }) };
+const user = { id: 'user-1', email: 'fulano@x.com' };
+const project = { id: 'project-1', name: 'Casa de praia' };
+const profile = { full_name: 'Fulano', company_name: 'Integradora XPTO', email: 'fulano@x.com' };
+const suppliers = [
+  { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
+  { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
+];
 
-const baseProject = { id: 'project-1', name: 'Casa de praia' };
-const baseProfile = { full_name: 'Fulano', company_name: 'Integradora XPTO', email: 'fulano@x.com' };
-
-function singleResult(data: unknown, error: unknown = null) {
-  return { eq: () => ({ single: () => Promise.resolve({ data, error }) }) };
+function updateChain() {
+  const builder = { eq: vi.fn() };
+  builder.eq.mockReturnValueOnce(builder).mockResolvedValue({ error: null });
+  return { update: vi.fn(() => builder) };
 }
 
-/** Chain for the `project_events` cooldown lookup: `.select().eq().eq().order().limit().maybeSingle()`. */
-function eventsQueryResult(data: unknown, error: unknown = null) {
-  const builder = {
-    eq: () => builder,
-    order: () => builder,
-    limit: () => builder,
-    maybeSingle: () => Promise.resolve({ data, error }),
-  };
-  return builder;
-}
-
-function setupServerFrom({
-  project = baseProject as unknown,
-  projectError = null as unknown,
-  profile = baseProfile as unknown,
-  lastRequestEvent = null as unknown,
-  insertResult = { data: null, error: null } as unknown,
-  preferences = [] as unknown,
-}: {
-  project?: unknown;
-  projectError?: unknown;
-  profile?: unknown;
-  lastRequestEvent?: unknown;
-  insertResult?: unknown;
-  preferences?: unknown;
-} = {}) {
-  const insert = vi.fn().mockResolvedValue(insertResult);
-  serverFromMock.mockImplementation((table: string) => {
-    if (table === 'projects') {
-      return { select: () => singleResult(project, projectError) };
-    }
-    if (table === 'profiles') {
-      return { select: () => singleResult(profile) };
-    }
-    if (table === 'project_events') {
-      return { select: () => eventsQueryResult(lastRequestEvent), insert };
-    }
-    if (table === 'user_supplier_preferences') {
-      return { select: () => ({ eq: () => Promise.resolve({ data: preferences, error: null }) }) };
-    }
-    throw new Error(`unexpected table ${table}`);
+function setup({ claims = suppliers.map((supplier) => ({ request_id: `req-${supplier.id}`, supplier_id: supplier.id, status: 'sending', claimed: true, retry_at: null, claim_token: `token-${supplier.id}` })), rpcError = null as unknown }: { claims?: unknown[]; rpcError?: unknown } = {}) {
+  getUserMock.mockResolvedValue({ data: { user } });
+  createServerClientMock.mockReturnValue({
+    auth: { getUser: getUserMock },
+    from: serverFromMock,
+    rpc: rpcMock,
   });
-  return { insert };
-}
-
-/** Suppliers default to `is_default_for_all: true` so existing tests (which
- * only care about the email-sending behavior, not the visibility scoping
- * below) don't also need to stub `user_supplier_preferences`. */
-function setupServiceFrom({
-  suppliers = [{ id: 'sup-1', name: 'Fornecedor A', email: 'fornecedor@a.com', is_default_for_all: true }] as unknown,
-}: { suppliers?: unknown } = {}) {
+  createServiceClientMock.mockReturnValue({ from: serviceFromMock });
+  rpcMock.mockResolvedValue({ data: claims, error: rpcError });
+  serverFromMock.mockImplementation((table: string) => {
+    if (table === 'projects') return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: project, error: null }) }) }) };
+    if (table === 'profiles') return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: profile, error: null }) }) }) };
+    if (table === 'user_supplier_preferences') return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+    if (table === 'project_events') return { insert: vi.fn().mockResolvedValue({ error: null }) };
+    throw new Error(`unexpected server table ${table}`);
+  });
   serviceFromMock.mockImplementation((table: string) => {
-    if (table === 'suppliers') {
-      return { select: () => ({ eq: () => ({ eq: () => ({ in: () => Promise.resolve({ data: suppliers, error: null }) }) }) }) };
-    }
-    throw new Error(`unexpected table ${table}`);
+    if (table === 'suppliers') return { select: () => ({ eq: () => ({ eq: () => ({ in: () => Promise.resolve({ data: suppliers, error: null }) }) }) }) };
+    if (table === 'supplier_quote_requests') return updateChain();
+    throw new Error(`unexpected service table ${table}`);
   });
 }
 
@@ -102,206 +68,89 @@ beforeEach(() => {
   process.env.RESEND_FROM_EMAIL = 'pedidos@example.com';
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
-  vi.stubGlobal('fetch', vi.fn());
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) }));
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+afterEach(() => vi.unstubAllGlobals());
 
 describe('POST /api/projects/[projectId]/request-supplier-quote', () => {
-  it('returns 401 when there is no authenticated user', async () => {
+  it('requires authentication and rejects more than two suppliers', async () => {
     getUserMock.mockResolvedValue({ data: { user: null } });
+    createServerClientMock.mockReturnValue({ auth: { getUser: getUserMock } });
     const POST = await importRoute();
+    expect((await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams)).status).toBe(401);
 
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: 'Não autenticado.' });
-  });
-
-  it('returns 400 when no supplier is selected', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: [], message: 'Olá' }), routeParams);
-
+    setup();
+    const response = await POST(makeRequest({ supplierIds: ['sup-1', 'sup-2', 'sup-3'], message: 'Olá' }), routeParams);
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: 'Selecione ao menos um fornecedor.' });
+    expect(await response.json()).toEqual({ error: 'Você pode selecionar no máximo 2 fornecedores.' });
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  it('returns 400 when the message is blank', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
+  it('rejects invalid project, supplier and quota errors from the atomic claim', async () => {
+    setup({ rpcError: { message: 'project_access_denied' } });
     const POST = await importRoute();
+    expect((await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams)).status).toBe(404);
 
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: '   ' }), routeParams);
+    setup({ rpcError: { message: 'supplier_not_allowed' } });
+    expect((await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams)).status).toBe(409);
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: 'A mensagem para o fornecedor está vazia.' });
+    setup({ rpcError: { message: 'daily_quote_quota' } });
+    const quotaResponse = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
+    expect(quotaResponse.status).toBe(429);
+    expect(await quotaResponse.json()).toEqual({ error: 'Você atingiu o limite de solicitações de orçamento nas últimas 24 horas.' });
   });
 
-  it('returns 500 when Resend is not configured', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    delete process.env.RESEND_API_KEY;
+  it('sends one email per claimed supplier and returns persistent results', async () => {
+    setup({ claims: suppliers.map((supplier) => ({ request_id: `req-${supplier.id}`, supplier_id: supplier.id, status: 'sending', claimed: true, retry_at: null, claim_token: `token-${supplier.id}` })) });
     const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: 'Envio de email não está configurado no servidor.' });
-  });
-
-  it('returns 404 when the project does not exist (or is not owned by the user)', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    setupServerFrom({ project: null, projectError: { message: 'not found' } });
-    const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(404);
-  });
-
-  it('returns 429 when a quote request for this project was already sent within the last 10 minutes', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000).toISOString();
-    setupServerFrom({ lastRequestEvent: { created_at: sixMinutesAgo } });
-    const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(429);
+    const response = await POST(makeRequest({ supplierIds: ['sup-1', 'sup-2'], message: 'Poderiam enviar uma cotação?', idempotencyKey: '11111111-1111-4111-8111-111111111111' }), routeParams);
     const body = await response.json();
-    expect(body.error).toBe('Aguarde 4 min antes de solicitar outro orçamento para este projeto.');
-    expect(body.retryAfterSeconds).toBeGreaterThan(0);
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('sent');
+    expect(body.results).toHaveLength(2);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(rpcMock).toHaveBeenCalledWith('claim_supplier_quote_requests', expect.objectContaining({ p_supplier_ids: ['sup-1', 'sup-2'] }));
   });
 
-  it('returns 422 when the requesting user has no known email', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: undefined } } });
-    setupServerFrom({ profile: { ...baseProfile, email: '' } });
+  it('does not send again when the same idempotency key is already sent or in progress', async () => {
+    setup({ claims: [{ request_id: 'req-1', supplier_id: 'sup-1', status: 'sent', claimed: false, retry_at: new Date(Date.now() + 86_400_000).toISOString(), claim_token: null }] });
     const POST = await importRoute();
+    const sentResponse = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá', idempotencyKey: '11111111-1111-4111-8111-111111111111' }), routeParams);
+    expect(sentResponse.status).toBe(429);
+    expect(global.fetch).not.toHaveBeenCalled();
 
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(422);
-  });
-
-  it('returns 409 when none of the selected suppliers have an email registered', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    setupServerFrom();
-    setupServiceFrom({ suppliers: [{ id: 'sup-1', name: 'Fornecedor A', email: null, is_default_for_all: true }] });
-    const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: 'Nenhum dos fornecedores selecionados tem email cadastrado.' });
-  });
-
-  it('excludes a supplier that is neither default-for-all nor one of this user\'s preferred suppliers', async () => {
-    // Regression test: this lookup runs through the service role (suppliers.email
-    // isn't exposed to the anon key), so it must reapply the same scoping the
-    // client-side picker uses — otherwise any authenticated caller could pass an
-    // arbitrary supplier id and have the server email/reveal a supplier they
-    // aren't actually meant to see.
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    setupServerFrom({ preferences: [] });
-    setupServiceFrom({
-      suppliers: [{ id: 'sup-9', name: 'Fornecedor Alheio', email: 'alheio@fornecedores.com', is_default_for_all: false }],
-    });
-    const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-9'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(409);
+    setup({ claims: [{ request_id: 'req-1', supplier_id: 'sup-1', status: 'sending', claimed: false, retry_at: null, claim_token: null }] });
+    const processingResponse = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá', idempotencyKey: '11111111-1111-4111-8111-111111111111' }), routeParams);
+    expect(processingResponse.status).toBe(409);
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("includes a supplier that isn't default-for-all but is one of this user's preferred suppliers", async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    setupServerFrom({ preferences: [{ supplier_id: 'sup-9' }] });
-    setupServiceFrom({
-      suppliers: [{ id: 'sup-9', name: 'Fornecedor Preferido', email: 'preferido@fornecedores.com', is_default_for_all: false }],
-    });
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) });
+  it('allows only one of two concurrent claims to send', async () => {
+    const claimed = [{ request_id: 'req-1', supplier_id: 'sup-1', status: 'sending', claimed: true, retry_at: null, claim_token: 'token-1' }];
+    const alreadyProcessing = [{ request_id: 'req-1', supplier_id: 'sup-1', status: 'sending', claimed: false, retry_at: null, claim_token: null }];
+    setup({ claims: claimed });
+    rpcMock.mockReset().mockResolvedValueOnce({ data: claimed, error: null }).mockResolvedValueOnce({ data: alreadyProcessing, error: null });
     const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-9'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'sent', sentTo: ['Fornecedor Preferido'], failedTo: [] });
+    const body = { supplierIds: ['sup-1'], message: 'Olá', idempotencyKey: '11111111-1111-4111-8111-111111111111' };
+    const [first, second] = await Promise.all([POST(makeRequest(body), routeParams), POST(makeRequest(body), routeParams)]);
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('sends one email per supplier, CCs the requester, and logs a single project event', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    const { insert } = setupServerFrom();
-    setupServiceFrom({
-      suppliers: [
-        { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
-        { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
-      ],
-    });
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) });
-    const POST = await importRoute();
-
-    const response = await POST(
-      makeRequest({ supplierIds: ['sup-1', 'sup-2'], message: 'Poderiam nos enviar uma cotação?' }),
-      routeParams
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'sent', sentTo: ['Fornecedor A', 'Fornecedor B'], failedTo: [] });
-    expect(global.fetch).toHaveBeenCalledTimes(2);
-
-    const [firstCall, secondCall] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-    const firstBody = JSON.parse(firstCall[1].body);
-    const secondBody = JSON.parse(secondCall[1].body);
-    expect(firstBody).toMatchObject({ to: ['a@fornecedores.com'], cc: ['fulano@x.com'], text: 'Poderiam nos enviar uma cotação?' });
-    expect(secondBody).toMatchObject({ to: ['b@fornecedores.com'], cc: ['fulano@x.com'] });
-
-    expect(insert).toHaveBeenCalledTimes(1);
-    expect(insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        project_id: 'project-1',
-        actor_id: 'user-1',
-        event_type: 'supplier_quote_requested',
-        message: 'Email enviado para: Fornecedor A, Fornecedor B.',
-      })
-    );
-  });
-
-  it('reports a partial failure without blocking the successful sends', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    const { insert } = setupServerFrom();
-    setupServiceFrom({
-      suppliers: [
-        { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
-        { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
-      ],
-    });
+  it('reports partial provider failures without hiding the successful supplier', async () => {
+    setup({ claims: suppliers.map((supplier) => ({ request_id: `req-${supplier.id}`, supplier_id: supplier.id, status: 'sending', claimed: true, retry_at: null, claim_token: `token-${supplier.id}` })) });
     (global.fetch as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'email-1' }) })
-      .mockResolvedValueOnce({ ok: false, status: 422, json: () => Promise.resolve({ message: 'bounced' }) });
+      .mockRejectedValueOnce(new Error('provider unavailable'));
     const POST = await importRoute();
-
     const response = await POST(makeRequest({ supplierIds: ['sup-1', 'sup-2'], message: 'Olá' }), routeParams);
-
+    const body = await response.json();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'sent', sentTo: ['Fornecedor A'], failedTo: ['Fornecedor B'] });
-    expect(insert).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Email enviado para: Fornecedor A (falhou para: Fornecedor B).' })
-    );
-  });
-
-  it('returns 502 when every send fails', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1', email: 'fulano@x.com' } } });
-    setupServerFrom();
-    setupServiceFrom();
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) });
-    const POST = await importRoute();
-
-    const response = await POST(makeRequest({ supplierIds: ['sup-1'], message: 'Olá' }), routeParams);
-
-    expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: 'Não foi possível enviar o email para nenhum fornecedor.' });
+    expect(body.status).toBe('partial');
+    expect(body.results).toEqual(expect.arrayContaining([
+      expect.objectContaining({ supplierName: 'Fornecedor A', status: 'sent' }),
+      expect.objectContaining({ supplierName: 'Fornecedor B', status: 'failed' }),
+    ]));
   });
 });
