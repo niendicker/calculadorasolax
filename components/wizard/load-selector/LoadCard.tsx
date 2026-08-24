@@ -595,7 +595,7 @@ export function LoadCard({
   if (isDraft) {
     const hasSuggestions = draftMatches.mine.length > 0 || draftMatches.system.length > 0;
     return (
-      <div className="rounded-lg border border-dashed bg-card text-sm">
+      <div className="rounded-lg border border-dashed bg-card text-sm sm:col-span-2">
         <div className="flex items-start gap-2 p-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="relative">

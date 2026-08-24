@@ -602,6 +602,9 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
                 tip="Define como as cargas com maior corrente de partida somam na potência aparente máxima do sistema, usado para escolher o inversor."
               />
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Escolha como considerar os picos de partida das cargas.
+            </p>
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               {(
                 [
