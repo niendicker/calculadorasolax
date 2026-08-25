@@ -318,6 +318,11 @@ export function SinglePageApp() {
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     changeTab('sizing');
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspaceId', id);
+    url.searchParams.set('workspace', 'overview');
+    url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     reportStatus('Projeto carregado.');
   }
 
@@ -325,19 +330,54 @@ export function SinglePageApp() {
     setWorkspaceResource(id);
     setWorkspaceReturnAvailable(true);
     setWorkspaceOpen(false);
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'resources');
+    url.searchParams.set('workspaceResource', id);
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
   function openWorkspaceTechnical() {
     setWorkspaceResource(null);
     setWorkspaceReturnAvailable(true);
     setWorkspaceOpen(false);
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'solution');
+    url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
   function returnToWorkspace() {
     setWorkspaceResource(null);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'overview');
+    url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
+
+  function clearWorkspaceUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('workspace');
+    url.searchParams.delete('workspaceId');
+    url.searchParams.delete('workspaceResource');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  // A workspace URL is durable across refreshes without introducing a new
+  // persistence model. Projects are loaded from the existing store once the
+  // initial project fetch completes, then the current workspace is restored.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const workspaceId = params.get('workspaceId');
+    if (!workspaceId || workspaceOpen || !savedProjects.some((project) => project.id === workspaceId)) return;
+
+    loadProject(workspaceId, { showDetails: false });
+    setWorkspaceResource(null);
+    setWorkspaceReturnAvailable(false);
+    setWorkspaceOpen(true);
+    changeTab('sizing');
+  }, [changeTab, loadProject, savedProjects, workspaceOpen]);
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
   // only while actually viewing that tab, logged in, and once something is
@@ -713,7 +753,7 @@ export function SinglePageApp() {
               demoDisabled={isDemo || initialLoading || loadPresets.length === 0 || batteryCatalog.length === 0}
               onCancelNew={cancelNewProject}
               onOpen={openProject}
-              onOpenSizing={(id) => { setWorkspaceOpen(false); setWorkspaceResource(null); setWorkspaceReturnAvailable(false); openProjectSizing(id); }}
+              onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceOpen(false); setWorkspaceResource(null); setWorkspaceReturnAvailable(false); openProjectSizing(id); }}
               onOpenWorkspace={openProjectWorkspace}
               onRemove={deleteProject}
               onRefreshSolution={refreshProjectSolution}
@@ -805,7 +845,7 @@ export function SinglePageApp() {
               solutionIsStale={hasUncalculatedChanges}
               inverterCatalog={inverterCatalog}
               availableInverterModels={availableInverterModels}
-              onBackToProjects={backToProject}
+              onBackToProjects={() => { clearWorkspaceUrl(); backToProject(); }}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
               onOpenBudget={openPurchasesTab}
@@ -815,7 +855,7 @@ export function SinglePageApp() {
               <SizingTab
                 projectName={projectInfo.name}
                 currentProjectId={currentProjectId}
-                onBackToProject={backToProject}
+                onBackToProject={() => { clearWorkspaceUrl(); backToProject(); }}
                 loadingLabel={tc('loading')}
                 calculateLabel={tc('calculate')}
                 residentialOptions={residentialOptions}
