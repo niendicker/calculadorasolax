@@ -256,7 +256,7 @@ export function ProjectWorkspace({
   const configuredCount = resources.filter((item) => item.state === 'configured').length;
   const attentionCount = resources.filter((item) => item.state === 'attention').length;
   const staleSolution = Boolean(solution) && solutionIsStale;
-  const technicalConfigurationState: ResourceState = residentialOptions.gridType && residentialOptions.inverterModel && residentialOptions.topology && residentialOptions.batteryModel
+  const technicalConfigurationState: ResourceState = residentialOptions.gridType && residentialOptions.topology && residentialOptions.batteryModel
     ? 'configured'
     : 'attention';
 
@@ -387,7 +387,7 @@ export function ProjectWorkspace({
                   <SummaryRow
                     label="Inversor"
                     value={residentialOptions.inverterModel || 'Automático'}
-                    state={residentialOptions.inverterModel ? 'configured' : 'attention'}
+                    state="configured"
                     icon={Zap}
                     showValue
                   />
