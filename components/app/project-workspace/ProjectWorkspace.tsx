@@ -405,12 +405,12 @@ export function ProjectWorkspace({
         </>
       ) : section === 'resource' ? (
         <>
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          {activeResourceId !== 'backup' && <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Recursos — {resources.find((item) => item.id === activeResourceId)?.label || 'Editar recurso'}</h2>{activeResourceId && <StateBadge state={resources.find((item) => item.id === activeResourceId)?.state || 'attention'} />}</div>
               <p className="text-sm text-muted-foreground">Configure este recurso sem sair do Workspace. As alterações afetam a solução técnica.</p>
             </div>
-          </div>
+          </div>}
           {technicalEditorOpen && children}
         </>
       ) : section === 'solution' ? (

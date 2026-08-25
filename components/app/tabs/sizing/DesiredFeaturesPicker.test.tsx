@@ -163,9 +163,9 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
     expect(screen.getByText('Requer atenção')).toBeInTheDocument();
   });
 
-  it('shows backup as "Ativo" once loads and the operation duration are both configured', () => {
+  it('shows backup as "Configurado" once loads and the operation duration are both configured', () => {
     renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 2, operationHours: 4 });
-    expect(screen.getByText('Ativo')).toBeInTheDocument();
+    expect(screen.getByText('Configurado')).toBeInTheDocument();
   });
 
   it('does not seed a new config when the feature already has one set', () => {

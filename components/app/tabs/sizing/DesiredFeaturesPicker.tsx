@@ -147,6 +147,8 @@ export function DesiredFeaturesPicker({
   const activeFeatureHasPendingIssue = hasPendingIssue(activeTab);
   const activeFeatureStatus = activeFeatureHasPendingIssue
     ? 'Requer atenção'
+    : activeTab === 'backup' && isActiveEnabled
+      ? 'Configurado'
     : activeTab === 'white_tariff' && isActiveEnabled
       ? 'Configuração completa'
       : isActiveEnabled
