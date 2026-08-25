@@ -112,10 +112,10 @@ describe('ProjectWorkspace', () => {
       </NextIntlClientProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Recursos' }));
     fireEvent.click(screen.getByRole('button', { name: /Tarifa Branca/ }));
 
     expect(onOpenResource).toHaveBeenCalledWith('white_tariff');
+    expect(screen.getByRole('heading', { name: 'Editar recurso' })).toBeInTheDocument();
   });
 
   it('delegates budget and report actions without duplicating their flows', () => {

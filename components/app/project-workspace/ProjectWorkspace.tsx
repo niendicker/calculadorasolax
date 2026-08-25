@@ -33,12 +33,11 @@ import { Metric } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 
-export type WorkspaceSection = 'overview' | 'loads' | 'resources' | 'solution' | 'budget' | 'report';
+export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'solution' | 'budget' | 'report';
 
 const navigation: Array<{ id: WorkspaceSection; label: string; icon: typeof PanelTop }> = [
   { id: 'overview', label: 'Visão geral', icon: PanelTop },
   { id: 'loads', label: 'Cargas', icon: ClipboardList },
-  { id: 'resources', label: 'Recursos', icon: Layers3 },
   { id: 'solution', label: 'Solução', icon: Zap },
   { id: 'budget', label: 'Orçamento', icon: ReceiptText },
   { id: 'report', label: 'Relatório', icon: FileText },
@@ -167,7 +166,7 @@ export function ProjectWorkspace({
     const value = new URLSearchParams(window.location.search).get('workspace');
     // The URL is external state; this one-time synchronization intentionally
     // updates the section after mount so SSR and the first client paint agree.
-    if (value && navigation.some((item) => item.id === value)) {
+    if (value === 'resource' || (value && navigation.some((item) => item.id === value))) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSectionState(value as WorkspaceSection);
     }
@@ -215,6 +214,16 @@ export function ProjectWorkspace({
   const attentionCount = resources.filter((item) => item.state === 'attention').length;
   const staleSolution = Boolean(solution) && solutionIsStale;
 
+  function openResourceEditor(id: DesiredFeatureId) {
+    setSectionState('resource');
+    onOpenResource?.(id);
+  }
+
+  function openFirstPendingResource() {
+    const pending = resources.find((item) => item.state === 'attention');
+    if (pending) openResourceEditor(pending.id);
+  }
+
   if (!enabled) return <>{children}</>;
 
   function openSizingSection(nextSection: WorkspaceSection) {
@@ -234,7 +243,7 @@ export function ProjectWorkspace({
             <CardHeader className="pb-2"><h2 className="text-sm font-semibold">Resumo técnico</h2></CardHeader>
             <CardContent className="pt-0">
               <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} />
-              {resources.slice(0, 5).map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} />)}
+              {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} />)}
             </CardContent>
           </Card>
           <Card>
@@ -259,9 +268,9 @@ export function ProjectWorkspace({
               <span className="inline-flex items-center gap-1 text-primary"><Flag className="h-3.5 w-3.5" aria-hidden="true" /> Em andamento</span>
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => openSizingSection('resources')}>
+          <Button variant="outline" size="sm" onClick={openFirstPendingResource} disabled={attentionCount === 0}>
             <Settings2 className="h-4 w-4" aria-hidden="true" />
-            Ações do projeto
+            Revisar pendências
           </Button>
         </div>
         <nav className="mt-5 -mb-3 flex gap-1 overflow-x-auto" aria-label="Seções do projeto">
@@ -310,7 +319,7 @@ export function ProjectWorkspace({
                 <div><h2 className="text-base font-semibold">Recursos</h2><p className="text-xs text-muted-foreground">{configuredCount} configurados{attentionCount ? ` · ${attentionCount} requer atenção` : ''}</p></div>
               </CardHeader>
               <CardContent className="grid gap-2 pt-0 sm:grid-cols-2">
-                {resources.slice(0, 5).map((item) => <ResourceCard key={item.id} item={item} onOpen={() => openSizingSection('resources')} />)}
+                {resources.map((item) => <ResourceCard key={item.id} item={item} onOpen={onOpenResource ? () => openResourceEditor(item.id) : undefined} />)}
               </CardContent>
             </Card>
           </div>
@@ -340,7 +349,7 @@ export function ProjectWorkspace({
           <Card>
             <CardHeader className="flex flex-row items-center gap-3 pb-3"><CardIcon icon={Flag} /><h2 className="text-base font-semibold">Próximos passos</h2></CardHeader>
             <CardContent className="grid gap-2 pt-0 sm:grid-cols-3">
-              {attentionCount > 0 && <ActionCard label="Revisar configurações pendentes" detail={`${attentionCount} recurso(s) requerem atenção`} onClick={() => openSizingSection('resources')} icon={AlertTriangle} />}
+              {attentionCount > 0 && <ActionCard label="Revisar configurações pendentes" detail={`${attentionCount} recurso(s) requerem atenção`} onClick={openFirstPendingResource} icon={AlertTriangle} />}
               <ActionCard label="Revisar cargas" detail={`${residentialOptions.loads.length} carga(s) cadastrada(s)`} onClick={() => openSizingSection('loads')} icon={ClipboardList} />
               <ActionCard label="Gerar orçamento" detail="Acessar fornecedores e serviços" onClick={() => openSizingSection('budget')} icon={ReceiptText} />
             </CardContent>
@@ -350,9 +359,9 @@ export function ProjectWorkspace({
         <>
           <LoadsSection residentialOptions={residentialOptions} nominalW={nominalW} peakW={peakW} dailyKwh={dailyKwh} />
         </>
-      ) : section === 'resources' ? (
+      ) : section === 'resource' ? (
         <>
-          <ResourcesSection resources={resources} configuredCount={configuredCount} attentionCount={attentionCount} onOpenResource={onOpenResource} />
+          <div className="space-y-2"><h2 className="text-lg font-semibold">Editar recurso</h2><p className="text-sm text-muted-foreground">A configuração afeta a solução técnica deste Workspace.</p></div>
           {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
         </>
       ) : section === 'solution' ? (
@@ -402,10 +411,6 @@ function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { resid
     <Card><CardHeader className="pb-2"><h3 className="text-sm font-semibold">Distribuição de fases</h3></CardHeader><CardContent className="grid gap-2 pt-0 sm:grid-cols-3">{(['L1', 'L2', 'L3'] as const).map((phase) => <div key={phase} className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">{phase}</p><p className="mt-1 font-semibold">{formatKva(phaseTotals[phase])}</p></div>)}</CardContent></Card>
     <LoadSelector defaultToMine />
   </div>;
-}
-
-function ResourcesSection({ resources, configuredCount, attentionCount, onOpenResource }: { resources: ResourceItem[]; configuredCount: number; attentionCount: number; onOpenResource?: (id: DesiredFeatureId) => void }) {
-  return <div className="space-y-4"><div><h2 className="text-lg font-semibold">Recursos</h2><p className="text-sm text-muted-foreground">{configuredCount} configurados{attentionCount ? ` · ${attentionCount} requer atenção` : ''}</p></div><div className="grid gap-3 sm:grid-cols-2">{resources.map((item) => <ResourceCard key={item.id} item={item} onOpen={onOpenResource ? () => onOpenResource(item.id) : undefined} />)}</div></div>;
 }
 
 function SolutionSection({ solution, stale, onOpenTechnical }: { solution: Solution | null; stale: boolean; onOpenTechnical?: () => void }) {

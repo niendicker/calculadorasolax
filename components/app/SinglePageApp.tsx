@@ -348,7 +348,7 @@ export function SinglePageApp() {
     setWorkspaceReturnAvailable(true);
     setWorkspaceOpen(true);
     const url = new URL(window.location.href);
-    url.searchParams.set('workspace', 'resources');
+    url.searchParams.set('workspace', 'resource');
     url.searchParams.set('workspaceResource', id);
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
