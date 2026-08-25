@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import {
   AlertTriangle,
@@ -447,9 +447,29 @@ function CardIcon({ icon: Icon }: { icon: typeof PanelTop }) {
 
 function WorkspaceActionsMenu() {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleDocumentMouseDown(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div ref={menuRef} className="relative">
       <Button type="button" variant="outline" size="icon-sm" aria-label="Mais opções do projeto" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         <MoreVertical className="h-4 w-4" aria-hidden="true" />
       </Button>

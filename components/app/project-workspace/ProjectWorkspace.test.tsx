@@ -73,6 +73,17 @@ describe('ProjectWorkspace', () => {
     expect(screen.getAllByText('Requer atenção').length).toBeGreaterThan(0);
   });
 
+  it('closes the header menu when clicking outside', () => {
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mais opções do projeto' }));
+    expect(screen.getByRole('menu', { name: 'Mais opções do projeto' })).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+
+    expect(screen.queryByRole('menu', { name: 'Mais opções do projeto' })).not.toBeInTheDocument();
+  });
+
   it('switches sections and keeps the technical flow available', () => {
     renderWorkspace();
 
