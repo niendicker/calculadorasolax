@@ -501,7 +501,6 @@ export function ProjectWorkspace({
             peakW={peakW}
             dailyKwh={dailyKwh}
           />
-          {technicalEditorOpen && children}
         </>
       ) : section === 'budget' ? (
         <BudgetSection solution={solution} onOpenBudget={onOpenBudget} />
