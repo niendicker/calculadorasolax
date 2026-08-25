@@ -14,10 +14,12 @@ import {
   Flag,
   Gauge,
   Layers3,
+  Loader2,
   MoreVertical,
   Package,
   PanelTop,
   ReceiptText,
+  Save,
   Settings2,
   Zap,
   type LucideIcon,
@@ -41,6 +43,7 @@ import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
 import { AddressFields } from '../address-fields';
 import { formatAddress } from '@/lib/address';
+import type { AutosaveStatus } from '../hooks/useAutosave';
 
 export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'project' | 'configuration' | 'solution' | 'budget' | 'report';
 
@@ -123,6 +126,19 @@ function SummaryRow({ label, value, state, icon: Icon, showValue = false }: { la
   );
 }
 
+function WorkspaceAutosaveStatus({ status, lastSavedAt }: { status: AutosaveStatus; lastSavedAt: Date | null }) {
+  if (status === 'idle') return null;
+  const label = status === 'saving'
+    ? 'Salvando...'
+    : status === 'error'
+      ? 'Falha ao salvar'
+      : status === 'pending'
+        ? 'Alterações pendentes'
+        : `Salvo${lastSavedAt ? ` às ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`;
+  const Icon = status === 'saving' ? Loader2 : status === 'saved' ? CheckCircle2 : status === 'error' ? AlertTriangle : Save;
+  return <span role="status" className={cn('inline-flex items-center gap-1.5 text-xs text-muted-foreground', status === 'error' && 'text-destructive')}><Icon className={cn('h-3.5 w-3.5', status === 'saving' && 'animate-spin')} aria-hidden="true" />{label}</span>;
+}
+
 export function ProjectWorkspace({
   enabled = true,
   projectInfo,
@@ -150,6 +166,8 @@ export function ProjectWorkspace({
   onOpenBudget,
   onGenerateReport,
   generatingReport,
+  autosaveStatus = 'idle',
+  autosaveLastSavedAt = null,
   children,
 }: {
   enabled?: boolean;
@@ -178,6 +196,8 @@ export function ProjectWorkspace({
   onOpenBudget?: () => void;
   onGenerateReport?: () => void;
   generatingReport?: boolean;
+  autosaveStatus?: AutosaveStatus;
+  autosaveLastSavedAt?: Date | null;
   children: ReactNode;
 }) {
   const [section, setSectionState] = useState<WorkspaceSection>('overview');
@@ -340,6 +360,7 @@ export function ProjectWorkspace({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <WorkspaceAutosaveStatus status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
             <Button size="sm" onClick={() => openSizingSection('project')}>
               Editar projeto
             </Button>

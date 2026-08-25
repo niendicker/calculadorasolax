@@ -342,7 +342,6 @@ export function SinglePageApp() {
     url.searchParams.set('workspace', 'overview');
     url.searchParams.delete('workspaceResource');
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    reportStatus('Projeto carregado.');
   }
 
   function openWorkspaceResource(id: PickerItemId) {
@@ -920,6 +919,8 @@ export function SinglePageApp() {
               onOpenBudget={openWorkspaceBudget}
               onGenerateReport={exportPdf}
               generatingReport={exportingPdf}
+              autosaveStatus={autosaveStatus}
+              autosaveLastSavedAt={autosaveLastSavedAt}
             >
               <SizingTab
                 projectName={projectInfo.name}
