@@ -308,6 +308,7 @@ export function SinglePageApp() {
     removeProject,
     refreshProjectSolution: refreshProjectSolutionAction,
     updateProjectStatus,
+    onProjectSaved: (project) => openProjectWorkspace(project.id),
     setActiveTab: changeTab,
     isDemo,
   });

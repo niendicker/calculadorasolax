@@ -90,6 +90,17 @@ describe('useProjectActions: saveProject', () => {
     expect(result.current.projectStatus).toContain('Casa de praia');
   });
 
+  it('notifies the workspace flow after saving a project', async () => {
+    const onProjectSaved = vi.fn();
+    const { result } = setup({ onProjectSaved });
+
+    await act(async () => {
+      await result.current.saveProject();
+    });
+
+    expect(onProjectSaved).toHaveBeenCalledWith(fakeProject);
+  });
+
   it('surfaces a limit-reached error message verbatim', async () => {
     const { result } = setup({
       saveCurrentProject: vi.fn().mockRejectedValue(new Error('Limite de 15 projetos salvos atingido.')),

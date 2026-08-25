@@ -16,6 +16,7 @@ export function useProjectActions({
   removeProject,
   refreshProjectSolution,
   updateProjectStatus,
+  onProjectSaved,
   setActiveTab,
   isDemo = false,
 }: {
@@ -29,6 +30,7 @@ export function useProjectActions({
   removeProject: (id: string) => Promise<void>;
   refreshProjectSolution: (id: string) => Promise<SavedProject>;
   updateProjectStatus: (id: string, status: ProjectStatus) => Promise<SavedProject>;
+  onProjectSaved?: (project: SavedProject) => void;
   setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
   isDemo?: boolean;
 }) {
@@ -58,6 +60,7 @@ export function useProjectActions({
     }
     try {
       const project = await saveCurrentProject();
+      onProjectSaved?.(project);
       report(`Projeto "${project.name}" salvo com configuração, rede, bateria e cargas.`);
     } catch (error) {
       report(isLimitError(error) ? error.message : 'Não foi possível salvar o projeto. Tente novamente.');
