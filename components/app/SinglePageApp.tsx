@@ -718,7 +718,7 @@ export function SinglePageApp() {
               // with the title. Only matters on mobile: both side elements
               // are lg:hidden, so desktop's single remaining flex child makes
               // this a no-op there.
-              'z-20 flex shrink-0 items-start gap-2 border-b bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
+              'z-20 flex shrink-0 items-start gap-2 bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
               scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
             )}
           >
