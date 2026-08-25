@@ -117,4 +117,50 @@ describe('ProjectWorkspace', () => {
 
     expect(onOpenResource).toHaveBeenCalledWith('white_tariff');
   });
+
+  it('delegates budget and report actions without duplicating their flows', () => {
+    const onOpenBudget = vi.fn();
+    const onGenerateReport = vi.fn();
+    const solution = {
+      inverterId: 'inverter-1',
+      inverterModel: 'X3-ULT-30K',
+      inverterQty: 1,
+      inverterRatedPowerW: 30000,
+      batteryId: 'battery-1',
+      batteryModel: 'T-BAT H 5.8 V2',
+      batteryQty: 1,
+      availableEnergyWh: 5800,
+      pvPowerKw: null,
+      accessories: [],
+    };
+
+    render(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={undefined}
+          residentialOptions={residentialOptions}
+          solution={solution}
+          nominalW={180}
+          peakW={540}
+          dailyKwh={0.36}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+          onOpenBudget={onOpenBudget}
+          onGenerateReport={onGenerateReport}
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Orçamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir orçamento' }));
+    expect(onOpenBudget).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Relatório' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar relatório' }));
+    expect(onGenerateReport).toHaveBeenCalledOnce();
+  });
 });

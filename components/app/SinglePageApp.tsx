@@ -808,6 +808,9 @@ export function SinglePageApp() {
               onBackToProjects={backToProject}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
+              onOpenBudget={openPurchasesTab}
+              onGenerateReport={exportPdf}
+              generatingReport={exportingPdf}
             >
               <SizingTab
                 projectName={projectInfo.name}

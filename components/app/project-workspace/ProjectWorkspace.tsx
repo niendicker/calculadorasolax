@@ -120,6 +120,9 @@ export function ProjectWorkspace({
   onBackToProjects,
   onOpenResource,
   onOpenTechnical,
+  onOpenBudget,
+  onGenerateReport,
+  generatingReport,
   children,
 }: {
   enabled?: boolean;
@@ -136,6 +139,9 @@ export function ProjectWorkspace({
   onBackToProjects?: () => void;
   onOpenResource?: (id: DesiredFeatureId) => void;
   onOpenTechnical?: () => void;
+  onOpenBudget?: () => void;
+  onGenerateReport?: () => void;
+  generatingReport?: boolean;
   children: ReactNode;
 }) {
   const [section, setSectionState] = useState<WorkspaceSection>('overview');
@@ -352,6 +358,10 @@ export function ProjectWorkspace({
           <SolutionSection solution={solution} stale={staleSolution} onOpenTechnical={onOpenTechnical} />
           <TechnicalFlowNote>{children}</TechnicalFlowNote>
         </>
+      ) : section === 'budget' ? (
+        <BudgetSection solution={solution} onOpenBudget={onOpenBudget} />
+      ) : section === 'report' ? (
+        <ReportSection solution={solution} stale={staleSolution} onGenerateReport={onGenerateReport} generatingReport={generatingReport} />
       ) : (
         <div className="space-y-3">
           <TechnicalFlowNote>{children}</TechnicalFlowNote>
@@ -398,4 +408,33 @@ function ResourcesSection({ resources, configuredCount, attentionCount, onOpenRe
 
 function SolutionSection({ solution, stale, onOpenTechnical }: { solution: Solution | null; stale: boolean; onOpenTechnical?: () => void }) {
   return <div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Solução</h2><p className="text-sm text-muted-foreground">Equipamentos e capacidades calculadas</p></div>{solution && <StateBadge state={stale ? 'attention' : 'configured'} />}</div>{solution ? <Card><CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4"><SolutionValue label="Inversor" value={solution.inverterModel} /><SolutionValue label="Baterias" value={`${solution.batteryModel} · ${solution.batteryQty} un.`} /><SolutionValue label="Potência do inversor" value={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} /><SolutionValue label="Energia disponível" value={solution.availableEnergyWh ? formatKwh(solution.availableEnergyWh / 1000) : 'Não informado'} /></CardContent></Card> : <Card><CardContent className="p-4 text-sm text-muted-foreground">Solução ainda não calculada.</CardContent></Card>}{onOpenTechnical && <Button onClick={onOpenTechnical}>{solution ? 'Abrir dimensionamento e recalcular' : 'Configurar e dimensionar'}</Button>}</div>;
+}
+
+function BudgetSection({ solution, onOpenBudget }: { solution: Solution | null; onOpenBudget?: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div><h2 className="text-lg font-semibold">Orçamento</h2><p className="text-sm text-muted-foreground">Monte a cotação a partir da solução e dos serviços do projeto.</p></div>
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="min-w-0"><p className="font-medium">{solution ? 'Solução disponível para cotação' : 'Calcule uma solução antes de cotar'}</p><p className="mt-1 text-sm text-muted-foreground">Produtos, serviços e fornecedores continuam sendo gerenciados no fluxo atual.</p></div>
+          <Button disabled={!solution || !onOpenBudget} onClick={onOpenBudget}><ReceiptText className="h-4 w-4" />Abrir orçamento</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ReportSection({ solution, stale, onGenerateReport, generatingReport }: { solution: Solution | null; stale: boolean; onGenerateReport?: () => void; generatingReport?: boolean }) {
+  return (
+    <div className="space-y-4">
+      <div><h2 className="text-lg font-semibold">Relatório</h2><p className="text-sm text-muted-foreground">Gere o relatório usando os dados atuais do projeto.</p></div>
+      {stale && solution && <div className="flex gap-2 rounded-lg border border-amber-300/70 bg-amber-50/60 p-3 text-sm text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>A solução está desatualizada. Recalcule antes de gerar um relatório atualizado.</span></div>}
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+          <div><p className="font-medium">{solution ? 'Relatório de dimensionamento' : 'Nenhuma solução disponível'}</p><p className="mt-1 text-sm text-muted-foreground">O PDF reutiliza os cálculos, equipamentos e cargas do projeto.</p></div>
+          <Button disabled={!solution || !onGenerateReport || Boolean(stale) || generatingReport} onClick={onGenerateReport}>{generatingReport ? 'Gerando relatório...' : 'Gerar relatório'}</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
