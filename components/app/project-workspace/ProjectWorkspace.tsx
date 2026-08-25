@@ -283,7 +283,7 @@ export function ProjectWorkspace({
           </Card>
         </div>
       </PageSummary>
-      <div className="border-b pb-3">
+      <div className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             {onBackToProjects && <Button type="button" variant="outline" size="icon-sm" aria-label="Voltar para Projetos" title="Voltar para Projetos" onClick={onBackToProjects} className="mt-0.5 shrink-0"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>}
