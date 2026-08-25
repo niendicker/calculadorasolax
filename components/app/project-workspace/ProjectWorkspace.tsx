@@ -349,10 +349,10 @@ export function ProjectWorkspace({
 
       {section === 'overview' ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MetricCard label="Nominal" value={formatKva(nominalW)} icon={Zap} />
-            <MetricCard label="Máxima" value={formatKva(peakW)} icon={Gauge} />
-            <MetricCard label="Energia" value={formatKwh(dailyKwh)} icon={BatteryCharging} />
+          <div className="grid grid-cols-3 divide-x overflow-hidden rounded-lg border bg-card">
+            <MetricCard compact label="Nominal" value={formatKva(nominalW)} icon={Zap} />
+            <MetricCard compact label="Máxima" value={formatKva(peakW)} icon={Gauge} />
+            <MetricCard compact label="Energia" value={formatKwh(dailyKwh)} icon={BatteryCharging} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
