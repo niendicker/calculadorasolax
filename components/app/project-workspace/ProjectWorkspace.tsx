@@ -278,7 +278,7 @@ export function ProjectWorkspace({
 
   return (
     <div className="space-y-4">
-      <PageSummary>
+      {section !== 'overview' && <PageSummary>
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
             <Metric label="Nominal" value={(nominalW / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} unit="kVA" />
@@ -299,7 +299,7 @@ export function ProjectWorkspace({
             </CardContent>
           </Card>
         </div>
-      </PageSummary>
+      </PageSummary>}
       <div className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
