@@ -34,7 +34,6 @@ import { featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 import { cn } from '@/lib/utils';
-import { totalPowerByPhase } from '@/lib/store/wizard-store';
 import { buildMarginSummary, solutionMetrics } from '../helpers';
 import { Metric, ProductImage } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
@@ -633,12 +632,9 @@ function ActionCard({ label, detail, onClick, icon: Icon }: { label: string; det
 }
 
 function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { residentialOptions: ResidentialOptions; nominalW: number; peakW: number; dailyKwh: number }) {
-  const phaseTotals = totalPowerByPhase(residentialOptions.loads);
-
   return <div className="space-y-4">
     <div><h2 className="text-lg font-semibold">Cargas</h2><p className="text-sm text-muted-foreground">{residentialOptions.loads.length} carga(s) cadastrada(s)</p></div>
     <div className="grid grid-cols-3 divide-x overflow-hidden rounded-lg border bg-card"><MetricCard compact label="Potência nominal" value={formatKva(nominalW)} icon={Zap} /><MetricCard compact label="Pico considerado" value={formatKva(peakW)} icon={Gauge} /><MetricCard compact label="Energia diária" value={formatKwh(dailyKwh)} icon={BatteryCharging} /></div>
-    <Card><CardHeader className="pb-2"><h3 className="text-sm font-semibold">Distribuição de fases</h3></CardHeader><CardContent className="grid gap-2 pt-0 sm:grid-cols-3">{(['L1', 'L2', 'L3'] as const).map((phase) => <div key={phase} className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">{phase}</p><p className="mt-1 font-semibold">{formatKva(phaseTotals[phase])}</p></div>)}</CardContent></Card>
     <LoadSelector defaultToMine showOperationHours={false} />
   </div>;
 }
