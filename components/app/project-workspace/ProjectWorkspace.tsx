@@ -284,18 +284,21 @@ export function ProjectWorkspace({
         </div>
       </PageSummary>
       <div className="border-b pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            {onBackToProjects && <button type="button" onClick={onBackToProjects} className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Projetos</button>}
-            <p className="text-xs font-medium text-muted-foreground">Workspace do projeto</p>
-            <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight">{projectInfo.name || 'Projeto sem nome'}</h1>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              <span>{client?.name || 'Cliente não informado'}</span>
-              <span aria-hidden="true">·</span>
-              <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
-              <span aria-hidden="true">·</span>
-              <span className="inline-flex items-center gap-1 text-primary"><Flag className="h-3.5 w-3.5" aria-hidden="true" /> Em andamento</span>
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            {onBackToProjects && <Button type="button" variant="outline" size="icon-sm" aria-label="Voltar para Projetos" title="Voltar para Projetos" onClick={onBackToProjects} className="mt-0.5 shrink-0"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>}
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Workspace do projeto</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-2xl font-semibold tracking-tight">{projectInfo.name || 'Projeto sem nome'}</h1>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"><Flag className="h-3.5 w-3.5" aria-hidden="true" /> Em andamento</span>
+              </div>
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                <span>Cliente: {client?.name || 'Não informado'}</span>
+                <span aria-hidden="true">·</span>
+                <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => openSizingSection('project')}>
