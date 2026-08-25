@@ -266,24 +266,22 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
       {showOperationHours && <OperationHoursControl />}
 
       <section className="space-y-2 rounded-xl border bg-background p-3">
-        <div className="flex items-start justify-between gap-3 px-1 pb-1">
-          <div>
+        <button
+          type="button"
+          onClick={() => setSectionOpen((current) => !current)}
+          aria-expanded={sectionOpen}
+          aria-label={sectionOpen ? 'Recolher cargas' : 'Expandir cargas'}
+          className="flex w-full items-start justify-between gap-3 px-1 pb-1 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <span>
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <ListPlus className="h-4 w-4 text-primary" aria-hidden="true" />
               Adicionar cargas
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">Use uma predefinição, pesquise no catálogo ou crie uma carga personalizada.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSectionOpen((current) => !current)}
-            aria-expanded={sectionOpen}
-            aria-label={sectionOpen ? 'Recolher cargas' : 'Expandir cargas'}
-            className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <ChevronDown className={cn('h-4 w-4 transition-transform', !sectionOpen && '-rotate-90')} />
-          </button>
-        </div>
+          </span>
+          <ChevronDown className={cn('mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform', sectionOpen && 'rotate-180')} aria-hidden="true" />
+        </button>
         {sectionOpen && (
         <div className="space-y-3">
           <div className="flex gap-4 border-b" role="tablist" aria-label="Adicionar cargas">
