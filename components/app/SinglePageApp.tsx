@@ -332,6 +332,7 @@ export function SinglePageApp() {
     setWorkspaceTechnicalEditorOpen(false);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
+    setSummaryDrawerOpen(false);
     changeTab('sizing');
     const url = new URL(window.location.href);
     url.searchParams.set('workspaceId', id);

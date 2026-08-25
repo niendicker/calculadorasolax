@@ -135,8 +135,13 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   }
 
-  const card = (await screen.findAllByText(projectName)).at(-1)!.closest('[role="button"]') as HTMLElement;
-  fireEvent.click(within(card).getByRole('button', { name: 'Dimensionamento' }));
+  const card = (await screen.findAllByText(projectName))
+    .map((element) => element.closest('[role="button"]'))
+    .find(Boolean) as HTMLElement;
+  fireEvent.click(within(card).getByRole('button', { name: 'Workspace' }));
+  await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: projectName })).toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
+  fireEvent.click(screen.getByRole('button', { name: /Abrir dimensionamento e recalcular|Configurar e dimensionar/ }));
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 }
 
@@ -218,6 +223,9 @@ beforeEach(() => {
   buildProjectQuotePdfBlobMock.mockReset();
   resetWizardStore();
   Element.prototype.scrollTo = vi.fn();
+  window.history.replaceState({}, '', '/pt');
+  delete (navigator as { canShare?: unknown }).canShare;
+  delete (navigator as { share?: unknown }).share;
 });
 
 describe('SinglePageApp: initial load and navigation', () => {
@@ -829,6 +837,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
   it('does not touch the status of a project that already moved past "Rascunho"', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    Object.defineProperty(navigator, 'canShare', { value: vi.fn().mockReturnValue(false), configurable: true });
     const updateProjectStatusMock = vi.fn().mockResolvedValue({});
 
     setupSupabase();

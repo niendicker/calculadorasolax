@@ -382,16 +382,19 @@ export function SelectedProjectSummary({
 
       <Separator />
 
-      <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenSizing}>
-        <Calculator className="h-4 w-4" />
-        Ir para Dimensionamento
-        <ChevronRight className="h-4 w-4" />
-      </Button>
-
       {onOpenWorkspace && (
-        <Button variant="outline" size="lg" className="mt-2 w-full" onClick={onOpenWorkspace}>
+        <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenWorkspace}>
           <PanelTop className="h-4 w-4" />
           Abrir Workspace
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      )}
+
+      {!onOpenWorkspace && (
+        <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenSizing}>
+          <Calculator className="h-4 w-4" />
+          Abrir solução técnica
+          <ChevronRight className="h-4 w-4" />
         </Button>
       )}
 

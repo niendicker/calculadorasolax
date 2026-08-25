@@ -327,10 +327,12 @@ export function ProjectCard({
               Workspace
             </Button>
           )}
-          <Button variant={onOpenWorkspace ? 'outline' : 'default'} size="sm" className="flex-1" onClick={stopAnd(onOpenSizing)}>
-            <Calculator className="h-4 w-4" />
-            Dimensionamento
-          </Button>
+          {!onOpenWorkspace && (
+            <Button size="sm" className="flex-1" onClick={stopAnd(onOpenSizing)}>
+              <Calculator className="h-4 w-4" />
+              Solução técnica
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={stopAnd(onOpen)}>
             <Pencil className="h-4 w-4" />
             Editar

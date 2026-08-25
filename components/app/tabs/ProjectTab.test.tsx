@@ -157,6 +157,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onCancelNew: vi.fn(),
     onOpen: vi.fn(),
     onOpenSizing: vi.fn(),
+    onOpenWorkspace: vi.fn(),
     onRemove: vi.fn(),
     onRefreshSolution: vi.fn(),
     refreshingProjectId: null,
@@ -589,7 +590,7 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
   });
 
-  it('offers a "Dimensionamento" shortcut while editing an already-saved project, delegating to onOpenSizing', () => {
+  it('offers a technical solution shortcut while editing an already-saved project', () => {
     const { props } = setup({
       savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
       currentProjectId: 'p1',
@@ -597,7 +598,7 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
       projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solução técnica' }));
     expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
   });
 
@@ -685,10 +686,10 @@ describe('ProjectTab: opening an existing project edits it in place', () => {
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
   });
 
-  it('clicking Dimensionamento on a saved project delegates to onOpenSizing with its id', () => {
+  it('clicking Workspace on a saved project delegates to onOpenWorkspace with its id', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Dimensionamento' }));
-    expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
   });
 
 });
@@ -744,13 +745,13 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
 
-  it('"Ir para Dimensionamento" in the summary delegates to onOpenSizing with the selected project id', () => {
+  it('"Abrir Workspace" in the summary delegates to onOpenWorkspace with the selected project id', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
     clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Ir para Dimensionamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Workspace' }));
 
-    expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
+    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
   });
 
   it('does not show a duplicate action in the summary', () => {

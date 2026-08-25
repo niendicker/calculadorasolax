@@ -268,7 +268,7 @@ export function ProjectDraftCard({
         {!isNew && onOpenSizing && (
           <button
             type="button"
-            aria-label="Dimensionamento"
+            aria-label="Solução técnica"
             onClick={onOpenSizing}
             className="group flex items-center gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:col-span-2"
           >
@@ -276,7 +276,7 @@ export function ProjectDraftCard({
               <Calculator className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold">Abrir dimensionamento</span>
+              <span className="block text-sm font-semibold">Abrir solução técnica</span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
                 Clique aqui para revisar as cargas, configurações e equipamentos deste projeto.
               </span>
