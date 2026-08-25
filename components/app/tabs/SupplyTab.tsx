@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isAddressEmpty } from '@/lib/address';
 import { createClient } from '@/lib/supabase/client';
@@ -22,12 +22,14 @@ import { emptyDelivery, money, nonEmptyDeliveryFields, type Cart, type DeliveryF
 
 export function SupplyTab({
   onShowSummary,
+  onBackToWorkspace,
   batteryCatalog = [],
   autoImportFromSolution = false,
   onAutoImportHandled,
   profile = null,
 }: {
   onShowSummary: () => void;
+  onBackToWorkspace?: () => void;
   batteryCatalog?: BatteryCatalogOption[];
   /** Set by "Cotar solução" (Dimensionamento) to trigger importFromSolution
    *  automatically once this tab's offers have loaded, instead of requiring
@@ -428,11 +430,19 @@ export function SupplyTab({
   return (
     <div className={`space-y-5 py-5 ${cartOffers.length > 0 ? 'pb-20 xl:pb-5' : ''}`}>
       <PageHeader>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Fornecedores</h1>
-          <p className="text-sm text-muted-foreground">
-            Escolha seus fornecedores preferidos, compare ofertas e acompanhe seus pedidos.
-          </p>
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            {onBackToWorkspace && (
+              <button type="button" onClick={onBackToWorkspace} className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Voltar ao Workspace
+              </button>
+            )}
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Fornecedores</h1>
+            <p className="text-sm text-muted-foreground">
+              Escolha seus fornecedores preferidos, compare ofertas e acompanhe seus pedidos.
+            </p>
+          </div>
         </div>
       </PageHeader>
 

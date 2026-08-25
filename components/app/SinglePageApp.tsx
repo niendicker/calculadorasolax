@@ -351,11 +351,24 @@ export function SinglePageApp() {
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
+  function openWorkspaceBudget() {
+    setWorkspaceOpen(false);
+    setWorkspaceResource(null);
+    setWorkspaceTechnicalEditorOpen(false);
+    setWorkspaceReturnAvailable(true);
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'budget');
+    url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    openPurchasesTab();
+  }
+
   function returnToWorkspace() {
     setWorkspaceResource(null);
     setWorkspaceTechnicalEditorOpen(false);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
+    changeTab('sizing');
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'overview');
     url.searchParams.delete('workspaceResource');
@@ -803,6 +816,7 @@ export function SinglePageApp() {
           ) : activeTab === 'purchases' ? (
             <SupplyTab
               onShowSummary={() => setSummaryDrawerOpen(true)}
+              onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}
               batteryCatalog={batteryCatalog}
               autoImportFromSolution={pendingSupplyImport}
               onAutoImportHandled={() => setPendingSupplyImport(false)}
@@ -855,7 +869,7 @@ export function SinglePageApp() {
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
               technicalEditorOpen={workspaceTechnicalEditorOpen}
-              onOpenBudget={openPurchasesTab}
+              onOpenBudget={openWorkspaceBudget}
               onGenerateReport={exportPdf}
               generatingReport={exportingPdf}
             >
