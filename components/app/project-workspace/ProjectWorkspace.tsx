@@ -385,6 +385,16 @@ export function ProjectWorkspace({
                     icon={Battery}
                     showValue
                   />
+                  {onOpenTechnical && <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full"
+                    onClick={onOpenTechnical}
+                  >
+                    <Settings2 className="h-4 w-4" aria-hidden="true" />
+                    Configurar inversor e bateria
+                  </Button>}
                 </div>
               </CardContent>
             </Card>

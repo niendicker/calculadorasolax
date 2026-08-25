@@ -363,6 +363,7 @@ export function SinglePageApp() {
     url.searchParams.set('workspace', 'solution');
     url.searchParams.delete('workspaceResource');
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'solution' }));
   }
 
   function openWorkspaceBudget() {

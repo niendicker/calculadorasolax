@@ -44,7 +44,7 @@ describe('ProjectWorkspace', () => {
     window.history.replaceState({}, '', '/pt');
   });
 
-  function renderWorkspace() {
+  function renderWorkspace(overrides: Partial<React.ComponentProps<typeof ProjectWorkspace>> = {}) {
     return render(
       <NextIntlClientProvider locale="pt" messages={ptMessages}>
         <ProjectWorkspace
@@ -58,6 +58,7 @@ describe('ProjectWorkspace', () => {
         solutionIsStale={false}
         inverterCatalog={inverterCatalog}
         availableInverterModels={null}
+        {...overrides}
       >
         <div>Fluxo técnico atual</div>
         </ProjectWorkspace>
@@ -75,6 +76,15 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByText('Automático')).toBeInTheDocument();
     expect(screen.getByText('T-BAT H 5.8 V2 · Alta tensão (HV)')).toBeInTheDocument();
     expect(screen.getAllByText('Requer atenção').length).toBeGreaterThan(0);
+  });
+
+  it('offers direct access to inverter and battery configuration', () => {
+    const onOpenTechnical = vi.fn();
+    renderWorkspace({ onOpenTechnical });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar inversor e bateria' }));
+
+    expect(onOpenTechnical).toHaveBeenCalledTimes(1);
   });
 
   it('closes the header menu when clicking outside', () => {
