@@ -735,7 +735,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
               Nenhuma carga conectada à fase {effectivePhaseFilter}.
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <AddLoadTile
               onAdd={handleAddBlank}
               disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
