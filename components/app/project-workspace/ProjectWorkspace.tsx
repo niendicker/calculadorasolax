@@ -355,7 +355,7 @@ export function ProjectWorkspace({
             <Card>
               <CardHeader className="flex flex-row items-center gap-3 pb-3">
                 <CardIcon icon={ClipboardList} />
-                <h2 className="text-base font-semibold">Projeto</h2>
+                <h2 className="text-base font-semibold">Instalação</h2>
               </CardHeader>
               <CardContent className="pt-0">
                 <SummaryRow label="Cliente" value={client?.name || 'Não informado'} state={client ? 'configured' : 'attention'} />
