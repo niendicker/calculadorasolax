@@ -287,6 +287,27 @@ export function ProjectWorkspace({
             <Metric label="Energia" value={dailyKwh.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} unit="kWh" />
           </div>
           <Card>
+            <CardHeader className="pb-2"><h2 className="text-sm font-semibold">Workspace</h2></CardHeader>
+            <CardContent className="space-y-1 pt-0">
+              {navigation.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-label={`Ir para ${label}`}
+                  aria-current={section === id ? 'page' : undefined}
+                  onClick={() => openSizingSection(id)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    section === id ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
             <CardHeader className="pb-2"><h2 className="text-sm font-semibold">Resumo técnico</h2></CardHeader>
             <CardContent className="pt-0">
               <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} />
