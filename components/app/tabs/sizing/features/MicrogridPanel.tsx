@@ -52,9 +52,11 @@ export function MicrogridPanel({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-primary/[0.03] px-3 py-2 text-sm">
-        <p className="font-medium">Sistema fotovoltaico existente</p>
-        <p className="mt-1 text-xs text-muted-foreground">A Microrrede conecta e mantém operando um inversor on-grid já instalado. Para dimensionar um novo arranjo, use a funcionalidade Fotovoltaico.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Microrrede</h2>
+          <p className="text-sm text-muted-foreground">Sistema fotovoltaico existente. A Microrrede conecta e mantém operando um inversor on-grid já instalado. Para dimensionar um novo arranjo, use a funcionalidade Fotovoltaico.</p>
+        </div>
       </div>
       <InverterSupportSummary
         flag="microgrid"
