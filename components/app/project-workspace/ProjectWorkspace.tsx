@@ -278,7 +278,7 @@ export function ProjectWorkspace({
 
   return (
     <div className="space-y-4">
-      {section !== 'overview' && section !== 'loads' && <PageSummary>
+      {section !== 'overview' && section !== 'loads' && section !== 'configuration' && <PageSummary>
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
             <Metric label="Nominal" value={(nominalW / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} unit="kVA" />
