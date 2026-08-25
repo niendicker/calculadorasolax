@@ -411,7 +411,7 @@ export function ProjectWorkspace({
               <p className="text-sm text-muted-foreground">Configure este recurso sem sair do Workspace. As alterações afetam a solução técnica.</p>
             </div>
           </div>
-          {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
+          {technicalEditorOpen && children}
         </>
       ) : section === 'solution' ? (
         <>
@@ -426,7 +426,7 @@ export function ProjectWorkspace({
             peakW={peakW}
             dailyKwh={dailyKwh}
           />
-          {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
+          {technicalEditorOpen && children}
         </>
       ) : section === 'budget' ? (
         <BudgetSection solution={solution} onOpenBudget={onOpenBudget} />
@@ -434,7 +434,7 @@ export function ProjectWorkspace({
         <ReportSection solution={solution} stale={staleSolution} onGenerateReport={onGenerateReport} generatingReport={generatingReport} />
       ) : (
         <div className="space-y-3">
-          <TechnicalFlowNote>{children}</TechnicalFlowNote>
+          {children}
         </div>
       )}
     </div>
@@ -528,10 +528,6 @@ function SolutionValue({ label, value }: { label: string; value: string }) {
 
 function ActionCard({ label, detail, onClick, icon: Icon }: { label: string; detail: string; onClick: () => void; icon: typeof AlertTriangle }) {
   return <button type="button" onClick={onClick} className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"><Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{label}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" /></button>;
-}
-
-function TechnicalFlowNote({ children }: { children: ReactNode }) {
-  return <div className="space-y-3"><div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">A edição continua usando os controles técnicos atuais. Nenhuma regra de cálculo foi duplicada nesta visão.</div>{children}</div>;
 }
 
 function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { residentialOptions: ResidentialOptions; nominalW: number; peakW: number; dailyKwh: number }) {
