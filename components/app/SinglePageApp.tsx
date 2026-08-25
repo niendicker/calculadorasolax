@@ -880,6 +880,8 @@ export function SinglePageApp() {
               dailyKwh={dailyKwh}
               solutionIsStale={hasUncalculatedChanges}
               inverterCatalog={inverterCatalog}
+              batteryCatalog={batteryCatalog}
+              productMedia={productMedia}
               availableInverterModels={availableInverterModels}
               onBackToProjects={() => { clearWorkspaceUrl(); backToProject(); }}
               onOpenResource={openWorkspaceResource}

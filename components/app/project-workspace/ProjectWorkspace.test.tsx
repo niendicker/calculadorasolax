@@ -155,6 +155,11 @@ describe('ProjectWorkspace', () => {
       </NextIntlClientProvider>
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
+    expect(screen.getByRole('tab', { name: 'Resumo' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Margens' }));
+    expect(screen.getByText('Potência padrão')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Orçamento' }));
     fireEvent.click(screen.getByRole('button', { name: 'Abrir orçamento' }));
     expect(onOpenBudget).toHaveBeenCalledOnce();

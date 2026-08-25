@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import Image from 'next/image';
 import {
   AlertTriangle,
+  Battery,
   BatteryCharging,
   CheckCircle2,
   ChevronRight,
@@ -25,13 +27,15 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, DesiredFeatureId, ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
 import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
-import type { InverterCatalogOption } from '../types';
+import type { BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
 import { gridLabels } from '../types';
 import { cn } from '@/lib/utils';
 import { totalPowerByPhase } from '@/lib/store/wizard-store';
-import { Metric } from '../shared-ui';
+import { buildMarginSummary, solutionMetrics } from '../helpers';
+import { Metric, ProductImage } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
+import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
 
 export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'solution' | 'budget' | 'report';
 
@@ -71,6 +75,10 @@ function StateBadge({ state }: { state: ResourceState }) {
 
 function formatKva(valueW: number) {
   return `${(valueW / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kVA`;
+}
+
+function formatKw(valueW: number) {
+  return `${(valueW / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kW`;
 }
 
 function formatKwh(valueKwh: number) {
@@ -115,6 +123,8 @@ export function ProjectWorkspace({
   dailyKwh,
   solutionIsStale,
   inverterCatalog,
+  batteryCatalog = [],
+  productMedia = {},
   availableInverterModels,
   onBackToProjects,
   onOpenResource,
@@ -135,6 +145,8 @@ export function ProjectWorkspace({
   dailyKwh: number;
   solutionIsStale: boolean;
   inverterCatalog: InverterCatalogOption[];
+  batteryCatalog?: BatteryCatalogOption[];
+  productMedia?: Record<string, ProductMedia>;
   availableInverterModels: Set<string> | null;
   onBackToProjects?: () => void;
   onOpenResource?: (id: DesiredFeatureId) => void;
@@ -366,7 +378,17 @@ export function ProjectWorkspace({
         </>
       ) : section === 'solution' ? (
         <>
-          <SolutionSection solution={solution} stale={staleSolution} onOpenTechnical={onOpenTechnical} />
+          <SolutionSection
+            solution={solution}
+            stale={staleSolution}
+            onOpenTechnical={onOpenTechnical}
+            batteryCatalog={batteryCatalog}
+            productMedia={productMedia}
+            residentialOptions={residentialOptions}
+            nominalW={nominalW}
+            peakW={peakW}
+            dailyKwh={dailyKwh}
+          />
           {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
         </>
       ) : section === 'budget' ? (
@@ -413,8 +435,114 @@ function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { resid
   </div>;
 }
 
-function SolutionSection({ solution, stale, onOpenTechnical }: { solution: Solution | null; stale: boolean; onOpenTechnical?: () => void }) {
-  return <div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-semibold">Solução</h2><p className="text-sm text-muted-foreground">Equipamentos e capacidades calculadas</p></div>{solution && <StateBadge state={stale ? 'attention' : 'configured'} />}</div>{solution ? <Card><CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4"><SolutionValue label="Inversor" value={solution.inverterModel} /><SolutionValue label="Baterias" value={`${solution.batteryModel} · ${solution.batteryQty} un.`} /><SolutionValue label="Potência do inversor" value={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} /><SolutionValue label="Energia disponível" value={solution.availableEnergyWh ? formatKwh(solution.availableEnergyWh / 1000) : 'Não informado'} /></CardContent></Card> : <Card><CardContent className="p-4 text-sm text-muted-foreground">Solução ainda não calculada.</CardContent></Card>}{onOpenTechnical && <Button onClick={onOpenTechnical}>{solution ? 'Abrir dimensionamento e recalcular' : 'Configurar e dimensionar'}</Button>}</div>;
+function SolutionSection({
+  solution,
+  stale,
+  onOpenTechnical,
+  batteryCatalog,
+  productMedia,
+  residentialOptions,
+  nominalW,
+  peakW,
+  dailyKwh,
+}: {
+  solution: Solution | null;
+  stale: boolean;
+  onOpenTechnical?: () => void;
+  batteryCatalog: BatteryCatalogOption[];
+  productMedia: Record<string, ProductMedia>;
+  residentialOptions: ResidentialOptions;
+  nominalW: number;
+  peakW: number;
+  dailyKwh: number;
+}) {
+  const [view, setView] = useState<'summary' | 'equipment' | 'margins' | 'criteria'>('summary');
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const metrics = solution ? solutionMetrics(solution, batteryCatalog) : null;
+  const marginRows = solution && !solution.microgridAlternative
+    ? buildMarginSummary({
+        desiredFeatures: residentialOptions.desiredFeatures,
+        whiteTariff: residentialOptions.whiteTariff,
+        microgrid: residentialOptions.microgrid,
+        pv: residentialOptions.pv,
+        nominalW,
+        peakW,
+        dailyKwh,
+        solution,
+      })
+    : [];
+  const batteryParts = solution
+    ? batteryQuantityBreakdown(
+        solution.batteryModel,
+        solution.batteryQty,
+        batteryCatalog,
+        (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
+      )
+    : [];
+  const inverterMedia = solution ? productMedia[solution.inverterModel] : undefined;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Solução</h2>
+          <p className="text-sm text-muted-foreground">Equipamentos, margens e critérios do dimensionamento.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {solution && <StateBadge state={stale ? 'attention' : 'configured'} />}
+          {onOpenTechnical && <Button onClick={onOpenTechnical}>{solution ? 'Recalcular solução' : 'Configurar e dimensionar'}</Button>}
+        </div>
+      </div>
+
+      {!solution ? (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+            <div><p className="font-medium">Solução ainda não calculada</p><p className="mt-1 text-sm text-muted-foreground">Configure os dados técnicos para gerar uma recomendação.</p></div>
+            {onOpenTechnical && <Button onClick={onOpenTechnical}>Configurar e dimensionar</Button>}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {stale && <div className="flex items-start gap-2 rounded-lg border border-amber-300/70 bg-amber-50/60 p-3 text-sm text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>As configurações do Workspace foram alteradas após o último cálculo. Recalcule para atualizar esta solução.</span></div>}
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1 sm:grid-cols-4" role="tablist" aria-label="Detalhes da solução">
+            {([
+              ['summary', 'Resumo'],
+              ['equipment', 'Equipamentos'],
+              ['margins', 'Margens'],
+              ['criteria', 'Critérios'],
+            ] as const).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === id ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}>{label}</button>)}
+          </div>
+
+          {view === 'summary' && metrics && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard label="Potência do inversor" value={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} icon={Zap} />
+                <MetricCard label="Potência disponível pela bateria" value={solution.batteryPowerW ? formatKw(solution.batteryPowerW) : 'Não informado'} icon={Battery} />
+                <MetricCard label="Potência máxima" value={metrics.peakW != null ? formatKva(metrics.peakW) : 'Não informado'} icon={Gauge} />
+                <MetricCard label="Energia útil" value={formatKwh(metrics.energyKwh)} icon={BatteryCharging} />
+              </div>
+              <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Equipamentos principais</h3></CardHeader><CardContent className="space-y-3 pt-0"><EquipmentRow label="Inversor" model={solution.inverterModel} quantity={solution.inverterQty ?? 1} detail={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : undefined} media={inverterMedia} onPreviewImage={setPreviewImage} /><EquipmentRow label="Bateria" model={productMedia[solution.batteryModel]?.nickname || solution.batteryModel} quantity={solution.batteryQty} detail={formatKwh(solution.availableEnergyWh ? solution.availableEnergyWh / 1000 : 0)} media={productMedia[solution.batteryModel]} onPreviewImage={setPreviewImage} />{solution.pvPowerKw != null && <SolutionValue label="Fotovoltaico recomendado" value={`${solution.pvPowerKw.toFixed(2)} kWp${solution.pvMonthlyGenerationKwh ? ` · ${solution.pvMonthlyGenerationKwh.toFixed(0)} kWh/mês` : ''}`} />}</CardContent></Card>
+              {solution.accessories.length > 0 && <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Acessórios</h3></CardHeader><CardContent className="space-y-2 pt-0">{solution.accessories.map((item) => <div key={item.model} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3 text-sm"><span className="min-w-0 truncate">{productMedia[item.model]?.nickname || item.model}</span><span className="shrink-0 text-muted-foreground">{item.qty} un. {item.bundled ? '· Incluso' : item.optional ? '· Opcional' : ''}</span></div>)}</CardContent></Card>}
+            </div>
+          )}
+          {view === 'equipment' && <div className="space-y-3"><Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Equipamentos selecionados</h3></CardHeader><CardContent className="space-y-3 pt-0"><EquipmentRow label="Inversor" model={productMedia[solution.inverterModel]?.nickname || solution.inverterModel} quantity={solution.inverterQty ?? 1} detail={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : undefined} media={inverterMedia} onPreviewImage={setPreviewImage} />{batteryParts.map((part) => <EquipmentRow key={part.model} label="Bateria" model={productMedia[part.model]?.nickname || part.model} quantity={part.qty} detail={part.model === solution.batteryModel && solution.availableEnergyWh ? formatKwh(solution.availableEnergyWh / 1000) : undefined} media={productMedia[part.model]} onPreviewImage={setPreviewImage} />)}</CardContent></Card>{solution.accessories.length > 0 && <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Acessórios incluídos</h3></CardHeader><CardContent className="space-y-2 pt-0">{solution.accessories.map((item) => <div key={item.model} className="flex items-center justify-between gap-3 border-b py-2 last:border-b-0 text-sm"><span>{productMedia[item.model]?.nickname || item.model}</span><span className="text-muted-foreground">{item.qty} un.</span></div>)}</CardContent></Card>}</div>}
+          {view === 'margins' && <div className="grid gap-3 sm:grid-cols-3">{marginRows.map((row) => { const delta = row.providedValue - row.requiredValue; const insufficient = delta < 0; return <Card key={row.key} className={cn(insufficient && 'border-destructive/50')}><CardContent className="p-4"><p className="text-sm font-medium">{row.label}</p><p className={cn('mt-2 text-xl font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>{delta >= 0 ? '+' : '-'}{row.unit === 'W' ? formatKva(Math.abs(delta)) : formatKwh(Math.abs(delta))}</p><p className="mt-2 text-xs text-muted-foreground">Necessário {row.unit === 'W' ? formatKva(row.requiredValue) : formatKwh(row.requiredValue)} · Solução {row.unit === 'W' ? formatKva(row.providedValue) : formatKwh(row.providedValue)}</p><StateBadge state={insufficient ? 'attention' : 'configured'} /></CardContent></Card>; })}</div>}
+          {view === 'criteria' && <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Critérios considerados</h3></CardHeader><CardContent className="space-y-2 pt-0">{[
+            ['Rede elétrica', residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'],
+            ['Cargas consideradas', `${residentialOptions.loads.length} cadastradas`],
+            ['Recursos ativos', residentialOptions.desiredFeatures.map((id) => desiredFeatureLabel(id)).join(', ') || 'Nenhum'],
+            ['Topologia da bateria', residentialOptions.topology || 'Não configurada'],
+            ['Autonomia de referência', `${residentialOptions.operationHours} h de operação`],
+          ].map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-3 border-b py-2.5 text-sm last:border-b-0"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>)}</CardContent></Card>}
+        </>
+      )}
+      {previewImage && <div role="dialog" aria-label="Pré-visualização do produto" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setPreviewImage(null)}><div className="relative h-[min(80vh,32rem)] w-full max-w-lg rounded-lg bg-background p-4" onClick={(event) => event.stopPropagation()}><Image src={previewImage.url} alt={previewImage.alt} fill sizes="90vw" className="object-contain p-6" /></div></div>}
+    </div>
+  );
+}
+
+function EquipmentRow({ label, model, quantity, detail, media, onPreviewImage }: { label: string; model: string; quantity: number; detail?: string; media?: ProductMedia; onPreviewImage: (image: { url: string; alt: string }) => void }) {
+  return <div className="flex min-w-0 items-center gap-3 rounded-lg border bg-background p-3"><ProductImage media={media} onPreviewImage={onPreviewImage} className="h-16 w-16 shrink-0" /><div className="min-w-0 flex-1"><p className="text-xs text-muted-foreground">{label}</p><p className="truncate font-medium">{model}</p>{detail && <p className="mt-1 text-xs text-muted-foreground">{detail}</p>}</div><span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{quantity} un.</span></div>;
 }
 
 function BudgetSection({ solution, onOpenBudget }: { solution: Solution | null; onOpenBudget?: () => void }) {
