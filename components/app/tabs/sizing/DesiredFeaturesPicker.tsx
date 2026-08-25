@@ -2,16 +2,17 @@
 
 import {
   Check,
+  CheckCircle2,
   ClipboardList,
   Clock,
   Fuel,
   HousePlug,
+  AlertTriangle,
   Network,
   ShieldCheck,
   Sun,
   type LucideIcon,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { OperationHoursControl } from '@/components/wizard/LoadSelector';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
@@ -169,18 +170,22 @@ export function DesiredFeaturesPicker({
             <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-semibold">{activeFeature.label}</p>
-              <Badge
-                variant="outline"
+              <span
                 className={cn(
+                  'inline-flex items-center gap-1 text-xs font-medium',
                   activeFeatureHasPendingIssue
-                    ? 'border-destructive/30 bg-destructive/5 text-destructive'
-                    : isActiveEnabled
-                      ? 'border-primary/30 bg-primary/5 text-primary'
-                      : 'text-muted-foreground'
+                    ? 'text-amber-600'
+                    : activeFeatureStatus === 'Configurado' || activeFeatureStatus === 'Configuração completa'
+                      ? 'text-emerald-600'
+                      : isActiveEnabled
+                        ? 'text-primary'
+                        : 'text-muted-foreground'
                 )}
               >
+                {activeFeatureHasPendingIssue && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+                {!activeFeatureHasPendingIssue && activeFeatureStatus === 'Configurado' && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
                 {activeFeatureStatus}
-              </Badge>
+              </span>
             </div>
             {isBackupTab ? (
               <p className="mt-1 text-xs text-muted-foreground">
