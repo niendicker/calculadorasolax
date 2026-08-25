@@ -13,15 +13,14 @@ import {
   FileText,
   Flag,
   Gauge,
-  Grid3X3,
   Layers3,
   MoreVertical,
   Package,
   PanelTop,
   ReceiptText,
   Settings2,
-  Sun,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -31,6 +30,7 @@ import { Select } from '@/components/ui/select';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, DesiredFeatureId, ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
 import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
+import { featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
 import { gridLabels } from '../types';
 import { cn } from '@/lib/utils';
@@ -57,7 +57,7 @@ type ResourceState = 'configured' | 'attention' | 'inactive';
 interface ResourceItem {
   id: DesiredFeatureId;
   label: string;
-  icon: typeof BatteryCharging;
+  icon: LucideIcon;
   state: ResourceState;
   summary: string;
 }
@@ -207,32 +207,32 @@ export function ProjectWorkspace({
   }, [section, urlReady]);
   const resources: ResourceItem[] = [
     {
-      id: 'backup', label: 'Backup', icon: BatteryCharging,
+      id: 'backup', label: 'Backup', icon: featureIcons.backup,
       state: enabledFeatures.includes('backup') ? hasFeatureIssue('backup') ? 'attention' : 'configured' : 'inactive',
       summary: enabledFeatures.includes('backup') ? `${residentialOptions.loads.length} cargas · ${residentialOptions.operationHours} h` : 'Não utilizado neste projeto',
     },
     {
-      id: 'white_tariff', label: desiredFeatureLabel('white_tariff'), icon: Gauge,
+      id: 'white_tariff', label: desiredFeatureLabel('white_tariff'), icon: featureIcons.white_tariff,
       state: enabledFeatures.includes('white_tariff') ? hasFeatureIssue('white_tariff') ? 'attention' : 'configured' : 'inactive',
       summary: enabledFeatures.includes('white_tariff') ? residentialOptions.whiteTariff ? 'Configuração preenchida' : 'Faltam dados' : 'Não utilizado neste projeto',
     },
     {
-      id: 'pv', label: desiredFeatureLabel('pv'), icon: Sun,
+      id: 'pv', label: desiredFeatureLabel('pv'), icon: featureIcons.pv,
       state: enabledFeatures.includes('pv') ? hasFeatureIssue('pv') ? 'attention' : 'configured' : 'inactive',
       summary: enabledFeatures.includes('pv') ? residentialOptions.pv ? 'Parâmetros preenchidos' : 'Faltam dados' : 'Não configurado',
     },
     {
-      id: 'external_generator', label: desiredFeatureLabel('external_generator'), icon: Zap,
+      id: 'external_generator', label: desiredFeatureLabel('external_generator'), icon: featureIcons.external_generator,
       state: enabledFeatures.includes('external_generator') ? hasFeatureIssue('external_generator') ? 'attention' : 'configured' : 'inactive',
       summary: enabledFeatures.includes('external_generator') ? residentialOptions.generator ? 'Configuração preenchida' : 'Faltam dados' : 'Não configurado',
     },
     {
-      id: 'microgrid', label: desiredFeatureLabel('microgrid'), icon: Grid3X3,
+      id: 'microgrid', label: desiredFeatureLabel('microgrid'), icon: featureIcons.microgrid,
       state: enabledFeatures.includes('microgrid') ? hasFeatureIssue('microgrid') ? 'attention' : 'configured' : 'inactive',
       summary: enabledFeatures.includes('microgrid') ? residentialOptions.microgrid ? 'Configuração preenchida' : 'Faltam dados' : 'Não configurado',
     },
     {
-      id: 'external_ats', label: desiredFeatureLabel('external_ats'), icon: Settings2,
+      id: 'external_ats', label: desiredFeatureLabel('external_ats'), icon: featureIcons.external_ats,
       state: enabledFeatures.includes('external_ats') ? hasFeatureIssue('external_ats') ? 'attention' : 'configured' : 'inactive',
       summary: enabledFeatures.includes('external_ats') ? residentialOptions.atsBackupAcknowledged ? 'ATS confirmado' : 'Confirmação pendente' : 'Não configurado',
     },
