@@ -32,7 +32,7 @@ import type { Client, DesiredFeatureId, ProjectInfo, ResidentialOptions, Solutio
 import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
 import { featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
-import { gridLabels } from '../types';
+import { gridLabels, topologyLabels } from '../types';
 import { cn } from '@/lib/utils';
 import { totalPowerByPhase } from '@/lib/store/wizard-store';
 import { buildMarginSummary, solutionMetrics } from '../helpers';
@@ -108,11 +108,17 @@ function ResourceCard({ item, onOpen }: { item: ResourceItem; onOpen?: () => voi
   return onOpen ? <button type="button" onClick={onOpen} className="flex min-h-24 items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">{content}</button> : <div className="flex min-h-24 items-center gap-3 rounded-xl border bg-background p-3 text-left">{content}</div>;
 }
 
-function SummaryRow({ label, value, state }: { label: string; value: string; state?: ResourceState }) {
+function SummaryRow({ label, value, state, icon: Icon, showValue = false }: { label: string; value: string; state?: ResourceState; icon?: LucideIcon; showValue?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b py-2.5 last:border-b-0">
-      <span className="min-w-0 truncate text-sm text-muted-foreground">{label}</span>
-      {state ? <StateBadge state={state} /> : <span className="text-right text-sm font-medium">{value}</span>}
+      <span className="flex min-w-0 items-center gap-2 truncate text-sm text-muted-foreground">
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="flex min-w-0 items-center justify-end gap-2">
+        {showValue && <span className="truncate text-right text-sm font-medium">{value}</span>}
+        {state ? <StateBadge state={state} /> : !showValue && <span className="text-right text-sm font-medium">{value}</span>}
+      </span>
     </div>
   );
 }
@@ -353,8 +359,33 @@ export function ProjectWorkspace({
               </CardHeader>
               <CardContent className="pt-0">
                 <SummaryRow label="Cliente" value={client?.name || 'Não informado'} state={client ? 'configured' : 'attention'} />
-                <SummaryRow label="Rede elétrica" value={residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'} state={residentialOptions.gridType ? 'configured' : 'attention'} />
                 <SummaryRow label="Cargas" value={`${residentialOptions.loads.length} cadastradas`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} />
+                <div className="mt-2 border-t pt-2">
+                  <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Configuração elétrica</p>
+                  <SummaryRow
+                    label="Rede elétrica"
+                    value={residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'}
+                    state={residentialOptions.gridType ? 'configured' : 'attention'}
+                    icon={Zap}
+                    showValue
+                  />
+                  <SummaryRow
+                    label="Inversor"
+                    value={residentialOptions.inverterModel || 'Automático'}
+                    state={residentialOptions.inverterModel ? 'configured' : 'attention'}
+                    icon={Zap}
+                    showValue
+                  />
+                  <SummaryRow
+                    label="Bateria"
+                    value={residentialOptions.batteryModel
+                      ? `${residentialOptions.batteryModel}${residentialOptions.topology ? ` · ${topologyLabels[residentialOptions.topology]}` : ''}`
+                      : 'Não selecionada'}
+                    state={residentialOptions.batteryModel && residentialOptions.topology ? 'configured' : 'attention'}
+                    icon={Battery}
+                    showValue
+                  />
+                </div>
               </CardContent>
             </Card>
 

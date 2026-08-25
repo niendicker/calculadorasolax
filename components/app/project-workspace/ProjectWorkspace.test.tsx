@@ -70,6 +70,10 @@ describe('ProjectWorkspace', () => {
 
     expect(screen.getByRole('heading', { name: 'Residência Silva' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cargas' })).toBeInTheDocument();
+    expect(screen.getByText('Configuração elétrica')).toBeInTheDocument();
+    expect(screen.getAllByText('Trifásico 380V').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Automático')).toBeInTheDocument();
+    expect(screen.getByText('T-BAT H 5.8 V2 · Alta tensão (HV)')).toBeInTheDocument();
     expect(screen.getAllByText('Requer atenção').length).toBeGreaterThan(0);
   });
 
