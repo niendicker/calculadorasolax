@@ -92,7 +92,6 @@ describe('ProjectWorkspace', () => {
 
   it('delegates a resource click to the focused technical editor', () => {
     const onOpenResource = vi.fn();
-    const onBackToOverview = vi.fn();
     render(
       <NextIntlClientProvider locale="pt" messages={ptMessages}>
         <ProjectWorkspace
@@ -107,7 +106,6 @@ describe('ProjectWorkspace', () => {
         inverterCatalog={inverterCatalog}
         availableInverterModels={null}
         onOpenResource={onOpenResource}
-        onBackToOverview={onBackToOverview}
         activeResourceId="white_tariff"
       >
         <div>Fluxo técnico atual</div>
@@ -119,8 +117,6 @@ describe('ProjectWorkspace', () => {
 
     expect(onOpenResource).toHaveBeenCalledWith('white_tariff');
     expect(screen.getByRole('heading', { name: 'Recursos — Tarifa Branca' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Voltar para Visão geral' }));
-    expect(onBackToOverview).toHaveBeenCalledOnce();
   });
 
   it('delegates budget and report actions without duplicating their flows', () => {

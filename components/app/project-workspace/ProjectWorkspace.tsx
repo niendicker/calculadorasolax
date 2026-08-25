@@ -136,7 +136,6 @@ export function ProjectWorkspace({
   onUpdateProjectInfo,
   onSaveProject,
   onCancelProjectEdit,
-  onBackToOverview,
   activeResourceId,
   onOpenResource,
   onOpenTechnical,
@@ -164,7 +163,6 @@ export function ProjectWorkspace({
   onUpdateProjectInfo?: (partial: Partial<ProjectInfo>) => void;
   onSaveProject?: () => void;
   onCancelProjectEdit?: () => void;
-  onBackToOverview?: () => void;
   activeResourceId?: DesiredFeatureId | null;
   onOpenResource?: (id: DesiredFeatureId) => void;
   onOpenTechnical?: () => void;
@@ -409,7 +407,6 @@ export function ProjectWorkspace({
         <>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-2">
-              {onBackToOverview && <Button type="button" variant="outline" size="sm" onClick={onBackToOverview}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Voltar para Visão geral</Button>}
               <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Recursos — {resources.find((item) => item.id === activeResourceId)?.label || 'Editar recurso'}</h2>{activeResourceId && <StateBadge state={resources.find((item) => item.id === activeResourceId)?.state || 'attention'} />}</div>
               <p className="text-sm text-muted-foreground">Configure este recurso sem sair do Workspace. As alterações afetam a solução técnica.</p>
             </div>

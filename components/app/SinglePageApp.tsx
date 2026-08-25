@@ -889,7 +889,6 @@ export function SinglePageApp() {
               onUpdateProjectInfo={setProjectInfo}
               onSaveProject={() => { void saveProject(); }}
               onCancelProjectEdit={() => { cancelProjectDraft(); returnToWorkspace(); }}
-              onBackToOverview={returnToWorkspace}
               activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
