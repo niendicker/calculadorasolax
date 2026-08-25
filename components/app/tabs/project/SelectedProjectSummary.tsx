@@ -10,6 +10,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  PanelTop,
   Phone,
   Users,
   X,
@@ -87,6 +88,7 @@ export function SelectedProjectSummary({
   marginSettings,
   onClose,
   onOpenSizing,
+  onOpenWorkspace,
   onUpdateStatus,
   onManageSuppliers,
   onOpenProfile,
@@ -105,6 +107,7 @@ export function SelectedProjectSummary({
    *  complete with its own discard confirmation when dirty). */
   onClose?: () => void;
   onOpenSizing: () => void;
+  onOpenWorkspace?: () => void;
   onUpdateStatus: (status: ProjectStatus) => void;
   /** Sends the seller to Fornecedores — used by the supplier quote-request modal
    *  when they haven't picked any suppliers there yet. */
@@ -384,6 +387,13 @@ export function SelectedProjectSummary({
         Ir para Dimensionamento
         <ChevronRight className="h-4 w-4" />
       </Button>
+
+      {onOpenWorkspace && (
+        <Button variant="outline" size="lg" className="mt-2 w-full" onClick={onOpenWorkspace}>
+          <PanelTop className="h-4 w-4" />
+          Abrir Workspace
+        </Button>
+      )}
 
       <Button
         size="lg"

@@ -56,6 +56,7 @@ export function ProjectTab({
   onCancelNew,
   onOpen,
   onOpenSizing,
+  onOpenWorkspace,
   onRemove,
   onRefreshSolution,
   refreshingProjectId,
@@ -87,6 +88,7 @@ export function ProjectTab({
   onCancelNew: () => void;
   onOpen: (id: string) => void;
   onOpenSizing: (id: string) => void;
+  onOpenWorkspace?: (id: string) => void;
   onRemove: (id: string) => void;
   onRefreshSolution: (id: string) => void;
   /** Id of the project currently being recalculated, if any — used to show a
@@ -248,6 +250,7 @@ export function ProjectTab({
                 : undefined
             }
             onOpenSizing={() => onOpenSizing(summaryProject.id)}
+            onOpenWorkspace={() => onOpenWorkspace?.(summaryProject.id)}
             onUpdateStatus={(status) => onUpdateStatus(summaryProject.id, status)}
             onManageSuppliers={onManageSuppliers}
             onOpenProfile={onOpenProfile}
@@ -394,6 +397,7 @@ export function ProjectTab({
                       onOpen(project.id);
                     }}
                     onOpenSizing={() => onOpenSizing(project.id)}
+                    onOpenWorkspace={() => onOpenWorkspace?.(project.id)}
                     onRemove={() => onRemove(project.id)}
                     onRefreshSolution={() => onRefreshSolution(project.id)}
                     refreshing={refreshingProjectId === project.id}

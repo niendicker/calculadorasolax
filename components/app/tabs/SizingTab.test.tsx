@@ -250,6 +250,23 @@ describe('SizingTab: title bar', () => {
     expect(button).toHaveAttribute('title', 'Nenhuma alteração desde o último cálculo.');
   });
 
+  it('keeps the pending-settings message in Calcular tooltip only', () => {
+    setup({
+      canCalculate: false,
+      residentialOptions: {
+        ...emptyResidentialOptions,
+        topology: 'HighVoltage',
+        batteryModel: battery.model,
+        gridType: 'singlePhase_220',
+        loads: [{ qty: 1 }],
+      },
+    });
+    const button = screen.getByRole('button', { name: 'Calcular' });
+
+    expect(button).toHaveAttribute('title', 'Revise as configurações pendentes antes de calcular.');
+    expect(screen.queryByText('Revise as configurações pendentes antes de calcular.')).not.toBeInTheDocument();
+  });
+
   it('keeps Calcular enabled when there are uncalculated changes', () => {
     setup({ canCalculate: true, hasUncalculatedChanges: true });
     const button = screen.getByRole('button', { name: 'Calcular' });

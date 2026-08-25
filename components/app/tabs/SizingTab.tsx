@@ -70,7 +70,7 @@ const microgridGuide = getGuideContent('pt').sections.find((section) => section.
  * widens the id space just enough to let one card grid + one strip + one
  * "active item" state cover both, instead of a separate tab layer per
  * concern (see the removed mainTab/configTab split this replaced). */
-type PickerItemId = DesiredFeatureId | 'gridType' | 'battery';
+export type PickerItemId = DesiredFeatureId | 'gridType' | 'battery';
 
 type PickerItemState = 'on' | 'warn' | 'off';
 
@@ -136,6 +136,8 @@ export function SizingTab({
   marginSettings,
   onChooseMicrogridVariant,
   summaryDrawerOpen,
+  initialActiveItem,
+  onBackToWorkspace,
 }: {
   projectName: string;
   /** Set only for an already-saved project — a brand-new, not-yet-saved
@@ -227,8 +229,10 @@ export function SizingTab({
    *  shown/hidden. Used to reset back to "Resumo" whenever the drawer opens,
    *  regardless of whichever tab a previous calculation left selected. */
   summaryDrawerOpen: boolean;
+  initialActiveItem?: PickerItemId | null;
+  onBackToWorkspace?: () => void;
 }) {
-  const [activeItem, setActiveItem] = useState<PickerItemId | null>(null);
+  const [activeItem, setActiveItem] = useState<PickerItemId | null>(initialActiveItem ?? null);
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
@@ -371,6 +375,7 @@ export function SizingTab({
       : calculateRequirements.length > 0
         ? `Para calcular, ${calculateRequirements.join(', ')}.`
         : 'Revise as configurações pendentes antes de calcular.';
+  const calculateHelpTextIsTooltipOnly = calculateHelpText === 'Revise as configurações pendentes antes de calcular.';
 
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
@@ -467,16 +472,23 @@ export function SizingTab({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dimensionamento</h1>
           {projectName && currentProjectId ? (
-            <button
-              type="button"
-              onClick={onBackToProject}
-              title="Voltar para Projetos"
-              className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-            >
-              <ChevronLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {projectName}
-            </button>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <button
+                type="button"
+                onClick={onBackToProject}
+                title="Voltar para Projetos"
+                className="flex items-center gap-1 text-muted-foreground underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+              >
+                <ChevronLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {projectName}
+              </button>
+              {onBackToWorkspace && (
+                <button type="button" onClick={onBackToWorkspace} className="font-medium text-primary hover:underline">
+                  Voltar ao Workspace
+                </button>
+              )}
+            </div>
           ) : (
             projectName && (
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -505,13 +517,13 @@ export function SizingTab({
               onClick={calculate}
               disabled={!canCalculate || loading || !hasUncalculatedChanges}
               title={calculateHelpText}
-              aria-describedby="calculate-help"
+              aria-describedby={calculateHelpText && !calculateHelpTextIsTooltipOnly ? 'calculate-help' : undefined}
               aria-busy={loading}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
               {loading ? loadingLabel : calculateLabel}
             </Button>
-            {calculateHelpText && (
+            {calculateHelpText && !calculateHelpTextIsTooltipOnly && (
               <span id="calculate-help" className="max-w-56 text-right text-[0.68rem] leading-tight text-muted-foreground">
                 {calculateHelpText}
               </span>

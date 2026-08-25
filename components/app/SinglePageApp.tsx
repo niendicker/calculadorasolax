@@ -47,6 +47,8 @@ import { DemoBanner } from './demo/DemoBanner';
 import { DemoPickerDialog } from './demo/DemoPickerDialog';
 import { useDemoController } from './demo/useDemoController';
 import { ProjectTab } from './tabs/ProjectTab';
+import { ProjectWorkspace } from './project-workspace/ProjectWorkspace';
+import type { PickerItemId } from './tabs/SizingTab';
 import { GuidePage } from '../guide/GuidePage';
 import { getGuideContent } from '@/content/guide';
 
@@ -168,6 +170,9 @@ export function SinglePageApp() {
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaceResource, setWorkspaceResource] = useState<PickerItemId | null>(null);
+  const [workspaceReturnAvailable, setWorkspaceReturnAvailable] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0';
@@ -306,6 +311,33 @@ export function SinglePageApp() {
     setActiveTab: changeTab,
     isDemo,
   });
+
+  function openProjectWorkspace(id: string) {
+    loadProject(id, { showDetails: false });
+    setWorkspaceResource(null);
+    setWorkspaceReturnAvailable(false);
+    setWorkspaceOpen(true);
+    changeTab('sizing');
+    reportStatus('Projeto carregado.');
+  }
+
+  function openWorkspaceResource(id: PickerItemId) {
+    setWorkspaceResource(id);
+    setWorkspaceReturnAvailable(true);
+    setWorkspaceOpen(false);
+  }
+
+  function openWorkspaceTechnical() {
+    setWorkspaceResource(null);
+    setWorkspaceReturnAvailable(true);
+    setWorkspaceOpen(false);
+  }
+
+  function returnToWorkspace() {
+    setWorkspaceResource(null);
+    setWorkspaceReturnAvailable(false);
+    setWorkspaceOpen(true);
+  }
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
   // only while actually viewing that tab, logged in, and once something is
@@ -681,7 +713,8 @@ export function SinglePageApp() {
               demoDisabled={isDemo || initialLoading || loadPresets.length === 0 || batteryCatalog.length === 0}
               onCancelNew={cancelNewProject}
               onOpen={openProject}
-              onOpenSizing={openProjectSizing}
+              onOpenSizing={(id) => { setWorkspaceOpen(false); setWorkspaceResource(null); setWorkspaceReturnAvailable(false); openProjectSizing(id); }}
+              onOpenWorkspace={openProjectWorkspace}
               onRemove={deleteProject}
               onRefreshSolution={refreshProjectSolution}
               refreshingProjectId={refreshingProjectId}
@@ -760,60 +793,79 @@ export function SinglePageApp() {
               />
             )
           ) : (
-            <SizingTab
-              projectName={projectInfo.name}
-              currentProjectId={currentProjectId}
-              onBackToProject={backToProject}
-              loadingLabel={tc('loading')}
-              calculateLabel={tc('calculate')}
+            <ProjectWorkspace
+              enabled={workspaceOpen && Boolean(currentProjectId)}
+              projectInfo={projectInfo}
+              client={clients.find((item) => item.id === projectInfo.clientId)}
               residentialOptions={residentialOptions}
-              batteryCatalog={batteryCatalog}
-              inverterCatalog={inverterCatalog}
-              availableInverterModels={availableInverterModels}
-              availableInverterModelsByTopology={availableInverterModelsByTopology}
               solution={solution}
-              secondarySolution={secondarySolution}
-              secondaryError={secondaryError}
               nominalW={nominalW}
               peakW={peakW}
               dailyKwh={dailyKwh}
-              canCalculate={Boolean(canCalculate)}
-              hasUncalculatedChanges={hasUncalculatedChanges}
-              loading={loading}
-              initialLoading={initialLoading}
-              error={error}
-              setTopology={setTopology}
-              setBatteryModel={setBatteryModelAndRecalc}
-              setSecondaryBatteryModel={setSecondaryBatteryModelAndRecalc}
-              setInverterModel={setInverterModelAndRecalc}
-              setMinInverterQty={setMinInverterQtyAndRecalc}
-              setGridType={setGridType}
-              setDesiredFeatures={setDesiredFeatures}
-              setWhiteTariffConfig={setWhiteTariffConfig}
-              setMicrogridConfig={setMicrogridConfig}
-              setGeneratorConfig={setGeneratorConfig}
-              setPvConfig={setPvConfig}
-              setAtsPhotoUrl={setAtsPhotoUrl}
-              setAtsBackupAcknowledged={setAtsBackupAcknowledged}
-              onUploadFeaturePhoto={uploadFeaturePhoto}
-              resetResidential={resetResidentialToDefaults}
-              calculate={calculateAndShowSummary}
-              exportPdf={exportPdf}
-              exportingPdf={exportingPdf}
-              onSendQuote={sendQuoteByWhatsApp}
-              sendingQuote={sendingQuote}
-              canSendQuoteByWhatsApp={canSendQuoteByWhatsApp}
-              onQuoteSolution={quoteSolution}
-              autosaveStatus={autosaveStatus}
-              autosaveLastSavedAt={autosaveLastSavedAt}
-              productMedia={productMedia}
-              userStockItems={userStockItems}
-              services={services}
-              userServices={userServices}
-              marginSettings={marginSettings}
-              onChooseMicrogridVariant={chooseMicrogridVariant}
-              summaryDrawerOpen={summaryDrawerOpen}
-            />
+              solutionIsStale={hasUncalculatedChanges}
+              inverterCatalog={inverterCatalog}
+              availableInverterModels={availableInverterModels}
+              onBackToProjects={backToProject}
+              onOpenResource={openWorkspaceResource}
+              onOpenTechnical={openWorkspaceTechnical}
+            >
+              <SizingTab
+                projectName={projectInfo.name}
+                currentProjectId={currentProjectId}
+                onBackToProject={backToProject}
+                loadingLabel={tc('loading')}
+                calculateLabel={tc('calculate')}
+                residentialOptions={residentialOptions}
+                batteryCatalog={batteryCatalog}
+                inverterCatalog={inverterCatalog}
+                availableInverterModels={availableInverterModels}
+                availableInverterModelsByTopology={availableInverterModelsByTopology}
+                solution={solution}
+                secondarySolution={secondarySolution}
+                secondaryError={secondaryError}
+                nominalW={nominalW}
+                peakW={peakW}
+                dailyKwh={dailyKwh}
+                canCalculate={Boolean(canCalculate)}
+                hasUncalculatedChanges={hasUncalculatedChanges}
+                loading={loading}
+                initialLoading={initialLoading}
+                error={error}
+                setTopology={setTopology}
+                setBatteryModel={setBatteryModelAndRecalc}
+                setSecondaryBatteryModel={setSecondaryBatteryModelAndRecalc}
+                setInverterModel={setInverterModelAndRecalc}
+                setMinInverterQty={setMinInverterQtyAndRecalc}
+                setGridType={setGridType}
+                setDesiredFeatures={setDesiredFeatures}
+                setWhiteTariffConfig={setWhiteTariffConfig}
+                setMicrogridConfig={setMicrogridConfig}
+                setGeneratorConfig={setGeneratorConfig}
+                setPvConfig={setPvConfig}
+                setAtsPhotoUrl={setAtsPhotoUrl}
+                setAtsBackupAcknowledged={setAtsBackupAcknowledged}
+                onUploadFeaturePhoto={uploadFeaturePhoto}
+                resetResidential={resetResidentialToDefaults}
+                calculate={calculateAndShowSummary}
+                exportPdf={exportPdf}
+                exportingPdf={exportingPdf}
+                onSendQuote={sendQuoteByWhatsApp}
+                sendingQuote={sendingQuote}
+                canSendQuoteByWhatsApp={canSendQuoteByWhatsApp}
+                onQuoteSolution={quoteSolution}
+                autosaveStatus={autosaveStatus}
+                autosaveLastSavedAt={autosaveLastSavedAt}
+                productMedia={productMedia}
+                userStockItems={userStockItems}
+                services={services}
+                userServices={userServices}
+                marginSettings={marginSettings}
+                onChooseMicrogridVariant={chooseMicrogridVariant}
+                summaryDrawerOpen={summaryDrawerOpen}
+                initialActiveItem={workspaceResource}
+                onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}
+              />
+            </ProjectWorkspace>
           )}
                 </SetSummaryActiveProvider>
               </SummaryPortalProvider>

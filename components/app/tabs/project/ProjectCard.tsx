@@ -9,6 +9,7 @@ import {
   Loader2,
   Mail,
   MoreHorizontal,
+  PanelTop,
   Pencil,
   Phone,
   RefreshCw,
@@ -162,6 +163,7 @@ export function ProjectCard({
   onSelect,
   onOpen,
   onOpenSizing,
+  onOpenWorkspace,
   onRefreshSolution,
   refreshing,
   onUpdateStatus,
@@ -179,6 +181,7 @@ export function ProjectCard({
   onSelect: () => void;
   onOpen: () => void;
   onOpenSizing: () => void;
+  onOpenWorkspace?: () => void;
   onRefreshSolution: () => void;
   refreshing: boolean;
   onUpdateStatus: (status: ProjectStatus) => void;
@@ -317,7 +320,13 @@ export function ProjectCard({
         />
       </div>
       <div className="mt-auto space-y-2 pt-1">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+          {onOpenWorkspace && (
+            <Button variant="outline" size="sm" onClick={stopAnd(onOpenWorkspace)}>
+              <PanelTop className="h-4 w-4" />
+              Workspace
+            </Button>
+          )}
           <Button size="sm" onClick={stopAnd(onOpenSizing)}>
             <Calculator className="h-4 w-4" />
             Dimensionamento
