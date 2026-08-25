@@ -474,9 +474,6 @@ export function ProjectWorkspace({
               <h2 className="text-lg font-semibold">Configuração técnica</h2>
               <p className="text-sm text-muted-foreground">Selecione a rede, o inversor e as baterias desta instalação.</p>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => openSizingSection('overview')}>
-              Voltar para Visão geral
-            </Button>
           </div>
           {technicalEditorOpen && children}
         </>
