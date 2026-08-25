@@ -301,7 +301,7 @@ export function ProjectWorkspace({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => openSizingSection('project')}>
+            <Button size="sm" onClick={() => openSizingSection('project')}>
               Editar projeto
             </Button>
             <WorkspaceActionsMenu />
