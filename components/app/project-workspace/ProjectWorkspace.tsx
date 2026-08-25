@@ -632,7 +632,7 @@ function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { resid
   return <div className="space-y-4">
     <div><h2 className="text-lg font-semibold">Cargas</h2><p className="text-sm text-muted-foreground">{residentialOptions.loads.length} carga(s) cadastrada(s)</p></div>
     <div className="grid grid-cols-3 divide-x overflow-hidden rounded-lg border bg-card"><MetricCard compact label="Potência nominal" value={formatKva(nominalW)} icon={Zap} /><MetricCard compact label="Pico considerado" value={formatKva(peakW)} icon={Gauge} /><MetricCard compact label="Energia diária" value={formatKwh(dailyKwh)} icon={BatteryCharging} /></div>
-    <LoadSelector defaultToMine showOperationHours={false} />
+    <LoadSelector defaultToMine showOperationHours={false} collapsedByDefault />
   </div>;
 }
 

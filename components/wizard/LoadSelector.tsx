@@ -86,7 +86,7 @@ export function OperationHoursControl() {
   );
 }
 
-export function LoadSelector({ defaultToMine = false, showOperationHours = true }: { defaultToMine?: boolean; showOperationHours?: boolean } = {}) {
+export function LoadSelector({ defaultToMine = false, showOperationHours = true, collapsedByDefault = false }: { defaultToMine?: boolean; showOperationHours?: boolean; collapsedByDefault?: boolean } = {}) {
   const t = useTranslations('loads');
   const locale = useLocale();
 
@@ -111,7 +111,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
   const maxPowerPerPhaseW = residentialOptions.maxPowerPerPhaseW;
   const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
-  const [sectionOpen, setSectionOpen] = useState(true);
+  const [sectionOpen, setSectionOpen] = useState(!collapsedByDefault);
   const [activeSubTab, setActiveSubTab] = useState<'presets' | 'catalog'>('presets');
   const [presetsSubTab, setPresetsSubTab] = useState<'system' | 'mine'>('system');
   const [search, setSearch] = useState('');
@@ -125,7 +125,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
   const [presetName, setPresetName] = useState('');
   const [dragOverPhase, setDragOverPhase] = useState<LoadPhase | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<LoadPhase | 'all'>('all');
-  const [advancedOpen, setAdvancedOpen] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(!collapsedByDefault);
 
   const handleSubTabClick = (tab: 'presets' | 'catalog') => {
     setActiveSubTab(tab);
