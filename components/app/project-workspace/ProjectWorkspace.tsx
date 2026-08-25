@@ -309,7 +309,7 @@ export function ProjectWorkspace({
             </Button>
           </div>
         </div>
-        <nav className="mt-5 -mb-3 flex gap-1 overflow-x-auto border-b border-border/60" aria-label="Seções do projeto">
+        <nav className="mt-5 flex gap-1 overflow-x-auto" aria-label="Seções do projeto">
           {navigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -317,8 +317,8 @@ export function ProjectWorkspace({
               aria-current={section === id ? 'page' : undefined}
               onClick={() => openSizingSection(id)}
               className={cn(
-                'flex shrink-0 items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                section === id ? 'bg-primary/10 text-primary' : ''
+                'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                section === id ? 'border-primary text-primary' : ''
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
