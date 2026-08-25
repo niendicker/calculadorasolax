@@ -100,7 +100,7 @@ function ResourceCard({ item, onOpen }: { item: ResourceItem; onOpen?: () => voi
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-foreground">{item.label}</span>
         <span className="mt-1 block"><StateBadge state={item.state} /></span>
-        <span className="mt-1 block truncate text-xs text-muted-foreground">{item.summary}</span>
+        {item.state !== 'inactive' && <span className="mt-1 block truncate text-xs text-muted-foreground">{item.summary}</span>}
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </>
