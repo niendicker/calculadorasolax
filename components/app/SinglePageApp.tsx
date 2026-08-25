@@ -84,6 +84,17 @@ const moreNavTabLabels: Partial<Record<'purchases' | 'clients' | 'profile', stri
   profile: 'Perfil',
 };
 
+const workspaceEditorIds: PickerItemId[] = [
+  'gridType',
+  'battery',
+  'backup',
+  'external_ats',
+  'microgrid',
+  'external_generator',
+  'pv',
+  'white_tariff',
+];
+
 function BottomNavSummaryBadge() {
   return (
     <span className="absolute -right-1.5 -top-1 flex h-3 w-3 items-center justify-center rounded-full border border-background bg-primary">
@@ -392,7 +403,10 @@ export function SinglePageApp() {
     if (!workspaceId || workspaceOpen || !savedProjects.some((project) => project.id === workspaceId)) return;
 
     loadProject(workspaceId, { showDetails: false });
-    setWorkspaceResource(null);
+    const requestedEditor = params.get('workspaceResource');
+    const editor = workspaceEditorIds.find((id) => id === requestedEditor) ?? null;
+    setWorkspaceResource(editor);
+    setWorkspaceTechnicalEditorOpen(Boolean(editor) || params.get('workspace') === 'solution');
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     changeTab('sizing');
