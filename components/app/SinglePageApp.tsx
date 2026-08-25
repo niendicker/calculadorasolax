@@ -357,19 +357,6 @@ export function SinglePageApp() {
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
-  function openWorkspaceTechnical() {
-    setWorkspaceResource(null);
-    setWorkspaceTechnicalEditorOpen(true);
-    setWorkspaceConfigurationOpen(false);
-    setWorkspaceReturnAvailable(true);
-    setWorkspaceOpen(true);
-    const url = new URL(window.location.href);
-    url.searchParams.set('workspace', 'solution');
-    url.searchParams.delete('workspaceResource');
-    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'solution' }));
-  }
-
   function openWorkspaceBudget() {
     setWorkspaceOpen(false);
     setWorkspaceResource(null);
@@ -445,7 +432,7 @@ export function SinglePageApp() {
     setWorkspaceResource(editor);
     const configurationOpen = params.get('workspace') === 'configuration';
     setWorkspaceConfigurationOpen(configurationOpen);
-    setWorkspaceTechnicalEditorOpen(Boolean(editor) || params.get('workspace') === 'solution' || configurationOpen);
+    setWorkspaceTechnicalEditorOpen(Boolean(editor) || configurationOpen);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     changeTab('sizing');
@@ -927,7 +914,7 @@ export function SinglePageApp() {
               onCancelProjectEdit={() => { cancelProjectDraft(); returnToWorkspace(); }}
               activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}
-              onOpenTechnical={openWorkspaceTechnical}
+              onOpenTechnical={openWorkspaceConfiguration}
               onOpenConfiguration={openWorkspaceConfiguration}
               technicalEditorOpen={workspaceTechnicalEditorOpen}
               onOpenBudget={openWorkspaceBudget}

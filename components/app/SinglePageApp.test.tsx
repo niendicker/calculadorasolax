@@ -140,8 +140,7 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
     .find(Boolean) as HTMLElement;
   fireEvent.click(within(card).getByRole('button', { name: 'Workspace' }));
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: projectName })).toBeInTheDocument());
-  fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
-  fireEvent.click(screen.getByRole('button', { name: /Abrir dimensionamento e recalcular|Configurar e dimensionar/ }));
+  fireEvent.click(navScope().getByRole('button', { name: 'Dimensionamento' }));
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
 }
 
