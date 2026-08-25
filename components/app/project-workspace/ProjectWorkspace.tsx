@@ -120,6 +120,7 @@ export function ProjectWorkspace({
   onBackToProjects,
   onOpenResource,
   onOpenTechnical,
+  technicalEditorOpen,
   onOpenBudget,
   onGenerateReport,
   generatingReport,
@@ -139,6 +140,7 @@ export function ProjectWorkspace({
   onBackToProjects?: () => void;
   onOpenResource?: (id: DesiredFeatureId) => void;
   onOpenTechnical?: () => void;
+  technicalEditorOpen?: boolean;
   onOpenBudget?: () => void;
   onGenerateReport?: () => void;
   generatingReport?: boolean;
@@ -351,12 +353,12 @@ export function ProjectWorkspace({
       ) : section === 'resources' ? (
         <>
           <ResourcesSection resources={resources} configuredCount={configuredCount} attentionCount={attentionCount} onOpenResource={onOpenResource} />
-          <TechnicalFlowNote>{children}</TechnicalFlowNote>
+          {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
         </>
       ) : section === 'solution' ? (
         <>
           <SolutionSection solution={solution} stale={staleSolution} onOpenTechnical={onOpenTechnical} />
-          <TechnicalFlowNote>{children}</TechnicalFlowNote>
+          {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
         </>
       ) : section === 'budget' ? (
         <BudgetSection solution={solution} onOpenBudget={onOpenBudget} />

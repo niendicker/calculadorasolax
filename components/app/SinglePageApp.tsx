@@ -172,6 +172,7 @@ export function SinglePageApp() {
   );
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspaceResource, setWorkspaceResource] = useState<PickerItemId | null>(null);
+  const [workspaceTechnicalEditorOpen, setWorkspaceTechnicalEditorOpen] = useState(false);
   const [workspaceReturnAvailable, setWorkspaceReturnAvailable] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -316,6 +317,7 @@ export function SinglePageApp() {
   function openProjectWorkspace(id: string) {
     loadProject(id, { showDetails: false });
     setWorkspaceResource(null);
+    setWorkspaceTechnicalEditorOpen(false);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     changeTab('sizing');
@@ -329,8 +331,9 @@ export function SinglePageApp() {
 
   function openWorkspaceResource(id: PickerItemId) {
     setWorkspaceResource(id);
+    setWorkspaceTechnicalEditorOpen(true);
     setWorkspaceReturnAvailable(true);
-    setWorkspaceOpen(false);
+    setWorkspaceOpen(true);
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'resources');
     url.searchParams.set('workspaceResource', id);
@@ -339,8 +342,9 @@ export function SinglePageApp() {
 
   function openWorkspaceTechnical() {
     setWorkspaceResource(null);
+    setWorkspaceTechnicalEditorOpen(true);
     setWorkspaceReturnAvailable(true);
-    setWorkspaceOpen(false);
+    setWorkspaceOpen(true);
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'solution');
     url.searchParams.delete('workspaceResource');
@@ -349,6 +353,7 @@ export function SinglePageApp() {
 
   function returnToWorkspace() {
     setWorkspaceResource(null);
+    setWorkspaceTechnicalEditorOpen(false);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     const url = new URL(window.location.href);
@@ -754,7 +759,7 @@ export function SinglePageApp() {
               demoDisabled={isDemo || initialLoading || loadPresets.length === 0 || batteryCatalog.length === 0}
               onCancelNew={cancelNewProject}
               onOpen={openProject}
-              onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceOpen(false); setWorkspaceResource(null); setWorkspaceReturnAvailable(false); openProjectSizing(id); }}
+              onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceOpen(false); setWorkspaceResource(null); setWorkspaceTechnicalEditorOpen(false); setWorkspaceReturnAvailable(false); openProjectSizing(id); }}
               onOpenWorkspace={openProjectWorkspace}
               onRemove={deleteProject}
               onRefreshSolution={refreshProjectSolution}
@@ -849,6 +854,7 @@ export function SinglePageApp() {
               onBackToProjects={() => { clearWorkspaceUrl(); backToProject(); }}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
+              technicalEditorOpen={workspaceTechnicalEditorOpen}
               onOpenBudget={openPurchasesTab}
               onGenerateReport={exportPdf}
               generatingReport={exportingPdf}
