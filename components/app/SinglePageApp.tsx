@@ -884,6 +884,8 @@ export function SinglePageApp() {
               productMedia={productMedia}
               availableInverterModels={availableInverterModels}
               onBackToProjects={() => { clearWorkspaceUrl(); backToProject(); }}
+              onBackToOverview={returnToWorkspace}
+              activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
               technicalEditorOpen={workspaceTechnicalEditorOpen}

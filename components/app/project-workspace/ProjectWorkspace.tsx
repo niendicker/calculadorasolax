@@ -127,6 +127,8 @@ export function ProjectWorkspace({
   productMedia = {},
   availableInverterModels,
   onBackToProjects,
+  onBackToOverview,
+  activeResourceId,
   onOpenResource,
   onOpenTechnical,
   technicalEditorOpen,
@@ -149,6 +151,8 @@ export function ProjectWorkspace({
   productMedia?: Record<string, ProductMedia>;
   availableInverterModels: Set<string> | null;
   onBackToProjects?: () => void;
+  onBackToOverview?: () => void;
+  activeResourceId?: DesiredFeatureId | null;
   onOpenResource?: (id: DesiredFeatureId) => void;
   onOpenTechnical?: () => void;
   technicalEditorOpen?: boolean;
@@ -373,7 +377,13 @@ export function ProjectWorkspace({
         </>
       ) : section === 'resource' ? (
         <>
-          <div className="space-y-2"><h2 className="text-lg font-semibold">Editar recurso</h2><p className="text-sm text-muted-foreground">A configuração afeta a solução técnica deste Workspace.</p></div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              {onBackToOverview && <Button type="button" variant="outline" size="sm" onClick={onBackToOverview}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Voltar para Visão geral</Button>}
+              <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Recursos — {resources.find((item) => item.id === activeResourceId)?.label || 'Editar recurso'}</h2>{activeResourceId && <StateBadge state={resources.find((item) => item.id === activeResourceId)?.state || 'attention'} />}</div>
+              <p className="text-sm text-muted-foreground">Configure este recurso sem sair do Workspace. As alterações afetam a solução técnica.</p>
+            </div>
+          </div>
           {technicalEditorOpen && <TechnicalFlowNote>{children}</TechnicalFlowNote>}
         </>
       ) : section === 'solution' ? (
@@ -490,27 +500,26 @@ function SolutionSection({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {solution && <StateBadge state={stale ? 'attention' : 'configured'} />}
-          {onOpenTechnical && <Button onClick={onOpenTechnical}>{solution ? 'Recalcular solução' : 'Configurar e dimensionar'}</Button>}
+          {onOpenTechnical && <Button onClick={onOpenTechnical}>{solution ? 'Abrir dimensionamento e recalcular' : 'Configurar e dimensionar'}</Button>}
         </div>
       </div>
 
       {!solution ? (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-            <div><p className="font-medium">Solução ainda não calculada</p><p className="mt-1 text-sm text-muted-foreground">Configure os dados técnicos para gerar uma recomendação.</p></div>
-            {onOpenTechnical && <Button onClick={onOpenTechnical}>Configurar e dimensionar</Button>}
+            <div><p className="font-medium">Solução ainda não calculada</p><p className="mt-1 text-sm text-muted-foreground">Configure os dados técnicos para gerar uma recomendação usando o botão acima.</p></div>
           </CardContent>
         </Card>
       ) : (
         <>
           {stale && <div className="flex items-start gap-2 rounded-lg border border-amber-300/70 bg-amber-50/60 p-3 text-sm text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>As configurações do Workspace foram alteradas após o último cálculo. Recalcule para atualizar esta solução.</span></div>}
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1 sm:grid-cols-4" role="tablist" aria-label="Detalhes da solução">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1 sm:grid-cols-4" role="group" aria-label="Detalhes da solução">
             {([
               ['summary', 'Resumo'],
               ['equipment', 'Equipamentos'],
               ['margins', 'Margens'],
               ['criteria', 'Critérios'],
-            ] as const).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === id ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}>{label}</button>)}
+            ] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === id ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}>{label}</button>)}
           </div>
 
           {view === 'summary' && metrics && (
