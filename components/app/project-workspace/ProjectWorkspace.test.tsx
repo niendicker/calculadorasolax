@@ -150,7 +150,7 @@ describe('ProjectWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /Tarifa Branca/ }));
 
     expect(onOpenResource).toHaveBeenCalledWith('white_tariff');
-    expect(screen.getByRole('heading', { name: 'Recursos — Tarifa Branca' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Recursos — Tarifa Branca' })).not.toBeInTheDocument();
   });
 
   it('delegates budget and report actions without duplicating their flows', () => {
