@@ -66,7 +66,7 @@ function StateBadge({ state }: { state: ResourceState }) {
   const content = {
     configured: { label: 'Configurado', icon: CheckCircle2, className: 'text-emerald-600' },
     attention: { label: 'Requer atenção', icon: AlertTriangle, className: 'text-amber-600' },
-    inactive: { label: 'Não configurado', icon: null, className: 'text-muted-foreground' },
+    inactive: { label: 'Desabilitado', icon: null, className: 'text-muted-foreground' },
   }[state];
   const Icon = content.icon;
 
@@ -236,22 +236,22 @@ export function ProjectWorkspace({
     {
       id: 'pv', label: desiredFeatureLabel('pv'), icon: featureIcons.pv,
       state: enabledFeatures.includes('pv') ? hasFeatureIssue('pv') ? 'attention' : 'configured' : 'inactive',
-      summary: enabledFeatures.includes('pv') ? residentialOptions.pv ? 'Parâmetros preenchidos' : 'Faltam dados' : 'Não configurado',
+      summary: enabledFeatures.includes('pv') ? residentialOptions.pv ? 'Parâmetros preenchidos' : 'Faltam dados' : 'Desabilitado',
     },
     {
       id: 'external_generator', label: desiredFeatureLabel('external_generator'), icon: featureIcons.external_generator,
       state: enabledFeatures.includes('external_generator') ? hasFeatureIssue('external_generator') ? 'attention' : 'configured' : 'inactive',
-      summary: enabledFeatures.includes('external_generator') ? residentialOptions.generator ? 'Configuração preenchida' : 'Faltam dados' : 'Não configurado',
+      summary: enabledFeatures.includes('external_generator') ? residentialOptions.generator ? 'Configuração preenchida' : 'Faltam dados' : 'Desabilitado',
     },
     {
       id: 'microgrid', label: desiredFeatureLabel('microgrid'), icon: featureIcons.microgrid,
       state: enabledFeatures.includes('microgrid') ? hasFeatureIssue('microgrid') ? 'attention' : 'configured' : 'inactive',
-      summary: enabledFeatures.includes('microgrid') ? residentialOptions.microgrid ? 'Configuração preenchida' : 'Faltam dados' : 'Não configurado',
+      summary: enabledFeatures.includes('microgrid') ? residentialOptions.microgrid ? 'Configuração preenchida' : 'Faltam dados' : 'Desabilitado',
     },
     {
       id: 'external_ats', label: desiredFeatureLabel('external_ats'), icon: featureIcons.external_ats,
       state: enabledFeatures.includes('external_ats') ? hasFeatureIssue('external_ats') ? 'attention' : 'configured' : 'inactive',
-      summary: enabledFeatures.includes('external_ats') ? residentialOptions.atsBackupAcknowledged ? 'ATS confirmado' : 'Confirmação pendente' : 'Não configurado',
+      summary: enabledFeatures.includes('external_ats') ? residentialOptions.atsBackupAcknowledged ? 'ATS confirmado' : 'Confirmação pendente' : 'Desabilitado',
     },
   ];
   const configuredCount = resources.filter((item) => item.state === 'configured').length;
