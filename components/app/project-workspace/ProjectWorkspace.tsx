@@ -617,7 +617,11 @@ function ProjectInfoEditor({
 }
 
 function MetricCard({ label, value, icon: Icon, compact = false }: { label: string; value: string; icon: typeof Zap; compact?: boolean }) {
-  return <Card className={cn(compact ? 'p-3' : 'p-4')}><div className={cn('flex items-center gap-2 text-xs text-muted-foreground', compact && 'gap-1.5')}><Icon className={cn(compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} aria-hidden="true" />{label}</div><p className={cn('font-semibold tabular-nums', compact ? 'mt-1 text-xl' : 'mt-2 text-2xl')}>{value}</p></Card>;
+  if (compact) {
+    return <div className="min-w-0 px-2.5 py-2 sm:px-3"><div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground"><Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{label}</span></div><p className="mt-0.5 text-lg font-semibold tabular-nums">{value}</p></div>;
+  }
+
+  return <Card className="p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="h-4 w-4" aria-hidden="true" />{label}</div><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></Card>;
 }
 
 function SolutionValue({ label, value }: { label: string; value: string }) {
@@ -633,7 +637,7 @@ function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { resid
 
   return <div className="space-y-4">
     <div><h2 className="text-lg font-semibold">Cargas</h2><p className="text-sm text-muted-foreground">{residentialOptions.loads.length} carga(s) cadastrada(s)</p></div>
-    <div className="grid gap-2 sm:grid-cols-3"><MetricCard compact label="Potência nominal" value={formatKva(nominalW)} icon={Zap} /><MetricCard compact label="Pico considerado" value={formatKva(peakW)} icon={Gauge} /><MetricCard compact label="Energia diária" value={formatKwh(dailyKwh)} icon={BatteryCharging} /></div>
+    <div className="grid grid-cols-3 divide-x overflow-hidden rounded-lg border bg-card"><MetricCard compact label="Potência nominal" value={formatKva(nominalW)} icon={Zap} /><MetricCard compact label="Pico considerado" value={formatKva(peakW)} icon={Gauge} /><MetricCard compact label="Energia diária" value={formatKwh(dailyKwh)} icon={BatteryCharging} /></div>
     <Card><CardHeader className="pb-2"><h3 className="text-sm font-semibold">Distribuição de fases</h3></CardHeader><CardContent className="grid gap-2 pt-0 sm:grid-cols-3">{(['L1', 'L2', 'L3'] as const).map((phase) => <div key={phase} className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">{phase}</p><p className="mt-1 font-semibold">{formatKva(phaseTotals[phase])}</p></div>)}</CardContent></Card>
     <LoadSelector defaultToMine showOperationHours={false} />
   </div>;
