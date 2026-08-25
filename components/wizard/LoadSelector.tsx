@@ -564,18 +564,6 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
             </span>
             <ChevronDown className={cn('mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform', advancedOpen && 'rotate-180')} aria-hidden="true" />
           </button>
-          {!advancedOpen && residentialOptions.loads.length > 0 && (
-            <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              Máxima: <span className="font-medium text-foreground">{(residentialOptions.peakCalcMode ?? 'sum') === 'sum' ? 'todas as partidas' : (residentialOptions.peakCalcMode ?? 'sum') === 'largest-surge' ? 'maior pico' : 'cargas selecionadas'}</span>
-              {gridType && gridTypePhaseCount[gridType] > 1 ? ' · distribuição por fase disponível' : ''}
-            </p>
-          )}
-          {!advancedOpen && maxPowerPerPhaseW && Object.values(phaseTotals).some((value) => value > maxPowerPerPhaseW) && (
-            <p role="alert" className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              Uma ou mais fases ultrapassam o máximo configurado. Abra as configurações para redistribuir as cargas.
-            </p>
-          )}
           {advancedOpen && (
           <div className="space-y-3">
           {residentialOptions.loads.length > 0 && (
