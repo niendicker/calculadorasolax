@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import ptMessages from '@/messages/pt.json';
@@ -92,6 +92,15 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByRole('heading', { name: 'Cargas' })).toBeInTheDocument();
     expect(screen.queryByText('Por quanto tempo as cargas devem operar?')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?workspace=loads');
+  });
+
+  it('responds when a nested resource editor navigates to Loads', async () => {
+    renderWorkspace();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'loads' }));
+    });
+    expect(screen.getByRole('heading', { name: 'Cargas' })).toBeInTheDocument();
   });
 
   it('opens the section from the URL when the workspace is refreshed', () => {

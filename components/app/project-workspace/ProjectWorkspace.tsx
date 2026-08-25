@@ -190,14 +190,23 @@ export function ProjectWorkspace({
     selectedInverterModel: residentialOptions.inverterModel,
   });
   useEffect(() => {
+    const setSectionFromValue = (value: string | null) => {
+      if (value === 'resource' || value === 'project' || (value && navigation.some((item) => item.id === value))) {
+        setSectionState(value as WorkspaceSection);
+      }
+    };
     const value = new URLSearchParams(window.location.search).get('workspace');
     // The URL is external state; this one-time synchronization intentionally
     // updates the section after mount so SSR and the first client paint agree.
-    if (value === 'resource' || value === 'project' || (value && navigation.some((item) => item.id === value))) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSectionState(value as WorkspaceSection);
-    }
+    setSectionFromValue(value);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrlReady(true);
+
+    const handleWorkspaceSectionChange = (event: Event) => {
+      setSectionFromValue((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener('workspace-section-change', handleWorkspaceSectionChange);
+    return () => window.removeEventListener('workspace-section-change', handleWorkspaceSectionChange);
   }, []);
   useEffect(() => {
     if (!urlReady) return;
