@@ -952,6 +952,7 @@ export function SinglePageApp() {
                 summaryDrawerOpen={summaryDrawerOpen}
                 initialActiveItem={workspaceResource}
                 onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}
+                workspaceResourceMode={workspaceTechnicalEditorOpen && Boolean(workspaceResource)}
               />
             </ProjectWorkspace>
           )}

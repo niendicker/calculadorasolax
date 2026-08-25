@@ -138,6 +138,7 @@ export function SizingTab({
   summaryDrawerOpen,
   initialActiveItem,
   onBackToWorkspace,
+  workspaceResourceMode = false,
 }: {
   projectName: string;
   /** Set only for an already-saved project — a brand-new, not-yet-saved
@@ -231,6 +232,10 @@ export function SizingTab({
   summaryDrawerOpen: boolean;
   initialActiveItem?: PickerItemId | null;
   onBackToWorkspace?: () => void;
+  /** When a resource is opened from the Workspace, its parent owns the
+   * contextual header; keep this technical editor focused on the resource
+   * controls instead of repeating Dimensionamento and the feature switcher. */
+  workspaceResourceMode?: boolean;
 }) {
   const [activeItem, setActiveItem] = useState<PickerItemId | null>(initialActiveItem ?? null);
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
@@ -468,7 +473,7 @@ export function SizingTab({
 
   return (
     <>
-      <PageHeader>
+      {!workspaceResourceMode && <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dimensionamento</h1>
           {projectName && currentProjectId ? (
@@ -530,7 +535,7 @@ export function SizingTab({
             )}
           </div>
         </div>
-      </PageHeader>
+      </PageHeader>}
 
       <PageSummary>
         {/* Sticky within the summary aside (the only place this ever renders —
@@ -753,7 +758,7 @@ export function SizingTab({
           </div>
         ) : (
           <Card className="gap-3 rounded-none border-none bg-transparent p-0 shadow-none ring-0">
-            <CardHeader className="flex flex-row flex-wrap items-start gap-2 px-0">
+            {!workspaceResourceMode && <CardHeader className="flex flex-row flex-wrap items-start gap-2 px-0">
               <Button
                 type="button"
                 variant="outline"
@@ -774,7 +779,7 @@ export function SizingTab({
                   <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
                 ))}
               </div>
-            </CardHeader>
+            </CardHeader>}
             <CardContent className="space-y-4 px-0">
               {activeItem === 'gridType' ? (
                 <div className="space-y-3 rounded-lg border border-transparent">
