@@ -206,9 +206,9 @@ export function DesiredFeaturesPicker({
           <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"
-              variant={isActiveEnabled ? 'secondary' : 'outline'}
-              size="sm"
-              className="min-w-28"
+              variant={isActiveEnabled ? 'secondary' : 'default'}
+              size="default"
+              className="min-h-10 min-w-32 px-4"
               aria-pressed={isActiveEnabled}
               onClick={() => toggle(activeTab)}
             >
