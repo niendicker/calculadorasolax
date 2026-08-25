@@ -111,9 +111,9 @@ function ResourceCard({ item, onOpen }: { item: ResourceItem; onOpen?: () => voi
   return onOpen ? <button type="button" onClick={onOpen} className="flex min-h-24 items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">{content}</button> : <div className="flex min-h-24 items-center gap-3 rounded-xl border bg-background p-3 text-left">{content}</div>;
 }
 
-function SummaryRow({ label, value, state, icon: Icon, showValue = false }: { label: string; value: string; state?: ResourceState; icon?: LucideIcon; showValue?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b py-2.5 last:border-b-0">
+function SummaryRow({ label, value, state, icon: Icon, showValue = false, onClick }: { label: string; value: string; state?: ResourceState; icon?: LucideIcon; showValue?: boolean; onClick?: () => void }) {
+  const content = (
+    <>
       <span className="flex min-w-0 items-center gap-2 truncate text-sm text-muted-foreground">
         {Icon && <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
         <span className="truncate">{label}</span>
@@ -122,8 +122,10 @@ function SummaryRow({ label, value, state, icon: Icon, showValue = false }: { la
         {showValue && <span className="truncate text-right text-sm font-medium">{value}</span>}
         {state ? <StateBadge state={state} /> : !showValue && <span className="text-right text-sm font-medium">{value}</span>}
       </span>
-    </div>
+    </>
   );
+  const className = 'flex w-full items-center justify-between gap-3 border-b py-2.5 text-left last:border-b-0';
+  return onClick ? <button type="button" onClick={onClick} className={cn(className, 'rounded-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50')}>{content}</button> : <div className={className}>{content}</div>;
 }
 
 function WorkspaceAutosaveStatus({ status, lastSavedAt }: { status: AutosaveStatus; lastSavedAt: Date | null }) {
@@ -330,8 +332,8 @@ export function ProjectWorkspace({
           <Card>
             <CardHeader className="pb-2"><h2 className="text-sm font-semibold">Resumo técnico</h2></CardHeader>
             <CardContent className="pt-0">
-              <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} />
-              {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} />)}
+              <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} onClick={() => openSizingSection('loads')} />
+              {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} onClick={() => openResourceEditor(item.id)} />)}
             </CardContent>
           </Card>
           <Card>
