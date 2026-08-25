@@ -218,30 +218,20 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     foraPontaTariffPerKwh: 0.75,
   };
 
-  it('switches between basic and advanced modes', () => {
+  it('keeps the advanced fields visible without mode selection tabs', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
-    fireEvent.click(screen.getByRole('tab', { name: 'Avançado' }));
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ inputMode: 'advanced' }));
+    expect(screen.queryByRole('tab', { name: 'Básico' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Avançado' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Potência máxima nos horários caros (kW)')).not.toBeDisabled();
+    expect(screen.getByLabelText(/Ponta · Energia/)).not.toBeDisabled();
   });
 
-  it('updates total consumption in basic mode via updateBasicWhiteTariff', () => {
+  it('updates total consumption directly in advanced mode', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
     fireEvent.change(screen.getByLabelText('Consumo total mensal (kWh/mês)'), { target: { value: '500' } });
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ totalMonthlyConsumptionKwh: 500 }));
-  });
-
-  it('updates total consumption in advanced mode directly', () => {
-    const onWhiteTariffChange = vi.fn();
-    renderPicker({
-      activeTab: 'white_tariff',
-      value: ['white_tariff'],
-      whiteTariff: { ...wt, inputMode: 'advanced' },
-      onWhiteTariffChange,
-    });
-    fireEvent.change(screen.getByLabelText('Consumo total mensal (kWh/mês)'), { target: { value: '600' } });
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ totalMonthlyConsumptionKwh: 600 }));
   });
 
   it('updates required power directly (advanced-only field)', () => {
@@ -256,13 +246,11 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
   });
 
-  it('updates ponta/intermediate percent fields in basic mode', () => {
+  it('does not render basic-mode percentage fields', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
-    fireEvent.change(screen.getByLabelText('Consumo na ponta (%)'), { target: { value: '30' } });
-    expect(onWhiteTariffChange).toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('Consumo intermediário (%)'), { target: { value: '15' } });
-    expect(onWhiteTariffChange).toHaveBeenCalled();
+    expect(screen.queryByLabelText('Consumo na ponta (%)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Consumo intermediário (%)')).not.toBeInTheDocument();
   });
 
   it('shows the backup-daily-kwh copy when Backup is also selected', () => {
@@ -485,7 +473,7 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
   });
 
   it('falls back to default empty white tariff config when whiteTariff is null but tab is active/enabled edge case', () => {
-    // whiteTariff null but value doesn't include white_tariff -> whiteInputMode defaults to 'advanced', panel not shown.
+    // whiteTariff null but value doesn't include white_tariff -> panel not shown.
     renderPicker({ activeTab: 'white_tariff', value: [], whiteTariff: null });
     expect(screen.queryByText('Resumo instantâneo')).not.toBeInTheDocument();
   });

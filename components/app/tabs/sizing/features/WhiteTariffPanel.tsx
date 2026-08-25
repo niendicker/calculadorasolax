@@ -5,7 +5,6 @@ import { AlertTriangle, Clock, Moon, Zap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { InfoLabel } from '@/components/ui/tooltip';
 import type { DesiredFeatureId, PvConfig, WhiteTariffConfig } from '@/lib/types';
 import type { EnergyTariffResult } from '@/lib/tariff/aneel-service';
 import { cn } from '@/lib/utils';
@@ -18,7 +17,7 @@ import {
 import { AutomaticTariffPanel } from './AutomaticTariffPanel';
 
 export const emptyWhiteTariffConfig: WhiteTariffConfig = {
-  inputMode: 'basic',
+  inputMode: 'advanced',
   totalMonthlyConsumptionKwh: 0,
   pontaConsumptionPercent: 20,
   intermediateConsumptionPercent: 10,
@@ -142,7 +141,6 @@ export function WhiteTariffPanel({
 }) {
   const backupDailyKwh = value.includes('backup') ? dailyKwh : 0;
   const whiteBusinessDays = whiteTariff?.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH;
-  const whiteInputMode = whiteTariff?.inputMode ?? 'advanced';
   // "automatic" (Automático pela ANEEL) is temporarily disabled — fall back to
   // "manual" even for projects saved while it was still available.
   const tariffInputMode = (
@@ -180,12 +178,10 @@ export function WhiteTariffPanel({
     const config = whiteTariff ?? emptyWhiteTariffConfig;
     const total = config.totalMonthlyConsumptionKwh ?? 0;
     const valueForField = config[field] ?? 0;
-    if (field === 'requiredPowerW' && whiteInputMode === 'basic') return undefined;
     if (field === 'pontaConsumptionPercent' || field === 'intermediateConsumptionPercent') {
       return valueForField < 0 || valueForField > 100 ? 'Informe um percentual entre 0 e 100.' : undefined;
     }
     if (field === 'pontaEnergyWh' || field === 'intermediateEnergyWh') {
-      if (whiteInputMode === 'basic') return undefined;
       if (!(valueForField > 0)) return field === 'pontaEnergyWh'
         ? 'Informe a energia mensal na ponta.'
         : 'Informe a energia mensal intermediária.';
@@ -354,21 +350,6 @@ export function WhiteTariffPanel({
     }
   }
 
-  function updateBasicWhiteTariff(patch: Partial<WhiteTariffConfig>) {
-    const next = { ...(whiteTariff ?? emptyWhiteTariffConfig), ...patch };
-    const days = next.businessDaysPerMonth ?? TARIFF_BUSINESS_DAYS_PER_MONTH;
-    const total = next.totalMonthlyConsumptionKwh ?? 0;
-    const pontaMonthly = total * ((next.pontaConsumptionPercent ?? 20) / 100);
-    const intermediateMonthly = total * ((next.intermediateConsumptionPercent ?? 10) / 100);
-    next.pontaEnergyWh = Math.round((pontaMonthly * 1000) / days);
-    next.intermediateEnergyWh = Math.round((intermediateMonthly * 1000) / days);
-    next.requiredPowerW = Math.round(Math.max(
-      (next.pontaEnergyWh / (next.pontaWindowHours ?? 3)),
-      (next.intermediateEnergyWh / (next.intermediateWindowHours ?? 2))
-    ));
-    onWhiteTariffChange(next);
-  }
-
   function markFieldAsEdited(fieldName: string) {
     if (!whiteTariff) return;
     const edited = new Set(whiteTariff.manuallyEditedFields || []);
@@ -451,20 +432,6 @@ export function WhiteTariffPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1" role="tablist" aria-label="Modo de preenchimento da Tarifa Branca">
-          {(['basic', 'advanced'] as const).map((mode) => (
-            <button key={mode} type="button" role="tab" aria-label={mode === 'basic' ? 'Básico' : 'Avançado'} aria-selected={whiteInputMode === mode}
-              onClick={() => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), inputMode: mode })}
-              className={cn('rounded-md px-3 py-2 text-sm font-medium', whiteInputMode === mode ? 'bg-background shadow-sm ring-1 ring-border/70' : 'text-muted-foreground')}>
-            <InfoLabel
-              label={mode === 'basic' ? 'Básico' : 'Avançado'}
-              tip={mode === 'basic'
-                ? 'Informe os dados essenciais para uma estimativa rápida.'
-                : 'Permite configurar períodos e premissas com maior detalhe.'}
-            />
-            </button>
-          ))}
-      </div>
       <div className="rounded-lg border bg-muted/20 p-3">
         <p className="text-sm font-semibold">1. Consumo</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -476,8 +443,7 @@ export function WhiteTariffPanel({
               value={whiteTotalMonthlyKwh || ''}
               onChange={(event) => {
                 const totalMonthlyConsumptionKwh = Number(event.target.value) || 0;
-                if (whiteInputMode === 'basic') updateBasicWhiteTariff({ totalMonthlyConsumptionKwh });
-                else onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), totalMonthlyConsumptionKwh });
+                onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), totalMonthlyConsumptionKwh });
                 setFieldErrors((current) => ({ ...current, totalMonthlyConsumptionKwh: undefined }));
               }}
               onBlur={() => validateAndSet('totalMonthlyConsumptionKwh')}/>
@@ -487,7 +453,6 @@ export function WhiteTariffPanel({
           <div className="space-y-1.5">
             <Label htmlFor="whiteTariffPower">Potência máxima nos horários caros (kW)</Label>
             <Input id="whiteTariffPower" type="number" min={0} step={0.01} inputMode="decimal" placeholder="Ex.: 3,0"
-              disabled={whiteInputMode === 'basic'}
               aria-invalid={Boolean(fieldError('requiredPowerW'))}
               aria-describedby={fieldDescription('requiredPowerW')}
               value={whiteTariff?.requiredPowerW ? whiteTariff.requiredPowerW / 1000 : ''}
@@ -500,10 +465,6 @@ export function WhiteTariffPanel({
             <p className="text-xs text-muted-foreground">Maior potência simultânea que a bateria deverá atender na ponta ou intermediária.</p>
           </div>
         </div>
-        {whiteInputMode === 'basic' && <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5"><Label htmlFor="whitePontaPercent">Consumo na ponta (%)</Label><Input id="whitePontaPercent" type="number" min={0} max={100} inputMode="decimal" aria-invalid={Boolean(fieldError('pontaConsumptionPercent'))} aria-describedby={fieldDescription('pontaConsumptionPercent')} value={whiteTariff?.pontaConsumptionPercent ?? 20} onChange={(event) => { updateBasicWhiteTariff({ pontaConsumptionPercent: Number(event.target.value) || 0 }); setFieldErrors((current) => ({ ...current, pontaConsumptionPercent: undefined })); }} onBlur={() => validateAndSet('pontaConsumptionPercent')} /><FieldError id="pontaConsumptionPercent-error" message={fieldError('pontaConsumptionPercent')} /></div>
-          <div className="space-y-1.5"><Label htmlFor="whiteIntermediatePercent">Consumo intermediário (%)</Label><Input id="whiteIntermediatePercent" type="number" min={0} max={100} inputMode="decimal" aria-invalid={Boolean(fieldError('intermediateConsumptionPercent'))} aria-describedby={fieldDescription('intermediateConsumptionPercent')} value={whiteTariff?.intermediateConsumptionPercent ?? 10} onChange={(event) => { updateBasicWhiteTariff({ intermediateConsumptionPercent: Number(event.target.value) || 0 }); setFieldErrors((current) => ({ ...current, intermediateConsumptionPercent: undefined })); }} onBlur={() => validateAndSet('intermediateConsumptionPercent')} /><FieldError id="intermediateConsumptionPercent-error" message={fieldError('intermediateConsumptionPercent')} /></div>
-        </div>}
       </div>
       <div className="space-y-1.5">
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -533,7 +494,6 @@ export function WhiteTariffPanel({
                 id="whiteTariffPontaEnergy"
                 section="Ponta"
                 businessDays={whiteBusinessDays}
-                disabled={whiteInputMode === 'basic'}
                 energyWh={whiteTariff?.pontaEnergyWh ?? 0}
                 error={fieldError('pontaEnergyWh')}
                 onBlur={() => validateAndSet('pontaEnergyWh')}
@@ -593,7 +553,6 @@ export function WhiteTariffPanel({
                 id="whiteTariffIntermediateEnergy"
                 section="Intermediária"
                 businessDays={whiteBusinessDays}
-                disabled={whiteInputMode === 'basic'}
                 energyWh={whiteTariff?.intermediateEnergyWh ?? 0}
                 error={fieldError('intermediateEnergyWh')}
                 onBlur={() => validateAndSet('intermediateEnergyWh')}
@@ -730,9 +689,9 @@ export function WhiteTariffPanel({
         <details className="rounded-lg border bg-background p-3 text-sm">
           <summary className="cursor-pointer font-medium">Premissas do cálculo</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5"><Label htmlFor="whiteBusinessDays">Dias úteis/mês</Label><Input id="whiteBusinessDays" type="number" min={1} max={31} value={whiteBusinessDays} onChange={(event) => whiteInputMode === 'basic' ? updateBasicWhiteTariff({ businessDaysPerMonth: Number(event.target.value) || 22 }) : onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), businessDaysPerMonth: Number(event.target.value) || 22 })}/></div>
-            <div className="space-y-1.5"><Label htmlFor="whitePontaHours">Janela de ponta (h)</Label><Input id="whitePontaHours" type="number" min={0.25} max={24} step={0.25} value={whiteTariff?.pontaWindowHours ?? 3} onChange={(event) => whiteInputMode === 'basic' ? updateBasicWhiteTariff({ pontaWindowHours: Number(event.target.value) || 3 }) : onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), pontaWindowHours: Number(event.target.value) || 3 })}/></div>
-            <div className="space-y-1.5"><Label htmlFor="whiteIntermediateHours">Janela intermediária (h)</Label><Input id="whiteIntermediateHours" type="number" min={0.25} max={24} step={0.25} value={whiteTariff?.intermediateWindowHours ?? 2} onChange={(event) => whiteInputMode === 'basic' ? updateBasicWhiteTariff({ intermediateWindowHours: Number(event.target.value) || 2 }) : onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), intermediateWindowHours: Number(event.target.value) || 2 })}/></div>
+            <div className="space-y-1.5"><Label htmlFor="whiteBusinessDays">Dias úteis/mês</Label><Input id="whiteBusinessDays" type="number" min={1} max={31} value={whiteBusinessDays} onChange={(event) => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), businessDaysPerMonth: Number(event.target.value) || 22 })}/></div>
+            <div className="space-y-1.5"><Label htmlFor="whitePontaHours">Janela de ponta (h)</Label><Input id="whitePontaHours" type="number" min={0.25} max={24} step={0.25} value={whiteTariff?.pontaWindowHours ?? 3} onChange={(event) => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), pontaWindowHours: Number(event.target.value) || 3 })}/></div>
+            <div className="space-y-1.5"><Label htmlFor="whiteIntermediateHours">Janela intermediária (h)</Label><Input id="whiteIntermediateHours" type="number" min={0.25} max={24} step={0.25} value={whiteTariff?.intermediateWindowHours ?? 2} onChange={(event) => onWhiteTariffChange({ ...(whiteTariff ?? emptyWhiteTariffConfig), intermediateWindowHours: Number(event.target.value) || 2 })}/></div>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">Por padrão são usados 22 dias úteis, 3 horas de ponta e 2 horas intermediárias. Ajuste conforme a distribuidora e o calendário local.</p>
         </details>
