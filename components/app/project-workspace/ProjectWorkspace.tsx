@@ -257,6 +257,9 @@ export function ProjectWorkspace({
   const configuredCount = resources.filter((item) => item.state === 'configured').length;
   const attentionCount = resources.filter((item) => item.state === 'attention').length;
   const staleSolution = Boolean(solution) && solutionIsStale;
+  const technicalConfigurationState: ResourceState = residentialOptions.gridType && residentialOptions.inverterModel && residentialOptions.topology && residentialOptions.batteryModel
+    ? 'configured'
+    : 'attention';
 
   function openResourceEditor(id: DesiredFeatureId) {
     setSectionState('resource');
@@ -359,11 +362,22 @@ export function ProjectWorkspace({
                 <CardIcon icon={ClipboardList} />
                 <h2 className="text-base font-semibold">Instalação</h2>
               </CardHeader>
-              <CardContent className="pt-0">
-                <SummaryRow label="Cliente" value={client?.name || 'Não informado'} state={client ? 'configured' : 'attention'} />
-                <SummaryRow label="Cargas" value={`${residentialOptions.loads.length} cadastradas`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} />
-                <div className="mt-2 border-t pt-2">
-                  <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Configuração elétrica</p>
+              <CardContent className="space-y-3 pt-0">
+                <SummaryRow label="Cliente" value={client?.name || 'Não informado'} state={client ? 'configured' : 'attention'} showValue />
+                <SummaryRow label="Cargas" value={`${residentialOptions.loads.length} cadastradas`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} showValue />
+                <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Settings2 className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">Configuração técnica</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">Rede, inversor e banco de baterias</p>
+                      </div>
+                    </div>
+                    <StateBadge state={technicalConfigurationState} />
+                  </div>
                   <SummaryRow
                     label="Rede elétrica"
                     value={residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'}
@@ -389,13 +403,12 @@ export function ProjectWorkspace({
                   />
                   {onOpenConfiguration && <Button
                     type="button"
-                    variant="outline"
                     size="sm"
-                    className="mt-3 w-full"
+                    className="mt-4 w-full"
                     onClick={onOpenConfiguration}
                   >
                     <Settings2 className="h-4 w-4" aria-hidden="true" />
-                    Configurar inversor e bateria
+                    Configurar inversores e baterias
                   </Button>}
                 </div>
               </CardContent>

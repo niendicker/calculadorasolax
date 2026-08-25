@@ -71,7 +71,7 @@ describe('ProjectWorkspace', () => {
 
     expect(screen.getByRole('heading', { name: 'Residência Silva' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cargas' })).toBeInTheDocument();
-    expect(screen.getByText('Configuração elétrica')).toBeInTheDocument();
+    expect(screen.getByText('Configuração técnica')).toBeInTheDocument();
     expect(screen.getAllByText('Trifásico 380V').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Automático')).toBeInTheDocument();
     expect(screen.getByText('T-BAT H 5.8 V2 · Alta tensão (HV)')).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe('ProjectWorkspace', () => {
     const onOpenConfiguration = vi.fn();
     renderWorkspace({ onOpenConfiguration });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Configurar inversor e bateria' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar inversores e baterias' }));
 
     expect(onOpenConfiguration).toHaveBeenCalledTimes(1);
   });
