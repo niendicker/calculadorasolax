@@ -40,6 +40,7 @@ import { PageSummary } from '../shell/slots';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
 import { AddressFields } from '../address-fields';
+import { formatAddress } from '@/lib/address';
 
 export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'project' | 'configuration' | 'solution' | 'budget' | 'report';
 
@@ -359,7 +360,7 @@ export function ProjectWorkspace({
             <Card>
               <CardHeader className="flex flex-row items-center gap-3 pb-3">
                 <CardIcon icon={ClipboardList} />
-                <h2 className="text-base font-semibold">Instalação</h2>
+                <div className="min-w-0"><h2 className="text-base font-semibold">Instalação</h2><p className="mt-0.5 truncate text-xs text-muted-foreground">{formatAddress(projectInfo.address) || 'Endereço não informado'}</p></div>
               </CardHeader>
               <CardContent className="space-y-3 pt-0">
                 <SummaryRow label="Cliente" value={client?.name || 'Não informado'} state={client ? 'configured' : 'attention'} showValue />
