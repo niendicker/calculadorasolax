@@ -302,11 +302,11 @@ export function ProjectWorkspace({
             <Button size="sm" onClick={() => openSizingSection('project')}>
               Editar projeto
             </Button>
-            <WorkspaceActionsMenu />
             <Button variant="outline" size="sm" onClick={openFirstPendingResource} disabled={attentionCount === 0}>
               <Settings2 className="h-4 w-4" aria-hidden="true" />
               Revisar pendências
             </Button>
+            <WorkspaceActionsMenu />
           </div>
         </div>
         <nav className="mt-5 flex gap-1 overflow-x-auto" aria-label="Seções do projeto">
