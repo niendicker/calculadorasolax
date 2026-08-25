@@ -42,7 +42,7 @@ import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
 import { AddressFields } from '../address-fields';
 
-export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'project' | 'solution' | 'budget' | 'report';
+export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'project' | 'configuration' | 'solution' | 'budget' | 'report';
 
 const navigation: Array<{ id: WorkspaceSection; label: string; icon: typeof PanelTop }> = [
   { id: 'overview', label: 'Visão geral', icon: PanelTop },
@@ -145,6 +145,7 @@ export function ProjectWorkspace({
   activeResourceId,
   onOpenResource,
   onOpenTechnical,
+  onOpenConfiguration,
   technicalEditorOpen,
   onOpenBudget,
   onGenerateReport,
@@ -172,6 +173,7 @@ export function ProjectWorkspace({
   activeResourceId?: DesiredFeatureId | null;
   onOpenResource?: (id: DesiredFeatureId) => void;
   onOpenTechnical?: () => void;
+  onOpenConfiguration?: () => void;
   technicalEditorOpen?: boolean;
   onOpenBudget?: () => void;
   onGenerateReport?: () => void;
@@ -197,7 +199,7 @@ export function ProjectWorkspace({
   });
   useEffect(() => {
     const setSectionFromValue = (value: string | null) => {
-      if (value === 'resource' || value === 'project' || (value && navigation.some((item) => item.id === value))) {
+    if (value === 'resource' || value === 'project' || value === 'configuration' || (value && navigation.some((item) => item.id === value))) {
         setSectionState(value as WorkspaceSection);
       }
     };
@@ -385,12 +387,12 @@ export function ProjectWorkspace({
                     icon={Battery}
                     showValue
                   />
-                  {onOpenTechnical && <Button
+                  {onOpenConfiguration && <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="mt-3 w-full"
-                    onClick={onOpenTechnical}
+                    onClick={onOpenConfiguration}
                   >
                     <Settings2 className="h-4 w-4" aria-hidden="true" />
                     Configurar inversor e bateria
@@ -452,6 +454,19 @@ export function ProjectWorkspace({
       ) : section === 'loads' ? (
         <>
           <LoadsSection residentialOptions={residentialOptions} nominalW={nominalW} peakW={peakW} dailyKwh={dailyKwh} />
+        </>
+      ) : section === 'configuration' ? (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">Configuração técnica</h2>
+              <p className="text-sm text-muted-foreground">Selecione a rede, o inversor e as baterias desta instalação.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => openSizingSection('overview')}>
+              Voltar para Visão geral
+            </Button>
+          </div>
+          {technicalEditorOpen && children}
         </>
       ) : section === 'resource' ? (
         <>

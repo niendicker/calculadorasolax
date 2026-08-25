@@ -139,6 +139,7 @@ export function SizingTab({
   initialActiveItem,
   onBackToWorkspace,
   onOpenWorkspaceLoads,
+  workspaceConfigurationMode = false,
   workspaceResourceMode = false,
 }: {
   projectName: string;
@@ -234,12 +235,13 @@ export function SizingTab({
   initialActiveItem?: PickerItemId | null;
   onBackToWorkspace?: () => void;
   onOpenWorkspaceLoads?: () => void;
+  workspaceConfigurationMode?: boolean;
   /** When a resource is opened from the Workspace, its parent owns the
    * contextual header; keep this technical editor focused on the resource
    * controls instead of repeating Dimensionamento and the feature switcher. */
   workspaceResourceMode?: boolean;
 }) {
-  const [activeItem, setActiveItem] = useState<PickerItemId | null>(initialActiveItem ?? null);
+  const [activeItem, setActiveItem] = useState<PickerItemId | null>(initialActiveItem ?? (workspaceConfigurationMode ? 'gridType' : null));
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
@@ -475,7 +477,7 @@ export function SizingTab({
 
   return (
     <>
-      {!workspaceResourceMode && <PageHeader>
+      {!workspaceResourceMode && !workspaceConfigurationMode && <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dimensionamento</h1>
           {projectName && currentProjectId ? (
@@ -760,8 +762,8 @@ export function SizingTab({
           </div>
         ) : (
           <Card className="gap-3 rounded-none border-none bg-transparent p-0 shadow-none ring-0">
-            {!workspaceResourceMode && <CardHeader className="flex flex-row flex-wrap items-start gap-2 px-0">
-              <Button
+            {(!workspaceResourceMode || workspaceConfigurationMode) && <CardHeader className="flex flex-row flex-wrap items-start gap-2 px-0">
+              {!workspaceConfigurationMode && <Button
                 type="button"
                 variant="outline"
                 size="icon"
@@ -770,7 +772,7 @@ export function SizingTab({
                 onClick={() => setActiveItem(null)}
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-              </Button>
+              </Button>}
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="tablist" aria-label="Itens de dimensionamento">
                 {/* Contextual, not a fixed set of 8: showing every item at
                  * once was what forced the wrapping/grouping workarounds.

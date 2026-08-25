@@ -79,12 +79,12 @@ describe('ProjectWorkspace', () => {
   });
 
   it('offers direct access to inverter and battery configuration', () => {
-    const onOpenTechnical = vi.fn();
-    renderWorkspace({ onOpenTechnical });
+    const onOpenConfiguration = vi.fn();
+    renderWorkspace({ onOpenConfiguration });
 
     fireEvent.click(screen.getByRole('button', { name: 'Configurar inversor e bateria' }));
 
-    expect(onOpenTechnical).toHaveBeenCalledTimes(1);
+    expect(onOpenConfiguration).toHaveBeenCalledTimes(1);
   });
 
   it('closes the header menu when clicking outside', () => {

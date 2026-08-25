@@ -185,6 +185,7 @@ export function SinglePageApp() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspaceResource, setWorkspaceResource] = useState<PickerItemId | null>(null);
   const [workspaceTechnicalEditorOpen, setWorkspaceTechnicalEditorOpen] = useState(false);
+  const [workspaceConfigurationOpen, setWorkspaceConfigurationOpen] = useState(false);
   const [workspaceReturnAvailable, setWorkspaceReturnAvailable] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -331,6 +332,7 @@ export function SinglePageApp() {
     loadProject(id, { showDetails: false });
     setWorkspaceResource(null);
     setWorkspaceTechnicalEditorOpen(false);
+    setWorkspaceConfigurationOpen(false);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     setSummaryDrawerOpen(false);
@@ -346,6 +348,7 @@ export function SinglePageApp() {
   function openWorkspaceResource(id: PickerItemId) {
     setWorkspaceResource(id);
     setWorkspaceTechnicalEditorOpen(true);
+    setWorkspaceConfigurationOpen(false);
     setWorkspaceReturnAvailable(true);
     setWorkspaceOpen(true);
     const url = new URL(window.location.href);
@@ -357,6 +360,7 @@ export function SinglePageApp() {
   function openWorkspaceTechnical() {
     setWorkspaceResource(null);
     setWorkspaceTechnicalEditorOpen(true);
+    setWorkspaceConfigurationOpen(false);
     setWorkspaceReturnAvailable(true);
     setWorkspaceOpen(true);
     const url = new URL(window.location.href);
@@ -370,6 +374,7 @@ export function SinglePageApp() {
     setWorkspaceOpen(false);
     setWorkspaceResource(null);
     setWorkspaceTechnicalEditorOpen(false);
+    setWorkspaceConfigurationOpen(false);
     setWorkspaceReturnAvailable(true);
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'budget');
@@ -381,6 +386,7 @@ export function SinglePageApp() {
   function returnToWorkspace() {
     setWorkspaceResource(null);
     setWorkspaceTechnicalEditorOpen(false);
+    setWorkspaceConfigurationOpen(false);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     changeTab('sizing');
@@ -403,6 +409,20 @@ export function SinglePageApp() {
     window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'loads' }));
   }
 
+  function openWorkspaceConfiguration() {
+    setWorkspaceResource(null);
+    setWorkspaceTechnicalEditorOpen(true);
+    setWorkspaceConfigurationOpen(true);
+    setWorkspaceReturnAvailable(true);
+    setWorkspaceOpen(true);
+    changeTab('sizing');
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'configuration');
+    url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'configuration' }));
+  }
+
   function clearWorkspaceUrl() {
     const url = new URL(window.location.href);
     url.searchParams.delete('workspace');
@@ -423,7 +443,9 @@ export function SinglePageApp() {
     const requestedEditor = params.get('workspaceResource');
     const editor = workspaceEditorIds.find((id) => id === requestedEditor) ?? null;
     setWorkspaceResource(editor);
-    setWorkspaceTechnicalEditorOpen(Boolean(editor) || params.get('workspace') === 'solution');
+    const configurationOpen = params.get('workspace') === 'configuration';
+    setWorkspaceConfigurationOpen(configurationOpen);
+    setWorkspaceTechnicalEditorOpen(Boolean(editor) || params.get('workspace') === 'solution' || configurationOpen);
     setWorkspaceReturnAvailable(false);
     setWorkspaceOpen(true);
     changeTab('sizing');
@@ -906,6 +928,7 @@ export function SinglePageApp() {
               activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceTechnical}
+              onOpenConfiguration={openWorkspaceConfiguration}
               technicalEditorOpen={workspaceTechnicalEditorOpen}
               onOpenBudget={openWorkspaceBudget}
               onGenerateReport={exportPdf}
@@ -967,6 +990,7 @@ export function SinglePageApp() {
                 initialActiveItem={workspaceResource}
                 onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}
                 onOpenWorkspaceLoads={openWorkspaceLoads}
+                workspaceConfigurationMode={workspaceConfigurationOpen}
                 workspaceResourceMode={workspaceTechnicalEditorOpen && Boolean(workspaceResource)}
               />
             </ProjectWorkspace>
