@@ -299,7 +299,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     await waitFor(() => expect(screen.getByLabelText('Nome')).toBeInTheDocument());
   });
 
-  it('opens a project from its client in Clientes, landing on Projeto with it loaded', async () => {
+  it('opens a project from its client in Clientes, landing in its workspace', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
@@ -317,8 +317,7 @@ describe('SinglePageApp: login-gated navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: '1 projeto' }));
     fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
-    expect(screen.getByDisplayValue('Casa da Praia')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Casa da Praia' })).toBeInTheDocument());
   });
 });
 

@@ -284,6 +284,7 @@ export function SinglePageApp() {
     router,
     locale,
     loadProject,
+    openWorkspace: openProjectWorkspace,
     changeTab,
     setProfile,
     setUserEmail,

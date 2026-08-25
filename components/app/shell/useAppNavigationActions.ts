@@ -7,6 +7,7 @@ export function useAppNavigationActions({
   router,
   locale,
   loadProject,
+  openWorkspace,
   changeTab,
   setProfile,
   setUserEmail,
@@ -21,6 +22,7 @@ export function useAppNavigationActions({
   router: ReturnType<typeof useRouter>;
   locale: string;
   loadProject: (id: string) => void;
+  openWorkspace?: (id: string) => void;
   changeTab: (tab: 'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile') => void;
   setProfile: (profile: null) => void;
   setUserEmail: (email: string | null) => void;
@@ -35,6 +37,10 @@ export function useAppNavigationActions({
   const [signingOut, setSigningOut] = useState(false);
 
   function openProjectFromClient(id: string) {
+    if (openWorkspace) {
+      openWorkspace(id);
+      return;
+    }
     loadProject(id);
     changeTab('project');
   }
