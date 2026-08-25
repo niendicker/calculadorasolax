@@ -22,7 +22,71 @@ import { PhaseDot } from './load-selector/phase-indicators';
 import { PresetCard } from './load-selector/PresetCard';
 import { UserLoadCatalogItemMenu } from './load-selector/UserLoadCatalogItemMenu';
 
-export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolean } = {}) {
+export function OperationHoursControl() {
+  const { residentialOptions, setOperationHours } = useWizardStore();
+
+  return (
+    <section className="rounded-xl border bg-background p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Clock className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div>
+          <Label htmlFor="operationHours" className="text-sm font-semibold">
+            <InfoLabel
+              label="Por quanto tempo as cargas devem operar?"
+              tip="Tempo compartilhado por todas as cargas durante o backup. Cada carga usa o próprio percentual de uso para escalar sua energia dentro desse tempo."
+            />
+          </Label>
+          <p className="mt-1 text-xs text-muted-foreground">Escolha uma duração comum ou informe outro valor.</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {[2, 4, 8, 12].map((hours) => (
+          <button
+            key={hours}
+            type="button"
+            aria-pressed={residentialOptions.operationHours === hours}
+            onClick={() => setOperationHours(hours)}
+            className={cn(
+              'h-9 min-w-14 rounded-lg border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+              residentialOptions.operationHours === hours
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground'
+            )}
+          >
+            {hours} h
+          </button>
+        ))}
+        <span className="text-xs text-muted-foreground">ou</span>
+        <Input
+          id="operationHours"
+          type="number"
+          min={0}
+          max={MAX_OPERATION_HOURS}
+          step={0.5}
+          placeholder="Ex.: 4"
+          aria-label="Tempo de operação personalizado"
+          className="max-w-24"
+          value={residentialOptions.operationHours || ''}
+          onChange={(event) => {
+            const value = Number(event.target.value) || 0;
+            setOperationHours(Math.min(MAX_OPERATION_HOURS, Math.max(0, value)));
+          }}
+        />
+        <span className="text-sm text-muted-foreground">horas</span>
+      </div>
+      {!residentialOptions.operationHours && (
+        <p className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Informe o tempo de operação para calcular a energia das cargas.
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function LoadSelector({ defaultToMine = false, showOperationHours = true }: { defaultToMine?: boolean; showOperationHours?: boolean } = {}) {
   const t = useTranslations('loads');
   const locale = useLocale();
 
@@ -36,7 +100,6 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
     removeLoad,
     updateLoad,
     setPeakCalcMode,
-    setOperationHours,
     saveManualLoadToCatalog,
     updateUserLoadCatalogItem,
     removeUserLoadCatalogItem,
@@ -208,63 +271,7 @@ export function LoadSelector({ defaultToMine = false }: { defaultToMine?: boolea
         </p>
       )}
 
-      <section className="rounded-xl border bg-background p-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Clock className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <Label htmlFor="operationHours" className="text-sm font-semibold">
-              <InfoLabel
-                label="Por quanto tempo as cargas devem operar?"
-                tip="Tempo compartilhado por todas as cargas durante o backup. Cada carga usa o próprio percentual de uso para escalar sua energia dentro desse tempo."
-              />
-            </Label>
-            <p className="mt-1 text-xs text-muted-foreground">Escolha uma duração comum ou informe outro valor.</p>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {[2, 4, 8, 12].map((hours) => (
-            <button
-              key={hours}
-              type="button"
-              aria-pressed={residentialOptions.operationHours === hours}
-              onClick={() => setOperationHours(hours)}
-              className={cn(
-                'h-9 min-w-14 rounded-lg border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                residentialOptions.operationHours === hours
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground'
-              )}
-            >
-              {hours} h
-            </button>
-          ))}
-          <span className="text-xs text-muted-foreground">ou</span>
-          <Input
-            id="operationHours"
-            type="number"
-            min={0}
-            max={MAX_OPERATION_HOURS}
-            step={0.5}
-            placeholder="Ex.: 4"
-            aria-label="Tempo de operação personalizado"
-            className="max-w-24"
-            value={residentialOptions.operationHours || ''}
-            onChange={(event) => {
-              const value = Number(event.target.value) || 0;
-              setOperationHours(Math.min(MAX_OPERATION_HOURS, Math.max(0, value)));
-            }}
-          />
-          <span className="text-sm text-muted-foreground">horas</span>
-        </div>
-        {!residentialOptions.operationHours && (
-          <p className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Informe o tempo de operação para calcular a energia das cargas.
-          </p>
-        )}
-      </section>
+      {showOperationHours && <OperationHoursControl />}
 
       <section className="space-y-2 rounded-xl border bg-background p-3">
         <div className="px-1 pb-1">

@@ -178,10 +178,16 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
 });
 
 describe('DesiredFeaturesPicker: backup tab', () => {
-  it('shows metrics and LoadSelector when enabled', () => {
-    renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 2, peakW: 3000, nominalW: 2000, dailyKwh: 5 });
-    expect(screen.getByRole('group', { name: 'Resumo das cargas cadastradas' })).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
+  it('shows only backup duration and a link to the dedicated loads screen', () => {
+    const onOpenLoads = vi.fn();
+    renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 2, operationHours: 4, onOpenLoads });
+    expect(screen.getByText('Por quanto tempo as cargas devem operar?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revisar cargas (2)' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Resumo das cargas cadastradas' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Predefinições')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar cargas (2)' }));
+    expect(onOpenLoads).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -554,10 +554,10 @@ function LoadsSection({ residentialOptions, nominalW, peakW, dailyKwh }: { resid
   const phaseTotals = totalPowerByPhase(residentialOptions.loads);
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-end justify-between gap-2"><div><h2 className="text-lg font-semibold">Cargas</h2><p className="text-sm text-muted-foreground">{residentialOptions.loads.length} carga(s) cadastrada(s)</p></div><span className="text-sm text-muted-foreground">{residentialOptions.operationHours} h de operação</span></div>
+    <div><h2 className="text-lg font-semibold">Cargas</h2><p className="text-sm text-muted-foreground">{residentialOptions.loads.length} carga(s) cadastrada(s)</p></div>
     <div className="grid gap-3 sm:grid-cols-3"><MetricCard label="Potência nominal" value={formatKva(nominalW)} icon={Zap} /><MetricCard label="Pico considerado" value={formatKva(peakW)} icon={Gauge} /><MetricCard label="Energia diária" value={formatKwh(dailyKwh)} icon={BatteryCharging} /></div>
     <Card><CardHeader className="pb-2"><h3 className="text-sm font-semibold">Distribuição de fases</h3></CardHeader><CardContent className="grid gap-2 pt-0 sm:grid-cols-3">{(['L1', 'L2', 'L3'] as const).map((phase) => <div key={phase} className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">{phase}</p><p className="mt-1 font-semibold">{formatKva(phaseTotals[phase])}</p></div>)}</CardContent></Card>
-    <LoadSelector defaultToMine />
+    <LoadSelector defaultToMine showOperationHours={false} />
   </div>;
 }
 

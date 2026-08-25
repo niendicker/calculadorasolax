@@ -90,7 +90,7 @@ describe('ProjectWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Cargas$/ }));
 
     expect(screen.getByRole('heading', { name: 'Cargas' })).toBeInTheDocument();
-    expect(screen.getByText('Por quanto tempo as cargas devem operar?')).toBeInTheDocument();
+    expect(screen.queryByText('Por quanto tempo as cargas devem operar?')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?workspace=loads');
   });
 

@@ -5,7 +5,6 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
-import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { MarginSettings, Solution, UserStockItem } from '@/lib/types';
 import { calculateTariffSavings, formatCurrencyBRL } from '../helpers';
@@ -829,14 +828,14 @@ describe('SizingTab: funcionalidades desejadas', () => {
     expect(screen.getByRole('tab', { name: 'Backup' }).querySelector('svg.lucide-triangle-alert')).toBeInTheDocument();
   });
 
-  it('shows an inline alert in the open Backup tab when no loads were added', () => {
+  it('keeps the Backup screen focused on its own settings when no loads were added', () => {
     setup({
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'], loads: [] },
     });
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Nenhuma carga adicionada ao projeto');
-    expect(screen.getByRole('alert')).toHaveTextContent('Adicione ao menos uma carga abaixo para dimensionar o backup.');
+    expect(screen.getByText('Por quanto tempo as cargas devem operar?')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma carga adicionada ao projeto')).not.toBeInTheDocument();
   });
 
   it('hides the Backup warning icon once at least one load is registered', () => {
@@ -1188,7 +1187,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.85 }));
   });
 
-  it('derives tariff-window energy and power from the bill in basic mode', () => {
+  it('updates the total consumption directly in the advanced tariff mode', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff', {
       whiteTariff: {
         inputMode: 'basic', totalMonthlyConsumptionKwh: 0,
@@ -1200,12 +1199,8 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       },
     });
     fireEvent.change(screen.getByLabelText('Consumo total mensal (kWh/mês)'), { target: { value: '220' } });
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({
-      totalMonthlyConsumptionKwh: 220,
-      pontaEnergyWh: 2000,
-      intermediateEnergyWh: 1000,
-      requiredPowerW: 667,
-    }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ totalMonthlyConsumptionKwh: 220 }));
+    expect(props.setWhiteTariffConfig).not.toHaveBeenCalledWith(expect.objectContaining({ pontaEnergyWh: 2000 }));
   });
 
   it('shows the derived ponta and intermediária spreads below the tariff inputs', () => {
@@ -2296,7 +2291,7 @@ describe('SizingTab: cargas', () => {
     expect(screen.getAllByText(/ampliar a autonomia durante interrupções/i).some((element) => element.tagName === 'P')).toBe(true);
   });
 
-  it('reveals the LoadSelector under the Backup tab once enabled, and hides it again when disabled', () => {
+  it('reveals the Backup settings without embedding the loads editor', () => {
     const { rerender, props } = setup();
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
@@ -2314,7 +2309,8 @@ describe('SizingTab: cargas', () => {
     // rerender remounts (no Shell wrapper), so activeItem resets to the
     // overview grid — reopen Backup to land on the now-enabled panel.
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
-    expect(screen.getByText('Predefinições')).toBeInTheDocument();
+    expect(screen.getByText('Por quanto tempo as cargas devem operar?')).toBeInTheDocument();
+    expect(screen.queryByText('Predefinições')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
@@ -2328,21 +2324,12 @@ describe('SizingTab: cargas', () => {
     expect(screen.queryByText('Presets')).not.toBeInTheDocument();
   });
 
-  it('defaults the Backup tab catalog to the "Minhas" filter when the user has personal items', () => {
-    useWizardStore.setState({
-      loadCatalog: [
-        { id: 'c1', namePt: 'Chuveiro', nameEn: 'Shower', nameZh: '', powerW: 5500, category: 'Aquecimento', ipInRatio: 1 },
-      ],
-      userLoadCatalog: [
-        { id: 'u1', name: 'Item pessoal', powerW: 100, ipInRatio: 1, createdAt: '', updatedAt: '' },
-      ],
-    });
+  it('does not embed the loads catalog in the Backup tab', () => {
     setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] } });
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
-
-    expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');
+    expect(screen.queryByRole('tab', { name: 'Catálogo' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Predefinições')).not.toBeInTheDocument();
   });
 });
 

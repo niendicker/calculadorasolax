@@ -389,6 +389,18 @@ export function SinglePageApp() {
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
+  function openWorkspaceLoads() {
+    setWorkspaceResource(null);
+    setWorkspaceTechnicalEditorOpen(false);
+    setWorkspaceReturnAvailable(false);
+    setWorkspaceOpen(true);
+    changeTab('sizing');
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'loads');
+    url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+
   function clearWorkspaceUrl() {
     const url = new URL(window.location.href);
     url.searchParams.delete('workspace');
@@ -952,6 +964,7 @@ export function SinglePageApp() {
                 summaryDrawerOpen={summaryDrawerOpen}
                 initialActiveItem={workspaceResource}
                 onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}
+                onOpenWorkspaceLoads={openWorkspaceLoads}
                 workspaceResourceMode={workspaceTechnicalEditorOpen && Boolean(workspaceResource)}
               />
             </ProjectWorkspace>

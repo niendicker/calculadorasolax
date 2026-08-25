@@ -138,6 +138,7 @@ export function SizingTab({
   summaryDrawerOpen,
   initialActiveItem,
   onBackToWorkspace,
+  onOpenWorkspaceLoads,
   workspaceResourceMode = false,
 }: {
   projectName: string;
@@ -232,6 +233,7 @@ export function SizingTab({
   summaryDrawerOpen: boolean;
   initialActiveItem?: PickerItemId | null;
   onBackToWorkspace?: () => void;
+  onOpenWorkspaceLoads?: () => void;
   /** When a resource is opened from the Workspace, its parent owns the
    * contextual header; keep this technical editor focused on the resource
    * controls instead of repeating Dimensionamento and the feature switcher. */
@@ -907,8 +909,8 @@ export function SizingTab({
                   selectedInverterModel={residentialOptions.inverterModel}
                   gridType={residentialOptions.gridType}
                   peakW={peakW}
-                  nominalW={nominalW}
                   dailyKwh={dailyKwh}
+                  onOpenLoads={onOpenWorkspaceLoads}
                 />
               )}
             </CardContent>
