@@ -319,8 +319,8 @@ export function ProjectWorkspace({
               aria-current={section === id ? 'page' : undefined}
               onClick={() => openSizingSection(id)}
               className={cn(
-                'flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                section === id ? 'border-primary text-primary' : 'border-transparent'
+                'flex shrink-0 items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                section === id ? 'bg-primary/10 text-primary' : ''
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
