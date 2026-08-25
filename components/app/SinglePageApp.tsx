@@ -977,6 +977,7 @@ export function SinglePageApp() {
                 initialActiveItem={workspaceResource}
                 onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}
                 onOpenWorkspaceLoads={openWorkspaceLoads}
+                workspaceMode={workspaceOpen}
                 workspaceConfigurationMode={workspaceConfigurationOpen}
                 workspaceResourceMode={workspaceTechnicalEditorOpen && Boolean(workspaceResource)}
               />

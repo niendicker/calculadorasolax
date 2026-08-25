@@ -139,6 +139,7 @@ export function SizingTab({
   initialActiveItem,
   onBackToWorkspace,
   onOpenWorkspaceLoads,
+  workspaceMode = false,
   workspaceConfigurationMode = false,
   workspaceResourceMode = false,
 }: {
@@ -235,6 +236,8 @@ export function SizingTab({
   initialActiveItem?: PickerItemId | null;
   onBackToWorkspace?: () => void;
   onOpenWorkspaceLoads?: () => void;
+  /** When true, the Workspace owns the summary portal and navigation. */
+  workspaceMode?: boolean;
   workspaceConfigurationMode?: boolean;
   /** When a resource is opened from the Workspace, its parent owns the
    * contextual header; keep this technical editor focused on the resource
@@ -541,7 +544,7 @@ export function SizingTab({
         </div>
       </PageHeader>}
 
-      <PageSummary>
+      {!workspaceMode && <PageSummary>
         {/* Sticky within the summary aside (the only place this ever renders —
          * see PageSummary): the tab switcher plus whichever tab's top metric
          * cards are active stay pinned while everything below scrolls
@@ -741,7 +744,7 @@ export function SizingTab({
             {downloadReportButton}
           </>
         )}
-      </PageSummary>
+      </PageSummary>}
 
       <div className="mt-4 space-y-4">
         {activeItem === null ? (
