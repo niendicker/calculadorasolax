@@ -128,10 +128,6 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
   const [advancedOpen, setAdvancedOpen] = useState(true);
 
   const handleSubTabClick = (tab: 'presets' | 'catalog') => {
-    if (activeSubTab === tab) {
-      setSectionOpen((current) => !current);
-      return;
-    }
     setActiveSubTab(tab);
     setSectionOpen(true);
   };
@@ -259,10 +255,6 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
     });
   }
 
-  const presetsSummary = `${loadPresets.length} do sistema · ${userLoadPresets.length} seu(s)`;
-  const catalogSummary = `${loadCatalog.length + userLoadCatalog.length} itens`;
-  const sectionSummary = `${presetsSummary} · ${catalogSummary}`;
-
   return (
     <div className="space-y-4">
       {loadLimitMessage && (
@@ -293,18 +285,16 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
           >
             <ChevronDown className={cn('h-4 w-4 transition-transform', !sectionOpen && '-rotate-90')} />
           </button>
-          <div className="flex flex-1 gap-1 rounded-md bg-muted/60 p-0.5" role="tablist" aria-label="Cargas">
+        </div>
+        {sectionOpen && (
+        <div className="space-y-3">
+          <div className="flex gap-4 border-b" role="tablist" aria-label="Adicionar cargas">
             <button
               type="button"
               role="tab"
               aria-selected={activeSubTab === 'presets'}
               onClick={() => handleSubTabClick('presets')}
-              className={cn(
-                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
-                activeSubTab === 'presets'
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-              )}
+              className={cn('-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', activeSubTab === 'presets' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground')}
             >
               Predefinições
             </button>
@@ -313,20 +303,11 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true 
               role="tab"
               aria-selected={activeSubTab === 'catalog'}
               onClick={() => handleSubTabClick('catalog')}
-              className={cn(
-                'flex h-10 flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8',
-                activeSubTab === 'catalog'
-                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
-                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-              )}
+              className={cn('-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', activeSubTab === 'catalog' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground')}
             >
               {t('catalog')}
             </button>
           </div>
-        </div>
-        {!sectionOpen && <p className="pl-10 text-xs text-muted-foreground md:pl-9">{sectionSummary}</p>}
-        {sectionOpen && (
-        <div className="space-y-3">
           {activeSubTab === 'presets' && (
           <div className="space-y-3">
             {!savePresetOpen && (

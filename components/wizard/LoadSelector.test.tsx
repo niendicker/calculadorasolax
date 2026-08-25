@@ -75,23 +75,23 @@ describe('LoadSelector: collapsible sections', () => {
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 
-  it('toggles the whole Cargas section open and closed, keeping the Predefinições/Catálogo switcher visible', () => {
+  it('toggles the whole Adicionar cargas section and hides the switcher while collapsed', () => {
     renderLoadSelector();
 
     fireEvent.click(screen.getByRole('button', { name: 'Recolher cargas' }));
-    // The switcher itself stays visible and clickable even when collapsed...
-    expect(screen.getByRole('tab', { name: 'Predefinições' })).toBeInTheDocument();
-    // ...but its content (the presets underneath) is hidden.
+    expect(screen.queryByRole('tab', { name: 'Predefinições' })).not.toBeInTheDocument();
     expect(screen.queryByText('Residencial essencial')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expandir cargas' }));
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 
-  it('clicking a switcher tab while collapsed switches tabs and re-expands the section', () => {
+  it('shows the switcher after expanding the section', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher cargas' }));
 
+    expect(screen.queryByRole('tab', { name: 'Catálogo' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir cargas' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
 
     expect(screen.getByRole('tab', { name: 'Catálogo' })).toHaveAttribute('aria-selected', 'true');
@@ -358,14 +358,14 @@ describe('LoadSelector: user presets', () => {
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 
-  it('re-clicking the already-active Predefinições switcher tab collapses the Cargas section', () => {
+  it('re-clicking the already-active Predefinições switcher tab keeps the section open', () => {
     renderLoadSelector();
     expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.click(screen.getByRole('tab', { name: 'Predefinições' }));
 
-    expect(screen.queryByText('Residencial essencial')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Expandir cargas' })).toBeInTheDocument();
+    expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recolher cargas' })).toBeInTheDocument();
   });
 });
 
