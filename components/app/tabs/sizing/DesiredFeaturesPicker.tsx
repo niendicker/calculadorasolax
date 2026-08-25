@@ -156,7 +156,7 @@ export function DesiredFeaturesPicker({
     <div className="space-y-3">
       {/* Backup keeps only its activation and autonomy settings here. Load
        * management lives in the dedicated Workspace Cargas section. */}
-      <div className={cn('space-y-4', !isBackupTab && 'rounded-xl border bg-background p-4')}>
+      <div className="space-y-4 rounded-xl border bg-background p-4">
         <div className={cn('flex items-start justify-between gap-3', isActiveEnabled && 'border-b pb-4')}>
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <span
