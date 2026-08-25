@@ -311,7 +311,7 @@ export function ProjectWorkspace({
             </Button>
           </div>
         </div>
-        <nav className="mt-5 -mb-3 flex gap-1 overflow-x-auto" aria-label="Seções do projeto">
+        <nav className="mt-5 -mb-3 flex gap-1 overflow-x-auto border-b border-border/60" aria-label="Seções do projeto">
           {navigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
