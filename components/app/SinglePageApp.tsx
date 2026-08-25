@@ -117,6 +117,7 @@ export function SinglePageApp() {
     userServices,
     marginSettings,
     services,
+    setProjectInfo,
     residentialOptions,
     solution,
     secondarySolution,
@@ -873,6 +874,7 @@ export function SinglePageApp() {
               enabled={workspaceOpen && Boolean(currentProjectId)}
               projectInfo={projectInfo}
               client={clients.find((item) => item.id === projectInfo.clientId)}
+              clients={clients}
               residentialOptions={residentialOptions}
               solution={solution}
               nominalW={nominalW}
@@ -884,6 +886,9 @@ export function SinglePageApp() {
               productMedia={productMedia}
               availableInverterModels={availableInverterModels}
               onBackToProjects={() => { clearWorkspaceUrl(); backToProject(); }}
+              onUpdateProjectInfo={setProjectInfo}
+              onSaveProject={() => { void saveProject(); }}
+              onCancelProjectEdit={() => { cancelProjectDraft(); returnToWorkspace(); }}
               onBackToOverview={returnToWorkspace}
               activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}

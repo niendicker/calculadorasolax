@@ -15,6 +15,7 @@ import {
   Gauge,
   Grid3X3,
   Layers3,
+  MoreVertical,
   Package,
   PanelTop,
   ReceiptText,
@@ -24,6 +25,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, DesiredFeatureId, ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
 import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
@@ -36,8 +40,9 @@ import { Metric, ProductImage } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
+import { AddressFields } from '../address-fields';
 
-export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'solution' | 'budget' | 'report';
+export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'project' | 'solution' | 'budget' | 'report';
 
 const navigation: Array<{ id: WorkspaceSection; label: string; icon: typeof PanelTop }> = [
   { id: 'overview', label: 'Visão geral', icon: PanelTop },
@@ -116,6 +121,7 @@ export function ProjectWorkspace({
   enabled = true,
   projectInfo,
   client,
+  clients = [],
   residentialOptions,
   solution,
   nominalW,
@@ -127,6 +133,9 @@ export function ProjectWorkspace({
   productMedia = {},
   availableInverterModels,
   onBackToProjects,
+  onUpdateProjectInfo,
+  onSaveProject,
+  onCancelProjectEdit,
   onBackToOverview,
   activeResourceId,
   onOpenResource,
@@ -140,6 +149,7 @@ export function ProjectWorkspace({
   enabled?: boolean;
   projectInfo: ProjectInfo;
   client: Client | undefined;
+  clients?: Client[];
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
   nominalW: number;
@@ -151,6 +161,9 @@ export function ProjectWorkspace({
   productMedia?: Record<string, ProductMedia>;
   availableInverterModels: Set<string> | null;
   onBackToProjects?: () => void;
+  onUpdateProjectInfo?: (partial: Partial<ProjectInfo>) => void;
+  onSaveProject?: () => void;
+  onCancelProjectEdit?: () => void;
   onBackToOverview?: () => void;
   activeResourceId?: DesiredFeatureId | null;
   onOpenResource?: (id: DesiredFeatureId) => void;
@@ -182,7 +195,7 @@ export function ProjectWorkspace({
     const value = new URLSearchParams(window.location.search).get('workspace');
     // The URL is external state; this one-time synchronization intentionally
     // updates the section after mount so SSR and the first client paint agree.
-    if (value === 'resource' || (value && navigation.some((item) => item.id === value))) {
+    if (value === 'resource' || value === 'project' || (value && navigation.some((item) => item.id === value))) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSectionState(value as WorkspaceSection);
     }
@@ -284,10 +297,16 @@ export function ProjectWorkspace({
               <span className="inline-flex items-center gap-1 text-primary"><Flag className="h-3.5 w-3.5" aria-hidden="true" /> Em andamento</span>
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={openFirstPendingResource} disabled={attentionCount === 0}>
-            <Settings2 className="h-4 w-4" aria-hidden="true" />
-            Revisar pendências
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => openSizingSection('project')}>
+              Editar projeto
+            </Button>
+            <WorkspaceActionsMenu />
+            <Button variant="outline" size="sm" onClick={openFirstPendingResource} disabled={attentionCount === 0}>
+              <Settings2 className="h-4 w-4" aria-hidden="true" />
+              Revisar pendências
+            </Button>
+          </div>
         </div>
         <nav className="mt-5 -mb-3 flex gap-1 overflow-x-auto" aria-label="Seções do projeto">
           {navigation.map(({ id, label, icon: Icon }) => (
@@ -371,6 +390,14 @@ export function ProjectWorkspace({
             </CardContent>
           </Card>
         </>
+      ) : section === 'project' ? (
+        <ProjectInfoEditor
+          projectInfo={projectInfo}
+          clients={clients}
+          onChange={onUpdateProjectInfo}
+          onSave={onSaveProject}
+          onCancel={onCancelProjectEdit}
+        />
       ) : section === 'loads' ? (
         <>
           <LoadsSection residentialOptions={residentialOptions} nominalW={nominalW} peakW={peakW} dailyKwh={dailyKwh} />
@@ -416,6 +443,79 @@ export function ProjectWorkspace({
 
 function CardIcon({ icon: Icon }: { icon: typeof PanelTop }) {
   return <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span>;
+}
+
+function WorkspaceActionsMenu() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <Button type="button" variant="outline" size="icon-sm" aria-label="Mais opções do projeto" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        <MoreVertical className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      {open && (
+        <div role="menu" aria-label="Mais opções do projeto" className="absolute right-0 top-full z-20 mt-1 min-w-52 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+          <button type="button" role="menuitem" disabled className="w-full cursor-not-allowed rounded-md px-3 py-2 text-left text-sm text-muted-foreground/60">Mais opções em breve</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectInfoEditor({
+  projectInfo,
+  clients,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  projectInfo: ProjectInfo;
+  clients: Client[];
+  onChange?: (partial: Partial<ProjectInfo>) => void;
+  onSave?: () => void;
+  onCancel?: () => void;
+}) {
+  const nameError = !projectInfo.name.trim();
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Editar projeto</h2>
+          <p className="text-sm text-muted-foreground">Atualize as informações gerais sem sair do Workspace.</p>
+        </div>
+        {onCancel && <Button type="button" variant="outline" size="sm" onClick={onCancel}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Voltar para Visão geral</Button>}
+      </div>
+      <Card>
+        <CardContent className="grid gap-4 p-5 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="workspaceProjectName">Nome do projeto</Label>
+            <Input id="workspaceProjectName" value={projectInfo.name} onChange={(event) => onChange?.({ name: event.target.value })} aria-invalid={nameError} />
+            {nameError && <p className="text-xs text-destructive" role="alert">Informe um nome para o projeto.</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="workspaceProjectClient">Cliente</Label>
+            <Select id="workspaceProjectClient" value={projectInfo.clientId ?? ''} onChange={(event) => onChange?.({ clientId: event.target.value || null })}>
+              <option value="">Sem cliente selecionado</option>
+              {clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <Label>Endereço da instalação</Label>
+            <div className="mt-1.5"><AddressFields address={projectInfo.address} onChange={(partial) => onChange?.({ address: { ...projectInfo.address, ...partial } })} idPrefix="workspaceProjectAddress" /></div>
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label htmlFor="workspaceProjectNotes">Observações</Label>
+            <textarea id="workspaceProjectNotes" className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm" value={projectInfo.notes} onChange={(event) => onChange?.({ notes: event.target.value })} placeholder="Informações comerciais ou restrições da instalação." />
+          </div>
+          <div className="flex justify-end gap-2 md:col-span-2">
+            {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+            {onSave && <Button type="button" onClick={onSave} disabled={nameError}>Salvar alterações</Button>}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function MetricCard({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Zap }) {
