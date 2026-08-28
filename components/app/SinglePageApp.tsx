@@ -831,7 +831,6 @@ export function SinglePageApp() {
                     <GuidePage content={guideContent} embedded />
                   ) : activeTab === 'project' ? (
             <ProjectTab
-              profile={profile}
               batteryCatalog={batteryCatalog}
               inverterCatalog={inverterCatalog}
               accessoryCatalog={accessoryCatalog}
@@ -855,8 +854,6 @@ export function SinglePageApp() {
               onUpdateStatus={updateProjectStatusAction}
               onDownloadPdf={downloadProjectPdf}
               downloadingProjectId={downloadingProjectId}
-              onManageSuppliers={openPurchasesTab}
-              onOpenProfile={openProfile}
               onManagePortfolio={openPortfolioTab}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}

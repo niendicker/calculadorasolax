@@ -14,7 +14,7 @@ import { useWizardStore } from '@/lib/store/wizard-store';
 import { calculateSystemCost, formatCurrencyBRL } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 import { NewProjectCard } from './project/NewProjectCard';
 import { ProjectCard } from './project/ProjectCard';
@@ -37,7 +37,6 @@ function sameServiceLines(a: ProjectServiceLine[], b: ProjectServiceLine[]): boo
 }
 
 export function ProjectTab({
-  profile,
   batteryCatalog,
   inverterCatalog,
   accessoryCatalog,
@@ -61,13 +60,10 @@ export function ProjectTab({
   onUpdateStatus,
   onDownloadPdf,
   downloadingProjectId,
-  onManageSuppliers,
-  onOpenProfile = () => {},
   onManagePortfolio,
   onShowSummary,
   onHideSummary,
 }: {
-  profile: InlineProfile | null;
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
@@ -95,10 +91,6 @@ export function ProjectTab({
   /** Id of the project currently generating its PDF, if any — used to show a
    * loading state on that project's "Baixar Relatório" button specifically. */
   downloadingProjectId: string | null;
-  /** Sends the seller to Fornecedores — used by the supplier quote-request modal
-   *  when they haven't picked any suppliers there yet. */
-  onManageSuppliers: () => void;
-  onOpenProfile?: () => void;
   /** Sends the seller to Portfólio — used by the draft card's services empty
    *  state, so "Portfólio" can be a clickable jump instead of just naming
    *  the tab. */
@@ -229,8 +221,6 @@ export function ProjectTab({
         {summaryProject ? (
           <SelectedProjectSummary
             project={summaryProject}
-            client={clients.find((client) => client.id === summaryProject.clientId)}
-            profile={profile}
             batteryCatalog={batteryCatalog}
             inverterCatalog={inverterCatalog}
             accessoryCatalog={accessoryCatalog}
@@ -245,11 +235,7 @@ export function ProjectTab({
                   }
                 : undefined
             }
-            onOpenSizing={() => onOpenSizing(summaryProject.id)}
-            onOpenWorkspace={() => onOpenWorkspace?.(summaryProject.id)}
             onUpdateStatus={(status) => onUpdateStatus(summaryProject.id, status)}
-            onManageSuppliers={onManageSuppliers}
-            onOpenProfile={onOpenProfile}
           />
         ) : projectDetailsVisible ? (
           <>

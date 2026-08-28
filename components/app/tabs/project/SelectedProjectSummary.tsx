@@ -1,23 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  BatteryCharging,
-  Calculator,
-  ChevronRight,
-  Gauge,
-  Mail,
-  MapPin,
-  PanelTop,
-  Phone,
-  Users,
-  X,
-  Zap,
-} from 'lucide-react';
+import { BatteryCharging, Gauge, MapPin, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
-import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import type { MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import {
   batteryQuantityBreakdown,
   calculateSystemCost,
@@ -27,12 +14,10 @@ import {
   solutionMetrics,
 } from '../../helpers';
 import { Metric } from '../../shared-ui';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../../types';
 import { gridLabels } from '../../types';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
-import { QuoteShareButton } from './QuoteShareButton';
-import { SupplierQuoteAction } from './SupplierQuoteAction';
 
 /** A product's category label, its nickname/model (with quantity, if any),
  * and — only when a nickname is set — the bare model code as a small
@@ -66,14 +51,12 @@ function ProductNameLine({
 
 /** Rich, read-only summary of a saved project — either one selected from the
  * list ("Abrir"'s own live editor is a separate flow) or the one currently
- * being edited in place, so the sidebar shows the exact same actions and
- * data regardless of how the user got there. Rendered in the shell's
+ * being edited in place, so the sidebar shows the exact same data
+ * regardless of how the user got there. Rendered in the shell's
  * summary panel in place of the "Configuração salva junto" summary, which
  * is now only shown for a brand-new, not-yet-saved draft. */
 export function SelectedProjectSummary({
   project,
-  client,
-  profile,
   batteryCatalog,
   inverterCatalog,
   accessoryCatalog,
@@ -81,15 +64,9 @@ export function SelectedProjectSummary({
   userServices,
   marginSettings,
   onClose,
-  onOpenSizing,
-  onOpenWorkspace,
   onUpdateStatus,
-  onManageSuppliers,
-  onOpenProfile,
 }: {
   project: SavedProject;
-  client: Client | undefined;
-  profile: InlineProfile | null;
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
@@ -100,13 +77,7 @@ export function SelectedProjectSummary({
    *  there — "Fechar" on the draft card itself is what exits editing,
    *  complete with its own discard confirmation when dirty). */
   onClose?: () => void;
-  onOpenSizing: () => void;
-  onOpenWorkspace?: () => void;
   onUpdateStatus: (status: ProjectStatus) => void;
-  /** Sends the seller to Fornecedores — used by the supplier quote-request modal
-   *  when they haven't picked any suppliers there yet. */
-  onManageSuppliers: () => void;
-  onOpenProfile: () => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -121,32 +92,13 @@ export function SelectedProjectSummary({
         (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
       )
     : [];
-  const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
 
   return (
     <>
-      <div className="-mt-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="mb-3 flex items-center gap-2">
-            <h2 className="min-w-0 truncate text-sm font-semibold">{project.name}</h2>
-            <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
-          </div>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Users className="h-3 w-3 shrink-0" />
-            <span className="truncate">{client?.name || 'Cliente não informado'}</span>
-          </p>
-          {client?.phone && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Phone className="h-3 w-3 shrink-0" />
-              <span className="truncate">{client.phone}</span>
-            </p>
-          )}
-          {client?.email && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Mail className="h-3 w-3 shrink-0" />
-              <span className="truncate">{client.email}</span>
-            </p>
-          )}
+      <div className="-mt-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="min-w-0 truncate text-sm font-semibold">{project.name}</h2>
+          <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {onClose && (
@@ -294,52 +246,7 @@ export function SelectedProjectSummary({
       )}
 
       <Separator />
-
-      {onOpenWorkspace && (
-        <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenWorkspace}>
-          <PanelTop className="h-4 w-4" />
-          Abrir Workspace
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      )}
-
-      {!onOpenWorkspace && (
-        <Button size="lg" className="w-full shadow-sm transition-shadow hover:shadow-md" onClick={onOpenSizing}>
-          <Calculator className="h-4 w-4" />
-          Abrir solução técnica
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      )}
-
-      <QuoteShareButton
-        project={project}
-        client={client}
-        profile={profile}
-        batteryCatalog={batteryCatalog}
-        inverterCatalog={inverterCatalog}
-        userStockItems={userStockItems}
-        userServices={userServices}
-        marginSettings={marginSettings}
-        onUpdateStatus={onUpdateStatus}
-        onShared={() => setEventsRefreshKey((key) => key + 1)}
-        className="w-full bg-emerald-600 text-white shadow-sm transition-shadow hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
-      />
-
-      <SupplierQuoteAction
-        project={project}
-        profile={profile}
-        batteryCatalog={batteryCatalog}
-        onSent={() => setEventsRefreshKey((key) => key + 1)}
-        onManageSuppliers={onManageSuppliers}
-        onOpenProfile={onOpenProfile}
-        buttonLabel="Solicitar orçamento ao fornecedor"
-        buttonVariant="outline"
-        buttonIcon="send"
-        className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-      />
-
-      <Separator />
-      <ProjectEventsTimeline projectId={project.id} refreshKey={`${project.updatedAt}:${eventsRefreshKey}`} />
+      <ProjectEventsTimeline projectId={project.id} refreshKey={project.updatedAt} />
       <p className="text-xs text-muted-foreground">
         Atualizado em{' '}
         {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(project.updatedAt))}

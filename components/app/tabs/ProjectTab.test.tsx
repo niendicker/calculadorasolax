@@ -8,7 +8,6 @@ import type { Client, ProjectInfo, SavedProject } from '@/lib/types';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import { renderWithShell } from '../test-helpers/render-with-shell';
-import type { InlineProfile } from '../types';
 import { ProjectTab } from './ProjectTab';
 
 const { buildProjectQuotePdfBlobMock, createClientMock } = vi.hoisted(() => ({
@@ -23,32 +22,6 @@ vi.mock('../project-quote-pdf', async (importOriginal) => {
   return { ...actual, buildProjectQuotePdfBlob: buildProjectQuotePdfBlobMock };
 });
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
-
-const baseProfile: InlineProfile = {
-  id: 'user-1',
-  email: 'vendedor@empresa.com',
-  fullName: 'Vendedor',
-  phone: '',
-  role: 'user',
-  companyName: 'Empresa Teste',
-  companyAddress: emptyAddress(),
-  companyLogoUrl: '',
-  companyDocument: '',
-};
-
-const completeProfile: InlineProfile = {
-  ...baseProfile,
-  companyDocument: '12.345.678/0001-90',
-  companyAddress: {
-    postalCode: '01310-100',
-    street: 'Avenida Paulista',
-    number: '1000',
-    complement: '',
-    district: 'Bela Vista',
-    city: 'São Paulo',
-    state: 'SP',
-  },
-};
 
 function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>): SavedProject {
   return {
@@ -140,7 +113,6 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
   });
 
   const props = {
-    profile: null,
     batteryCatalog: [],
     inverterCatalog: [],
     accessoryCatalog: [],
@@ -164,7 +136,6 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onUpdateStatus: vi.fn(),
     onDownloadPdf: vi.fn(),
     downloadingProjectId: null,
-    onManageSuppliers: vi.fn(),
     onManagePortfolio: vi.fn(),
     onShowSummary: vi.fn(),
     onHideSummary: vi.fn(),
@@ -728,8 +699,6 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Inversor')).toBeInTheDocument();
     expect(screen.getByText('X1-Hybrid')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
-    const supplierQuoteButton = screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' });
-    expect(supplierQuoteButton).toHaveClass('border-primary/25', 'bg-background', 'text-primary');
   });
 
   it('pre-selects currentProjectId on mount (e.g. arriving via the project-name link from Dimensionamento)', () => {
@@ -746,15 +715,6 @@ describe('ProjectTab: selecting a project without opening it', () => {
   it('does not pre-select anything when currentProjectId is unset', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })], currentProjectId: null });
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
-  });
-
-  it('"Abrir Workspace" in the summary delegates to onOpenWorkspace with the selected project id', () => {
-    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir Workspace' }));
-
-    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
   });
 
   it('does not show a duplicate action in the summary', () => {
@@ -1003,244 +963,6 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Incluso na bateria')).toBeInTheDocument();
     expect(screen.getByText('Disjuntor CA')).toBeInTheDocument();
     expect(screen.getByText('Obrigatório')).toBeInTheDocument();
-  });
-
-  it('"Solicitar orçamento ao fornecedor" previews the message and sends only to the checked suppliers', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({
-        tableResults: {
-          quote_shares: { data: { id: 'share-1' }, error: null },
-          suppliers: {
-            data: [
-              { id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: true },
-              { id: 'sup-2', name: 'Fornecedor B', email: 'b@fornecedores.com', is_default_for_all: true },
-            ],
-            error: null,
-          },
-        },
-      })
-    );
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        status: 'sent',
-        results: [{ supplierId: 'sup-1', supplierName: 'Fornecedor A', status: 'sent', sentAt: new Date().toISOString() }],
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    setup({
-      profile: completeProfile,
-      savedProjects: [
-        makeProject({
-          id: 'p1',
-          name: 'Casa de praia',
-          clientId: 'c1',
-          solution: {
-            inverterId: 'inv1',
-            inverterModel: 'X1-Hybrid',
-            batteryId: 'bat1',
-            batteryModel: 'TP-HS3.6',
-            batteryQty: 1,
-            pvPowerKw: null,
-            accessories: [],
-          },
-        }),
-      ],
-      clients: [{ id: 'c1', name: 'Ana Souza' } as Client],
-    });
-
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' }));
-
-    const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
-    await within(dialog).findByText('Fornecedor A');
-    expect(within(dialog).getByText(/X1-Hybrid/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/Poderiam nos passar valores e prazo/)).toBeInTheDocument();
-
-    const sendButton = within(dialog).getByRole('button', { name: 'Enviar solicitações' });
-    expect(sendButton).toBeDisabled();
-
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Fornecedor A/ }));
-    expect(sendButton).not.toBeDisabled();
-
-    fireEvent.click(sendButton);
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/request-supplier-quote', expect.anything()));
-    const [, requestInit] = fetchMock.mock.calls[0];
-    const sentBody = JSON.parse(requestInit.body);
-    expect(sentBody.supplierIds).toEqual(['sup-1']);
-
-    await waitFor(() => expect(within(dialog).getByText('Resultado das solicitações')).toBeInTheDocument());
-
-    vi.unstubAllGlobals();
-  });
-
-  it('points the seller to Fornecedores when they haven\'t chosen any supplier there yet', async () => {
-    createClientMock.mockReturnValue(
-      createSupabaseMock({
-        tableResults: {
-          quote_shares: { data: { id: 'share-1' }, error: null },
-          // Suppliers exist in the catalog, but none are default-for-all and
-          // the seller has no user_supplier_preferences row — same as a
-          // brand-new Fornecedores user.
-          suppliers: {
-            data: [{ id: 'sup-1', name: 'Fornecedor A', email: 'a@fornecedores.com', is_default_for_all: false }],
-            error: null,
-          },
-        },
-      })
-    );
-    const { props } = setup({
-      profile: completeProfile,
-      savedProjects: [
-        makeProject({
-          id: 'p1',
-          name: 'Casa de praia',
-          solution: {
-            inverterId: 'inv1',
-            inverterModel: 'X1-Hybrid',
-            batteryId: 'bat1',
-            batteryModel: 'TP-HS3.6',
-            batteryQty: 1,
-            pvPowerKw: null,
-            accessories: [],
-          },
-        }),
-      ],
-    });
-
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' }));
-
-    const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
-    await within(dialog).findByText(/ainda não selecionou nenhum fornecedor/);
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Ir para Fornecedores' }));
-
-    expect(props.onManageSuppliers).toHaveBeenCalled();
-    expect(screen.queryByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' })).not.toBeInTheDocument();
-  });
-
-  it('disables "Solicitar orçamento ao fornecedor" when the project has no calculated solution yet', () => {
-    setup({
-      profile: baseProfile,
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', solution: null })],
-    });
-
-    clickCard('Casa de praia');
-    expect(screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' })).toBeDisabled();
-  });
-
-  const solvedProject = makeProject({
-    id: 'p1',
-    name: 'Casa de praia',
-    clientId: 'c1',
-    solution: {
-      inverterId: 'inv1',
-      inverterModel: 'X1-Hybrid',
-      batteryId: 'bat1',
-      batteryModel: 'TP-HS3.6',
-      batteryQty: 1,
-      pvPowerKw: null,
-      accessories: [],
-    },
-  });
-
-  // "Compartilhar cotação" now always generates a quote_shares link and opens
-  // wa.me with a short message containing it — no more Web Share API/PDF
-  // attach dance (that capability moved entirely to the link's own richer
-  // page, which offers Aceitar/Recusar the old PDF-attached text never did).
-
-  it('"Compartilhar cotação" creates a quote_shares link and opens wa.me pointed at the client\'s number, with the link in the message', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    setup({
-      profile: baseProfile,
-      savedProjects: [solvedProject],
-      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
-    });
-
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
-
-    await waitFor(() => expect(openSpy).toHaveBeenCalled());
-    const [url] = openSpy.mock.calls[0];
-    expect(url).toContain('https://wa.me/5511912345678?text=');
-    expect(decodeURIComponent(url as string)).toContain('/cotacao/share-1');
-
-    openSpy.mockRestore();
-  });
-
-  it('disables "Compartilhar cotação" when the client has no phone on file', () => {
-    setup({
-      profile: baseProfile,
-      savedProjects: [solvedProject],
-      clients: [{ id: 'c1', name: 'Ana Souza', phone: '' } as Client],
-    });
-
-    clickCard('Casa de praia');
-
-    expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
-  });
-
-  it('disables "Compartilhar cotação" when the project has no calculated solution yet', () => {
-    setup({
-      profile: baseProfile,
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', clientId: 'c1' })],
-      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
-    });
-
-    clickCard('Casa de praia');
-
-    expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
-  });
-
-  it('marks the project "Enviada" once the quote is shared', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    const { props } = setup({
-      profile: baseProfile,
-      savedProjects: [solvedProject],
-      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
-    });
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
-
-    await waitFor(() => expect(props.onUpdateStatus).toHaveBeenCalledWith('p1', 'sent'));
-
-    openSpy.mockRestore();
-  });
-
-  it('does not touch the status when the quote is already past "Rascunho"', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    const { props } = setup({
-      profile: baseProfile,
-      savedProjects: [{ ...solvedProject, status: 'accepted' }],
-      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
-    });
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
-
-    await waitFor(() => expect(openSpy).toHaveBeenCalled());
-    expect(props.onUpdateStatus).not.toHaveBeenCalled();
-
-    openSpy.mockRestore();
-  });
-
-  it('logs a quote_shared project_event when sharing', async () => {
-    const supabase = createSupabaseMock({ tableResults: { quote_shares: { data: { id: 'share-1' }, error: null } } });
-    createClientMock.mockReturnValue(supabase);
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    setup({
-      profile: baseProfile,
-      savedProjects: [solvedProject],
-      clients: [{ id: 'c1', name: 'Ana Souza', phone: '(11) 91234-5678' } as Client],
-    });
-    clickCard('Casa de praia');
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
-
-    await waitFor(() => expect(supabase.from).toHaveBeenCalledWith('project_events'));
-
-    openSpy.mockRestore();
   });
 
   it('clicking the selected card again clears the selection', () => {
