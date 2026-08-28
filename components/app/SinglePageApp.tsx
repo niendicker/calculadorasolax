@@ -10,6 +10,7 @@ import {
   Boxes,
   BookOpen,
   ClipboardList,
+  FileText,
   FolderOpen,
   Info,
   Loader2,
@@ -653,10 +654,11 @@ export function SinglePageApp() {
                         openProjectWorkspace(project.id);
                       }}
                       className={cn(
-                        'flex h-8 w-full min-w-0 items-center rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                        'flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
                         active && 'bg-primary/10 font-medium text-foreground'
                       )}
                     >
+                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       <span className="truncate">{project.name}</span>
                     </button>
                   );
