@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Banknote, Calculator, FolderOpen } from 'lucide-react';
+import { Banknote, Calculator, FolderOpen, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
@@ -16,7 +17,6 @@ import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
-import { NewProjectCard } from './project/NewProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
 import { SelectedProjectSummary } from './project/SelectedProjectSummary';
@@ -215,6 +215,12 @@ export function ProjectTab({
             Escolha um cliente cadastrado e salve a configuração para reutilizar depois.
           </p>
         </div>
+        {!projectDetailsVisible && (
+          <Button onClick={onNew}>
+            <Plus className="h-4 w-4" />
+            Novo projeto
+          </Button>
+        )}
       </PageHeader>
 
       <PageSummary>
@@ -294,7 +300,6 @@ export function ProjectTab({
               </div>
             )}
             <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-              {!projectDetailsVisible && <NewProjectCard onClick={onNew} />}
               {projectDetailsVisible && !currentProjectId && (
                 <ProjectDraftCard
                   projectInfo={projectInfo}
