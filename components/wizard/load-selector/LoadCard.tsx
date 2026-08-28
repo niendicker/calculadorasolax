@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, X, Zap } from 'lucide-react';
+import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, Trash2, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -976,15 +975,18 @@ export function LoadActionsMenu({ load, compact = false, duplicateDisabled, onDu
             Duplicar
           </button>
           <div className="my-1 border-t" />
-          <ConfirmDeleteModalButton
-            ariaLabel={`Excluir ${load.name}`}
-            itemName={load.name || 'carga sem nome'}
-            itemType="carga"
-            description={`A carga “${load.name || 'carga sem nome'}” será removida do dimensionamento. Esta ação não poderá ser desfeita.`}
-            label="Excluir"
-            triggerVariant="destructive"
-            onConfirm={() => onRemove(load.id)}
-          />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onRemove(load.id);
+              setOpen(false);
+            }}
+            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-destructive transition hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Excluir
+          </button>
         </div>
       )}
     </div>

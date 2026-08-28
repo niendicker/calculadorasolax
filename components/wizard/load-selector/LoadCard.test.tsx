@@ -312,8 +312,7 @@ describe('LoadCard: confirmed card header', () => {
     expect(header).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Chuveiro' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir Chuveiro' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir carga' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }));
     expect(onRemove).toHaveBeenCalledWith('l1');
     expect(header).toHaveAttribute('aria-expanded', 'false');
   });
