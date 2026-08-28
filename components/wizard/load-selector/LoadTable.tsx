@@ -243,8 +243,8 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
                     <InlineNumberField id={`${usageMode === 'fixed' ? 'Horas' : 'Fator de uso'} ${load.name}`} value={usageMode === 'fixed' ? Number(fixedHours) : Number(usageFactor)} min={0} max={usageMode === 'fixed' ? MAX_OPERATION_HOURS : 1} step={usageMode === 'fixed' ? 0.5 : 0.05} onValid={(value) => { if (usageMode === 'fixed') { setFixedHours(String(value)); onUpdate(load.id, { fixedHours: value }); } else { setUsageFactor(String(value)); onUpdate(load.id, { usageFactor: value }); } }} className="min-w-20 flex-1 rounded-none border-0 bg-transparent focus-visible:ring-0" />
                     <span className="my-1 w-px shrink-0 bg-input" aria-hidden="true" />
                     <TableSelect id={`Modo de uso ${load.name}`} value={usageMode} onChange={(value) => setUsageMode(value as 'fraction' | 'fixed')} className="w-24 shrink-0 rounded-none border-0 bg-transparent focus-visible:ring-0">
-                      <option value="fraction">Fração</option>
-                      <option value="fixed">Horas</option>
+                      <option value="fraction">%</option>
+                      <option value="fixed">H</option>
                     </TableSelect>
                   </div>
                 </div>
@@ -284,7 +284,7 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
 export function LoadTable({ loads, gridType, peakCalcMode, operationHours, onUpdate, onRemove, onDuplicate, duplicateDisabled }: LoadTableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
-      <table className="w-full min-w-0 text-sm lg:min-w-[1080px]" aria-label="Cargas do projeto em tabela">
+      <table className="w-full min-w-0 text-sm" aria-label="Cargas do projeto em tabela">
         <thead className="block bg-muted/40 text-[0.65rem] uppercase tracking-wide text-muted-foreground lg:table-header-group">
           <tr className="grid grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_4rem_2.5rem] gap-x-1 border-b md:grid-cols-[minmax(0,0.8fr)_3rem_5rem_4.5rem_5.5rem_minmax(8rem,1.2fr)_2.5rem] lg:table-row">
             <th scope="col" aria-label="Carga" className="block min-w-0 px-1.5 py-2 text-left font-semibold lg:table-cell lg:min-w-44 lg:px-3 lg:py-3" />
