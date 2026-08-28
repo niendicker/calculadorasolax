@@ -1,22 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createClientMock, invokeMock, recordSimulationMock, cookiesMock, demoSessionMock } = vi.hoisted(() => ({
+const { createClientMock, invokeMock, recordSimulationMock } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   invokeMock: vi.fn(),
   recordSimulationMock: vi.fn(),
-  cookiesMock: vi.fn(),
-  demoSessionMock: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: createClientMock }));
 vi.mock('@/lib/data/calculation-repository', () => ({
   invokeResidentialCalculation: invokeMock,
   recordSimulation: recordSimulationMock,
-}));
-vi.mock('next/headers', () => ({ cookies: cookiesMock }));
-vi.mock('@/lib/demo/demo-session', () => ({
-  DEMO_SESSION_COOKIE: 'solax-demo-session',
-  isValidDemoSessionToken: demoSessionMock,
 }));
 
 const solution = {
@@ -52,8 +45,6 @@ beforeEach(() => {
   createClientMock.mockReturnValue({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
   });
-  cookiesMock.mockResolvedValue({ get: vi.fn().mockReturnValue(undefined) });
-  demoSessionMock.mockReturnValue(false);
   invokeMock.mockResolvedValue({ data: solution, error: null });
   recordSimulationMock.mockResolvedValue({ error: null });
 });
@@ -83,17 +74,6 @@ describe('POST /api/calculations/residential', () => {
     const response = await POST(makeRequest());
 
     expect(response.status).toBe(422);
-    expect(recordSimulationMock).not.toHaveBeenCalled();
-  });
-
-  it('skips simulation persistence for a valid demo session', async () => {
-    cookiesMock.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: 'demo-token' }) });
-    demoSessionMock.mockReturnValue(true);
-    const { POST } = await import('./route');
-
-    const response = await POST(makeRequest());
-
-    expect(response.status).toBe(200);
     expect(recordSimulationMock).not.toHaveBeenCalled();
   });
 });

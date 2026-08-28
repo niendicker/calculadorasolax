@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import type { ResidentialCalculationRequest } from '@/lib/api-contracts';
 import { createClient } from '@/lib/supabase/server';
 import { invokeResidentialCalculation, recordSimulation } from '@/lib/data/calculation-repository';
 import { getNetworkErrorMessage, resolveCalculationErrorMessage } from '@/lib/calculation-error-messages';
 import type { Solution } from '@/lib/types';
-import { DEMO_SESSION_COOKIE, isValidDemoSessionToken } from '@/lib/demo/demo-session';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 
 export async function POST(request: Request) {
@@ -62,8 +60,7 @@ export async function POST(request: Request) {
       accessories: solution.accessories.map((accessory) => accessory.model),
       solution_code: solution.solutionCode ?? null,
     };
-    const demoSession = isValidDemoSessionToken((await cookies()).get(DEMO_SESSION_COOKIE)?.value);
-    const { error: simulationError } = demoSession ? { error: null } : await recordSimulation(supabase, simulationPayload);
+    const { error: simulationError } = await recordSimulation(supabase, simulationPayload);
 
     return NextResponse.json({
       solution,

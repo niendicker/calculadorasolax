@@ -8,7 +8,6 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | cliente/servidor | sim | Chave pública limitada por RLS |
 | `SUPABASE_INTERNAL_URL` | servidor | não | URL interna para reduzir dependência de proxy externo |
 | `SUPABASE_SERVICE_ROLE_KEY` | somente servidor | conforme rota | Operações administrativas que não podem usar RLS |
-| `DEMO_SESSION_SECRET` | somente servidor | sim | Segredo usado para assinar a sessão HttpOnly do modo demonstrativo |
 
 ## Email
 

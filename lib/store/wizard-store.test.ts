@@ -785,6 +785,24 @@ describe('persist partialize/merge (localStorage rehydration)', () => {
     expect(merged.residentialOptions.desiredFeatures).toEqual(['backup']);
   });
 
+  it('merge drops fields from the removed demonstration flow', () => {
+    const { merge } = useWizardStore.persist.getOptions();
+    const currentState = useWizardStore.getState();
+
+    const merged = merge!(
+      {
+        isDemo: true,
+        demoId: 'legacy-example',
+        demoSnapshot: { stale: true },
+      } as never,
+      currentState
+    ) as typeof currentState & Record<string, unknown>;
+
+    expect(merged.isDemo).toBeUndefined();
+    expect(merged.demoId).toBeUndefined();
+    expect(merged.demoSnapshot).toBeUndefined();
+  });
+
   it('merge handles a null/undefined persistedState by falling back to current state', () => {
     const { merge } = useWizardStore.persist.getOptions();
     const currentState = useWizardStore.getState();

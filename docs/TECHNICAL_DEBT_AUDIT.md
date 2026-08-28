@@ -13,6 +13,9 @@ e validadas no estado atual do código:
   `.gitignore`, sem remover os arquivos existentes da máquina;
 - a navegação do Workspace foi consolidada em um único estado, com restauração
   por URL, abertura de recursos e retorno ao projeto preservando o contexto;
+- o fluxo demonstrativo descontinuado foi removido da interface, do store, da
+  rota de sessão e dos artefatos de catálogo, evitando manutenção de código sem
+  ponto de entrada;
 - os fluxos de relatório, cotação, variantes de microrrede e limpeza do
   dimensionamento foram mantidos acessíveis no Workspace;
 - cards interativos não possuem mais controles de ajuda aninhados em outro
@@ -133,17 +136,15 @@ check automatizado de drift, testar RLS em CI e documentar o processo de
 promoção de migrations. Migrations de reapply devem ser exceção, não o
 mecanismo principal de sincronização.
 
-### 2. `isDemo` era controlado pelo cliente — resolvido
+### 2. Controle de sessão demonstrativa — removido
 
 - **Severidade:** 🟠 Alto
 - **Esforço:** M
 - **Arquivo:** `app/api/calculations/residential/route.ts:7-13,58`.
 
-O risco original era a rota confiar no campo `isDemo` enviado pelo cliente, o
-que permitiria adulterar métricas e contornar a regra de registro.
-
-**Status:** resolvido em `63980a43`, com sessão demo assinada pelo servidor e
-cookie HttpOnly.
+O fluxo demonstrativo que originou esta preocupação não faz mais parte da
+aplicação. A rota de cálculo sempre registra a simulação autenticada e não
+aceita mais uma exceção baseada em cookie ou estado de demonstração.
 
 ### 3. Endpoint de métricas aceitava payload sem validação estrutural — resolvido
 

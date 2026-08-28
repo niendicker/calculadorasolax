@@ -53,33 +53,6 @@ As regras de negócio puras devem permanecer independentes do Supabase para pode
 5. A API registra a métrica; falhas de métrica entram na fila local para reenvio.
 6. A solução retorna para a interface e pode ser persistida no projeto.
 
-## Modo demonstrativo
-
-O modo demonstrativo é uma camada de pré-preenchimento do wizard residencial,
-não um fluxo de cálculo separado. As definições dos exemplos ficam em
-`lib/demo/demo-simulations.ts`; presets de cargas, baterias e combinações
-aprovadas são obtidos dos catálogos já carregados.
-
-O Zustand mantém `isDemo`, `demoId` e um snapshot temporário do estado anterior.
-Ao selecionar um exemplo, os dados técnicos são substituídos, os resultados são
-limpos e a aplicação abre a aba Dimensionamento. O cálculo só ocorre quando o
-usuário aciona o botão normal de calcular.
-
-Durante o demo:
-
-- autosave e salvamento de projeto ficam desabilitados;
-- `currentProjectId` não é usado para persistência;
-- o servidor mantém uma sessão demo assinada em cookie HttpOnly e a API usa
-  essa sessão para não registrar a execução em `app_simulations`;
-- o estado demo não é persistido no localStorage;
-- sair restaura o snapshot e retorna à aba Projetos;
-- converter o demo limpa a identificação, remove o vínculo com o projeto
-  anterior e reativa o fluxo normal de salvamento.
-
-Os exemplos atuais são backup residencial, FV + backup e tarifa branca +
-backup. A estrutura permite adicionar novos exemplos sem duplicar componentes,
-validações ou regras de dimensionamento.
-
 ## Fluxo de projetos
 
 Projetos, clientes e eventos usam repositories em `lib/data`. O estado em Zustand representa a edição atual; o banco é a fonte persistente. O projeto não deve voltar a depender de localStorage como armazenamento principal.

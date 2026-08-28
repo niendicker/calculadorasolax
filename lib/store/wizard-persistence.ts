@@ -1,5 +1,5 @@
 import type { PersistOptions } from 'zustand/middleware';
-import { defaultProjectInfo, defaultResidential, sanitizeDesiredFeatures } from './defaults';
+import { sanitizeDesiredFeatures } from './defaults';
 import type { WizardStore } from './wizard-store';
 
 type PersistedWizardState = Partial<WizardStore>;
@@ -10,22 +10,26 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
   name: 'solax-wizard',
   skipHydration: true,
   partialize: (state) => ({
-    projectInfo: state.isDemo ? defaultProjectInfo : state.projectInfo,
-    currentProjectId: state.isDemo ? null : state.currentProjectId,
-    residentialOptions: state.isDemo ? defaultResidential : state.residentialOptions,
+    projectInfo: state.projectInfo,
+    currentProjectId: state.currentProjectId,
+    residentialOptions: state.residentialOptions,
     industrialOptions: state.industrialOptions,
-    solution: state.isDemo ? null : state.solution,
-    secondarySolution: state.isDemo ? null : state.secondarySolution,
-    services: state.isDemo ? [] : state.services,
+    solution: state.solution,
+    secondarySolution: state.secondarySolution,
+    services: state.services,
     loadCatalog: state.loadCatalog,
     loadPresets: state.loadPresets,
   }),
   merge: (persistedState, currentState) => {
     const persisted = (persistedState ?? {}) as PersistedWizardState;
-    const residentialOptions = { ...currentState.residentialOptions, ...persisted.residentialOptions };
+    const { isDemo: legacyIsDemo, demoId: legacyDemoId, demoSnapshot: legacyDemoSnapshot, ...persistedWithoutDemo } = persisted as PersistedWizardState & Record<string, unknown>;
+    void legacyIsDemo;
+    void legacyDemoId;
+    void legacyDemoSnapshot;
+    const residentialOptions = { ...currentState.residentialOptions, ...persistedWithoutDemo.residentialOptions };
     return {
       ...currentState,
-      ...persisted,
+      ...persistedWithoutDemo,
       residentialOptions: {
         ...residentialOptions,
         desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),

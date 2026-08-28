@@ -59,9 +59,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
 
   newProjectDraft: () =>
     set({
-      isDemo: false,
-      demoId: null,
-      demoSnapshot: null,
       projectInfo: defaultProjectInfo,
       currentProjectId: null,
       projectDetailsVisible: true,
@@ -83,9 +80,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
 
       if (!project) {
         return {
-          isDemo: false,
-          demoId: null,
-          demoSnapshot: null,
           projectInfo: defaultProjectInfo,
           currentProjectId: null,
           projectDetailsVisible: false,
@@ -97,9 +91,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       }
 
       return {
-        isDemo: false,
-        demoId: null,
-        demoSnapshot: null,
         projectDetailsVisible: false,
         services: project.services ?? [],
         projectInfo: {
@@ -120,7 +111,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     }),
 
   saveCurrentProject: async () => {
-    if (get().isDemo) throw new Error('demo_mode_save_blocked');
     const userId = await getCurrentUserId();
 
     const s = get();
@@ -160,9 +150,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
       if (!project) return {};
 
       return {
-        isDemo: false,
-        demoId: null,
-        demoSnapshot: null,
         currentProjectId: project.id,
         projectDetailsVisible: options?.showDetails ?? true,
         projectInfo: {
@@ -196,9 +183,6 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
         // keep showing after the project itself no longer exists.
         ...(wasCurrent
           ? {
-              isDemo: false,
-              demoId: null,
-              demoSnapshot: null,
               currentProjectId: null,
               projectDetailsVisible: false,
               projectInfo: defaultProjectInfo,

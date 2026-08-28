@@ -29,10 +29,6 @@ O app permite ao usuário cadastrar projetos, configurar topologia, modelo de ba
 - Salvamento da configuração por projeto: cliente, bateria, rede, cargas e solução
 - Catálogo de produtos cadastrados pelo admin, incluindo catálogo pessoal de cargas adicionadas manualmente (reutilizável, não propagado ao catálogo global)
 - Simulação residencial na página principal
-- Exemplos demonstrativos preenchidos para orientar novos usuários:
-  - Residencial com backup
-  - Residencial com FV + backup
-  - Residencial com tarifa branca + backup
 - Visualização da solução recomendada
 - Exportação de relatório em PDF/impressão com cargas, produtos, comentários e materiais técnicos
 
@@ -102,36 +98,6 @@ Regras:
 - Exclusão de conta: `POST /api/account/delete` autentica pela sessão do próprio usuário, remove a logomarca em modo best-effort e chama a RPC protegida `delete_own_account`; pedidos de compra podem permanecer sem o vínculo do usuário, conforme a migration `0079`
 
 ## Clientes e projetos
-
-### Exemplos demonstrativos
-
-Na área inicial de Projetos, o usuário pode selecionar **Ver exemplo
-preenchido**. O seletor usa presets de cargas existentes e produtos disponíveis
-nos catálogos, mantendo o mesmo fluxo de Dimensionamento usado por uma
-simulação manual.
-
-Ao escolher um exemplo:
-
-- a aplicação abre diretamente a aba Dimensionamento;
-- os campos técnicos são preenchidos, mas nenhum cálculo é executado
-  automaticamente;
-- o usuário pode editar os campos e clicar em Calcular normalmente;
-- os resultados são reais e produzidos pelo motor residencial vigente.
-
-O banner **Exemplo demonstrativo** oferece:
-
-- **Sair do exemplo**: restaura o estado anterior e volta para Projetos;
-- **Usar como nova simulação**: remove a identificação e o vínculo do projeto
-  anterior, abre um novo formulário e mantém os dados técnicos atuais.
-
-O Zustand controla a experiência local com `isDemo`, mas a autoridade server-side
-é uma sessão demo assinada em cookie HttpOnly criada por `/api/demo/session`.
-Enquanto ativo, não há autosave, salvamento de projeto ou registro de métricas
-em `app_simulations`. O estado demo não sobrevive a um reload da página.
-
-O modo demonstrativo não cria resultados fake, não ignora validações e não
-altera regras de dimensionamento. Novos exemplos devem ser adicionados como
-definições centrais em `lib/demo/`, reutilizando presets e catálogos existentes.
 
 ### `clients`
 
@@ -347,7 +313,6 @@ As abas de agrupamento de combinações mostram apenas modelos presentes no cada
 | `/[locale]/auth/callback` | Callback de confirmação/recuperação |
 | `/[locale]/cotacao/[token]` | Visualização pública de uma cotação compartilhada |
 | `/api/account/delete` | Route handler (POST) para exclusão de conta |
-| `/api/demo/session` | Criação e encerramento da sessão server-side do modo demo |
 | `/api/metrics/simulations` | Registro autenticado de métricas de simulação |
 
 ## Arquivos-chave

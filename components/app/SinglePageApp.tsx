@@ -43,8 +43,6 @@ import { useAuthenticatedNavigation } from './shell/useAuthenticatedNavigation';
 import { useAppNavigationActions } from './shell/useAppNavigationActions';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
-import { DemoBanner } from './demo/DemoBanner';
-import { useDemoController } from './demo/useDemoController';
 import { ProjectTab } from './tabs/ProjectTab';
 import { ProjectWorkspace } from './project-workspace/ProjectWorkspace';
 import type { PickerItemId } from './tabs/SizingTab';
@@ -184,9 +182,6 @@ export function SinglePageApp() {
     setLoadCatalog,
     setLoadPresets,
     resetResidential,
-    isDemo,
-    exitDemoMode,
-    convertDemoToSimulation,
   } = useWizardStore();
 
   const [pendingSupplyImport, setPendingSupplyImport] = useState(false);
@@ -337,7 +332,6 @@ export function SinglePageApp() {
     updateProjectStatus,
     onProjectSaved: (project) => openProjectWorkspace(project.id),
     setActiveTab: changeTab,
-    isDemo,
   });
 
   function openProjectWorkspace(id: string) {
@@ -434,18 +428,9 @@ export function SinglePageApp() {
   // "change" too, but isn't an edit).
   const autosaveData = useMemo(() => ({ projectInfo, residentialOptions, solution }), [projectInfo, residentialOptions, solution]);
   const { status: autosaveStatus, lastSavedAt: autosaveLastSavedAt } = useAutosave({
-    enabled: !isDemo && Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
+    enabled: Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
     data: autosaveData,
     saveCurrentProject,
-  });
-
-  const {
-    leaveDemo,
-    convertDemo,
-  } = useDemoController({
-    exitDemoMode,
-    convertDemoToSimulation,
-    changeTab,
   });
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
@@ -784,7 +769,6 @@ export function SinglePageApp() {
                       </Button>
                     </div>
                   )}
-                  {isDemo && <DemoBanner onExit={leaveDemo} onConvert={convertDemo} />}
                   {guideOpen ? (
                     <GuidePage content={guideContent} embedded />
                   ) : activeTab === 'project' ? (
