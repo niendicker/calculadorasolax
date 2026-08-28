@@ -456,7 +456,7 @@ describe('LoadCard: expanded fields', () => {
     render(<LoadCard {...baseProps({ operationHours: 6, load: fullLoad(), onUpdate })} />);
     expand();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Horas' }));
+    fireEvent.change(screen.getByLabelText('Modo de cálculo de energia'), { target: { value: 'fixed' } });
     expect(onUpdate).toHaveBeenCalledWith('l1', { usageMode: 'fixed', fixedHours: 6 });
   });
 
@@ -465,16 +465,16 @@ describe('LoadCard: expanded fields', () => {
     render(<LoadCard {...baseProps({ load: fullLoad({ usageMode: 'fixed', fixedHours: 6 }), onUpdate })} />);
     expand();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Fração' }));
+    fireEvent.change(screen.getByLabelText('Modo de cálculo de energia'), { target: { value: 'fraction' } });
     expect(onUpdate).toHaveBeenCalledWith('l1', { usageMode: 'fraction' });
   });
 
-  it('does not emit an update when the already-active usage-mode tab is clicked', () => {
+  it('does not emit an update when the already-active usage mode is re-selected', () => {
     const onUpdate = vi.fn();
     render(<LoadCard {...baseProps({ load: fullLoad({ usageMode: 'fixed', fixedHours: 6 }), onUpdate })} />);
     expand();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Horas' }));
+    fireEvent.change(screen.getByLabelText('Modo de cálculo de energia'), { target: { value: 'fixed' } });
     expect(onUpdate).not.toHaveBeenCalled();
   });
 

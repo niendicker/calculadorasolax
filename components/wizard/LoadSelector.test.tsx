@@ -935,7 +935,7 @@ describe('LoadSelector: added loads list', () => {
     // Fraction mode (default): 1000 W x 10h shared / 1000 = 10.00 kWh.
     expect(summary).toHaveTextContent('10.00 kWh');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Horas' }));
+    fireEvent.change(screen.getByLabelText('Modo de cálculo de energia'), { target: { value: 'fixed' } });
     expect(useWizardStore.getState().residentialOptions.loads[0].usageMode).toBe('fixed');
     // Switching pre-fills fixedHours from the shared operationHours (10), so
     // the displayed energy doesn't jump until the user actually edits it.
@@ -980,7 +980,7 @@ describe('LoadSelector: added loads list', () => {
     fireEvent.click(screen.getByText('Chuveiro'));
     expect(screen.getByLabelText('Horas fixas', { exact: false })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Fração' }));
+    fireEvent.change(screen.getByLabelText('Modo de cálculo de energia'), { target: { value: 'fraction' } });
 
     expect(useWizardStore.getState().residentialOptions.loads[0].usageMode).toBe('fraction');
     expect(screen.getByLabelText('Fator de uso', { exact: false })).toBeInTheDocument();

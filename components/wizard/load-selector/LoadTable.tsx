@@ -239,10 +239,13 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
                 </div>
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">Uso e energia</p>
-                  <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-0.5" role="tablist" aria-label={`Modo de uso ${load.name}`}>
-                    <button type="button" role="tab" aria-selected={usageMode === 'fraction'} onClick={() => setUsageMode('fraction')} className={cn('rounded px-2 py-1.5 text-xs font-medium', usageMode === 'fraction' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>Fração</button>
-                    <button type="button" role="tab" aria-selected={usageMode === 'fixed'} onClick={() => setUsageMode('fixed')} className={cn('rounded px-2 py-1.5 text-xs font-medium', usageMode === 'fixed' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>Horas</button>
-                    <InlineNumberField id={`${usageMode === 'fixed' ? 'Horas' : 'Fator de uso'} ${load.name}`} value={usageMode === 'fixed' ? Number(fixedHours) : Number(usageFactor)} min={0} max={usageMode === 'fixed' ? MAX_OPERATION_HOURS : 1} step={usageMode === 'fixed' ? 0.5 : 0.05} onValid={(value) => { if (usageMode === 'fixed') { setFixedHours(String(value)); onUpdate(load.id, { fixedHours: value }); } else { setUsageFactor(String(value)); onUpdate(load.id, { usageFactor: value }); } }} className="min-w-20 flex-1" />
+                  <div className="flex items-stretch overflow-hidden rounded-md border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
+                    <InlineNumberField id={`${usageMode === 'fixed' ? 'Horas' : 'Fator de uso'} ${load.name}`} value={usageMode === 'fixed' ? Number(fixedHours) : Number(usageFactor)} min={0} max={usageMode === 'fixed' ? MAX_OPERATION_HOURS : 1} step={usageMode === 'fixed' ? 0.5 : 0.05} onValid={(value) => { if (usageMode === 'fixed') { setFixedHours(String(value)); onUpdate(load.id, { fixedHours: value }); } else { setUsageFactor(String(value)); onUpdate(load.id, { usageFactor: value }); } }} className="min-w-20 flex-1 rounded-none border-0 bg-transparent focus-visible:ring-0" />
+                    <span className="my-1 w-px shrink-0 bg-input" aria-hidden="true" />
+                    <TableSelect id={`Modo de uso ${load.name}`} value={usageMode} onChange={(value) => setUsageMode(value as 'fraction' | 'fixed')} className="w-24 shrink-0 rounded-none border-0 bg-transparent focus-visible:ring-0">
+                      <option value="fraction">Fração</option>
+                      <option value="fixed">Horas</option>
+                    </TableSelect>
                   </div>
                 </div>
                 <div>

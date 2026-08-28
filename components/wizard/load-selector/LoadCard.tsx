@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { InfoLabel, TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
 import { isLimitError } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases } from '@/lib/store/wizard-store';
@@ -31,6 +32,7 @@ function NumberFieldWithClear({
   onBlur,
   onClear,
   wrapperClassName = 'mt-1',
+  inputClassName,
 }: {
   id?: string;
   value: string;
@@ -46,6 +48,9 @@ function NumberFieldWithClear({
    * Label on its own line. Pass e.g. "flex-1" (no margin) when placing this
    * inline next to another control instead. */
   wrapperClassName?: string;
+  /** Extra classes for the underlying Input — e.g. to drop its own
+   * border/radius when it's grouped visually with an adjacent control. */
+  inputClassName?: string;
 }) {
   return (
     <div className={cn('relative', wrapperClassName)}>
@@ -60,7 +65,7 @@ function NumberFieldWithClear({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
-        className="h-10 pr-8 text-base md:h-8 md:pr-6 md:text-xs"
+        className={cn('h-10 pr-8 text-base md:h-8 md:pr-6 md:text-xs', inputClassName)}
       />
       {value !== '' && (
         <button
@@ -383,37 +388,7 @@ export function LoadCard({
               }
             />
           </Label>
-          <div className="mt-1 flex items-center gap-2">
-            <div className="flex flex-1 gap-1 rounded-lg border bg-background p-0.5" role="tablist" aria-label="Alternar modo de cálculo de energia">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={usageMode === 'fraction'}
-                onClick={() => setUsageMode('fraction')}
-                className={cn(
-                  'flex-1 rounded-md px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  usageMode === 'fraction'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Fração
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={usageMode === 'fixed'}
-                onClick={() => setUsageMode('fixed')}
-                className={cn(
-                  'flex-1 rounded-md px-1.5 py-1 text-[0.65rem] font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  usageMode === 'fixed'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Horas
-              </button>
-            </div>
+          <div className="mt-1 flex items-stretch overflow-hidden rounded-lg border border-input bg-muted transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
             {usageMode === 'fixed' ? (
               <NumberFieldWithClear
                 id={`fixed-hours-${load.id}`}
@@ -426,6 +401,7 @@ export function LoadCard({
                 onBlur={revertFixedHoursIfInvalid}
                 onClear={() => setFixedHours('')}
                 wrapperClassName="flex-1"
+                inputClassName="rounded-none border-0 bg-transparent focus-visible:ring-0 dark:bg-transparent"
               />
             ) : (
               <NumberFieldWithClear
@@ -439,8 +415,19 @@ export function LoadCard({
                 onBlur={revertUsageFactorIfInvalid}
                 onClear={() => setUsageFactor('')}
                 wrapperClassName="flex-1"
+                inputClassName="rounded-none border-0 bg-transparent focus-visible:ring-0 dark:bg-transparent"
               />
             )}
+            <span className="my-1.5 w-px shrink-0 bg-input" aria-hidden="true" />
+            <Select
+              aria-label="Modo de cálculo de energia"
+              value={usageMode}
+              onChange={(event) => setUsageMode(event.target.value as 'fraction' | 'fixed')}
+              className="w-24 shrink-0 rounded-none border-0 bg-transparent focus-visible:ring-0"
+            >
+              <option value="fraction">Fração</option>
+              <option value="fixed">Horas</option>
+            </Select>
           </div>
         </div>
       </div>
