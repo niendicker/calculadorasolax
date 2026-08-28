@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
 import type { MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import {
   batteryQuantityBreakdown,
   calculateSystemCost,
@@ -35,15 +36,20 @@ function ProductNameLine({
   suffix?: string;
   detail?: string;
 }) {
+  // A catalog nickname is sometimes just a copy of the model code — treat
+  // that the same as having no nickname at all: uppercase it like any other
+  // model code, and skip the caption underneath so it isn't repeated.
+  const displayName = nickname || model;
+  const isModelCode = displayName === model;
   return (
     <div className="space-y-0.5">
       <p className="text-xs font-semibold text-foreground">{category}</p>
       {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
-      <p className="text-sm font-medium text-foreground">
-        {nickname || model}
+      <p className={cn('text-sm font-medium text-foreground', isModelCode && 'uppercase')}>
+        {displayName}
         {suffix}
       </p>
-      {nickname && <p className="text-[0.7rem] font-mono text-muted-foreground">{model}</p>}
+      {!isModelCode && <p className="text-[0.7rem] font-mono uppercase text-muted-foreground">{model}</p>}
     </div>
   );
 }
@@ -160,14 +166,16 @@ export function SelectedProjectSummary({
                   {project.solution.accessories.map((accessory) => {
                     const { model, qty, optional, bundled, appliesTo } = normalizeAccessoryLine(accessory);
                     const nickname = accessoryCatalog.find((item) => item.model === model)?.nickname;
+                    const displayName = nickname || model;
+                    const isModelCode = displayName === model;
                     return (
                       <div key={model} className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-foreground">
-                            {nickname || model}
+                          <p className={cn('truncate text-foreground', isModelCode && 'uppercase')}>
+                            {displayName}
                             {qty !== 1 ? ` × ${qty}` : ''}
                           </p>
-                          {nickname && <p className="truncate text-[0.7rem]">{model}</p>}
+                          {!isModelCode && <p className="truncate text-[0.7rem] uppercase">{model}</p>}
                         </div>
                         <span className="shrink-0 text-[0.7rem]">
                           {bundled

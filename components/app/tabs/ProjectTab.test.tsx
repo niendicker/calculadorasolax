@@ -932,6 +932,55 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(accessoryNickname.nextElementSibling).toHaveTextContent('Smart Meter');
   });
 
+  it('uppercases the model code and skips the redundant caption when the catalog nickname is just a copy of it', () => {
+    setup({
+      savedProjects: [
+        makeProject({
+          id: 'p1',
+          name: 'Casa de praia',
+          solution: {
+            inverterId: 'inv1',
+            inverterModel: 'x1-hybrid-5.0kw-g4',
+            batteryId: 'bat1',
+            batteryModel: 'tp-hs3.6',
+            batteryQty: 1,
+            pvPowerKw: null,
+            accessories: [],
+          },
+        }),
+      ],
+      inverterCatalog: [
+        {
+          id: 'i1',
+          model: 'x1-hybrid-5.0kw-g4',
+          // Same value as the model — a common catalog data-entry pattern
+          // when no friendlier name was set.
+          nickname: 'x1-hybrid-5.0kw-g4',
+          topology: 'HV',
+          phases: 1,
+          standardPowerKva: 5,
+          peakPowerKva: 7,
+          maxPowerPerPhaseW: null,
+          imageUrl: null,
+          documents: [],
+          flags: [],
+        },
+      ],
+    });
+
+    clickCard('Casa de praia');
+
+    // Inverter: nickname === model, so the caption underneath is skipped —
+    // the model text isn't shown twice.
+    const inverterLine = screen.getByText('x1-hybrid-5.0kw-g4');
+    expect(inverterLine).toHaveClass('uppercase');
+    expect(screen.getAllByText('x1-hybrid-5.0kw-g4')).toHaveLength(1);
+
+    // Battery: no catalog entry at all, so it falls back to the bare model —
+    // still shown uppercase.
+    expect(screen.getByText('tp-hs3.6 × 1')).toHaveClass('uppercase');
+  });
+
   it('marks bundled accessories as included with the inverter/battery in the summary', () => {
     setup({
       savedProjects: [
