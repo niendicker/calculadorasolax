@@ -591,6 +591,22 @@ describe('SinglePageApp: desktop sidebar navigation', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument();
   });
 
+  it('collapses and expands the saved-projects submenu under "Projetos"', async () => {
+    setupSupabase();
+    useWizardStore.setState({ savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa restaurada' })] });
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
+
+    expect(sidebarNav().getByRole('button', { name: 'Abrir workspace Casa restaurada' })).toBeInTheDocument();
+
+    const toggle = sidebarNav().getByRole('button', { name: 'Recolher lista de projetos' });
+    fireEvent.click(toggle);
+    expect(sidebarNav().queryByRole('button', { name: 'Abrir workspace Casa restaurada' })).not.toBeInTheDocument();
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Expandir lista de projetos' }));
+    expect(sidebarNav().getByRole('button', { name: 'Abrir workspace Casa restaurada' })).toBeInTheDocument();
+  });
+
   it('scrolls the content area and toggles the compact title-bar padding', async () => {
     setupSupabase();
     renderApp();

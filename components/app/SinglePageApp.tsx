@@ -9,6 +9,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import {
   Boxes,
   BookOpen,
+  ChevronDown,
   ClipboardList,
   FileText,
   FolderOpen,
@@ -200,6 +201,7 @@ export function SinglePageApp() {
   const { open: workspaceOpen, resource: workspaceResource, technicalEditorOpen: workspaceTechnicalEditorOpen, configurationOpen: workspaceConfigurationOpen, returnAvailable: workspaceReturnAvailable } = workspaceNavigation;
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [projectsMenuOpen, setProjectsMenuOpen] = useState(true);
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0';
   const guideContent = useMemo(() => getGuideContent(locale), [locale]);
 
@@ -625,20 +627,33 @@ export function SinglePageApp() {
           </div>
 
           <nav className="mt-8 space-y-1" aria-label="Navegação principal">
-            <button
-              type="button"
-              aria-current={!guideOpen && (activeTab === 'project' || workspaceOpen) ? 'page' : undefined}
-              onClick={() => { setGuideOpen(false); changeTab('project'); }}
-              className={cn(
-                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                !guideOpen && (activeTab === 'project' || workspaceOpen) &&
-                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-current={!guideOpen && (activeTab === 'project' || workspaceOpen) ? 'page' : undefined}
+                onClick={() => { setGuideOpen(false); changeTab('project'); }}
+                className={cn(
+                  'flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                  !guideOpen && (activeTab === 'project' || workspaceOpen) &&
+                    'border border-primary/20 bg-primary/10 font-medium text-foreground'
+                )}
+              >
+                <FolderOpen className="h-4 w-4" />
+                Projetos
+              </button>
+              {savedProjects.length > 0 && (
+                <button
+                  type="button"
+                  aria-label={projectsMenuOpen ? 'Recolher lista de projetos' : 'Expandir lista de projetos'}
+                  aria-expanded={projectsMenuOpen}
+                  onClick={() => setProjectsMenuOpen((open) => !open)}
+                  className="flex h-9 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <ChevronDown className={cn('h-4 w-4 transition-transform', !projectsMenuOpen && '-rotate-90')} />
+                </button>
               )}
-            >
-              <FolderOpen className="h-4 w-4" />
-              Projetos
-            </button>
-            {savedProjects.length > 0 && (
+            </div>
+            {savedProjects.length > 0 && projectsMenuOpen && (
               <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
                 {savedProjects.map((project) => {
                   const active = workspaceOpen && currentProjectId === project.id;
