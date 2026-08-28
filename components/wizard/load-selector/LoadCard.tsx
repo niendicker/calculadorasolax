@@ -745,7 +745,7 @@ export function LoadCard({
   return (
     <div
       className={cn(
-        'relative rounded-lg border bg-card text-sm',
+        'relative rounded-lg border border-border/70 bg-card text-sm',
         expanded && !presetSelectionMode && 'sm:col-span-2',
         canDragToPhase && !presetSelectionMode && 'cursor-grab active:cursor-grabbing',
         presetSelectionMode && presetSelected && 'border-primary ring-2 ring-primary/30 bg-primary/5'
