@@ -141,6 +141,25 @@ describe('LoadSelector: load display modes', () => {
     fireEvent.click(screen.getByText('Chuveiro'));
     expect(screen.queryByRole('spinbutton', { name: 'Quantidade Chuveiro' })).not.toBeInTheDocument();
   });
+
+  it('edits "Fator de uso" as a 0-100% value in the table view too', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1, usageFactor: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
+    fireEvent.click(screen.getByText('Chuveiro'));
+
+    const usageFactorInput = screen.getByRole('spinbutton', { name: 'Fator de uso Chuveiro' });
+    expect(usageFactorInput).toHaveValue(100);
+
+    fireEvent.change(usageFactorInput, { target: { value: '60' } });
+    expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(0.6);
+  });
 });
 
 describe('LoadSelector: adding from a system preset', () => {
@@ -877,7 +896,7 @@ describe('LoadSelector: added loads list', () => {
     expect(summary).toHaveTextContent('5.50 kWh');
 
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
-    fireEvent.change(usageFactorInput, { target: { value: '0.5' } });
+    fireEvent.change(usageFactorInput, { target: { value: '50' } });
 
     expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(0.5);
     // Peak power is unaffected; only the daily energy consumption scales down.
@@ -902,7 +921,7 @@ describe('LoadSelector: added loads list', () => {
     expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(0);
   });
 
-  it('clamps a "Fator de uso" typed above 1 back down to 1 on blur', () => {
+  it('clamps a "Fator de uso" typed above 100% back down to 100% on blur', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -913,11 +932,11 @@ describe('LoadSelector: added loads list', () => {
 
     fireEvent.click(screen.getByText('Chuveiro'));
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
-    fireEvent.change(usageFactorInput, { target: { value: '2' } });
+    fireEvent.change(usageFactorInput, { target: { value: '200' } });
     fireEvent.blur(usageFactorInput);
 
     expect(useWizardStore.getState().residentialOptions.loads[0].usageFactor).toBe(1);
-    expect(usageFactorInput).toHaveValue(1);
+    expect(usageFactorInput).toHaveValue(100);
   });
 
   it('switches a load to fixed-hours mode, using its own hours instead of the shared operationHours', () => {
@@ -1230,7 +1249,7 @@ describe('LoadSelector: added loads list', () => {
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
     fireEvent.change(usageFactorInput, { target: { value: '' } });
     fireEvent.blur(usageFactorInput);
-    expect(usageFactorInput).toHaveValue(1);
+    expect(usageFactorInput).toHaveValue(100);
 
     const ipInInput = screen.getByLabelText('IP/IN', { exact: false });
     fireEvent.change(ipInInput, { target: { value: 'nope' } });

@@ -122,7 +122,9 @@ export function LoadCard({
 }) {
   const [qty, setQty] = useState(String(load.qty));
   const [ipIn, setIpIn] = useState(String(load.ipInRatio ?? 1));
-  const [usageFactor, setUsageFactor] = useState(String(load.usageFactor ?? 1));
+  // Stored on the load as a 0-1 fraction, but edited here as a 0-100
+  // percentage to match the "%" unit shown in the mode dropdown.
+  const [usageFactor, setUsageFactor] = useState(String(Math.round((load.usageFactor ?? 1) * 100)));
   const [fixedHours, setFixedHours] = useState(String(load.fixedHours ?? operationHours));
   const usageMode = load.usageMode ?? 'fraction';
   const [expanded, setExpanded] = useState(false);
@@ -278,12 +280,13 @@ export function LoadCard({
       raw.trim() !== '' &&
       Number.isFinite(parsed) &&
       (field === 'usageFactor'
-        ? parsed >= 0 && parsed <= 1
+        ? parsed >= 0 && parsed <= 100
         : field === 'fixedHours'
           ? parsed >= 0 && parsed <= MAX_OPERATION_HOURS
           : parsed > 0);
     if (isValid) {
-      onUpdate(load.id, { [field]: parsed } as Partial<SingleLoad>);
+      const value = field === 'usageFactor' ? parsed / 100 : parsed;
+      onUpdate(load.id, { [field]: value } as Partial<SingleLoad>);
     }
   }
 
@@ -297,11 +300,11 @@ export function LoadCard({
   function revertUsageFactorIfInvalid() {
     const parsed = Number(usageFactor);
     if (usageFactor.trim() === '' || !Number.isFinite(parsed) || parsed < 0) {
-      setUsageFactor(String(load.usageFactor ?? 1));
+      setUsageFactor(String(Math.round((load.usageFactor ?? 1) * 100)));
       return;
     }
-    if (parsed > 1) {
-      setUsageFactor('1');
+    if (parsed > 100) {
+      setUsageFactor('100');
       onUpdate(load.id, { usageFactor: 1 });
     }
   }
@@ -384,7 +387,7 @@ export function LoadCard({
               tip={
                 usageMode === 'fixed'
                   ? `Horas por dia em que a carga fica ligada, independente do tempo de operação compartilhado (máx. ${MAX_OPERATION_HOURS} h). Por exemplo, um equipamento com horário de funcionamento próprio. Define o consumo real em kWh/dia; não afeta a potência máxima.`
-                  : 'Fração do tempo (0 a 1) em que a carga fica efetivamente ligada dentro do período de operação compartilhado. Por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima. Se a carga tiver um horário próprio de funcionamento, use "Horas" ao lado em vez de fração.'
+                  : 'Percentual do tempo (0 a 100%) em que a carga fica efetivamente ligada dentro do período de operação compartilhado. Por exemplo, um compressor que liga e desliga por termostato. Define o consumo real em kWh/dia; não afeta a potência máxima. Se a carga tiver um horário próprio de funcionamento, use "Horas" ao lado em vez de fração.'
               }
             />
           </Label>
@@ -407,10 +410,10 @@ export function LoadCard({
               <NumberFieldWithClear
                 id={`usage-factor-${load.id}`}
                 value={usageFactor}
-                placeholder="Ex.: 1"
+                placeholder="Ex.: 100"
                 min={0}
-                max={1}
-                step={0.05}
+                max={100}
+                step={5}
                 onChange={(value) => handleChange('usageFactor', value, setUsageFactor)}
                 onBlur={revertUsageFactorIfInvalid}
                 onClear={() => setUsageFactor('')}

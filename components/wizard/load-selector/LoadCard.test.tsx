@@ -416,38 +416,41 @@ describe('LoadCard: expanded fields', () => {
     expect(screen.queryByText(/inversor de frequência.*softstarter/i)).not.toBeInTheDocument();
   });
 
-  it('rejects a usageFactor above 1 (no update) and accepts 0', () => {
+  it('rejects a usageFactor above 100% (no update) and accepts 0, converting the typed percentage to a fraction', () => {
     const onUpdate = vi.fn();
     render(<LoadCard {...baseProps({ load: fullLoad({ usageFactor: 1 }), onUpdate })} />);
     expand();
 
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
-    fireEvent.change(usageFactorInput, { target: { value: '2' } });
-    expect(onUpdate).not.toHaveBeenCalledWith('l1', { usageFactor: 2 });
+    fireEvent.change(usageFactorInput, { target: { value: '150' } });
+    expect(onUpdate).not.toHaveBeenCalledWith('l1', { usageFactor: 1.5 });
+
+    fireEvent.change(usageFactorInput, { target: { value: '50' } });
+    expect(onUpdate).toHaveBeenCalledWith('l1', { usageFactor: 0.5 });
 
     fireEvent.change(usageFactorInput, { target: { value: '0' } });
     expect(onUpdate).toHaveBeenCalledWith('l1', { usageFactor: 0 });
   });
 
-  it('reverts usageFactor to the stored value when blurred while negative or empty', () => {
+  it('reverts usageFactor to the stored value (as a percentage) when blurred while negative or empty', () => {
     render(<LoadCard {...baseProps({ load: fullLoad({ usageFactor: 0.7 }) })} />);
     expand();
 
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
     fireEvent.change(usageFactorInput, { target: { value: '-1' } });
     fireEvent.blur(usageFactorInput);
-    expect(usageFactorInput).toHaveValue(0.7);
+    expect(usageFactorInput).toHaveValue(70);
   });
 
-  it('clamps usageFactor above 1 down to 1 on blur and updates the store', () => {
+  it('clamps usageFactor above 100% down to 100% on blur and updates the store as a fraction', () => {
     const onUpdate = vi.fn();
     render(<LoadCard {...baseProps({ load: fullLoad({ usageFactor: 1 }), onUpdate })} />);
     expand();
 
     const usageFactorInput = screen.getByLabelText('Fator de uso', { exact: false });
-    fireEvent.change(usageFactorInput, { target: { value: '5' } });
+    fireEvent.change(usageFactorInput, { target: { value: '150' } });
     fireEvent.blur(usageFactorInput);
-    expect(usageFactorInput).toHaveValue(1);
+    expect(usageFactorInput).toHaveValue(100);
     expect(onUpdate).toHaveBeenCalledWith('l1', { usageFactor: 1 });
   });
 
