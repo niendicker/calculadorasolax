@@ -88,6 +88,33 @@ describe('ProjectWorkspace', () => {
     expect(screen.queryByRole('button', { name: 'Dimensionar solução' })).not.toBeInTheDocument();
   });
 
+  it('hides "Revisar cargas" from Próximos passos once at least one load is registered, and shows it when there are none', () => {
+    const { rerender } = renderWorkspace();
+
+    expect(screen.queryByRole('button', { name: /^Revisar cargas/ })).not.toBeInTheDocument();
+
+    rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
+          residentialOptions={{ ...residentialOptions, loads: [] }}
+          solution={null}
+          nominalW={0}
+          peakW={0}
+          dailyKwh={0}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.getByRole('button', { name: /^Revisar cargas/ })).toBeInTheDocument();
+  });
+
   it('keeps the Microgrid help icon inline with its title without card padding', () => {
     const onOpenResource = vi.fn();
     renderWorkspace({

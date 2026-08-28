@@ -921,7 +921,7 @@ export function ProjectWorkspace({
             <CardHeader className="flex flex-row items-center gap-3 pb-3"><CardIcon icon={Flag} /><h2 className="text-base font-semibold">Próximos passos</h2></CardHeader>
             <CardContent className="grid gap-2 pt-0 sm:grid-cols-3">
               {resourceAttentionCount > 0 && <ActionCard label="Revisar configurações pendentes" detail={`${resourceAttentionCount} recurso(s) requerem atenção`} onClick={openFirstPendingResource} icon={AlertTriangle} />}
-              <ActionCard label="Revisar cargas" detail={`${residentialOptions.loads.length} carga(s) cadastrada(s)`} onClick={() => openSizingSection('loads')} icon={ClipboardList} />
+              {loadsState === 'attention' && <ActionCard label="Revisar cargas" detail="Nenhuma carga cadastrada" onClick={() => openSizingSection('loads')} icon={ClipboardList} />}
               <ActionCard label="Gerar orçamento" detail="Acessar fornecedores e serviços" onClick={() => openSizingSection('budget')} icon={ReceiptText} />
             </CardContent>
           </Card>
