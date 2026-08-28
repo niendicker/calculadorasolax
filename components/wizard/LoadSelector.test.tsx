@@ -657,22 +657,26 @@ describe('LoadSelector: blank load card', () => {
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
   });
 
-  it('opens the blank draft card already fully expanded, with every field editable before it has a name', () => {
+  it('opens the blank draft card with just Nome and Potência — every other field is adjusted later, after adding', () => {
     renderLoadSelector();
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
 
-    // Not gated behind an expand click: qty/IP-IN/usage and voltage/type fields
-    // are all visible right away, alongside Nome/Potência.
-    expect(screen.getByLabelText('Quantidade', { exact: false })).toBeInTheDocument();
-    expect(screen.getByLabelText('IP/IN', { exact: false })).toBeInTheDocument();
-    expect(screen.getByLabelText('Fator de uso', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText('Tensão')).toBeInTheDocument();
-    expect(screen.getByText('Tipo')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nome')).toBeInTheDocument();
+    expect(screen.getByLabelText('Potência (VA)')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Quantidade', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('IP/IN', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Fator de uso', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByText('Tensão')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tipo')).not.toBeInTheDocument();
 
-    // Adjusting a field before naming the load already updates the store.
-    fireEvent.change(screen.getByLabelText('Quantidade', { exact: false }), { target: { value: '3' } });
-    expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(3);
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Chuveiro' } });
+    fireEvent.change(screen.getByLabelText('Potência (VA)'), { target: { value: '5500' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    // Confirmed with sensible defaults for everything that wasn't shown.
+    const [load] = useWizardStore.getState().residentialOptions.loads;
+    expect(load).toMatchObject({ name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 });
   });
 
   it('inserts the new blank card, and the resulting load, at the top of the existing list', () => {
