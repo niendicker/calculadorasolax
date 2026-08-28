@@ -3,14 +3,78 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ClipboardCopy, FileText, Paperclip, Search, X, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ClipboardCopy, FileText, Lightbulb, Paperclip, Search, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ProductDocument } from '@/lib/types';
+import { getGuideContent } from '@/content/guide';
 import { cn } from '@/lib/utils';
 import type { ProductMedia } from './types';
+
+const microgridGuide = getGuideContent('pt').sections.find((section) => section.id === 'microgrid');
+
+export function MicrogridGuideDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open || !microgridGuide) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="flex max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-card shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="microgrid-guide-dialog-title"
+      >
+        <header className="flex items-start justify-between gap-4 border-b px-5 py-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-primary">Guia básico</p>
+            <h2 id="microgrid-guide-dialog-title" className="mt-1 font-heading text-xl font-semibold">
+              {microgridGuide.title}
+            </h2>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Fechar Saiba mais" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </header>
+        <div className="space-y-4 overflow-y-auto px-5 py-5 text-sm leading-6">
+          <p className="text-muted-foreground">{microgridGuide.intro}</p>
+          {microgridGuide.attention && (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p><span className="font-semibold">Atenção:</span> {microgridGuide.attention}</p>
+            </div>
+          )}
+          <ul className="space-y-3 text-muted-foreground">
+            {microgridGuide.details.map((detail) => (
+              <li key={detail} className="flex items-start gap-2">
+                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>{detail}</span>
+              </li>
+            ))}
+          </ul>
+          {microgridGuide.tips && (
+            <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-muted-foreground">
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
+                Resumo
+              </p>
+              <ul className="mt-2 space-y-1 pl-6">
+                {microgridGuide.tips.map((tip) => <li key={tip} className="list-disc">{tip}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** These cards are narrow (three per row in a sidebar), so a value with more
  * digits than the common case ("0.00") can overflow the fixed text-xl size.
@@ -492,6 +556,70 @@ export function ProductAttachments({
   );
 }
 
+export function ProductDocumentsList({
+  model,
+  documents,
+  onPreviewDoc,
+  className,
+  compact = false,
+}: {
+  model: string;
+  documents: ProductDocument[];
+  onPreviewDoc: (doc: ProductDocument) => void;
+  className?: string;
+  compact?: boolean;
+}) {
+  const [showAllDocuments, setShowAllDocuments] = useState(false);
+  const visibleDocuments = showAllDocuments ? documents : documents.slice(0, 2);
+  const hiddenDocumentsCount = documents.length - visibleDocuments.length;
+
+  if (documents.length === 0) return null;
+
+  return (
+    <div className={cn('min-w-0 border-t pt-2', compact && 'border-border/40 pt-2.5', className)}>
+      <div
+        className={cn(
+          'mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground',
+          compact && 'mb-2 text-[11px] uppercase tracking-[0.03em] text-muted-foreground/85'
+        )}
+      >
+        <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>Documentos ({documents.length})</span>
+      </div>
+      <div className={cn('grid gap-1.5 sm:grid-cols-2', showAllDocuments && 'max-h-24 overflow-y-auto pr-1')}>
+        {visibleDocuments.map((document) => (
+          <button
+            key={`${model}-${document.url}`}
+            type="button"
+            title={document.name || 'Documento'}
+            className={cn(
+              'flex min-w-0 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-primary transition hover:bg-primary/10',
+              compact &&
+                'rounded-lg border border-border/45 bg-background/90 px-2.5 py-2 text-[12px] text-foreground hover:border-primary/25 hover:bg-primary/5 hover:text-primary'
+            )}
+            onClick={() => onPreviewDoc(document)}
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">{document.name || 'Documento'}</span>
+          </button>
+        ))}
+      </div>
+      {documents.length > 2 && (
+        <button
+          type="button"
+          className={cn(
+            'mt-1 px-1.5 text-xs font-medium text-muted-foreground hover:text-foreground',
+            compact && 'mt-1.5 px-0 text-[11px] uppercase tracking-[0.03em]'
+          )}
+          onClick={() => setShowAllDocuments((current) => !current)}
+        >
+          {showAllDocuments ? 'Mostrar menos' : `Ver mais ${hiddenDocumentsCount}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function CatalogEmptyState({ label }: { label: string }) {
   return (
     <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -507,6 +635,7 @@ export function CatalogProductCard({
   imageUrl,
   documents,
   badges,
+  statusBadges,
   specs,
   description,
   onPreviewImage,
@@ -514,6 +643,7 @@ export function CatalogProductCard({
   stockControl,
   topRightAction,
   compactContent = false,
+  appearance = 'default',
 }: {
   fallbackIcon: React.ReactNode;
   model: string;
@@ -524,6 +654,7 @@ export function CatalogProductCard({
   imageUrl: string | null;
   documents: ProductDocument[];
   badges?: string[];
+  statusBadges?: string[];
   specs?: [string, string][];
   description?: string | null;
   onPreviewImage: (image: { url: string; alt: string }) => void;
@@ -535,24 +666,29 @@ export function CatalogProductCard({
   topRightAction?: React.ReactNode;
   /** Keeps portfolio cards stable when friendly names or model codes are long. */
   compactContent?: boolean;
+  appearance?: 'default' | 'summary';
 }) {
-  const [showAllDocuments, setShowAllDocuments] = useState(false);
-  const visibleDocuments = showAllDocuments ? documents : documents.slice(0, 2);
-  const hiddenDocumentsCount = documents.length - visibleDocuments.length;
+  const summary = appearance === 'summary';
 
   return (
-    <div className="relative grid gap-3 rounded-xl border bg-card p-3 text-left shadow-sm sm:grid-cols-[112px_1fr]">
+    <div
+      className={cn(
+        'relative grid gap-3 rounded-xl border bg-card p-3 text-left shadow-sm sm:grid-cols-[112px_1fr]',
+        summary && 'gap-4 rounded-2xl border-border/60 p-4 shadow-none'
+      )}
+    >
       {topRightAction && <div className="absolute right-2 top-2 z-10">{topRightAction}</div>}
       <div
         className={cn(
           'flex h-28 items-center justify-center overflow-hidden rounded-lg',
-          imageUrl ? 'bg-card' : 'border bg-card'
+          imageUrl ? 'bg-card' : 'border bg-card',
+          summary && 'h-32 rounded-xl bg-muted/15 sm:h-full sm:min-h-32'
         )}
       >
         {imageUrl ? (
           <button
             type="button"
-            className="relative h-full w-full cursor-zoom-in transition hover:opacity-90"
+            className={cn('relative h-full w-full cursor-zoom-in transition hover:opacity-90', summary && 'p-2')}
             onClick={() => onPreviewImage({ url: imageUrl, alt: model })}
           >
             <Image src={imageUrl} alt={model} fill sizes="112px" className="object-contain" />
@@ -561,65 +697,96 @@ export function CatalogProductCard({
           fallbackIcon
         )}
       </div>
-      <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9')}>
+      <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9', summary && 'space-y-2.5 self-start')}>
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className={cn('break-words text-base font-semibold leading-snug', compactContent && 'line-clamp-2')} title={nickname || model}>{nickname || model}</p>
-            {nickname && <p className={cn('mt-0.5 break-words text-xs text-muted-foreground', compactContent && 'line-clamp-2')} title={model}>{model}</p>}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <p
+              className={cn(
+                'min-w-0 break-words text-base font-semibold leading-snug',
+                compactContent && 'line-clamp-2',
+                summary && 'text-lg font-semibold uppercase leading-tight tracking-[0.01em]'
+              )}
+              title={nickname || model}
+            >
+              {nickname || model}
+            </p>
+            {statusBadges && statusBadges.length > 0 && (
+              <div className="flex shrink-0 flex-wrap gap-1">
+                {statusBadges.map((badge) => (
+                  <Badge
+                    key={badge}
+                    variant="outline"
+                    className={cn(summary && 'border-primary/20 bg-primary/5 text-primary')}
+                  >
+                    {badge}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        {badges && badges.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-0.5">
-              {badges.map((badge) => (
-                <Badge key={badge} variant="secondary">
-                  {badge}
-                </Badge>
-              ))}
-            </div>
+        {nickname && (
+          <p
+            className={cn(
+              'mt-0.5 break-words text-xs text-muted-foreground',
+              compactContent && 'line-clamp-2',
+              summary && 'mt-1 text-[11px] font-normal uppercase tracking-[0.03em] text-muted-foreground/80'
+            )}
+            title={model}
+          >
+            {model}
+          </p>
         )}
-        {description && <p className="text-xs leading-5 text-muted-foreground">{description}</p>}
+        {badges && badges.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {badges.map((badge) => (
+              <Badge
+                key={badge}
+                variant="secondary"
+                className={cn(summary && 'border-transparent bg-muted/80 font-normal text-muted-foreground')}
+              >
+                {badge}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {description && (
+          <p className={cn('text-xs leading-5 text-muted-foreground', summary && 'text-[12px] leading-5 text-muted-foreground/90')}>
+            {description}
+          </p>
+        )}
         {specs && specs.length > 0 && (
-          <div className="overflow-hidden rounded-md border bg-muted/10 text-xs">
+          <div
+            className={cn(
+              'overflow-hidden rounded-md border bg-muted/10 text-xs',
+              summary && 'rounded-lg border-border/45 bg-muted/[0.04]'
+            )}
+          >
             {specs.map(([label, value], index) => (
-              <div key={label} className={cn('grid grid-cols-[minmax(4.5rem,0.65fr)_minmax(0,1.35fr)] gap-2 px-2.5 py-1.5', index > 0 && 'border-t')}>
-                <span className="font-medium text-muted-foreground">{label}</span>
-                <span className="text-foreground">{value}</span>
+              <div
+                key={label}
+                className={cn(
+                  'grid grid-cols-[minmax(4.5rem,0.65fr)_minmax(0,1.35fr)] gap-2 px-2.5 py-1.5',
+                  index > 0 && 'border-t',
+                  summary && 'gap-3 px-3 py-2',
+                  summary && index > 0 && 'border-border/35'
+                )}
+              >
+                <span
+                  className={cn(
+                    'font-medium text-muted-foreground',
+                    summary && 'text-[11px] uppercase tracking-[0.02em] text-muted-foreground/85'
+                  )}
+                >
+                  {label}
+                </span>
+                <span className={cn('text-foreground', summary && 'text-[13px] font-medium leading-5')}>{value}</span>
               </div>
             ))}
           </div>
         )}
       </div>
-      {documents.length > 0 && (
-        <div className="min-w-0 border-t pt-2 sm:col-span-2">
-          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Documentos ({documents.length})</span>
-          </div>
-          <div className={cn('grid gap-1 sm:grid-cols-2', showAllDocuments && 'max-h-24 overflow-y-auto pr-1')}>
-            {visibleDocuments.map((document) => (
-              <button
-                key={`${model}-${document.url}`}
-                type="button"
-                title={document.name || 'Documento'}
-                className="flex min-w-0 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-primary transition hover:bg-primary/10"
-                onClick={() => onPreviewDoc(document)}
-              >
-                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate">{document.name || 'Documento'}</span>
-              </button>
-            ))}
-          </div>
-          {documents.length > 2 && (
-            <button
-              type="button"
-              className="mt-1 px-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-              onClick={() => setShowAllDocuments((current) => !current)}
-            >
-              {showAllDocuments ? 'Mostrar menos' : `Ver mais ${hiddenDocumentsCount}`}
-            </button>
-          )}
-        </div>
-      )}
+      <ProductDocumentsList model={model} documents={documents} onPreviewDoc={onPreviewDoc} compact={summary} className="sm:col-span-2" />
       {stockControl && <div className="min-w-0 sm:col-span-2">{stockControl}</div>}
     </div>
   );

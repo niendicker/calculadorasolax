@@ -232,6 +232,9 @@ export const createProjectsSlice: StateCreator<WizardStore, [], [], ProjectsSlic
     const updated = projectFromRow(row);
     set((s) => ({
       savedProjects: s.savedProjects.map((item) => (item.id === id ? updated : item)),
+      ...(s.currentProjectId === id
+        ? { solution: updated.solution, secondarySolution: null }
+        : {}),
     }));
 
     return updated;

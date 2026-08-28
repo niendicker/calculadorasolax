@@ -133,6 +133,13 @@ O script `scripts/migrate-supabase-cloud-to-selfhosted-v5.sh` exige um arquivo d
 
 Nunca passe secrets diretamente na linha de comando se isso fizer com que apareçam no histórico do shell ou em logs de CI.
 
+Consulte também `docs/SELF_HOSTED_SETUP.md` para o fluxo consolidado de:
+
+- `.env.local` da aplicação apontando para o Supabase self-hosted;
+- `.env.tunnel.local` para aplicar migrations via SSH;
+- `supabase-migration.env` para migração inicial Cloud -> self-hosted;
+- smoke tests e troubleshooting.
+
 ## Rollback
 
 Antes de migrations destrutivas ou troca de endpoint:

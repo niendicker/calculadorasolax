@@ -533,7 +533,10 @@ function CardContextMenu({
     if (!open) return;
 
     function closeOnOutsidePointer(event: PointerEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target;
+      const isInsideMenu = menuRef.current?.contains(target as Node);
+      const isInsideDialog = target instanceof Element && target.closest('[role="dialog"]');
+      if (!isInsideMenu && !isInsideDialog) setOpen(false);
     }
 
     function closeOnEscape(event: KeyboardEvent) {
@@ -561,11 +564,17 @@ function CardContextMenu({
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </Button>
-      {open && (
-        <div role="menu" aria-label={label} className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
-          {children}
-        </div>
-      )}
+      <div
+        role={open ? 'menu' : undefined}
+        aria-label={open ? label : undefined}
+        aria-hidden={!open}
+        className={cn(
+          'absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg',
+          !open && 'hidden'
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -952,15 +961,15 @@ function AddServiceCard({
   const triggerRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const open = controlledOpen ?? internalOpen;
-  const setOpen = (next: boolean) => {
+  const setOpen = useCallback((next: boolean) => {
     if (controlledOpen === undefined) setInternalOpen(next);
     onOpenChange?.(next);
-  };
+  }, [controlledOpen, onOpenChange]);
 
   const closeModal = useCallback(() => {
     setOpen(false);
     setError(null);
-  }, [controlledOpen, onOpenChange]);
+  }, [setOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -990,9 +999,10 @@ function AddServiceCard({
     };
     document.addEventListener('keydown', handleKeyDown);
     requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>('input')?.focus());
+    const triggerElement = triggerRef.current;
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      requestAnimationFrame(() => (previousFocusRef.current ?? triggerRef.current)?.focus());
+      requestAnimationFrame(() => (previousFocusRef.current ?? triggerElement)?.focus());
     };
   }, [closeModal, open]);
 

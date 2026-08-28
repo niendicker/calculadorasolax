@@ -29,6 +29,9 @@
 ## Regras
 
 - `.env.local` não deve ser commitado.
+- Para ambientes self-hosted, use `.env.selfhosted.example` como referência
+  para o app, `.env.tunnel.local.example` para migrations via túnel e
+  `supabase-migration.env.example` para migração inicial Cloud -> self-hosted.
 - Variáveis `NEXT_PUBLIC_*` podem chegar ao navegador; nunca coloque secrets nelas.
 - Service role, tokens de APIs externas e credenciais SMTP ficam somente no ambiente server-side.
 - Produção deve usar um gerenciador de secrets e rotação documentada.

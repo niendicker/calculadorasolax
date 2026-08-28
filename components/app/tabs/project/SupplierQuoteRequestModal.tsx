@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CheckCircle2, Clock3, Loader2, Mail, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, FileText, Info, Loader2, Mail, UsersRound, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { listOrderingSuppliers, listUserSupplierPreferences } from '@/lib/data/supplier-repository';
@@ -71,7 +71,6 @@ export function SupplierQuoteRequestModal({
   const [now, setNow] = useState<number | null>(null);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +84,6 @@ export function SupplierQuoteRequestModal({
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset state for a newly opened dialog
     setSelectedIds(new Set());
-    setConfirming(false);
     setResults(null);
     setError(null);
     setLoadingSuppliers(true);
@@ -219,20 +217,23 @@ export function SupplierQuoteRequestModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label="Solicitar orçamento ao fornecedor"
+      aria-labelledby="supplier-quote-modal-title"
       onClick={(event) => {
         if (event.target === event.currentTarget && !sending) onClose();
       }}
     >
-      <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-lg border bg-card shadow-xl">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
-          <p className="text-sm font-medium">Solicitar orçamento ao fornecedor</p>
-          <Button variant="ghost" size="icon-sm" aria-label="Fechar" disabled={sending} onClick={onClose}>
+      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-card shadow-xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-6 sm:py-5">
+          <div className="min-w-0">
+            <h2 id="supplier-quote-modal-title" className="text-xl font-semibold tracking-tight">Solicitar orçamento ao fornecedor</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Selecione até 2 fornecedores e envie a mensagem de cotação.</p>
+          </div>
+          <Button variant="outline" size="icon-sm" aria-label="Fechar" disabled={sending} onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:space-y-6 sm:p-6">
           {results ? (
             <div className="space-y-2" aria-live="polite">
               <p className="text-sm font-medium">Resultado das solicitações</p>
@@ -251,9 +252,15 @@ export function SupplierQuoteRequestModal({
           ) : (
             <>
               <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">Enviar para</p>
-                  <p className="text-xs text-muted-foreground">{selectedIds.size} de {MAX_SELECTED_SUPPLIERS} fornecedores selecionados</p>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <UsersRound className="mt-0.5 h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+                    <div>
+                      <h3 className="text-lg font-semibold">Fornecedores</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Escolha até dois fornecedores para solicitar a cotação.</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary">{selectedIds.size} de {MAX_SELECTED_SUPPLIERS} selecionados</span>
                 </div>
                 {loadingSuppliers ? (
                   <p className="text-xs text-muted-foreground">Carregando fornecedores...</p>
@@ -263,15 +270,16 @@ export function SupplierQuoteRequestModal({
                     <Button variant="outline" size="sm" onClick={() => { onClose(); onManageSuppliers(); }}>Ir para Fornecedores</Button>
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
                     {suppliers.map((supplier) => {
                       const status = requestStatus(supplier.id);
+                      const selected = selectedIds.has(supplier.id);
                       return (
-                        <label key={supplier.id} className={`flex items-start gap-2 rounded-lg border p-2 text-sm ${status?.blocked ? 'opacity-70' : 'cursor-pointer hover:bg-muted/40'}`}>
-                          <input type="checkbox" className="mt-0.5" checked={selectedIds.has(supplier.id)} disabled={status?.blocked || sending} onChange={() => toggleSupplier(supplier.id)} />
+                        <label key={supplier.id} className={`flex min-h-20 items-start gap-3 rounded-xl border p-4 text-sm transition-colors ${status?.blocked ? 'opacity-70' : 'cursor-pointer hover:bg-muted/40'} ${selected ? 'border-primary/50 bg-primary/5' : 'border-border'}`}>
+                          <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={selected} disabled={status?.blocked || sending} onChange={() => toggleSupplier(supplier.id)} />
                           <span className="min-w-0 flex-1">
-                            <span className="block font-medium">{supplier.name}</span>
-                            <span className="block truncate text-xs text-muted-foreground">{supplier.email}</span>
+                            <span className="block text-base font-semibold">{supplier.name}</span>
+                            <span className="mt-1 block truncate text-sm text-muted-foreground">{supplier.email}</span>
                             {status && <span className="mt-1 flex items-start gap-1 text-[0.7rem] text-muted-foreground"><Clock3 className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />{status.label}{status.detail ? ` · ${status.detail}` : ''}</span>}
                           </span>
                         </label>
@@ -282,33 +290,34 @@ export function SupplierQuoteRequestModal({
               </div>
 
               <div>
-                <p className="mb-2 text-xs font-medium text-muted-foreground">Prévia da mensagem</p>
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs text-muted-foreground">{message}</pre>
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-6 w-6 text-primary" aria-hidden="true" />
+                    <h3 className="text-lg font-semibold">Prévia da mensagem</h3>
+                  </div>
+                  <span className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">gerada automaticamente</span>
+                </div>
+                <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border/80 bg-primary/[0.025] p-4 text-sm leading-6 text-muted-foreground">{message}</pre>
+                <p className="mt-3 flex items-start gap-2 text-sm text-muted-foreground"><Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" /> <span>Os fornecedores receberão os dados acima por email.</span></p>
               </div>
             </>
           )}
           {error && <p role="alert" className="flex items-start gap-1.5 text-xs text-destructive"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{error}</p>}
         </div>
 
-        <div className="shrink-0 border-t p-3">
+        <div className="shrink-0 border-t px-5 py-4 sm:px-6">
           {results ? (
-            <Button className="w-full" onClick={onClose}>Fechar</Button>
-          ) : confirming ? (
-            <div className="space-y-2">
-              <p className="text-center text-sm">{hasResendSelection ? 'Reenviar' : 'Solicitar'} orçamento a {selectedIds.size === 1 ? '1 fornecedor' : '2 fornecedores'}?</p>
-              <p className="text-center text-xs text-muted-foreground">Os fornecedores selecionados receberão os dados necessários deste projeto por e-mail.</p>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" disabled={sending} onClick={() => setConfirming(false)}>Cancelar</Button>
-                <Button className="flex-1" disabled={sending} onClick={() => void handleSend()}>
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                  {sending ? 'Enviando...' : hasResendSelection ? 'Reenviar solicitação' : 'Enviar solicitações'}
-                </Button>
-              </div>
+            <div className="flex justify-end">
+              <Button className="min-w-32" onClick={onClose}>Fechar</Button>
             </div>
           ) : (
-            <Button className="w-full" disabled={selectedIds.size === 0 || sending} onClick={() => setConfirming(true)}>
-              <Mail className="h-4 w-4" /> {hasResendSelection ? 'Reenviar solicitação' : 'Revisar solicitação'}
-            </Button>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" disabled={sending} onClick={onClose}>Cancelar</Button>
+              <Button disabled={selectedIds.size === 0 || sending} onClick={() => void handleSend()}>
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                {sending ? 'Enviando...' : hasResendSelection ? 'Reenviar solicitação' : 'Enviar solicitações'}
+              </Button>
+            </div>
           )}
         </div>
       </div>

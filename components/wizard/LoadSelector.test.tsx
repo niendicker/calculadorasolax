@@ -111,6 +111,38 @@ describe('LoadSelector: collapsible sections', () => {
   });
 });
 
+describe('LoadSelector: load display modes', () => {
+  it('switches from cards to the editable table and keeps row editing connected to the store', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    expect(screen.getByRole('button', { name: 'Exibir cargas em cards' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
+
+    expect(screen.getByRole('table', { name: 'Cargas do projeto em tabela' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exibir cargas em tabela' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Expandir Chuveiro' })).not.toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Chuveiro'));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Quantidade Chuveiro' }), { target: { value: '3' } });
+    expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar edição de Chuveiro' }));
+    expect(screen.queryByRole('spinbutton', { name: 'Quantidade Chuveiro' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Chuveiro'));
+    expect(screen.getByRole('spinbutton', { name: 'Quantidade Chuveiro' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Chuveiro'));
+    expect(screen.queryByRole('spinbutton', { name: 'Quantidade Chuveiro' })).not.toBeInTheDocument();
+  });
+});
+
 describe('LoadSelector: adding from a system preset', () => {
   it('adds every load from the preset and stays on the Predefinições tab', () => {
     renderLoadSelector();
@@ -547,6 +579,21 @@ describe('LoadSelector: catalog', () => {
 });
 
 describe('LoadSelector: blank load card', () => {
+  it('highlights the project load count against its limit', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'load-1', name: 'Geladeira', powerW: 180, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+
+    const projectLoads = screen.getByRole('heading', { name: 'Cargas do projeto' }).closest('section');
+    expect(projectLoads).not.toBeNull();
+    const count = within(projectLoads as HTMLElement).getByText(`1/${ACCOUNT_LIMITS.loadsPerProject}`);
+    expect(count).toHaveClass('text-sm', 'font-semibold', 'text-primary');
+  });
+
   it('shows the "Adicionar carga" tile even with no loads yet, and adds a blank draft card on click', () => {
     renderLoadSelector();
 
@@ -949,7 +996,8 @@ describe('LoadSelector: added loads list', () => {
     }));
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir Chuveiro' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excluir carga' }));
 
     expect(useWizardStore.getState().residentialOptions.loads).toEqual([]);
@@ -964,7 +1012,8 @@ describe('LoadSelector: added loads list', () => {
     }));
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicar Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Chuveiro' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicar' }));
 
     const loads = useWizardStore.getState().residentialOptions.loads;
     expect(loads).toHaveLength(2);
@@ -994,7 +1043,8 @@ describe('LoadSelector: added loads list', () => {
     }));
     renderLoadSelector();
 
-    expect(screen.getByRole('button', { name: 'Duplicar Carga 0' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Carga 0' }));
+    expect(screen.getByRole('menuitem', { name: 'Duplicar' })).toBeDisabled();
   });
 
   it('shows the limit-reached message when adding past the per-project cap', () => {

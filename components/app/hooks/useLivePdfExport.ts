@@ -3,8 +3,14 @@ import type { MarginSettings, ProjectInfo, ProjectServiceLine, ResidentialOption
 import { buildPdfFileName } from '../helpers';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption, ProductMedia } from '../types';
 
+export type LivePdfReport = {
+  blob: Blob;
+  generatedAt: Date;
+};
+
 export function useLivePdfExport({
   projectInfo,
+  projectId,
   residentialOptions,
   solution,
   secondarySolution,
@@ -25,6 +31,7 @@ export function useLivePdfExport({
   reportStatus,
 }: {
   projectInfo: ProjectInfo;
+  projectId: string | null;
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
   secondarySolution: Solution | null;
@@ -45,6 +52,18 @@ export function useLivePdfExport({
   reportStatus: (message: string) => void;
 }) {
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [lastGeneratedReport, setLastGeneratedReport] = useState<(LivePdfReport & { projectId: string | null }) | null>(null);
+
+  function downloadBlob(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${buildPdfFileName(projectInfo.name)}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   async function exportPdf() {
     if (!solution || !canCalculate) return;
@@ -83,14 +102,8 @@ export function useLivePdfExport({
         accessoryCatalog,
         productMedia,
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${buildPdfFileName(projectInfo.name)}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      setLastGeneratedReport({ projectId, blob, generatedAt: new Date() });
+      downloadBlob(blob);
     } catch {
       reportStatus('Não foi possível gerar o PDF. Tente novamente.');
     } finally {
@@ -98,5 +111,15 @@ export function useLivePdfExport({
     }
   }
 
-  return { exportingPdf, exportPdf };
+  const lastReport = lastGeneratedReport?.projectId === projectId ? lastGeneratedReport : null;
+
+  function downloadLastReport() {
+    if (lastReport) downloadBlob(lastReport.blob);
+  }
+
+  function clearLastReport() {
+    setLastGeneratedReport(null);
+  }
+
+  return { exportingPdf, exportPdf, lastReport, downloadLastReport, clearLastReport };
 }

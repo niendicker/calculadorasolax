@@ -20,7 +20,10 @@ describe('AboutDialog', () => {
 
   it('sends bug metadata, shows loading, then clears only after success', async () => {
     let resolveRequest!: (response: Response) => void;
-    const fetchMock = vi.fn((..._args: Parameters<typeof fetch>) => new Promise<Response>((resolve) => { resolveRequest = resolve; }));
+    const fetchMock = vi.fn((...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Promise<Response>((resolve) => { resolveRequest = resolve; });
+    });
     vi.stubGlobal('fetch', fetchMock);
     render(<AboutDialog open onClose={vi.fn()} version="1.2.3" />);
 

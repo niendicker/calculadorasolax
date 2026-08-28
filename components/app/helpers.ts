@@ -190,7 +190,19 @@ export interface SystemCostEstimate {
   /** false when at least one item in the solution has no price in the user's stock. */
   isComplete: boolean;
   missingItems: string[];
+  /** Structured missing entries used by contextual pricing actions. Kept
+   * optional so existing snapshots/callers that only need the summary stay
+   * compatible. */
+  missingCostItems?: MissingCostItem[];
   serviceDetails?: ServiceCostDetail[];
+}
+
+export interface MissingCostItem {
+  type: 'product' | 'service';
+  productType?: StockProductType;
+  model?: string;
+  serviceId?: string;
+  name: string;
 }
 
 export interface ServiceCostDetail {
@@ -275,7 +287,7 @@ export function calculateSystemCost(
     const unitValue = userStockItems.find(
       (item) => item.productType === productType && item.productModel === model
     )?.unitValue;
-    if (unitValue === undefined) return undefined;
+    if (unitValue === undefined || unitValue <= 0) return undefined;
     const marginPercent = marginSettings[marginFieldByProductType[productType]];
     return unitValue * (1 + marginPercent / 100);
   }
@@ -306,6 +318,7 @@ export function calculateSystemCost(
   let totalCost = 0;
   let pricedItemsCount = 0;
   const missingItems: string[] = [];
+  const missingCostItems: MissingCostItem[] = [];
   const serviceDetails: ServiceCostDetail[] = [];
 
   for (const item of productItems) {
@@ -315,6 +328,7 @@ export function calculateSystemCost(
       pricedItemsCount += 1;
     } else {
       missingItems.push(item.model);
+      missingCostItems.push({ type: 'product', productType: item.productType, model: item.model, name: item.model });
     }
   }
 
@@ -324,12 +338,13 @@ export function calculateSystemCost(
     const pricingUnit = service?.pricingUnit ?? 'project';
     const quantity = service ? calculateServiceQuantity(pricingUnit, solution, residentialOptions, batteryCatalog.map((item) => ({ model: item.model, standardPowerKw: item.standardPowerKw ?? null, peakPowerKw: item.peakPowerKw ?? null }))) : null;
     const effectiveQuantity = pricingUnit === 'project' ? line.qty : quantity;
-    serviceDetails.push({ serviceId: line.serviceId, name: line.name, pricingUnit, quantity: effectiveQuantity, unitValue: unitValue ?? 0, total: unitValue != null && effectiveQuantity != null ? unitValue * effectiveQuantity : null });
-    if (unitValue !== undefined && effectiveQuantity !== null) {
+    serviceDetails.push({ serviceId: line.serviceId, name: line.name, pricingUnit, quantity: effectiveQuantity, unitValue: unitValue ?? 0, total: unitValue != null && unitValue > 0 && effectiveQuantity != null ? unitValue * effectiveQuantity : null });
+    if (unitValue !== undefined && unitValue > 0 && effectiveQuantity !== null) {
       totalCost += unitValue * effectiveQuantity;
       pricedItemsCount += 1;
     } else {
       missingItems.push(service ? `${line.name} (aguardando dimensionamento)` : line.name);
+      missingCostItems.push({ type: 'service', serviceId: line.serviceId, name: service?.name ?? line.name });
     }
   }
 
@@ -341,6 +356,7 @@ export function calculateSystemCost(
     totalItemsCount,
     isComplete: pricedItemsCount === totalItemsCount,
     missingItems,
+    missingCostItems,
     serviceDetails,
   };
 }
@@ -952,8 +968,8 @@ export const TARIFF_BUSINESS_DAYS_PER_MONTH = 22;
  * daily figure — solar generates every day, unlike the tariff windows above
  * which only apply on business days. */
 const DAYS_PER_MONTH = 30;
-const PONTA_WINDOW_HOURS = 3;
-const INTERMEDIATE_WINDOW_HOURS = 2;
+const PONTA_WINDOW_HOURS = 2.5;
+const INTERMEDIATE_WINDOW_HOURS = 0.5;
 
 export function isWhiteTariffConfigIncomplete(
   desiredFeatures: DesiredFeatureId[],

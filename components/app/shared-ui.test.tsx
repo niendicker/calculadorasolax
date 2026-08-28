@@ -419,4 +419,21 @@ describe('CatalogProductCard', () => {
     expect(screen.getByText('Inversor Residencial 5kW')).toBeInTheDocument();
     expect(screen.getByText('X1-Hybrid-5.0kW-G4')).toBeInTheDocument();
   });
+
+  it('places status badges beside the card title', () => {
+    render(
+      <CatalogProductCard
+        fallbackIcon={<span>icon</span>}
+        model="T-BAT H 5.8 V2"
+        imageUrl={null}
+        documents={[]}
+        statusBadges={['BMS Integrado']}
+        onPreviewImage={vi.fn()}
+        onPreviewDoc={vi.fn()}
+      />
+    );
+
+    const title = screen.getByText('T-BAT H 5.8 V2');
+    expect(title.parentElement).toContainElement(screen.getByText('BMS Integrado'));
+  });
 });

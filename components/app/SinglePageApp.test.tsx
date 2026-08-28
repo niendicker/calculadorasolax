@@ -60,7 +60,7 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
 }
 
 // The desktop sidebar and the mobile bottom nav bar both render buttons named
-// "Projeto"/"Dimensionamento"/"Catálogo"/"Clientes" at the same time (jsdom
+// "Projetos"/"Catálogo"/"Clientes" at the same time (jsdom
 // doesn't apply the `lg:hidden`/`hidden lg:flex` breakpoint classes that keep
 // only one visible per viewport) — scope to the sidebar's landmark to avoid
 // "multiple elements found" on plain screen.getByRole queries.
@@ -73,13 +73,13 @@ function bottomNav() {
 }
 
 /** Dimensionamento no longer has its own nav entry (sidebar or bottom bar) —
- *  it's reachable only via a project's own "Dimensionamento" button
- *  (ProjectCard.tsx), same as a real user now has to. Seeds a saved project
+ *  it's reachable through a project's Workspace and technical configuration
+ *  entry point. Seeds a saved project
  *  carrying over whatever residentialOptions/solution/projectInfo/services
  *  the test already put on the live wizard store (loadProject, triggered by
  *  clicking that button, would otherwise overwrite them with the new
  *  project's — usually-blank — own data), then drives the same click path:
- *  Projeto tab → find that project's card → its "Dimensionamento" button. */
+ *  Projetos → Workspace → Rede elétrica. */
 async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = sidebarNav) {
   const live = useWizardStore.getState();
   // Some tests already seed their own project (with a specific id/status
@@ -135,13 +135,15 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   }
 
-  const card = (await screen.findAllByText(projectName))
-    .map((element) => element.closest('[role="button"]'))
-    .find(Boolean) as HTMLElement;
-  fireEvent.click(within(card).getByRole('button', { name: 'Workspace' }));
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Workspace' }))[0]);
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: projectName })).toBeInTheDocument());
-  fireEvent.click(navScope().getByRole('button', { name: 'Dimensionamento' }));
-  await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Dimensionamento' })).toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: /^Rede elétrica:/ }));
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'Rede e inversor' })).toBeInTheDocument());
+}
+
+async function openWorkspaceSection(label: 'Visão geral' | 'Cargas' | 'Solução' | 'Financeiro' | 'Relatório') {
+  fireEvent.click(await screen.findByRole('button', { name: label }));
+  await waitFor(() => expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-current', 'page'));
 }
 
 const { createClientMock, routerMock, buildProjectQuotePdfBlobMock } = vi.hoisted(() => ({
@@ -199,6 +201,8 @@ function setupSupabase(
       suppliers: { data: [], error: null },
       supplier_offers: { data: [], error: null },
       purchase_orders: { data: [], error: null },
+      quote_shares: { data: { id: 'quote-share-1' }, error: null },
+      project_events: { data: [], error: null },
       ...overrides,
     },
   });
@@ -521,8 +525,8 @@ describe('SinglePageApp: mobile bottom nav', () => {
     await goToSizingViaProject(bottomNav);
     expect(screen.queryByRole('dialog', { name: 'Resumo' })).not.toBeInTheDocument();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Calcular solução' }));
-    expect(screen.getByRole('dialog', { name: 'Resumo' })).toBeInTheDocument();
+    await openWorkspaceSection('Solução');
+    expect(screen.getByRole('heading', { name: 'Solução' })).toBeInTheDocument();
   });
 });
 
@@ -663,7 +667,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     await goToSizingViaProject();
-    fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
+    await openWorkspaceSection('Relatório');
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar relatório' }));
 
     await waitFor(() => expect(buildProjectQuotePdfBlobMock).toHaveBeenCalled());
     expect(createObjectURL).toHaveBeenCalledWith(fakeBlob);
@@ -692,7 +697,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
       });
 
     await goToSizingViaProject();
-    fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
+    await openWorkspaceSection('Relatório');
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar relatório' }));
 
     await waitFor(() => expect(capturedDownload).toMatch(/^Casa_de_praia_\d{4}-\d{2}-\d{2}\.pdf$/));
 
@@ -710,7 +716,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     buildProjectQuotePdfBlobMock.mockRejectedValue(new Error('boom'));
 
     await goToSizingViaProject();
-    fireEvent.click((await screen.findAllByRole('button', { name: /Baixar relatório/ }))[0]);
+    await openWorkspaceSection('Relatório');
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar relatório' }));
 
     await waitFor(() => expect(screen.getByText('Não foi possível gerar o PDF. Tente novamente.')).toBeInTheDocument());
   });
@@ -723,7 +730,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
 
     await goToSizingViaProject();
-    fireEvent.click(screen.getAllByRole('button', { name: /Baixar relatório/ })[0]);
+    await openWorkspaceSection('Relatório');
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar relatório' }));
 
     expect(buildProjectQuotePdfBlobMock).not.toHaveBeenCalled();
   });
@@ -735,14 +743,14 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     setSolvedProject();
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    await openWorkspaceSection('Financeiro');
 
-    expect(screen.getByRole('button', { name: 'Enviar ao cliente' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Compartilhar cotação' })).toBeDisabled();
   });
 
   it('opens wa.me pointed at the client\'s number when the browser can\'t share files', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    setupSupabase();
+    setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
@@ -755,8 +763,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     });
 
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
+    await openWorkspaceSection('Financeiro');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     await waitFor(() =>
       expect(openSpy).toHaveBeenCalledWith(
@@ -768,15 +776,10 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     openSpy.mockRestore();
   });
 
-  it('shares the PDF file via the Web Share API when supported, instead of opening wa.me', async () => {
-    buildProjectQuotePdfBlobMock.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
-    const canShare = vi.fn().mockReturnValue(true);
-    const share = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'canShare', { value: canShare, configurable: true });
-    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+  it('shares the public quote link through WhatsApp', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
-    setupSupabase();
+    setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
@@ -789,18 +792,16 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     });
 
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
+    await openWorkspaceSection('Financeiro');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
-    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-    const [{ files }] = share.mock.calls[0];
-    expect(files[0]).toBeInstanceOf(File);
-    expect(files[0].type).toBe('application/pdf');
-    expect(openSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('%2Fcotacao%2Fquote-share-1'),
+      '_blank',
+      'noopener,noreferrer'
+    ));
 
     openSpy.mockRestore();
-    delete (navigator as { canShare?: unknown }).canShare;
-    delete (navigator as { share?: unknown }).share;
   });
 
   it('marks a "Rascunho" project as "Enviada" once its quote is actually shared', async () => {
@@ -809,7 +810,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     Object.defineProperty(navigator, 'share', { value: vi.fn().mockResolvedValue(undefined), configurable: true });
     const updateProjectStatusMock = vi.fn().mockResolvedValue({});
 
-    setupSupabase();
+    setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
@@ -825,8 +826,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     });
 
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
+    await openWorkspaceSection('Financeiro');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     await waitFor(() => expect(updateProjectStatusMock).toHaveBeenCalledWith('p1', 'sent'));
 
@@ -839,7 +840,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     Object.defineProperty(navigator, 'canShare', { value: vi.fn().mockReturnValue(false), configurable: true });
     const updateProjectStatusMock = vi.fn().mockResolvedValue({});
 
-    setupSupabase();
+    setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
@@ -855,8 +856,8 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     });
 
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar ao cliente' }));
+    await openWorkspaceSection('Financeiro');
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar cotação' }));
 
     await waitFor(() => expect(openSpy).toHaveBeenCalled());
     expect(updateProjectStatusMock).not.toHaveBeenCalled();
@@ -864,32 +865,32 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     openSpy.mockRestore();
   });
 
-  it('sends a logged-in user to Fornecedores when they click "Cotar solução"', async () => {
+  it('asks for the company data before requesting a supplier quote', async () => {
     setupSupabase({}, { loggedIn: true });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    await openWorkspaceSection('Financeiro');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fornecedores' })).toBeInTheDocument());
+    expect(screen.getByRole('dialog', { name: 'Complete os dados da empresa' })).toBeInTheDocument();
   });
 
-  it('redirects to login when clicking "Cotar solução" without a profile', async () => {
+  it('asks for a profile before requesting a supplier quote', async () => {
     setupSupabase();
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
     act(() => { useWizardStore.setState({ solution: makeSolution() }); });
     await goToSizingViaProject();
-    fireEvent.click(await screen.findByRole('tab', { name: /^Resumo/ }));
+    await openWorkspaceSection('Financeiro');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cotar solução' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solicitar cotação' }));
 
-    expect(routerMock.push).toHaveBeenCalledWith('/pt/login?redirect=/pt');
+    expect(screen.getByRole('dialog', { name: 'Complete os dados da empresa' })).toBeInTheDocument();
   });
 
   it('switches from the economic to the microgrid variant when chosen', async () => {
@@ -902,6 +903,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
 
     await goToSizingViaProject();
+    await openWorkspaceSection('Solução');
     await waitFor(() => expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument());
 
     const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
@@ -921,6 +923,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
 
     await goToSizingViaProject();
+    await openWorkspaceSection('Solução');
     await waitFor(() => expect(screen.getByText('Versão Econômica')).toBeInTheDocument());
 
     const economicCard = screen.getByText('Versão Econômica').closest('.rounded-lg') as HTMLElement;
@@ -1038,7 +1041,7 @@ describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation'
   });
 });
 
-describe('SinglePageApp: auto-recalculates when the battery selection changes', () => {
+describe('SinglePageApp: requires explicit recalculation after sizing changes', () => {
   const batteryRow = {
     id: 'b1',
     model: 'TP-HS3.6',
@@ -1053,7 +1056,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     documents: [],
   };
 
-  it('calls calculate automatically once a battery is picked, without pressing Calcular', async () => {
+  it('does not calculate automatically once a battery is picked', async () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -1075,14 +1078,10 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(screen.getByRole('tab', { name: 'Baterias' }));
     fireEvent.click(await screen.findByText('TP-HS3.6'));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/calculations/residential',
-      expect.objectContaining({ body: expect.stringContaining('TP-HS3.6') })
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('calls calculate automatically once the inverter selection changes, without pressing Calcular', async () => {
+  it('does not calculate automatically once the inverter selection changes', async () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -1130,11 +1129,7 @@ describe('SinglePageApp: auto-recalculates when the battery selection changes', 
     fireEvent.click(screen.getByRole('tab', { name: 'Rede e inversor' }));
     fireEvent.click(await screen.findByText('X1-Hybrid-5.0kW-G4'));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/calculations/residential',
-      expect.objectContaining({ body: expect.stringContaining('X1-Hybrid-5.0kW-G4') })
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('does not auto-calculate on an inverter change while other required fields are still missing', async () => {
@@ -1283,7 +1278,8 @@ describe('SinglePageApp: uploading a feature photo', () => {
 
     await goToSizingViaProject();
 
-    fireEvent.click(screen.getByRole('tab', { name: /^Backup Total/ }));
+    await openWorkspaceSection('Visão geral');
+    fireEvent.click(screen.getByRole('button', { name: /^Backup Total/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
 
     const file = new File(['fake-image'], 'disjuntor.png', { type: 'image/png' });

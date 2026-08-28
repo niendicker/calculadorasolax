@@ -170,6 +170,14 @@
   *::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-foreground);
   }
+
+  .tariff-wheel-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .tariff-wheel-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Login page layout (components/auth/AuthPanel.tsx) */

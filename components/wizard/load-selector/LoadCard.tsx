@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BatteryCharging, ChevronDown, Copy, Plug, Trash2, X, Zap } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, Trash2, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
@@ -781,12 +781,19 @@ export function LoadCard({
           aria-label={`${presetSelectionMode ? (presetSelected ? 'Desmarcar' : 'Selecionar') : expanded ? 'Recolher' : 'Expandir'} ${load.name || 'carga'}`}
           aria-expanded={presetSelectionMode ? undefined : expanded}
           aria-pressed={presetSelectionMode ? Boolean(presetSelected) : undefined}
-          onClick={() => (presetSelectionMode ? onTogglePresetSelected?.() : setExpanded((current) => !current))}
+          onClick={() => {
+            if (presetSelectionMode) onTogglePresetSelected?.();
+            else {
+              setExpanded((current) => !current);
+            }
+          }}
           onKeyDown={(event) => {
             if (event.key !== 'Enter' && event.key !== ' ') return;
             event.preventDefault();
             if (presetSelectionMode) onTogglePresetSelected?.();
-            else setExpanded((current) => !current);
+            else {
+              setExpanded((current) => !current);
+            }
           }}
           className="flex min-w-0 flex-1 cursor-pointer items-start text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
@@ -910,36 +917,93 @@ export function LoadCard({
               </TooltipBubble>
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 md:h-7 md:w-7"
-            disabled={duplicateDisabled}
-            onClick={(event) => {
-              event.stopPropagation();
-              onDuplicate(load);
-            }}
-            aria-label={`Duplicar ${load.name}`}
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </Button>
-          <ConfirmDeleteModalButton
-            ariaLabel={`Remover ${load.name}`}
-            itemName={load.name || 'carga sem nome'}
-            itemType="carga"
-            description={`A carga “${load.name || 'carga sem nome'}” será removida do dimensionamento. Esta ação não poderá ser desfeita.`}
-            label="Excluir"
-            showIcon={false}
-            onConfirm={() => onRemove(load.id)}
-          />
-          <ChevronDown
-            className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')}
-            aria-hidden="true"
+          <LoadActionsMenu
+            load={load}
+            duplicateDisabled={duplicateDisabled}
+            onDuplicate={onDuplicate}
+            onRemove={onRemove}
           />
         </div>
         )}
       </div>
       {!presetSelectionMode && expanded && extraFields}
+    </div>
+  );
+}
+
+export function LoadActionsMenu({ load, compact = false, duplicateDisabled, onDuplicate, onRemove }: {
+  load: SingleLoad;
+  compact?: boolean;
+  duplicateDisabled: boolean;
+  onDuplicate: (load: SingleLoad) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative shrink-0">
+      <Button
+        type="button"
+        variant="ghost"
+        size={compact ? 'icon-xs' : 'icon'}
+        className={cn('shrink-0', !compact && 'md:h-7 md:w-7')}
+        aria-label={`Opções de ${load.name}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((current) => !current);
+        }}
+      >
+        <MoreHorizontal className={compact ? 'h-5 w-5' : 'h-4 w-4'} aria-hidden="true" />
+      </Button>
+      {open && (
+        <div role="menu" aria-label={`Ações de ${load.name}`} className="absolute right-0 top-full z-30 mt-1.5 w-44 rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-lg">
+          <button
+            type="button"
+            role="menuitem"
+            disabled={duplicateDisabled}
+            onClick={() => {
+              onDuplicate(load);
+              setOpen(false);
+            }}
+            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+          >
+            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            Duplicar
+          </button>
+          <div className="my-1 border-t" />
+          <ConfirmDeleteModalButton
+            ariaLabel={`Excluir ${load.name}`}
+            itemName={load.name || 'carga sem nome'}
+            itemType="carga"
+            description={`A carga “${load.name || 'carga sem nome'}” será removida do dimensionamento. Esta ação não poderá ser desfeita.`}
+            label="Excluir"
+            triggerVariant="destructive"
+            onConfirm={() => onRemove(load.id)}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -9,17 +9,14 @@ import {
   Check,
   ChevronLeft,
   CircleCheck,
-  CheckCircle2,
   Download,
   Eraser,
   FolderOpen,
   Gauge,
   HelpCircle,
-  Lightbulb,
   Loader2,
   Save,
   ShoppingCart,
-  X,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,7 +26,6 @@ import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button'
 import { Separator } from '@/components/ui/separator';
 import { Tooltip } from '@/components/ui/tooltip';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import { getGuideContent } from '@/content/guide';
 import type {
   BatteryTopology,
   DesiredFeatureId,
@@ -55,7 +51,7 @@ import {
 } from '../helpers';
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import { PageHeader, PageSummary } from '../shell/slots';
-import { Metric, SolutionSkeleton, WhatsAppIcon } from '../shared-ui';
+import { Metric, MicrogridGuideDialog, SolutionSkeleton, WhatsAppIcon } from '../shared-ui';
 import { gridLabels, gridOptions, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
 import { ConfigurationSummary } from './sizing/ConfigurationSummary';
 import { DesiredFeaturesPicker, featureIcons } from './sizing/DesiredFeaturesPicker';
@@ -63,7 +59,6 @@ import { desiredFeatureHasPendingIssue } from './sizing/feature-status';
 import { BatteryModelPicker, InverterModelPicker } from './sizing/ModelPickers';
 import { ResultSummary, SolutionMetricCards } from './sizing/ResultSummary';
 
-const microgridGuide = getGuideContent('pt').sections.find((section) => section.id === 'microgrid');
 
 /** The unified overview grid mixes the 6 desired-feature ids with two
  * config items that aren't features at all (grid/inverter, battery) — this
@@ -239,15 +234,26 @@ export function SizingTab({
   /** When true, the Workspace owns the summary portal and navigation. */
   workspaceMode?: boolean;
   workspaceConfigurationMode?: boolean;
-  /** When a resource is opened from the Workspace, its parent owns the
-   * contextual header; keep this technical editor focused on the resource
-   * controls instead of repeating Dimensionamento and the feature switcher. */
+  /** When a non-configuration resource is opened from the Workspace, its
+   * parent owns the contextual header; keep this editor focused on the
+   * resource controls instead of repeating Dimensionamento and the switcher. */
   workspaceResourceMode?: boolean;
 }) {
   const [activeItem, setActiveItem] = useState<PickerItemId | null>(initialActiveItem ?? (workspaceConfigurationMode ? 'gridType' : null));
+  const [legacySummaryHiddenAfterDisable, setLegacySummaryHiddenAfterDisable] = useState(false);
   const [summaryTab, setSummaryTab] = useState<'resumo' | 'solucao'>('resumo');
   const [activeBatteryTab, setActiveBatteryTab] = useState<'primary' | 'secondary'>('primary');
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
+
+  // In the project Workspace, the parent owns which technical resource is
+  // open. Keep the local editor selection in sync when the user clicks a
+  // different resource in the technical summary; using the prop only as the
+  // useState initializer would make only the first click take effect.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronizes navigation state owned by the Workspace parent
+    if (workspaceConfigurationMode) setActiveItem(initialActiveItem ?? 'gridType');
+    else if (workspaceResourceMode) setActiveItem(initialActiveItem ?? null);
+  }, [initialActiveItem, workspaceConfigurationMode, workspaceResourceMode]);
 
   const hasSecondaryBattery = Boolean(residentialOptions.secondaryBatteryModel);
   const effectiveBatteryTab = hasSecondaryBattery ? activeBatteryTab : 'primary';
@@ -276,14 +282,17 @@ export function SizingTab({
   }, [summaryDrawerOpen]);
 
   function jumpToGridType() {
+    setLegacySummaryHiddenAfterDisable(false);
     setActiveItem('gridType');
   }
 
   function jumpToBattery() {
+    setLegacySummaryHiddenAfterDisable(false);
     setActiveItem('battery');
   }
 
   function jumpToFeature(id: DesiredFeatureId) {
+    setLegacySummaryHiddenAfterDisable(false);
     setActiveItem(id);
   }
 
@@ -671,16 +680,18 @@ export function SizingTab({
         </div>
         {summaryTab === 'resumo' ? (
           <div className="space-y-3">
-            <ConfigurationSummary
-              residentialOptions={residentialOptions}
-              loadsCount={residentialOptions.loads.length}
-              onJumpToGridType={jumpToGridType}
-              onJumpToBattery={jumpToBattery}
-              onJumpToFeature={jumpToFeature}
-              peakW={peakW}
-              inverterCatalog={inverterCatalog}
-              availableInverterModels={availableInverterModels}
-            />
+            {(activeItem !== null || !legacySummaryHiddenAfterDisable) && (
+              <ConfigurationSummary
+                residentialOptions={residentialOptions}
+                loadsCount={residentialOptions.loads.length}
+                onJumpToGridType={jumpToGridType}
+                onJumpToBattery={jumpToBattery}
+                onJumpToFeature={jumpToFeature}
+                peakW={peakW}
+                inverterCatalog={inverterCatalog}
+                availableInverterModels={availableInverterModels}
+              />
+            )}
             {downloadReportButton}
             <Button
               className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-50"
@@ -753,13 +764,19 @@ export function SizingTab({
               label="Configuração do sistema"
               hint="Selecione rede, inversor e baterias"
               items={configItems}
-              onSelect={setActiveItem}
+              onSelect={(id) => {
+                setLegacySummaryHiddenAfterDisable(false);
+                setActiveItem(id);
+              }}
             />
             <PickerGroup
               label="Funcionalidades"
               hint="Defina o que o sistema deve atender"
               items={featureItems}
-              onSelect={setActiveItem}
+              onSelect={(id) => {
+                setLegacySummaryHiddenAfterDisable(false);
+                setActiveItem(id);
+              }}
               onLearnMore={(id) => id === 'microgrid' && setMicrogridGuideOpen(true)}
             />
           </div>
@@ -772,7 +789,10 @@ export function SizingTab({
                 size="icon"
                 aria-label="Voltar à visão geral"
                 className="shrink-0"
-                onClick={() => setActiveItem(null)}
+                onClick={() => {
+                  setLegacySummaryHiddenAfterDisable(false);
+                  setActiveItem(null);
+                }}
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </Button>}
@@ -783,7 +803,15 @@ export function SizingTab({
                  * useful alternatives; while a config item is open, only
                  * the other config item is. */}
                 {(isConfigItem ? configItems : featureItems).map((item) => (
-                  <PickerPill key={item.id} item={item} active={item.id === activeItem} onClick={() => setActiveItem(item.id)} />
+                  <PickerPill
+                    key={item.id}
+                    item={item}
+                    active={item.id === activeItem}
+                    onClick={() => {
+                      setLegacySummaryHiddenAfterDisable(false);
+                      setActiveItem(item.id);
+                    }}
+                  />
                 ))}
               </div>
             </CardHeader>}
@@ -916,68 +944,24 @@ export function SizingTab({
                   peakW={peakW}
                   dailyKwh={dailyKwh}
                   onOpenLoads={onOpenWorkspaceLoads}
+                  onFeatureDisabled={() => {
+                    // In the Workspace the parent owns the resource route. Keep
+                    // the current editor mounted after disabling a feature so
+                    // the legacy resource-selection cards do not flash back in
+                    // while the persisted options update. The old standalone
+                    // sizing flow keeps its existing return-to-selection UX.
+                    if (!workspaceMode) {
+                      setLegacySummaryHiddenAfterDisable(true);
+                      setActiveItem(null);
+                    }
+                  }}
                 />
               )}
             </CardContent>
           </Card>
         )}
       </div>
-      {microgridGuideOpen && microgridGuide && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setMicrogridGuideOpen(false);
-          }}
-        >
-          <div
-            className="flex max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-card shadow-xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="microgrid-guide-dialog-title"
-          >
-            <header className="flex items-start justify-between gap-4 border-b px-5 py-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-primary">Guia básico</p>
-                <h2 id="microgrid-guide-dialog-title" className="mt-1 font-heading text-xl font-semibold">
-                  {microgridGuide.title}
-                </h2>
-              </div>
-              <Button type="button" variant="ghost" size="icon" aria-label="Fechar Saiba mais" onClick={() => setMicrogridGuideOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </header>
-            <div className="space-y-4 overflow-y-auto px-5 py-5 text-sm leading-6">
-              <p className="text-muted-foreground">{microgridGuide.intro}</p>
-              {microgridGuide.attention && (
-                <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-900 dark:text-amber-200">
-                  <AlertTriangle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p><span className="font-semibold">Atenção:</span> {microgridGuide.attention}</p>
-                </div>
-              )}
-              <ul className="space-y-3 text-muted-foreground">
-                {microgridGuide.details.map((detail) => (
-                  <li key={detail} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <span>{detail}</span>
-                  </li>
-                ))}
-              </ul>
-              {microgridGuide.tips && (
-                <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-muted-foreground">
-                  <p className="flex items-center gap-2 font-medium text-foreground">
-                    <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" />
-                    Resumo
-                  </p>
-                  <ul className="mt-2 space-y-1 pl-6">
-                    {microgridGuide.tips.map((tip) => <li key={tip} className="list-disc">{tip}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <MicrogridGuideDialog open={microgridGuideOpen} onClose={() => setMicrogridGuideOpen(false)} />
     </>
   );
 }

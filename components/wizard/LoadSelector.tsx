@@ -7,7 +7,7 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, ChevronDown, Clock, ListPlus, Plus, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Clock, LayoutGrid, ListPlus, Plus, SlidersHorizontal, Table2 } from 'lucide-react';
 import { ACCOUNT_LIMITS, isLimitError, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPresetLoad, LoadPhase, LoadVoltage, SingleLoad } from '@/lib/types';
@@ -16,6 +16,7 @@ import { InfoLabel } from '@/components/ui/tooltip';
 import { SearchInput } from '@/components/app/shared-ui';
 import { AddLoadTile } from './load-selector/AddLoadTile';
 import { LoadCard } from './load-selector/LoadCard';
+import { LoadTable } from './load-selector/LoadTable';
 import { MAX_OPERATION_HOURS, MINE_FILTER, loadMatchesPhase, newLoad } from './load-selector/load-selector-utils';
 import { PeakModeButton } from './load-selector/PeakModeButton';
 import { PhaseDot } from './load-selector/phase-indicators';
@@ -120,6 +121,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
   );
   const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
   const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
+  const [loadView, setLoadView] = useState<'cards' | 'table'>('cards');
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [selectedLoadIdsForPreset, setSelectedLoadIdsForPreset] = useState<Set<string>>(new Set());
   const [presetName, setPresetName] = useState('');
@@ -719,52 +721,122 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
           )}
           </section>
           <section className="order-2 space-y-3">
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold">Cargas do projeto</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Cargas do projeto</h3>
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-primary">
+                  {residentialOptions.loads.length}/{ACCOUNT_LIMITS.loadsPerProject}
+                </Badge>
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 Revise consumo, partida e ligação elétrica de cada equipamento.
               </p>
             </div>
-            <Badge variant="secondary">
-              {residentialOptions.loads.length}/{ACCOUNT_LIMITS.loadsPerProject}
-            </Badge>
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 p-0.5" role="group" aria-label="Exibição das cargas">
+                <button
+                  type="button"
+                  aria-pressed={loadView === 'cards'}
+                  aria-label="Exibir cargas em cards"
+                  onClick={() => setLoadView('cards')}
+                  className={cn('flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', loadView === 'cards' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Cards</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={loadView === 'table'}
+                  aria-label="Exibir cargas em tabela"
+                  onClick={() => setLoadView('table')}
+                  className={cn('flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', loadView === 'table' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  <Table2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Tabela</span>
+                </button>
+              </div>
+            </div>
           </div>
           {effectivePhaseFilter !== 'all' && visibleLoads.length === 0 && (
             <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
               Nenhuma carga conectada à fase {effectivePhaseFilter}.
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <AddLoadTile
-              onAdd={handleAddBlank}
-              disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-            />
-            {visibleLoads.map((load) => (
-              <LoadCard
-                key={load.id}
-                load={load}
-                gridType={residentialOptions.gridType}
-                loadCatalog={loadCatalog}
-                userLoadCatalog={userLoadCatalog}
-                nameKey={nameKey}
-                peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
-                operationHours={residentialOptions.operationHours}
-                onUpdate={updateLoad}
-                onRemove={(id) => {
-                  removeLoad(id);
-                  setLoadLimitMessage(null);
-                }}
-                onDuplicate={handleDuplicateLoad}
-                duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-                saveManualLoadToCatalog={saveManualLoadToCatalog}
-                onCatalogSaveWarning={setCatalogSaveWarning}
-                presetSelectionMode={savePresetOpen}
-                presetSelected={selectedLoadIdsForPreset.has(load.id)}
-                onTogglePresetSelected={() => toggleLoadForPreset(load.id)}
+          {loadView === 'table' ? (
+            <div className="space-y-3">
+              <AddLoadTile
+                onAdd={handleAddBlank}
+                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+                className="min-h-16 flex-row justify-center gap-3 rounded-xl border-solid border-border bg-background p-3 text-center shadow-sm hover:border-primary/70 hover:bg-primary/[0.03] sm:p-4"
               />
-            ))}
-          </div>
+              {visibleLoads.some((load) => load.powerW === 0) && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {visibleLoads.filter((load) => load.powerW === 0).map((load) => (
+                    <LoadCard
+                      key={load.id}
+                      load={load}
+                      gridType={residentialOptions.gridType}
+                      loadCatalog={loadCatalog}
+                      userLoadCatalog={userLoadCatalog}
+                      nameKey={nameKey}
+                      peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
+                      operationHours={residentialOptions.operationHours}
+                      onUpdate={updateLoad}
+                      onRemove={(id) => { removeLoad(id); setLoadLimitMessage(null); }}
+                      onDuplicate={handleDuplicateLoad}
+                      duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+                      saveManualLoadToCatalog={saveManualLoadToCatalog}
+                      onCatalogSaveWarning={setCatalogSaveWarning}
+                      presetSelectionMode={savePresetOpen}
+                      presetSelected={selectedLoadIdsForPreset.has(load.id)}
+                      onTogglePresetSelected={() => toggleLoadForPreset(load.id)}
+                    />
+                  ))}
+                </div>
+              )}
+              {visibleLoads.some((load) => load.powerW > 0) && (
+                <LoadTable
+                  loads={visibleLoads.filter((load) => load.powerW > 0)}
+                  gridType={residentialOptions.gridType}
+                  peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
+                  operationHours={residentialOptions.operationHours}
+                  onUpdate={updateLoad}
+                  onRemove={(id) => { removeLoad(id); setLoadLimitMessage(null); }}
+                  onDuplicate={handleDuplicateLoad}
+                  duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <AddLoadTile
+                onAdd={handleAddBlank}
+                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+              />
+              {visibleLoads.map((load) => (
+                <LoadCard
+                  key={load.id}
+                  load={load}
+                  gridType={residentialOptions.gridType}
+                  loadCatalog={loadCatalog}
+                  userLoadCatalog={userLoadCatalog}
+                  nameKey={nameKey}
+                  peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
+                  operationHours={residentialOptions.operationHours}
+                  onUpdate={updateLoad}
+                  onRemove={(id) => { removeLoad(id); setLoadLimitMessage(null); }}
+                  onDuplicate={handleDuplicateLoad}
+                  duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+                  saveManualLoadToCatalog={saveManualLoadToCatalog}
+                  onCatalogSaveWarning={setCatalogSaveWarning}
+                  presetSelectionMode={savePresetOpen}
+                  presetSelected={selectedLoadIdsForPreset.has(load.id)}
+                  onTogglePresetSelected={() => toggleLoadForPreset(load.id)}
+                />
+              ))}
+            </div>
+          )}
           </section>
         </div>
     </div>

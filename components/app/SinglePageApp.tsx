@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
@@ -95,6 +95,22 @@ const workspaceEditorIds: PickerItemId[] = [
   'white_tariff',
 ];
 
+type WorkspaceNavigationState = {
+  open: boolean;
+  resource: PickerItemId | null;
+  technicalEditorOpen: boolean;
+  configurationOpen: boolean;
+  returnAvailable: boolean;
+};
+
+const closedWorkspaceNavigation: WorkspaceNavigationState = {
+  open: false,
+  resource: null,
+  technicalEditorOpen: false,
+  configurationOpen: false,
+  returnAvailable: false,
+};
+
 function BottomNavSummaryBadge() {
   return (
     <span className="absolute -right-1.5 -top-1 flex h-3 w-3 items-center justify-center rounded-full border border-background bg-primary">
@@ -147,6 +163,8 @@ export function SinglePageApp() {
     updateServiceValue,
     updateServicePricingUnit,
     removeService,
+    addServiceToProject,
+    removeServiceFromProject,
     clearUserData,
     setTopology,
     setBatteryModel,
@@ -182,11 +200,8 @@ export function SinglePageApp() {
   const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
     'project'
   );
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [workspaceResource, setWorkspaceResource] = useState<PickerItemId | null>(null);
-  const [workspaceTechnicalEditorOpen, setWorkspaceTechnicalEditorOpen] = useState(false);
-  const [workspaceConfigurationOpen, setWorkspaceConfigurationOpen] = useState(false);
-  const [workspaceReturnAvailable, setWorkspaceReturnAvailable] = useState(false);
+  const [workspaceNavigation, setWorkspaceNavigation] = useState<WorkspaceNavigationState>(closedWorkspaceNavigation);
+  const { open: workspaceOpen, resource: workspaceResource, technicalEditorOpen: workspaceTechnicalEditorOpen, configurationOpen: workspaceConfigurationOpen, returnAvailable: workspaceReturnAvailable } = workspaceNavigation;
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0';
@@ -266,7 +281,7 @@ export function SinglePageApp() {
   });
 
   const { openClientsManager, openPurchasesTab, openPortfolioTab, quoteSolution } = useAuthenticatedNavigation({
-    authenticated: Boolean(profile),
+    authenticated: Boolean(userEmail),
     onRequireAuthentication: () => router.push(`/${locale}/login?redirect=/${locale}`),
     changeTab,
     setPendingSupplyImport,
@@ -330,11 +345,7 @@ export function SinglePageApp() {
 
   function openProjectWorkspace(id: string) {
     loadProject(id, { showDetails: false });
-    setWorkspaceResource(null);
-    setWorkspaceTechnicalEditorOpen(false);
-    setWorkspaceConfigurationOpen(false);
-    setWorkspaceReturnAvailable(false);
-    setWorkspaceOpen(true);
+    setWorkspaceNavigation({ open: true, resource: null, technicalEditorOpen: false, configurationOpen: false, returnAvailable: false });
     setSummaryDrawerOpen(false);
     changeTab('sizing');
     const url = new URL(window.location.href);
@@ -345,11 +356,7 @@ export function SinglePageApp() {
   }
 
   function openWorkspaceResource(id: PickerItemId) {
-    setWorkspaceResource(id);
-    setWorkspaceTechnicalEditorOpen(true);
-    setWorkspaceConfigurationOpen(false);
-    setWorkspaceReturnAvailable(true);
-    setWorkspaceOpen(true);
+    setWorkspaceNavigation({ open: true, resource: id, technicalEditorOpen: true, configurationOpen: false, returnAvailable: true });
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'resource');
     url.searchParams.set('workspaceResource', id);
@@ -357,24 +364,16 @@ export function SinglePageApp() {
   }
 
   function openWorkspaceBudget() {
-    setWorkspaceOpen(false);
-    setWorkspaceResource(null);
-    setWorkspaceTechnicalEditorOpen(false);
-    setWorkspaceConfigurationOpen(false);
-    setWorkspaceReturnAvailable(true);
+    setWorkspaceNavigation({ open: false, resource: null, technicalEditorOpen: false, configurationOpen: false, returnAvailable: true });
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'budget');
     url.searchParams.delete('workspaceResource');
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    openPurchasesTab();
+    quoteSolution();
   }
 
   function returnToWorkspace() {
-    setWorkspaceResource(null);
-    setWorkspaceTechnicalEditorOpen(false);
-    setWorkspaceConfigurationOpen(false);
-    setWorkspaceReturnAvailable(false);
-    setWorkspaceOpen(true);
+    setWorkspaceNavigation({ open: true, resource: null, technicalEditorOpen: false, configurationOpen: false, returnAvailable: false });
     changeTab('sizing');
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'overview');
@@ -383,10 +382,7 @@ export function SinglePageApp() {
   }
 
   function openWorkspaceLoads() {
-    setWorkspaceResource(null);
-    setWorkspaceTechnicalEditorOpen(false);
-    setWorkspaceReturnAvailable(false);
-    setWorkspaceOpen(true);
+    setWorkspaceNavigation({ open: true, resource: null, technicalEditorOpen: false, configurationOpen: false, returnAvailable: false });
     changeTab('sizing');
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'loads');
@@ -395,16 +391,14 @@ export function SinglePageApp() {
     window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'loads' }));
   }
 
-  function openWorkspaceConfiguration() {
-    setWorkspaceResource(null);
-    setWorkspaceTechnicalEditorOpen(true);
-    setWorkspaceConfigurationOpen(true);
-    setWorkspaceReturnAvailable(true);
-    setWorkspaceOpen(true);
+  function openWorkspaceConfiguration(initialItem: 'gridType' | 'battery' = 'gridType') {
+    const batteryConfiguration = initialItem === 'battery';
+    setWorkspaceNavigation({ open: true, resource: batteryConfiguration ? initialItem : null, technicalEditorOpen: true, configurationOpen: true, returnAvailable: true });
     changeTab('sizing');
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'configuration');
-    url.searchParams.delete('workspaceResource');
+    if (batteryConfiguration) url.searchParams.set('workspaceResource', initialItem);
+    else url.searchParams.delete('workspaceResource');
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     window.dispatchEvent(new CustomEvent('workspace-section-change', { detail: 'configuration' }));
   }
@@ -428,12 +422,10 @@ export function SinglePageApp() {
     loadProject(workspaceId, { showDetails: false });
     const requestedEditor = params.get('workspaceResource');
     const editor = workspaceEditorIds.find((id) => id === requestedEditor) ?? null;
-    setWorkspaceResource(editor);
     const configurationOpen = params.get('workspace') === 'configuration';
-    setWorkspaceConfigurationOpen(configurationOpen);
-    setWorkspaceTechnicalEditorOpen(Boolean(editor) || configurationOpen);
-    setWorkspaceReturnAvailable(false);
-    setWorkspaceOpen(true);
+    startTransition(() => {
+      setWorkspaceNavigation({ open: true, resource: editor, technicalEditorOpen: Boolean(editor) || configurationOpen, configurationOpen, returnAvailable: false });
+    });
     changeTab('sizing');
   }, [changeTab, loadProject, savedProjects, workspaceOpen]);
 
@@ -493,10 +485,10 @@ export function SinglePageApp() {
   const {
     availableInverterModels,
     availableInverterModelsByTopology,
-    setBatteryModelAndRecalc,
-    setSecondaryBatteryModelAndRecalc,
-    setInverterModelAndRecalc,
-    setMinInverterQtyAndRecalc,
+    setBatteryModel: setSizingBatteryModel,
+    setSecondaryBatteryModel: setSizingSecondaryBatteryModel,
+    setInverterModel: setSizingInverterModel,
+    setMinInverterQty: setSizingMinInverterQty,
     resetResidentialToDefaults,
     chooseMicrogridVariant,
     uploadFeaturePhoto,
@@ -508,7 +500,6 @@ export function SinglePageApp() {
     batteryCatalog,
     inverterCatalog,
     approvedInverterCombos,
-    canCalculate: Boolean(canCalculate),
     calculate,
     solution,
     setSolution,
@@ -534,8 +525,9 @@ export function SinglePageApp() {
     reportStatus,
   });
 
-  const { exportingPdf, exportPdf } = useLivePdfExport({
+  const { exportingPdf, exportPdf, lastReport, downloadLastReport, clearLastReport } = useLivePdfExport({
     projectInfo,
+    projectId: currentProjectId,
     residentialOptions,
     solution,
     secondarySolution,
@@ -608,17 +600,43 @@ export function SinglePageApp() {
           <nav className="mt-8 space-y-1" aria-label="Navegação principal">
             <button
               type="button"
-              aria-current={!guideOpen && activeTab === 'project' ? 'page' : undefined}
+              aria-current={!guideOpen && (activeTab === 'project' || workspaceOpen) ? 'page' : undefined}
               onClick={() => { setGuideOpen(false); changeTab('project'); }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                !guideOpen && activeTab === 'project' &&
+                !guideOpen && (activeTab === 'project' || workspaceOpen) &&
                   'border border-primary/20 bg-primary/10 font-medium text-foreground'
               )}
             >
               <FolderOpen className="h-4 w-4" />
               Projetos
             </button>
+            {savedProjects.length > 0 && (
+              <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
+                {savedProjects.map((project) => {
+                  const active = workspaceOpen && currentProjectId === project.id;
+                  return (
+                    <button
+                      key={project.id}
+                      type="button"
+                      aria-label={`Abrir workspace ${project.name}`}
+                      aria-current={active ? 'page' : undefined}
+                      title={project.name}
+                      onClick={() => {
+                        setGuideOpen(false);
+                        openProjectWorkspace(project.id);
+                      }}
+                      className={cn(
+                        'flex h-8 w-full min-w-0 items-center rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                        active && 'bg-primary/10 font-medium text-foreground'
+                      )}
+                    >
+                      <span className="truncate">{project.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <button
               type="button"
               aria-current={!guideOpen && activeTab === 'catalog' ? 'page' : undefined}
@@ -741,6 +759,7 @@ export function SinglePageApp() {
               // are lg:hidden, so desktop's single remaining flex child makes
               // this a no-op there.
               'z-20 flex shrink-0 items-start gap-2 bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
+              workspaceOpen && 'lg:hidden',
               scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
             )}
           >
@@ -811,7 +830,7 @@ export function SinglePageApp() {
               demoDisabled={isDemo || initialLoading || loadPresets.length === 0 || batteryCatalog.length === 0}
               onCancelNew={cancelNewProject}
               onOpen={openProject}
-              onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceOpen(false); setWorkspaceResource(null); setWorkspaceTechnicalEditorOpen(false); setWorkspaceReturnAvailable(false); openProjectSizing(id); }}
+              onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceNavigation(closedWorkspaceNavigation); openProjectSizing(id); }}
               onOpenWorkspace={openProjectWorkspace}
               onRemove={deleteProject}
               onRefreshSolution={refreshProjectSolution}
@@ -914,11 +933,33 @@ export function SinglePageApp() {
               activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceConfiguration}
+              onRefreshSolution={currentProjectId ? () => { void refreshProjectSolution(currentProjectId); } : undefined}
+              recalculatingSolution={Boolean(currentProjectId && refreshingProjectId === currentProjectId)}
               onOpenConfiguration={openWorkspaceConfiguration}
               technicalEditorOpen={workspaceTechnicalEditorOpen}
+              onResetSizing={resetResidentialToDefaults}
+              services={services}
+              userServices={userServices}
+              onAddService={addServiceToProject}
+              onRemoveService={removeServiceFromProject}
+              onAddToStock={addToStock}
+              onUpdateStockItemValue={updateStockItemValue}
+              onUpdateServiceValue={updateServiceValue}
+              quoteProject={currentProjectId ? savedProjects.find((project) => project.id === currentProjectId) : undefined}
+              profile={profile}
+              userStockItems={userStockItems}
+              marginSettings={marginSettings}
+              onUpdateStatus={currentProjectId ? (status) => { void updateProjectStatusAction(currentProjectId, status); } : undefined}
+              onManageSuppliers={openPurchasesTab}
+              onOpenProfile={openProfile}
+              onManagePortfolio={openPortfolioTab}
               onOpenBudget={openWorkspaceBudget}
+              onChooseMicrogridVariant={chooseMicrogridVariant}
               onGenerateReport={exportPdf}
               generatingReport={exportingPdf}
+              lastReport={lastReport}
+              onDownloadLastReport={downloadLastReport}
+              onClearLastReport={clearLastReport}
               autosaveStatus={autosaveStatus}
               autosaveLastSavedAt={autosaveLastSavedAt}
             >
@@ -945,10 +986,10 @@ export function SinglePageApp() {
                 initialLoading={initialLoading}
                 error={error}
                 setTopology={setTopology}
-                setBatteryModel={setBatteryModelAndRecalc}
-                setSecondaryBatteryModel={setSecondaryBatteryModelAndRecalc}
-                setInverterModel={setInverterModelAndRecalc}
-                setMinInverterQty={setMinInverterQtyAndRecalc}
+                setBatteryModel={setSizingBatteryModel}
+                setSecondaryBatteryModel={setSizingSecondaryBatteryModel}
+                setInverterModel={setSizingInverterModel}
+                setMinInverterQty={setSizingMinInverterQty}
                 setGridType={setGridType}
                 setDesiredFeatures={setDesiredFeatures}
                 setWhiteTariffConfig={setWhiteTariffConfig}
@@ -980,7 +1021,7 @@ export function SinglePageApp() {
                 onOpenWorkspaceLoads={openWorkspaceLoads}
                 workspaceMode={workspaceOpen}
                 workspaceConfigurationMode={workspaceConfigurationOpen}
-                workspaceResourceMode={workspaceTechnicalEditorOpen && Boolean(workspaceResource)}
+                workspaceResourceMode={workspaceTechnicalEditorOpen && Boolean(workspaceResource) && !workspaceConfigurationOpen}
               />
             </ProjectWorkspace>
           )}

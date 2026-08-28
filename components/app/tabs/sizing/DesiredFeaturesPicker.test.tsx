@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 
-import { useState } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import type {
   DesiredFeatureId,
@@ -70,6 +69,16 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof DesiredFeat
 }
 
 describe('DesiredFeaturesPicker: tabs and toggling', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      })
+    );
+  });
+
   it('renders the content for whichever activeTab is passed in', () => {
     renderPicker({ activeTab: 'white_tariff' });
     expect(screen.getByText('Usa a bateria nos horários mais caros da Tarifa Branca e estima a economia no relatório.')).toBeInTheDocument();
@@ -110,16 +119,19 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
   it('toggles a feature off and resets its config to null', () => {
     const onChange = vi.fn();
     const onWhiteTariffChange = vi.fn();
+    const onFeatureDisabled = vi.fn();
     renderPicker({
       activeTab: 'white_tariff',
       value: ['white_tariff'],
       onChange,
       onWhiteTariffChange,
+      onFeatureDisabled,
       whiteTariff: { inputMode: 'basic', totalMonthlyConsumptionKwh: 0, pontaConsumptionPercent: 20, intermediateConsumptionPercent: 10, businessDaysPerMonth: 22, pontaWindowHours: 3, intermediateWindowHours: 2, requiredPowerW: 0, pontaEnergyWh: 0, intermediateEnergyWh: 0, pontaTariffPerKwh: 0, intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0 },
     });
     fireEvent.click(screen.getByText('Habilitado'));
     expect(onChange).toHaveBeenCalledWith([]);
     expect(onWhiteTariffChange).toHaveBeenCalledWith(null);
+    expect(onFeatureDisabled).toHaveBeenCalledOnce();
   });
 
   it('toggles microgrid off resetting config to null', () => {
@@ -178,6 +190,17 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
 });
 
 describe('DesiredFeaturesPicker: backup tab', () => {
+  it('shows only the title, subtitle, and enable action while Backup is disabled', () => {
+    renderPicker({ activeTab: 'backup', value: [], onOpenLoads: vi.fn() });
+
+    expect(screen.getByText('Backup')).toBeInTheDocument();
+    expect(screen.getByText('Selecione os equipamentos que precisam permanecer ligados durante uma falta de energia.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Habilitar' })).toBeInTheDocument();
+    expect(screen.queryByText('Desativado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Por quanto tempo as cargas devem operar?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Revisar cargas/ })).not.toBeInTheDocument();
+  });
+
   it('shows only backup duration and a link to the dedicated loads screen', () => {
     const onOpenLoads = vi.fn();
     renderPicker({ activeTab: 'backup', value: ['backup'], loadsCount: 2, operationHours: 4, onOpenLoads });
@@ -224,19 +247,22 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     foraPontaTariffPerKwh: 0.75,
   };
 
-  it('keeps the advanced fields visible without mode selection tabs', () => {
+  it('keeps the consumption and percentage controls visible without mode selection tabs', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
     expect(screen.queryByRole('tab', { name: 'Básico' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Avançado' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Potência máxima nos horários caros (kW)')).not.toBeDisabled();
-    expect(screen.getByLabelText(/Ponta · Energia/)).not.toBeDisabled();
+    expect(screen.getByLabelText('Potência máxima nos horários caros')).not.toBeDisabled();
+    expect(screen.getByLabelText('Ponta (%)')).not.toBeDisabled();
+    expect(screen.getByText('3.64 kWh/dia')).toBeInTheDocument();
   });
 
   it('updates total consumption directly in advanced mode', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
-    fireEvent.change(screen.getByLabelText('Consumo total mensal (kWh/mês)'), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Consumo total mensal' }));
+    fireEvent.click(screen.getByRole('button', { name: '500 centenas' }));
+    fireEvent.click(screen.getByRole('button', { name: '00 unidades' }));
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ totalMonthlyConsumptionKwh: 500 }));
   });
 
@@ -248,15 +274,16 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
       whiteTariff: { ...wt, inputMode: 'advanced' },
       onWhiteTariffChange,
     });
-    fireEvent.change(screen.getByLabelText('Potência máxima nos horários caros (kW)'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Potência máxima nos horários caros' }));
+    fireEvent.click(screen.getByRole('button', { name: '3 kW' }));
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
   });
 
-  it('does not render basic-mode percentage fields', () => {
+  it('renders percentage fields in every mode', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
-    expect(screen.queryByLabelText('Consumo na ponta (%)')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Consumo intermediário (%)')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Ponta (%)')).toHaveValue(20);
+    expect(screen.getByLabelText('Intermediária (%)')).toHaveValue(10);
   });
 
   it('shows the backup-daily-kwh copy when Backup is also selected', () => {
@@ -280,7 +307,7 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
     expect(screen.getByText('Ative "Backup" para somar a energia das cargas à energia da Tarifa Branca.')).toBeInTheDocument();
   });
 
-  it('updates ponta energy field, tariff, intermediate energy/tariff, and fora ponta tariff', () => {
+  it('updates the distribution percentages, derived energies, and tariffs', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({
       activeTab: 'white_tariff',
@@ -288,60 +315,46 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
       whiteTariff: { ...wt, inputMode: 'advanced' },
       onWhiteTariffChange,
     });
-    fireEvent.change(screen.getByLabelText(/Ponta · Energia/), { target: { value: '10' } });
-    expect(onWhiteTariffChange).toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText(/Ponta · Tarifa/), { target: { value: '1.5' } });
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.5 }));
-    fireEvent.change(screen.getByLabelText(/Intermediária · Energia/), { target: { value: '5' } });
-    expect(onWhiteTariffChange).toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText(/Intermediária · Tarifa/), { target: { value: '1' } });
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1 }));
-    fireEvent.change(screen.getByLabelText(/Fora ponta · Tarifa/), { target: { value: '0.6' } });
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.6 }));
+    fireEvent.change(screen.getByLabelText('Ponta (%)'), { target: { value: '25' } });
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaConsumptionPercent: 25, pontaEnergyWh: 4545 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar tarifa Ponta' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.21 }));
+    fireEvent.change(screen.getByLabelText('Intermediária (%)'), { target: { value: '15' } });
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ intermediateConsumptionPercent: 15, intermediateEnergyWh: 2727 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar tarifa Intermediária' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 0.96 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar tarifa Fora ponta' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.76 }));
   });
 
-  it('lets the ponta/intermediária/fora-ponta tariff fields be cleared to empty, instead of getting stuck showing 0', () => {
-    // Regression test: value={x ?? ''} treats 0 as a real value to display
-    // (nullish coalescing doesn't catch it), so clearing the field set state
-    // to 0 and then rendered that same "0" straight back into the input,
-    // making it impossible to actually blank the field out.
-    function ControlledWhiteTariffPanel() {
-      const [whiteTariff, setWhiteTariff] = useState<WhiteTariffConfig | null>(wt);
-      const props = baseProps({
-        activeTab: 'white_tariff',
-        value: ['white_tariff'],
-        whiteTariff,
-        onWhiteTariffChange: setWhiteTariff,
-      });
-      return (
-        <NextIntlClientProvider locale="pt" messages={ptMessages}>
-          <DesiredFeaturesPicker {...props} />
-        </NextIntlClientProvider>
-      );
-    }
-    render(<ControlledWhiteTariffPanel />);
+  it('adjusts tariff values in one-cent increments with the steppers', () => {
+    const onWhiteTariffChange = vi.fn();
+    renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
 
-    fireEvent.change(screen.getByLabelText(/Ponta · Tarifa/), { target: { value: '' } });
-    expect(screen.getByLabelText(/Ponta · Tarifa/)).toHaveValue(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir seletor de tarifa Ponta' }));
+    expect(screen.getByRole('dialog', { name: 'Selecionar tarifa Ponta' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '1 reais' }));
+    fireEvent.click(screen.getByRole('button', { name: '25 centavos' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.25 }));
 
-    fireEvent.change(screen.getByLabelText(/Intermediária · Tarifa/), { target: { value: '' } });
-    expect(screen.getByLabelText(/Intermediária · Tarifa/)).toHaveValue(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Diminuir tarifa Ponta' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.19 }));
 
-    fireEvent.change(screen.getByLabelText(/Fora ponta · Tarifa/), { target: { value: '' } });
-    expect(screen.getByLabelText(/Fora ponta · Tarifa/)).toHaveValue(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar tarifa Fora ponta' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.76 }));
   });
 
-  it('shows the calculated fora-ponta daily energy', () => {
+  it('shows the daily energy for every tariff period in the distribution cards', () => {
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt });
-    // Expensive (ponta+intermediária): (3600+1800)/1000 * 22 dias = 118.8 kWh/mês.
-    // Fora ponta: 400 - 118.8 = 281.2 kWh/mês; / 22 dias = 12.78 kWh/dia.
-    expect(screen.getByText('12.78 kWh/dia')).toBeInTheDocument();
+    expect(screen.getByText('3.64 kWh/dia')).toBeInTheDocument();
+    expect(screen.getByText('1.82 kWh/dia')).toBeInTheDocument();
+    expect(screen.getByText('12.73 kWh/dia')).toBeInTheDocument();
   });
 
-  it('omits the fora-ponta daily energy when total monthly consumption is not informed', () => {
+  it('keeps the daily energy values at zero when total monthly consumption is not informed', () => {
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: { ...wt, totalMonthlyConsumptionKwh: 0 } });
-    const foraPontaCard = screen.getByText('Fora ponta').closest('div')!;
-    expect(within(foraPontaCard).queryByText(/kWh\/dia/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('0.00 kWh/dia')).toHaveLength(3);
+    expect(screen.getAllByText('Fora ponta')).toHaveLength(1);
   });
 
   it('shows the tariff-order warning when ponta/intermediate are below fora ponta', () => {
@@ -376,16 +389,16 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
 
   it('shows a local validation message after an invalid field loses focus', () => {
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: { ...wt, totalMonthlyConsumptionKwh: 0 } });
-    const input = screen.getByLabelText('Consumo total mensal (kWh/mês)');
+    const input = screen.getByLabelText('Consumo total mensal');
     fireEvent.blur(input);
     expect(screen.getByText('Informe o consumo mensal.')).toBeInTheDocument();
-    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('data-invalid', 'true');
   });
 
-  it('exposes the enable action as an accessible switch and marks ANEEL as disabled', () => {
+  it('exposes the enable action and keeps the tariff source tabs hidden', () => {
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt });
     expect(screen.getByRole('button', { name: 'Habilitado' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('tab', { name: /Automático pela ANEEL/ })).toBeDisabled();
+    expect(screen.queryByRole('tab', { name: /Automático pela ANEEL/ })).not.toBeInTheDocument();
   });
 
   it('renders the instant summary block with savings copy when favorable', () => {
@@ -439,12 +452,16 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
   it('updates business days / ponta hours / intermediate hours assumptions in basic and advanced modes', () => {
     const onWhiteTariffChange = vi.fn();
     renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: wt, onWhiteTariffChange });
-    fireEvent.click(screen.getByText('Premissas do cálculo'));
-    fireEvent.change(screen.getByLabelText('Dias úteis/mês'), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Dias úteis' }));
+    fireEvent.click(screen.getByRole('button', { name: '20 dias' }));
     expect(onWhiteTariffChange).toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('Janela de ponta (h)'), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Janela de ponta' }));
+    fireEvent.click(screen.getByRole('button', { name: '04 horas' }));
     expect(onWhiteTariffChange).toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('Janela intermediária (h)'), { target: { value: '2.5' } });
+    const intermediateButton = screen.getByRole('button', { name: 'Janela intermediária' });
+    fireEvent.pointerDown(intermediateButton);
+    fireEvent.click(intermediateButton);
+    fireEvent.click(screen.getByRole('button', { name: '02 horas' }));
     expect(onWhiteTariffChange).toHaveBeenCalled();
   });
 
@@ -456,26 +473,29 @@ describe('DesiredFeaturesPicker: white_tariff tab', () => {
       whiteTariff: { ...wt, inputMode: 'advanced' },
       onWhiteTariffChange,
     });
-    fireEvent.change(screen.getByLabelText('Dias úteis/mês'), { target: { value: '21' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Dias úteis' }));
+    fireEvent.click(screen.getByRole('button', { name: '21 dias' }));
     expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ businessDaysPerMonth: 21 }));
-    fireEvent.change(screen.getByLabelText('Janela de ponta (h)'), { target: { value: '3.5' } });
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaWindowHours: 3.5 }));
-    fireEvent.change(screen.getByLabelText('Janela intermediária (h)'), { target: { value: '2.2' } });
-    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ intermediateWindowHours: 2.2 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Janela de ponta' }));
+    fireEvent.click(screen.getByRole('button', { name: '04 horas' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaWindowHours: 4 }));
+    fireEvent.click(screen.getByRole('button', { name: '30 minutos' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ pontaWindowHours: 4.5 }));
+    const intermediateButton = screen.getByRole('button', { name: 'Janela intermediária' });
+    fireEvent.pointerDown(intermediateButton);
+    fireEvent.click(intermediateButton);
+    fireEvent.click(screen.getByRole('button', { name: '02 horas' }));
+    fireEvent.click(screen.getByRole('button', { name: '02 minutos' }));
+    expect(onWhiteTariffChange).toHaveBeenCalledWith(expect.objectContaining({ intermediateWindowHours: 2 + 2 / 60 }));
   });
 
-  it('resyncs the ponta energy field text when energyWh changes externally (not from the field itself)', () => {
-    const { rerender } = renderPicker({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: { ...wt, inputMode: 'advanced', pontaEnergyWh: 1000 } });
-    expect(screen.getByLabelText(/Ponta · Energia/)).toHaveValue(22);
-
-    rerender(
-      <NextIntlClientProvider locale="pt" messages={ptMessages}>
-        <DesiredFeaturesPicker
-          {...baseProps({ activeTab: 'white_tariff', value: ['white_tariff'], whiteTariff: { ...wt, inputMode: 'advanced', pontaEnergyWh: 5000 } })}
-        />
-      </NextIntlClientProvider>
-    );
-    expect(screen.getByLabelText(/Ponta · Energia/)).toHaveValue(110);
+  it('derives percentages from legacy energy fields when percentages are absent', () => {
+    renderPicker({
+      activeTab: 'white_tariff',
+      value: ['white_tariff'],
+      whiteTariff: { ...wt, pontaConsumptionPercent: undefined, intermediateConsumptionPercent: undefined, pontaEnergyWh: 1000, intermediateEnergyWh: 0 },
+    });
+    expect(screen.getByLabelText('Ponta (%)')).toHaveValue(5.5);
   });
 
   it('falls back to default empty white tariff config when whiteTariff is null but tab is active/enabled edge case', () => {

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
-import type { MarginSettings, Solution, UserStockItem } from '@/lib/types';
+import type { DesiredFeatureId, MarginSettings, Solution, UserStockItem } from '@/lib/types';
 import { calculateTariffSavings, formatCurrencyBRL } from '../helpers';
 import { renderWithShell, Shell } from '../test-helpers/render-with-shell';
 import type { BatteryCatalogOption, InverterCatalogOption } from '../types';
@@ -144,6 +144,7 @@ beforeEach(() => {
   resetWizardStore();
   createClientMock.mockReset();
   createClientMock.mockReturnValue(createSupabaseMock());
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
 });
 
 describe('SizingTab: title bar', () => {
@@ -1108,6 +1109,68 @@ describe('SizingTab: Resumo panel warning bubbling', () => {
 });
 
 describe('SizingTab: configuration summary row jumps', () => {
+  it('keeps both technical configuration tabs visible when opened on batteries from the Workspace', () => {
+    setup({ workspaceMode: true, workspaceConfigurationMode: true, initialActiveItem: 'battery' });
+
+    expect(screen.getByRole('tab', { name: 'Rede e inversor' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Baterias' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('follows Workspace resource changes after the first selection', async () => {
+    const { rerender, props } = setup({
+      workspaceMode: true,
+      workspaceResourceMode: true,
+      initialActiveItem: 'backup',
+    });
+    expect(screen.getByText('Backup', { selector: 'p' })).toBeInTheDocument();
+
+    rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <SizingTab {...(props as Parameters<typeof SizingTab>[0])} initialActiveItem="microgrid" />
+      </NextIntlClientProvider>
+    );
+    await waitFor(() => expect(screen.getByText('Microrrede', { selector: 'p' })).toBeInTheDocument());
+  });
+
+  it.each(['backup', 'microgrid', 'pv', 'external_generator', 'white_tariff', 'external_ats'] as DesiredFeatureId[]) (
+    'keeps the Workspace resource editor open when %s is disabled',
+    (feature) => {
+      const { rerender, props } = setup({
+        workspaceMode: true,
+        workspaceResourceMode: true,
+        initialActiveItem: feature,
+        residentialOptions: { ...emptyResidentialOptions, desiredFeatures: [feature] },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+
+      rerender(
+        <NextIntlClientProvider locale="pt" messages={ptMessages}>
+          <SizingTab
+            {...(props as Parameters<typeof SizingTab>[0])}
+            residentialOptions={emptyResidentialOptions}
+          />
+        </NextIntlClientProvider>
+      );
+
+      expect(screen.getByText(
+        feature === 'external_generator'
+          ? 'Gerador'
+          : feature === 'external_ats'
+            ? 'Backup Total'
+            : feature === 'white_tariff'
+              ? 'Tarifa Branca'
+              : feature === 'pv'
+                ? 'Fotovoltaico'
+                : feature === 'microgrid'
+                  ? 'Microrrede'
+                  : 'Backup',
+        { selector: 'p' }
+      )).toBeInTheDocument();
+      expect(screen.queryByRole('tablist', { name: 'Funcionalidades' })).not.toBeInTheDocument();
+    }
+  );
+
   it('jumps to Configurações → Tipo de rede when the "Tipo de rede" row is clicked', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: /Tipo de rede/ }));
@@ -1169,21 +1232,34 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     return props;
   }
 
-  it('updates white tariff power, energies and tariffs', () => {
+  it('updates white tariff power, distribution percentages and tariffs', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff');
-    fireEvent.change(screen.getByLabelText('Potência máxima nos horários caros (kW)'), { target: { value: '3' } });
-    // 22 kWh/mês ÷ 22 dias úteis/mês = 1000 Wh/dia, a clean value to assert on.
-    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '22' } });
-    fireEvent.change(screen.getByLabelText('Intermediária · Energia (kWh/mês)'), { target: { value: '11' } });
-    fireEvent.change(screen.getByLabelText('Ponta · Tarifa (R$/kWh)'), { target: { value: '1.35' } });
-    fireEvent.change(screen.getByLabelText('Intermediária · Tarifa (R$/kWh)'), { target: { value: '1.05' } });
-    fireEvent.change(screen.getByLabelText('Fora ponta · Tarifa (R$/kWh)'), { target: { value: '0.85' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Potência máxima nos horários caros' }));
+    fireEvent.click(screen.getByRole('button', { name: '3 kW' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Consumo total mensal' }));
+    fireEvent.click(screen.getByRole('button', { name: '500 centenas' }));
+    fireEvent.click(screen.getByRole('button', { name: '00 unidades' }));
+    fireEvent.change(screen.getByRole('slider', { name: 'Ponta · percentual do consumo' }), { target: { value: '20' } });
+    fireEvent.change(screen.getByRole('slider', { name: 'Intermediária · percentual do consumo' }), { target: { value: '10' } });
+
+    function selectTariff(label: string, reais: string, centavos: string) {
+      fireEvent.click(screen.getByRole('button', { name: `Abrir seletor de tarifa ${label}` }));
+      const picker = screen.getByRole('dialog', { name: `Selecionar tarifa ${label}` });
+      fireEvent.click(within(picker).getByRole('button', { name: `${reais} reais` }));
+      fireEvent.click(within(picker).getByRole('button', { name: `${centavos} centavos` }));
+    }
+
+    selectTariff('Ponta', '1', '35');
+    selectTariff('Intermediária', '1', '5');
+    selectTariff('Fora ponta', '0', '85');
 
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ requiredPowerW: 3000 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaEnergyWh: 1000 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateEnergyWh: 500 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1.35 }));
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1.05 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ totalMonthlyConsumptionKwh: 500, pontaConsumptionPercent: 20, pontaEnergyWh: 4545 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateConsumptionPercent: 10, intermediateEnergyWh: 2273 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 1 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ pontaTariffPerKwh: 0.35 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1 }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 0.05 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.85 }));
   });
 
@@ -1198,12 +1274,17 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
         intermediateTariffPerKwh: 0, foraPontaTariffPerKwh: 0,
       },
     });
-    fireEvent.change(screen.getByLabelText('Consumo total mensal (kWh/mês)'), { target: { value: '220' } });
-    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ totalMonthlyConsumptionKwh: 220 }));
-    expect(props.setWhiteTariffConfig).not.toHaveBeenCalledWith(expect.objectContaining({ pontaEnergyWh: 2000 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Consumo total mensal' }));
+    fireEvent.click(screen.getByRole('button', { name: '500 centenas' }));
+    fireEvent.click(screen.getByRole('button', { name: '00 unidades' }));
+    expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({
+      totalMonthlyConsumptionKwh: 500,
+      pontaEnergyWh: 4545,
+      intermediateEnergyWh: 2273,
+    }));
   });
 
-  it('shows the derived ponta and intermediária spreads below the tariff inputs', () => {
+  it('shows the tariff values in the period cards and keeps each wheel available', () => {
     enable(/^Tarifa Branca/, 'white_tariff', {
       whiteTariff: {
             requiredPowerW: 0,
@@ -1214,30 +1295,28 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
             foraPontaTariffPerKwh: 0.85,
           },
     });
-    expect(screen.getByText(/Diferença para fora ponta: R\$ 0.50\/kWh/)).toBeInTheDocument();
-    expect(screen.getByText(/Diferença para fora ponta: R\$ 0.25\/kWh/)).toBeInTheDocument();
+    expect(screen.getByText('R$ 1,35/kWh')).toBeInTheDocument();
+    expect(screen.getByText('R$ 1,10/kWh')).toBeInTheDocument();
+    expect(screen.getByText('R$ 0,85/kWh')).toBeInTheDocument();
   });
 
-  it('shows the white tariff ponta energy field converted to kWh/mês, with the equivalent kWh/dia noted below', () => {
+  it('shows the white tariff ponta energy converted to the absolute monthly summary', () => {
     enable(/^Tarifa Branca/, 'white_tariff', {
       whiteTariff: {
-            requiredPowerW: 0,
+            totalMonthlyConsumptionKwh: 400,
+            requiredPowerW: 3000,
             pontaEnergyWh: 1000,
             intermediateEnergyWh: 0,
-            pontaTariffPerKwh: 0,
-            intermediateTariffPerKwh: 0,
-            foraPontaTariffPerKwh: 0,
+            pontaTariffPerKwh: 1.35,
+            intermediateTariffPerKwh: 1.1,
+            foraPontaTariffPerKwh: 0.85,
           },
     });
-    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(22);
-    expect(screen.getByText('1.00 kWh/dia')).toBeInTheDocument();
+    expect(screen.getByText('22.0 kWh/mês')).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Ponta · percentual do consumo' })).toHaveValue('5.5');
   });
 
-  it('keeps showing exactly what the user typed, instead of reformatting it into a lossy decimal on every keystroke', () => {
-    // pontaEnergyWh (Wh/dia) and the displayed kWh/mês only round-trip
-    // cleanly by coincidence (÷22 rarely lands on a round number) — the field
-    // must echo the typed text, not a value recomputed from the rounded Wh
-    // storage, or "100" would flicker into "99.99" as soon as it's typed.
+  it('keeps showing exactly what the user typed in the percentage control', () => {
     const { props, rerender } = setup({
       residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['white_tariff'] },
     });
@@ -1257,17 +1336,17 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
       );
     }
 
-    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Ponta (%)'), { target: { value: '1' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(1);
+    expect(screen.getByLabelText('Ponta (%)')).toHaveValue(1);
 
-    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Ponta (%)'), { target: { value: '10' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(10);
+    expect(screen.getByLabelText('Ponta (%)')).toHaveValue(10);
 
-    fireEvent.change(screen.getByLabelText('Ponta · Energia (kWh/mês)'), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Ponta (%)'), { target: { value: '100' } });
     rerenderWithLatestWhiteTariff();
-    expect(screen.getByLabelText('Ponta · Energia (kWh/mês)')).toHaveValue(100);
+    expect(screen.getByLabelText('Ponta (%)')).toHaveValue(90);
   });
 
   it('updates microgrid power and phases (phase change auto-picks a valid voltage)', () => {
@@ -1733,6 +1812,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(null);
+    expect(screen.queryByText('Rede & inversor')).not.toBeInTheDocument();
   });
 
   it('disabling an already-enabled microgrid feature clears its config', () => {
@@ -2322,6 +2402,17 @@ describe('SizingTab: cargas', () => {
     );
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
     expect(screen.queryByText('Presets')).not.toBeInTheDocument();
+  });
+
+  it('returns to the resource selection after disabling the active feature', () => {
+    const { props } = setup({ residentialOptions: { ...emptyResidentialOptions, desiredFeatures: ['backup'] } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
+
+    expect(screen.getByRole('tablist', { name: 'Funcionalidades' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Backup' })).toBeInTheDocument();
+    expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
   });
 
   it('does not embed the loads catalog in the Backup tab', () => {

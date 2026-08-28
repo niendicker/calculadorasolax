@@ -330,6 +330,7 @@ describe('MyStockTab: removing', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Excluir produto?' });
     expect(dialog).toHaveTextContent('O produto “X1-Hybrid-5.0kW-G4” será removido do seu portfólio. Esta ação não poderá ser desfeita.');
     const confirmButton = within(dialog).getByRole('button', { name: 'Excluir produto' });
+    fireEvent.pointerDown(confirmButton);
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemove).toHaveBeenCalledWith('s1'));
@@ -484,6 +485,7 @@ describe('MyStockTab: services', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mais ações para Instalação' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excluir serviço Instalação do meu catálogo' }));
     const confirmButton = await screen.findByRole('button', { name: 'Excluir serviço' }, { timeout: 1000 });
+    fireEvent.pointerDown(confirmButton);
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.onRemoveService).toHaveBeenCalledWith('sv1'));

@@ -296,7 +296,7 @@ describe('LoadCard: confirmed card header', () => {
     expect(checkbox.checked).toBe(true);
   });
 
-  it('duplicates and removes via the header action buttons without toggling expansion', () => {
+  it('duplicates and removes via the actions menu without toggling expansion', () => {
     const onDuplicate = vi.fn();
     const onRemove = vi.fn();
     const load = fullLoad();
@@ -304,11 +304,15 @@ describe('LoadCard: confirmed card header', () => {
 
     const header = screen.getByText('Chuveiro').closest('[role="button"]') as HTMLElement;
 
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicar Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Chuveiro' }));
+    expect(screen.getByRole('menu', { name: 'Ações de Chuveiro' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicar' }));
     expect(onDuplicate).toHaveBeenCalledWith(load);
     expect(header).toHaveAttribute('aria-expanded', 'false');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Chuveiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir Chuveiro' }));
     fireEvent.click(screen.getByRole('button', { name: 'Excluir carga' }));
     expect(onRemove).toHaveBeenCalledWith('l1');
     expect(header).toHaveAttribute('aria-expanded', 'false');
@@ -316,7 +320,8 @@ describe('LoadCard: confirmed card header', () => {
 
   it('disables the duplicate button when duplicateDisabled is set', () => {
     render(<LoadCard {...baseProps({ duplicateDisabled: true })} />);
-    expect(screen.getByRole('button', { name: 'Duplicar Chuveiro' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Opções de Chuveiro' }));
+    expect(screen.getByRole('menuitem', { name: 'Duplicar' })).toBeDisabled();
   });
 
   it('toggles includedInPeak from the header icon, only shown in "select" peak mode', () => {

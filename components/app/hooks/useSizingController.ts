@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { batteryTopologyToCatalog, type ResidentialOptions, type Solution } from '@/lib/types';
@@ -13,7 +13,6 @@ export function useSizingController({
   batteryCatalog,
   inverterCatalog,
   approvedInverterCombos,
-  canCalculate,
   calculate,
   solution,
   setSolution,
@@ -31,7 +30,6 @@ export function useSizingController({
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   approvedInverterCombos: ApprovedInverterCombo[];
-  canCalculate: boolean;
   calculate: () => void;
   solution: Solution | null;
   setSolution: (solution: Solution | null) => void;
@@ -43,34 +41,6 @@ export function useSizingController({
   setMaxPowerPerPhaseW: (power: number | null) => void;
   resetResidential: () => void;
 }) {
-  const pendingAutoCalcRef = useRef(false);
-
-  function setBatteryModelAndRecalc(model: string | null) {
-    pendingAutoCalcRef.current = true;
-    setBatteryModel(model);
-  }
-
-  function setSecondaryBatteryModelAndRecalc(model: string | null) {
-    pendingAutoCalcRef.current = true;
-    setSecondaryBatteryModel(model);
-  }
-
-  function setInverterModelAndRecalc(model: string | null) {
-    pendingAutoCalcRef.current = true;
-    setInverterModel(model);
-  }
-
-  function setMinInverterQtyAndRecalc(quantity: number | null) {
-    pendingAutoCalcRef.current = true;
-    setMinInverterQty(quantity);
-  }
-
-  useEffect(() => {
-    if (!pendingAutoCalcRef.current) return;
-    pendingAutoCalcRef.current = false;
-    if (canCalculate) calculate();
-  }, [residentialOptions.batteryModel, residentialOptions.secondaryBatteryModel, residentialOptions.inverterModel, residentialOptions.minInverterQty, canCalculate, calculate]);
-
   const availableInverterModelsByTopology = useMemo(() => {
     if (!residentialOptions.gridType) return null;
     const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
@@ -131,10 +101,10 @@ export function useSizingController({
   return {
     availableInverterModels,
     availableInverterModelsByTopology,
-    setBatteryModelAndRecalc,
-    setSecondaryBatteryModelAndRecalc,
-    setInverterModelAndRecalc,
-    setMinInverterQtyAndRecalc,
+    setBatteryModel,
+    setSecondaryBatteryModel,
+    setInverterModel,
+    setMinInverterQty,
     resetResidentialToDefaults,
     chooseMicrogridVariant,
     uploadFeaturePhoto,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
 import { listProductMedia } from '@/lib/data/product-media-repository';
@@ -60,7 +60,17 @@ export function useCalculation({
   // attempt would permanently lock the button with no way to retry.
   const [lastCalculatedOptions, setLastCalculatedOptions] = useState<string | null>(null);
   const serializedOptions = useMemo(() => JSON.stringify(residentialOptions), [residentialOptions]);
+  const serializedOptionsRef = useRef(serializedOptions);
+  useEffect(() => {
+    serializedOptionsRef.current = serializedOptions;
+  }, [serializedOptions]);
   const hasUncalculatedChanges = lastCalculatedOptions !== serializedOptions || Boolean(error) || Boolean(secondaryError);
+
+  // A solution loaded or refreshed from a saved project is already based on
+  // the current options, so it establishes a new clean calculation baseline.
+  useEffect(() => {
+    if (solution) setLastCalculatedOptions(serializedOptionsRef.current);
+  }, [solution]);
 
   useEffect(() => {
     async function loadProductMedia() {

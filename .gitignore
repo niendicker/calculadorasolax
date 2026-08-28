@@ -9,6 +9,7 @@ out/
 .env
 .env.local
 .env.*.local
+supabase-migration.env
 
 # Supabase local
 supabase/.temp/
@@ -22,6 +23,7 @@ Thumbs.db
 # editor
 .vscode/
 .idea/
+.claude/settings.local.json
 
 # logs
 *.log

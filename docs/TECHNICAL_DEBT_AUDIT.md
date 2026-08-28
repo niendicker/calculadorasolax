@@ -4,6 +4,36 @@
 **Escopo:** repositório completo da Calculadora SolaX  
 **Tipo:** diagnóstico read-only; nenhum código foi alterado durante a auditoria
 
+## Status desta implementação — 2026-08-28
+
+As prioridades altas e médias levantadas para esta branch foram implementadas
+e validadas no estado atual do código:
+
+- arquivos locais de credenciais e configurações do editor foram adicionados ao
+  `.gitignore`, sem remover os arquivos existentes da máquina;
+- a navegação do Workspace foi consolidada em um único estado, com restauração
+  por URL, abertura de recursos e retorno ao projeto preservando o contexto;
+- os fluxos de relatório, cotação, variantes de microrrede e limpeza do
+  dimensionamento foram mantidos acessíveis no Workspace;
+- cards interativos não possuem mais controles de ajuda aninhados em outro
+  elemento interativo, corrigindo a acessibilidade e a área clicável;
+- os testes de integração foram migrados do fluxo legado de Dimensionamento
+  para o Workspace, e os contratos atuais dos pickers da Tarifa Branca foram
+  cobertos;
+- efeitos de sincronização e callbacks com dependências instáveis foram
+  ajustados para evitar atualizações durante a renderização e ciclos de
+  reexecução desnecessários.
+
+Validação realizada: lint e TypeScript sem erros; 90 arquivos de teste e 2.009
+testes passando; `git diff --check` sem problemas. O build de produção não pôde
+ser concluído neste ambiente porque o Next.js não conseguiu baixar a fonte
+Inter do Google Fonts. A checagem das Edge Functions também depende de acesso
+à rede para baixar o pacote JSR do Supabase.
+
+Permanecem apenas melhorias de prioridade baixa ou dependentes de ambiente:
+redução de avisos de `act(...)` em testes assíncronos, execução contínua de
+pgTAP/E2E, medição do bundle e otimização do catálogo inicial.
+
 ## Status de implementação
 
 Após a auditoria, as seguintes etapas foram implementadas em commits separados:

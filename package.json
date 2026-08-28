@@ -19,6 +19,12 @@
     "db:check": "bash scripts/check-migrations.sh",
     "db:test": "npx supabase test db --local",
     "db:types": "bash scripts/generate-database-types.sh",
+    "db:pull:prod": "bash scripts/sync-production-db-to-local.sh",
+    "db:pull:catalog": "bash scripts/sync-production-catalog-to-local.sh",
+    "selfhosted:bootstrap": "bash scripts/bootstrap-self-hosted-env.sh",
+    "selfhosted:check": "bash scripts/db-push-tunnel.sh --check-only",
+    "selfhosted:push": "bash scripts/db-push-tunnel.sh",
+    "selfhosted:types": "bash scripts/db-push-tunnel.sh --types-only",
     "rotate-keys": "bash scripts/rotate-keys.sh"
   },
   "dependencies": {

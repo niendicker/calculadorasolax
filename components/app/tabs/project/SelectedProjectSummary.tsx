@@ -4,10 +4,8 @@ import { useState } from 'react';
 import {
   BatteryCharging,
   Calculator,
-  AlertTriangle,
   ChevronRight,
   Gauge,
-  Loader2,
   Mail,
   MapPin,
   PanelTop,
@@ -19,26 +17,22 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
-import { createClient } from '@/lib/supabase/client';
-import { recordProjectEvent } from '@/lib/data/project-events-repository';
 import type { Client, MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
-import { totalDailyKwh, totalPeakW } from '@/lib/store/wizard-store';
 import {
   batteryQuantityBreakdown,
-  buildQuoteShareSnapshot,
-  buildWhatsAppShareUrl,
   calculateSystemCost,
   servicePricingUnitLabel,
   formatCurrencyBRL,
   normalizeAccessoryLine,
   solutionMetrics,
 } from '../../helpers';
-import { Metric, WhatsAppIcon } from '../../shared-ui';
+import { Metric } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InlineProfile, InverterCatalogOption } from '../../types';
 import { gridLabels } from '../../types';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
 import { ProjectStatusSelect } from './ProjectStatusSelect';
-import { SupplierQuoteRequestModal } from './SupplierQuoteRequestModal';
+import { QuoteShareButton } from './QuoteShareButton';
+import { SupplierQuoteAction } from './SupplierQuoteAction';
 
 /** A product's category label, its nickname/model (with quantity, if any),
  * and — only when a nickname is set — the bare model code as a small
@@ -127,88 +121,7 @@ export function SelectedProjectSummary({
         (project.solution.inverterQty ?? 1) * (project.solution.batteryPortsUsed ?? 1)
       )
     : [];
-  const [supplierQuoteModalOpen, setSupplierQuoteModalOpen] = useState(false);
-  const [profileRequirementsOpen, setProfileRequirementsOpen] = useState(false);
-  const [sharingQuote, setSharingQuote] = useState(false);
   const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
-
-  const shareableProject = {
-    name: project.name,
-    address: project.address,
-    topology: project.residentialOptions.topology,
-    gridType: project.residentialOptions.gridType,
-    loadsCount: project.residentialOptions.loads.length,
-    peakW: totalPeakW(project.residentialOptions.loads, project.residentialOptions.peakCalcMode ?? 'sum'),
-    dailyKwh: totalDailyKwh(project.residentialOptions.loads, project.residentialOptions.operationHours),
-    solution: project.solution,
-    desiredFeatures: project.residentialOptions.desiredFeatures,
-    microgrid: project.residentialOptions.microgrid,
-    generator: project.residentialOptions.generator,
-    pv: project.residentialOptions.pv,
-    whiteTariff: project.residentialOptions.whiteTariff,
-  };
-
-  const canShareQuote = Boolean(project.solution && client?.phone && profile);
-  const hasCompleteCompanyAddress = Boolean(
-    profile &&
-      ['postalCode', 'street', 'number', 'district', 'city', 'state'].every((field) =>
-        profile.companyAddress[field as keyof typeof profile.companyAddress]?.trim()
-      )
-  );
-  const canRequestSupplierQuote = Boolean(project.solution);
-  const profileRequirementsMissing = !profile || !profile.companyDocument.trim() || !hasCompleteCompanyAddress;
-
-  // Generates the public quote-share link (same snapshot the old separate
-  // "Compartilhar orçamento (link)" button used to build) and opens WhatsApp
-  // with a short message containing it, in one action — the link itself is
-  // now a strictly richer experience than the old formatted-text message
-  // (buildClientQuoteText) ever was: same product/financial breakdown, plus
-  // Aceitar/Recusar the text could never offer. Logs a project_events row so
-  // this shows up in the Histórico below, and — like the old two actions
-  // both did — only advances status out of 'draft', so re-sharing after the
-  // client already responded doesn't quietly undo an accepted/rejected.
-  async function handleShareQuote() {
-    if (!profile || !client?.phone) return;
-    const snapshot = buildQuoteShareSnapshot(project, {
-      client,
-      profile,
-      userStockItems,
-      marginSettings,
-      userServices,
-      batteryCatalog,
-      inverterCatalog,
-    });
-    if (!snapshot) return;
-
-    setSharingQuote(true);
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('quote_shares')
-        .insert({ project_id: project.id, user_id: profile.id, snapshot: snapshot as unknown as import('@/lib/database.types').Json })
-        .select('id')
-        .single();
-      if (error || !data) return;
-
-      const link = `${window.location.origin}/cotacao/${data.id}`;
-      const message = `Olá! Segue o orçamento da sua instalação solar:\n${link}\n\nAcesse para conferir os detalhes e responder.`;
-      const whatsAppUrl = buildWhatsAppShareUrl(client.phone, message);
-      if (whatsAppUrl) window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
-
-      const wasDraft = project.status === 'draft';
-      await recordProjectEvent(supabase, {
-        project_id: project.id,
-        actor_id: profile.id,
-        event_type: 'quote_shared',
-        from_status: wasDraft ? 'draft' : null,
-        to_status: wasDraft ? 'sent' : null,
-      });
-      if (wasDraft) onUpdateStatus('sent');
-      setEventsRefreshKey((key) => key + 1);
-    } finally {
-      setSharingQuote(false);
-    }
-  }
 
   return (
     <>
@@ -398,89 +311,30 @@ export function SelectedProjectSummary({
         </Button>
       )}
 
-      <Button
-        size="lg"
+      <QuoteShareButton
+        project={project}
+        client={client}
+        profile={profile}
+        batteryCatalog={batteryCatalog}
+        inverterCatalog={inverterCatalog}
+        userStockItems={userStockItems}
+        userServices={userServices}
+        marginSettings={marginSettings}
+        onUpdateStatus={onUpdateStatus}
+        onShared={() => setEventsRefreshKey((key) => key + 1)}
         className="w-full bg-emerald-600 text-white shadow-sm transition-shadow hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
-        disabled={!canShareQuote || sharingQuote}
-        title={
-          !project.solution
-            ? 'Calcule uma solução para este projeto antes de compartilhar.'
-            : !client?.phone
-              ? 'Cadastre o telefone do cliente para enviar a cotação por WhatsApp.'
-              : undefined
-        }
-        onClick={() => void handleShareQuote()}
-      >
-        {sharingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <WhatsAppIcon className="h-4 w-4" />}
-        Compartilhar cotação
-      </Button>
+      />
 
-      <Button
-        variant="outline"
-        size="lg"
+      <SupplierQuoteAction
+        project={project}
+        profile={profile}
+        batteryCatalog={batteryCatalog}
+        onSent={() => setEventsRefreshKey((key) => key + 1)}
+        onManageSuppliers={onManageSuppliers}
+        onOpenProfile={onOpenProfile}
+        buttonLabel="Solicitar orçamento ao fornecedor"
         className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-        disabled={!canRequestSupplierQuote}
-        title={!project.solution ? 'Calcule uma solução para este projeto antes de solicitar orçamento.' : undefined}
-        onClick={() => {
-          if (profileRequirementsMissing) setProfileRequirementsOpen(true);
-          else setSupplierQuoteModalOpen(true);
-        }}
-      >
-        <Mail className="h-4 w-4" />
-        Solicitar orçamento ao fornecedor
-      </Button>
-      {profileRequirementsOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="supplier-profile-requirements-title"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setProfileRequirementsOpen(false);
-          }}
-        >
-          <div className="w-full max-w-md rounded-lg border bg-card p-5 shadow-xl">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
-              <div>
-                <h2 id="supplier-profile-requirements-title" className="font-semibold">
-                  Complete os dados da empresa
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Para solicitar uma cotação ao fornecedor, é necessário cadastrar o CNPJ e o endereço completo da empresa.
-                  Esses dados serão enviados ao fornecedor junto com a solicitação.
-                </p>
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setProfileRequirementsOpen(false)}>
-                Fechar
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  setProfileRequirementsOpen(false);
-                  onOpenProfile();
-                }}
-              >
-                Ir para Perfil
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      {profile && (
-        <SupplierQuoteRequestModal
-          open={supplierQuoteModalOpen}
-          onClose={() => setSupplierQuoteModalOpen(false)}
-          projectId={project.id}
-          project={shareableProject}
-          profile={profile}
-          batteryCatalog={batteryCatalog}
-          onSent={() => setEventsRefreshKey((key) => key + 1)}
-          onManageSuppliers={onManageSuppliers}
-        />
-      )}
+      />
 
       <Separator />
       <ProjectEventsTimeline projectId={project.id} refreshKey={`${project.updatedAt}:${eventsRefreshKey}`} />

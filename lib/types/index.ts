@@ -58,7 +58,7 @@ export interface WhiteTariffConfig {
   tariffSource?: 'ANEEL' | 'USER';
   /** Total bill consumption, independent from the optional photovoltaic feature. */
   totalMonthlyConsumptionKwh?: number;
-  /** Basic-mode allocation of total monthly consumption to each expensive window. */
+  /** Allocation of total monthly consumption to each expensive window. */
   pontaConsumptionPercent?: number;
   intermediateConsumptionPercent?: number;
   /** Editable calculation assumptions; legacy projects use 22/3/2. */

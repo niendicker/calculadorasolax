@@ -1055,14 +1055,13 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(within(dialog).getByText(/X1-Hybrid/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Poderiam nos passar valores e prazo/)).toBeInTheDocument();
 
-    const sendButton = within(dialog).getByRole('button', { name: 'Revisar solicitação' });
+    const sendButton = within(dialog).getByRole('button', { name: 'Enviar solicitações' });
     expect(sendButton).toBeDisabled();
 
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /Fornecedor A/ }));
     expect(sendButton).not.toBeDisabled();
 
     fireEvent.click(sendButton);
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar solicitações' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/request-supplier-quote', expect.anything()));
     const [, requestInit] = fetchMock.mock.calls[0];

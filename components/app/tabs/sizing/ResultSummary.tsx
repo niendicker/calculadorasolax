@@ -31,6 +31,11 @@ import {
 import { DocPreviewModal, ImagePreviewModal, Metric, ProductAttachments, ProductImage } from '../../shared-ui';
 import type { BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../../types';
 
+function formatWindowDuration(hours: number) {
+  const totalMinutes = Math.max(0, Math.round(hours * 60));
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
+}
+
 /** The Solução tab's top metric cards — pulled out of ResultSummary so they
  * can be rendered in the sticky header above it, alongside the Resumo tab's
  * own cards, keeping both tabs' top metrics pinned while their tab-specific
@@ -469,7 +474,7 @@ export function ResultSummary({
           {assumptionsOpen && (
             <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
               <li>{tariffSavings?.businessDaysPerMonth ?? 22} dias úteis por mês para Tarifa Branca.</li>
-              <li>Janelas de {whiteTariff?.pontaWindowHours ?? 3} h na ponta e {whiteTariff?.intermediateWindowHours ?? 2} h no período intermediário.</li>
+              <li>Janelas de {formatWindowDuration(whiteTariff?.pontaWindowHours ?? 2.5)} na ponta e {formatWindowDuration(whiteTariff?.intermediateWindowHours ?? 0.5)} no período intermediário.</li>
               <li>Tarifas e consumo informados pelo usuário.</li>
               <li>Estimativa de primeiro ano, sem reajuste tarifário ou sazonalidade.</li>
               <li>SOH inicial de {tariffSavings?.initialSohPercent.toFixed(0) ?? 100}% e redução anual de {tariffSavings?.annualSohLossPercent.toFixed(1) ?? '2,0'}% aplicada ao retorno.</li>
@@ -487,7 +492,7 @@ export function ResultSummary({
   );
 }
 
-function MicrogridVariantChoice({
+export function MicrogridVariantChoice({
   economic,
   withMicrogrid,
   onChoose,

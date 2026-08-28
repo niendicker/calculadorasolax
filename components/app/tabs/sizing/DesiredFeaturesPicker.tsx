@@ -4,13 +4,13 @@ import {
   Check,
   CheckCircle2,
   ClipboardList,
-  Clock,
   Fuel,
   HousePlug,
   AlertTriangle,
   Network,
   ShieldCheck,
-  Sun,
+  SolarPanel,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,8 +39,8 @@ export const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   external_ats: ShieldCheck,
   microgrid: Network,
   external_generator: Fuel,
-  pv: Sun,
-  white_tariff: Clock,
+  pv: SolarPanel,
+  white_tariff: TrendingUp,
 };
 
 export function DesiredFeaturesPicker({
@@ -69,6 +69,7 @@ export function DesiredFeaturesPicker({
   peakW,
   dailyKwh,
   onOpenLoads,
+  onFeatureDisabled,
 }: {
   activeTab: DesiredFeatureId;
   value: DesiredFeatureId[];
@@ -95,6 +96,7 @@ export function DesiredFeaturesPicker({
   peakW: number;
   dailyKwh: number;
   onOpenLoads?: () => void;
+  onFeatureDisabled?: () => void;
 }) {
   const tabs = DESIRED_FEATURE_DEFINITIONS;
   const activeFeature = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
@@ -126,6 +128,7 @@ export function DesiredFeaturesPicker({
       if (id === 'microgrid') onMicrogridChange(null);
       if (id === 'external_generator') onGeneratorChange(null);
       if (id === 'pv') onPvChange(null);
+      onFeatureDisabled?.();
     } else {
       onChange([...value, id]);
       if (id === 'white_tariff' && !whiteTariff) onWhiteTariffChange(emptyWhiteTariffConfig);
@@ -170,22 +173,24 @@ export function DesiredFeaturesPicker({
             <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-semibold">{activeFeature.label}</p>
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 text-xs font-medium',
-                  activeFeatureHasPendingIssue
-                    ? 'text-amber-600'
-                    : activeFeatureStatus === 'Configurado' || activeFeatureStatus === 'Configuração completa'
-                      ? 'text-emerald-600'
-                      : isActiveEnabled
-                        ? 'text-primary'
-                        : 'text-muted-foreground'
-                )}
-              >
-                {activeFeatureHasPendingIssue && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
-                {!activeFeatureHasPendingIssue && activeFeatureStatus === 'Configurado' && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                {activeFeatureStatus}
-              </span>
+              {(!isBackupTab || isActiveEnabled) && (
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 text-xs font-medium',
+                    activeFeatureHasPendingIssue
+                      ? 'text-amber-600'
+                      : activeFeatureStatus === 'Configurado' || activeFeatureStatus === 'Configuração completa'
+                        ? 'text-emerald-600'
+                        : isActiveEnabled
+                          ? 'text-primary'
+                          : 'text-muted-foreground'
+                  )}
+                >
+                  {activeFeatureHasPendingIssue && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {!activeFeatureHasPendingIssue && activeFeatureStatus === 'Configurado' && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {activeFeatureStatus}
+                </span>
+              )}
             </div>
             {isBackupTab ? (
               <p className="mt-1 text-xs text-muted-foreground">
@@ -224,7 +229,7 @@ export function DesiredFeaturesPicker({
           </div>
         </div>
 
-        {isBackupTab && <div className="space-y-3">
+        {isBackupTab && isActiveEnabled && <div className="space-y-3">
           <OperationHoursControl />
           {onOpenLoads && <Button type="button" variant="outline" onClick={onOpenLoads}>
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
