@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { LoadPhase, LoadPhaseType, LoadVoltage, PeakCalcMode, ResidentialGridType, SingleLoad } from '@/lib/types';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases } from '@/lib/store/wizard-store';
@@ -184,7 +185,6 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
           <p className="truncate text-sm font-semibold" title={load.name}>{load.name}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <PhaseTag phase={phase} />
-            <span className="rounded-full border bg-background px-1.5 py-0.5">{phaseType === 'trifasica' ? 'Trifásica' : 'Monofásica'}</span>
           </div>
         </th>
         <td className="block w-auto px-1 py-2 text-center text-sm tabular-nums lg:table-cell lg:w-20 lg:px-2 lg:py-3.5"><span className="hidden">Qtd.</span>{load.qty}</td>
@@ -295,16 +295,19 @@ export function LoadTable({ loads, gridType, peakCalcMode, operationHours, onUpd
             <th scope="col" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-24 lg:px-2 lg:py-4">IP/IN</th>
             <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight lg:table-cell lg:min-w-36 lg:px-2 lg:py-4">Uso e energia</th>
             <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight md:min-w-0 lg:table-cell lg:min-w-40 lg:px-2 lg:py-4">Ligação elétrica</th>
-            <th scope="col" aria-label="Ações" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-12 lg:px-2 lg:py-4 lg:text-right">
-              <button
+            <th scope="col" aria-label="Ações" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:min-w-28 lg:px-2 lg:py-4 lg:text-right">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 aria-label="Adicionar carga"
                 onClick={onAddLoad}
                 disabled={addDisabled}
-                className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60"
+                className="ml-auto border-primary/30 text-primary normal-case tracking-normal hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
               >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </button>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                Adicionar
+              </Button>
             </th>
           </tr>
         </thead>
