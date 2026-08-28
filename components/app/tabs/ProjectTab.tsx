@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Banknote, Calculator, ClipboardList, FolderOpen } from 'lucide-react';
+import { Banknote, Calculator, FolderOpen } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
@@ -255,10 +255,18 @@ export function ProjectTab({
             </ul>
           </>
         ) : (
-          <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-            <ClipboardList className="h-8 w-8 text-muted-foreground/50" />
-            <p>Selecione um projeto na lista para ver o resumo, ou clique em &quot;Novo projeto&quot; para começar.</p>
-          </div>
+          <>
+            <div>
+              <h2 className="text-sm font-semibold">Resumo dos projetos</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Metric icon={FolderOpen} label="Projetos" value={String(savedProjects.length)} />
+              <Metric icon={Calculator} label="Com solução" value={String(projectsWithSolutionCount)} />
+              {solutionsValue > 0 && (
+                <Metric icon={Banknote} label="Valor total" value={formatCurrencyBRL(solutionsValue)} />
+              )}
+            </div>
+          </>
         )}
       </PageSummary>
 
@@ -269,36 +277,6 @@ export function ProjectTab({
             <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
           )}
         </div>
-
-        {savedProjects.length > 0 && (
-          <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-background px-3 py-2 text-sm"
-            role="group"
-            aria-label="Resumo dos projetos"
-          >
-            <span className="flex items-baseline gap-1.5">
-              <FolderOpen className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
-              <strong className="tabular-nums">{savedProjects.length}</strong>
-              <span className="text-xs text-muted-foreground">projeto{savedProjects.length !== 1 ? 's' : ''}</span>
-            </span>
-            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
-            <span className="flex items-baseline gap-1.5">
-              <Calculator className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
-              <strong className="tabular-nums">{projectsWithSolutionCount}</strong>
-              <span className="text-xs text-muted-foreground">com solução</span>
-            </span>
-            {solutionsValue > 0 && (
-              <>
-                <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
-                <span className="flex items-baseline gap-1.5">
-                  <Banknote className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
-                  <strong className="tabular-nums">{formatCurrencyBRL(solutionsValue)}</strong>
-                  <span className="text-xs text-muted-foreground">valor total</span>
-                </span>
-              </>
-            )}
-          </div>
-        )}
 
         {initialLoading ? (
           <ProjectListSkeleton />

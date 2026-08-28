@@ -172,11 +172,9 @@ describe('ProjectTab: empty and list states', () => {
     expect(screen.queryByText('Novo por aqui?')).not.toBeInTheDocument();
   });
 
-  it('shows a generic placeholder in the summary panel when no project is open or selected', () => {
+  it('shows the aggregate summary cards in the summary panel when no project is open or selected', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    expect(
-      screen.getByText('Selecione um projeto na lista para ver o resumo, ou clique em "Novo projeto" para começar.')
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Resumo dos projetos' })).toBeInTheDocument();
     expect(screen.queryByText('Configuração salva junto')).not.toBeInTheDocument();
   });
 
@@ -255,7 +253,14 @@ describe('ProjectTab: empty and list states', () => {
 });
 
 describe('ProjectTab: aggregate stats', () => {
-  it('shows a summary strip with the project count, how many have a solution, and the total priced value', () => {
+  // The "Projetos" card label collides with the page's own <h1>Projetos</h1>,
+  // so scope queries to the sidebar summary panel (identified by its own
+  // heading) rather than the whole document.
+  function sidebarSummary() {
+    return within(screen.getByRole('heading', { name: 'Resumo dos projetos' }).parentElement!.parentElement!);
+  }
+
+  it('shows the project count, how many have a solution, and the total priced value as cards in the sidebar summary when no project is selected', () => {
     setup({
       savedProjects: [
         makeProject({
@@ -278,13 +283,32 @@ describe('ProjectTab: aggregate stats', () => {
       ],
     });
 
-    const summary = screen.getByRole('group', { name: 'Resumo dos projetos' });
-    expect(within(summary).getByText('2')).toBeInTheDocument();
-    expect(within(summary).getByText('projetos')).toBeInTheDocument();
-    expect(within(summary).getByText('1')).toBeInTheDocument();
-    expect(within(summary).getByText('com solução')).toBeInTheDocument();
-    // One match in the summary strip, one on the priced project's own card.
+    const summary = sidebarSummary();
+    expect(summary.getByText('Projetos')).toBeInTheDocument();
+    expect(summary.getByText('2')).toBeInTheDocument();
+    expect(summary.getByText('Com solução')).toBeInTheDocument();
+    expect(summary.getByText('1')).toBeInTheDocument();
+    expect(summary.getByText('Valor total')).toBeInTheDocument();
+    // One match in the sidebar summary card, one on the priced project's own card.
     expect(screen.getAllByText(/R\$\s*8\.000,00/)).toHaveLength(2);
+  });
+
+  it('hides the "Valor total" card when no project has a priced solution yet', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    const summary = sidebarSummary();
+    expect(summary.getByText('Projetos')).toBeInTheDocument();
+    expect(summary.queryByText('Valor total')).not.toBeInTheDocument();
+  });
+
+  it('replaces the aggregate summary cards with the rich project summary once a card is selected', () => {
+    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+
+    const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
+    fireEvent.click(card!);
+
+    expect(screen.queryByRole('heading', { name: 'Resumo dos projetos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
   });
 
   it("shows the linked client's phone and email on the card", () => {
