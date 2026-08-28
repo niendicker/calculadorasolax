@@ -199,6 +199,13 @@ export function SinglePageApp() {
   const [initialNavigationReady, setInitialNavigationReady] = useState(false);
   const restoredWorkspaceIdRef = useRef<string | null>(null);
   const { open: workspaceOpen, resource: workspaceResource, technicalEditorOpen: workspaceTechnicalEditorOpen, configurationOpen: workspaceConfigurationOpen, returnAvailable: workspaceReturnAvailable } = workspaceNavigation;
+  // workspaceOpen intentionally stays true while the user is off browsing
+  // Fornecedores/Perfil/etc. mid-workspace (that's what lets "voltar ao
+  // workspace" return them to the same spot) — so it alone can't drive the
+  // sidebar's "Projetos" highlight, or that item would look permanently
+  // selected. Only count it once the workspace/sizing view is what's
+  // actually on screen.
+  const viewingWorkspace = activeTab === 'sizing' && workspaceOpen;
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(true);
@@ -627,36 +634,34 @@ export function SinglePageApp() {
           </div>
 
           <nav className="mt-8 space-y-1" aria-label="Navegação principal">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-current={!guideOpen && (activeTab === 'project' || workspaceOpen) ? 'page' : undefined}
-                onClick={() => { setGuideOpen(false); changeTab('project'); }}
-                className={cn(
-                  'flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  !guideOpen && (activeTab === 'project' || workspaceOpen) &&
-                    'border border-primary/20 bg-primary/10 font-medium text-foreground'
-                )}
-              >
-                <FolderOpen className="h-4 w-4" />
-                Projetos
-              </button>
-              {savedProjects.length > 0 && (
-                <button
-                  type="button"
-                  aria-label={projectsMenuOpen ? 'Recolher lista de projetos' : 'Expandir lista de projetos'}
-                  aria-expanded={projectsMenuOpen}
-                  onClick={() => setProjectsMenuOpen((open) => !open)}
-                  className="flex h-9 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <ChevronDown className={cn('h-4 w-4 transition-transform', !projectsMenuOpen && '-rotate-90')} />
-                </button>
+            <button
+              type="button"
+              aria-current={!guideOpen && (activeTab === 'project' || viewingWorkspace) ? 'page' : undefined}
+              aria-expanded={savedProjects.length > 0 ? projectsMenuOpen : undefined}
+              onClick={() => {
+                setGuideOpen(false);
+                changeTab('project');
+                if (savedProjects.length > 0) setProjectsMenuOpen((open) => !open);
+              }}
+              className={cn(
+                'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                !guideOpen && (activeTab === 'project' || viewingWorkspace) &&
+                  'border border-primary/20 bg-primary/10 font-medium text-foreground'
               )}
-            </div>
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span className="flex-1">Projetos</span>
+              {savedProjects.length > 0 && (
+                <ChevronDown
+                  className={cn('h-4 w-4 shrink-0 transition-transform', !projectsMenuOpen && '-rotate-90')}
+                  aria-hidden="true"
+                />
+              )}
+            </button>
             {savedProjects.length > 0 && projectsMenuOpen && (
               <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
                 {savedProjects.map((project) => {
-                  const active = workspaceOpen && currentProjectId === project.id;
+                  const active = viewingWorkspace && currentProjectId === project.id;
                   return (
                     <button
                       key={project.id}

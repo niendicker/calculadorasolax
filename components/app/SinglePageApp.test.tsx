@@ -591,20 +591,47 @@ describe('SinglePageApp: desktop sidebar navigation', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument();
   });
 
-  it('collapses and expands the saved-projects submenu under "Projetos"', async () => {
+  it('collapses and expands the saved-projects submenu by clicking the "Projetos" item itself', async () => {
     setupSupabase();
     useWizardStore.setState({ savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa restaurada' })] });
     renderApp();
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
 
+    const projectsButton = sidebarNav().getByRole('button', { name: 'Projetos' });
     expect(sidebarNav().getByRole('button', { name: 'Abrir workspace Casa restaurada' })).toBeInTheDocument();
+    expect(projectsButton).toHaveAttribute('aria-expanded', 'true');
 
-    const toggle = sidebarNav().getByRole('button', { name: 'Recolher lista de projetos' });
-    fireEvent.click(toggle);
+    fireEvent.click(projectsButton);
     expect(sidebarNav().queryByRole('button', { name: 'Abrir workspace Casa restaurada' })).not.toBeInTheDocument();
+    expect(projectsButton).toHaveAttribute('aria-expanded', 'false');
 
-    fireEvent.click(sidebarNav().getByRole('button', { name: 'Expandir lista de projetos' }));
+    fireEvent.click(projectsButton);
     expect(sidebarNav().getByRole('button', { name: 'Abrir workspace Casa restaurada' })).toBeInTheDocument();
+    expect(projectsButton).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('does not keep "Projetos" highlighted after leaving an open workspace for another tab', async () => {
+    setupSupabase({}, { loggedIn: true });
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
+
+    // Set after the initial user-data fetch resolves — otherwise it clobbers
+    // this back to [] once the (empty) mocked "projects" table loads.
+    act(() => {
+      useWizardStore.setState({ savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa restaurada' })] });
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Abrir workspace Casa restaurada' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Casa restaurada' })).toBeInTheDocument());
+    expect(sidebarNav().getByRole('button', { name: 'Projetos' })).toHaveAttribute('aria-current', 'page');
+
+    // Jumping to Fornecedores mid-workspace (e.g. to request a supplier
+    // quote) deliberately keeps the workspace context alive in the
+    // background so "voltar ao workspace" can return to it — but that
+    // shouldn't make "Projetos" look like it's still the active section.
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Fornecedores' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fornecedores' })).toBeInTheDocument());
+    expect(sidebarNav().getByRole('button', { name: 'Projetos' })).not.toHaveAttribute('aria-current');
   });
 
   it('scrolls the content area and toggles the compact title-bar padding', async () => {
