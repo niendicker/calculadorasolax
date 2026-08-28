@@ -251,6 +251,7 @@ export function ConfirmDeleteModalButton({
     setError(null);
     try {
       await onConfirm();
+      setSaving(false);
       setOpen(false);
       requestAnimationFrame(() => triggerRef.current?.focus());
     } catch (caughtError) {

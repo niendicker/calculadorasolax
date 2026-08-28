@@ -723,6 +723,20 @@ describe('resetResidential / resetIndustrial', () => {
     expect(s.industrialOptions.gridPowerKw).toBeNull();
     expect(s.solution).toBeNull();
   });
+
+  it('clearProjectServices removes project services without touching the user service catalog', () => {
+    const userService = { id: 'service-1', name: 'Instalação', unitValue: 500, createdAt: '', updatedAt: '' };
+    useWizardStore.setState({
+      userServices: [userService],
+      services: [{ serviceId: 'service-1', name: 'Instalação', qty: 1 }],
+    });
+
+    useWizardStore.getState().clearProjectServices();
+
+    const s = useWizardStore.getState();
+    expect(s.services).toEqual([]);
+    expect(s.userServices).toEqual([userService]);
+  });
 });
 
 describe('persist partialize/merge (localStorage rehydration)', () => {

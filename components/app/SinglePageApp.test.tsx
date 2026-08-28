@@ -232,6 +232,19 @@ beforeEach(() => {
 });
 
 describe('SinglePageApp: initial load and navigation', () => {
+  it('restores a workspace URL only once after its project becomes available', async () => {
+    setupSupabase();
+    window.history.replaceState({}, '', '/pt?workspaceId=p1&workspace=overview');
+    renderApp();
+
+    act(() => {
+      useWizardStore.setState({ savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa restaurada' })] });
+    });
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Casa restaurada' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Visão geral' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('shows the Projeto tab by default and switches tabs via the sidebar', async () => {
     setupSupabase();
     renderApp();
@@ -1222,6 +1235,79 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
 
     expect(useWizardStore.getState().residentialOptions.topology).toBe('HighVoltage');
     expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('TP-HS3.6');
+  });
+
+  it('resets every technical configuration when clearing the workspace', async () => {
+    const batteryRows = [
+      {
+        id: 'b1',
+        model: 'TP-HS3.6',
+        nickname: null,
+        capacity_kwh: 3.6,
+        topology: 'HV',
+        standard_power_kw: 1.8,
+        peak_power_kw: 2.5,
+        min_soc_percent: 10,
+        expansion_model: null,
+        image_url: null,
+        documents: [],
+      },
+    ];
+    setupSupabase({ batteries: { data: batteryRows, error: null } });
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        topology: 'LowVoltage',
+        batteryModel: 'TP-LD53',
+        secondaryBatteryModel: 'TP-LD106',
+        inverterModel: 'X3-ULT-30K',
+        minInverterQty: 2,
+        gridType: 'threePhase_380',
+        maxPowerPerPhaseW: 12000,
+        desiredFeatures: ['external_ats', 'microgrid', 'external_generator', 'pv', 'white_tariff'],
+        atsPhotoUrl: 'ats.png',
+        atsBackupAcknowledged: true,
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        generator: { voltageV: 380, phases: 3, apparentPowerVA: 10000, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: true },
+        pv: { monthlyConsumptionKwh: 500, hsp: 4 },
+        whiteTariff: { requiredPowerW: 5000, pontaEnergyWh: 2000, intermediateEnergyWh: 1000, pontaTariffPerKwh: 1, intermediateTariffPerKwh: 0.9, foraPontaTariffPerKwh: 0.5 },
+      },
+      solution: makeSolution(),
+      secondarySolution: makeSolution({ batteryModel: 'TP-LD106' }),
+    }));
+    renderApp();
+    await goToSizingViaProject();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
+
+    const { residentialOptions, solution, secondarySolution } = useWizardStore.getState();
+    expect(residentialOptions).toMatchObject({
+      topology: 'HighVoltage',
+      batteryModel: 'TP-HS3.6',
+      secondaryBatteryModel: null,
+      inverterModel: null,
+      minInverterQty: null,
+      gridType: 'singlePhase_220',
+      maxPowerPerPhaseW: null,
+      desiredFeatures: ['backup'],
+      atsPhotoUrl: null,
+      atsBackupAcknowledged: false,
+      microgrid: null,
+      generator: null,
+      pv: null,
+      whiteTariff: null,
+    });
+    expect(residentialOptions.loads).toEqual([]);
+    expect(solution).toBeNull();
+    expect(secondarySolution).toBeNull();
+    expect(useWizardStore.getState().savedProjects.find((project) => project.id === useWizardStore.getState().currentProjectId)?.residentialOptions).toMatchObject({
+      topology: 'HighVoltage',
+      batteryModel: 'TP-HS3.6',
+      inverterModel: null,
+      gridType: 'singlePhase_220',
+      desiredFeatures: ['backup'],
+    });
   });
 
   it('never auto-selects an expansion/Slave battery as the default', async () => {

@@ -675,42 +675,42 @@ export function ProjectWorkspace({
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            {technicalEditorOpen && onResetSizing && (
-              <ConfirmDeleteModalButton
-                ariaLabel="Limpar dimensionamento"
-                itemName="dimensionamento atual"
-                itemType="dimensionamento"
-                title="Limpar dimensionamento?"
-                description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-                label="Limpar"
-                icon={<Trash2 className="h-4 w-4" />}
-                confirmLabel="Limpar"
-                triggerVariant="outline"
-                onConfirm={onResetSizing}
-              />
-            )}
-            {onRefreshSolution && (
-              <Button
-                type="button"
-                variant={solution && !staleSolution ? 'outline' : 'default'}
-                size="sm"
-                className={cn(
-                  'shrink-0',
-                  solution && !staleSolution
-                    ? 'border-muted text-muted-foreground'
-                    : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
-                )}
-                onClick={onRefreshSolution}
-                disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
-                title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
-                aria-busy={recalculatingSolution}
-              >
-                {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-                {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
-              </Button>
-            )}
-          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          {onRefreshSolution && (
+            <Button
+              type="button"
+              variant={solution && !staleSolution ? 'outline' : 'default'}
+              size="sm"
+              className={cn(
+                'shrink-0',
+                solution && !staleSolution
+                  ? 'border-muted text-muted-foreground'
+                  : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
+              )}
+              onClick={onRefreshSolution}
+              disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
+              title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
+              aria-busy={recalculatingSolution}
+            >
+              {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+              {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
+            </Button>
+          )}
+          {onResetSizing && (
+            <ConfirmDeleteModalButton
+              ariaLabel="Limpar dimensionamento"
+              itemName="dimensionamento atual"
+              itemType="dimensionamento"
+              title="Limpar dimensionamento?"
+              description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
+              label="Limpar"
+              icon={<Trash2 className="h-4 w-4" />}
+              confirmLabel="Limpar"
+              triggerVariant="outline"
+              onConfirm={onResetSizing}
+            />
+          )}
         </div>
         <nav className="mt-4 flex items-stretch overflow-x-auto rounded-xl border border-border/70 bg-card/70 p-1" aria-label="Seções do projeto">
           {navigation.map(({ id, label, icon: Icon }, index) => (
@@ -912,7 +912,6 @@ export function ProjectWorkspace({
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4">
                   <div><p className="font-medium">Solução ainda não calculada</p><p className="mt-1 text-sm text-muted-foreground">Configure os dados técnicos para gerar uma recomendação.</p></div>
-                  <Button onClick={() => openSizingSection('solution')}>Dimensionar solução</Button>
                 </div>
               )}
             </CardContent>

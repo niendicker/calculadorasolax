@@ -333,6 +333,8 @@ export function SelectedProjectSummary({
         onManageSuppliers={onManageSuppliers}
         onOpenProfile={onOpenProfile}
         buttonLabel="Solicitar orçamento ao fornecedor"
+        buttonVariant="outline"
+        buttonIcon="send"
         className="w-full border-primary/25 text-primary hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
       />
 

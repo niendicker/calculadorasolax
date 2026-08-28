@@ -1,10 +1,12 @@
-import type {
-  Address,
-  BatteryTopology,
-  InverterFlag,
-  ProductDocument,
-  ProjectStatus,
-  ResidentialGridType,
+import {
+  batteryTopologyToCatalog,
+  type Address,
+  type BatteryTopology,
+  type InverterFlag,
+  type ProductDocument,
+  type ProjectStatus,
+  type ResidentialGridType,
+  type ResidentialOptions,
 } from '@/lib/types';
 
 export interface InlineProfile {
@@ -137,3 +139,24 @@ export const gridTypeToApprovedTopology: Record<ResidentialGridType, '1p_220V' |
   threePhase_220: '3p_220V',
   threePhase_380: '3p_380V',
 };
+
+/** Returns the inverter models approved for the current grid and battery
+ * topology. Keeping this in one place makes the picker, resource warnings and
+ * calculation gate apply the same compatibility rules. */
+export function availableInverterModelsFor(
+  residentialOptions: Pick<ResidentialOptions, 'gridType' | 'topology'>,
+  approvedInverterCombos: ApprovedInverterCombo[]
+): Set<string> | null {
+  if (!residentialOptions.gridType) return null;
+
+  const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
+  const batteryTopology = residentialOptions.topology
+    ? batteryTopologyToCatalog[residentialOptions.topology]
+    : 'HV';
+
+  return new Set(
+    approvedInverterCombos
+      .filter((combo) => combo.gridTopology === approvedTopology && combo.batteryTopology === batteryTopology)
+      .map((combo) => combo.inverterModel)
+  );
+}

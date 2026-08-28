@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
-import { batteryTopologyToCatalog, type ResidentialOptions, type Solution } from '@/lib/types';
+import type { ResidentialOptions, Solution } from '@/lib/types';
 import { gridTypePhaseCount } from '@/lib/store/wizard-store';
 import { expansionModelSet } from '../helpers';
-import { gridTypeToApprovedTopology, type ApprovedInverterCombo, type BatteryCatalogOption, type InverterCatalogOption, type InlineProfile } from '../types';
+import { availableInverterModelsFor, type ApprovedInverterCombo, type BatteryCatalogOption, type InverterCatalogOption, type InlineProfile } from '../types';
 
 export function useSizingController({
   supabase,
@@ -41,23 +41,18 @@ export function useSizingController({
   setMaxPowerPerPhaseW: (power: number | null) => void;
   resetResidential: () => void;
 }) {
+  const { gridType, topology } = residentialOptions;
   const availableInverterModelsByTopology = useMemo(() => {
-    if (!residentialOptions.gridType) return null;
-    const approvedTopology = gridTypeToApprovedTopology[residentialOptions.gridType];
-    const modelsFor = (batteryTopology: 'HV' | 'LV') =>
-      new Set(
-        approvedInverterCombos
-          .filter((combo) => combo.gridTopology === approvedTopology && combo.batteryTopology === batteryTopology)
-          .map((combo) => combo.inverterModel)
-      );
-    return { HV: modelsFor('HV'), LV: modelsFor('LV') };
-  }, [approvedInverterCombos, residentialOptions.gridType]);
+    if (!gridType) return null;
+    return {
+      HV: availableInverterModelsFor({ gridType, topology: 'HighVoltage' }, approvedInverterCombos)!,
+      LV: availableInverterModelsFor({ gridType, topology: 'LowVoltage' }, approvedInverterCombos)!,
+    };
+  }, [approvedInverterCombos, gridType]);
 
   const availableInverterModels = useMemo(() => {
-    if (!availableInverterModelsByTopology) return null;
-    const batteryTopology = residentialOptions.topology ? batteryTopologyToCatalog[residentialOptions.topology] : 'HV';
-    return availableInverterModelsByTopology[batteryTopology];
-  }, [availableInverterModelsByTopology, residentialOptions.topology]);
+    return availableInverterModelsFor({ gridType, topology }, approvedInverterCombos);
+  }, [approvedInverterCombos, gridType, topology]);
 
   useEffect(() => {
     const phaseCount = residentialOptions.gridType ? gridTypePhaseCount[residentialOptions.gridType] : 1;

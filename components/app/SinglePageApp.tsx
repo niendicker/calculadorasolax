@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
@@ -162,6 +162,7 @@ export function SinglePageApp() {
     removeService,
     addServiceToProject,
     removeServiceFromProject,
+    clearProjectServices,
     clearUserData,
     setTopology,
     setBatteryModel,
@@ -193,6 +194,8 @@ export function SinglePageApp() {
     'project'
   );
   const [workspaceNavigation, setWorkspaceNavigation] = useState<WorkspaceNavigationState>(closedWorkspaceNavigation);
+  const [initialNavigationReady, setInitialNavigationReady] = useState(false);
+  const restoredWorkspaceIdRef = useRef<string | null>(null);
   const { open: workspaceOpen, resource: workspaceResource, technicalEditorOpen: workspaceTechnicalEditorOpen, configurationOpen: workspaceConfigurationOpen, returnAvailable: workspaceReturnAvailable } = workspaceNavigation;
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -408,17 +411,38 @@ export function SinglePageApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const workspaceId = params.get('workspaceId');
-    if (!workspaceId || workspaceOpen || !savedProjects.some((project) => project.id === workspaceId)) return;
+    if (!workspaceId) {
+      restoredWorkspaceIdRef.current = null;
+      // The first client render must match the server render; reveal the
+      // regular app only after the initial URL has been checked.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInitialNavigationReady(true);
+      return;
+    }
+    if (workspaceOpen || restoredWorkspaceIdRef.current === workspaceId) {
+      setInitialNavigationReady(true);
+      return;
+    }
+    if (!savedProjects.some((project) => project.id === workspaceId)) {
+      if (!initialLoading) {
+        // An invalid or unavailable workspace URL should fall back to the
+        // normal project screen once the initial project fetch is complete.
+        setInitialNavigationReady(true);
+      }
+      return;
+    }
 
+    restoredWorkspaceIdRef.current = workspaceId;
     loadProject(workspaceId, { showDetails: false });
     const requestedEditor = params.get('workspaceResource');
     const editor = workspaceEditorIds.find((id) => id === requestedEditor) ?? null;
     const configurationOpen = params.get('workspace') === 'configuration';
     startTransition(() => {
       setWorkspaceNavigation({ open: true, resource: editor, technicalEditorOpen: Boolean(editor) || configurationOpen, configurationOpen, returnAvailable: false });
+      setInitialNavigationReady(true);
+      changeTab('sizing');
     });
-    changeTab('sizing');
-  }, [changeTab, loadProject, savedProjects, workspaceOpen]);
+  }, [changeTab, initialLoading, loadProject, savedProjects, workspaceOpen]);
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
   // only while actually viewing that tab, logged in, and once something is
@@ -450,6 +474,7 @@ export function SinglePageApp() {
     inverterCatalog,
     batteryCatalog,
     accessoryCatalog,
+    approvedInverterCombos,
   });
 
   const {
@@ -481,6 +506,21 @@ export function SinglePageApp() {
     setMaxPowerPerPhaseW,
     resetResidential,
   });
+
+  function resetWorkspaceProject() {
+    resetResidentialToDefaults();
+    clearProjectServices();
+    useWizardStore.setState((state) => {
+      if (!state.currentProjectId) return {};
+      return {
+        savedProjects: state.savedProjects.map((project) =>
+          project.id === state.currentProjectId
+            ? { ...project, residentialOptions: state.residentialOptions, solution: null, services: [] }
+            : project
+        ),
+      };
+    });
+  }
 
   const { downloadingProjectId, downloadProjectPdf } = useProjectPdfDownload({
     savedProjects,
@@ -769,7 +809,9 @@ export function SinglePageApp() {
                       </Button>
                     </div>
                   )}
-                  {guideOpen ? (
+                  {!initialNavigationReady ? (
+                    <TabLoadingFallback />
+                  ) : guideOpen ? (
                     <GuidePage content={guideContent} embedded />
                   ) : activeTab === 'project' ? (
             <ProjectTab
@@ -896,7 +938,7 @@ export function SinglePageApp() {
               recalculatingSolution={Boolean(currentProjectId && refreshingProjectId === currentProjectId)}
               onOpenConfiguration={openWorkspaceConfiguration}
               technicalEditorOpen={workspaceTechnicalEditorOpen}
-              onResetSizing={resetResidentialToDefaults}
+              onResetSizing={resetWorkspaceProject}
               services={services}
               userServices={userServices}
               onAddService={addServiceToProject}

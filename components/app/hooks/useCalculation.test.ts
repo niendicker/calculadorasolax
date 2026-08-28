@@ -48,6 +48,19 @@ const fakeSolution: Solution = {
   accessories: [],
 };
 
+const supportedInverter = {
+  id: 'inv-1',
+  model: 'X1-Hybrid-5.0kW-G4',
+  topology: 'HV' as const,
+  phases: 1,
+  standardPowerKva: 5,
+  peakPowerKva: 7,
+  maxPowerPerPhaseW: null,
+  imageUrl: null,
+  documents: [],
+  flags: ['external_ats', 'microgrid', 'external_generator'] as const,
+};
+
 function makeSupabase({
   invokeResult = { data: fakeSolution as Solution | null, error: null as { message: string } | null },
   user = { id: 'user-1' } as { id: string } | null,
@@ -111,9 +124,10 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     setSolution: vi.fn(),
     secondarySolution: null,
     setSecondarySolution: vi.fn(),
-    inverterCatalog: [],
+    inverterCatalog: [supportedInverter],
     batteryCatalog: [],
     accessoryCatalog: [],
+    approvedInverterCombos: [{ gridTopology: '1p_220V', batteryTopology: 'HV', inverterModel: supportedInverter.model }],
     ...overrides,
   } as unknown as Parameters<typeof useCalculation>[0];
 }
@@ -141,6 +155,65 @@ describe('useCalculation: canCalculate', () => {
   it('is true once topology, battery, grid type and at least one load are set', () => {
     const { result } = renderCalculation(baseProps());
     expect(result.current.canCalculate).toBe(true);
+  });
+
+  it('blocks calculation when Backup is enabled without an operation duration', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: { ...validResidentialOptions, desiredFeatures: ['backup'], operationHours: 0 },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('blocks calculation when Backup Total is enabled without the ATS acknowledgement', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: { ...validResidentialOptions, desiredFeatures: ['external_ats'] },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('blocks calculation when Fotovoltaico is enabled without its sizing inputs', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: { ...validResidentialOptions, desiredFeatures: ['pv'], pv: null },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('blocks calculation when Tarifa Branca is enabled without its configuration', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        residentialOptions: { ...validResidentialOptions, desiredFeatures: ['white_tariff'], whiteTariff: null },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
+  });
+
+  it('blocks calculation when an enabled feature has no compatible inverter available', () => {
+    const { result } = renderCalculation(
+      baseProps({
+        inverterCatalog: [{ ...supportedInverter, flags: [] }],
+        approvedInverterCombos: [{ gridTopology: '1p_220V', batteryTopology: 'HV', inverterModel: supportedInverter.model }],
+        // The microgrid data is valid; the pending issue is only inverter support.
+        residentialOptions: {
+          ...validResidentialOptions,
+          desiredFeatures: ['microgrid'],
+          microgrid: {
+            voltageV: 220,
+            onGridPhases: 1,
+            onGridApparentPowerVA: 500,
+            isFundamentalRequirement: true,
+            photoUrl: null,
+            powerNoticeAcknowledged: true,
+          },
+        },
+      })
+    );
+    expect(result.current.canCalculate).toBe(false);
   });
 
   it('is false when Gerador is selected but its power is below the loads peak power', () => {

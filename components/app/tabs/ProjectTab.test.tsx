@@ -728,6 +728,8 @@ describe('ProjectTab: selecting a project without opening it', () => {
     expect(screen.getByText('Inversor')).toBeInTheDocument();
     expect(screen.getByText('X1-Hybrid')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+    const supplierQuoteButton = screen.getByRole('button', { name: 'Solicitar orçamento ao fornecedor' });
+    expect(supplierQuoteButton).toHaveClass('border-primary/25', 'bg-background', 'text-primary');
   });
 
   it('pre-selects currentProjectId on mount (e.g. arriving via the project-name link from Dimensionamento)', () => {

@@ -3,16 +3,11 @@ import type { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
 import { listProductMedia } from '@/lib/data/product-media-repository';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
+import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
 import {
-  isGeneratorAtsUnacknowledged,
-  isGeneratorPhaseVoltageIncompatible,
-  isGeneratorPowerInsufficient,
-  isMicrogridPhaseVoltageIncompatible,
-  isPvConfigIncomplete,
-  isWhiteTariffConfigIncomplete,
   normalizeAccessoryLine,
 } from '../helpers';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption, ProductMedia } from '../types';
+import { availableInverterModelsFor, type AccessoryCatalogOption, type ApprovedInverterCombo, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
 
 export function useCalculation({
   supabase,
@@ -27,6 +22,7 @@ export function useCalculation({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
+  approvedInverterCombos,
 }: {
   supabase: ReturnType<typeof createClient>;
   residentialOptions: ResidentialOptions;
@@ -40,6 +36,7 @@ export function useCalculation({
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
+  approvedInverterCombos: ApprovedInverterCombo[];
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,17 +162,35 @@ export function useCalculation({
     loadProductMedia();
   }, [solution, secondarySolution, supabase, inverterCatalog, batteryCatalog, accessoryCatalog]);
 
+  const { gridType, topology } = residentialOptions;
+  const availableInverterModels = useMemo(
+    () => availableInverterModelsFor({ gridType, topology }, approvedInverterCombos),
+    [approvedInverterCombos, gridType, topology]
+  );
+
+  const hasPendingEnabledFeature = residentialOptions.desiredFeatures.some((id) =>
+    desiredFeatureHasPendingIssue(id, residentialOptions.desiredFeatures, {
+      microgrid: residentialOptions.microgrid,
+      generator: residentialOptions.generator,
+      pv: residentialOptions.pv,
+      whiteTariff: residentialOptions.whiteTariff,
+      atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
+      gridType: residentialOptions.gridType,
+      peakW,
+      loadsCount: residentialOptions.loads.length,
+      operationHours: residentialOptions.operationHours,
+      inverterCatalog,
+      availableInverterModels,
+      selectedInverterModel: residentialOptions.inverterModel,
+    })
+  );
+
   const canCalculate = Boolean(
     residentialOptions.topology &&
     residentialOptions.batteryModel &&
     residentialOptions.gridType &&
     residentialOptions.loads.length > 0 &&
-    !isGeneratorPowerInsufficient(residentialOptions.desiredFeatures, residentialOptions.generator, peakW) &&
-    !isGeneratorAtsUnacknowledged(residentialOptions.desiredFeatures, residentialOptions.generator) &&
-    !isGeneratorPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.generator, residentialOptions.gridType) &&
-    !isMicrogridPhaseVoltageIncompatible(residentialOptions.desiredFeatures, residentialOptions.microgrid, residentialOptions.gridType) &&
-    !isPvConfigIncomplete(residentialOptions.desiredFeatures, residentialOptions.pv)
-    && !isWhiteTariffConfigIncomplete(residentialOptions.desiredFeatures, residentialOptions.whiteTariff)
+    !hasPendingEnabledFeature
   );
 
   async function runCalculation(

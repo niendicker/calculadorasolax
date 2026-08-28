@@ -28,6 +28,7 @@ export interface ServicesSlice {
    * qty 1 — a no-op if it's already on the list. */
   addServiceToProject: (serviceId: string) => void;
   removeServiceFromProject: (serviceId: string) => void;
+  clearProjectServices: () => void;
   updateProjectServiceQty: (serviceId: string, qty: number) => void;
 }
 
@@ -92,6 +93,8 @@ export const createServicesSlice: StateCreator<WizardStore, [], [], ServicesSlic
 
   removeServiceFromProject: (serviceId) =>
     set((s) => ({ services: s.services.filter((line) => line.serviceId !== serviceId) })),
+
+  clearProjectServices: () => set({ services: [] }),
 
   updateProjectServiceQty: (serviceId, qty) =>
     set((s) => ({

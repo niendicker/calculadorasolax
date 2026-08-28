@@ -85,6 +85,7 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByText('Automático')).toBeInTheDocument();
     expect(screen.getByText('T-BAT H 5.8 V2 · Alta tensão (HV)')).toBeInTheDocument();
     expect(screen.getAllByText('Requer atenção').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Dimensionar solução' })).not.toBeInTheDocument();
   });
 
   it('keeps the Microgrid help icon inline with its title without card padding', () => {
@@ -125,6 +126,44 @@ describe('ProjectWorkspace', () => {
 
     fireEvent.click(headerAction);
     expect(onRefreshSolution).toHaveBeenCalledOnce();
+  });
+
+  it('keeps clear next to recalculation and confirms the workspace reset', async () => {
+    const onResetSizing = vi.fn();
+    const onRefreshSolution = vi.fn();
+    renderWorkspace({ onResetSizing, onRefreshSolution });
+
+    const clearButton = screen.getByRole('button', { name: 'Limpar dimensionamento' });
+    const recalculateButton = screen.getByRole('button', { name: 'Recalcular solução' });
+    const actions = recalculateButton.parentElement as HTMLElement;
+    const clearWrapper = clearButton.parentElement as HTMLElement;
+
+    expect(clearWrapper.parentElement).toBe(actions);
+    expect(Array.from(actions.children).indexOf(recalculateButton)).toBeLessThan(Array.from(actions.children).indexOf(clearWrapper));
+    expect(actions).toHaveClass('mt-3', 'justify-end');
+    expect(actions.previousElementSibling).toContainElement(screen.getByRole('heading', { name: 'Residência Silva' }));
+    expect(actions.nextElementSibling).toHaveAttribute('aria-label', 'Seções do projeto');
+
+    fireEvent.click(clearButton);
+    const dialog = await screen.findByRole('dialog', { name: 'Limpar dimensionamento?' });
+    expect(dialog).toBeInTheDocument();
+    expect(onResetSizing).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(onResetSizing).not.toHaveBeenCalled();
+
+    fireEvent.click(clearButton);
+    fireEvent.click(await screen.findByRole('button', { name: /^Limpar$/ }));
+    expect(onResetSizing).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Limpar dimensionamento?' })).not.toBeInTheDocument());
+
+    fireEvent.click(clearButton);
+    const secondDialog = await screen.findByRole('dialog', { name: 'Limpar dimensionamento?' });
+    expect(within(secondDialog).getByRole('button', { name: /^Limpar$/ })).toBeInTheDocument();
+    expect(within(secondDialog).queryByRole('button', { name: 'Excluindo dimensionamento...' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(secondDialog).getByRole('button', { name: /^Limpar$/ }));
+    expect(onResetSizing).toHaveBeenCalledTimes(2);
   });
 
   it('disables recalculation while the solution is configured', () => {
