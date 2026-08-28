@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { LoadPhase, LoadPhaseType, LoadVoltage, PeakCalcMode, ResidentialGridType, SingleLoad } from '@/lib/types';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases } from '@/lib/store/wizard-store';
@@ -19,6 +19,8 @@ type LoadTableProps = {
   onRemove: (id: string) => void;
   onDuplicate: (load: SingleLoad) => void;
   duplicateDisabled: boolean;
+  onAddLoad: () => void;
+  addDisabled: boolean;
 };
 
 function InlineNumberField({ id, value, min, max, step, onValid, onBlurValue, className }: {
@@ -281,19 +283,29 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
   );
 }
 
-export function LoadTable({ loads, gridType, peakCalcMode, operationHours, onUpdate, onRemove, onDuplicate, duplicateDisabled }: LoadTableProps) {
+export function LoadTable({ loads, gridType, peakCalcMode, operationHours, onUpdate, onRemove, onDuplicate, duplicateDisabled, onAddLoad, addDisabled }: LoadTableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
       <table className="w-full min-w-0 text-sm" aria-label="Cargas do projeto em tabela">
         <thead className="block bg-muted/40 text-[0.65rem] uppercase tracking-wide text-muted-foreground lg:table-header-group">
           <tr className="grid grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_4rem_2.5rem] gap-x-1 border-b md:grid-cols-[minmax(0,0.8fr)_3rem_5rem_4.5rem_5.5rem_minmax(8rem,1.2fr)_2.5rem] lg:table-row">
-            <th scope="col" aria-label="Carga" className="block min-w-0 px-1.5 py-2 text-left font-semibold lg:table-cell lg:min-w-44 lg:px-3 lg:py-3" />
-            <th scope="col" className="block min-w-0 px-1 py-2 text-left font-semibold lg:table-cell lg:w-20 lg:px-2 lg:py-3">Qtd.</th>
-            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2 text-left font-semibold leading-tight lg:table-cell lg:w-24 lg:px-2 lg:py-3">Potência</th>
-            <th scope="col" className="block min-w-0 px-1 py-2 text-left font-semibold lg:table-cell lg:w-24 lg:px-2 lg:py-3">IP/IN</th>
-            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2 text-left font-semibold leading-tight lg:table-cell lg:min-w-36 lg:px-2 lg:py-3">Uso e energia</th>
-            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2 text-left font-semibold leading-tight md:min-w-0 lg:table-cell lg:min-w-40 lg:px-2 lg:py-3">Ligação elétrica</th>
-            <th scope="col" aria-label="Ações" className="block min-w-0 px-1 py-2 text-left font-semibold lg:table-cell lg:w-12 lg:px-2 lg:py-3 lg:text-right" />
+            <th scope="col" aria-label="Carga" className="block min-w-0 px-1.5 py-2.5 text-left font-semibold lg:table-cell lg:min-w-44 lg:px-3 lg:py-4" />
+            <th scope="col" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-20 lg:px-2 lg:py-4">Qtd.</th>
+            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight lg:table-cell lg:w-24 lg:px-2 lg:py-4">Potência</th>
+            <th scope="col" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-24 lg:px-2 lg:py-4">IP/IN</th>
+            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight lg:table-cell lg:min-w-36 lg:px-2 lg:py-4">Uso e energia</th>
+            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight md:min-w-0 lg:table-cell lg:min-w-40 lg:px-2 lg:py-4">Ligação elétrica</th>
+            <th scope="col" aria-label="Ações" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-12 lg:px-2 lg:py-4 lg:text-right">
+              <button
+                type="button"
+                aria-label="Adicionar carga"
+                onClick={onAddLoad}
+                disabled={addDisabled}
+                className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>

@@ -765,11 +765,17 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
           )}
           {loadView === 'table' ? (
             <div className="space-y-3">
-              <AddLoadTile
-                onAdd={handleAddBlank}
-                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-                className="min-h-16 flex-row justify-center gap-3 rounded-xl border-solid border-border bg-background p-3 text-center shadow-sm hover:border-primary/70 hover:bg-primary/[0.03] sm:p-4"
-              />
+              {/* Once the table is showing, "Adicionar carga" moves into its
+                  header (last column) — this tile is only needed as a
+                  fallback when there are no confirmed loads yet to render a
+                  table for. */}
+              {!visibleLoads.some((load) => load.powerW > 0) && (
+                <AddLoadTile
+                  onAdd={handleAddBlank}
+                  disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+                  className="min-h-16 flex-row justify-center gap-3 rounded-xl border-solid border-border bg-background p-3 text-center shadow-sm hover:border-primary/70 hover:bg-primary/[0.03] sm:p-4"
+                />
+              )}
               {visibleLoads.some((load) => load.powerW === 0) && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {visibleLoads.filter((load) => load.powerW === 0).map((load) => (
@@ -805,6 +811,8 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                   onRemove={(id) => { removeLoad(id); setLoadLimitMessage(null); }}
                   onDuplicate={handleDuplicateLoad}
                   duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+                  onAddLoad={handleAddBlank}
+                  addDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
                 />
               )}
             </div>

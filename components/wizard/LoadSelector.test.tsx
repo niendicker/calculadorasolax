@@ -142,6 +142,35 @@ describe('LoadSelector: load display modes', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Quantidade Chuveiro' })).not.toBeInTheDocument();
   });
 
+  it('moves "Adicionar carga" into the table header once there is a confirmed load to show a table for', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
+
+    const table = screen.getByRole('table', { name: 'Cargas do projeto em tabela' });
+    const addButton = within(table).getByRole('button', { name: 'Adicionar carga' });
+    // Only the one inside the table header — the standalone tile is gone.
+    expect(screen.getAllByRole('button', { name: 'Adicionar carga' })).toHaveLength(1);
+
+    fireEvent.click(addButton);
+    const loads = useWizardStore.getState().residentialOptions.loads;
+    expect(loads).toHaveLength(2);
+    expect(loads.some((load) => load.powerW === 0)).toBe(true);
+  });
+
+  it('keeps the standalone "Adicionar carga" tile in table view when there is no confirmed load yet', () => {
+    renderLoadSelector();
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
+
+    expect(screen.queryByRole('table', { name: 'Cargas do projeto em tabela' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adicionar carga' })).toBeInTheDocument();
+  });
+
   it('edits "Fator de uso" as a 0-100% value in the table view too', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
