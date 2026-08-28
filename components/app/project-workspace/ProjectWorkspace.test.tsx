@@ -167,9 +167,16 @@ describe('ProjectWorkspace', () => {
 
     expect(clearWrapper.parentElement).toBe(actions);
     expect(Array.from(actions.children).indexOf(recalculateButton)).toBeLessThan(Array.from(actions.children).indexOf(clearWrapper));
-    expect(actions).toHaveClass('mt-3', 'justify-end');
-    expect(actions.previousElementSibling).toContainElement(screen.getByRole('heading', { name: 'Residência Silva' }));
-    expect(actions.nextElementSibling).toHaveAttribute('aria-label', 'Seções do projeto');
+
+    // Same line as the client name — not their own separate row anymore.
+    const clientLine = actions.parentElement as HTMLElement;
+    expect(clientLine).toHaveClass('justify-between');
+    expect(within(clientLine).getByRole('img', { name: 'Cliente' })).toBeInTheDocument();
+    expect(clientLine.previousElementSibling).toContainElement(screen.getByRole('heading', { name: 'Residência Silva' }));
+
+    // The header is just those two lines — the section tabs come right after.
+    const header = clientLine.parentElement as HTMLElement;
+    expect(header.nextElementSibling).toHaveAttribute('aria-label', 'Seções do projeto');
 
     fireEvent.click(clearButton);
     const dialog = await screen.findByRole('dialog', { name: 'Limpar dimensionamento?' });

@@ -655,62 +655,60 @@ export function ProjectWorkspace({
         </div>
       </PageSummary>}
       <div className="sticky top-0 z-30 bg-background pb-3 lg:pt-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-2xl font-semibold tracking-tight">{projectInfo.name || 'Projeto sem nome'}</h1>
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> Em andamento</span>
-                <WorkspaceAutosaveStatus status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
-              </div>
-              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
-                    <UserRound className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                  <span>{client?.name || 'Não informado'}</span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{projectInfo.name || 'Projeto sem nome'}</h1>
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> Em andamento</span>
+            <WorkspaceAutosaveStatus status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
+          </div>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
+                  <UserRound className="h-4 w-4" aria-hidden="true" />
                 </span>
-                <span aria-hidden="true">·</span>
-                <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
-              </p>
+                <span>{client?.name || 'Não informado'}</span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {onRefreshSolution && (
+                <Button
+                  type="button"
+                  variant={solution && !staleSolution ? 'outline' : 'default'}
+                  size="sm"
+                  className={cn(
+                    'shrink-0',
+                    solution && !staleSolution
+                      ? 'border-muted text-muted-foreground'
+                      : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
+                  )}
+                  onClick={onRefreshSolution}
+                  disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
+                  title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
+                  aria-busy={recalculatingSolution}
+                >
+                  {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+                  {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
+                </Button>
+              )}
+              {onResetSizing && (
+                <ConfirmDeleteModalButton
+                  ariaLabel="Limpar dimensionamento"
+                  itemName="dimensionamento atual"
+                  itemType="dimensionamento"
+                  title="Limpar dimensionamento?"
+                  description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
+                  label="Limpar"
+                  icon={<Trash2 className="h-4 w-4" />}
+                  confirmLabel="Limpar"
+                  triggerVariant="outline"
+                  onConfirm={onResetSizing}
+                />
+              )}
             </div>
           </div>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-          {onRefreshSolution && (
-            <Button
-              type="button"
-              variant={solution && !staleSolution ? 'outline' : 'default'}
-              size="sm"
-              className={cn(
-                'shrink-0',
-                solution && !staleSolution
-                  ? 'border-muted text-muted-foreground'
-                  : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
-              )}
-              onClick={onRefreshSolution}
-              disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
-              title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
-              aria-busy={recalculatingSolution}
-            >
-              {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-              {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
-            </Button>
-          )}
-          {onResetSizing && (
-            <ConfirmDeleteModalButton
-              ariaLabel="Limpar dimensionamento"
-              itemName="dimensionamento atual"
-              itemType="dimensionamento"
-              title="Limpar dimensionamento?"
-              description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-              label="Limpar"
-              icon={<Trash2 className="h-4 w-4" />}
-              confirmLabel="Limpar"
-              triggerVariant="outline"
-              onConfirm={onResetSizing}
-            />
-          )}
         </div>
         <nav className="mt-4 flex items-stretch overflow-x-auto rounded-xl border border-border/70 bg-card/70 p-1" aria-label="Seções do projeto">
           {navigation.map(({ id, label, icon: Icon }, index) => (
