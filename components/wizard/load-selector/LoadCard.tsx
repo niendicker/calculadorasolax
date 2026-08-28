@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, Trash2, X, Zap } from 'lucide-react';
+import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
@@ -719,21 +719,15 @@ export function LoadCard({
               />
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 md:h-7 md:w-7"
-            onClick={() => onRemove(load.id)}
-            aria-label="Remover carga em branco"
-          >
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-          </Button>
         </div>
-        <div className="border-t p-3">
+        <div className="flex items-center gap-2 border-t p-3">
+          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => onRemove(load.id)}>
+            Cancelar
+          </Button>
           <Button
             type="button"
             size="sm"
-            className="w-full"
+            className="flex-1"
             disabled={!draftName.trim() || !(Number(draftPower) > 0)}
             onClick={confirmDraft}
           >

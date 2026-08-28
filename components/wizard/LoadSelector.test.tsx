@@ -1394,12 +1394,12 @@ describe('LoadSelector: added loads list', () => {
     expect(screen.queryByText('Bomba dágua')).not.toBeInTheDocument();
   });
 
-  it('removes a blank draft card via its own trash button', () => {
+  it('removes a blank draft card via its "Cancelar" button', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover carga em branco' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(0);
   });
 

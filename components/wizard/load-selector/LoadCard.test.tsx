@@ -230,11 +230,11 @@ describe('LoadCard: draft (unnamed / zero-power) card', () => {
     expect(screen.getByRole('button', { name: 'Adicionar' })).not.toBeDisabled();
   });
 
-  it('removes the draft card via its own trash button', () => {
+  it('removes the draft card via its "Cancelar" button, next to "Adicionar"', () => {
     const onRemove = vi.fn();
     render(<LoadCard {...baseProps({ load: draftLoad(), onRemove })} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover carga em branco' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(onRemove).toHaveBeenCalledWith('l1');
   });
 
