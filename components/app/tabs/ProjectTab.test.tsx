@@ -249,6 +249,7 @@ describe('ProjectTab: empty and list states', () => {
   it('shows just the "Novo projeto" trigger card when there are no projects yet', () => {
     setup();
     expect(screen.getByRole('button', { name: /Novo projeto/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ver exemplo preenchido' })).not.toBeInTheDocument();
     expect(screen.queryByText('Nenhum projeto encontrado para essa pesquisa.')).not.toBeInTheDocument();
   });
 

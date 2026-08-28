@@ -44,7 +44,6 @@ import { useAppNavigationActions } from './shell/useAppNavigationActions';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { DemoBanner } from './demo/DemoBanner';
-import { DemoPickerDialog } from './demo/DemoPickerDialog';
 import { useDemoController } from './demo/useDemoController';
 import { ProjectTab } from './tabs/ProjectTab';
 import { ProjectWorkspace } from './project-workspace/ProjectWorkspace';
@@ -186,8 +185,6 @@ export function SinglePageApp() {
     setLoadPresets,
     resetResidential,
     isDemo,
-    loadPresets,
-    loadDemoSimulation,
     exitDemoMode,
     convertDemoToSimulation,
   } = useWizardStore();
@@ -443,21 +440,9 @@ export function SinglePageApp() {
   });
 
   const {
-    examples: demoExamples,
-    demoPickerOpen,
-    setDemoPickerOpen,
-    unavailableDemoIds,
-    openDemoPicker,
-    selectDemo,
     leaveDemo,
     convertDemo,
   } = useDemoController({
-    activeTab,
-    loadPresets,
-    batteryCatalog,
-    approvedInverterCombos,
-    inverterCatalog,
-    loadDemoSimulation,
     exitDemoMode,
     convertDemoToSimulation,
     changeTab,
@@ -800,14 +785,6 @@ export function SinglePageApp() {
                     </div>
                   )}
                   {isDemo && <DemoBanner onExit={leaveDemo} onConvert={convertDemo} />}
-                  {demoPickerOpen && (
-                    <DemoPickerDialog
-                      examples={demoExamples}
-                      unavailable={unavailableDemoIds}
-                      onSelect={selectDemo}
-                      onClose={() => setDemoPickerOpen(false)}
-                    />
-                  )}
                   {guideOpen ? (
                     <GuidePage content={guideContent} embedded />
                   ) : activeTab === 'project' ? (
@@ -826,8 +803,6 @@ export function SinglePageApp() {
               hasSolution={Boolean(solution)}
               onSave={saveProject}
               onNew={startNewProject}
-              onDemo={openDemoPicker}
-              demoDisabled={isDemo || initialLoading || loadPresets.length === 0 || batteryCatalog.length === 0}
               onCancelNew={cancelNewProject}
               onOpen={openProject}
               onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceNavigation(closedWorkspaceNavigation); openProjectSizing(id); }}
