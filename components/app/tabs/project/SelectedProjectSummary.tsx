@@ -3,8 +3,7 @@
 import { BatteryCharging, Gauge, MapPin, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { formatAddress, isAddressEmpty } from '@/lib/address';
-import type { MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import type { Address, MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import {
   batteryQuantityBreakdown,
@@ -16,8 +15,15 @@ import {
 } from '../../helpers';
 import { Metric } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../../types';
-import { gridLabels } from '../../types';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
+
+/** Compact "Bairro · Cidade/Estado · CEP" line for the summary header —
+ *  the full multi-line address (street/number/complement) lives in the PDF
+ *  report and the shareable text (see formatAddress), not here. */
+function formatAddressSummaryLine(address: Address): string {
+  const cityState = address.city && address.state ? `${address.city}/${address.state}` : address.city || address.state;
+  return [address.district, cityState, address.postalCode].filter(Boolean).join(' · ');
+}
 
 /** A product's category label, its nickname/model (with quantity, if any),
  * and — only when a nickname is set — the bare model code as a small
@@ -29,12 +35,17 @@ function ProductNameLine({
   nickname,
   suffix,
   detail,
+  showCaption = true,
 }: {
   category: string;
   model: string;
   nickname?: string | null;
   suffix?: string;
   detail?: string;
+  /** Set false to always show a single nickname-or-model line with no model
+   *  caption underneath — e.g. the Inversor line, which doesn't need the
+   *  model code repeated below its nickname. */
+  showCaption?: boolean;
 }) {
   // A catalog nickname is sometimes just a copy of the model code — treat
   // that the same as having no nickname at all: uppercase it like any other
@@ -49,7 +60,7 @@ function ProductNameLine({
         {displayName}
         {suffix}
       </p>
-      {!isModelCode && <p className="text-[0.7rem] font-mono uppercase text-muted-foreground">{model}</p>}
+      {showCaption && !isModelCode && <p className="text-[0.7rem] font-mono uppercase text-muted-foreground">{model}</p>}
     </div>
   );
 }
@@ -82,6 +93,7 @@ export function SelectedProjectSummary({
    *  complete with its own discard confirmation when dirty). */
   onClose?: () => void;
 }) {
+  const addressSummaryLine = formatAddressSummaryLine(project.address);
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
     project.solution || project.services.length > 0
@@ -109,10 +121,10 @@ export function SelectedProjectSummary({
         </div>
       </div>
 
-      {!isAddressEmpty(project.address) && (
+      {addressSummaryLine && (
         <p className="flex items-start gap-1 text-xs text-muted-foreground">
           <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-          <span className="min-w-0">{formatAddress(project.address)}</span>
+          <span className="min-w-0">{addressSummaryLine}</span>
         </p>
       )}
 
@@ -140,7 +152,7 @@ export function SelectedProjectSummary({
                 category="Inversor"
                 model={project.solution.inverterModel}
                 nickname={inverterCatalog.find((item) => item.model === project.solution?.inverterModel)?.nickname}
-                detail={`${project.residentialOptions.gridType ? gridLabels[project.residentialOptions.gridType] : 'Rede não informada'} · ${metrics.nominalW != null ? `${(metrics.nominalW / 1000).toFixed(2)} kVA` : 'potência não informada'}`}
+                showCaption={false}
               />
               {batteryParts.map((part, index) => (
                 <ProductNameLine

@@ -921,10 +921,12 @@ describe('ProjectTab: selecting a project without opening it', () => {
 
     clickCard('Casa de praia');
 
-    // Nickname is the prominent line; the bare model code sits underneath as a caption.
+    // Inverter shows a single nickname line, with no model caption underneath.
     const inverterNickname = screen.getByText('Titan 5kW');
-    expect(inverterNickname.nextElementSibling).toHaveTextContent('X1-Hybrid-5.0kW-G4');
+    expect(inverterNickname.nextElementSibling).toBeNull();
+    expect(screen.queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
 
+    // Battery keeps the nickname line plus the bare model code as a caption underneath.
     const batteryNickname = screen.getByText('Nova 3.6 × 2');
     expect(batteryNickname.nextElementSibling).toHaveTextContent('TP-HS3.6');
 
