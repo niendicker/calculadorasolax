@@ -235,7 +235,6 @@ export function ProjectTab({
                   }
                 : undefined
             }
-            onUpdateStatus={(status) => onUpdateStatus(summaryProject.id, status)}
           />
         ) : projectDetailsVisible ? (
           <>

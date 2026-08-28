@@ -1116,15 +1116,6 @@ describe('ProjectTab: quotation status', () => {
     expect(props.onUpdateStatus).toHaveBeenCalledWith('p1', 'accepted');
     expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
-
-  it('shows the status control in the selected-project summary panel too', () => {
-    setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia', status: 'rejected' })] });
-
-    const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
-    fireEvent.click(card!);
-
-    expect(screen.getAllByRole('combobox', { name: 'Status da cotação' })).toHaveLength(2);
-  });
 });
 
 describe('ProjectTab: downloading a PDF from the card', () => {

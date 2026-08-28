@@ -4,7 +4,7 @@ import { BatteryCharging, Gauge, MapPin, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
-import type { MarginSettings, ProjectStatus, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
+import type { MarginSettings, SavedProject, UserServiceItem, UserStockItem } from '@/lib/types';
 import {
   batteryQuantityBreakdown,
   calculateSystemCost,
@@ -17,7 +17,6 @@ import { Metric } from '../../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../../types';
 import { gridLabels } from '../../types';
 import { ProjectEventsTimeline } from './ProjectEventsTimeline';
-import { ProjectStatusSelect } from './ProjectStatusSelect';
 
 /** A product's category label, its nickname/model (with quantity, if any),
  * and — only when a nickname is set — the bare model code as a small
@@ -64,7 +63,6 @@ export function SelectedProjectSummary({
   userServices,
   marginSettings,
   onClose,
-  onUpdateStatus,
 }: {
   project: SavedProject;
   batteryCatalog: BatteryCatalogOption[];
@@ -77,7 +75,6 @@ export function SelectedProjectSummary({
    *  there — "Fechar" on the draft card itself is what exits editing,
    *  complete with its own discard confirmation when dirty). */
   onClose?: () => void;
-  onUpdateStatus: (status: ProjectStatus) => void;
 }) {
   const metrics = project.solution ? solutionMetrics(project.solution, batteryCatalog) : null;
   const systemCost =
@@ -96,10 +93,7 @@ export function SelectedProjectSummary({
   return (
     <>
       <div className="-mt-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2 className="min-w-0 truncate text-sm font-semibold">{project.name}</h2>
-          <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
-        </div>
+        <h2 className="min-w-0 truncate text-sm font-semibold">{project.name}</h2>
         <div className="flex shrink-0 items-center gap-1">
           {onClose && (
             <Button variant="ghost" size="icon-sm" aria-label="Fechar resumo do projeto" onClick={onClose}>
