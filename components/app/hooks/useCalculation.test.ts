@@ -446,6 +446,48 @@ describe('useCalculation: calculate', () => {
     expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
     expect(result.current.secondaryError).toBeNull();
   });
+
+  // A caller outside the sizing form (the Workspace's "Recalcular solução"
+  // button) needs to know the actual outcome of this specific call — not just
+  // read `error` from a stale render — since it must report success/failure
+  // based on the live residentialOptions, not a snapshot from before the
+  // user's latest edit.
+  it('resolves with null when the calculation succeeds', async () => {
+    const { supabase } = makeSupabase();
+    const { result } = renderCalculation(baseProps({ supabase }));
+
+    let resultError: string | null = 'not set';
+    await act(async () => {
+      resultError = await result.current.calculate();
+    });
+
+    expect(resultError).toBeNull();
+  });
+
+  it('resolves with the mapped error message when the calculation fails', async () => {
+    const { supabase } = makeSupabase({ invokeResult: { data: null, error: { message: 'boom' } } });
+    const { result } = renderCalculation(baseProps({ supabase }));
+
+    let resultError: string | null = 'not set';
+    await act(async () => {
+      resultError = await result.current.calculate();
+    });
+
+    expect(resultError).toBe(getCalculationErrorMessage(undefined));
+  });
+
+  it('resolves with null without invoking anything when canCalculate is false', async () => {
+    const { supabase } = makeSupabase();
+    const { result } = renderCalculation(baseProps({ supabase, residentialOptions: incompleteResidentialOptions }));
+
+    let resultError: string | null = 'not set';
+    await act(async () => {
+      resultError = await result.current.calculate();
+    });
+
+    expect(resultError).toBeNull();
+    expect(supabase.functions.invoke).not.toHaveBeenCalled();
+  });
 });
 
 describe('useCalculation: hasUncalculatedChanges', () => {

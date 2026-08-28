@@ -197,7 +197,7 @@ export function useCalculation({
     batteryModel: string,
     setResultSolution: (solution: Solution | null) => void,
     setResultError: (error: string | null) => void
-  ) {
+  ): Promise<string | null> {
     const result = await calculateResidentialSolution({
       residentialOptions,
       batteryModel,
@@ -209,15 +209,20 @@ export function useCalculation({
     if ('error' in result) {
       setResultSolution(null);
       setResultError(result.error);
-      return;
+      return result.error;
     }
 
     setResultSolution(result.solution);
     setResultError(null);
+    return null;
   }
 
-  async function calculate() {
-    if (!canCalculate) return;
+  // Returns the primary battery's error message (or null on success) so
+  // callers that trigger a recalculation from outside the sizing form (e.g.
+  // the Workspace's "Recalcular solução" button) can report the actual
+  // outcome instead of guessing from stale state.
+  async function calculate(): Promise<string | null> {
+    if (!canCalculate) return null;
 
     setLastCalculatedOptions(serializedOptions);
     setLoading(true);
@@ -232,8 +237,9 @@ export function useCalculation({
       calls.push(runCalculation(residentialOptions.secondaryBatteryModel, setSecondarySolution, setSecondaryError));
     }
 
-    await Promise.allSettled(calls);
+    const [primaryResult] = await Promise.allSettled(calls);
     setLoading(false);
+    return primaryResult.status === 'fulfilled' ? primaryResult.value : null;
   }
 
   return { loading, error, secondaryError, canCalculate, hasUncalculatedChanges, calculate, productMedia };

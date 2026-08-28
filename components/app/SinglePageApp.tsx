@@ -507,6 +507,22 @@ export function SinglePageApp() {
     resetResidential,
   });
 
+  // Recalculates the currently open project from the live residentialOptions
+  // being edited on screen, not the last-autosaved snapshot in savedProjects
+  // (that's what refreshProjectSolution below reads, which is meant for
+  // recalculating a project from the projects list, outside of editing).
+  // Reusing that action here made "Recalcular solução" replay whatever error
+  // was present before the user's most recent edit, until autosave's 12s
+  // debounce caught up — even after the user had already fixed the problem.
+  async function recalculateCurrentProjectSolution() {
+    if (!canCalculate) {
+      reportStatus('Complete a configuração de rede, bateria e cargas antes de recalcular.');
+      return;
+    }
+    const resultError = await calculate();
+    reportStatus(resultError ?? 'Solução recalculada.');
+  }
+
   function resetWorkspaceProject() {
     resetResidentialToDefaults();
     clearProjectServices();
@@ -934,8 +950,8 @@ export function SinglePageApp() {
               activeResourceId={workspaceResource && workspaceResource !== 'gridType' && workspaceResource !== 'battery' ? workspaceResource : null}
               onOpenResource={openWorkspaceResource}
               onOpenTechnical={openWorkspaceConfiguration}
-              onRefreshSolution={currentProjectId ? () => { void refreshProjectSolution(currentProjectId); } : undefined}
-              recalculatingSolution={Boolean(currentProjectId && refreshingProjectId === currentProjectId)}
+              onRefreshSolution={currentProjectId ? () => { void recalculateCurrentProjectSolution(); } : undefined}
+              recalculatingSolution={loading}
               onOpenConfiguration={openWorkspaceConfiguration}
               technicalEditorOpen={workspaceTechnicalEditorOpen}
               onResetSizing={resetWorkspaceProject}

@@ -1196,6 +1196,72 @@ describe('SinglePageApp: requires explicit recalculation after sizing changes', 
   });
 });
 
+describe('SinglePageApp: Workspace recalculation uses the live options being edited', () => {
+  it('recalculates with the residentialOptions on screen, not the last-autosaved snapshot in savedProjects', async () => {
+    const batteryRow = {
+      id: 'b1',
+      model: 'TP-HS3.6',
+      nickname: null,
+      capacity_kwh: 3.6,
+      topology: 'HV',
+      standard_power_kw: 1.8,
+      peak_power_kw: 2.5,
+      min_soc_percent: 10,
+      expansion_model: null,
+      image_url: null,
+      documents: [],
+    };
+    setupSupabase({ batteries: { data: [batteryRow], error: null } });
+
+    // The battery on the saved snapshot ('TP-HS3.6') keeps failing; only the
+    // fixed battery the user just picked live ('TP-HS3.6-Fixed') succeeds —
+    // so a call carrying the old battery proves the recalculation read stale
+    // data instead of what's on screen.
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { batteryModel: string };
+      if (body.batteryModel === 'TP-HS3.6') {
+        return { ok: false, json: async () => ({ error: 'Bateria incompatível com a rede selecionada.' }) };
+      }
+      return { ok: true, json: async () => ({ solution: makeSolution({ batteryModel: body.batteryModel }) }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        gridType: 'singlePhase_220',
+        topology: 'HighVoltage',
+        batteryModel: 'TP-HS3.6',
+        loads: [{ id: 'l1', name: 'Chuveiro', powerW: 5500, hoursPerDay: 1, qty: 1, ipInRatio: 1 }],
+      },
+    }));
+
+    renderApp();
+    // Opens the Workspace for a saved project whose snapshot still carries
+    // the broken 'TP-HS3.6' battery (goToSizingViaProject seeds savedProjects
+    // from the live state at this point, before the fix below).
+    await goToSizingViaProject();
+
+    // The user fixes the battery selection live, before autosave's 12s
+    // debounce has had a chance to persist it back into savedProjects.
+    act(() => {
+      useWizardStore.setState((s) => ({
+        residentialOptions: { ...s.residentialOptions, batteryModel: 'TP-HS3.6-Fixed' },
+      }));
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recalcular solução' }));
+
+    await screen.findByText('Solução recalculada.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requestBody = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body) as {
+      batteryModel: string;
+    };
+    expect(requestBody.batteryModel).toBe('TP-HS3.6-Fixed');
+    expect(useWizardStore.getState().solution?.batteryModel).toBe('TP-HS3.6-Fixed');
+  });
+});
+
 describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
   it('selects the first HV battery from the catalog after clicking Limpar', async () => {
     const batteryRows = [
