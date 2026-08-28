@@ -425,8 +425,8 @@ export function LoadCard({
               onChange={(event) => setUsageMode(event.target.value as 'fraction' | 'fixed')}
               className="w-24 shrink-0 rounded-none border-0 bg-transparent focus-visible:ring-0"
             >
-              <option value="fraction">Fração</option>
-              <option value="fixed">Horas</option>
+              <option value="fraction">%</option>
+              <option value="fixed">H</option>
             </Select>
           </div>
         </div>
