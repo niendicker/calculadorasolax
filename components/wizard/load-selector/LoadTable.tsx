@@ -179,7 +179,7 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
           event.preventDefault();
           setEditing((current) => !current);
         }}
-        className={cn('grid cursor-pointer grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_4rem_2.5rem] gap-x-1 border-b p-1.5 align-middle transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 md:grid-cols-[minmax(0,0.8fr)_3rem_5rem_4.5rem_5.5rem_minmax(8rem,1.2fr)_2.5rem] lg:table-row lg:p-0', editing && 'bg-muted/15')}
+        className={cn('grid cursor-pointer grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_2.5rem] gap-x-1 border-b sm:grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_4rem_2.5rem] p-1.5 align-middle transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 md:grid-cols-[minmax(0,0.8fr)_3rem_5rem_4.5rem_5.5rem_minmax(8rem,1.2fr)_2.5rem] lg:table-row lg:p-0', editing && 'bg-muted/15')}
       >
         <th scope="row" className="block min-w-0 px-1.5 py-2 text-left lg:table-cell lg:col-auto lg:min-w-44 lg:px-3 lg:py-3.5">
           <p className="truncate text-sm font-semibold" title={load.name}>{load.name}</p>
@@ -199,7 +199,7 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
           <span className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">{usageMode === 'fixed' ? `${load.fixedHours ?? 0} h` : `${Math.round((load.usageFactor ?? 1) * 100)}%`}</span>
           <span className="mt-1 hidden text-[0.65rem] tabular-nums text-muted-foreground lg:block">{loadEnergyKwh.toFixed(2)} kWh/dia</span>
         </td>
-        <td className="block min-w-0 px-1 py-2 lg:table-cell lg:col-auto lg:min-w-40 lg:px-2 lg:py-3.5">
+        <td className="hidden min-w-0 px-1 py-2 sm:block lg:table-cell lg:col-auto lg:min-w-40 lg:px-2 lg:py-3.5">
           <span className="hidden">Ligação</span>
           <span className={cn('block truncate rounded-full border bg-background px-1.5 py-1 text-xs', !voltageValid && 'border-destructive/40 text-destructive')} title={`${voltageV}V · ${phaseLabel}`}>{voltageV}V · {phaseLabel}</span>
         </td>
@@ -288,13 +288,13 @@ export function LoadTable({ loads, gridType, peakCalcMode, operationHours, onUpd
     <div className="overflow-x-auto rounded-xl border bg-card">
       <table className="w-full min-w-0 text-sm" aria-label="Cargas do projeto em tabela">
         <thead className="block bg-muted/40 text-[0.65rem] uppercase tracking-wide text-muted-foreground lg:table-header-group">
-          <tr className="grid grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_4rem_2.5rem] gap-x-1 border-b md:grid-cols-[minmax(0,0.8fr)_3rem_5rem_4.5rem_5.5rem_minmax(8rem,1.2fr)_2.5rem] lg:table-row">
+          <tr className="grid grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_2.5rem] gap-x-1 border-b sm:grid-cols-[minmax(0,1fr)_1.5rem_3.5rem_2.5rem_3rem_4rem_2.5rem] md:grid-cols-[minmax(0,0.8fr)_3rem_5rem_4.5rem_5.5rem_minmax(8rem,1.2fr)_2.5rem] lg:table-row">
             <th scope="col" aria-label="Carga" className="block min-w-0 px-1.5 py-2.5 text-left font-semibold lg:table-cell lg:min-w-44 lg:px-3 lg:py-4" />
             <th scope="col" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-20 lg:px-2 lg:py-4">Qtd.</th>
             <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight lg:table-cell lg:w-24 lg:px-2 lg:py-4">Potência</th>
             <th scope="col" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:w-24 lg:px-2 lg:py-4">IP/IN</th>
             <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight lg:table-cell lg:min-w-36 lg:px-2 lg:py-4">Uso e energia</th>
-            <th scope="col" className="block min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight md:min-w-0 lg:table-cell lg:min-w-40 lg:px-2 lg:py-4">Ligação elétrica</th>
+            <th scope="col" className="hidden min-w-0 whitespace-normal px-1 py-2.5 text-left font-semibold leading-tight sm:block md:min-w-0 lg:table-cell lg:min-w-40 lg:px-2 lg:py-4">Ligação elétrica</th>
             <th scope="col" aria-label="Ações" className="block min-w-0 px-1 py-2.5 text-left font-semibold lg:table-cell lg:min-w-28 lg:px-2 lg:py-4 lg:text-right">
               <Button
                 type="button"
