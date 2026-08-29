@@ -194,8 +194,8 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
         </td>
         <td className="block w-auto px-1 py-2 lg:table-cell lg:w-24 lg:px-2 lg:py-3.5">
           <span className="hidden">Partida</span>
-          <span className="text-xs font-medium tabular-nums">{load.ipInRatio ?? 1}×</span>
-          <span className="mt-1 block truncate text-[0.65rem] tabular-nums text-muted-foreground lg:mt-1">{loadPeakW.toFixed(0)} VA pico</span>
+          <span className="block text-xs font-medium tabular-nums">{load.ipInRatio ?? 1}× · {loadPeakW.toFixed(0)}</span>
+          <span className="mt-0.5 block truncate text-[0.65rem] text-muted-foreground">VA pico</span>
         </td>
         <td className="block w-auto min-w-0 px-1 py-2 lg:table-cell lg:min-w-36 lg:px-2 lg:py-3.5">
           <span className="hidden">Uso</span>
