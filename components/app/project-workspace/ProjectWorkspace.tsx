@@ -1388,9 +1388,9 @@ function SolutionSection({
 
           {view === 'summary' && metrics && (
             <div className="space-y-4">
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <MetricCard compact label="Potência do inversor" value={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} icon={Zap} />
-                <MetricCard compact label="Potencia da bateria" value={solution.batteryPowerW ? formatKw(solution.batteryPowerW) : 'Não informado'} icon={Battery} />
+                <MetricCard compact label="Potência da bateria" value={solution.batteryPowerW ? formatKw(solution.batteryPowerW) : 'Não informado'} icon={Battery} />
                 <MetricCard compact label="Potência máxima" value={metrics.peakW != null ? formatKva(metrics.peakW) : 'Não informado'} icon={Gauge} />
                 <MetricCard compact label="Energia útil" value={formatKwh(metrics.energyKwh)} icon={BatteryCharging} />
               </div>
@@ -1487,7 +1487,7 @@ function SolutionSection({
               )}
             </div>
           )}
-          {view === 'margins' && <div className="grid gap-3 sm:grid-cols-3">{marginRows.map((row) => { const delta = row.providedValue - row.requiredValue; const insufficient = delta < 0; return <Card key={row.key} className={cn(insufficient && 'border-destructive/50')}><CardContent className="p-4"><p className="text-sm font-medium">{row.label}</p><p className={cn('mt-2 text-xl font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>{delta >= 0 ? '+' : '-'}{row.unit === 'W' ? formatKva(Math.abs(delta)) : formatKwh(Math.abs(delta))}</p><p className="mt-2 text-xs text-muted-foreground">Necessário {row.unit === 'W' ? formatKva(row.requiredValue) : formatKwh(row.requiredValue)} · Solução {row.unit === 'W' ? formatKva(row.providedValue) : formatKwh(row.providedValue)}</p><StateBadge state={insufficient ? 'attention' : 'configured'} /></CardContent></Card>; })}</div>}
+          {view === 'margins' && <div className="grid gap-3 sm:grid-cols-3">{marginRows.map((row) => { const delta = row.providedValue - row.requiredValue; const insufficient = delta < 0; return <Card key={row.key} className={cn(insufficient && 'border-destructive/50')}><CardContent className="p-4"><p className="text-sm font-medium">{row.label}</p><p className={cn('mt-2 text-xl font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>{delta >= 0 ? '+' : '-'}{row.unit === 'W' ? formatKva(Math.abs(delta)) : formatKwh(Math.abs(delta) / 1000)}</p><p className="mt-2 text-xs text-muted-foreground">Necessário {row.unit === 'W' ? formatKva(row.requiredValue) : formatKwh(row.requiredValue / 1000)} · Solução {row.unit === 'W' ? formatKva(row.providedValue) : formatKwh(row.providedValue / 1000)}</p><StateBadge state={insufficient ? 'attention' : 'configured'} /></CardContent></Card>; })}</div>}
           {view === 'criteria' && <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Critérios considerados</h3></CardHeader><CardContent className="space-y-2 pt-0">{[
             ['Rede elétrica', residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'],
             ['Cargas consideradas', `${residentialOptions.loads.length} cadastradas`],
