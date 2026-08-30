@@ -1,3 +1,10 @@
+// Type-only — erased at compile time, so this never pulls Deno-oriented
+// runtime code into the browser bundle. The engine itself can't live here
+// (Deno can't import outside supabase/functions/, see
+// lib/desired-features.ts's comment on the same constraint), but its types
+// have no such restriction.
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+
 export type BatteryTopology = 'HighVoltage' | 'LowVoltage';
 
 /** Converts the wizard-facing BatteryTopology to the catalog/DB storage
@@ -504,6 +511,27 @@ export interface SavedProject {
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
   services: ProjectServiceLine[];
+}
+
+/** Parallel to SavedProject, for a Commercial & Industrial project
+ * (docs/CI-MODULE-PLAN.md) — deliberately its own type, not merged into
+ * SavedProject, so nothing that already assumes every SavedProject has
+ * `residentialOptions`/`solution` (PDF export, quote sharing, orçamento,
+ * admin) needs to change for C&I to exist. `installationType` doubles as
+ * the discriminator against SavedProject when a screen needs to render
+ * both kinds together (e.g. the Projetos list). */
+export interface SavedCiProject {
+  id: string;
+  installationType: 'commercial_industrial';
+  name: string;
+  clientId: string | null;
+  address: Address;
+  notes: string;
+  updatedAt: string;
+  status: ProjectStatus;
+  calculationOptions: CommercialIndustrialOptions;
+  calculationResult: CommercialIndustrialResult | null;
+  calculationVersion: string | null;
 }
 
 export interface SimulationNode {

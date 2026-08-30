@@ -40,5 +40,18 @@ export function resetWizardStore() {
     secondarySolution: null,
     loadCatalog: [],
     loadPresets: [],
+    ciProjectInfo: { name: '', clientId: null, address: emptyAddress(), notes: '' },
+    currentCiProjectId: null,
+    ciProjectDetailsVisible: false,
+    savedCiProjects: [],
+    ciOptions: {
+      loadCurve: null,
+      tariff: null,
+      bessProductId: null,
+      strategy: 'HYBRID',
+      sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
+      financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
+      rankingCriterion: 'PAYBACK',
+    },
   });
 }

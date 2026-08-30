@@ -9,7 +9,7 @@ import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './wizard-store';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
-import type { SavedProject, SingleLoad } from '@/lib/types';
+import type { SavedCiProject, SavedProject, SingleLoad } from '@/lib/types';
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
@@ -730,10 +730,15 @@ describe('persist partialize/merge (localStorage rehydration)', () => {
       services: state.services,
       loadCatalog: state.loadCatalog,
       loadPresets: state.loadPresets,
+      ciProjectInfo: state.ciProjectInfo,
+      currentCiProjectId: state.currentCiProjectId,
+      ciOptions: state.ciOptions,
     });
     // Deliberately not persisted (see the comment in wizard-store.ts).
     expect((persisted as Record<string, unknown>).projectDetailsVisible).toBeUndefined();
     expect((persisted as Record<string, unknown>).clients).toBeUndefined();
+    expect((persisted as Record<string, unknown>).ciProjectDetailsVisible).toBeUndefined();
+    expect((persisted as Record<string, unknown>).savedCiProjects).toBeUndefined();
   });
 
   it('merge fills in a persisted residentialOptions missing newer fields with the current defaults', () => {
@@ -1805,5 +1810,209 @@ describe('removeFromStock', () => {
     });
 
     await expect(useWizardStore.getState().removeFromStock('st1')).rejects.toBeTruthy();
+  });
+});
+
+// ─── C&I slice (lib/store/slices/commercial-industrial-slice.ts) ────────
+// Mirrors the residential newProjectDraft/saveCurrentProject/loadProject/
+// removeProject blocks above, one-for-one, against the parallel Ci*
+// actions — same store, same mocks, proving the two slices don't interfere.
+
+function makeSavedCiProject(partial: Partial<SavedCiProject> & Pick<SavedCiProject, 'id'>): SavedCiProject {
+  return {
+    installationType: 'commercial_industrial',
+    name: 'Projeto C&I salvo',
+    clientId: null,
+    address: { ...emptyAddress(), street: 'Rua C&I, 1' },
+    notes: 'Notas C&I',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    calculationOptions: {
+      loadCurve: null,
+      tariff: null,
+      bessProductId: null,
+      strategy: 'HYBRID',
+      sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
+      financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
+      rankingCriterion: 'PAYBACK',
+    },
+    calculationResult: null,
+    calculationVersion: null,
+    ...partial,
+  };
+}
+
+const ciProjectRow = {
+  id: 'row-ci1',
+  name: 'Projeto C&I do banco',
+  client_id: null,
+  address: 'Endereço do banco',
+  notes: 'Notas do banco',
+  installation_type: 'commercial_industrial',
+  calculation_options: { strategy: 'PEAK_SHAVING' },
+  calculation_result: null,
+  calculation_version: null,
+  status: 'draft',
+  updated_at: '2026-02-01T00:00:00.000Z',
+};
+
+describe('newCiProjectDraft', () => {
+  beforeEach(() => resetStore());
+
+  it('resets the C&I draft to blank and opens the details card', () => {
+    useWizardStore.setState({
+      currentCiProjectId: 'old-id',
+      ciProjectInfo: { name: 'Antigo', clientId: 'c1', address: emptyAddress(), notes: 'x' },
+    });
+
+    useWizardStore.getState().newCiProjectDraft();
+
+    const s = useWizardStore.getState();
+    expect(s.currentCiProjectId).toBeNull();
+    expect(s.ciProjectDetailsVisible).toBe(true);
+    expect(s.ciProjectInfo.name).toBe('');
+    expect(s.ciOptions.strategy).toBe('HYBRID');
+  });
+
+  it('does not touch the residential draft', () => {
+    useWizardStore.setState({ residentialOptions: { ...useWizardStore.getState().residentialOptions, batteryModel: 'kept' } });
+    useWizardStore.getState().newCiProjectDraft();
+    expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('kept');
+  });
+});
+
+describe('cancelCiProjectDraft', () => {
+  beforeEach(() => resetStore());
+
+  it('reverts to blank when there is no saved project behind the draft', () => {
+    useWizardStore.setState({ currentCiProjectId: null, ciProjectDetailsVisible: true });
+    useWizardStore.getState().cancelCiProjectDraft();
+    expect(useWizardStore.getState().ciProjectDetailsVisible).toBe(false);
+    expect(useWizardStore.getState().ciProjectInfo.name).toBe('');
+  });
+
+  it('reverts unsaved edits back to the last saved values for an existing project', () => {
+    const saved = makeSavedCiProject({ id: 'ci1', name: 'Nome salvo' });
+    useWizardStore.setState({
+      currentCiProjectId: 'ci1',
+      savedCiProjects: [saved],
+      ciProjectInfo: { name: 'Nome editado', clientId: null, address: emptyAddress(), notes: '' },
+    });
+
+    useWizardStore.getState().cancelCiProjectDraft();
+
+    expect(useWizardStore.getState().ciProjectInfo.name).toBe('Nome salvo');
+  });
+});
+
+describe('loadCiProject', () => {
+  beforeEach(() => resetStore());
+
+  it('loads a saved C&I project into the live draft', () => {
+    const saved = makeSavedCiProject({ id: 'ci1', name: 'Projeto X' });
+    useWizardStore.setState({ savedCiProjects: [saved] });
+
+    useWizardStore.getState().loadCiProject('ci1');
+
+    const s = useWizardStore.getState();
+    expect(s.currentCiProjectId).toBe('ci1');
+    expect(s.ciProjectDetailsVisible).toBe(true);
+    expect(s.ciProjectInfo.name).toBe('Projeto X');
+  });
+
+  it('is a no-op for an id that is not in savedCiProjects', () => {
+    useWizardStore.setState({ savedCiProjects: [] });
+    useWizardStore.getState().loadCiProject('missing');
+    expect(useWizardStore.getState().currentCiProjectId).toBeNull();
+  });
+});
+
+describe('saveCiProject', () => {
+  beforeEach(() => resetStore());
+
+  it('throws not_authenticated when there is no logged-in user', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock({ user: null }));
+    await expect(useWizardStore.getState().saveCiProject()).rejects.toThrow('not_authenticated');
+  });
+
+  it('throws a limit-reached error using the combined residential + C&I count', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock());
+    useWizardStore.setState({
+      currentCiProjectId: null,
+      savedProjects: Array.from({ length: ACCOUNT_LIMITS.projects - 1 }, (_, i) => makeSavedProject({ id: `p${i}` })),
+      savedCiProjects: [makeSavedCiProject({ id: 'ci1' })],
+    });
+
+    await expect(useWizardStore.getState().saveCiProject()).rejects.toThrow(/Limite de/);
+  });
+
+  it('inserts a brand-new C&I project and prepends it to savedCiProjects', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { projects: { data: ciProjectRow, error: null } } })
+    );
+    useWizardStore.setState({ currentCiProjectId: null, savedCiProjects: [] });
+
+    const saved = await useWizardStore.getState().saveCiProject();
+
+    expect(saved.id).toBe('row-ci1');
+    expect(saved.installationType).toBe('commercial_industrial');
+    const s = useWizardStore.getState();
+    expect(s.currentCiProjectId).toBe('row-ci1');
+    expect(s.savedCiProjects).toEqual([saved]);
+    // Saving a C&I project never touches the residential project list.
+    expect(s.savedProjects).toEqual([]);
+  });
+
+  it('updates an existing C&I project in place, deduping by id', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { projects: { data: ciProjectRow, error: null } } })
+    );
+    const stale = makeSavedCiProject({ id: 'row-ci1', name: 'Nome antigo' });
+    useWizardStore.setState({ currentCiProjectId: 'row-ci1', savedCiProjects: [stale] });
+
+    const saved = await useWizardStore.getState().saveCiProject();
+
+    const s = useWizardStore.getState();
+    expect(s.savedCiProjects).toHaveLength(1);
+    expect(s.savedCiProjects[0]).toEqual(saved);
+    expect(s.savedCiProjects[0].name).toBe('Projeto C&I do banco');
+  });
+
+  it('propagates a Supabase error instead of updating state', async () => {
+    createClientMock.mockReturnValue(
+      createSupabaseMock({ tableResults: { projects: { data: null, error: { message: 'db down' } } } })
+    );
+    useWizardStore.setState({ currentCiProjectId: null, savedCiProjects: [] });
+
+    await expect(useWizardStore.getState().saveCiProject()).rejects.toBeTruthy();
+    expect(useWizardStore.getState().savedCiProjects).toEqual([]);
+  });
+});
+
+describe('removeCiProject', () => {
+  beforeEach(() => resetStore());
+
+  it('removes the project from savedCiProjects', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock({ tableResults: { projects: { data: null, error: null } } }));
+    useWizardStore.setState({ savedCiProjects: [makeSavedCiProject({ id: 'ci1' }), makeSavedCiProject({ id: 'ci2' })] });
+
+    await useWizardStore.getState().removeCiProject('ci1');
+
+    expect(useWizardStore.getState().savedCiProjects.map((p) => p.id)).toEqual(['ci2']);
+  });
+
+  it('clears the live draft when removing the currently loaded C&I project', async () => {
+    createClientMock.mockReturnValue(createSupabaseMock({ tableResults: { projects: { data: null, error: null } } }));
+    useWizardStore.setState({
+      currentCiProjectId: 'ci1',
+      ciProjectDetailsVisible: true,
+      savedCiProjects: [makeSavedCiProject({ id: 'ci1' })],
+    });
+
+    await useWizardStore.getState().removeCiProject('ci1');
+
+    const s = useWizardStore.getState();
+    expect(s.currentCiProjectId).toBeNull();
+    expect(s.ciProjectDetailsVisible).toBe(false);
   });
 });
