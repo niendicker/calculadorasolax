@@ -16,6 +16,7 @@ export function useInitialData({
   supabase,
   fetchClients,
   fetchProjects,
+  fetchCiProjects,
   fetchUserLoadCatalog,
   fetchUserStockItems,
   fetchUserLoadPresets,
@@ -27,6 +28,7 @@ export function useInitialData({
   supabase: ReturnType<typeof createClient>;
   fetchClients: () => Promise<void>;
   fetchProjects: () => Promise<void>;
+  fetchCiProjects: () => Promise<void>;
   fetchUserLoadCatalog: () => Promise<void>;
   fetchUserStockItems: () => Promise<void>;
   fetchUserLoadPresets: () => Promise<void>;
@@ -108,6 +110,7 @@ export function useInitialData({
           await Promise.all([
             fetchClients(),
             fetchProjects(),
+            fetchCiProjects(),
             fetchUserLoadCatalog(),
             fetchUserStockItems(),
             fetchUserLoadPresets(),
@@ -238,6 +241,7 @@ export function useInitialData({
     supabase,
     fetchClients,
     fetchProjects,
+    fetchCiProjects,
     fetchUserLoadCatalog,
     fetchUserStockItems,
     fetchUserLoadPresets,
@@ -255,7 +259,7 @@ export function useInitialData({
 
   async function retryUserData() {
     try {
-      await Promise.all([fetchClients(), fetchProjects(), fetchUserLoadCatalog(), fetchUserStockItems()]);
+      await Promise.all([fetchClients(), fetchProjects(), fetchCiProjects(), fetchUserLoadCatalog(), fetchUserStockItems()]);
       setUserDataError(null);
     } catch {
       setUserDataError('Não foi possível carregar seus clientes, projetos ou cargas salvas. Verifique sua conexão e tente novamente.');

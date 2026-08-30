@@ -2,7 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 
-export type AppTab = 'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile';
+export type AppTab = 'project' | 'sizing' | 'ciWorkspace' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile';
 
 /** Centralizes tab changes and the unsaved-profile guard used by desktop and
  * mobile navigation. It deliberately owns no routing or domain state. */

@@ -1,7 +1,7 @@
 # Planejamento do módulo C&I — BESS
 
 **Data:** 2026-08-29 (revisado em 2026-08-30)  
-**Status:** motor de cálculo completo (Fases 1-5) em `lib/commercial-industrial/`, branch `feat/ci-module` — falta UI (Fase 2 restante, Fase 6) e infraestrutura de backend (Fase 7)  
+**Status:** motor de cálculo completo (Fases 1-5) em `supabase/functions/_shared/commercial-industrial/`, branch `feat/ci-module`; Fase 7 (Edge Function, rota Next.js, migração, repositório admin) completa — falta o `CiBessProductsEditor.tsx` de admin. Fase 6: `ProjectWorkspaceShell` extraído e reutilizado, camada de dados C&I (tipos/repositório/slice Zustand) pronta, fatia mínima de UI no ar (criar/abrir/salvar/excluir um projeto C&I a partir de "Projetos", com um workspace só de identificação) — faltam os painéis de curva de carga, tarifa, equipamento, estratégia e resultados  
 **Escopo inicial:** instalações Commercial & Industrial (C&I), análise e viabilidade de BESS  
 **Fonte de referência:** protótipo em `.env.import.local/frontend.txt` e `.env.import.local/backend c&i.txt`
 
