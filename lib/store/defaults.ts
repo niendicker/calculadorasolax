@@ -5,7 +5,7 @@
 
 import { emptyAddress } from '@/lib/address';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import type { DesiredFeatureId, IndustrialOptions, ProjectInfo, ResidentialOptions } from '@/lib/types';
+import type { DesiredFeatureId, ProjectInfo, ResidentialOptions } from '@/lib/types';
 
 export const defaultProjectInfo: ProjectInfo = {
   name: '',
@@ -32,14 +32,6 @@ export const defaultResidential: ResidentialOptions = {
   atsPhotoUrl: null,
   atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
-};
-
-export const defaultIndustrial: IndustrialOptions = {
-  gridPowerKw: null,
-  pvPowerKwp: null,
-  backupPowerKw: null,
-  backupHours: null,
-  demandCharge: false,
 };
 
 const VALID_DESIRED_FEATURE_IDS = new Set(DESIRED_FEATURE_DEFINITIONS.map((feature) => feature.id));

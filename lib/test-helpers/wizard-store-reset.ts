@@ -36,13 +36,6 @@ export function resetWizardStore() {
       atsBackupAcknowledged: false,
       maxPowerPerPhaseW: null,
     },
-    industrialOptions: {
-      gridPowerKw: null,
-      pvPowerKwp: null,
-      backupPowerKw: null,
-      backupHours: null,
-      demandCharge: false,
-    },
     solution: null,
     secondarySolution: null,
     loadCatalog: [],

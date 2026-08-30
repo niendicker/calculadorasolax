@@ -445,14 +445,6 @@ export interface Client {
   updatedAt: string;
 }
 
-export interface IndustrialOptions {
-  gridPowerKw: number | null;
-  pvPowerKwp: number | null;
-  backupPowerKw: number | null;
-  backupHours: number | null;
-  demandCharge: boolean;
-}
-
 /** One accessory line in a computed Solution, carrying the metadata from
  * whichever accessory_rules row matched it (or system defaults for
  * accessories baked directly into the approved solution, with no rule). */

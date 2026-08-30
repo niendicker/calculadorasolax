@@ -13,7 +13,6 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
     projectInfo: state.projectInfo,
     currentProjectId: state.currentProjectId,
     residentialOptions: state.residentialOptions,
-    industrialOptions: state.industrialOptions,
     solution: state.solution,
     secondarySolution: state.secondarySolution,
     services: state.services,
@@ -34,7 +33,6 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
         ...residentialOptions,
         desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),
       },
-      industrialOptions: { ...currentState.industrialOptions, ...persisted.industrialOptions },
     };
   },
 };

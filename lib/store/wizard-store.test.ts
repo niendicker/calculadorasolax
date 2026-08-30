@@ -654,20 +654,6 @@ describe('removeLoad / updateLoad', () => {
   });
 });
 
-describe('setIndustrialOption', () => {
-  beforeEach(() => resetStore());
-
-  it('sets a single key on industrialOptions without touching the rest', () => {
-    useWizardStore.getState().setIndustrialOption('gridPowerKw', 42);
-    useWizardStore.getState().setIndustrialOption('demandCharge', true);
-
-    const options = useWizardStore.getState().industrialOptions;
-    expect(options.gridPowerKw).toBe(42);
-    expect(options.demandCharge).toBe(true);
-    expect(options.pvPowerKwp).toBeNull();
-  });
-});
-
 describe('setSolution / setLoadCatalog / setLoadPresets', () => {
   beforeEach(() => resetStore());
 
@@ -683,7 +669,7 @@ describe('setSolution / setLoadCatalog / setLoadPresets', () => {
   });
 });
 
-describe('resetResidential / resetIndustrial', () => {
+describe('resetResidential', () => {
   beforeEach(() => resetStore());
 
   it('resetResidential clears residentialOptions and the calculated solution back to defaults', () => {
@@ -709,19 +695,6 @@ describe('resetResidential / resetIndustrial', () => {
     // Back to the HV/monofásico 220V starting point, not a blank slate.
     expect(s.residentialOptions.topology).toBe('HighVoltage');
     expect(s.residentialOptions.gridType).toBe('singlePhase_220');
-  });
-
-  it('resetIndustrial clears industrialOptions and the calculated solution back to defaults', () => {
-    useWizardStore.setState((s) => ({
-      industrialOptions: { ...s.industrialOptions, gridPowerKw: 100 },
-      solution: { id: 's1' } as never,
-    }));
-
-    useWizardStore.getState().resetIndustrial();
-
-    const s = useWizardStore.getState();
-    expect(s.industrialOptions.gridPowerKw).toBeNull();
-    expect(s.solution).toBeNull();
   });
 
   it('clearProjectServices removes project services without touching the user service catalog', () => {
@@ -752,7 +725,6 @@ describe('persist partialize/merge (localStorage rehydration)', () => {
       projectInfo: state.projectInfo,
       currentProjectId: state.currentProjectId,
       residentialOptions: state.residentialOptions,
-      industrialOptions: state.industrialOptions,
       solution: state.solution,
       secondarySolution: state.secondarySolution,
       services: state.services,
@@ -764,7 +736,7 @@ describe('persist partialize/merge (localStorage rehydration)', () => {
     expect((persisted as Record<string, unknown>).clients).toBeUndefined();
   });
 
-  it('merge fills in a persisted residentialOptions/industrialOptions missing newer fields with the current defaults', () => {
+  it('merge fills in a persisted residentialOptions missing newer fields with the current defaults', () => {
     const { merge } = useWizardStore.persist.getOptions();
     const currentState = useWizardStore.getState();
 
@@ -782,7 +754,6 @@ describe('persist partialize/merge (localStorage rehydration)', () => {
     expect(merged.residentialOptions.batteryModel).toBe('TP-HS3.6');
     // Falls back to the current (default) state for fields the persisted blob never had.
     expect(merged.residentialOptions.desiredFeatures).toEqual([]);
-    expect(merged.industrialOptions).toEqual(currentState.industrialOptions);
   });
 
   it('merge sanitizes a stale/unrecognized desiredFeatures id from the persisted blob', () => {
@@ -824,7 +795,6 @@ describe('persist partialize/merge (localStorage rehydration)', () => {
     const merged = merge!(null, currentState) as typeof currentState;
 
     expect(merged.residentialOptions).toEqual(currentState.residentialOptions);
-    expect(merged.industrialOptions).toEqual(currentState.industrialOptions);
   });
 });
 
