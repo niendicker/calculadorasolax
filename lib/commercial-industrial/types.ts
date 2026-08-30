@@ -34,6 +34,12 @@ export interface LoadCurve {
   source: LoadCurveSource;
 }
 
+/** Everything about a LoadCurve that the user declares up front — as opposed
+ * to `points`, which comes from the file itself. Kept separate so a parser
+ * (Fase 2's load-curve.ts) can validate the file against what was declared,
+ * never infer it silently (plan section 4.2). */
+export type LoadCurveMetadata = Omit<LoadCurve, 'points' | 'source'>;
+
 /** MVP cap (plan section 4.2/17): one representative week at 15-minute
  * resolution — 4 points/hour * 24 hours * 7 days. Applies regardless of the
  * curve's actual resolution (a 60-minute curve tops out at 168 points, well

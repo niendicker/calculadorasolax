@@ -1,6 +1,8 @@
-// Public surface of the C&I domain module. Only types + validation exist so
-// far (Fase 1, docs/CI-MODULE-PLAN.md) — dispatch/tariff/financial/scenarios/
-// ranking are added in their own phases, not stubbed out ahead of need.
+// Public surface of the C&I domain module (docs/CI-MODULE-PLAN.md). Only
+// types + validation (Fase 1) and load curve parsing (Fase 2) exist so far —
+// dispatch/tariff/financial/scenarios/ranking are added in their own later
+// phases, not stubbed out ahead of need.
 
 export * from './types';
 export * from './validation';
+export * from './load-curve';
