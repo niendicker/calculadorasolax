@@ -1,7 +1,7 @@
 # Planejamento do módulo C&I — BESS
 
 **Data:** 2026-08-29 (revisado em 2026-08-30)  
-**Status:** todas as pendências da seção 17 fechadas em 2026-08-30 — implementação da Fase 1 iniciada  
+**Status:** motor de cálculo completo (Fases 1-5) em `lib/commercial-industrial/`, branch `feat/ci-module` — falta UI (Fase 2 restante, Fase 6) e infraestrutura de backend (Fase 7)  
 **Escopo inicial:** instalações Commercial & Industrial (C&I), análise e viabilidade de BESS  
 **Fonte de referência:** protótipo em `.env.import.local/frontend.txt` e `.env.import.local/backend c&i.txt`
 

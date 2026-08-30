@@ -1,8 +1,7 @@
-// Public surface of the C&I domain module (docs/CI-MODULE-PLAN.md). Types +
-// validation (Fase 1), load curve parsing (Fase 2), the dispatch engine
-// (Fase 3), and tariff/financial costing (Fase 4) exist so far —
-// scenarios/ranking are added in their own later phase, not stubbed out
-// ahead of need.
+// Public surface of the C&I domain module (docs/CI-MODULE-PLAN.md). The
+// full calculation engine (Fases 1-5: types/validation, load curve parsing,
+// dispatch, tariff/financial costing, scenario grid + ranking) lives here.
+// UI, persistence, and the Edge Function wiring (Fases 6-7) are next.
 
 export * from './types';
 export * from './validation';
@@ -10,3 +9,5 @@ export * from './load-curve';
 export * from './dispatch';
 export * from './tariff';
 export * from './financial';
+export * from './scenarios';
+export * from './ranking';
