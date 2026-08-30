@@ -9,7 +9,7 @@
 // that is Fase 2's load-curve.ts job, run before a LoadCurve ever reaches
 // this validator.
 
-import { LOAD_CURVE_MAX_POINTS, type LoadCurveProfileBasis, type LoadCurveResolutionMinutes } from './types';
+import { LOAD_CURVE_MAX_POINTS, type LoadCurveProfileBasis, type LoadCurveResolutionMinutes } from './types.ts';
 
 const VALID_RESOLUTIONS: LoadCurveResolutionMinutes[] = [15, 30, 60];
 const VALID_PROFILE_BASES: LoadCurveProfileBasis[] = ['representative_day', 'representative_period', 'annual_series'];
@@ -18,6 +18,7 @@ const VALID_TARIFF_MODALITIES = ['verde', 'azul'] as const;
 const VALID_TARIFF_MARKETS = ['cativo', 'livre'] as const;
 const VALID_SIZING_MODES = ['fixed', 'auto'] as const;
 const VALID_CURVE_SOURCES = ['manual', 'csv', 'xlsx'] as const;
+const VALID_RANKING_CRITERIA = ['PAYBACK', 'ROI', 'NPV'] as const;
 
 const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -226,6 +227,10 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
 
   validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
+
+  if (!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
+    errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));
+  }
 
   return errors;
 }

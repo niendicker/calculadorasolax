@@ -4,7 +4,7 @@
 // 17), annual ROI, and NPV. No tariff/dispatch knowledge here — this only
 // does time-value-of-money arithmetic on numbers it's handed.
 
-import type { CashFlowYear, FinancialAssumptions } from './types';
+import type { CashFlowYear, FinancialAssumptions } from './types.ts';
 
 export function computeCapex(moduleCount: number, unitPriceBrl: number, additionalCostsBrl = 0): number {
   return moduleCount * unitPriceBrl + additionalCostsBrl;

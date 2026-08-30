@@ -3,8 +3,8 @@
 // annual R$ cost. Pure: no financial time-value math here (that's
 // financial.ts) and no simulation (that's dispatch.ts).
 
-import type { DispatchSummary } from './dispatch';
-import type { TariffConfig } from './types';
+import type { DispatchSummary } from './dispatch.ts';
+import type { TariffConfig } from './types.ts';
 
 /** The MVP load curve is one representative week (plan section 4.2/5.4),
  * already mixing weekday and weekend days in their real proportion — so

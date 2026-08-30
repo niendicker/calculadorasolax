@@ -9,7 +9,7 @@
 // kept this file free of a CSV parsing library — the expected input (two
 // columns, ISO timestamps, numeric power) doesn't need one.
 
-import { LOAD_CURVE_MAX_POINTS, type LoadCurve, type LoadCurveMetadata, type LoadCurvePoint } from './types';
+import { LOAD_CURVE_MAX_POINTS, type LoadCurve, type LoadCurveMetadata, type LoadCurvePoint } from './types.ts';
 
 export type ParseLoadCurveResult =
   | { ok: true; curve: LoadCurve; warnings: string[] }

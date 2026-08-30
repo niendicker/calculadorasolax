@@ -48,6 +48,7 @@ function makeOptions(overrides: Partial<CommercialIndustrialOptions> = {}): Comm
       annualEnergyInflationPercent: 0,
       monthsPerYear: 12,
     },
+    rankingCriterion: 'PAYBACK',
     ...overrides,
   };
 }
@@ -210,6 +211,11 @@ describe('validateCommercialIndustrialOptions', () => {
   it('rejects an invalid strategy', () => {
     const errors = validateCommercialIndustrialOptions(makeOptions({ strategy: 'MAGIC' as never }));
     expect(errors.some((e) => e.startsWith('strategy'))).toBe(true);
+  });
+
+  it('rejects an invalid rankingCriterion', () => {
+    const errors = validateCommercialIndustrialOptions(makeOptions({ rankingCriterion: 'CHEAPEST' as never }));
+    expect(errors.some((e) => e.startsWith('rankingCriterion'))).toBe(true);
   });
 
   it('rejects a non-string, non-null bessProductId', () => {

@@ -4,9 +4,7 @@
 // itself (plan section 8's "a justificativa aponta métricas e premissas
 // reais") — never a canned string.
 
-import type { ScenarioCandidate } from './types';
-
-export type RankingCriterion = 'PAYBACK' | 'ROI' | 'NPV';
+import type { RankingCriterion, ScenarioCandidate } from './types.ts';
 
 /** Scenarios that never pay back (`paybackYearsSimple === null`) always sort
  * last under the PAYBACK criterion, regardless of how good their other

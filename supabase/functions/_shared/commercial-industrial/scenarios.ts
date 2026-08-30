@@ -5,20 +5,23 @@
 // 7's repository layer resolves those from the catalog and
 // user_stock_items — this module never touches Supabase).
 
-import { annualizeWeeklyDispatch, computeAnnualEnergyCost, computeAnnualSavings } from './tariff';
-import { runDispatch, summarizeDispatch, type TariffWindow } from './dispatch';
-import { buildCashFlow, computeAnnualRoiPercent, computeCapex, computeDiscountedPaybackYears, computeNpv, computeSimplePaybackYears } from './financial';
+import { annualizeWeeklyDispatch, computeAnnualEnergyCost, computeAnnualSavings } from './tariff.ts';
+import { runDispatch, summarizeDispatch, type TariffWindow } from './dispatch.ts';
+import { buildCashFlow, computeAnnualRoiPercent, computeCapex, computeDiscountedPaybackYears, computeNpv, computeSimplePaybackYears } from './financial.ts';
 import type {
   BaselineResult,
   BessRuntimeParams,
   BessStrategyId,
+  CashFlowYear,
   CiBessProduct,
+  DispatchPoint,
   FinancialAssumptions,
   LoadCurve,
   ScenarioCandidate,
+  SelectedScenarioDetail,
   SizingConfig,
   TariffConfig,
-} from './types';
+} from './types.ts';
 
 export type BessProductSpec = Pick<
   CiBessProduct,
@@ -66,86 +69,121 @@ export interface ScenarioGridResult {
 
 const ZERO_BESS: BessRuntimeParams = { totalPowerKw: 0, totalCapacityKwh: 0, socMinPercent: 0, socMaxPercent: 0, efficiencyPercent: 100 };
 
+function computeBaseline(input: Pick<ScenarioGridInput, 'curve' | 'tariffWindow' | 'tariff' | 'monthsPerYear'>) {
+  // BASE ignores bess params entirely (dispatch.ts) — ZERO_BESS makes the
+  // "no battery" intent explicit rather than relying on that implicitly.
+  const trace = runDispatch({ curve: input.curve, bess: ZERO_BESS, strategy: 'BASE', tariffWindow: input.tariffWindow, targetDemandKw: null });
+  const annualized = annualizeWeeklyDispatch(summarizeDispatch(trace, input.curve.resolutionMinutes));
+  const cost = computeAnnualEnergyCost(annualized, input.tariff, input.monthsPerYear);
+  const result: BaselineResult = {
+    annualCostBrl: cost.totalCostBrl,
+    maxDemandPeakKw: annualized.maxDemandPeakKw,
+    maxDemandOffPeakKw: annualized.maxDemandOffPeakKw,
+    energyImportedPeakKwh: annualized.energyImportedPeakKwh,
+    energyImportedOffPeakKwh: annualized.energyImportedOffPeakKwh,
+  };
+  return { result, cost };
+}
+
+/** The dispatch->tariff->financial pipeline for one module count, shared by
+ * buildScenarioGrid (which keeps only the aggregate) and
+ * materializeScenarioDetail (which keeps the trace and cash flow too).
+ * `marginalGain` always comes back null here — it depends on comparing
+ * against a sibling candidate, which only the caller knows about. */
+function evaluateModuleCount(
+  input: ScenarioGridInput,
+  moduleCount: number,
+  baselineCost: ReturnType<typeof computeAnnualEnergyCost>
+): { candidate: ScenarioCandidate; trace: DispatchPoint[]; cashFlow: CashFlowYear[] } {
+  const { curve, product, strategy, tariffWindow, tariff, targetDemandKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions } = input;
+
+  const bess: BessRuntimeParams = {
+    totalPowerKw: product.modulePowerKw * moduleCount,
+    totalCapacityKwh: product.moduleCapacityKwh * moduleCount,
+    socMinPercent: product.socMinPercent,
+    socMaxPercent: product.socMaxPercent,
+    efficiencyPercent: product.efficiencyPercent,
+  };
+
+  const trace = runDispatch({ curve, bess, strategy, tariffWindow, targetDemandKw });
+  const summary = summarizeDispatch(trace, curve.resolutionMinutes);
+  const annualized = annualizeWeeklyDispatch(summary);
+  const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);
+  const savings = computeAnnualSavings(baselineCost, cost);
+
+  const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl);
+  const cashFlow = buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
+
+  const technicalWarnings: string[] = [];
+  if (targetDemandKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
+    const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
+    if (achievedMaxDemandKw > targetDemandKw + 1e-6) {
+      technicalWarnings.push(
+        `BESS insuficiente para atingir o alvo de demanda de ${targetDemandKw} kW — demanda residual de ${achievedMaxDemandKw.toFixed(1)} kW`
+      );
+    }
+  }
+
+  const candidate: ScenarioCandidate = {
+    scenarioId: `modules-${moduleCount}`,
+    moduleCount,
+    strategy,
+    // Every candidate is technically valid by construction — dispatch.ts
+    // clamps every physical limit rather than ever requesting the
+    // impossible, so there is no scenario a physical rule invalidates
+    // outright. technicalWarnings still surfaces when the result falls
+    // short of what the strategy was asked to achieve (undersized BESS).
+    technicalValidity: true,
+    technicalWarnings,
+    totalPowerKw: bess.totalPowerKw,
+    totalCapacityKwh: bess.totalCapacityKwh,
+    usefulCapacityKwh: (bess.totalCapacityKwh * (bess.socMaxPercent - bess.socMinPercent)) / 100,
+    capex,
+    annualSavings: savings.annualSavingsBrl,
+    energySavings: savings.energySavingsBrl,
+    demandSavings: savings.demandSavingsBrl,
+    paybackYearsSimple: computeSimplePaybackYears(cashFlow),
+    paybackYearsDiscounted: computeDiscountedPaybackYears(cashFlow),
+    roiPercent: computeAnnualRoiPercent(capex, savings.annualSavingsBrl),
+    npv: computeNpv(cashFlow),
+    marginalGain: null,
+  };
+
+  return { candidate, trace, cashFlow };
+}
+
 /** Runs the full grid. Selection of one candidate afterward is a pure UI
  * concern (Fase 6) — this function has no notion of "selected", so picking
  * one later never changes what was calculated here (plan section 5's
- * acceptance criterion). */
+ * acceptance criterion). Candidates never carry dispatch[]/cashFlow[] (plan
+ * section 4.5) — use materializeScenarioDetail for the one the user
+ * actually selects. */
 export function buildScenarioGrid(input: ScenarioGridInput): ScenarioGridResult {
-  const { curve, product, strategy, sizing, tariffWindow, tariff, targetDemandKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions } = input;
+  const { result: baseline, cost: baselineCost } = computeBaseline(input);
 
-  // BASE ignores bess params entirely (dispatch.ts) — ZERO_BESS makes the
-  // "no battery" intent explicit rather than relying on that implicitly.
-  const baselineTrace = runDispatch({ curve, bess: ZERO_BESS, strategy: 'BASE', tariffWindow, targetDemandKw: null });
-  const baselineAnnualized = annualizeWeeklyDispatch(summarizeDispatch(baselineTrace, curve.resolutionMinutes));
-  const baselineCost = computeAnnualEnergyCost(baselineAnnualized, tariff, monthsPerYear);
-  const baseline: BaselineResult = {
-    annualCostBrl: baselineCost.totalCostBrl,
-    maxDemandPeakKw: baselineAnnualized.maxDemandPeakKw,
-    maxDemandOffPeakKw: baselineAnnualized.maxDemandOffPeakKw,
-    energyImportedPeakKwh: baselineAnnualized.energyImportedPeakKwh,
-    energyImportedOffPeakKwh: baselineAnnualized.energyImportedOffPeakKwh,
-  };
-
-  const moduleCounts = buildModuleCountRange(sizing);
+  const moduleCounts = buildModuleCountRange(input.sizing);
   const scenarios: ScenarioCandidate[] = [];
   let previousAnnualSavings: number | null = null;
 
   for (const moduleCount of moduleCounts) {
-    const bess: BessRuntimeParams = {
-      totalPowerKw: product.modulePowerKw * moduleCount,
-      totalCapacityKwh: product.moduleCapacityKwh * moduleCount,
-      socMinPercent: product.socMinPercent,
-      socMaxPercent: product.socMaxPercent,
-      efficiencyPercent: product.efficiencyPercent,
-    };
-
-    const trace = runDispatch({ curve, bess, strategy, tariffWindow, targetDemandKw });
-    const summary = summarizeDispatch(trace, curve.resolutionMinutes);
-    const annualized = annualizeWeeklyDispatch(summary);
-    const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);
-    const savings = computeAnnualSavings(baselineCost, cost);
-
-    const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl);
-    const cashFlow = buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
-
-    const technicalWarnings: string[] = [];
-    if (targetDemandKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
-      const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
-      if (achievedMaxDemandKw > targetDemandKw + 1e-6) {
-        technicalWarnings.push(
-          `BESS insuficiente para atingir o alvo de demanda de ${targetDemandKw} kW — demanda residual de ${achievedMaxDemandKw.toFixed(1)} kW`
-        );
-      }
-    }
-
-    const marginalGain = previousAnnualSavings === null ? null : savings.annualSavingsBrl - previousAnnualSavings;
-    previousAnnualSavings = savings.annualSavingsBrl;
-
-    scenarios.push({
-      scenarioId: `modules-${moduleCount}`,
-      moduleCount,
-      strategy,
-      // Every candidate is technically valid by construction — dispatch.ts
-      // clamps every physical limit rather than ever requesting the
-      // impossible, so there is no scenario a physical rule invalidates
-      // outright. technicalWarnings still surfaces when the result falls
-      // short of what the strategy was asked to achieve (undersized BESS).
-      technicalValidity: true,
-      technicalWarnings,
-      totalPowerKw: bess.totalPowerKw,
-      totalCapacityKwh: bess.totalCapacityKwh,
-      usefulCapacityKwh: (bess.totalCapacityKwh * (bess.socMaxPercent - bess.socMinPercent)) / 100,
-      capex,
-      annualSavings: savings.annualSavingsBrl,
-      energySavings: savings.energySavingsBrl,
-      demandSavings: savings.demandSavingsBrl,
-      paybackYearsSimple: computeSimplePaybackYears(cashFlow),
-      paybackYearsDiscounted: computeDiscountedPaybackYears(cashFlow),
-      roiPercent: computeAnnualRoiPercent(capex, savings.annualSavingsBrl),
-      npv: computeNpv(cashFlow),
-      marginalGain,
-    });
+    const { candidate } = evaluateModuleCount(input, moduleCount, baselineCost);
+    candidate.marginalGain = previousAnnualSavings === null ? null : candidate.annualSavings - previousAnnualSavings;
+    previousAnnualSavings = candidate.annualSavings;
+    scenarios.push(candidate);
   }
 
   return { baseline, scenarios };
+}
+
+/** Re-runs one specific module count with the full point-by-point dispatch
+ * trace and cash flow attached — plan section 4.5's materialization rule.
+ * Used both to give the recommended scenario full detail right after the
+ * first calculation, and later when the user selects a different candidate
+ * from the grid. Recomputes its own baseline rather than accepting one, so
+ * it never silently drifts from what buildScenarioGrid would produce for
+ * the same input. */
+export function materializeScenarioDetail(input: ScenarioGridInput, moduleCount: number, marginalGain: number | null): SelectedScenarioDetail {
+  const { cost: baselineCost } = computeBaseline(input);
+  const { candidate, trace, cashFlow } = evaluateModuleCount(input, moduleCount, baselineCost);
+  return { ...candidate, marginalGain, dispatch: trace, cashFlow };
 }

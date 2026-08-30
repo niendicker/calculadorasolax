@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildModuleCountRange, buildScenarioGrid, type BessProductSpec, type ScenarioGridInput } from './scenarios';
+import { buildModuleCountRange, buildScenarioGrid, materializeScenarioDetail, type BessProductSpec, type ScenarioGridInput } from './scenarios';
 import { hasNoMarginalBenefit } from './ranking';
 import type { LoadCurve, SizingConfig, TariffConfig } from './types';
 
@@ -131,5 +131,30 @@ describe('buildScenarioGrid', () => {
     // deterministic (plan section 1: "cálculos determinísticos").
     const input = makeInput({ sizing: { mode: 'auto', moduleCount: null, minModules: 1, maxModules: 2 } });
     expect(buildScenarioGrid(input)).toEqual(buildScenarioGrid(input));
+  });
+});
+
+describe('materializeScenarioDetail', () => {
+  it('reproduces the same aggregates as the matching grid candidate, plus dispatch and cash flow', () => {
+    const input = makeInput({ sizing: { mode: 'auto', moduleCount: null, minModules: 1, maxModules: 2 } });
+    const { scenarios } = buildScenarioGrid(input);
+    const gridCandidate = scenarios[1]; // moduleCount 2
+
+    const detail = materializeScenarioDetail(input, 2, gridCandidate.marginalGain);
+
+    const { dispatch, cashFlow, ...aggregates } = detail;
+    expect(aggregates).toEqual(gridCandidate);
+    expect(dispatch.length).toBe(input.curve.points.length);
+    expect(cashFlow.length).toBeGreaterThan(0);
+  });
+
+  it("never mutates the grid's own scenario when a caller later augments the detail with a different marginalGain", () => {
+    const input = makeInput({ sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null } });
+    const { scenarios } = buildScenarioGrid(input);
+
+    const detail = materializeScenarioDetail(input, 1, 999);
+
+    expect(detail.marginalGain).toBe(999);
+    expect(scenarios[0].marginalGain).toBeNull();
   });
 });

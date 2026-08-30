@@ -119,6 +119,9 @@ export interface CiBessProduct {
   updatedAt: string;
 }
 
+/** How buildScenarioGrid's results (scenarios.ts) get ranked — see ranking.ts. */
+export type RankingCriterion = 'PAYBACK' | 'ROI' | 'NPV';
+
 export interface CommercialIndustrialOptions {
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
@@ -126,6 +129,7 @@ export interface CommercialIndustrialOptions {
   strategy: BessStrategyId;
   sizing: SizingConfig;
   financialAssumptions: FinancialAssumptions;
+  rankingCriterion: RankingCriterion;
 }
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────

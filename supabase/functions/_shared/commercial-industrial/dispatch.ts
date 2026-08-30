@@ -9,7 +9,7 @@
 // independent engines, and the same discipline is applied to the other
 // three for a single, testable code path.
 
-import type { BessRuntimeParams, BessStrategyId, DispatchPoint, LoadCurve, TariffPeriod } from './types';
+import type { BessRuntimeParams, BessStrategyId, DispatchPoint, LoadCurve, TariffPeriod } from './types.ts';
 
 export interface TariffWindow {
   /** HH:mm, local to the curve's declared timezone. */
