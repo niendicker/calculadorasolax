@@ -25,7 +25,6 @@ import {
   Plus,
   ReceiptText,
   RefreshCw,
-  Save,
   Settings2,
   ShieldCheck,
   ShoppingCart,
@@ -56,6 +55,7 @@ import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, normalizeAc
 import { CatalogProductCard, DocPreviewModal, MicrogridGuideDialog } from '../shared-ui';
 import { MicrogridVariantChoice } from '../tabs/sizing/ResultSummary';
 import { PageSummary } from '../shell/slots';
+import { ProjectWorkspaceShell } from './ProjectWorkspaceShell';
 import { QuoteShareButton } from '../tabs/project/QuoteShareButton';
 import { SupplierQuoteAction } from '../tabs/project/SupplierQuoteAction';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
@@ -404,19 +404,6 @@ function ProjectServicesModal({
   );
 }
 
-function WorkspaceAutosaveStatus({ status, lastSavedAt }: { status: AutosaveStatus; lastSavedAt: Date | null }) {
-  if (status === 'idle') return null;
-  const label = status === 'saving'
-    ? 'Salvando...'
-    : status === 'error'
-      ? 'Falha ao salvar'
-      : status === 'pending'
-        ? 'Alterações pendentes'
-        : `Salvo${lastSavedAt ? ` às ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`;
-  const Icon = status === 'saving' ? Loader2 : status === 'saved' ? CheckCircle2 : status === 'error' ? AlertTriangle : Save;
-  return <span role="status" className={cn('inline-flex items-center gap-1.5 text-xs text-muted-foreground', status === 'error' && 'text-destructive')}><Icon className={cn('h-3.5 w-3.5', status === 'saving' && 'animate-spin')} aria-hidden="true" />{label}</span>;
-}
-
 export function ProjectWorkspace({
   enabled = true,
   projectInfo,
@@ -522,7 +509,6 @@ export function ProjectWorkspace({
   children: ReactNode;
 }) {
   const [section, setSectionState] = useState<WorkspaceSection>('overview');
-  const [urlReady, setUrlReady] = useState(false);
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
   const [projectInfoEditField, setProjectInfoEditField] = useState<ProjectInfoEditField>(null);
   const enabledFeatures = residentialOptions.desiredFeatures;
@@ -540,31 +526,6 @@ export function ProjectWorkspace({
     availableInverterModels,
     selectedInverterModel: residentialOptions.inverterModel,
   });
-  useEffect(() => {
-    const setSectionFromValue = (value: string | null) => {
-    if (value === 'resource' || value === 'project' || value === 'configuration' || (value && navigation.some((item) => item.id === value))) {
-        setSectionState(value as WorkspaceSection);
-      }
-    };
-    const value = new URLSearchParams(window.location.search).get('workspace');
-    // The URL is external state; this one-time synchronization intentionally
-    // updates the section after mount so SSR and the first client paint agree.
-    setSectionFromValue(value);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setUrlReady(true);
-
-    const handleWorkspaceSectionChange = (event: Event) => {
-      setSectionFromValue((event as CustomEvent<string>).detail);
-    };
-    window.addEventListener('workspace-section-change', handleWorkspaceSectionChange);
-    return () => window.removeEventListener('workspace-section-change', handleWorkspaceSectionChange);
-  }, []);
-  useEffect(() => {
-    if (!urlReady) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('workspace', section);
-    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [section, urlReady]);
   const resources: ResourceItem[] = [
     {
       id: 'backup', label: 'Backup', icon: featureIcons.backup,
@@ -637,7 +598,64 @@ export function ProjectWorkspace({
   }
 
   return (
-    <div className="space-y-4">
+    <ProjectWorkspaceShell
+      title={projectInfo.name || 'Projeto sem nome'}
+      autosaveStatus={autosaveStatus}
+      autosaveLastSavedAt={autosaveLastSavedAt}
+      navigation={navigation}
+      activeSection={section}
+      onSectionChange={(id) => setSectionState(id as WorkspaceSection)}
+      subtitle={
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
+              <UserRound className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span>{client?.name || 'Não informado'}</span>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
+        </p>
+      }
+      actions={
+        <>
+          {onRefreshSolution && (
+            <Button
+              type="button"
+              variant={solution && !staleSolution ? 'outline' : 'default'}
+              size="sm"
+              className={cn(
+                'shrink-0',
+                solution && !staleSolution
+                  ? 'border-muted text-muted-foreground'
+                  : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
+              )}
+              onClick={onRefreshSolution}
+              disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
+              title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
+              aria-busy={recalculatingSolution}
+            >
+              {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+              {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
+            </Button>
+          )}
+          {onResetSizing && (
+            <ConfirmDeleteModalButton
+              ariaLabel="Limpar dimensionamento"
+              itemName="dimensionamento atual"
+              itemType="dimensionamento"
+              title="Limpar dimensionamento?"
+              description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
+              label="Limpar"
+              icon={<Trash2 className="h-4 w-4" />}
+              confirmLabel="Limpar"
+              triggerVariant="outline"
+              onConfirm={onResetSizing}
+            />
+          )}
+        </>
+      }
+    >
       {section !== 'overview' && <PageSummary>
         <div className="space-y-4">
           <div className="grid gap-2">
@@ -654,83 +672,6 @@ export function ProjectWorkspace({
           </Card>
         </div>
       </PageSummary>}
-      <div className="sticky top-0 z-30 bg-background pb-3 lg:pt-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{projectInfo.name || 'Projeto sem nome'}</h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> Em andamento</span>
-            <WorkspaceAutosaveStatus status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
-          </div>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span>{client?.name || 'Não informado'}</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {onRefreshSolution && (
-                <Button
-                  type="button"
-                  variant={solution && !staleSolution ? 'outline' : 'default'}
-                  size="sm"
-                  className={cn(
-                    'shrink-0',
-                    solution && !staleSolution
-                      ? 'border-muted text-muted-foreground'
-                      : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
-                  )}
-                  onClick={onRefreshSolution}
-                  disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
-                  title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
-                  aria-busy={recalculatingSolution}
-                >
-                  {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-                  {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
-                </Button>
-              )}
-              {onResetSizing && (
-                <ConfirmDeleteModalButton
-                  ariaLabel="Limpar dimensionamento"
-                  itemName="dimensionamento atual"
-                  itemType="dimensionamento"
-                  title="Limpar dimensionamento?"
-                  description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-                  label="Limpar"
-                  icon={<Trash2 className="h-4 w-4" />}
-                  confirmLabel="Limpar"
-                  triggerVariant="outline"
-                  onConfirm={onResetSizing}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-        <nav className="mt-4 flex items-stretch overflow-x-auto rounded-xl border border-border/70 bg-card/70 p-1" aria-label="Seções do projeto">
-          {navigation.map(({ id, label, icon: Icon }, index) => (
-            <div key={id} className="flex min-w-[8.5rem] flex-1 items-stretch">
-              {index > 0 && <ChevronRight className="my-auto h-5 w-5 shrink-0 text-muted-foreground/50" aria-hidden="true" />}
-              <button
-                type="button"
-                aria-current={section === id ? 'page' : undefined}
-                onClick={() => openSizingSection(id)}
-                className={cn(
-                  'relative flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  section === id ? 'text-primary after:bg-primary' : 'text-muted-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{label}</span>
-              </button>
-            </div>
-          ))}
-        </nav>
-      </div>
-
       {section === 'overview' ? (
         <>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
@@ -1018,7 +959,7 @@ export function ProjectWorkspace({
         }}
       />
       <MicrogridGuideDialog open={microgridGuideOpen} onClose={() => setMicrogridGuideOpen(false)} />
-    </div>
+    </ProjectWorkspaceShell>
   );
 }
 
