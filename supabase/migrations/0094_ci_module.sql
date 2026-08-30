@@ -113,23 +113,26 @@ create policy "authenticated read active ci_bess_products"
   to authenticated
   using (active);
 
--- Admin writes go through a service-role admin API route (same pattern as
--- load_catalog's admin editor), which bypasses RLS entirely — this policy
--- is defense-in-depth for the (currently unused) case of a direct
--- authenticated-role write.
+-- Admin writes go through the same direct-client pattern already
+-- established for approved_solutions (components/admin/AdminPanel.tsx's
+-- upsert, using the browser's own session-scoped client) — there is no
+-- service-role admin API route for catalog-style resources in this
+-- project. `for all` covers select too, so an admin also sees inactive
+-- rows through this policy even though the row's own `active` flag would
+-- otherwise hide it under the policy above.
 create policy "admin write ci_bess_products"
   on ci_bess_products for all
   to authenticated
   using (public.is_admin())
   with check (public.is_admin());
 
--- Matches load_catalog's exact grant shape (0093_grant_authenticated_user_data_access.sql):
--- authenticated only ever gets `select` at the privilege level, so the
--- "admin write" RLS policy above is truly defense-in-depth, not a usable
--- path — admin writes go through a service-role route, which needs the
--- full CRUD grant instead.
-grant select on table public.ci_bess_products to authenticated;
-grant select, insert, update, delete on table public.ci_bess_products to service_role;
+-- authenticated needs the full CRUD grant for the policy above to ever be
+-- reachable — RLS only decides which rows/actions are allowed, the
+-- underlying table privilege still has to exist first (the same lesson as
+-- project_calculation_runs above). service_role only needs select, for the
+-- Edge Function's own product lookup.
+grant select, insert, update, delete on table public.ci_bess_products to authenticated;
+grant select on table public.ci_bess_products to service_role;
 
 -- ================================================================
 -- 4) user_stock_items: add the C&I BESS product type
