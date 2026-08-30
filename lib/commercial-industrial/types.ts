@@ -188,7 +188,29 @@ export interface BaselineResult {
   annualCostBrl: number;
   maxDemandPeakKw: number;
   maxDemandOffPeakKw: number;
-  energyImportedKwh: number;
+  /** Split by tariff period so Fase 4's tariff.ts can price peak/off-peak TE
+   * separately without needing the baseline's full point-by-point trace
+   * (which, unlike a selected scenario, is never persisted — plan section
+   * 4.5). */
+  energyImportedPeakKwh: number;
+  energyImportedOffPeakKwh: number;
+}
+
+/** Runtime BESS sizing for one simulation — moduleCount * catalog spec
+ * already resolved into totals (plan section 4.3: totals are derived, not
+ * stored). `efficiencyPercent` is the round-trip figure from the catalog;
+ * the dispatch engine splits it into charge/discharge legs via its square
+ * root, per the plan's documented MVP convention. */
+export interface BessRuntimeParams {
+  totalPowerKw: number;
+  totalCapacityKwh: number;
+  socMinPercent: number;
+  socMaxPercent: number;
+  efficiencyPercent: number;
+  /** Defaults to socMaxPercent when omitted (plan section 5.2: "bateria
+   * começa com SOC explicitamente definido, preferencialmente o SOC
+   * máximo"). */
+  initialSocPercent?: number;
 }
 
 export interface CommercialIndustrialResult {

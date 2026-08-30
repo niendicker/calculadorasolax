@@ -997,15 +997,24 @@ de produtos C&I.
 hook de curva, `lib/commercial-industrial/load-curve.ts`, dependências somente
 se justificadas.
 
-**Novas estruturas:** parser CSV/XLSX, metadados de resolução, warnings e
-resumo de pico/mínimo/média/energia.
+**Novas estruturas:** parser CSV, metadados de resolução, warnings e resumo
+de pico/mínimo/média/energia — implementados em
+`lib/commercial-industrial/load-curve.ts`
+(`parseLoadCurveCsv`/`summarizeLoadCurve`).
 
-**Dependências:** contratos da Fase 1, catálogo ativo carregado do servidor e
-decisão sobre biblioteca XLSX/gráficos.
+**Decisão fechada — XLSX adiado:** o MVP aceita só CSV. Qualquer planilha
+exporta para CSV em um clique, e adicionar uma biblioteca de ~1MB (`xlsx`/
+SheetJS — não existe hoje nenhuma lib de planilha nas dependências do
+projeto) antes de uma necessidade concreta contraria a seção 14/15. XLSX
+fica como extensão futura, sem mudar o contrato (`LoadCurveSource` já
+inclui `'xlsx'`).
+
+**Dependências:** contratos da Fase 1, catálogo ativo carregado do servidor.
 
 **Critérios de aceite:**
 
-- CSV e XLSX válido são normalizados para o mesmo contrato;
+- CSV válido é normalizado para o contrato `LoadCurve` (XLSX adiado, ver
+  decisão acima);
 - 15/30/60 minutos são aceitos de fato (não só validados) até o limite de
   672 pontos (seção 4.2); acima do limite, rejeitado com mensagem clara;
 - lacunas e duplicidades aparecem ao usuário;
