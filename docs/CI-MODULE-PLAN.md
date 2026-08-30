@@ -366,12 +366,17 @@ tariffModality: verde | azul
 market: cativo | livre
 icmsPercent: percent
 pisCofinsPercent: percent
-annualEnergyInflationPercent: percent
 ```
 
 O significado de cobrança Verde, Azul, ACL, impostos e demanda deve ser
 validado com a regra de negócio antes de congelar o motor. O resultado deve
 registrar as tarifas já normalizadas e as tarifas de entrada usadas.
+
+**Correção fechada na Fase 4:** `annualEnergyInflationPercent` estava
+duplicado aqui e em `FinancialAssumptions` (seção 11) — mesmo conceito,
+dois lugares. Ficou só em `FinancialAssumptions`, que é onde a projeção de
+fluxo de caixa multi-ano de fato o usa; a tarifa em si (custo de um único
+ano, a partir da semana representativa) não precisa dele.
 
 ### 4.5 Resultado do motor
 
@@ -526,10 +531,20 @@ A configuração deve informar se a curva representa:
 - uma série anual.
 
 Para o MVP, o perfil suportado é uma **semana representativa** (até 672
-pontos, seção 4.2) com quantidade de dias úteis/mês e meses/ano configuráveis
-para extrapolar a semana para o horizonte financeiro. `representative_day` e
-`annual_series` ficam previstos no contrato mas fora do MVP. O relatório deve
-mostrar essa premissa.
+pontos, seção 4.2), já com dia útil e fim de semana distinguidos ponto a
+ponto na própria curva. `representative_day` e `annual_series` ficam
+previstos no contrato mas fora do MVP.
+
+**Correção fechada na Fase 4:** a fórmula de anualização original desta
+seção (dia típico × dias úteis/mês) foi escrita para uma curva de um único
+dia — não reconciliada quando a curva do MVP virou semana representativa
+(seção 17). Como a semana já mistura dia útil e fim de semana na proporção
+real, a extrapolação correta é **semana × (365,25/7)** para energia — o
+campo `businessDaysPerMonth` não tem mais papel e foi removido de
+`FinancialAssumptions` (`lib/commercial-industrial/types.ts`). `monthsPerYear`
+continua necessário, mas só para a demanda (R$/kW-mês × meses/ano), que é
+faturada mensalmente independente do formato da curva. O relatório deve
+mostrar essa premissa (365,25/7 aplicado à energia).
 
 Não deve existir lógica implícita como `8760 / quantidade_de_pontos` sem informar
 ao usuário o que está sendo assumido.
@@ -827,9 +842,11 @@ O contrato deve tornar configuráveis, no mínimo:
 discountRatePercent
 analysisHorizonYears
 annualEnergyInflationPercent
-businessDaysPerMonth
 monthsPerYear
 ```
+
+(`businessDaysPerMonth` removido — ver correção na seção 5.4: era para um
+modelo de dia típico, não para a semana representativa que o MVP usa.)
 
 **Decisão fechada — valores iniciais do formulário (editáveis por projeto,
 nunca hardcoded no motor):** `discountRatePercent` = 12% a.a.,

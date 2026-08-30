@@ -31,7 +31,6 @@ function makeTariff(overrides: Partial<CommercialIndustrialOptions['tariff']> = 
     market: 'cativo',
     icmsPercent: 18,
     pisCofinsPercent: 9.25,
-    annualEnergyInflationPercent: 5,
     ...overrides,
   };
 }
@@ -47,7 +46,6 @@ function makeOptions(overrides: Partial<CommercialIndustrialOptions> = {}): Comm
       discountRatePercent: 12,
       analysisHorizonYears: 10,
       annualEnergyInflationPercent: 0,
-      businessDaysPerMonth: 22,
       monthsPerYear: 12,
     },
     ...overrides,
@@ -187,7 +185,6 @@ describe('validateCommercialIndustrialOptions', () => {
             discountRatePercent: -1,
             analysisHorizonYears: 10,
             annualEnergyInflationPercent: 0,
-            businessDaysPerMonth: 22,
             monthsPerYear: 12,
           },
         })
@@ -202,7 +199,6 @@ describe('validateCommercialIndustrialOptions', () => {
             discountRatePercent: 12,
             analysisHorizonYears: 31,
             annualEnergyInflationPercent: 0,
-            businessDaysPerMonth: 22,
             monthsPerYear: 12,
           },
         })

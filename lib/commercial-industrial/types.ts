@@ -61,7 +61,6 @@ export interface TariffConfig {
   market: TariffMarket;
   icmsPercent: number;
   pisCofinsPercent: number;
-  annualEnergyInflationPercent: number;
 }
 
 export type SizingMode = 'fixed' | 'auto';
@@ -78,8 +77,12 @@ export interface SizingConfig {
 export interface FinancialAssumptions {
   discountRatePercent: number;
   analysisHorizonYears: number;
+  /** Was also duplicated on TariffConfig in an earlier draft of the
+   * contract; this is the one canonical field — it only matters for
+   * escalating years 2+ of the cash-flow projection (Fase 4's
+   * financial.ts), not the single representative week the dispatch engine
+   * simulates. */
   annualEnergyInflationPercent: number;
-  businessDaysPerMonth: number;
   monthsPerYear: number;
 }
 
@@ -91,7 +94,6 @@ export const DEFAULT_FINANCIAL_ASSUMPTIONS: FinancialAssumptions = {
   discountRatePercent: 12,
   analysisHorizonYears: 10,
   annualEnergyInflationPercent: 0,
-  businessDaysPerMonth: 22,
   monthsPerYear: 12,
 };
 

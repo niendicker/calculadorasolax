@@ -136,9 +136,6 @@ function validateTariff(raw: unknown, errors: string[]): void {
   if (!isFiniteNumber(tariff.pisCofinsPercent) || tariff.pisCofinsPercent < 0 || tariff.pisCofinsPercent > 100) {
     errors.push('tariff.pisCofinsPercent must be a number between 0 and 100');
   }
-  if (!isFiniteNumber(tariff.annualEnergyInflationPercent)) {
-    errors.push('tariff.annualEnergyInflationPercent must be a finite number');
-  }
 }
 
 function validateSizing(raw: unknown, errors: string[]): void {
@@ -194,12 +191,6 @@ function validateFinancialAssumptions(raw: unknown, errors: string[]): void {
   }
   if (!isFiniteNumber(assumptions.annualEnergyInflationPercent)) {
     errors.push('financialAssumptions.annualEnergyInflationPercent must be a finite number');
-  }
-  if (
-    !isPositiveInteger(assumptions.businessDaysPerMonth) ||
-    (assumptions.businessDaysPerMonth as number) > 31
-  ) {
-    errors.push('financialAssumptions.businessDaysPerMonth must be an integer between 1 and 31');
   }
   if (
     !isPositiveInteger(assumptions.monthsPerYear) ||
