@@ -782,7 +782,7 @@ describe('ProjectWorkspace', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
-    expect(screen.getByText('Acompanha os equipamentos')).toBeInTheDocument();
+    expect(screen.getByText('Inclusos no Inversor ou Bateria')).toBeInTheDocument();
     expect(screen.queryByText('Incluso')).not.toBeInTheDocument();
     expect(screen.queryByText('Aplicado ao inversor')).not.toBeInTheDocument();
     expect(screen.getByText('Módulo de conectividade para supervisão remota.')).toBeInTheDocument();

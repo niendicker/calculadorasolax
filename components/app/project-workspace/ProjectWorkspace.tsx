@@ -1349,7 +1349,7 @@ function SolutionSection({
   }
   const accessoryGroups = solution
     ? [
-        { title: 'Acompanha os equipamentos', items: solution.accessories.map(normalizeAccessoryLine).filter((item) => item.bundled) },
+        { title: 'Inclusos no Inversor ou Bateria', items: solution.accessories.map(normalizeAccessoryLine).filter((item) => item.bundled) },
         { title: 'Adquirir separadamente', items: solution.accessories.map(normalizeAccessoryLine).filter((item) => !item.bundled) },
       ].filter((group) => group.items.length > 0)
     : [];
@@ -1395,7 +1395,7 @@ function SolutionSection({
                 <MetricCard compact label="Energia útil" value={formatKwh(metrics.energyKwh)} icon={BatteryCharging} />
               </div>
               <Card>
-                <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Equipamentos principais</h3></CardHeader>
+                <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Sistema Inteligente de Armazenamento de Energia</h3><p className="mt-0.5 text-xs text-muted-foreground">Inversor e banco de baterias selecionados para este dimensionamento.</p></CardHeader>
                 <CardContent className="space-y-3 pt-0">
                   <div className="grid gap-3 lg:grid-cols-2">
                     <CatalogProductCard
@@ -1455,7 +1455,7 @@ function SolutionSection({
               </Card>
               {accessoryGroups.length > 0 && (
                 <Card>
-                  <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Acessórios</h3></CardHeader>
+                  <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Acessórios</h3><p className="mt-0.5 text-xs text-muted-foreground">Itens inclusos ou recomendados para completar a instalação.</p></CardHeader>
                   <CardContent className="space-y-5 pt-0">
                     {accessoryGroups.map((group) => (
                       <section key={group.title} className="space-y-2.5 first:pt-0 first:border-t-0 first:mt-0 border-t border-border/60 pt-4">
