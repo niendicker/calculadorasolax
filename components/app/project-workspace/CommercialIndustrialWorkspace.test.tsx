@@ -21,6 +21,7 @@ function renderWorkspace(overrides: { currentCiProjectId?: string | null } = {})
       onUpdateCiOptions={vi.fn()}
       currentCiProjectId={overrides.currentCiProjectId ?? null}
       calculationResult={null}
+      onFlushSave={vi.fn().mockResolvedValue(undefined)}
       autosaveStatus="idle"
       autosaveLastSavedAt={null}
     />

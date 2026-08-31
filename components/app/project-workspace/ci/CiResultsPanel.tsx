@@ -6,12 +6,16 @@
 // grid. That route deliberately never takes options in the request body —
 // it always recalculates from the project's own saved `calculation_options`
 // — so this panel can only run once the project has been saved at least
-// once (currentCiProjectId set) and reflects whatever was last saved, not
-// unsaved edits still sitting in the other panels. Selecting a different
-// candidate than the auto-recommended one (plan section 4.5's
-// materialization flow) is a later increment; this shows the recommended
-// scenario's full detail (already materialized server-side) plus the
-// comparison grid.
+// once (currentCiProjectId set). Autosave (SinglePageApp.tsx) only writes
+// that column ~12s after the user stops editing, so clicking "Calcular"
+// right after a change would otherwise race it and read a stale snapshot —
+// the same bug fixed for residential's "Recalcular solução" in 08cab2f6.
+// Here the fix is `onFlushSave`: force-persist the live ciOptions before
+// the calculation request, since (unlike residential) this route can't just
+// be handed live options directly. Selecting a different candidate than the
+// auto-recommended one (plan section 4.5's materialization flow) is a later
+// increment; this shows the recommended scenario's full detail (already
+// materialized server-side) plus the comparison grid.
 
 import { useState } from 'react';
 import { AlertTriangle, FileDown, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
@@ -60,12 +64,16 @@ export function CiResultsPanel({
   client,
   profile,
   ciOptions,
+  onFlushSave,
 }: {
   projectId: string | null;
   projectInfo: ProjectInfo;
   client: Client | null;
   profile: InlineProfile | null;
   ciOptions: CommercialIndustrialOptions;
+  /** Persists the live ciOptions right now, bypassing autosave's debounce —
+   * see the file header comment for why "Calcular" needs this. */
+  onFlushSave: () => Promise<unknown>;
 }) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -78,6 +86,12 @@ export function CiResultsPanel({
     setLoading(true);
     setError(null);
     try {
+      try {
+        await onFlushSave();
+      } catch {
+        setError('Não foi possível salvar as alterações antes de calcular. Tente novamente.');
+        return;
+      }
       const response = await fetch(`/api/projects/${projectId}/calculations`, { method: 'POST' });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data) {

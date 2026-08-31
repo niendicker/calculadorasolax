@@ -50,6 +50,7 @@ export function CommercialIndustrialWorkspace({
   onUpdateCiOptions,
   currentCiProjectId,
   calculationResult,
+  onFlushSave,
   autosaveStatus,
   autosaveLastSavedAt,
 }: {
@@ -63,6 +64,9 @@ export function CommercialIndustrialWorkspace({
   onUpdateCiOptions: (partial: Partial<CommercialIndustrialOptions>) => void;
   currentCiProjectId: string | null;
   calculationResult: CommercialIndustrialResult | null;
+  /** Persists the live ciOptions immediately, bypassing autosave's debounce
+   * — see CiResultsPanel.tsx's header comment for why "Calcular" needs it. */
+  onFlushSave: () => Promise<unknown>;
   autosaveStatus: AutosaveStatus;
   autosaveLastSavedAt: Date | null;
 }) {
@@ -135,6 +139,7 @@ export function CommercialIndustrialWorkspace({
               client={client}
               profile={profile}
               ciOptions={ciOptions}
+              onFlushSave={onFlushSave}
             />
           </CardContent>
         </Card>

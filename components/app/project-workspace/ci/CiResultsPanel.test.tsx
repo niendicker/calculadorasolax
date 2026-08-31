@@ -19,8 +19,15 @@ const testCiOptions: CommercialIndustrialOptions = {
   rankingCriterion: 'PAYBACK',
 };
 
-function panelProps(projectId: string | null) {
-  return { projectId, projectInfo: testProjectInfo, client: testClient, profile: null, ciOptions: testCiOptions };
+function panelProps(projectId: string | null, overrides: { onFlushSave?: () => Promise<unknown> } = {}) {
+  return {
+    projectId,
+    projectInfo: testProjectInfo,
+    client: testClient,
+    profile: null,
+    ciOptions: testCiOptions,
+    onFlushSave: overrides.onFlushSave ?? vi.fn().mockResolvedValue(undefined),
+  };
 }
 
 function makeResult(overrides: Partial<CommercialIndustrialResult> = {}): CommercialIndustrialResult {
@@ -131,5 +138,41 @@ describe('CiResultsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
     await waitFor(() => expect(screen.getByText(/Não foi possível conectar ao servidor/)).toBeInTheDocument());
+  });
+
+  // Regression test for the same bug fixed for residential's "Recalcular
+  // solução" in 08cab2f6: clicking Calcular right after an edit must not
+  // read a stale calculation_options snapshot from before autosave's ~12s
+  // debounce caught up. CiResultsPanel can't just send live options in the
+  // request body (the route always reads from the DB), so the fix is to
+  // force-persist them first via onFlushSave.
+  it('flushes the pending save before calculating, so the request reflects the live options', async () => {
+    const callOrder: string[] = [];
+    const onFlushSave = vi.fn().mockImplementation(async () => {
+      callOrder.push('flush');
+    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      callOrder.push('fetch');
+      return { ok: true, json: () => Promise.resolve(makeResult()) };
+    });
+    render(<CiResultsPanel {...panelProps('ci-project-1', { onFlushSave })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    await screen.findByText('Linha de base (sem BESS)');
+    expect(onFlushSave).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual(['flush', 'fetch']);
+  });
+
+  it('shows an error and never calculates when the flush save itself fails', async () => {
+    const onFlushSave = vi.fn().mockRejectedValue(new Error('boom'));
+    render(<CiResultsPanel {...panelProps('ci-project-1', { onFlushSave })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Não foi possível salvar as alterações antes de calcular. Tente novamente.')).toBeInTheDocument()
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
