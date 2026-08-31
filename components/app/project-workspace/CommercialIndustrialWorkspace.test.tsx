@@ -55,4 +55,23 @@ describe('CommercialIndustrialWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tarifa' }));
     expect(screen.getByText('Tarifa de energia')).toBeInTheDocument();
   });
+
+  it('shows the strategy panel on Estratégia', () => {
+    render(
+      <CommercialIndustrialWorkspace
+        projectInfo={defaultProjectInfo}
+        clients={[]}
+        onUpdateProjectInfo={vi.fn()}
+        onSaveProject={vi.fn()}
+        onBackToProjects={vi.fn()}
+        ciOptions={defaultCiOptions}
+        onUpdateCiOptions={vi.fn()}
+        autosaveStatus="idle"
+        autosaveLastSavedAt={null}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Estratégia' }));
+    expect(screen.getByText('Estratégia de despacho')).toBeInTheDocument();
+  });
 });
