@@ -24,6 +24,8 @@ interface FakeUPlotInstance {
 vi.mock('uplot', () => ({
   default: class FakeUPlot {
     root = document.createElement('div');
+    over = document.createElement('div');
+    scales = { x: { min: 0, max: 1 } };
     private record: FakeUPlotInstance;
 
     constructor(options: unknown, data: unknown, target?: HTMLElement) {
@@ -31,6 +33,10 @@ vi.mock('uplot', () => ({
       this.record = { options, data, target, root: this.root, setDataCalls: [], setSizeCalls: [], destroyed: false };
       instances.push(this.record);
     }
+    posToVal() {
+      return 0;
+    }
+    setScale() {}
     setData(data: unknown) {
       this.record.setDataCalls.push(data);
     }
@@ -71,7 +77,7 @@ describe('LoadCurveChart', () => {
 
   it('mounts the chart into its own container element', () => {
     const { container } = render(<LoadCurveChart points={samplePoints} />);
-    expect(instances[0].target).toBe(container.firstChild);
+    expect(instances[0].target).toBe(container.querySelector('.relative > div'));
   });
 
   it('calls setData (not a full recreate) when points change after mount', () => {

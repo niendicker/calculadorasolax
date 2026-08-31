@@ -15,9 +15,15 @@ import { CiLoadCurvePanel } from './CiLoadCurvePanel';
 vi.mock('uplot', () => ({
   default: class FakeUPlot {
     root = document.createElement('div');
+    over = document.createElement('div');
+    scales = { x: { min: 0, max: 1 } };
     constructor(_opts: unknown, _data: unknown, target?: HTMLElement) {
       target?.appendChild(this.root);
     }
+    posToVal() {
+      return 0;
+    }
+    setScale() {}
     setData() {}
     setSize() {}
     destroy() {
