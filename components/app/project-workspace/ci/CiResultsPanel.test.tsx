@@ -2,8 +2,26 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { emptyAddress } from '@/lib/address';
+import type { Client, ProjectInfo } from '@/lib/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiResultsPanel } from './CiResultsPanel';
+
+const testProjectInfo: ProjectInfo = { name: 'Fábrica Teste', clientId: null, address: emptyAddress(), notes: '' };
+const testClient: Client | null = null;
+const testCiOptions: CommercialIndustrialOptions = {
+  loadCurve: null,
+  tariff: null,
+  bessProductId: null,
+  strategy: 'HYBRID',
+  sizing: { mode: 'fixed', moduleCount: 2, minModules: null, maxModules: null },
+  financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
+  rankingCriterion: 'PAYBACK',
+};
+
+function panelProps(projectId: string | null) {
+  return { projectId, projectInfo: testProjectInfo, client: testClient, profile: null, ciOptions: testCiOptions };
+}
 
 function makeResult(overrides: Partial<CommercialIndustrialResult> = {}): CommercialIndustrialResult {
   const recommended = {
@@ -71,14 +89,14 @@ afterEach(() => {
 
 describe('CiResultsPanel', () => {
   it('prompts to save the project first when there is no saved project yet', () => {
-    render(<CiResultsPanel projectId={null} />);
+    render(<CiResultsPanel {...panelProps(null)} />);
     expect(screen.getByText(/Salve o projeto/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Calcular/ })).not.toBeInTheDocument();
   });
 
   it('runs the calculation and renders baseline, recommendation and the comparison table', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(makeResult()) });
-    render(<CiResultsPanel projectId="ci-project-1" />);
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
@@ -98,7 +116,7 @@ describe('CiResultsPanel', () => {
       ok: false,
       json: () => Promise.resolve({ error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' }),
     });
-    render(<CiResultsPanel projectId="ci-project-1" />);
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
@@ -108,7 +126,7 @@ describe('CiResultsPanel', () => {
 
   it('shows a network error message when the request itself fails', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'));
-    render(<CiResultsPanel projectId="ci-project-1" />);
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 

@@ -14,11 +14,13 @@
 // comparison grid.
 
 import { useState } from 'react';
-import { AlertTriangle, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
+import { AlertTriangle, FileDown, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrencyBRL } from '../../helpers';
-import type { CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { Client, ProjectInfo } from '@/lib/types';
+import { buildPdfFileName, formatCurrencyBRL } from '../../helpers';
+import type { InlineProfile } from '../../types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 function formatYears(years: number | null): string {
   return years === null ? '—' : `${years.toFixed(1)} anos`;
@@ -52,10 +54,24 @@ function ScenarioRow({ scenario, recommended }: { scenario: ScenarioCandidate; r
   );
 }
 
-export function CiResultsPanel({ projectId }: { projectId: string | null }) {
+export function CiResultsPanel({
+  projectId,
+  projectInfo,
+  client,
+  profile,
+  ciOptions,
+}: {
+  projectId: string | null;
+  projectInfo: ProjectInfo;
+  client: Client | null;
+  profile: InlineProfile | null;
+  ciOptions: CommercialIndustrialOptions;
+}) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generatingMemorial, setGeneratingMemorial] = useState(false);
+  const [memorialError, setMemorialError] = useState<string | null>(null);
 
   async function runCalculation() {
     if (!projectId) return;
@@ -73,6 +89,40 @@ export function CiResultsPanel({ projectId }: { projectId: string | null }) {
       setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGenerateMemorial() {
+    if (!result?.selected) return;
+    setGeneratingMemorial(true);
+    setMemorialError(null);
+    try {
+      const [{ buildCiMemorialPdfBlob }, { listActiveCiBessProducts }] = await Promise.all([
+        import('./ci-memorial-pdf'),
+        import('@/lib/data/ci-bess-products-repository'),
+      ]);
+      const products = ciOptions.bessProductId ? await listActiveCiBessProducts() : [];
+      const product = products.find((item) => item.id === ciOptions.bessProductId) ?? null;
+      const blob = await buildCiMemorialPdfBlob({
+        projectInfo,
+        client,
+        profile,
+        result,
+        product,
+        rankingCriterion: ciOptions.rankingCriterion,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${buildPdfFileName(projectInfo.name || 'memorial-ci')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setMemorialError('Não foi possível gerar o memorial em PDF. Tente novamente.');
+    } finally {
+      setGeneratingMemorial(false);
     }
   }
 
@@ -96,10 +146,22 @@ export function CiResultsPanel({ projectId }: { projectId: string | null }) {
             Usa a última configuração salva do projeto (BESS, curva, tarifa e estratégia).
           </p>
         </div>
-        <Button type="button" onClick={runCalculation} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-          {loading ? 'Calculando...' : result ? 'Recalcular' : 'Calcular'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {result?.selected && (
+            <Button type="button" variant="outline" onClick={handleGenerateMemorial} disabled={generatingMemorial}>
+              {generatingMemorial ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <FileDown className="h-4 w-4" aria-hidden="true" />
+              )}
+              {generatingMemorial ? 'Gerando memorial...' : 'Gerar memorial (PDF)'}
+            </Button>
+          )}
+          <Button type="button" onClick={runCalculation} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+            {loading ? 'Calculando...' : result ? 'Recalcular' : 'Calcular'}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -107,6 +169,15 @@ export function CiResultsPanel({ projectId }: { projectId: string | null }) {
           <p className="flex items-center gap-1.5 font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             {error}
+          </p>
+        </div>
+      )}
+
+      {memorialError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="flex items-center gap-1.5 font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {memorialError}
           </p>
         </div>
       )}

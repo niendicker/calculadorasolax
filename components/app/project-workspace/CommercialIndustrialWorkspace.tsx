@@ -25,6 +25,7 @@ import { CiTariffPanel } from './ci/CiTariffPanel';
 import { ProjectInfoEditor } from './ProjectInfoEditor';
 import { ProjectWorkspaceShell, type WorkspaceNavItem } from './ProjectWorkspaceShell';
 import type { AutosaveStatus } from '../hooks/useAutosave';
+import type { InlineProfile } from '../types';
 
 type CiWorkspaceSection = 'overview' | 'bess' | 'curve' | 'tariff' | 'strategy' | 'results';
 
@@ -40,6 +41,7 @@ const navigation: WorkspaceNavItem[] = [
 export function CommercialIndustrialWorkspace({
   projectInfo,
   clients,
+  profile,
   onUpdateProjectInfo,
   onSaveProject,
   onBackToProjects,
@@ -51,6 +53,7 @@ export function CommercialIndustrialWorkspace({
 }: {
   projectInfo: ProjectInfo;
   clients: Client[];
+  profile: InlineProfile | null;
   onUpdateProjectInfo: (partial: Partial<ProjectInfo>) => void;
   onSaveProject: () => void;
   onBackToProjects: () => void;
@@ -61,6 +64,7 @@ export function CommercialIndustrialWorkspace({
   autosaveLastSavedAt: Date | null;
 }) {
   const [section, setSectionState] = useState<CiWorkspaceSection>('overview');
+  const client = clients.find((item) => item.id === projectInfo.clientId) ?? null;
 
   return (
     <ProjectWorkspaceShell
@@ -117,7 +121,13 @@ export function CommercialIndustrialWorkspace({
       {section === 'results' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
-            <CiResultsPanel projectId={currentCiProjectId} />
+            <CiResultsPanel
+              projectId={currentCiProjectId}
+              projectInfo={projectInfo}
+              client={client}
+              profile={profile}
+              ciOptions={ciOptions}
+            />
           </CardContent>
         </Card>
       )}

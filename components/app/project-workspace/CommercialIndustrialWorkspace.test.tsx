@@ -13,6 +13,7 @@ function renderWorkspace(overrides: { currentCiProjectId?: string | null } = {})
     <CommercialIndustrialWorkspace
       projectInfo={defaultProjectInfo}
       clients={[]}
+      profile={null}
       onUpdateProjectInfo={vi.fn()}
       onSaveProject={vi.fn()}
       onBackToProjects={vi.fn()}

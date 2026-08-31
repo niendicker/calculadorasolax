@@ -1053,6 +1053,7 @@ export function SinglePageApp() {
             <CommercialIndustrialWorkspace
               projectInfo={ciProjectInfo}
               clients={clients}
+              profile={profile}
               onUpdateProjectInfo={setCiProjectInfo}
               onSaveProject={() => { void saveCiProject_(); }}
               onBackToProjects={() => { clearCiWorkspaceUrl(); cancelCiProjectDraft(); changeTab('project'); }}
