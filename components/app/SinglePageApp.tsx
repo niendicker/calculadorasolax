@@ -779,6 +779,11 @@ export function SinglePageApp() {
             </button>
             {hasAnySavedProjects && projectsMenuOpen && (
               <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
+                {savedProjects.length > 0 && (
+                  <p className="px-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                    Residencial
+                  </p>
+                )}
                 {savedProjects.slice(0, SIDEBAR_PROJECT_LIST_LIMIT).map((project) => {
                   const active = viewingWorkspace && currentProjectId === project.id;
                   return (
@@ -810,8 +815,8 @@ export function SinglePageApp() {
                 )}
                 {savedCiProjects.length > 0 && (
                   <>
-                    <p className="px-2 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                      C&amp;I
+                    <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                      Comercial &amp; Industrial
                     </p>
                     {savedCiProjects.slice(0, SIDEBAR_PROJECT_LIST_LIMIT).map((project) => {
                       const active = activeTab === 'ciWorkspace' && currentCiProjectId === project.id;
