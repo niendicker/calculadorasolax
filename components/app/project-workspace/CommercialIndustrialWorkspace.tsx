@@ -8,9 +8,10 @@
 // configuration). Memorial (item 8, the PDF) is the one piece of Fase 6 left.
 // This only wires the already-built C&I store slice
 // (lib/store/slices/commercial-industrial-slice.ts) to something visible.
-// Reuses ProjectWorkspaceShell and ProjectInfoEditor from the residential
-// workspace — both are generic (ProjectInfo/Client only), nothing here
-// touches SavedProject or residential state.
+// Reuses ProjectWorkspaceShell from the residential workspace (generic,
+// ProjectInfo/Client only); "Visão geral" itself lives in
+// ./ci/CiOverviewPanel.tsx, which in turn reuses ProjectInfoEditor and
+// ProjectInfoModal — nothing here touches SavedProject or residential state.
 
 import { useState } from 'react';
 import { BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
@@ -23,7 +24,6 @@ import { CiOverviewPanel } from './ci/CiOverviewPanel';
 import { CiResultsPanel } from './ci/CiResultsPanel';
 import { CiStrategyPanel } from './ci/CiStrategyPanel';
 import { CiTariffPanel } from './ci/CiTariffPanel';
-import { ProjectInfoEditor } from './ProjectInfoEditor';
 import { ProjectWorkspaceShell, type WorkspaceNavItem } from './ProjectWorkspaceShell';
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import type { InlineProfile } from '../types';
@@ -80,16 +80,18 @@ export function CommercialIndustrialWorkspace({
       subtitle={<p className="text-sm text-muted-foreground">Projeto Comercial &amp; Industrial (BESS)</p>}
     >
       {section === 'overview' && (
-        <div className="space-y-6">
-          <ProjectInfoEditor
-            projectInfo={projectInfo}
-            clients={clients}
-            onChange={onUpdateProjectInfo}
-            onSave={onSaveProject}
-            onCancel={onBackToProjects}
-          />
-          <CiOverviewPanel ciOptions={ciOptions} calculationResult={calculationResult} onNavigateToSection={setSectionState} />
-        </div>
+        <CiOverviewPanel
+          projectInfo={projectInfo}
+          clients={clients}
+          client={client}
+          onUpdateProjectInfo={onUpdateProjectInfo}
+          onSaveProject={onSaveProject}
+          onBackToProjects={onBackToProjects}
+          isSaved={currentCiProjectId !== null}
+          ciOptions={ciOptions}
+          calculationResult={calculationResult}
+          onNavigateToSection={setSectionState}
+        />
       )}
 
       {section === 'bess' && (

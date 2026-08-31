@@ -1,14 +1,58 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultCiOptions } from '@/lib/store/defaults';
+import { emptyAddress } from '@/lib/address';
+import { defaultCiOptions, defaultProjectInfo } from '@/lib/store/defaults';
 import type { CiBessProductRecord } from '@/lib/data/ci-bess-products-repository';
-import type { CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { Client } from '@/lib/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiOverviewPanel } from './CiOverviewPanel';
 
 const { listActiveCiBessProducts } = vi.hoisted(() => ({ listActiveCiBessProducts: vi.fn() }));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts }));
+
+const client: Client = {
+  id: 'c1',
+  name: 'Indústria Alfa Ltda',
+  email: 'contato@alfa.com',
+  phone: '',
+  document: '',
+  notes: '',
+  createdAt: '',
+  updatedAt: '',
+};
+
+function renderPanel(
+  overrides: Partial<{
+    ciOptions: CommercialIndustrialOptions;
+    calculationResult: CommercialIndustrialResult | null;
+    onNavigateToSection: (section: string) => void;
+    onUpdateProjectInfo: (partial: unknown) => void;
+    onSaveProject: () => void;
+    isSaved: boolean;
+    client: Client | null;
+    clients: Client[];
+  }> = {}
+) {
+  const onUpdateProjectInfo = overrides.onUpdateProjectInfo ?? vi.fn();
+  const onSaveProject = overrides.onSaveProject ?? vi.fn();
+  render(
+    <CiOverviewPanel
+      projectInfo={{ ...defaultProjectInfo, name: 'Fábrica Alfa', clientId: 'c1', address: emptyAddress() }}
+      clients={overrides.clients ?? [client]}
+      client={overrides.client === undefined ? client : overrides.client}
+      onUpdateProjectInfo={onUpdateProjectInfo}
+      onSaveProject={onSaveProject}
+      onBackToProjects={vi.fn()}
+      isSaved={overrides.isSaved ?? true}
+      ciOptions={overrides.ciOptions ?? defaultCiOptions}
+      calculationResult={overrides.calculationResult ?? null}
+      onNavigateToSection={overrides.onNavigateToSection ?? vi.fn()}
+    />
+  );
+  return { onUpdateProjectInfo, onSaveProject };
+}
 
 const product: CiBessProductRecord = {
   id: 'p1',
@@ -83,7 +127,7 @@ beforeEach(() => {
 describe('CiOverviewPanel', () => {
   it('shows every configuration area as pending when nothing has been set up', async () => {
     const onNavigateToSection = vi.fn();
-    render(<CiOverviewPanel ciOptions={defaultCiOptions} calculationResult={null} onNavigateToSection={onNavigateToSection} />);
+    renderPanel({ onNavigateToSection });
 
     await waitFor(() => expect(listActiveCiBessProducts).toHaveBeenCalled());
 
@@ -96,7 +140,7 @@ describe('CiOverviewPanel', () => {
 
   it('navigates to the right section when a configuration card is clicked', () => {
     const onNavigateToSection = vi.fn();
-    render(<CiOverviewPanel ciOptions={defaultCiOptions} calculationResult={null} onNavigateToSection={onNavigateToSection} />);
+    renderPanel({ onNavigateToSection });
 
     fireEvent.click(screen.getByText('Nenhuma curva importada'));
     expect(onNavigateToSection).toHaveBeenCalledWith('curve');
@@ -106,7 +150,7 @@ describe('CiOverviewPanel', () => {
     listActiveCiBessProducts.mockResolvedValue([product]);
     const ciOptions = { ...defaultCiOptions, bessProductId: 'p1', sizing: { mode: 'fixed' as const, moduleCount: 4, minModules: null, maxModules: null } };
 
-    render(<CiOverviewPanel ciOptions={ciOptions} calculationResult={null} onNavigateToSection={vi.fn()} />);
+    renderPanel({ ciOptions });
 
     expect(await screen.findByText('PowerStack 100 · SolaX · 4 módulo(s)')).toBeInTheDocument();
     expect(screen.getByText('2 de 4 configurados')).toBeInTheDocument();
@@ -114,7 +158,7 @@ describe('CiOverviewPanel', () => {
 
   it('shows an empty state and a CTA to Resultados when there is no calculation yet', () => {
     const onNavigateToSection = vi.fn();
-    render(<CiOverviewPanel ciOptions={defaultCiOptions} calculationResult={null} onNavigateToSection={onNavigateToSection} />);
+    renderPanel({ onNavigateToSection });
 
     expect(screen.getByText('Resultado ainda não calculado')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ir para Resultados' }));
@@ -123,7 +167,7 @@ describe('CiOverviewPanel', () => {
 
   it('shows the recommended scenario metrics when a result is already calculated', () => {
     const onNavigateToSection = vi.fn();
-    render(<CiOverviewPanel ciOptions={defaultCiOptions} calculationResult={makeResult()} onNavigateToSection={onNavigateToSection} />);
+    renderPanel({ calculationResult: makeResult(), onNavigateToSection });
 
     expect(screen.getByText('Calculado')).toBeInTheDocument();
     expect(screen.getByText('R$ 500.000,00')).toBeInTheDocument();
@@ -131,5 +175,47 @@ describe('CiOverviewPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Ver resultados completos/ }));
     expect(onNavigateToSection).toHaveBeenCalledWith('results');
+  });
+
+  describe('identification (nome/cliente/endereço)', () => {
+    it('shows the full ProjectInfoEditor form for a brand-new, unsaved project', () => {
+      renderPanel({ isSaved: false });
+
+      expect(screen.getByLabelText('Nome do projeto')).toBeInTheDocument();
+      expect(screen.queryByText('Instalação')).not.toBeInTheDocument();
+    });
+
+    it('shows a summary card with Nome/Cliente/Endereço rows for an already-saved project', () => {
+      renderPanel({ isSaved: true });
+
+      expect(screen.getByText('Instalação')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Nome do projeto: Fábrica Alfa/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Cliente: Indústria Alfa Ltda/ })).toBeInTheDocument();
+      expect(screen.queryByLabelText('Nome do projeto')).not.toBeInTheDocument();
+    });
+
+    it('opens the name modal, saves it, and calls onUpdateProjectInfo + onSaveProject', () => {
+      const { onUpdateProjectInfo, onSaveProject } = renderPanel({ isSaved: true });
+
+      fireEvent.click(screen.getByRole('button', { name: /Nome do projeto: Fábrica Alfa/ }));
+      const dialog = screen.getByRole('dialog', { name: 'Nome da instalação' });
+      fireEvent.change(within(dialog).getByLabelText('Nome da instalação'), { target: { value: 'Fábrica Beta' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+
+      expect(onUpdateProjectInfo).toHaveBeenCalledWith({ name: 'Fábrica Beta' });
+      expect(onSaveProject).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens the client modal and lets the user pick a different client', () => {
+      const otherClient: Client = { ...client, id: 'c2', name: 'Comércio Beta' };
+      const { onUpdateProjectInfo } = renderPanel({ isSaved: true, clients: [client, otherClient] });
+
+      fireEvent.click(screen.getByRole('button', { name: /Cliente: Indústria Alfa Ltda/ }));
+      const dialog = screen.getByRole('dialog', { name: 'Cliente' });
+      fireEvent.change(within(dialog).getByLabelText('Cliente'), { target: { value: otherClient.id } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+
+      expect(onUpdateProjectInfo).toHaveBeenCalledWith({ clientId: otherClient.id });
+    });
   });
 });

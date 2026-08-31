@@ -12,14 +12,28 @@
 // own header comment).
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, BarChart3, BatteryCharging, CheckCircle2, ChevronRight, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  BatteryCharging,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  LineChart,
+  Receipt,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { formatAddress } from '@/lib/address';
 import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/ci-bess-products-repository';
+import type { Client, ProjectInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { formatCurrencyBRL } from '../../helpers';
 import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
+import { ProjectInfoEditor } from '../ProjectInfoEditor';
+import { ProjectInfoModal, type ProjectInfoEditField } from '../ProjectInfoModal';
 
 const STRATEGY_LABELS: Record<string, string> = {
   PEAK_SHAVING: 'Peak Shaving',
@@ -80,19 +94,56 @@ function ConfigCard({
   );
 }
 
+function EditableSummaryRow({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={`${label}: ${value}`}
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 border-b py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/50 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span className="min-w-0 truncate text-sm text-muted-foreground">{label}</span>
+      <span className="flex min-w-0 items-center justify-end gap-2">
+        <span className="truncate text-right text-sm font-medium">{value}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </span>
+    </button>
+  );
+}
+
 function formatYears(years: number | null): string {
   return years === null ? '—' : `${years.toFixed(1)} anos`;
 }
 
 export function CiOverviewPanel({
+  projectInfo,
+  clients,
+  client,
+  onUpdateProjectInfo,
+  onSaveProject,
+  onBackToProjects,
+  isSaved,
   ciOptions,
   calculationResult,
   onNavigateToSection,
 }: {
+  projectInfo: ProjectInfo;
+  clients: Client[];
+  client: Client | null;
+  onUpdateProjectInfo: (partial: Partial<ProjectInfo>) => void;
+  onSaveProject: () => void;
+  onBackToProjects: () => void;
+  /** Brand-new, never-saved projects still get the full ProjectInfoEditor
+   * form (this is how a C&I project gets its first name/save, mirroring
+   * ProjectWorkspace.tsx's own "project" tab) — the summary-row + modal
+   * pattern below only makes sense once there's a saved project to
+   * summarize, same as residential's "overview" vs "project" tabs. */
+  isSaved: boolean;
   ciOptions: CommercialIndustrialOptions;
   calculationResult: CommercialIndustrialResult | null;
   onNavigateToSection: (section: CiWorkspaceSection) => void;
 }) {
+  const [projectInfoEditField, setProjectInfoEditField] = useState<ProjectInfoEditField>(null);
   const [bessProducts, setBessProducts] = useState<CiBessProductRecord[]>([]);
 
   useEffect(() => {
@@ -144,6 +195,37 @@ export function CiOverviewPanel({
 
   return (
     <div className="space-y-6">
+      {isSaved ? (
+        <Card className="border-0 ring-0">
+          <CardHeader className="flex flex-row items-center gap-3 pb-3">
+            <CardIcon icon={ClipboardList} />
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Instalação</h2>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{formatAddress(projectInfo.address) || 'Dados da instalação'}</p>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="rounded-xl border p-3">
+              <EditableSummaryRow label="Nome do projeto" value={projectInfo.name || 'Não informado'} onClick={() => setProjectInfoEditField('name')} />
+              <EditableSummaryRow label="Cliente" value={client?.name || 'Não informado'} onClick={() => setProjectInfoEditField('client')} />
+              <EditableSummaryRow
+                label="Endereço"
+                value={formatAddress(projectInfo.address) || 'Não informado'}
+                onClick={() => setProjectInfoEditField('address')}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <ProjectInfoEditor
+          projectInfo={projectInfo}
+          clients={clients}
+          onChange={onUpdateProjectInfo}
+          onSave={onSaveProject}
+          onCancel={onBackToProjects}
+        />
+      )}
+
       <Card className="border-0 ring-0">
         <CardHeader className="flex flex-row items-center gap-3 pb-3">
           <CardIcon icon={SlidersHorizontal} />
@@ -241,6 +323,19 @@ export function CiOverviewPanel({
           )}
         </CardContent>
       </Card>
+
+      <ProjectInfoModal
+        key={projectInfoEditField ?? 'closed'}
+        field={projectInfoEditField}
+        projectInfo={projectInfo}
+        clients={clients}
+        onClose={() => setProjectInfoEditField(null)}
+        onSave={(partial) => {
+          onUpdateProjectInfo(partial);
+          onSaveProject();
+          setProjectInfoEditField(null);
+        }}
+      />
     </div>
   );
 }
