@@ -16,9 +16,10 @@ import { useState } from 'react';
 import { BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Client, ProjectInfo } from '@/lib/types';
-import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiConfigurationPanel } from './ci/CiConfigurationPanel';
 import { CiLoadCurvePanel } from './ci/CiLoadCurvePanel';
+import { CiOverviewPanel } from './ci/CiOverviewPanel';
 import { CiResultsPanel } from './ci/CiResultsPanel';
 import { CiStrategyPanel } from './ci/CiStrategyPanel';
 import { CiTariffPanel } from './ci/CiTariffPanel';
@@ -27,7 +28,7 @@ import { ProjectWorkspaceShell, type WorkspaceNavItem } from './ProjectWorkspace
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import type { InlineProfile } from '../types';
 
-type CiWorkspaceSection = 'overview' | 'bess' | 'curve' | 'tariff' | 'strategy' | 'results';
+export type CiWorkspaceSection = 'overview' | 'bess' | 'curve' | 'tariff' | 'strategy' | 'results';
 
 const navigation: WorkspaceNavItem[] = [
   { id: 'overview', label: 'Visão geral', icon: ClipboardList },
@@ -48,6 +49,7 @@ export function CommercialIndustrialWorkspace({
   ciOptions,
   onUpdateCiOptions,
   currentCiProjectId,
+  calculationResult,
   autosaveStatus,
   autosaveLastSavedAt,
 }: {
@@ -60,6 +62,7 @@ export function CommercialIndustrialWorkspace({
   ciOptions: CommercialIndustrialOptions;
   onUpdateCiOptions: (partial: Partial<CommercialIndustrialOptions>) => void;
   currentCiProjectId: string | null;
+  calculationResult: CommercialIndustrialResult | null;
   autosaveStatus: AutosaveStatus;
   autosaveLastSavedAt: Date | null;
 }) {
@@ -77,13 +80,16 @@ export function CommercialIndustrialWorkspace({
       subtitle={<p className="text-sm text-muted-foreground">Projeto Comercial &amp; Industrial (BESS)</p>}
     >
       {section === 'overview' && (
-        <ProjectInfoEditor
-          projectInfo={projectInfo}
-          clients={clients}
-          onChange={onUpdateProjectInfo}
-          onSave={onSaveProject}
-          onCancel={onBackToProjects}
-        />
+        <div className="space-y-6">
+          <ProjectInfoEditor
+            projectInfo={projectInfo}
+            clients={clients}
+            onChange={onUpdateProjectInfo}
+            onSave={onSaveProject}
+            onCancel={onBackToProjects}
+          />
+          <CiOverviewPanel ciOptions={ciOptions} calculationResult={calculationResult} onNavigateToSection={setSectionState} />
+        </div>
       )}
 
       {section === 'bess' && (

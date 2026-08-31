@@ -20,6 +20,7 @@ function renderWorkspace(overrides: { currentCiProjectId?: string | null } = {})
       ciOptions={defaultCiOptions}
       onUpdateCiOptions={vi.fn()}
       currentCiProjectId={overrides.currentCiProjectId ?? null}
+      calculationResult={null}
       autosaveStatus="idle"
       autosaveLastSavedAt={null}
     />

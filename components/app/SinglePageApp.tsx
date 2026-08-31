@@ -1128,6 +1128,7 @@ export function SinglePageApp() {
               ciOptions={ciOptions}
               onUpdateCiOptions={setCiOptions}
               currentCiProjectId={currentCiProjectId}
+              calculationResult={savedCiProjects.find((project) => project.id === currentCiProjectId)?.calculationResult ?? null}
               autosaveStatus="idle"
               autosaveLastSavedAt={null}
             />
