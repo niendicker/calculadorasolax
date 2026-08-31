@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { SavedProject } from '@/lib/types';
 
 // Long on purpose: this fires with no explicit "Salvar" button anymore, so it
 // must never trigger mid-typing — only once the user has actually paused.
@@ -21,7 +20,11 @@ export function useAutosave({
 }: {
   enabled: boolean;
   data: unknown;
-  saveCurrentProject: () => Promise<SavedProject>;
+  /** Return value is never used (only awaited) — this is deliberately not
+   * typed to `SavedProject` so both the residential and C&I workspaces can
+   * share this hook with their own save actions (`SavedProject` vs
+   * `SavedCiProject`). */
+  saveCurrentProject: () => Promise<unknown>;
 }) {
   const [status, setStatus] = useState<AutosaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);

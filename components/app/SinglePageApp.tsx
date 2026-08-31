@@ -586,6 +586,22 @@ export function SinglePageApp() {
     saveCurrentProject,
   });
 
+  // Same replacement for the C&I workspace: without this, editing BESS/
+  // curve/tariff/strategy in their own tabs never reached the database (the
+  // only thing that called saveCiProject was the "Visão geral" identification
+  // form/modal), so "Calcular" would read back stale calculation_options and
+  // fail with a misleading "configure antes de calcular" error even when the
+  // UI looked fully configured.
+  const ciAutosaveData = useMemo(() => ({ ciProjectInfo, ciOptions }), [ciProjectInfo, ciOptions]);
+  const { status: ciAutosaveStatus, lastSavedAt: ciAutosaveLastSavedAt } = useAutosave({
+    enabled:
+      Boolean(profile) &&
+      activeTab === 'ciWorkspace' &&
+      Boolean(currentCiProjectId || ciOptions.bessProductId || ciOptions.loadCurve || ciOptions.tariff),
+    data: ciAutosaveData,
+    saveCurrentProject: saveCiProject,
+  });
+
   const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
   const nominalW = totalNominalW(residentialOptions.loads);
@@ -1129,8 +1145,8 @@ export function SinglePageApp() {
               onUpdateCiOptions={setCiOptions}
               currentCiProjectId={currentCiProjectId}
               calculationResult={savedCiProjects.find((project) => project.id === currentCiProjectId)?.calculationResult ?? null}
-              autosaveStatus="idle"
-              autosaveLastSavedAt={null}
+              autosaveStatus={ciAutosaveStatus}
+              autosaveLastSavedAt={ciAutosaveLastSavedAt}
             />
           ) : (
             <ProjectWorkspace
