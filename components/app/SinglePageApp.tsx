@@ -188,6 +188,7 @@ export function SinglePageApp() {
     setLoadPresets,
     resetResidential,
     ciProjectInfo,
+    currentCiProjectId,
     savedCiProjects,
     ciOptions,
     setCiProjectInfo,
@@ -1057,6 +1058,7 @@ export function SinglePageApp() {
               onBackToProjects={() => { clearCiWorkspaceUrl(); cancelCiProjectDraft(); changeTab('project'); }}
               ciOptions={ciOptions}
               onUpdateCiOptions={setCiOptions}
+              currentCiProjectId={currentCiProjectId}
               autosaveStatus="idle"
               autosaveLastSavedAt={null}
             />
