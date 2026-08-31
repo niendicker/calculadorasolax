@@ -47,6 +47,18 @@ export async function listCiBessProducts(): Promise<CiBessProductRecord[]> {
   return (data ?? []) as unknown as CiBessProductRecord[];
 }
 
+/** For pickers (the C&I workspace's equipment panel) — explicitly scoped to
+ * active products regardless of caller role, so an admin browsing their own
+ * C&I project never sees a product that isn't meant to be sold, unlike
+ * listCiBessProducts (which relies on RLS alone and so shows admins every
+ * row, active or not — correct for the admin catalog editor, wrong here). */
+export async function listActiveCiBessProducts(): Promise<CiBessProductRecord[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('ci_bess_products').select(COLUMNS).eq('active', true).order('model');
+  if (error) throw error;
+  return (data ?? []) as unknown as CiBessProductRecord[];
+}
+
 // `documents` is ProductDocument[] here (see CiBessProductRecord) but jsonb
 // in the generated Supabase types — same widening every jsonb write in this
 // codebase needs (e.g. AdminPanel's approved_solutions upsert casts
