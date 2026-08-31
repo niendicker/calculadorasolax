@@ -5,6 +5,7 @@ import type {
   Client,
   DesiredFeatureId,
   GeneratorConfig,
+  MarginableProductType,
   MarginSettings,
   MicrogridConfig,
   ProjectServiceLine,
@@ -258,7 +259,7 @@ export function calculateServiceQuantity(
 
 const noMargin: MarginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 };
 
-const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> = {
+const marginFieldByProductType: Record<MarginableProductType, keyof MarginSettings> = {
   inverter: 'inverterPercent',
   battery: 'batteryPercent',
   accessory: 'accessoryPercent',
@@ -283,7 +284,7 @@ export function calculateSystemCost(
   batteryCatalog: { model: string; expansionModel?: string | null; standardPowerKw?: number | null; peakPowerKw?: number | null }[] = [],
   residentialOptions?: { loads: ServiceLoad[]; operationHours: number }
 ): SystemCostEstimate {
-  function priceFor(productType: StockProductType, model: string): number | undefined {
+  function priceFor(productType: MarginableProductType, model: string): number | undefined {
     const unitValue = userStockItems.find(
       (item) => item.productType === productType && item.productModel === model
     )?.unitValue;
@@ -301,7 +302,7 @@ export function calculateSystemCost(
       ).map((part) => ({ productType: 'battery' as const, model: part.model, qty: part.qty }))
     : [];
 
-  const productItems: { productType: StockProductType; model: string; qty: number }[] = solution
+  const productItems: { productType: MarginableProductType; model: string; qty: number }[] = solution
     ? [
         { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
         ...batteryItems,

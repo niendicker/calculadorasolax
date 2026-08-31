@@ -3,19 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Battery, Boxes, Check, Info, Loader2, Lock, MoreHorizontal, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Battery, BatteryCharging, Boxes, Check, Info, Loader2, Lock, MoreHorizontal, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { ACCOUNT_LIMITS, isLimitError } from '@/lib/limits';
 import { createClient } from '@/lib/supabase/client';
 import { listOrderingSuppliers, listSupplierOffers, listUserSupplierPreferences } from '@/lib/data/supplier-repository';
-import { USER_SERVICE_PRICING_UNITS, type MarginSettings, type ProductDocument, type StockProductType, type UserServiceItem, type UserServicePricingUnit, type UserStockItem } from '@/lib/types';
+import { USER_SERVICE_PRICING_UNITS, type MarginableProductType, type MarginSettings, type ProductDocument, type StockProductType, type UserServiceItem, type UserServicePricingUnit, type UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { formatCurrencyBRL } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { CatalogProductCard, DocPreviewModal, ImagePreviewModal } from '../shared-ui';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, CiBessCatalogOption, InverterCatalogOption } from '../types';
 
 /** Cheapest active offer per `productType:productModel`, among the suppliers
  * this user actually has access to (defaults-for-all + their own picks —
@@ -83,6 +83,13 @@ const sectionDefinitions: {
     fallbackIcon: <Boxes className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <Boxes className="h-4 w-4 text-muted-foreground" />,
   },
+  {
+    type: 'ci_bess',
+    label: 'BESS C&I',
+    icon: BatteryCharging,
+    fallbackIcon: <BatteryCharging className="h-8 w-8 text-muted-foreground" />,
+    smallIcon: <BatteryCharging className="h-4 w-4 text-muted-foreground" />,
+  },
 ];
 
 export function MyStockTab({
@@ -90,6 +97,7 @@ export function MyStockTab({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
+  ciBessCatalog,
   onAddToStock,
   onUpdateValue,
   onRemove,
@@ -106,6 +114,7 @@ export function MyStockTab({
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
+  ciBessCatalog: CiBessCatalogOption[];
   onAddToStock: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
@@ -116,7 +125,7 @@ export function MyStockTab({
   onUpdateServicePricingUnit?: (id: string, pricingUnit: UserServicePricingUnit) => Promise<void>;
   onRemoveService: (id: string) => Promise<void>;
   marginSettings: MarginSettings;
-  onUpdateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
+  onUpdateMarginPercent: (category: MarginableProductType, percent: number) => Promise<void>;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -198,6 +207,13 @@ export function MyStockTab({
       model: accessory.model,
       imageUrl: accessory.imageUrl,
       nickname: accessory.nickname,
+    })),
+    ci_bess: ciBessCatalog.map((product) => ({
+      id: product.id,
+      model: product.model,
+      imageUrl: product.imageUrl,
+      // ci_bess_products has no nickname column — falls back to showing
+      // the model itself, same as any other catalog entry with no nickname.
     })),
   };
 
@@ -306,12 +322,14 @@ export function MyStockTab({
                       className="!pl-11"
                     />
                   </label>
-                  <CategoryMarginInline
-                    productType={activeSection}
-                    productLabel={activeSectionDefinition.label}
-                    marginSettings={marginSettings}
-                    onUpdateMarginPercent={onUpdateMarginPercent}
-                  />
+                  {activeSection !== 'ci_bess' && (
+                    <CategoryMarginInline
+                      productType={activeSection}
+                      productLabel={activeSectionDefinition.label}
+                      marginSettings={marginSettings}
+                      onUpdateMarginPercent={onUpdateMarginPercent}
+                    />
+                  )}
                 </div>
               </>
             )}
@@ -324,7 +342,7 @@ export function MyStockTab({
                 const catalogProduct = catalogByType[section.type].find((product) => product.model === item.productModel);
                 return !normalizedQuery || `${item.productModel} ${catalogProduct?.nickname ?? ''}`.toLowerCase().includes(normalizedQuery);
               });
-              const marginPercent = marginSettings[marginFieldByProductType[section.type]];
+              const marginPercent = section.type === 'ci_bess' ? null : marginSettings[marginFieldByProductType[section.type]];
               return (
                 <div key={section.type} className="space-y-3">
                   {items.length === 0 ? (
@@ -347,6 +365,7 @@ export function MyStockTab({
                         inverterCatalog={inverterCatalog}
                         batteryCatalog={batteryCatalog}
                         accessoryCatalog={accessoryCatalog}
+                        ciBessCatalog={ciBessCatalog}
                         onPreviewImage={setPreviewImage}
                         onPreviewDoc={setPreviewDoc}
                         onUpdateValue={onUpdateValue}
@@ -612,7 +631,7 @@ function InlineSaveStatus({ state }: { state: InlineSaveState }) {
   return null;
 }
 
-const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> = {
+const marginFieldByProductType: Record<MarginableProductType, keyof MarginSettings> = {
   inverter: 'inverterPercent',
   battery: 'batteryPercent',
   accessory: 'accessoryPercent',
@@ -629,10 +648,10 @@ function CategoryMarginInline({
   marginSettings,
   onUpdateMarginPercent,
 }: {
-  productType: StockProductType;
+  productType: MarginableProductType;
   productLabel: string;
   marginSettings: MarginSettings;
-  onUpdateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
+  onUpdateMarginPercent: (category: MarginableProductType, percent: number) => Promise<void>;
 }) {
   const field = marginFieldByProductType[productType];
   const value = marginSettings[field];
@@ -1255,7 +1274,11 @@ function AddProductCard({
     }
   }
 
-  const productLabel = activeProductType === 'inverter' ? 'inversor' : activeProductType === 'battery' ? 'bateria' : 'acessório';
+  const productLabel =
+    activeProductType === 'inverter' ? 'inversor'
+    : activeProductType === 'battery' ? 'bateria'
+    : activeProductType === 'accessory' ? 'acessório'
+    : 'produto BESS C&I';
 
   if (atLimit) {
     return (
@@ -1407,6 +1430,7 @@ function StockProductCard({
   inverterCatalog,
   batteryCatalog,
   accessoryCatalog,
+  ciBessCatalog,
   onPreviewImage,
   onPreviewDoc,
   onUpdateValue,
@@ -1419,14 +1443,16 @@ function StockProductCard({
   inverterCatalog: InverterCatalogOption[];
   batteryCatalog: BatteryCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
+  ciBessCatalog: CiBessCatalogOption[];
   onPreviewImage: (image: { url: string; alt: string }) => void;
   onPreviewDoc: (doc: ProductDocument) => void;
   onUpdateValue: (id: string, unitValue: number) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   /** This category's sell margin (see CategoryMarginInline) — used to show
    *  the resulting sale price right under the cost the user enters below,
-   *  instead of leaving that math implicit until an order is priced. */
-  marginPercent: number;
+   *  instead of leaving that math implicit until an order is priced. `null`
+   *  for `ci_bess`, which has no markup layer (see costFieldLabel below). */
+  marginPercent: number | null;
   /** Cheapest active offer for this exact model among the user's allowed
    *  suppliers (see the supplierCosts fetch above) — a cost reference,
    *  not automatically applied to "Meu preço". */
@@ -1469,7 +1495,7 @@ function StockProductCard({
         ['Garantia', `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos`],
       ];
     }
-  } else {
+  } else if (item.productType === 'accessory') {
     const accessory = accessoryCatalog.find((option) => option.model === item.productModel);
     if (accessory) {
       nickname = accessory.nickname;
@@ -1478,7 +1504,23 @@ function StockProductCard({
       description = accessory.description;
       specs = [['Garantia', `${accessory.warrantyYears ?? 2} anos`]];
     }
+  } else {
+    const ciBess = ciBessCatalog.find((option) => option.model === item.productModel);
+    if (ciBess) {
+      imageUrl = ciBess.imageUrl;
+      documents = ciBess.documents;
+      description = ciBess.description;
+      badges = [ciBess.manufacturer];
+      specs = [
+        ['Potência do módulo', `${ciBess.modulePowerKw} kW`],
+        ['Capacidade do módulo', `${ciBess.moduleCapacityKwh} kWh`],
+        ['Eficiência', `${ciBess.efficiencyPercent}%`],
+        ['Garantia', `${ciBess.warrantyYears} anos`],
+      ];
+    }
   }
+
+  const costFieldLabel = item.productType === 'ci_bess' ? 'Preço por módulo' : 'Meu custo';
 
   return (
     <CatalogProductCard
@@ -1507,7 +1549,7 @@ function StockProductCard({
         <div className="space-y-2 border-t pt-3">
           <div className="overflow-hidden rounded-lg border bg-muted/10 text-xs">
             <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-center">
-              <span className="font-medium text-muted-foreground">Meu custo</span>
+              <span className="font-medium text-muted-foreground">{costFieldLabel}</span>
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">R$</span>
                 <input
@@ -1516,7 +1558,7 @@ function StockProductCard({
                   min={0}
                   step={0.01}
                   defaultValue={item.unitValue}
-                  aria-label={`Meu custo para ${item.productModel}`}
+                  aria-label={`${costFieldLabel} para ${item.productModel}`}
                   onBlur={(event) => {
                     const parsed = Number(event.target.value);
                     const nextValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -1527,13 +1569,18 @@ function StockProductCard({
                 <InlineSaveStatus state={valueSaveState} />
               </div>
             </div>
+            {item.productType === 'ci_bess' && (
+              <p className="px-3 py-2 text-[11px] text-muted-foreground">
+                Usado direto no CAPEX (quantidade de módulos × este valor) — sem markup adicional.
+              </p>
+            )}
             {supplierCost && (
               <div className="grid gap-2 border-b p-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-center">
                 <span className="flex items-center gap-1.5 font-medium text-muted-foreground"><Truck className="h-3.5 w-3.5" aria-hidden="true" />Fornecedor</span>
                 <span className="font-medium text-foreground">{formatCurrencyBRL(supplierCost.unitPrice)}</span>
               </div>
             )}
-            {item.unitValue > 0 && (
+            {item.unitValue > 0 && marginPercent !== null && (
               <div className="grid gap-2 bg-primary/5 p-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-center">
                 <span className="font-medium text-muted-foreground">Venda estimada</span>
                 <span className="font-semibold text-primary">{formatCurrencyBRL(item.unitValue * (1 + marginPercent / 100))}<span className="ml-1 text-[11px] font-normal text-muted-foreground">({marginPercent}% markup)</span></span>

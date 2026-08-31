@@ -278,6 +278,7 @@ export function SinglePageApp() {
     batteryCatalog,
     inverterCatalog,
     accessoryCatalog,
+    ciBessCatalog,
     approvedInverterCombos,
     initialLoading,
     userDataError,
@@ -1082,6 +1083,7 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
+              ciBessCatalog={ciBessCatalog}
               onAddToStock={addToStock}
               onUpdateValue={updateStockItemValue}
               onRemove={removeFromStock}

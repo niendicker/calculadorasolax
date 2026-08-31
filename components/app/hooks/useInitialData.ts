@@ -8,6 +8,7 @@ import type {
   AccessoryCatalogOption,
   ApprovedInverterCombo,
   BatteryCatalogOption,
+  CiBessCatalogOption,
   InlineProfile,
   InverterCatalogOption,
 } from '../types';
@@ -42,6 +43,7 @@ export function useInitialData({
   const [batteryCatalog, setBatteryCatalog] = useState<BatteryCatalogOption[]>([]);
   const [inverterCatalog, setInverterCatalog] = useState<InverterCatalogOption[]>([]);
   const [accessoryCatalog, setAccessoryCatalog] = useState<AccessoryCatalogOption[]>([]);
+  const [ciBessCatalog, setCiBessCatalog] = useState<CiBessCatalogOption[]>([]);
   const [approvedInverterCombos, setApprovedInverterCombos] = useState<ApprovedInverterCombo[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [userDataError, setUserDataError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ export function useInitialData({
         { data: batteryData },
         { data: inverterData },
         { data: accessoryData },
+        { data: ciBessData },
         { data: approvedSolutionsData },
         { data: presetsData },
       ] = await Promise.all([
@@ -75,6 +78,11 @@ export function useInitialData({
         supabase
           .from('accessories')
           .select('id, model, nickname, description, warranty_years, image_url, documents')
+          .eq('active', true)
+          .order('model'),
+        supabase
+          .from('ci_bess_products')
+          .select('id, model, manufacturer, description, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent, warranty_years, image_url, documents')
           .eq('active', true)
           .order('model'),
         supabase
@@ -212,6 +220,25 @@ export function useInitialData({
         );
       }
 
+      if (ciBessData) {
+        setCiBessCatalog(
+          ciBessData.map((row) => ({
+            id: row.id,
+            model: row.model,
+            manufacturer: row.manufacturer,
+            description: row.description,
+            modulePowerKw: Number(row.module_power_kw),
+            moduleCapacityKwh: Number(row.module_capacity_kwh),
+            efficiencyPercent: Number(row.efficiency_percent),
+            socMinPercent: Number(row.soc_min_percent),
+            socMaxPercent: Number(row.soc_max_percent),
+            warrantyYears: Number(row.warranty_years),
+            imageUrl: row.image_url,
+            documents: (row.documents ?? []) as unknown as ProductDocument[],
+          }))
+        );
+      }
+
       if (approvedSolutionsData) {
         setApprovedInverterCombos(
           approvedSolutionsData.map((row) => ({
@@ -274,6 +301,7 @@ export function useInitialData({
     batteryCatalog,
     inverterCatalog,
     accessoryCatalog,
+    ciBessCatalog,
     approvedInverterCombos,
     initialLoading,
     userDataError,

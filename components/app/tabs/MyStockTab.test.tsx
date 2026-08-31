@@ -6,7 +6,7 @@ import { ACCOUNT_LIMITS } from '@/lib/limits';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import type { UserServiceItem, UserStockItem } from '@/lib/types';
 import { renderWithShell } from '../test-helpers/render-with-shell';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, CiBessCatalogOption, InverterCatalogOption } from '../types';
 import { MyStockTab } from './MyStockTab';
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
@@ -53,6 +53,21 @@ const accessory: AccessoryCatalogOption = {
   documents: [],
 };
 
+const ciBessProduct: CiBessCatalogOption = {
+  id: 'cb1',
+  model: 'BESS-100kWh',
+  manufacturer: 'SolaX',
+  description: null,
+  modulePowerKw: 50,
+  moduleCapacityKwh: 100,
+  efficiencyPercent: 95,
+  socMinPercent: 5,
+  socMaxPercent: 100,
+  warrantyYears: 10,
+  imageUrl: null,
+  documents: [],
+};
+
 const stockItem: UserStockItem = {
   id: 's1',
   productType: 'inverter',
@@ -68,6 +83,7 @@ function setup(overrides: Partial<Parameters<typeof MyStockTab>[0]> = {}) {
     inverterCatalog: [inverter],
     batteryCatalog: [battery],
     accessoryCatalog: [accessory],
+    ciBessCatalog: [ciBessProduct],
     onAddToStock: vi.fn().mockResolvedValue(undefined),
     onUpdateValue: vi.fn().mockResolvedValue(undefined),
     onRemove: vi.fn().mockResolvedValue(undefined),
@@ -597,6 +613,80 @@ describe('MyStockTab: accessory stock card', () => {
   });
 });
 
+describe('MyStockTab: BESS C&I stock card', () => {
+  const ciBessStockItem: UserStockItem = {
+    id: 'scb1',
+    productType: 'ci_bess',
+    productModel: 'BESS-100kWh',
+    unitValue: 50000,
+    createdAt: '',
+    updatedAt: '',
+  };
+
+  it('shows the BESS C&I catalog specs on its card', () => {
+    setup({ userStockItems: [ciBessStockItem] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /BESS C&I/ }));
+
+    expect(screen.getByText('SolaX')).toBeInTheDocument();
+    expect(screen.getByText('Potência do módulo')).toBeInTheDocument();
+    expect(screen.getByText('50 kW')).toBeInTheDocument();
+    expect(screen.getByText('Capacidade do módulo')).toBeInTheDocument();
+    expect(screen.getByText('100 kWh')).toBeInTheDocument();
+  });
+
+  it('labels the cost field "Preço por módulo" instead of "Meu custo", with a no-markup caption', () => {
+    setup({ userStockItems: [ciBessStockItem] });
+
+    fireEvent.click(screen.getByRole('tab', { name: /BESS C&I/ }));
+
+    expect(screen.getByText('Preço por módulo')).toBeInTheDocument();
+    expect(screen.queryByText('Meu custo')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Preço por módulo para BESS-100kWh')).toBeInTheDocument();
+    expect(screen.getByText(/sem markup adicional/)).toBeInTheDocument();
+  });
+
+  it('calls onUpdateValue on blur, same as any other product type', () => {
+    const { props } = setup({ userStockItems: [ciBessStockItem] });
+    fireEvent.click(screen.getByRole('tab', { name: /BESS C&I/ }));
+
+    const input = screen.getByLabelText('Preço por módulo para BESS-100kWh');
+    fireEvent.change(input, { target: { value: '55000' } });
+    fireEvent.blur(input);
+
+    expect(props.onUpdateValue).toHaveBeenCalledWith('scb1', 55000);
+  });
+
+  it('never shows an estimated sale price, even with a price set and margins configured elsewhere', () => {
+    setup({
+      userStockItems: [ciBessStockItem],
+      marginSettings: { inverterPercent: 20, batteryPercent: 20, accessoryPercent: 20 },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /BESS C&I/ }));
+
+    expect(screen.queryByText('Venda estimada')).not.toBeInTheDocument();
+  });
+
+  it('does not show the category markup control while this section is active', () => {
+    setup({ userStockItems: [ciBessStockItem] });
+    fireEvent.click(screen.getByRole('tab', { name: /BESS C&I/ }));
+
+    expect(screen.queryByLabelText('Markup de venda')).not.toBeInTheDocument();
+  });
+
+  it('mentions "produto BESS C&I" in the at-limit empty state for this section', () => {
+    const manyItems = Array.from({ length: ACCOUNT_LIMITS.userStockItems }, (_, index) => ({
+      ...ciBessStockItem,
+      id: `x${index}`,
+      productModel: `M${index}`,
+    }));
+    setup({ userStockItems: manyItems });
+    fireEvent.click(screen.getByRole('tab', { name: /BESS C&I/ }));
+
+    expect(screen.getByText(/produto BESS C&I/)).toBeInTheDocument();
+  });
+});
+
 describe('MyStockTab: adding a service', () => {
   it('does not submit when the value entered is invalid', async () => {
     const onAddService = vi.fn().mockResolvedValue(undefined);
@@ -667,6 +757,20 @@ describe('MyStockTab: adding a product from the picker', () => {
     expect(within(dialog).getByRole('tab', { name: 'Trifásico' })).toHaveAttribute('aria-selected', 'true');
     expect(within(dialog).getByText('X3-Hybrid-8.0kW')).toBeInTheDocument();
     expect(within(dialog).queryByText('X1-Hybrid-5.0kW-G4')).not.toBeInTheDocument();
+  });
+
+  it('adds a BESS C&I product to stock via its category tab in the picker', async () => {
+    const onAddToStock = vi.fn().mockResolvedValue(undefined);
+    setup({ onAddToStock });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
+    fireEvent.click(within(dialog).getByRole('tab', { name: /BESS C&I/ }));
+    fireEvent.click(within(dialog).getByText('BESS-100kWh'));
+
+    await waitFor(() =>
+      expect(onAddToStock).toHaveBeenCalledWith({ productType: 'ci_bess', productModel: 'BESS-100kWh', unitValue: 0 })
+    );
   });
 
   it('closes the picker when clicking outside of it', async () => {

@@ -267,7 +267,12 @@ export interface UserLoadCatalogItem {
   updatedAt: string;
 }
 
-export type StockProductType = 'inverter' | 'battery' | 'accessory';
+export type StockProductType = 'inverter' | 'battery' | 'accessory' | 'ci_bess';
+
+/** Product types with a per-category sell margin (see MarginSettings). C&I
+ * BESS is priced 1:1 from user_stock_items.unit_value with no markup layer
+ * on top (closed decision, docs/CI-MODULE-PLAN.md section 4.3/6.1). */
+export type MarginableProductType = Exclude<StockProductType, 'ci_bess'>;
 
 export type UserServicePricingUnit =
   | 'project'
