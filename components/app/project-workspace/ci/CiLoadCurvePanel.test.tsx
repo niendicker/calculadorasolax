@@ -2,10 +2,29 @@
 
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiLoadCurvePanel } from './CiLoadCurvePanel';
+
+// jsdom has no real <canvas> 2D context, so the real uPlot would throw as
+// soon as it tries to draw — mock it the same way other tests here mock
+// heavy/unsupported dependencies (e.g. buildProjectQuotePdfBlob in
+// SinglePageApp.test.tsx) instead of trying to make canvas work in jsdom.
+// LoadCurveChart.test.tsx covers the chart itself in more detail.
+vi.mock('uplot', () => ({
+  default: class FakeUPlot {
+    root = document.createElement('div');
+    constructor(_opts: unknown, _data: unknown, target?: HTMLElement) {
+      target?.appendChild(this.root);
+    }
+    setData() {}
+    setSize() {}
+    destroy() {
+      this.root.remove();
+    }
+  },
+}));
 
 function ControlledPanel({ initial }: { initial?: Partial<CommercialIndustrialOptions> }) {
   const [ciOptions, setCiOptions] = useState<CommercialIndustrialOptions>({ ...defaultCiOptions, ...initial });
@@ -35,7 +54,7 @@ describe('CiLoadCurvePanel', () => {
     const csv = 'timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
     await importFile(csv);
 
-    expect(await screen.findByText('Resumo da curva atual')).toBeInTheDocument();
+    expect(await screen.findByText('Resumo')).toBeInTheDocument();
     expect(screen.getByText('20.00 kW')).toBeInTheDocument(); // pico
     expect(screen.getByText('10.00 kW')).toBeInTheDocument(); // mínima
     expect(screen.getByText(/3 \/ 672 pontos · resolução 60 min/)).toBeInTheDocument();
@@ -46,17 +65,17 @@ describe('CiLoadCurvePanel', () => {
     await importFile('not,a,valid,curve\n1,2,3,4\n');
 
     expect(await screen.findByText('Não foi possível importar o arquivo')).toBeInTheDocument();
-    expect(screen.queryByText('Resumo da curva atual')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resumo')).not.toBeInTheDocument();
   });
 
   it('removes an imported curve', async () => {
     render(<ControlledPanel />);
     fireEvent.click(screen.getByRole('button', { name: '60 min' }));
     await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
-    await screen.findByText('Resumo da curva atual');
+    await screen.findByText('Resumo');
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover curva' }));
-    await waitFor(() => expect(screen.queryByText('Resumo da curva atual')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Resumo')).not.toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Remover curva' })).not.toBeInTheDocument();
   });
 });

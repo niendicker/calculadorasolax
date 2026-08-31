@@ -8,6 +8,7 @@
 // form, and result display around them.
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { AlertTriangle, FileUp, Gauge, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/components/ui/button';
@@ -21,6 +22,14 @@ import {
 } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 const resolutionOptions: LoadCurveResolutionMinutes[] = [15, 30, 60];
+
+// uPlot touches the canvas/DOM as soon as its module runs — ssr:false keeps
+// that entirely out of the server render, and the ~50kb only ships once a
+// curve actually needs plotting instead of bloating every C&I workspace load.
+const LoadCurveChart = dynamic(() => import('./LoadCurveChart').then((mod) => mod.LoadCurveChart), {
+  ssr: false,
+  loading: () => <div className="h-[240px] w-full animate-pulse rounded-lg bg-muted" />,
+});
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -199,7 +208,11 @@ export function CiLoadCurvePanel({
 
       {existing && summary && (
         <div className="space-y-3 border-t pt-4">
-          <p className="text-sm font-semibold">Resumo da curva atual</p>
+          <p className="text-sm font-semibold">Curva de carga</p>
+          <div className="rounded-lg border bg-card p-3">
+            <LoadCurveChart points={existing.points} />
+          </div>
+          <p className="text-sm font-semibold">Resumo</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg border bg-card p-3">
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

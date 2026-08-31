@@ -19,6 +19,22 @@ if (typeof globalThis.localStorage === 'undefined') {
   });
 }
 
+// jsdom has no ResizeObserver at all — components that use one (e.g.
+// LoadCurveChart, for responsive chart width) would otherwise throw
+// "ResizeObserver is not defined" as soon as they mount in a test. A no-op
+// stub is enough: nothing in this codebase asserts on resize-triggered
+// behavior, just that mounting/unmounting doesn't crash.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  );
+}
+
 // next/image's real implementation rewrites `src` through the (server-only)
 // image optimizer, which doesn't run in jsdom — tests would otherwise see
 // `/_next/image?url=...` instead of the plain URL they set up. Rendering a
