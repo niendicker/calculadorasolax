@@ -67,6 +67,25 @@ function TabLoadingFallback() {
   );
 }
 
+/** Both residential and C&I workspace lists in the sidebar (see the
+ * "Projetos" submenu) are capped to this many entries — both repositories
+ * already sort by `updated_at desc`, so this keeps the sidebar to a
+ * glanceable set of the most recently touched projects per type. The full,
+ * searchable list stays one click away via "Ver todos" -> the Projetos tab. */
+const SIDEBAR_PROJECT_LIST_LIMIT = 5;
+
+function SidebarViewAllProjectsLink({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-7 w-full items-center rounded-md px-2 text-left text-[11px] font-medium text-primary hover:underline"
+    >
+      Ver todos ({count})
+    </button>
+  );
+}
+
 const CatalogTab = dynamic(() => import('./tabs/CatalogTab').then((m) => m.CatalogTab), { loading: TabLoadingFallback });
 const ClientsTab = dynamic(() => import('./tabs/ClientsTab').then((m) => m.ClientsTab), { loading: TabLoadingFallback });
 const MyStockTab = dynamic(() => import('./tabs/MyStockTab').then((m) => m.MyStockTab), { loading: TabLoadingFallback });
@@ -760,7 +779,7 @@ export function SinglePageApp() {
             </button>
             {hasAnySavedProjects && projectsMenuOpen && (
               <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
-                {savedProjects.map((project) => {
+                {savedProjects.slice(0, SIDEBAR_PROJECT_LIST_LIMIT).map((project) => {
                   const active = viewingWorkspace && currentProjectId === project.id;
                   return (
                     <button
@@ -783,12 +802,18 @@ export function SinglePageApp() {
                     </button>
                   );
                 })}
+                {savedProjects.length > SIDEBAR_PROJECT_LIST_LIMIT && (
+                  <SidebarViewAllProjectsLink
+                    count={savedProjects.length}
+                    onClick={() => { setGuideOpen(false); changeTab('project'); }}
+                  />
+                )}
                 {savedCiProjects.length > 0 && (
                   <>
                     <p className="px-2 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                       C&amp;I
                     </p>
-                    {savedCiProjects.map((project) => {
+                    {savedCiProjects.slice(0, SIDEBAR_PROJECT_LIST_LIMIT).map((project) => {
                       const active = activeTab === 'ciWorkspace' && currentCiProjectId === project.id;
                       return (
                         <button
@@ -811,6 +836,12 @@ export function SinglePageApp() {
                         </button>
                       );
                     })}
+                    {savedCiProjects.length > SIDEBAR_PROJECT_LIST_LIMIT && (
+                      <SidebarViewAllProjectsLink
+                        count={savedCiProjects.length}
+                        onClick={() => { setGuideOpen(false); changeTab('project'); }}
+                      />
+                    )}
                   </>
                 )}
               </div>
