@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
+  BatteryCharging,
   Boxes,
   BookOpen,
   ChevronDown,
@@ -220,6 +221,7 @@ export function SinglePageApp() {
   // selected. Only count it once the workspace/sizing view is what's
   // actually on screen.
   const viewingWorkspace = activeTab === 'sizing' && workspaceOpen;
+  const hasAnySavedProjects = savedProjects.length > 0 || savedCiProjects.length > 0;
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(true);
@@ -735,11 +737,11 @@ export function SinglePageApp() {
             <button
               type="button"
               aria-current={!guideOpen && (activeTab === 'project' || activeTab === 'ciWorkspace' || viewingWorkspace) ? 'page' : undefined}
-              aria-expanded={savedProjects.length > 0 ? projectsMenuOpen : undefined}
+              aria-expanded={hasAnySavedProjects ? projectsMenuOpen : undefined}
               onClick={() => {
                 setGuideOpen(false);
                 changeTab('project');
-                if (savedProjects.length > 0) setProjectsMenuOpen((open) => !open);
+                if (hasAnySavedProjects) setProjectsMenuOpen((open) => !open);
               }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -749,14 +751,14 @@ export function SinglePageApp() {
             >
               <FolderOpen className="h-4 w-4" />
               <span className="flex-1">Projetos</span>
-              {savedProjects.length > 0 && (
+              {hasAnySavedProjects && (
                 <ChevronDown
                   className={cn('h-4 w-4 shrink-0 transition-transform', !projectsMenuOpen && '-rotate-90')}
                   aria-hidden="true"
                 />
               )}
             </button>
-            {savedProjects.length > 0 && projectsMenuOpen && (
+            {hasAnySavedProjects && projectsMenuOpen && (
               <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
                 {savedProjects.map((project) => {
                   const active = viewingWorkspace && currentProjectId === project.id;
@@ -781,6 +783,36 @@ export function SinglePageApp() {
                     </button>
                   );
                 })}
+                {savedCiProjects.length > 0 && (
+                  <>
+                    <p className="px-2 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                      C&amp;I
+                    </p>
+                    {savedCiProjects.map((project) => {
+                      const active = activeTab === 'ciWorkspace' && currentCiProjectId === project.id;
+                      return (
+                        <button
+                          key={project.id}
+                          type="button"
+                          aria-label={`Abrir workspace ${project.name}`}
+                          aria-current={active ? 'page' : undefined}
+                          title={project.name}
+                          onClick={() => {
+                            setGuideOpen(false);
+                            openCiProjectWorkspace(project.id);
+                          }}
+                          className={cn(
+                            'flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                            active && 'bg-primary/10 font-medium text-foreground'
+                          )}
+                        >
+                          <BatteryCharging className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{project.name}</span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             )}
             <button
