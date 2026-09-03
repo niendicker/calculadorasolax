@@ -139,6 +139,11 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onManagePortfolio: vi.fn(),
     onShowSummary: vi.fn(),
     onHideSummary: vi.fn(),
+    savedCiProjects: [],
+    onNewCi: vi.fn(),
+    onOpenCi: vi.fn(),
+    onRemoveCi: vi.fn(),
+    onUpdateCiStatus: vi.fn(),
     ...propOverrides,
   };
   const utils = renderWithShell(<ProjectTab {...props} />);
@@ -217,7 +222,7 @@ describe('ProjectTab: empty and list states', () => {
 
   it('shows just the "Novo projeto" trigger card when there are no projects yet', () => {
     setup();
-    expect(screen.getByRole('button', { name: /Novo projeto/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Novo projeto' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ver exemplo preenchido' })).not.toBeInTheDocument();
     expect(screen.queryByText('Nenhum projeto encontrado para essa pesquisa.')).not.toBeInTheDocument();
   });
@@ -423,13 +428,13 @@ describe('ProjectTab: aggregate stats', () => {
 describe('ProjectTab: new project draft', () => {
   it('clicking the "Novo projeto" trigger card delegates to onNew', () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole('button', { name: /Novo projeto/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Novo projeto' }));
     expect(props.onNew).toHaveBeenCalled();
   });
 
   it('hides the "Novo projeto" trigger card while a draft is already open', () => {
     setup({ projectDetailsVisible: true, currentProjectId: null });
-    expect(screen.queryByRole('button', { name: /Novo projeto/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo projeto' })).not.toBeInTheDocument();
   });
 
   it('hides other saved-project cards and the search input while a new draft is open', () => {

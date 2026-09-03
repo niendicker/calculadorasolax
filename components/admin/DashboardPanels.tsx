@@ -458,6 +458,7 @@ function entityLabel(entityType: AdminLogEntity) {
     inverter: 'Inversor',
     battery: 'Bateria',
     accessory: 'Acessório',
+    ci_bess_product: 'Produto C&I',
     solution: 'Combinação',
     rule: 'Regra',
     load_catalog_item: 'Carga',

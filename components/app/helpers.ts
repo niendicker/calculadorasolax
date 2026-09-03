@@ -5,6 +5,7 @@ import type {
   Client,
   DesiredFeatureId,
   GeneratorConfig,
+  MarginableProductType,
   MarginSettings,
   MicrogridConfig,
   ProjectServiceLine,
@@ -258,7 +259,7 @@ export function calculateServiceQuantity(
 
 const noMargin: MarginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 };
 
-const marginFieldByProductType: Record<StockProductType, keyof MarginSettings> = {
+const marginFieldByProductType: Record<MarginableProductType, keyof MarginSettings> = {
   inverter: 'inverterPercent',
   battery: 'batteryPercent',
   accessory: 'accessoryPercent',
@@ -283,7 +284,7 @@ export function calculateSystemCost(
   batteryCatalog: { model: string; expansionModel?: string | null; standardPowerKw?: number | null; peakPowerKw?: number | null }[] = [],
   residentialOptions?: { loads: ServiceLoad[]; operationHours: number }
 ): SystemCostEstimate {
-  function priceFor(productType: StockProductType, model: string): number | undefined {
+  function priceFor(productType: MarginableProductType, model: string): number | undefined {
     const unitValue = userStockItems.find(
       (item) => item.productType === productType && item.productModel === model
     )?.unitValue;
@@ -301,7 +302,7 @@ export function calculateSystemCost(
       ).map((part) => ({ productType: 'battery' as const, model: part.model, qty: part.qty }))
     : [];
 
-  const productItems: { productType: StockProductType; model: string; qty: number }[] = solution
+  const productItems: { productType: MarginableProductType; model: string; qty: number }[] = solution
     ? [
         { productType: 'inverter', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },
         ...batteryItems,
@@ -515,6 +516,31 @@ export function solutionHasInsufficientMargin(
 
 export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
+/** pt-BR decimal formatting (comma, not dot) for a plain number — the
+ * centralized replacement for scattered `.toFixed(n)` calls, which always
+ * produce a dot regardless of locale (Fase 6 C&I audit, Problem #9). */
+export function formatNumberBRL(value: number, fractionDigits = 1): string {
+  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }).format(value);
+}
+
+export function formatPercentBRL(value: number, fractionDigits = 1): string {
+  return `${formatNumberBRL(value, fractionDigits)}%`;
+}
+
+export function formatKw(valueKw: number, fractionDigits = 1): string {
+  return `${formatNumberBRL(valueKw, fractionDigits)} kW`;
+}
+
+export function formatKwh(valueKwh: number, fractionDigits = 1): string {
+  return `${formatNumberBRL(valueKwh, fractionDigits)} kWh`;
+}
+
+/** Shared across every C&I payback display — `null` means "never pays back
+ * within the analysis horizon", not zero or an error. */
+export function formatYears(years: number | null, fractionDigits = 1): string {
+  return years === null ? '—' : `${formatNumberBRL(years, fractionDigits)} anos`;
 }
 
 /** Formats a CPF/CNPJ as the user types — detects which shape by digit

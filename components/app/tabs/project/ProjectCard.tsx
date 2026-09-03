@@ -60,8 +60,17 @@ function ProjectActionsMenu({
 
   React.useEffect(() => {
     if (!open) return;
+    // ConfirmDeleteModalButton portals its confirmation dialog to
+    // document.body, outside menuRef's DOM subtree — without the
+    // role="dialog" check, mousedown on its "Excluir projeto" button (which
+    // fires before the click that would actually confirm) reads as an
+    // outside click and closes/unmounts this menu first, so the confirm
+    // click never lands.
     function closeOnOutside(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target;
+      const isInsideMenu = menuRef.current?.contains(target as Node);
+      const isInsideDialog = target instanceof Element && target.closest('[role="dialog"]');
+      if (!isInsideMenu && !isInsideDialog) setOpen(false);
     }
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false);

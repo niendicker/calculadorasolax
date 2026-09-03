@@ -10,6 +10,7 @@ import type {
   ProjectServiceLine,
   ProjectStatus,
   ResidentialGridType,
+  SavedCiProject,
 } from '@/lib/types';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { calculateSystemCost, formatCurrencyBRL } from '../helpers';
@@ -17,6 +18,7 @@ import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
 import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
+import { CiProjectCard } from './project/CiProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
 import { SelectedProjectSummary } from './project/SelectedProjectSummary';
@@ -63,6 +65,11 @@ export function ProjectTab({
   onManagePortfolio,
   onShowSummary,
   onHideSummary,
+  savedCiProjects,
+  onNewCi,
+  onOpenCi,
+  onRemoveCi,
+  onUpdateCiStatus,
 }: {
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
@@ -103,6 +110,14 @@ export function ProjectTab({
    * dismisses the selected project's summary, so they land back on the list
    * instead of an empty "select a project" drawer still open. */
   onHideSummary: () => void;
+  /** C&I ("Comercial & Industrial") projects — a separate list from
+   * savedProjects (docs/CI-MODULE-PLAN.md's "fatia estreita": parallel data,
+   * not a branch of the residential project type). */
+  savedCiProjects: SavedCiProject[];
+  onNewCi: () => void;
+  onOpenCi: (id: string) => void;
+  onRemoveCi: (id: string) => void;
+  onUpdateCiStatus: (id: string, status: ProjectStatus) => void;
 }) {
   const {
     projectInfo,
@@ -216,10 +231,16 @@ export function ProjectTab({
           </p>
         </div>
         {!projectDetailsVisible && (
-          <Button onClick={onNew}>
-            <Plus className="h-4 w-4" />
-            Novo projeto
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onNew}>
+              <Plus className="h-4 w-4" />
+              Novo projeto
+            </Button>
+            <Button variant="outline" onClick={onNewCi}>
+              <Plus className="h-4 w-4" />
+              Novo projeto C&amp;I
+            </Button>
+          </div>
         )}
       </PageHeader>
 
@@ -378,6 +399,26 @@ export function ProjectTab({
           </>
         )}
       </div>
+
+      {savedCiProjects.length > 0 && (
+        <div className="mt-4 space-y-3">
+          <h2 className="text-sm font-semibold">Projetos C&amp;I</h2>
+          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {savedCiProjects.map((project) => (
+              <CiProjectCard
+                key={project.id}
+                project={project}
+                client={clients.find((client) => client.id === project.clientId)}
+                selected={false}
+                onSelect={() => onOpenCi(project.id)}
+                onOpen={() => onOpenCi(project.id)}
+                onUpdateStatus={(status) => onUpdateCiStatus(project.id, status)}
+                onRemove={() => onRemoveCi(project.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

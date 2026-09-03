@@ -11,8 +11,9 @@ import {
   BookOpen,
   ChevronDown,
   ClipboardList,
-  FileText,
+  Factory,
   FolderOpen,
+  Home,
   Info,
   Loader2,
   Menu,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { isLimitError } from '@/lib/limits';
 import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
 import { cn } from '@/lib/utils';
 import { useAutosave } from './hooks/useAutosave';
@@ -40,13 +42,14 @@ import { AppFooter } from './shell/AppFooter';
 import { AboutDialog } from './shell/AboutDialog';
 import { SessionCard } from './shell/SessionCard';
 import { useAppShellState } from './shell/useAppShellState';
-import { useTabNavigation } from './shell/useTabNavigation';
+import { useTabNavigation, type AppTab } from './shell/useTabNavigation';
 import { useAuthenticatedNavigation } from './shell/useAuthenticatedNavigation';
 import { useAppNavigationActions } from './shell/useAppNavigationActions';
 import { SetSummaryActiveProvider, SummaryPortalProvider, TitleBarPortalProvider } from './shell/slots';
 import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { ProjectTab } from './tabs/ProjectTab';
 import { ProjectWorkspace } from './project-workspace/ProjectWorkspace';
+import { CommercialIndustrialWorkspace } from './project-workspace/CommercialIndustrialWorkspace';
 import type { PickerItemId } from './tabs/SizingTab';
 import { GuidePage } from '../guide/GuidePage';
 import { getGuideContent } from '@/content/guide';
@@ -61,6 +64,25 @@ function TabLoadingFallback() {
     <div className="flex items-center justify-center py-24 text-muted-foreground">
       <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
     </div>
+  );
+}
+
+/** Both residential and C&I workspace lists in the sidebar (see the
+ * "Projetos" submenu) are capped to this many entries — both repositories
+ * already sort by `updated_at desc`, so this keeps the sidebar to a
+ * glanceable set of the most recently touched projects per type. The full,
+ * searchable list stays one click away via "Ver todos" -> the Projetos tab. */
+const SIDEBAR_PROJECT_LIST_LIMIT = 5;
+
+function SidebarViewAllProjectsLink({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-7 w-full items-center rounded-md px-2 text-left text-[11px] font-medium text-primary hover:underline"
+    >
+      Ver todos ({count})
+    </button>
   );
 }
 
@@ -185,6 +207,19 @@ export function SinglePageApp() {
     setLoadCatalog,
     setLoadPresets,
     resetResidential,
+    ciProjectInfo,
+    currentCiProjectId,
+    savedCiProjects,
+    ciOptions,
+    setCiProjectInfo,
+    setCiOptions,
+    newCiProjectDraft,
+    cancelCiProjectDraft,
+    saveCiProject,
+    loadCiProject,
+    removeCiProject,
+    updateCiProjectStatus,
+    fetchCiProjects,
   } = useWizardStore();
 
   const [pendingSupplyImport, setPendingSupplyImport] = useState(false);
@@ -192,12 +227,11 @@ export function SinglePageApp() {
   // exportingPdf covers every "Baixar relatório" trigger (Dimensionamento's
   // own buttons), downloadingProjectId additionally pins which saved
   // project's card button to spin, since several can be on screen at once.
-  const [activeTab, setActiveTab] = useState<'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile'>(
-    'project'
-  );
+  const [activeTab, setActiveTab] = useState<AppTab>('project');
   const [workspaceNavigation, setWorkspaceNavigation] = useState<WorkspaceNavigationState>(closedWorkspaceNavigation);
   const [initialNavigationReady, setInitialNavigationReady] = useState(false);
   const restoredWorkspaceIdRef = useRef<string | null>(null);
+  const restoredCiWorkspaceIdRef = useRef<string | null>(null);
   const { open: workspaceOpen, resource: workspaceResource, technicalEditorOpen: workspaceTechnicalEditorOpen, configurationOpen: workspaceConfigurationOpen, returnAvailable: workspaceReturnAvailable } = workspaceNavigation;
   // workspaceOpen intentionally stays true while the user is off browsing
   // Fornecedores/Perfil/etc. mid-workspace (that's what lets "voltar ao
@@ -206,6 +240,7 @@ export function SinglePageApp() {
   // selected. Only count it once the workspace/sizing view is what's
   // actually on screen.
   const viewingWorkspace = activeTab === 'sizing' && workspaceOpen;
+  const hasAnySavedProjects = savedProjects.length > 0 || savedCiProjects.length > 0;
   const [guideOpen, setGuideOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(true);
@@ -243,6 +278,7 @@ export function SinglePageApp() {
     batteryCatalog,
     inverterCatalog,
     accessoryCatalog,
+    ciBessCatalog,
     approvedInverterCombos,
     initialLoading,
     userDataError,
@@ -251,6 +287,7 @@ export function SinglePageApp() {
     supabase,
     fetchClients,
     fetchProjects,
+    fetchCiProjects,
     fetchUserLoadCatalog,
     fetchUserStockItems,
     fetchUserLoadPresets,
@@ -347,6 +384,46 @@ export function SinglePageApp() {
     setActiveTab: changeTab,
   });
 
+  // C&I actions reuse the same toast (reportStatus, above) instead of a
+  // parallel status mechanism — it's already generic (just a message
+  // setter), see useProjectActions.ts's own docstring on reportStatus.
+  function startNewCiProject() {
+    newCiProjectDraft();
+    changeTab('ciWorkspace');
+    reportStatus(null);
+  }
+
+  async function saveCiProject_() {
+    if (!profile) {
+      router.push(`/${locale}/login?redirect=/${locale}`);
+      return;
+    }
+    try {
+      const project = await saveCiProject();
+      openCiProjectWorkspace(project.id);
+      reportStatus(`Projeto "${project.name}" salvo.`);
+    } catch (error) {
+      reportStatus(isLimitError(error) ? error.message : 'Não foi possível salvar o projeto. Tente novamente.');
+    }
+  }
+
+  async function deleteCiProject(id: string) {
+    try {
+      await removeCiProject(id);
+      reportStatus('Projeto removido.');
+    } catch {
+      reportStatus('Não foi possível remover o projeto.');
+    }
+  }
+
+  async function updateCiProjectStatusAction(id: string, status: Parameters<typeof updateCiProjectStatus>[1]) {
+    try {
+      await updateCiProjectStatus(id, status);
+    } catch {
+      reportStatus('Não foi possível atualizar o status do projeto. Tente novamente.');
+    }
+  }
+
   function openProjectWorkspace(id: string) {
     loadProject(id, { showDetails: false });
     setWorkspaceNavigation({ open: true, resource: null, technicalEditorOpen: false, configurationOpen: false, returnAvailable: false });
@@ -356,6 +433,19 @@ export function SinglePageApp() {
     url.searchParams.set('workspaceId', id);
     url.searchParams.set('workspace', 'overview');
     url.searchParams.delete('workspaceResource');
+    window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  // C&I has no resource/configuration sub-editors yet (docs/CI-MODULE-PLAN.md
+  // Fase 6 "fatia estreita" — just create/identify/save), so unlike
+  // openProjectWorkspace this doesn't need a workspaceNavigation state; the
+  // dedicated 'ciWorkspace' tab is enough.
+  function openCiProjectWorkspace(id: string) {
+    loadCiProject(id, { showDetails: false });
+    setSummaryDrawerOpen(false);
+    changeTab('ciWorkspace');
+    const url = new URL(window.location.href);
+    url.searchParams.set('ciWorkspaceId', id);
     window.history.pushState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
@@ -415,17 +505,47 @@ export function SinglePageApp() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }
 
+  function clearCiWorkspaceUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('ciWorkspaceId');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+
   // A workspace URL is durable across refreshes without introducing a new
   // persistence model. Projects are loaded from the existing store once the
   // initial project fetch completes, then the current workspace is restored.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const workspaceId = params.get('workspaceId');
+    const ciWorkspaceId = params.get('ciWorkspaceId');
+
+    if (ciWorkspaceId) {
+      if (restoredCiWorkspaceIdRef.current === ciWorkspaceId) {
+        setInitialNavigationReady(true);
+        return;
+      }
+      if (!savedCiProjects.some((project) => project.id === ciWorkspaceId)) {
+        if (!initialLoading) {
+          // An invalid or unavailable ciWorkspaceId should fall back to the
+          // normal project screen once the initial C&I project fetch completes.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setInitialNavigationReady(true);
+        }
+        return;
+      }
+      restoredCiWorkspaceIdRef.current = ciWorkspaceId;
+      loadCiProject(ciWorkspaceId, { showDetails: false });
+      startTransition(() => {
+        setInitialNavigationReady(true);
+        changeTab('ciWorkspace');
+      });
+      return;
+    }
+
     if (!workspaceId) {
       restoredWorkspaceIdRef.current = null;
       // The first client render must match the server render; reveal the
       // regular app only after the initial URL has been checked.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInitialNavigationReady(true);
       return;
     }
@@ -452,7 +572,7 @@ export function SinglePageApp() {
       setInitialNavigationReady(true);
       changeTab('sizing');
     });
-  }, [changeTab, initialLoading, loadProject, savedProjects, workspaceOpen]);
+  }, [changeTab, initialLoading, loadProject, loadCiProject, savedProjects, savedCiProjects, workspaceOpen]);
 
   // Autosave replaces the sizing tab's old manual "Salvar projeto" button —
   // only while actually viewing that tab, logged in, and once something is
@@ -465,6 +585,22 @@ export function SinglePageApp() {
     enabled: Boolean(profile) && activeTab === 'sizing' && Boolean(residentialOptions.gridType || residentialOptions.loads.length > 0),
     data: autosaveData,
     saveCurrentProject,
+  });
+
+  // Same replacement for the C&I workspace: without this, editing BESS/
+  // curve/tariff/strategy in their own tabs never reached the database (the
+  // only thing that called saveCiProject was the "Visão geral" identification
+  // form/modal), so "Calcular" would read back stale calculation_options and
+  // fail with a misleading "configure antes de calcular" error even when the
+  // UI looked fully configured.
+  const ciAutosaveData = useMemo(() => ({ ciProjectInfo, ciOptions }), [ciProjectInfo, ciOptions]);
+  const { status: ciAutosaveStatus, lastSavedAt: ciAutosaveLastSavedAt } = useAutosave({
+    enabled:
+      Boolean(profile) &&
+      activeTab === 'ciWorkspace' &&
+      Boolean(currentCiProjectId || ciOptions.bessProductId || ciOptions.loadCurve || ciOptions.tariff),
+    data: ciAutosaveData,
+    saveCurrentProject: saveCiProject,
   });
 
   const dailyKwh = totalDailyKwh(residentialOptions.loads, residentialOptions.operationHours);
@@ -636,31 +772,36 @@ export function SinglePageApp() {
           <nav className="mt-8 space-y-1" aria-label="Navegação principal">
             <button
               type="button"
-              aria-current={!guideOpen && (activeTab === 'project' || viewingWorkspace) ? 'page' : undefined}
-              aria-expanded={savedProjects.length > 0 ? projectsMenuOpen : undefined}
+              aria-current={!guideOpen && (activeTab === 'project' || activeTab === 'ciWorkspace' || viewingWorkspace) ? 'page' : undefined}
+              aria-expanded={hasAnySavedProjects ? projectsMenuOpen : undefined}
               onClick={() => {
                 setGuideOpen(false);
                 changeTab('project');
-                if (savedProjects.length > 0) setProjectsMenuOpen((open) => !open);
+                if (hasAnySavedProjects) setProjectsMenuOpen((open) => !open);
               }}
               className={cn(
                 'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                !guideOpen && (activeTab === 'project' || viewingWorkspace) &&
+                !guideOpen && (activeTab === 'project' || activeTab === 'ciWorkspace' || viewingWorkspace) &&
                   'border border-primary/20 bg-primary/10 font-medium text-foreground'
               )}
             >
               <FolderOpen className="h-4 w-4" />
               <span className="flex-1">Projetos</span>
-              {savedProjects.length > 0 && (
+              {hasAnySavedProjects && (
                 <ChevronDown
                   className={cn('h-4 w-4 shrink-0 transition-transform', !projectsMenuOpen && '-rotate-90')}
                   aria-hidden="true"
                 />
               )}
             </button>
-            {savedProjects.length > 0 && projectsMenuOpen && (
+            {hasAnySavedProjects && projectsMenuOpen && (
               <div role="group" aria-label="Workspaces" className="ml-4 space-y-0.5 border-l pl-2">
-                {savedProjects.map((project) => {
+                {savedProjects.length > 0 && (
+                  <p className="px-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                    Residencial
+                  </p>
+                )}
+                {savedProjects.slice(0, SIDEBAR_PROJECT_LIST_LIMIT).map((project) => {
                   const active = viewingWorkspace && currentProjectId === project.id;
                   return (
                     <button
@@ -678,11 +819,53 @@ export function SinglePageApp() {
                         active && 'bg-primary/10 font-medium text-foreground'
                       )}
                     >
-                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <Home className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       <span className="truncate">{project.name}</span>
                     </button>
                   );
                 })}
+                {savedProjects.length > SIDEBAR_PROJECT_LIST_LIMIT && (
+                  <SidebarViewAllProjectsLink
+                    count={savedProjects.length}
+                    onClick={() => { setGuideOpen(false); changeTab('project'); }}
+                  />
+                )}
+                {savedCiProjects.length > 0 && (
+                  <>
+                    <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                      Comercial &amp; Industrial
+                    </p>
+                    {savedCiProjects.slice(0, SIDEBAR_PROJECT_LIST_LIMIT).map((project) => {
+                      const active = activeTab === 'ciWorkspace' && currentCiProjectId === project.id;
+                      return (
+                        <button
+                          key={project.id}
+                          type="button"
+                          aria-label={`Abrir workspace ${project.name}`}
+                          aria-current={active ? 'page' : undefined}
+                          title={project.name}
+                          onClick={() => {
+                            setGuideOpen(false);
+                            openCiProjectWorkspace(project.id);
+                          }}
+                          className={cn(
+                            'flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                            active && 'bg-primary/10 font-medium text-foreground'
+                          )}
+                        >
+                          <Factory className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{project.name}</span>
+                        </button>
+                      );
+                    })}
+                    {savedCiProjects.length > SIDEBAR_PROJECT_LIST_LIMIT && (
+                      <SidebarViewAllProjectsLink
+                        count={savedCiProjects.length}
+                        onClick={() => { setGuideOpen(false); changeTab('project'); }}
+                      />
+                    )}
+                  </>
+                )}
               </div>
             )}
             <button
@@ -807,7 +990,7 @@ export function SinglePageApp() {
               // are lg:hidden, so desktop's single remaining flex child makes
               // this a no-op there.
               'z-20 flex shrink-0 items-start gap-2 bg-background/95 backdrop-blur transition-[padding,box-shadow] duration-200',
-              workspaceOpen && 'lg:hidden',
+              viewingWorkspace && 'lg:hidden',
               scrolled ? 'px-4 py-2 shadow-sm lg:px-6' : 'px-4 py-4 lg:px-6'
             )}
           >
@@ -879,6 +1062,11 @@ export function SinglePageApp() {
               onManagePortfolio={openPortfolioTab}
               onShowSummary={() => setSummaryDrawerOpen(true)}
               onHideSummary={() => setSummaryDrawerOpen(false)}
+              savedCiProjects={savedCiProjects}
+              onNewCi={startNewCiProject}
+              onOpenCi={openCiProjectWorkspace}
+              onRemoveCi={deleteCiProject}
+              onUpdateCiStatus={updateCiProjectStatusAction}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab
@@ -895,6 +1083,7 @@ export function SinglePageApp() {
               inverterCatalog={inverterCatalog}
               batteryCatalog={batteryCatalog}
               accessoryCatalog={accessoryCatalog}
+              ciBessCatalog={ciBessCatalog}
               onAddToStock={addToStock}
               onUpdateValue={updateStockItemValue}
               onRemove={removeFromStock}
@@ -946,6 +1135,22 @@ export function SinglePageApp() {
                 deleteAccount={deleteAccount}
               />
             )
+          ) : activeTab === 'ciWorkspace' ? (
+            <CommercialIndustrialWorkspace
+              projectInfo={ciProjectInfo}
+              clients={clients}
+              profile={profile}
+              onUpdateProjectInfo={setCiProjectInfo}
+              onSaveProject={() => { void saveCiProject_(); }}
+              onBackToProjects={() => { clearCiWorkspaceUrl(); cancelCiProjectDraft(); changeTab('project'); }}
+              ciOptions={ciOptions}
+              onUpdateCiOptions={setCiOptions}
+              currentCiProjectId={currentCiProjectId}
+              calculationResult={savedCiProjects.find((project) => project.id === currentCiProjectId)?.calculationResult ?? null}
+              onFlushSave={saveCiProject}
+              autosaveStatus={ciAutosaveStatus}
+              autosaveLastSavedAt={ciAutosaveLastSavedAt}
+            />
           ) : (
             <ProjectWorkspace
               enabled={workspaceOpen && Boolean(currentProjectId)}

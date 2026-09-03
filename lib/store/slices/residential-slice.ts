@@ -5,7 +5,6 @@ import type {
   CatalogItem,
   DesiredFeatureId,
   GeneratorConfig,
-  IndustrialOptions,
   LoadPresetItem,
   MicrogridConfig,
   PeakCalcMode,
@@ -16,12 +15,11 @@ import type {
   Solution,
   WhiteTariffConfig,
 } from '@/lib/types';
-import { defaultIndustrial, defaultResidential } from '../defaults';
+import { defaultResidential } from '../defaults';
 import type { WizardStore } from '../wizard-store';
 
 export interface ResidentialSlice {
   residentialOptions: ResidentialOptions;
-  industrialOptions: IndustrialOptions;
   solution: Solution | null;
   /** Result for residentialOptions.secondaryBatteryModel, when set — a live
    * comparison aid, not part of what gets saved with the project (see
@@ -51,18 +49,15 @@ export interface ResidentialSlice {
   addLoad: (load: SingleLoad) => boolean;
   removeLoad: (id: string) => void;
   updateLoad: (id: string, partial: Partial<SingleLoad>) => void;
-  setIndustrialOption: <K extends keyof IndustrialOptions>(key: K, value: IndustrialOptions[K]) => void;
   setSolution: (solution: Solution | null) => void;
   setSecondarySolution: (solution: Solution | null) => void;
   setLoadCatalog: (catalog: CatalogItem[]) => void;
   setLoadPresets: (presets: LoadPresetItem[]) => void;
   resetResidential: () => void;
-  resetIndustrial: () => void;
 }
 
 export const createResidentialSlice: StateCreator<WizardStore, [], [], ResidentialSlice> = (set, get) => ({
   residentialOptions: defaultResidential,
-  industrialOptions: defaultIndustrial,
   solution: null,
   secondarySolution: null,
   loadCatalog: [],
@@ -196,11 +191,6 @@ export const createResidentialSlice: StateCreator<WizardStore, [], [], Residenti
       },
     })),
 
-  setIndustrialOption: (key, value) =>
-    set((s) => ({
-      industrialOptions: { ...s.industrialOptions, [key]: value },
-    })),
-
   setSolution: (solution) => set({ solution }),
 
   setSecondarySolution: (secondarySolution) => set({ secondarySolution }),
@@ -210,6 +200,4 @@ export const createResidentialSlice: StateCreator<WizardStore, [], [], Residenti
   setLoadPresets: (loadPresets) => set({ loadPresets }),
 
   resetResidential: () => set({ residentialOptions: defaultResidential, solution: null, secondarySolution: null }),
-
-  resetIndustrial: () => set({ industrialOptions: defaultIndustrial, solution: null }),
 });

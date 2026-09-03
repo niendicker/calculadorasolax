@@ -8,7 +8,6 @@ import {
   BatteryCharging,
   CheckCircle2,
   ChevronRight,
-  ChevronLeft,
   Clock3,
   ClipboardList,
   Download,
@@ -25,7 +24,6 @@ import {
   Plus,
   ReceiptText,
   RefreshCw,
-  Save,
   Settings2,
   ShieldCheck,
   ShoppingCart,
@@ -42,9 +40,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { desiredFeatureLabel } from '@/lib/desired-features';
 import type { Client, DesiredFeatureId, MarginSettings, ProductDocument, ProjectInfo, ProjectServiceLine, ProjectStatus, ResidentialOptions, SavedProject, Solution, StockProductType, UserServiceItem, UserStockItem } from '@/lib/types';
 import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
@@ -56,17 +52,18 @@ import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, normalizeAc
 import { CatalogProductCard, DocPreviewModal, MicrogridGuideDialog } from '../shared-ui';
 import { MicrogridVariantChoice } from '../tabs/sizing/ResultSummary';
 import { PageSummary } from '../shell/slots';
+import { ProjectInfoEditor } from './ProjectInfoEditor';
+import { ProjectInfoModal, type ProjectInfoEditField } from './ProjectInfoModal';
+import { ProjectWorkspaceShell } from './ProjectWorkspaceShell';
 import { QuoteShareButton } from '../tabs/project/QuoteShareButton';
 import { SupplierQuoteAction } from '../tabs/project/SupplierQuoteAction';
 import { LoadSelector } from '@/components/wizard/LoadSelector';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
-import { AddressFields } from '../address-fields';
 import { formatAddress } from '@/lib/address';
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import type { LivePdfReport } from '../hooks/useLivePdfExport';
 
 export type WorkspaceSection = 'overview' | 'loads' | 'resource' | 'project' | 'configuration' | 'solution' | 'budget' | 'report';
-type ProjectInfoEditField = 'name' | 'client' | 'address' | null;
 
 const navigation: Array<{ id: WorkspaceSection; label: string; icon: typeof PanelTop }> = [
   { id: 'overview', label: 'Visão geral', icon: PanelTop },
@@ -404,19 +401,6 @@ function ProjectServicesModal({
   );
 }
 
-function WorkspaceAutosaveStatus({ status, lastSavedAt }: { status: AutosaveStatus; lastSavedAt: Date | null }) {
-  if (status === 'idle') return null;
-  const label = status === 'saving'
-    ? 'Salvando...'
-    : status === 'error'
-      ? 'Falha ao salvar'
-      : status === 'pending'
-        ? 'Alterações pendentes'
-        : `Salvo${lastSavedAt ? ` às ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`;
-  const Icon = status === 'saving' ? Loader2 : status === 'saved' ? CheckCircle2 : status === 'error' ? AlertTriangle : Save;
-  return <span role="status" className={cn('inline-flex items-center gap-1.5 text-xs text-muted-foreground', status === 'error' && 'text-destructive')}><Icon className={cn('h-3.5 w-3.5', status === 'saving' && 'animate-spin')} aria-hidden="true" />{label}</span>;
-}
-
 export function ProjectWorkspace({
   enabled = true,
   projectInfo,
@@ -522,7 +506,6 @@ export function ProjectWorkspace({
   children: ReactNode;
 }) {
   const [section, setSectionState] = useState<WorkspaceSection>('overview');
-  const [urlReady, setUrlReady] = useState(false);
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
   const [projectInfoEditField, setProjectInfoEditField] = useState<ProjectInfoEditField>(null);
   const enabledFeatures = residentialOptions.desiredFeatures;
@@ -540,31 +523,6 @@ export function ProjectWorkspace({
     availableInverterModels,
     selectedInverterModel: residentialOptions.inverterModel,
   });
-  useEffect(() => {
-    const setSectionFromValue = (value: string | null) => {
-    if (value === 'resource' || value === 'project' || value === 'configuration' || (value && navigation.some((item) => item.id === value))) {
-        setSectionState(value as WorkspaceSection);
-      }
-    };
-    const value = new URLSearchParams(window.location.search).get('workspace');
-    // The URL is external state; this one-time synchronization intentionally
-    // updates the section after mount so SSR and the first client paint agree.
-    setSectionFromValue(value);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setUrlReady(true);
-
-    const handleWorkspaceSectionChange = (event: Event) => {
-      setSectionFromValue((event as CustomEvent<string>).detail);
-    };
-    window.addEventListener('workspace-section-change', handleWorkspaceSectionChange);
-    return () => window.removeEventListener('workspace-section-change', handleWorkspaceSectionChange);
-  }, []);
-  useEffect(() => {
-    if (!urlReady) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('workspace', section);
-    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [section, urlReady]);
   const resources: ResourceItem[] = [
     {
       id: 'backup', label: 'Backup', icon: featureIcons.backup,
@@ -637,7 +595,64 @@ export function ProjectWorkspace({
   }
 
   return (
-    <div className="space-y-4">
+    <ProjectWorkspaceShell
+      title={projectInfo.name || 'Projeto sem nome'}
+      autosaveStatus={autosaveStatus}
+      autosaveLastSavedAt={autosaveLastSavedAt}
+      navigation={navigation}
+      activeSection={section}
+      onSectionChange={(id) => setSectionState(id as WorkspaceSection)}
+      subtitle={
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
+              <UserRound className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span>{client?.name || 'Não informado'}</span>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
+        </p>
+      }
+      actions={
+        <>
+          {onRefreshSolution && (
+            <Button
+              type="button"
+              variant={solution && !staleSolution ? 'outline' : 'default'}
+              size="sm"
+              className={cn(
+                'shrink-0',
+                solution && !staleSolution
+                  ? 'border-muted text-muted-foreground'
+                  : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
+              )}
+              onClick={onRefreshSolution}
+              disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
+              title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
+              aria-busy={recalculatingSolution}
+            >
+              {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+              {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
+            </Button>
+          )}
+          {onResetSizing && (
+            <ConfirmDeleteModalButton
+              ariaLabel="Limpar dimensionamento"
+              itemName="dimensionamento atual"
+              itemType="dimensionamento"
+              title="Limpar dimensionamento?"
+              description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
+              label="Limpar"
+              icon={<Trash2 className="h-4 w-4" />}
+              confirmLabel="Limpar"
+              triggerVariant="outline"
+              onConfirm={onResetSizing}
+            />
+          )}
+        </>
+      }
+    >
       {section !== 'overview' && <PageSummary>
         <div className="space-y-4">
           <div className="grid gap-2">
@@ -654,83 +669,6 @@ export function ProjectWorkspace({
           </Card>
         </div>
       </PageSummary>}
-      <div className="sticky top-0 z-30 bg-background pb-3 lg:pt-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{projectInfo.name || 'Projeto sem nome'}</h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> Em andamento</span>
-            <WorkspaceAutosaveStatus status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
-          </div>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span>{client?.name || 'Não informado'}</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {onRefreshSolution && (
-                <Button
-                  type="button"
-                  variant={solution && !staleSolution ? 'outline' : 'default'}
-                  size="sm"
-                  className={cn(
-                    'shrink-0',
-                    solution && !staleSolution
-                      ? 'border-muted text-muted-foreground'
-                      : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white'
-                  )}
-                  onClick={onRefreshSolution}
-                  disabled={recalculatingSolution || Boolean(solution && !staleSolution)}
-                  title={solution && !staleSolution ? 'A solução já está configurada.' : undefined}
-                  aria-busy={recalculatingSolution}
-                >
-                  {recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
-                  {recalculatingSolution ? 'Recalculando...' : 'Recalcular solução'}
-                </Button>
-              )}
-              {onResetSizing && (
-                <ConfirmDeleteModalButton
-                  ariaLabel="Limpar dimensionamento"
-                  itemName="dimensionamento atual"
-                  itemType="dimensionamento"
-                  title="Limpar dimensionamento?"
-                  description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-                  label="Limpar"
-                  icon={<Trash2 className="h-4 w-4" />}
-                  confirmLabel="Limpar"
-                  triggerVariant="outline"
-                  onConfirm={onResetSizing}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-        <nav className="mt-4 flex items-stretch overflow-x-auto rounded-xl border border-border/70 bg-card/70 p-1" aria-label="Seções do projeto">
-          {navigation.map(({ id, label, icon: Icon }, index) => (
-            <div key={id} className="flex min-w-[8.5rem] flex-1 items-stretch">
-              {index > 0 && <ChevronRight className="my-auto h-5 w-5 shrink-0 text-muted-foreground/50" aria-hidden="true" />}
-              <button
-                type="button"
-                aria-current={section === id ? 'page' : undefined}
-                onClick={() => openSizingSection(id)}
-                className={cn(
-                  'relative flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  section === id ? 'text-primary after:bg-primary' : 'text-muted-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{label}</span>
-              </button>
-            </div>
-          ))}
-        </nav>
-      </div>
-
       {section === 'overview' ? (
         <>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
@@ -1018,215 +956,12 @@ export function ProjectWorkspace({
         }}
       />
       <MicrogridGuideDialog open={microgridGuideOpen} onClose={() => setMicrogridGuideOpen(false)} />
-    </div>
+    </ProjectWorkspaceShell>
   );
 }
 
 function CardIcon({ icon: Icon }: { icon: typeof PanelTop }) {
   return <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span>;
-}
-
-type ProjectInfoEditorProps = {
-  projectInfo: ProjectInfo;
-  clients: Client[];
-  onChange?: (partial: Partial<ProjectInfo>) => void;
-  onSave?: () => void;
-  onCancel?: () => void;
-};
-
-function ProjectInfoFields({ projectInfo, clients, onChange, onSave, onCancel }: ProjectInfoEditorProps) {
-  const nameError = !projectInfo.name.trim();
-
-  return (
-    <div className="space-y-5">
-      <section className="space-y-3" aria-labelledby="project-info-identification-title">
-        <div>
-          <h3 id="project-info-identification-title" className="text-sm font-semibold">Identificação</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Defina como esta instalação será apresentada no projeto.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="workspaceProjectName">Nome do projeto</Label>
-            <Input id="workspaceProjectName" value={projectInfo.name} onChange={(event) => onChange?.({ name: event.target.value })} aria-invalid={nameError} />
-            {nameError && <p className="text-xs text-destructive" role="alert">Informe um nome para o projeto.</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="workspaceProjectClient">Cliente</Label>
-            <Select id="workspaceProjectClient" value={projectInfo.clientId ?? ''} onChange={(event) => onChange?.({ clientId: event.target.value || null })}>
-              <option value="">Sem cliente selecionado</option>
-              {clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </Select>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-3 border-t pt-5" aria-labelledby="project-info-address-title">
-        <div>
-          <h3 id="project-info-address-title" className="text-sm font-semibold">Endereço da instalação</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Use o CEP para preencher automaticamente os dados disponíveis.</p>
-        </div>
-        <AddressFields address={projectInfo.address} onChange={(partial) => onChange?.({ address: { ...projectInfo.address, ...partial } })} idPrefix="workspaceProjectAddress" />
-      </section>
-
-      <section className="space-y-1.5 border-t pt-5" aria-labelledby="project-info-notes-title">
-        <div>
-          <h3 id="project-info-notes-title" className="text-sm font-semibold">Observações</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Registre informações comerciais ou restrições da instalação.</p>
-        </div>
-        <textarea id="workspaceProjectNotes" className="min-h-24 w-full rounded-lg border border-input bg-background px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm" value={projectInfo.notes} onChange={(event) => onChange?.({ notes: event.target.value })} placeholder="Ex.: acesso restrito, preferência do cliente..." />
-      </section>
-
-      <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
-        {onSave && <Button type="button" onClick={onSave} disabled={nameError}>Salvar alterações</Button>}
-      </div>
-    </div>
-  );
-}
-
-function ProjectInfoEditor({
-  projectInfo,
-  clients,
-  onChange,
-  onSave,
-  onCancel,
-}: {
-  projectInfo: ProjectInfo;
-  clients: Client[];
-  onChange?: (partial: Partial<ProjectInfo>) => void;
-  onSave?: () => void;
-  onCancel?: () => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Editar projeto</h2>
-          <p className="text-sm text-muted-foreground">Atualize as informações gerais sem sair do Workspace.</p>
-        </div>
-        {onCancel && <Button type="button" variant="outline" size="sm" onClick={onCancel}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Voltar para Visão geral</Button>}
-      </div>
-      <Card>
-        <CardContent className="p-5">
-          <ProjectInfoFields projectInfo={projectInfo} clients={clients} onChange={onChange} onSave={onSave} onCancel={onCancel} />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function ProjectInfoModal({ field, projectInfo, clients, onClose, onSave }: {
-  field: ProjectInfoEditField;
-  projectInfo: ProjectInfo;
-  clients: Client[];
-  onClose: () => void;
-  onSave: (partial: Partial<ProjectInfo>) => void;
-}) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  const [name, setName] = useState(projectInfo.name);
-  const [clientId, setClientId] = useState(projectInfo.clientId ?? '');
-  const [address, setAddress] = useState(projectInfo.address);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!field) return;
-    previousFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
-      ? document.activeElement
-      : null;
-
-    const getFocusableElements = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    ) ?? []);
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = getFocusableElements();
-      if (!focusable.length) return;
-      if (event.shiftKey && document.activeElement === focusable[0]) {
-        event.preventDefault();
-        focusable[focusable.length - 1].focus();
-      } else if (!event.shiftKey && document.activeElement === focusable[focusable.length - 1]) {
-        event.preventDefault();
-        focusable[0].focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    requestAnimationFrame(() => getFocusableElements()[0]?.focus());
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      requestAnimationFrame(() => previousFocusRef.current?.focus());
-    };
-  }, [field]);
-
-  if (!field) return null;
-
-  const title = field === 'name' ? 'Nome da instalação' : field === 'client' ? 'Cliente' : 'Endereço da instalação';
-  const description = field === 'name'
-    ? 'Atualize o nome usado para identificar esta instalação.'
-    : field === 'client'
-      ? 'Selecione o cliente relacionado a esta instalação.'
-      : 'Atualize os dados do endereço da instalação.';
-  const save = () => {
-    if (field === 'name') onSave({ name });
-    if (field === 'client') onSave({ clientId: clientId || null });
-    if (field === 'address') onSave({ address });
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-[1px]" role="presentation">
-      <button type="button" className="absolute inset-0 cursor-default" aria-label={`Fechar edição de ${title.toLocaleLowerCase('pt-BR')}`} onClick={onClose} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="project-info-modal-title" aria-describedby="project-info-modal-description" className={cn('relative z-10 my-auto max-h-[calc(100dvh-2rem)] w-full overflow-y-auto rounded-2xl border bg-card text-card-foreground shadow-2xl', field === 'address' ? 'max-w-2xl' : 'max-w-md')}>
-        <div className="flex items-start justify-between gap-4 border-b bg-muted/20 px-5 py-4 sm:px-6">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><ClipboardList className="h-5 w-5" aria-hidden="true" /></span>
-            <div>
-              <h2 id="project-info-modal-title" className="text-lg font-semibold tracking-tight">{title}</h2>
-              <p id="project-info-modal-description" className="mt-1 text-sm text-muted-foreground">{description}</p>
-            </div>
-          </div>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Fechar edição de ${title.toLocaleLowerCase('pt-BR')}`} onClick={onClose}><X className="h-4 w-4" aria-hidden="true" /></Button>
-        </div>
-        <div className="p-5 sm:p-6">
-          {field === 'name' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="workspaceProjectNameModal">Nome da instalação</Label>
-              <Input id="workspaceProjectNameModal" value={name} onChange={(event) => setName(event.target.value)} aria-invalid={!name.trim()} autoFocus />
-              {!name.trim() && <p className="text-xs text-destructive" role="alert">Informe um nome para a instalação.</p>}
-            </div>
-          )}
-          {field === 'client' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="workspaceProjectClientModal">Cliente</Label>
-              <Select id="workspaceProjectClientModal" value={clientId} onChange={(event) => setClientId(event.target.value)} autoFocus>
-                <option value="">Sem cliente selecionado</option>
-                {clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </Select>
-            </div>
-          )}
-          {field === 'address' && (
-            <AddressFields address={address} onChange={(partial) => setAddress((current) => ({ ...current, ...partial }))} idPrefix="workspaceProjectAddressModal" />
-          )}
-          <div className="mt-6 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="button" onClick={save} disabled={field === 'name' && !name.trim()}>Salvar</Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function MetricCard({ label, value, icon: Icon, compact = false }: { label: string; value: string; icon: typeof Zap; compact?: boolean }) {

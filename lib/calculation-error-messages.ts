@@ -122,3 +122,41 @@ export async function resolveCalculationErrorMessage(functionError: unknown): Pr
 
   return getCalculationErrorMessage(undefined);
 }
+
+// ─── calculate-commercial-industrial ────────────────────────────────────
+// Its own small map, not merged into MESSAGES/INVALID_FIELD_LABELS above:
+// the C&I Edge Function has no field-name/blockingFeatures concept to
+// translate, just a handful of stable error codes (see
+// supabase/functions/calculate-commercial-industrial/index.ts).
+
+const CI_MESSAGES: Record<string, string> = {
+  invalid_payload: 'Os dados da simulação estão incompletos ou inválidos. Revise a configuração e tente novamente.',
+  incomplete_configuration:
+    'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.',
+  bess_product_not_found: 'O produto BESS selecionado não foi encontrado ou não está mais ativo no catálogo.',
+  bess_product_lookup_failed: 'Erro interno ao consultar o produto BESS selecionado. Tente novamente em instantes.',
+  no_scenarios_evaluated: 'Nenhum cenário pôde ser avaliado com a configuração atual. Revise a quantidade de módulos.',
+  internal: 'Erro interno ao calcular o estudo. Tente novamente em instantes.',
+};
+
+const CI_FALLBACK_MESSAGE = 'Não foi possível calcular o estudo C&I.';
+
+export function getCommercialIndustrialCalculationErrorMessage(code: string | null | undefined): string {
+  if (code && CI_MESSAGES[code]) return CI_MESSAGES[code];
+  return CI_FALLBACK_MESSAGE;
+}
+
+export async function resolveCommercialIndustrialCalculationErrorMessage(functionError: unknown): Promise<string> {
+  if (functionError instanceof FunctionsHttpError) {
+    try {
+      const body = await functionError.context.json();
+      return getCommercialIndustrialCalculationErrorMessage(body?.error);
+    } catch {
+      return getCommercialIndustrialCalculationErrorMessage(undefined);
+    }
+  }
+  if (functionError instanceof FunctionsFetchError) {
+    return getNetworkErrorMessage();
+  }
+  return getCommercialIndustrialCalculationErrorMessage(undefined);
+}
