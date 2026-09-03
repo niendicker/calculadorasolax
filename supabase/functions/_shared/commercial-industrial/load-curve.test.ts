@@ -188,6 +188,60 @@ describe('summarizeLoadCurve', () => {
     expect(summary.pointCount).toBe(4);
   });
 
+  // Fase 6 audit's mandatory worked examples (Problem #1: a report showed
+  // ~52x too much weekly energy — these three fixed, hand-computed cases
+  // pin the kW->kWh integration down so that regression can never recur
+  // silently.
+  it('100 kW held for 1h in 15-min steps integrates to exactly 100 kWh', () => {
+    const curve: LoadCurve = {
+      points: Array.from({ length: 4 }, (_, i) => ({
+        timestamp: new Date(Date.UTC(2026, 0, 1, 0, i * 15)).toISOString(),
+        powerKw: 100,
+      })),
+      resolutionMinutes: 15,
+      timezone: 'UTC',
+      profileBasis: 'representative_period',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-01-01',
+      source: 'manual',
+    };
+    expect(summarizeLoadCurve(curve).totalEnergyKwh).toBeCloseTo(100, 10);
+  });
+
+  it('100 kW held for 24h integrates to exactly 2400 kWh', () => {
+    const pointsPerDay = (24 * 60) / 15;
+    const curve: LoadCurve = {
+      points: Array.from({ length: pointsPerDay }, (_, i) => ({
+        timestamp: new Date(Date.UTC(2026, 0, 1, 0, i * 15)).toISOString(),
+        powerKw: 100,
+      })),
+      resolutionMinutes: 15,
+      timezone: 'UTC',
+      profileBasis: 'representative_period',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-01-01',
+      source: 'manual',
+    };
+    expect(summarizeLoadCurve(curve).totalEnergyKwh).toBeCloseTo(2400, 10);
+  });
+
+  it('95 kW held for 7 days (a full representative week) integrates to exactly 15960 kWh', () => {
+    const pointsPerWeek = (7 * 24 * 60) / 15;
+    const curve: LoadCurve = {
+      points: Array.from({ length: pointsPerWeek }, (_, i) => ({
+        timestamp: new Date(Date.UTC(2026, 0, 1, 0, i * 15)).toISOString(),
+        powerKw: 95,
+      })),
+      resolutionMinutes: 15,
+      timezone: 'UTC',
+      profileBasis: 'representative_period',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-01-07',
+      source: 'manual',
+    };
+    expect(summarizeLoadCurve(curve).totalEnergyKwh).toBeCloseTo(15960, 6);
+  });
+
   it('returns zeros for an empty curve', () => {
     const curve: LoadCurve = {
       points: [],

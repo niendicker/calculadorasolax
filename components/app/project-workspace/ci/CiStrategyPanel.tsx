@@ -25,17 +25,20 @@ const strategyOptions: { value: BessStrategyId; label: string; description: stri
   {
     value: 'PEAK_SHAVING',
     label: 'Peak Shaving',
-    description: 'Reduz a demanda de pico usando a bateria como reforço nos horários de maior consumo.',
+    description:
+      'Reduz potência acima do target de demanda e carrega somente fora da ponta. Durante a carga, a potência do BESS é ajustada dinamicamente para que a potência importada não ultrapasse a demanda contratada.',
   },
   {
     value: 'LOAD_SHIFTING',
     label: 'Load Shifting',
-    description: 'Carrega fora da ponta e descarrega na ponta, deslocando consumo para a tarifa mais barata.',
+    description:
+      'Carrega fora da ponta e descarrega durante a ponta acompanhando dinamicamente o consumo até os limites de potência, energia e SOC. Durante a carga, a potência é ajustada para respeitar a demanda contratada.',
   },
   {
     value: 'HYBRID',
     label: 'Híbrido',
-    description: 'Combina redução de demanda e deslocamento de carga em uma única prioridade de despacho.',
+    description:
+      'Reserva dinamicamente a energia necessária para a próxima janela de ponta e utiliza somente a energia excedente para Peak Shaving. Durante a ponta, combina Load Shifting e redução de demanda. A carga do BESS é modulada dinamicamente para respeitar a demanda contratada.',
   },
 ];
 

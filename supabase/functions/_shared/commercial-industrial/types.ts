@@ -134,7 +134,7 @@ export interface CommercialIndustrialOptions {
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
 
-export const CI_ENGINE_VERSION = 'ci-v1';
+export const CI_ENGINE_VERSION = 'ci-v2';
 
 export type TariffPeriod = 'peak' | 'offPeak';
 
@@ -191,15 +191,29 @@ export interface SelectedScenarioDetail extends ScenarioCandidate {
 }
 
 export interface BaselineResult {
+  /** Annual (projected) cost — i.e. the raw representative-week dispatch
+   * scaled by tariff.ts's WEEKS_PER_YEAR (~52.18) before pricing. */
   annualCostBrl: number;
   maxDemandPeakKw: number;
   maxDemandOffPeakKw: number;
   /** Split by tariff period so Fase 4's tariff.ts can price peak/off-peak TE
    * separately without needing the baseline's full point-by-point trace
    * (which, unlike a selected scenario, is never persisted — plan section
-   * 4.5). */
+   * 4.5). **Annual** figures (raw representative-week energy × WEEKS_PER_YEAR
+   * — see tariff.ts's `annualizeWeeklyDispatch`), NOT the week itself. Use
+   * `weeklyEnergyImportedPeakKwh`/`weeklyEnergyImportedOffPeakKwh` below for
+   * the literal representative-week total (e.g. a "energia importada na
+   * semana" display). Mislabeling this pair as weekly was Fase 6's Problem
+   * #1 (a report showed an annualized value as "energia semanal", ~52x too
+   * high) — keep the annual/weekly distinction explicit at every call site. */
   energyImportedPeakKwh: number;
   energyImportedOffPeakKwh: number;
+  /** The literal representative-week totals (no WEEKS_PER_YEAR scaling) —
+   * straight from dispatch.ts's `summarizeDispatch`. Added alongside the
+   * (pre-existing, now annual) fields above rather than renaming them, to
+   * avoid breaking persisted `calculation_result` JSONB rows. */
+  weeklyEnergyImportedPeakKwh: number;
+  weeklyEnergyImportedOffPeakKwh: number;
 }
 
 /** Runtime BESS sizing for one simulation — moduleCount * catalog spec
@@ -226,8 +240,14 @@ export interface CommercialIndustrialResult {
   inputFingerprint: string;
   baseline: BaselineResult;
   scenarios: ScenarioCandidate[];
+  /** `scenarioId: null` means no candidate met the viability bar for
+   * `rankingCriterion` (e.g. no scenario pays back within the analysis
+   * horizon) — never coerced into "recommending" the least-bad option
+   * anyway. `selected` (below) may still be populated for reference in that
+   * case (materialized from the smallest evaluated module count), but
+   * callers must not label it "recomendado" when this is null. */
   recommendation: {
-    scenarioId: string;
+    scenarioId: string | null;
     reason: string;
   };
   /** Present once the user has selected/saved a scenario; carries the full

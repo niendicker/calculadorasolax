@@ -11,7 +11,7 @@ import type {
   TariffMarket,
   TariffModality,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
-import { formatCurrencyBRL, maskDocument } from '../../helpers';
+import { formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears, maskDocument } from '../../helpers';
 import { COLORS } from '../../project-quote-pdf';
 import type { InlineProfile } from '../../types';
 
@@ -131,18 +131,6 @@ function styleIf<T extends object>(condition: boolean | undefined, style: T): T 
   return condition ? style : {};
 }
 
-function formatKw(valueKw: number): string {
-  return `${valueKw.toFixed(1)} kW`;
-}
-
-function formatKwh(valueKwh: number): string {
-  return `${valueKwh.toFixed(1)} kWh`;
-}
-
-function formatYears(years: number | null): string {
-  return years === null ? '—' : `${years.toFixed(1)} anos`;
-}
-
 const STRATEGY_LABELS: Record<BessStrategyId, { label: string; description: string }> = {
   BASE: {
     label: 'Linha de base',
@@ -151,17 +139,17 @@ const STRATEGY_LABELS: Record<BessStrategyId, { label: string; description: stri
   PEAK_SHAVING: {
     label: 'Peak Shaving',
     description:
-      'O BESS descarrega para reduzir a demanda instantânea importada da rede sempre que ela ultrapassa um alvo derivado da demanda contratada.',
+      'Reduz potência acima do target de demanda e carrega somente fora da ponta. Durante a carga, a potência do BESS é ajustada dinamicamente para que a potência importada não ultrapasse a demanda contratada.',
   },
   LOAD_SHIFTING: {
     label: 'Load Shifting',
     description:
-      'O BESS carrega fora do horário de ponta e descarrega durante a ponta, deslocando parte do consumo para o período tarifário mais barato.',
+      'Carrega fora da ponta e descarrega durante a ponta acompanhando dinamicamente o consumo até os limites de potência, energia e SOC. Durante a carga, a potência é ajustada para respeitar a demanda contratada.',
   },
   HYBRID: {
     label: 'Híbrido',
     description:
-      'Combina as duas estratégias com prioridades documentadas: reserva energia mínima para atender a ponta, usa a potência disponível para reduzir a demanda instantânea e carrega fora da ponta quando há espaço energético, sempre respeitando SOC, potência e energia disponíveis.',
+      'Reserva dinamicamente a energia necessária para a próxima janela de ponta e utiliza somente a energia excedente para Peak Shaving. Durante a ponta, combina Load Shifting e redução de demanda. A carga do BESS é modulada dinamicamente para respeitar a demanda contratada.',
   },
 };
 
@@ -309,7 +297,15 @@ function TimeSeriesChart({
 
 /** Grouped bar chart comparing CAPEX and annual savings across every
  * evaluated module count — the visual counterpart to the comparison table. */
-function ModuleComparisonChart({ scenarios, recommendedScenarioId }: { scenarios: ScenarioCandidate[]; recommendedScenarioId: string }) {
+function ModuleComparisonChart({
+  scenarios,
+  recommendedScenarioId,
+}: {
+  scenarios: ScenarioCandidate[];
+  /** null when no scenario met the viability bar (Fase 6 audit, Problem
+   * #5) — no bar gets the "*" marker in that case. */
+  recommendedScenarioId: string | null;
+}) {
   const sorted = [...scenarios].sort((a, b) => a.moduleCount - b.moduleCount);
   if (sorted.length === 0) return null;
   const chartHeight = CHART_HEIGHT - 8;
@@ -319,20 +315,27 @@ function ModuleComparisonChart({ scenarios, recommendedScenarioId }: { scenarios
 
   return (
     <View wrap={false} style={styles.chartBox}>
-      <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-        <Rect x={0} y={0} width={CHART_WIDTH} height={CHART_HEIGHT} fill="#ffffff" stroke={COLORS.border} strokeWidth={1} />
-        {sorted.map((scenario, index) => {
-          const groupX = index * groupWidth + groupWidth / 2;
-          const capexHeight = (scenario.capex / maxValue) * chartHeight;
-          const savingsHeight = (scenario.annualSavings / maxValue) * chartHeight;
-          return (
-            <G key={scenario.scenarioId}>
-              <Rect x={groupX - barWidth - 1} y={chartHeight - capexHeight} width={barWidth} height={capexHeight} fill={COLORS.primary} />
-              <Rect x={groupX + 1} y={chartHeight - savingsHeight} width={barWidth} height={savingsHeight} fill="#2f9e58" />
-            </G>
-          );
-        })}
-      </Svg>
+      <View style={{ position: 'relative' }}>
+        <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+          <Rect x={0} y={0} width={CHART_WIDTH} height={CHART_HEIGHT} fill="#ffffff" stroke={COLORS.border} strokeWidth={1} />
+          {sorted.map((scenario, index) => {
+            const groupX = index * groupWidth + groupWidth / 2;
+            const capexHeight = (scenario.capex / maxValue) * chartHeight;
+            const savingsHeight = (scenario.annualSavings / maxValue) * chartHeight;
+            return (
+              <G key={scenario.scenarioId}>
+                <Rect x={groupX - barWidth - 1} y={chartHeight - capexHeight} width={barWidth} height={capexHeight} fill={COLORS.primary} />
+                <Rect x={groupX + 1} y={chartHeight - savingsHeight} width={barWidth} height={savingsHeight} fill="#2f9e58" />
+              </G>
+            );
+          })}
+        </Svg>
+        {/* Y-axis scale — the chart previously had none, so the bars had no
+         * readable reference beyond relative height (Fase 6 audit, Problem
+         * #7 investigation). */}
+        <Text style={[styles.chartAxisLabel, { top: 2, left: 4 }]}>{formatCurrencyBRL(maxValue)}</Text>
+        <Text style={[styles.chartAxisLabel, { bottom: 10, left: 4 }]}>{formatCurrencyBRL(0)}</Text>
+      </View>
       <View style={{ flexDirection: 'row' }}>
         {sorted.map((scenario) => (
           <Text key={scenario.scenarioId} style={{ flex: 1, fontSize: 6.5, textAlign: 'center', color: COLORS.muted }}>
@@ -343,7 +346,8 @@ function ModuleComparisonChart({ scenarios, recommendedScenarioId }: { scenarios
       </View>
       <ChartLegend items={[{ color: COLORS.primary, label: 'CAPEX' }, { color: '#2f9e58', label: 'Economia anual' }]} />
       <Text style={styles.chartCaption}>
-        Eixo horizontal: quantidade de módulos avaliada (* = cenário recomendado).
+        Eixo horizontal: quantidade de módulos avaliada
+        {recommendedScenarioId ? ' (* = cenário recomendado).' : '. Nenhum cenário foi recomendado — ver Resumo executivo.'}
       </Text>
     </View>
   );
@@ -388,8 +392,8 @@ function SocChart({
     socMinPercent === null || socMaxPercent === null
       ? []
       : [
-          { value: (totalCapacityKwh * socMinPercent) / 100, color: COLORS.destructive, label: `SOC mín. (${socMinPercent.toFixed(0)}%)` },
-          { value: (totalCapacityKwh * socMaxPercent) / 100, color: '#2f9e58', label: `SOC máx. (${socMaxPercent.toFixed(0)}%)` },
+          { value: (totalCapacityKwh * socMinPercent) / 100, color: COLORS.destructive, label: `SOC mín. (${formatPercentBRL(socMinPercent, 0)})` },
+          { value: (totalCapacityKwh * socMaxPercent) / 100, color: '#2f9e58', label: `SOC máx. (${formatPercentBRL(socMaxPercent, 0)})` },
         ];
   return (
     <TimeSeriesChart
@@ -413,7 +417,7 @@ function ScenarioTableRow({ scenario, recommended, last }: { scenario: ScenarioC
       <Text style={styles.tableCell}>{formatCurrencyBRL(scenario.annualSavings)}</Text>
       <Text style={styles.tableCell}>{formatYears(scenario.paybackYearsSimple)}</Text>
       <Text style={styles.tableCell}>{formatYears(scenario.paybackYearsDiscounted)}</Text>
-      <Text style={styles.tableCell}>{scenario.roiPercent.toFixed(1)}%</Text>
+      <Text style={styles.tableCell}>{formatPercentBRL(scenario.roiPercent)}</Text>
       <Text style={styles.tableCell}>{formatCurrencyBRL(scenario.npv)}</Text>
       <Text style={styles.tableCell}>{scenario.marginalGain === null ? '—' : formatCurrencyBRL(scenario.marginalGain)}</Text>
     </View>
@@ -430,12 +434,17 @@ export interface CiMemorialPdfInput {
 }
 
 /** Renders the C&I study as a native PDF Document — see file header comment.
- * `result.selected` must be present; callers should only offer this action
- * once a calculation has produced a materialized recommended scenario
- * (mirrors CiResultsPanel's own `result.selected &&` gating in the UI). */
+ * `result.selected` is populated whenever `result.scenarios` is non-empty,
+ * but it is only actually "recomendado" when `result.recommendation.
+ * scenarioId` is non-null (Fase 6 audit, Problem #5) — when no scenario
+ * clears the configured viability bar, `selected` still carries the
+ * smallest evaluated module count for reference, and every section below
+ * that would otherwise say "recomendado" switches to a neutral "avaliado"
+ * framing instead (never silently mislabeling a nonviable result). */
 export function CiMemorialPdfDocument({ projectInfo, client, profile, result, product, rankingCriterion }: CiMemorialPdfInput) {
   const generatedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
   const selected = result.selected;
+  const isRecommended = result.recommendation.scenarioId !== null;
   const strategyInfo = selected ? STRATEGY_LABELS[selected.strategy] : null;
   const sortedScenarios = [...result.scenarios].sort((a, b) => a.moduleCount - b.moduleCount);
   const totalWarnings = [...result.warnings, ...(selected?.technicalWarnings ?? [])];
@@ -466,19 +475,23 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               <Text style={styles.sectionIntro}>{result.recommendation.reason}</Text>
               <MetricRows
                 metrics={[
-                  { label: 'Módulos recomendados', value: `${selected.moduleCount}`, highlight: true },
+                  {
+                    label: isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
+                    value: `${selected.moduleCount}`,
+                    highlight: isRecommended,
+                  },
                   { label: 'CAPEX', value: formatCurrencyBRL(selected.capex) },
                   { label: 'Economia anual', value: formatCurrencyBRL(selected.annualSavings) },
                   { label: 'Payback simples', value: formatYears(selected.paybackYearsSimple) },
                   { label: 'Payback descontado', value: formatYears(selected.paybackYearsDiscounted) },
-                  { label: 'ROI anual', value: `${selected.roiPercent.toFixed(1)}%` },
+                  { label: 'ROI anual', value: formatPercentBRL(selected.roiPercent) },
                   { label: 'NPV', value: formatCurrencyBRL(selected.npv) },
                   { label: 'Estratégia', value: strategyInfo?.label ?? selected.strategy },
                 ]}
               />
             </>
           ) : (
-            <Text style={styles.sectionIntro}>Nenhum cenário recomendado foi materializado nesta execução.</Text>
+            <Text style={styles.sectionIntro}>Nenhum cenário foi avaliado nesta execução.</Text>
           )}
         </View>
 
@@ -509,10 +522,13 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               { label: 'Demanda contratada', value: formatKw(result.assumptions.tariff.contractedDemandKw) },
               { label: 'Janela de ponta', value: `${result.assumptions.tariff.peakStart} às ${result.assumptions.tariff.peakEnd}` },
               { label: 'Modalidade tarifária / mercado', value: `${TARIFF_MODALITY_LABELS[result.assumptions.tariff.tariffModality]} · ${MARKET_LABELS[result.assumptions.tariff.market]}` },
-              { label: 'ICMS / PIS-COFINS', value: `${result.assumptions.tariff.icmsPercent.toFixed(1)}% / ${result.assumptions.tariff.pisCofinsPercent.toFixed(1)}%` },
-              { label: 'Taxa de desconto', value: `${result.assumptions.financial.discountRatePercent.toFixed(1)}% a.a.` },
+              { label: 'ICMS / PIS-COFINS', value: `${formatPercentBRL(result.assumptions.tariff.icmsPercent)} / ${formatPercentBRL(result.assumptions.tariff.pisCofinsPercent)}` },
+              { label: 'Taxa de desconto', value: `${formatPercentBRL(result.assumptions.financial.discountRatePercent)} a.a.` },
               { label: 'Horizonte de análise', value: `${result.assumptions.financial.analysisHorizonYears} anos` },
-              { label: 'Inflação energética anual', value: `${result.assumptions.financial.annualEnergyInflationPercent.toFixed(1)}%` },
+              {
+                label: 'Inflação energética anual (reajuste uniforme aplicado ao fluxo de caixa)',
+                value: formatPercentBRL(result.assumptions.financial.annualEnergyInflationPercent),
+              },
               ...(rankingCriterion ? [{ label: 'Critério de ranking', value: RANKING_CRITERION_LABELS[rankingCriterion] }] : []),
             ]}
           />
@@ -526,8 +542,17 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               { label: 'Demanda máx. na ponta', value: formatKw(result.baseline.maxDemandPeakKw) },
               { label: 'Demanda máx. fora ponta', value: formatKw(result.baseline.maxDemandOffPeakKw) },
               {
-                label: 'Energia importada (semana)',
-                value: formatKwh(result.baseline.energyImportedPeakKwh + result.baseline.energyImportedOffPeakKwh),
+                // Fase 6 audit, Problem #1: this used to show the ANNUALIZED
+                // total mislabeled "(semana)" — ~52x (WEEKS_PER_YEAR) too
+                // high. weeklyEnergyImportedPeakKwh/OffPeakKwh are the
+                // literal representative-week totals (types.ts's
+                // BaselineResult), unscaled.
+                label: 'Energia importada (semana representativa)',
+                value: formatKwh(result.baseline.weeklyEnergyImportedPeakKwh + result.baseline.weeklyEnergyImportedOffPeakKwh),
+              },
+              {
+                label: 'Energia importada (projeção anual)',
+                value: formatKwh(result.baseline.energyImportedPeakKwh + result.baseline.energyImportedOffPeakKwh, 0),
               },
             ]}
           />
@@ -535,7 +560,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
 
         {selected && (
           <View style={styles.section} wrap={false}>
-            <Text style={styles.sectionTitle}>BESS recomendado</Text>
+            <Text style={styles.sectionTitle}>{isRecommended ? 'BESS recomendado' : 'BESS avaliado (menor configuração — não recomendada)'}</Text>
             <InfoRows
               rows={[
                 { label: 'Produto', value: product ? `${product.model} · ${product.manufacturer}` : 'Produto não disponível no catálogo ativo' },
@@ -543,8 +568,10 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                 { label: 'Quantidade de módulos', value: `${selected.moduleCount}` },
                 { label: 'Potência total', value: formatKw(selected.totalPowerKw) },
                 { label: 'Capacidade total / útil', value: `${formatKwh(selected.totalCapacityKwh)} / ${formatKwh(selected.usefulCapacityKwh)}` },
-                ...(product ? [{ label: 'Eficiência de ciclo (catálogo)', value: `${product.efficiency_percent.toFixed(1)}%` }] : []),
-                ...(product ? [{ label: 'Faixa de SOC operacional', value: `${product.soc_min_percent.toFixed(0)}% – ${product.soc_max_percent.toFixed(0)}%` }] : []),
+                ...(product ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL(product.efficiency_percent) }] : []),
+                ...(product
+                  ? [{ label: 'Faixa de SOC operacional', value: `${formatPercentBRL(product.soc_min_percent, 0)} – ${formatPercentBRL(product.soc_max_percent, 0)}` }]
+                  : []),
                 ...(product ? [{ label: 'Garantia', value: `${product.warranty_years} anos` }] : []),
               ]}
             />
@@ -612,17 +639,19 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
 
         {selected && (
           <View style={styles.section} wrap={false}>
-            <Text style={styles.sectionTitle}>CAPEX, economia, payback, ROI e NPV — cenário recomendado</Text>
+            <Text style={styles.sectionTitle}>
+              CAPEX, economia, payback, ROI e NPV — {isRecommended ? 'cenário recomendado' : 'menor configuração avaliada'}
+            </Text>
             <MetricRows
               perRow={3}
               metrics={[
                 { label: 'CAPEX', value: formatCurrencyBRL(selected.capex) },
                 { label: 'Economia de energia/ano', value: formatCurrencyBRL(selected.energySavings) },
                 { label: 'Economia de demanda/ano', value: formatCurrencyBRL(selected.demandSavings) },
-                { label: 'Economia total/ano', value: formatCurrencyBRL(selected.annualSavings), highlight: true },
+                { label: 'Economia total/ano', value: formatCurrencyBRL(selected.annualSavings), highlight: isRecommended },
                 { label: 'Payback simples', value: formatYears(selected.paybackYearsSimple) },
                 { label: 'Payback descontado', value: formatYears(selected.paybackYearsDiscounted) },
-                { label: 'ROI anual', value: `${selected.roiPercent.toFixed(1)}%` },
+                { label: 'ROI anual', value: formatPercentBRL(selected.roiPercent) },
                 { label: 'NPV', value: formatCurrencyBRL(selected.npv) },
               ]}
             />
@@ -631,7 +660,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
 
         {selected && selected.cashFlow.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Fluxo de caixa — cenário recomendado</Text>
+            <Text style={styles.sectionTitle}>Fluxo de caixa — {isRecommended ? 'cenário recomendado' : 'menor configuração avaliada'}</Text>
             <View style={styles.table}>
               <View style={styles.tableHeaderRow} fixed>
                 <Text style={[styles.tableCellFirst, styles.tableHeaderText]}>Ano</Text>
@@ -684,10 +713,11 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           <View style={styles.noteBox}>
             <Text style={styles.noteText}>
               Este estudo considera uma semana representativa (até 672 pontos), sem exportação de energia para a rede, uma
-              única eficiência de ciclo convertida em cargas/descargas equivalentes, e não modela geração solar, gerador,
-              reajuste tarifário, sazonalidade, degradação eletroquímica detalhada ou calendário regulatório completo. Os
-              valores financeiros são estimativas a partir das premissas declaradas nesta seção e não substituem uma
-              proposta comercial formal.
+              única eficiência de ciclo convertida em cargas/descargas equivalentes, e não modela geração solar ou gerador.
+              Considera crescimento tarifário uniforme conforme a inflação energética configurada, sem modelar
+              individualmente reajustes tarifários, bandeiras ou alterações regulatórias, nem sazonalidade, degradação
+              eletroquímica detalhada ou calendário regulatório completo. Os valores financeiros são estimativas a partir
+              das premissas declaradas nesta seção e não substituem uma proposta comercial formal.
             </Text>
           </View>
         </View>

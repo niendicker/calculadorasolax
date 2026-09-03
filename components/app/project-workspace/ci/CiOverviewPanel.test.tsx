@@ -95,7 +95,15 @@ function makeResult(): CommercialIndustrialResult {
   return {
     engineVersion: 'ci-v1',
     inputFingerprint: 'fp',
-    baseline: { annualCostBrl: 900000, maxDemandPeakKw: 350, maxDemandOffPeakKw: 300, energyImportedPeakKwh: 50000, energyImportedOffPeakKwh: 120000 },
+    baseline: {
+      annualCostBrl: 900000,
+      maxDemandPeakKw: 350,
+      maxDemandOffPeakKw: 300,
+      energyImportedPeakKwh: 50000,
+      energyImportedOffPeakKwh: 120000,
+      weeklyEnergyImportedPeakKwh: 950,
+      weeklyEnergyImportedOffPeakKwh: 2300,
+    },
     scenarios: [scenario],
     recommendation: { scenarioId: 's-2', reason: 'Melhor payback dentro da faixa avaliada.' },
     selected: { ...scenario, dispatch: [], cashFlow: [] },

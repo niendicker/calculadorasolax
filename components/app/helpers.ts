@@ -518,6 +518,31 @@ export function formatCurrencyBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+/** pt-BR decimal formatting (comma, not dot) for a plain number — the
+ * centralized replacement for scattered `.toFixed(n)` calls, which always
+ * produce a dot regardless of locale (Fase 6 C&I audit, Problem #9). */
+export function formatNumberBRL(value: number, fractionDigits = 1): string {
+  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }).format(value);
+}
+
+export function formatPercentBRL(value: number, fractionDigits = 1): string {
+  return `${formatNumberBRL(value, fractionDigits)}%`;
+}
+
+export function formatKw(valueKw: number, fractionDigits = 1): string {
+  return `${formatNumberBRL(valueKw, fractionDigits)} kW`;
+}
+
+export function formatKwh(valueKwh: number, fractionDigits = 1): string {
+  return `${formatNumberBRL(valueKwh, fractionDigits)} kWh`;
+}
+
+/** Shared across every C&I payback display — `null` means "never pays back
+ * within the analysis horizon", not zero or an error. */
+export function formatYears(years: number | null, fractionDigits = 1): string {
+  return years === null ? '—' : `${formatNumberBRL(years, fractionDigits)} anos`;
+}
+
 /** Formats a CPF/CNPJ as the user types — detects which shape by digit
  * count (≤11 digits stays CPF, more becomes CNPJ) so one field handles both
  * without asking which type it is up front. */

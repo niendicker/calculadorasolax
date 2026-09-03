@@ -164,6 +164,20 @@ describe('POST /api/projects/[projectId]/calculations', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(calculationResult);
   });
+
+  it('records a null selected_scenario_id when no scenario was viable (Fase 6 audit, Problem #5)', async () => {
+    const nonViableResult = { ...calculationResult, recommendation: { scenarioId: null, reason: 'Nenhum dos 3 cenários avaliados atinge payback dentro do horizonte de análise.' } };
+    invokeMock.mockResolvedValue({ data: nonViableResult, error: null });
+    const { POST } = await import('./route');
+
+    const response = await POST(makeRequest(), makeParams());
+
+    expect(response.status).toBe(200);
+    expect(recordCalculationRunMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ selected_scenario_id: null })
+    );
+  });
 });
 
 describe('GET /api/projects/[projectId]/calculations', () => {

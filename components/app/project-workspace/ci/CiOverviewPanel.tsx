@@ -30,7 +30,7 @@ import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/c
 import type { Client, ProjectInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
-import { formatCurrencyBRL } from '../../helpers';
+import { formatCurrencyBRL, formatKw, formatYears } from '../../helpers';
 import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
 import { ProjectInfoEditor } from '../ProjectInfoEditor';
 import { ProjectInfoModal, type ProjectInfoEditField } from '../ProjectInfoModal';
@@ -111,10 +111,6 @@ function EditableSummaryRow({ label, value, onClick }: { label: string; value: s
   );
 }
 
-function formatYears(years: number | null): string {
-  return years === null ? '—' : `${years.toFixed(1)} anos`;
-}
-
 export function CiOverviewPanel({
   projectInfo,
   clients,
@@ -183,7 +179,7 @@ export function CiOverviewPanel({
   const tariff = ciOptions.tariff;
   const tariffConfigured = tariff !== null;
   const tariffSummary = tariff
-    ? `Modalidade ${tariff.tariffModality === 'verde' ? 'Verde' : 'Azul'} · Demanda contratada ${tariff.contractedDemandKw} kW`
+    ? `Modalidade ${tariff.tariffModality === 'verde' ? 'Verde' : 'Azul'} · Demanda contratada ${formatKw(tariff.contractedDemandKw)}`
     : 'Tarifa não configurada';
 
   const strategySummary = `${STRATEGY_LABELS[ciOptions.strategy] ?? ciOptions.strategy} · Ranking ${
@@ -192,6 +188,9 @@ export function CiOverviewPanel({
 
   const configuredCount = [bessConfigured, curveConfigured, tariffConfigured, true].filter(Boolean).length;
   const selected = calculationResult?.selected ?? null;
+  // A `selected` scenario is still materialized (for reference) even when
+  // nothing was actually viable to recommend — Fase 6 audit, Problem #5.
+  const isRecommendationViable = calculationResult?.recommendation.scenarioId !== null;
 
   return (
     <div className="space-y-6">
@@ -272,16 +271,27 @@ export function CiOverviewPanel({
             <CardIcon icon={BarChart3} />
             <h2 className="text-base font-semibold">Resultado atual</h2>
           </div>
-          {selected && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Calculado
-            </span>
-          )}
+          {selected &&
+            (isRecommendationViable ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Calculado
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                Sem cenário viável
+              </span>
+            ))}
         </CardHeader>
         <CardContent className="pt-0">
           {selected ? (
             <div className="rounded-xl border bg-background/70 p-3">
+              {!isRecommendationViable && (
+                <p className="mb-2 text-xs text-amber-700">
+                  Nenhum cenário atingiu o critério de viabilidade configurado — exibindo a menor configuração avaliada, não uma recomendação.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Módulos</p>

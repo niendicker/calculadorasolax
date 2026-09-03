@@ -61,6 +61,8 @@ function makeResult(overrides: Partial<CommercialIndustrialResult> = {}): Commer
       maxDemandOffPeakKw: 300,
       energyImportedPeakKwh: 50000,
       energyImportedOffPeakKwh: 120000,
+      weeklyEnergyImportedPeakKwh: 950,
+      weeklyEnergyImportedOffPeakKwh: 2300,
     },
     scenarios: [smaller, recommended],
     recommendation: { scenarioId: 's-2', reason: 'Melhor payback dentro da faixa avaliada.' },

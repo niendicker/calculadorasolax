@@ -15,23 +15,27 @@ function ControlledPanel({ initial }: { initial?: Partial<CommercialIndustrialOp
 describe('CiStrategyPanel', () => {
   it('never offers BASE as a selectable strategy', () => {
     render(<ControlledPanel />);
-    expect(screen.getByRole('button', { name: /Peak Shaving/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Load Shifting/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Híbrido/ })).toBeInTheDocument();
+    // Anchored at the start: the Híbrido card's own description text
+    // mentions "Peak Shaving" and "Load Shifting" by name (it explains how
+    // it combines them), which would otherwise also match an unanchored
+    // /Peak Shaving/ or /Load Shifting/ query against its accessible name.
+    expect(screen.getByRole('button', { name: /^Peak Shaving/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Load Shifting/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Híbrido/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^BASE/ })).not.toBeInTheDocument();
   });
 
   it('defaults to Híbrido (matching defaultCiOptions) and Payback', () => {
     render(<ControlledPanel />);
-    expect(screen.getByRole('button', { name: /Híbrido/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Híbrido/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Payback' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('selects a strategy', () => {
     render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: /Peak Shaving/ }));
-    expect(screen.getByRole('button', { name: /Peak Shaving/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /Híbrido/ })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(screen.getByRole('button', { name: /^Peak Shaving/ }));
+    expect(screen.getByRole('button', { name: /^Peak Shaving/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Híbrido/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('selects a ranking criterion', () => {

@@ -3,7 +3,6 @@ import {
   buildScenarioGrid,
   CI_ENGINE_VERSION,
   materializeScenarioDetail,
-  rankScenarios,
   recommendScenario,
   validateCommercialIndustrialOptions,
   type BessProductSpec,
@@ -127,9 +126,14 @@ export async function handleCalculateCommercialIndustrial(
 
     const product = toBessProductSpec(productRow as CiBessProductRow);
     const tariffWindow = { peakStart: options.tariff.peakStart, peakEnd: options.tariff.peakEnd };
-    // Peak Shaving/Hybrid's target defaults to the contracted demand (plan
-    // section 5.2) — there is no override field in the contract yet.
-    const targetDemandKw = options.tariff.contractedDemandKw;
+    // Peak Shaving/Hybrid's demand-shaving discharge target defaults to the
+    // contracted demand (plan section 5.2) — there is no dedicated override
+    // field in the contract yet. Kept as its own parameter throughout the
+    // engine (Fase 7 audit, section 5) even though it defaults to the same
+    // value as `options.tariff.contractedDemandKw`, which separately bounds
+    // BESS charging for every strategy (section 4) — the two must not be
+    // re-conflated even while they share a default.
+    const peakShavingTargetKw = options.tariff.contractedDemandKw;
 
     const gridInput = {
       curve: options.loadCurve,
@@ -138,7 +142,7 @@ export async function handleCalculateCommercialIndustrial(
       sizing: options.sizing,
       tariffWindow,
       tariff: options.tariff,
-      targetDemandKw,
+      peakShavingTargetKw,
       unitPriceBrl,
       additionalCostsBrl,
       monthsPerYear: options.financialAssumptions.monthsPerYear,
@@ -155,13 +159,22 @@ export async function handleCalculateCommercialIndustrial(
       return jsonResponse({ error: 'no_scenarios_evaluated' }, { status: 422 });
     }
 
-    const recommendation = recommendScenario(scenarios, options.rankingCriterion);
+    const recommendation = recommendScenario(scenarios, options.rankingCriterion, options.financialAssumptions.analysisHorizonYears);
     if (!recommendation) {
       return jsonResponse({ error: 'no_scenarios_evaluated' }, { status: 422 });
     }
 
-    const recommendedCandidate = rankScenarios(scenarios, options.rankingCriterion)[0];
-    const selected = materializeScenarioDetail(gridInput, recommendedCandidate.moduleCount, recommendedCandidate.marginalGain);
+    // recommendation.scenarioId is null when no candidate clears the
+    // viability bar for options.rankingCriterion (Fase 6 audit, Problems
+    // #5/#6/#10) — `selected` is still materialized in that case, but from
+    // the SMALLEST evaluated module count (scenarios[0], built in ascending
+    // order by buildScenarioGrid) purely for reference. Callers must check
+    // `recommendation.scenarioId === null` before labeling `selected`
+    // "recomendado" — it explicitly is not.
+    const detailCandidate = recommendation.scenarioId
+      ? scenarios.find((s) => s.scenarioId === recommendation.scenarioId)!
+      : scenarios[0];
+    const selected = materializeScenarioDetail(gridInput, detailCandidate.moduleCount, detailCandidate.marginalGain);
 
     const result: CommercialIndustrialResult = {
       engineVersion: CI_ENGINE_VERSION,

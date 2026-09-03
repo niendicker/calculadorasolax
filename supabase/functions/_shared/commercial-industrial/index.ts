@@ -6,6 +6,7 @@
 export * from './types.ts';
 export * from './validation.ts';
 export * from './load-curve.ts';
+export * from './manual-day-curve.ts';
 export * from './dispatch.ts';
 export * from './tariff.ts';
 export * from './financial.ts';

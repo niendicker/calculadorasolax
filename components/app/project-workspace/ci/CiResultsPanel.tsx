@@ -22,13 +22,9 @@ import { AlertTriangle, FileDown, Loader2, RefreshCw, TrendingUp } from 'lucide-
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Client, ProjectInfo } from '@/lib/types';
-import { buildPdfFileName, formatCurrencyBRL } from '../../helpers';
+import { buildPdfFileName, formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears } from '../../helpers';
 import type { InlineProfile } from '../../types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
-
-function formatYears(years: number | null): string {
-  return years === null ? '—' : `${years.toFixed(1)} anos`;
-}
 
 function ScenarioRow({ scenario, recommended }: { scenario: ScenarioCandidate; recommended: boolean }) {
   return (
@@ -49,7 +45,7 @@ function ScenarioRow({ scenario, recommended }: { scenario: ScenarioCandidate; r
       <td className="whitespace-nowrap px-3 py-2 text-sm">{formatCurrencyBRL(scenario.capex)}</td>
       <td className="whitespace-nowrap px-3 py-2 text-sm">{formatCurrencyBRL(scenario.annualSavings)}</td>
       <td className="whitespace-nowrap px-3 py-2 text-sm">{formatYears(scenario.paybackYearsSimple)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.roiPercent.toFixed(1)}%</td>
+      <td className="whitespace-nowrap px-3 py-2 text-sm">{formatPercentBRL(scenario.roiPercent)}</td>
       <td className="whitespace-nowrap px-3 py-2 text-sm">{formatCurrencyBRL(scenario.npv)}</td>
       <td className="whitespace-nowrap px-3 py-2 text-sm text-muted-foreground">
         {scenario.marginalGain === null ? '—' : formatCurrencyBRL(scenario.marginalGain)}
@@ -207,26 +203,38 @@ export function CiResultsPanel({
               </div>
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-xs text-muted-foreground">Demanda máx. ponta</p>
-                <p className="mt-1 text-sm font-semibold">{result.baseline.maxDemandPeakKw.toFixed(1)} kW</p>
+                <p className="mt-1 text-sm font-semibold">{formatKw(result.baseline.maxDemandPeakKw)}</p>
               </div>
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-xs text-muted-foreground">Demanda máx. fora ponta</p>
-                <p className="mt-1 text-sm font-semibold">{result.baseline.maxDemandOffPeakKw.toFixed(1)} kW</p>
+                <p className="mt-1 text-sm font-semibold">{formatKw(result.baseline.maxDemandOffPeakKw)}</p>
               </div>
               <div className="rounded-lg border bg-card p-3">
-                <p className="text-xs text-muted-foreground">Energia importada</p>
+                <p className="text-xs text-muted-foreground">Energia importada (ano)</p>
                 <p className="mt-1 text-sm font-semibold">
-                  {(result.baseline.energyImportedPeakKwh + result.baseline.energyImportedOffPeakKwh).toFixed(0)} kWh
+                  {formatKwh(result.baseline.energyImportedPeakKwh + result.baseline.energyImportedOffPeakKwh, 0)}
                 </p>
               </div>
             </div>
           </div>
 
           {result.selected && (
-            <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-4">
+            <div
+              className={
+                result.recommendation.scenarioId
+                  ? 'space-y-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-4'
+                  : 'space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4'
+              }
+            >
               <p className="flex items-center gap-1.5 text-sm font-semibold">
-                <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
-                Cenário recomendado — {result.selected.moduleCount} módulo{result.selected.moduleCount === 1 ? '' : 's'}
+                {result.recommendation.scenarioId ? (
+                  <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+                )}
+                {result.recommendation.scenarioId
+                  ? `Cenário recomendado — ${result.selected.moduleCount} módulo${result.selected.moduleCount === 1 ? '' : 's'}`
+                  : `Nenhum cenário economicamente viável — menor configuração avaliada: ${result.selected.moduleCount} módulo${result.selected.moduleCount === 1 ? '' : 's'} (não recomendada)`}
               </p>
               <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -247,7 +255,7 @@ export function CiResultsPanel({
                 <div>
                   <p className="text-xs text-muted-foreground">ROI / NPV</p>
                   <p className="mt-1 text-sm font-semibold">
-                    {result.selected.roiPercent.toFixed(1)}% / {formatCurrencyBRL(result.selected.npv)}
+                    {formatPercentBRL(result.selected.roiPercent)} / {formatCurrencyBRL(result.selected.npv)}
                   </p>
                 </div>
               </div>

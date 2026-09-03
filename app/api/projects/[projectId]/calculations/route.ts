@@ -20,7 +20,7 @@ import {
  * reflects the project's actual saved state, not an arbitrary client-
  * submitted payload. The body only carries things that are NOT part of the
  * saved configuration — currently nothing, reserved for e.g. a future
- * targetDemandKw override. */
+ * peakShavingTargetKw override (see dispatch.ts). */
 export async function POST(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const supabase = await createClient();
@@ -76,7 +76,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       return NextResponse.json({ error: await resolveCommercialIndustrialCalculationErrorMessage(functionError) }, { status: 422 });
     }
 
-    const result = data as { engineVersion: string; inputFingerprint: string; recommendation: { scenarioId: string } };
+    // scenarioId is null when no scenario met the configured viability
+    // criterion (Fase 6 audit, Problems #5/#6/#10) — recordCalculationRun's
+    // selected_scenario_id column already accepts null, no migration needed.
+    const result = data as { engineVersion: string; inputFingerprint: string; recommendation: { scenarioId: string | null } };
 
     const { error: recordError } = await recordCalculationRun(supabase, {
       project_id: projectId,

@@ -7,13 +7,13 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
-  BatteryCharging,
   Boxes,
   BookOpen,
   ChevronDown,
   ClipboardList,
-  FileText,
+  Factory,
   FolderOpen,
+  Home,
   Info,
   Loader2,
   Menu,
@@ -819,7 +819,7 @@ export function SinglePageApp() {
                         active && 'bg-primary/10 font-medium text-foreground'
                       )}
                     >
-                      <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <Home className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       <span className="truncate">{project.name}</span>
                     </button>
                   );
@@ -853,7 +853,7 @@ export function SinglePageApp() {
                             active && 'bg-primary/10 font-medium text-foreground'
                           )}
                         >
-                          <BatteryCharging className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <Factory className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                           <span className="truncate">{project.name}</span>
                         </button>
                       );

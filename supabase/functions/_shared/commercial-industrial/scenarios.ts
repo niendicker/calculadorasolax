@@ -51,9 +51,13 @@ export interface ScenarioGridInput {
   sizing: SizingConfig;
   tariffWindow: TariffWindow;
   tariff: TariffConfig;
-  /** Peak Shaving/Hybrid's explicit target (plan section 5.2) — typically
-   * the tariff's contractedDemandKw, but the caller decides that. */
-  targetDemandKw: number | null;
+  /** Peak Shaving/Hybrid's explicit demand-shaving *discharge* target (plan
+   * section 5.2) — distinct from `tariff.contractedDemandKw` (Fase 7 audit,
+   * section 5), which bounds CHARGING instead (see dispatch.ts). Typically
+   * defaults to `tariff.contractedDemandKw` at the call site absent a
+   * dedicated UI field, but kept as its own parameter so the two concepts
+   * never get re-conflated. */
+  peakShavingTargetKw: number | null;
   /** Resolved per the closed decision in plan section 4.3/6.1 — the user's
    * own price for this product (user_stock_items), not a catalog cost. */
   unitPriceBrl: number;
@@ -72,15 +76,28 @@ const ZERO_BESS: BessRuntimeParams = { totalPowerKw: 0, totalCapacityKwh: 0, soc
 function computeBaseline(input: Pick<ScenarioGridInput, 'curve' | 'tariffWindow' | 'tariff' | 'monthsPerYear'>) {
   // BASE ignores bess params entirely (dispatch.ts) — ZERO_BESS makes the
   // "no battery" intent explicit rather than relying on that implicitly.
-  const trace = runDispatch({ curve: input.curve, bess: ZERO_BESS, strategy: 'BASE', tariffWindow: input.tariffWindow, targetDemandKw: null });
-  const annualized = annualizeWeeklyDispatch(summarizeDispatch(trace, input.curve.resolutionMinutes));
+  const trace = runDispatch({
+    curve: input.curve,
+    bess: ZERO_BESS,
+    strategy: 'BASE',
+    tariffWindow: input.tariffWindow,
+    peakShavingTargetKw: null,
+    contractedDemandKw: input.tariff.contractedDemandKw,
+  });
+  const weekly = summarizeDispatch(trace, input.curve.resolutionMinutes);
+  const annualized = annualizeWeeklyDispatch(weekly);
   const cost = computeAnnualEnergyCost(annualized, input.tariff, input.monthsPerYear);
   const result: BaselineResult = {
     annualCostBrl: cost.totalCostBrl,
     maxDemandPeakKw: annualized.maxDemandPeakKw,
     maxDemandOffPeakKw: annualized.maxDemandOffPeakKw,
+    // Annual figures — see BaselineResult's own doc comment (types.ts) for
+    // why these are NOT the representative week's totals.
     energyImportedPeakKwh: annualized.energyImportedPeakKwh,
     energyImportedOffPeakKwh: annualized.energyImportedOffPeakKwh,
+    // The literal representative-week totals, unscaled.
+    weeklyEnergyImportedPeakKwh: weekly.energyImportedPeakKwh,
+    weeklyEnergyImportedOffPeakKwh: weekly.energyImportedOffPeakKwh,
   };
   return { result, cost };
 }
@@ -95,7 +112,7 @@ function evaluateModuleCount(
   moduleCount: number,
   baselineCost: ReturnType<typeof computeAnnualEnergyCost>
 ): { candidate: ScenarioCandidate; trace: DispatchPoint[]; cashFlow: CashFlowYear[] } {
-  const { curve, product, strategy, tariffWindow, tariff, targetDemandKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions } = input;
+  const { curve, product, strategy, tariffWindow, tariff, peakShavingTargetKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions } = input;
 
   const bess: BessRuntimeParams = {
     totalPowerKw: product.modulePowerKw * moduleCount,
@@ -105,7 +122,7 @@ function evaluateModuleCount(
     efficiencyPercent: product.efficiencyPercent,
   };
 
-  const trace = runDispatch({ curve, bess, strategy, tariffWindow, targetDemandKw });
+  const trace = runDispatch({ curve, bess, strategy, tariffWindow, peakShavingTargetKw, contractedDemandKw: tariff.contractedDemandKw });
   const summary = summarizeDispatch(trace, curve.resolutionMinutes);
   const annualized = annualizeWeeklyDispatch(summary);
   const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);
@@ -115,11 +132,11 @@ function evaluateModuleCount(
   const cashFlow = buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
 
   const technicalWarnings: string[] = [];
-  if (targetDemandKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
+  if (peakShavingTargetKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
     const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
-    if (achievedMaxDemandKw > targetDemandKw + 1e-6) {
+    if (achievedMaxDemandKw > peakShavingTargetKw + 1e-6) {
       technicalWarnings.push(
-        `BESS insuficiente para atingir o alvo de demanda de ${targetDemandKw} kW — demanda residual de ${achievedMaxDemandKw.toFixed(1)} kW`
+        `BESS insuficiente para atingir o alvo de demanda de ${peakShavingTargetKw} kW — demanda residual de ${achievedMaxDemandKw.toFixed(1)} kW`
       );
     }
   }

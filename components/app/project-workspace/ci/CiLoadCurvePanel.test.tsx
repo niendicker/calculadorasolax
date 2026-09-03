@@ -24,8 +24,10 @@ vi.mock('uplot', () => ({
       return 0;
     }
     setScale() {}
+    setSelect() {}
     setData() {}
     setSize() {}
+    redraw() {}
     destroy() {
       this.root.remove();
     }
@@ -83,5 +85,62 @@ describe('CiLoadCurvePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remover curva' }));
     await waitFor(() => expect(screen.queryByText('Resumo')).not.toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Remover curva' })).not.toBeInTheDocument();
+  });
+
+  describe('manual curve editing', () => {
+    it('switching to "Editar manualmente" alone does not apply any curve', () => {
+      render(<ControlledPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
+
+      expect(screen.getByText('Perfil plano')).toBeInTheDocument(); // preset grid, nothing picked yet
+      expect(screen.queryByText('Resumo')).not.toBeInTheDocument();
+    });
+
+    it('picking a preset applies a full-period curve and shows its summary', async () => {
+      render(<ControlledPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Perfil plano' }));
+
+      expect(await screen.findByText('Resumo')).toBeInTheDocument();
+      expect(screen.getAllByText('50.00 kW')).not.toHaveLength(0); // pico/mínima/média all flat at 50 kW
+      expect(screen.getByText('8400.00 kWh')).toBeInTheDocument(); // 672 pts * 50 kW * 15 min
+      expect(screen.getByText(/672 \/ 672 pontos · resolução 15 min/)).toBeInTheDocument();
+
+      // 24 draggable points for the active (weekday) pattern.
+      expect(screen.getAllByRole('slider')).toHaveLength(24);
+    });
+
+    it('toggles between the weekday and weekend patterns', async () => {
+      render(<ControlledPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Indústria 1 turno' }));
+      await screen.findByText('Resumo');
+
+      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Fim de semana' }));
+      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '10');
+    });
+
+    it('"Trocar perfil" goes back to the preset grid without clearing the applied curve', async () => {
+      render(<ControlledPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Perfil plano' }));
+      await screen.findByText('Resumo');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Trocar perfil' }));
+      expect(screen.getByRole('button', { name: 'Perfil plano' })).toBeInTheDocument();
+      expect(screen.getByText('Resumo')).toBeInTheDocument(); // previously applied curve still shown below
+    });
+
+    it('removes a manually-built curve', async () => {
+      render(<ControlledPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Perfil plano' }));
+      await screen.findByText('Resumo');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remover curva' }));
+      await waitFor(() => expect(screen.queryByText('Resumo')).not.toBeInTheDocument());
+    });
   });
 });

@@ -137,8 +137,13 @@ describe('end-to-end: equal peak/off-peak tariff produces zero energy savings at
     };
     const equalTariff = makeTariff({ energyRatePeakBrlPerMwh: 800, energyRateOffPeakBrlPerMwh: 800, contractedDemandKw: 0 });
 
-    const baselineTrace = runDispatch({ curve, bess, strategy: 'BASE', tariffWindow: WINDOW, targetDemandKw: null });
-    const scenarioTrace = runDispatch({ curve, bess, strategy: 'LOAD_SHIFTING', tariffWindow: WINDOW, targetDemandKw: null });
+    // contractedDemandKw here is dispatch's own charge-limiting ceiling
+    // (Fase 7 audit, section 4) — deliberately generous and UNRELATED to
+    // `equalTariff.contractedDemandKw` above (which is 0 purely so this
+    // test's demand-cost component stays zero); a real 0kW value here would
+    // stop the BESS from ever charging, defeating the point of this test.
+    const baselineTrace = runDispatch({ curve, bess, strategy: 'BASE', tariffWindow: WINDOW, peakShavingTargetKw: null, contractedDemandKw: 1000 });
+    const scenarioTrace = runDispatch({ curve, bess, strategy: 'LOAD_SHIFTING', tariffWindow: WINDOW, peakShavingTargetKw: null, contractedDemandKw: 1000 });
 
     const baselineCost = computeAnnualEnergyCost(
       annualizeWeeklyDispatch(summarizeDispatch(baselineTrace, 60)),
