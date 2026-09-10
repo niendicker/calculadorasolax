@@ -45,23 +45,24 @@ describe('ProjectWorkspace', () => {
   });
 
   function renderWorkspace(overrides: Partial<React.ComponentProps<typeof ProjectWorkspace>> = {}) {
+    const props: React.ComponentProps<typeof ProjectWorkspace> = {
+      projectInfo,
+      client: { id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' },
+      residentialOptions,
+      solution: null,
+      nominalW: 180,
+      peakW: 540,
+      dailyKwh: 0.36,
+      solutionIsStale: false,
+      inverterCatalog,
+      availableInverterModels: null,
+      children: <div>Fluxo técnico atual</div>,
+      ...overrides,
+    };
+
     return render(
       <NextIntlClientProvider locale="pt" messages={ptMessages}>
-        <ProjectWorkspace
-        projectInfo={projectInfo}
-        client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
-        residentialOptions={residentialOptions}
-        solution={null}
-        nominalW={180}
-        peakW={540}
-        dailyKwh={0.36}
-        solutionIsStale={false}
-        inverterCatalog={inverterCatalog}
-        availableInverterModels={null}
-        {...overrides}
-      >
-        <div>Fluxo técnico atual</div>
-        </ProjectWorkspace>
+        <ProjectWorkspace {...props} />
       </NextIntlClientProvider>
     );
   }
@@ -153,6 +154,67 @@ describe('ProjectWorkspace', () => {
 
     fireEvent.click(headerAction);
     expect(onRefreshSolution).toHaveBeenCalledOnce();
+  });
+
+  it('marks the solution tab after a successful recalculation and clears the mark when opened', () => {
+    const view = renderWorkspace({ calculationRevision: 0 });
+
+    view.rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
+          residentialOptions={residentialOptions}
+          solution={null}
+          calculationRevision={1}
+          nominalW={180}
+          peakW={540}
+          dailyKwh={0.36}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.getByRole('status', { name: 'Nova solução disponível' })).toBeInTheDocument();
+    const solutionTab = screen.getByRole('button', { name: 'Solução' });
+    expect(within(solutionTab).getByText('Nova')).toBeInTheDocument();
+
+    fireEvent.click(solutionTab);
+
+    expect(screen.queryByRole('status', { name: 'Nova solução disponível' })).not.toBeInTheDocument();
+    expect(solutionTab).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('does not mark the solution tab when the recalculation finishes while it is open', () => {
+    const view = renderWorkspace({ calculationRevision: 0 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
+
+    view.rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
+          residentialOptions={residentialOptions}
+          solution={null}
+          calculationRevision={1}
+          nominalW={180}
+          peakW={540}
+          dailyKwh={0.36}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.queryByRole('status', { name: 'Nova solução disponível' })).not.toBeInTheDocument();
   });
 
   it('keeps clear next to recalculation and confirms the workspace reset', async () => {

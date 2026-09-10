@@ -171,6 +171,18 @@ function openProjectActions(projectName: string) {
 }
 
 describe('ProjectTab: empty and list states', () => {
+  it('disables the new C&I project action while the flow is unavailable', () => {
+    const onNewCi = vi.fn();
+    setup({ onNewCi });
+
+    const button = screen.getByRole('button', { name: 'Novo projeto C&I' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Disponível em breve');
+
+    fireEvent.click(button);
+    expect(onNewCi).not.toHaveBeenCalled();
+  });
+
   it('shows an onboarding hint for a brand-new user with no saved projects', () => {
     setup({ savedProjects: [] });
     expect(screen.getByText('Novo por aqui?')).toBeInTheDocument();

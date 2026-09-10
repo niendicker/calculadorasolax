@@ -606,7 +606,7 @@ export function SinglePageApp() {
   const peakW = totalPeakW(residentialOptions.loads, residentialOptions.peakCalcMode ?? 'sum');
   const nominalW = totalNominalW(residentialOptions.loads);
 
-  const { loading, error, secondaryError, canCalculate, hasUncalculatedChanges, calculate, productMedia } = useCalculation({
+  const { loading, error, secondaryError, canCalculate, hasUncalculatedChanges, calculate, productMedia, calculationRevision } = useCalculation({
     supabase,
     residentialOptions,
     projectInfo,
@@ -1157,6 +1157,7 @@ export function SinglePageApp() {
               clients={clients}
               residentialOptions={residentialOptions}
               solution={solution}
+              calculationRevision={calculationRevision}
               nominalW={nominalW}
               peakW={peakW}
               dailyKwh={dailyKwh}

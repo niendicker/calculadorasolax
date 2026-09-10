@@ -35,6 +35,11 @@ export interface WorkspaceNavItem {
   id: string;
   label: string;
   icon: LucideIcon;
+  notification?: {
+    label: string;
+    ariaLabel?: string;
+    icon?: LucideIcon;
+  };
 }
 
 export interface ProjectWorkspaceShellProps {
@@ -113,23 +118,42 @@ export function ProjectWorkspaceShell({
           </div>
         </div>
         <nav className="mt-4 flex items-stretch overflow-x-auto rounded-xl border border-border/70 bg-card/70 p-1" aria-label="Seções do projeto">
-          {navigation.map(({ id, label, icon: Icon }, index) => (
-            <div key={id} className="flex min-w-[8.5rem] flex-1 items-stretch">
-              {index > 0 && <ChevronRight className="my-auto h-5 w-5 shrink-0 text-muted-foreground/50" aria-hidden="true" />}
-              <button
-                type="button"
-                aria-current={activeSection === id ? 'page' : undefined}
-                onClick={() => onSectionChange(id)}
-                className={cn(
-                  'relative flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                  activeSection === id ? 'text-primary after:bg-primary' : 'text-muted-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{label}</span>
-              </button>
-            </div>
-          ))}
+          {navigation.map(({ id, label, icon: Icon, notification }, index) => {
+            const NotificationIcon = notification?.icon;
+            const notificationId = `workspace-nav-${id}-notification`;
+
+            return (
+              <div key={id} className="flex min-w-[8.5rem] flex-1 items-stretch">
+                {index > 0 && <ChevronRight className="my-auto h-5 w-5 shrink-0 text-muted-foreground/50" aria-hidden="true" />}
+                <button
+                  type="button"
+                  aria-current={activeSection === id ? 'page' : undefined}
+                  aria-label={label}
+                  aria-describedby={notification ? notificationId : undefined}
+                  onClick={() => onSectionChange(id)}
+                  className={cn(
+                    'relative flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    activeSection === id ? 'text-primary after:bg-primary' : 'text-muted-foreground'
+                  )}
+                >
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{label}</span>
+                  {notification && (
+                    <span
+                      id={notificationId}
+                      role="status"
+                      aria-label={notification.ariaLabel ?? notification.label}
+                      title={notification.ariaLabel ?? notification.label}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-800"
+                    >
+                      {NotificationIcon && <NotificationIcon className="h-3 w-3" aria-hidden="true" />}
+                      <span aria-hidden="true">{notification.label}</span>
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </nav>
       </div>
 

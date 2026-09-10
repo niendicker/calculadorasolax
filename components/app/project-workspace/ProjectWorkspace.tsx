@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   SolarPanel,
+  Sparkles,
   Trash2,
   UserRound,
   UsersRound,
@@ -408,6 +409,7 @@ export function ProjectWorkspace({
   clients = [],
   residentialOptions,
   solution,
+  calculationRevision = 0,
   nominalW,
   peakW,
   dailyKwh,
@@ -459,6 +461,8 @@ export function ProjectWorkspace({
   clients?: Client[];
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
+  /** Increments only after a successful residential calculation. */
+  calculationRevision?: number;
   nominalW: number;
   peakW: number;
   dailyKwh: number;
@@ -506,6 +510,8 @@ export function ProjectWorkspace({
   children: ReactNode;
 }) {
   const [section, setSectionState] = useState<WorkspaceSection>('overview');
+  const [hasNewSolution, setHasNewSolution] = useState(false);
+  const lastSeenCalculationRevisionRef = useRef(calculationRevision);
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
   const [projectInfoEditField, setProjectInfoEditField] = useState<ProjectInfoEditField>(null);
   const enabledFeatures = residentialOptions.desiredFeatures;
@@ -579,6 +585,16 @@ export function ProjectWorkspace({
     onOpenResource?.(id);
   }
 
+  useEffect(() => {
+    if (calculationRevision === lastSeenCalculationRevisionRef.current) return;
+
+    lastSeenCalculationRevisionRef.current = calculationRevision;
+    // The revision comes from the calculation hook, so this effect synchronizes
+    // the local notification state with that external event.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (section !== 'solution') setHasNewSolution(true);
+  }, [calculationRevision, section]);
+
   function openFirstPendingResource() {
     if (loadsState === 'attention') {
       openSizingSection('loads');
@@ -594,14 +610,30 @@ export function ProjectWorkspace({
     setSectionState(nextSection);
   }
 
+  function changeSection(nextSection: WorkspaceSection) {
+    setSectionState(nextSection);
+    if (nextSection === 'solution') setHasNewSolution(false);
+  }
+
+  const workspaceNavigation = navigation.map((item) => item.id === 'solution' && hasNewSolution
+    ? {
+        ...item,
+        notification: {
+          label: 'Nova',
+          ariaLabel: 'Nova solução disponível',
+          icon: Sparkles,
+        },
+      }
+    : item);
+
   return (
     <ProjectWorkspaceShell
       title={projectInfo.name || 'Projeto sem nome'}
       autosaveStatus={autosaveStatus}
       autosaveLastSavedAt={autosaveLastSavedAt}
-      navigation={navigation}
+      navigation={workspaceNavigation}
       activeSection={section}
-      onSectionChange={(id) => setSectionState(id as WorkspaceSection)}
+      onSectionChange={(id) => changeSection(id as WorkspaceSection)}
       subtitle={
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
