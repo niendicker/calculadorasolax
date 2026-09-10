@@ -91,7 +91,7 @@ function formatMarginDelta(value: number, unit: 'W' | 'Wh') {
  * available combination when nothing fully qualifies (see
  * calculate-residential/logic.ts's rankByLeastShortfall), so this is a real,
  * expected outcome, not an anomaly; it's called out distinctly (destructive
- * styling) and blocks PDF export (see hasInsufficientSolution in SizingTab)
+ * styling) and blocks PDF export (see hasInsufficientSolution in the technical editor)
  * until the customer adjusts the configuration. */
 function MarginSummary({ rows }: { rows: MarginRow[] }) {
   if (rows.length === 0) return null;

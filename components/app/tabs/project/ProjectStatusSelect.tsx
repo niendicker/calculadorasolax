@@ -34,7 +34,7 @@ export function ProjectStatusSelect({
       onClick={(event) => event.stopPropagation()}
       onChange={(event) => onChange(event.target.value as ProjectStatus)}
       className={cn(
-        'h-5 shrink-0 rounded-full border px-1.5 text-xs font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'h-6 shrink-0 rounded-full border px-2 text-[0.7rem] font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
         projectStatusStyles[status],
         className
       )}

@@ -50,7 +50,7 @@ import { ProjectStatusToast } from './tabs/project/ProjectStatusToast';
 import { ProjectTab } from './tabs/ProjectTab';
 import { ProjectWorkspace } from './project-workspace/ProjectWorkspace';
 import { CommercialIndustrialWorkspace } from './project-workspace/CommercialIndustrialWorkspace';
-import type { PickerItemId } from './tabs/SizingTab';
+import type { PickerItemId } from './project-workspace/TechnicalSizingEditor';
 import { GuidePage } from '../guide/GuidePage';
 import { getGuideContent } from '@/content/guide';
 
@@ -58,7 +58,7 @@ import { getGuideContent } from '@/content/guide';
  * only the initial tab (Projeto) is a static import, so every other tab
  * below is fetched on first visit instead of bloating the app's initial
  * bundle with code most sessions never touch (Catálogo, Fornecedores,
- * Clientes, Perfil) or with SizingTab's own large feature-picker tree. */
+ * Clientes, Perfil) or with the technical editor's large feature-picker tree. */
 function TabLoadingFallback() {
   return (
     <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -91,7 +91,10 @@ const ClientsTab = dynamic(() => import('./tabs/ClientsTab').then((m) => m.Clien
 const MyStockTab = dynamic(() => import('./tabs/MyStockTab').then((m) => m.MyStockTab), { loading: TabLoadingFallback });
 const ProfileTab = dynamic(() => import('./tabs/ProfileTab').then((m) => m.ProfileTab), { loading: TabLoadingFallback });
 const SupplyTab = dynamic(() => import('./tabs/SupplyTab').then((m) => m.SupplyTab), { loading: TabLoadingFallback });
-const SizingTab = dynamic(() => import('./tabs/SizingTab').then((m) => m.SizingTab), { loading: TabLoadingFallback });
+const TechnicalSizingEditor = dynamic(
+  () => import('./project-workspace/TechnicalSizingEditor').then((m) => m.TechnicalSizingEditor),
+  { loading: TabLoadingFallback }
+);
 
 /** Marks the active bottom-nav tab as having a summary — purely decorative
  * (not its own button, since a <button> can't nest inside the tab's <button>);
@@ -363,8 +366,6 @@ export function SinglePageApp() {
     saveProject,
     startNewProject,
     cancelNewProject,
-    openProject,
-    openProjectSizing,
     deleteProject,
     refreshProjectSolution,
     updateProjectStatus: updateProjectStatusAction,
@@ -376,12 +377,10 @@ export function SinglePageApp() {
     saveCurrentProject,
     newProjectDraft,
     cancelProjectDraft,
-    loadProject,
     removeProject,
     refreshProjectSolution: refreshProjectSolutionAction,
     updateProjectStatus,
     onProjectSaved: (project) => openProjectWorkspace(project.id),
-    setActiveTab: changeTab,
   });
 
   // C&I actions reuse the same toast (reportStatus, above) instead of a
@@ -1039,6 +1038,7 @@ export function SinglePageApp() {
               batteryCatalog={batteryCatalog}
               inverterCatalog={inverterCatalog}
               accessoryCatalog={accessoryCatalog}
+              ciBessCatalog={ciBessCatalog}
               initialLoading={initialLoading}
               topology={residentialOptions.topology}
               batteryModel={residentialOptions.batteryModel}
@@ -1050,8 +1050,6 @@ export function SinglePageApp() {
               onSave={saveProject}
               onNew={startNewProject}
               onCancelNew={cancelNewProject}
-              onOpen={openProject}
-              onOpenSizing={(id) => { clearWorkspaceUrl(); setWorkspaceNavigation(closedWorkspaceNavigation); openProjectSizing(id); }}
               onOpenWorkspace={openProjectWorkspace}
               onRemove={deleteProject}
               onRefreshSolution={refreshProjectSolution}
@@ -1204,7 +1202,7 @@ export function SinglePageApp() {
               autosaveStatus={autosaveStatus}
               autosaveLastSavedAt={autosaveLastSavedAt}
             >
-              <SizingTab
+              <TechnicalSizingEditor
                 projectName={projectInfo.name}
                 currentProjectId={currentProjectId}
                 onBackToProject={() => { clearWorkspaceUrl(); backToProject(); }}
@@ -1279,7 +1277,7 @@ export function SinglePageApp() {
          * summary content portaled in via PageSummary stays reachable on
          * mobile/tablet instead of just being display:none'd away.
          * No padding on the scroll wrapper on purpose: this is the scrolling
-         * ancestor sticky children (see SizingTab's summary header) measure
+         * ancestor sticky children (see the technical editor's summary header) measure
          * `top` against — padding on the scroller itself creates a gap those
          * children can't cleanly cancel. Padding instead lives on each child
          * below. */}

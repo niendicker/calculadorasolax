@@ -3,14 +3,12 @@
 import * as React from 'react';
 import {
   AlertTriangle,
-  Calculator,
   Clock,
   Download,
+  Eye,
   Loader2,
   Mail,
   MoreHorizontal,
-  PanelTop,
-  Pencil,
   Phone,
   RefreshCw,
   Users,
@@ -170,8 +168,6 @@ export function ProjectCard({
   batteryCatalog,
   selected,
   onSelect,
-  onOpen,
-  onOpenSizing,
   onOpenWorkspace,
   onRefreshSolution,
   refreshing,
@@ -188,9 +184,7 @@ export function ProjectCard({
   batteryCatalog: BatteryCatalogOption[];
   selected: boolean;
   onSelect: () => void;
-  onOpen: () => void;
-  onOpenSizing: () => void;
-  onOpenWorkspace?: () => void;
+  onOpenWorkspace: () => void;
   onRefreshSolution: () => void;
   refreshing: boolean;
   onUpdateStatus: (status: ProjectStatus) => void;
@@ -239,48 +233,66 @@ export function ProjectCard({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      onClick={onSelect}
+      onClick={onOpenWorkspace}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onSelect();
+          onOpenWorkspace();
         }
       }}
       className={cn(
-        'relative flex h-full cursor-pointer flex-col gap-3 rounded-lg border bg-card p-4 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        'relative flex h-full min-h-60 cursor-pointer flex-col gap-4 rounded-lg border bg-card p-4 text-left transition hover:shadow-sm active:translate-y-px focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
         selected ? 'border-foreground/30 bg-muted/40 shadow-sm ring-1 ring-border' : 'hover:border-primary/30 hover:bg-muted/30'
       )}
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="mb-3 flex items-center gap-2">
-          <p className="min-w-0 truncate font-semibold">{project.name}</p>
-          <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            <p className="min-w-0 flex-1 truncate font-semibold leading-5">{project.name}</p>
+            <ProjectStatusSelect status={project.status} onChange={onUpdateStatus} />
           </div>
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Users className="h-3 w-3 shrink-0" />
-          <span className="truncate">{client?.name || 'Cliente não informado'}</span>
-        </p>
-        {client?.phone && (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3 shrink-0" />
-            <span className="truncate">{client.phone}</span>
-          </p>
-        )}
-        {client?.email && (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Mail className="h-3 w-3 shrink-0" />
-            <span className="truncate">{client.email}</span>
-          </p>
-        )}
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Users className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client?.name || 'Cliente não informado'}</span>
+            </p>
+            {client?.phone && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3 shrink-0" />
+                <span className="truncate">{client.phone}</span>
+              </p>
+            )}
+            {client?.email && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Mail className="h-3 w-3 shrink-0" />
+                <span className="truncate">{client.email}</span>
+              </p>
+            )}
+          </div>
+        </div>
+        <ProjectActionsMenu
+          projectName={project.name}
+          hasSolution={hasSolution}
+          hasSolutionAlert={hasSolutionAlert}
+          refreshing={refreshing}
+          downloading={downloading}
+          onRefreshSolution={onRefreshSolution}
+          onDownloadPdf={onDownloadPdf}
+          onRemove={onRemove}
+        />
+      </div>
+
+      <div className="space-y-3 border-t pt-3">
         {systemCost && systemCost.pricedItemsCount > 0 && (
-          <p className="mt-0.5 text-xs">
-            <span className="text-muted-foreground">Valor: </span>
-            <span className="font-medium text-foreground">{formatCurrencyBRL(systemCost.totalCost)}</span>
-            {!systemCost.isComplete && <span className="text-muted-foreground"> (parcial)</span>}
+          <p className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">Valor do sistema</span>
+            <span className="text-right font-medium text-foreground">
+              {formatCurrencyBRL(systemCost.totalCost)}
+              {!systemCost.isComplete && <span className="font-normal text-muted-foreground"> (parcial)</span>}
+            </span>
           </p>
         )}
-          <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {hasSolution ? (
             <Badge variant="secondary">Dimensionamento concluído</Badge>
           ) : (
@@ -304,8 +316,8 @@ export function ProjectCard({
             {project.residentialOptions.gridType ? gridLabels[project.residentialOptions.gridType] : 'Sem rede'}
           </Badge>
         </div>
-          {project.residentialOptions.desiredFeatures.length > 0 && (
-          <div className="mt-1.5 flex items-center gap-2">
+        {project.residentialOptions.desiredFeatures.length > 0 && (
+          <div className="flex items-center gap-2 border-t pt-2.5">
             {project.residentialOptions.desiredFeatures.map((feature) => {
               const Icon = featureIcons[feature];
               return (
@@ -315,38 +327,14 @@ export function ProjectCard({
               );
             })}
           </div>
-          )}
-        </div>
-        <ProjectActionsMenu
-          projectName={project.name}
-          hasSolution={hasSolution}
-          hasSolutionAlert={hasSolutionAlert}
-          refreshing={refreshing}
-          downloading={downloading}
-          onRefreshSolution={onRefreshSolution}
-          onDownloadPdf={onDownloadPdf}
-          onRemove={onRemove}
-        />
+        )}
       </div>
-      <div className="mt-auto space-y-2 pt-1">
-        <div className="flex flex-wrap gap-2">
-          {onOpenWorkspace && (
-            <Button size="sm" className="min-w-36 flex-1" onClick={stopAnd(onOpenWorkspace)}>
-              <PanelTop className="h-4 w-4" />
-              Workspace
-            </Button>
-          )}
-          {!onOpenWorkspace && (
-            <Button size="sm" className="flex-1" onClick={stopAnd(onOpenSizing)}>
-              <Calculator className="h-4 w-4" />
-              Solução técnica
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={stopAnd(onOpen)}>
-            <Pencil className="h-4 w-4" />
-            Editar
-          </Button>
-        </div>
+
+      <div className="mt-auto space-y-2 border-t pt-3">
+        <Button size="sm" variant="outline" className="w-full" onClick={stopAnd(onSelect)}>
+          <Eye className="h-4 w-4" />
+          Visualização rápida
+        </Button>
         <p className="pt-0.5 text-center text-[0.7rem] text-muted-foreground/70">
           Atualizado em{' '}
           {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(

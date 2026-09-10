@@ -7,7 +7,6 @@ import { Separator } from '@/components/ui/separator';
 import { isAddressEmpty } from '@/lib/address';
 import type {
   BatteryTopology,
-  ProjectServiceLine,
   ProjectStatus,
   ResidentialGridType,
   SavedCiProject,
@@ -16,32 +15,19 @@ import { useWizardStore } from '@/lib/store/wizard-store';
 import { calculateSystemCost, formatCurrencyBRL } from '../helpers';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, ProjectListSkeleton, Requirement, SearchInput } from '../shared-ui';
-import type { AccessoryCatalogOption, BatteryCatalogOption, InverterCatalogOption } from '../types';
+import type { AccessoryCatalogOption, BatteryCatalogOption, CiBessCatalogOption, InverterCatalogOption } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 import { CiProjectCard } from './project/CiProjectCard';
 import { ProjectCard } from './project/ProjectCard';
 import { ProjectDraftCard } from './project/ProjectDraftCard';
+import { SelectedCiProjectSummary } from './project/SelectedCiProjectSummary';
 import { SelectedProjectSummary } from './project/SelectedProjectSummary';
-
-/** Field-by-field comparison instead of `JSON.stringify` equality — Postgres'
- * jsonb column doesn't preserve each service line's key order on read, so a
- * project fresh out of the DB (e.g. right after saving) can carry
- * `{ qty, name, serviceId }` where the live draft still has
- * `{ serviceId, name, qty }`. `JSON.stringify` would call that "different"
- * and leave the draft stuck looking dirty (discard-confirmation on "Fechar")
- * even with nothing actually unsaved. */
-function sameServiceLines(a: ProjectServiceLine[], b: ProjectServiceLine[]): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((line, index) => {
-    const other = b[index];
-    return line.serviceId === other.serviceId && line.name === other.name && line.qty === other.qty;
-  });
-}
 
 export function ProjectTab({
   batteryCatalog,
   inverterCatalog,
   accessoryCatalog,
+  ciBessCatalog,
   initialLoading,
   topology,
   batteryModel,
@@ -53,8 +39,6 @@ export function ProjectTab({
   onSave,
   onNew,
   onCancelNew,
-  onOpen,
-  onOpenSizing,
   onOpenWorkspace,
   onRemove,
   onRefreshSolution,
@@ -74,6 +58,7 @@ export function ProjectTab({
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
   accessoryCatalog: AccessoryCatalogOption[];
+  ciBessCatalog: CiBessCatalogOption[];
   initialLoading: boolean;
   topology: BatteryTopology | null;
   batteryModel: string | null;
@@ -85,9 +70,7 @@ export function ProjectTab({
   onSave: () => void;
   onNew: () => void;
   onCancelNew: () => void;
-  onOpen: (id: string) => void;
-  onOpenSizing: (id: string) => void;
-  onOpenWorkspace?: (id: string) => void;
+  onOpenWorkspace: (id: string) => void;
   onRemove: (id: string) => void;
   onRefreshSolution: (id: string) => void;
   /** Id of the project currently being recalculated, if any — used to show a
@@ -147,6 +130,7 @@ export function ProjectTab({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() =>
     projectDetailsVisible ? null : currentProjectId
   );
+  const [selectedCiProjectId, setSelectedCiProjectId] = useState<string | null>(null);
   useEffect(() => {
     if (selectedProjectId) onShowSummary();
     // Mount-only, matching the state initializer above.
@@ -156,6 +140,10 @@ export function ProjectTab({
   const selectedProject =
     !projectDetailsVisible && selectedProjectId
       ? savedProjects.find((project) => project.id === selectedProjectId) ?? null
+      : null;
+  const selectedCiProject =
+    !projectDetailsVisible && selectedCiProjectId
+      ? savedCiProjects.find((project) => project.id === selectedCiProjectId) ?? null
       : null;
 
   const projectsWithSolutionCount = savedProjects.filter((project) => project.solution).length;
@@ -197,32 +185,20 @@ export function ProjectTab({
     onCancelNew();
   }
 
-  const editingProject = currentProjectId ? savedProjects.find((project) => project.id === currentProjectId) : null;
-  const isDraftDirty = editingProject
-    ? projectInfo.name !== editingProject.name ||
-      projectInfo.clientId !== editingProject.clientId ||
-      JSON.stringify(projectInfo.address) !== JSON.stringify(editingProject.address) ||
-      projectInfo.notes !== editingProject.notes ||
-      !sameServiceLines(services, editingProject.services ?? [])
-    : Boolean(
-        projectInfo.name.trim() ||
-          projectInfo.clientId ||
-          !isAddressEmpty(projectInfo.address) ||
-          projectInfo.notes.trim() ||
-          services.length > 0
-      );
+  const isDraftDirty = Boolean(
+    projectInfo.name.trim() ||
+      projectInfo.clientId ||
+      !isAddressEmpty(projectInfo.address) ||
+      projectInfo.notes.trim() ||
+      services.length > 0
+  );
 
-  // Whichever saved project the summary panel should show: one picked from
-  // the list, or — while editing — the one currently open, so the sidebar
-  // stays the exact same rich summary (and its delete action)
-  // instead of switching to a different, live-editing-only widget. Reflects
-  // the last-saved snapshot, not the live in-progress draft (see
-  // SelectedProjectSummary's own docstring) — that's intentional, matching
-  // what a plain click on the card already shows.
-  const summaryProject = selectedProject ?? (projectDetailsVisible ? editingProject ?? null : null);
+  // The summary panel shows the last-saved snapshot of the selected project.
+  // Editing saved projects happens exclusively inside the Workspace.
+  const summaryProject = selectedProject;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projetos</h1>
@@ -263,6 +239,16 @@ export function ProjectTab({
                 : undefined
             }
           />
+        ) : selectedCiProject ? (
+          <SelectedCiProjectSummary
+            project={selectedCiProject}
+            client={clients.find((client) => client.id === selectedCiProject.clientId)}
+            ciBessCatalog={ciBessCatalog}
+            onClose={() => {
+              setSelectedCiProjectId(null);
+              onHideSummary();
+            }}
+          />
         ) : projectDetailsVisible ? (
           <>
             <div>
@@ -297,9 +283,9 @@ export function ProjectTab({
         )}
       </PageSummary>
 
-      <div className="mt-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold">Projetos salvos</h2>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2">
+          <h2 className="text-base font-semibold">Residencial</h2>
           {savedProjects.length > 0 && !projectDetailsVisible && (
             <SearchInput value={search} onChange={setSearch} placeholder="Pesquisar projeto..." />
           )}
@@ -315,17 +301,16 @@ export function ProjectTab({
                 <p className="mt-1">
                   Um fluxo comum: cadastre seus produtos e preços em <strong>Portfólio</strong>, adicione um{' '}
                   <strong>Cliente</strong>, depois crie um <strong>Novo projeto</strong> e finalize no{' '}
-                  <strong>Dimensionamento</strong>. Você também pode só clicar em &quot;Novo projeto&quot; agora e
+                  <strong>Workspace</strong>. Você também pode só clicar em &quot;Novo projeto&quot; agora e
                   ajustar tudo depois.
                 </p>
               </div>
             )}
-            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               {projectDetailsVisible && !currentProjectId && (
                 <ProjectDraftCard
                   projectInfo={projectInfo}
                   clients={clients}
-                  isNew
                   isDirty={isDraftDirty}
                   setProjectInfo={setProjectInfo}
                   onManagePortfolio={onManagePortfolio}
@@ -340,28 +325,8 @@ export function ProjectTab({
                   onUpdateServiceQty={onUpdateServiceQty}
                 />
               )}
-              {filteredProjects.map((project) =>
-                projectDetailsVisible && project.id === currentProjectId ? (
-                  <ProjectDraftCard
-                    key={project.id}
-                    projectInfo={projectInfo}
-                    clients={clients}
-                    isNew={false}
-                    isDirty={isDraftDirty}
-                    setProjectInfo={setProjectInfo}
-                    onManagePortfolio={onManagePortfolio}
-                    onAddClient={addClient}
-                    onSave={handleSave}
-                    onCancel={handleCancel}
-                    onOpenSizing={() => onOpenSizing(project.id)}
-                    nameError={nameError}
-                    userServices={userServices}
-                    services={services}
-                    onAddService={onAddService}
-                    onRemoveService={onRemoveService}
-                    onUpdateServiceQty={onUpdateServiceQty}
-                  />
-                ) : projectDetailsVisible ? null : (
+              {!projectDetailsVisible &&
+                filteredProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
                     project={project}
@@ -374,15 +339,10 @@ export function ProjectTab({
                     onSelect={() => {
                       const willSelect = selectedProjectId !== project.id;
                       setSelectedProjectId(willSelect ? project.id : null);
+                      setSelectedCiProjectId(null);
                       if (willSelect) onShowSummary();
                     }}
-                    onOpen={() => {
-                      setSelectedProjectId(project.id);
-                      onShowSummary();
-                      onOpen(project.id);
-                    }}
-                    onOpenSizing={() => onOpenSizing(project.id)}
-                    onOpenWorkspace={() => onOpenWorkspace?.(project.id)}
+                    onOpenWorkspace={() => onOpenWorkspace(project.id)}
                     onRemove={() => onRemove(project.id)}
                     onRefreshSolution={() => onRefreshSolution(project.id)}
                     refreshing={refreshingProjectId === project.id}
@@ -390,8 +350,7 @@ export function ProjectTab({
                     onDownloadPdf={() => onDownloadPdf(project.id)}
                     downloading={downloadingProjectId === project.id}
                   />
-                )
-              )}
+                ))}
             </div>
             {!projectDetailsVisible && savedProjects.length > 0 && filteredProjects.length === 0 && (
               <p className="mt-3 text-sm text-muted-foreground">Nenhum projeto encontrado para essa pesquisa.</p>
@@ -401,16 +360,21 @@ export function ProjectTab({
       </div>
 
       {savedCiProjects.length > 0 && (
-        <div className="mt-4 space-y-3">
-          <h2 className="text-sm font-semibold">Projetos C&amp;I</h2>
-          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+        <div className="space-y-4">
+          <h2 className="border-b pb-2 text-base font-semibold">Comercial &amp; Industrial</h2>
+          <div className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {savedCiProjects.map((project) => (
               <CiProjectCard
                 key={project.id}
                 project={project}
                 client={clients.find((client) => client.id === project.clientId)}
-                selected={false}
-                onSelect={() => onOpenCi(project.id)}
+                selected={project.id === selectedCiProjectId}
+                onSelect={() => {
+                  const willSelect = selectedCiProjectId !== project.id;
+                  setSelectedCiProjectId(willSelect ? project.id : null);
+                  setSelectedProjectId(null);
+                  if (willSelect) onShowSummary();
+                }}
                 onOpen={() => onOpenCi(project.id)}
                 onUpdateStatus={(status) => onUpdateCiStatus(project.id, status)}
                 onRemove={() => onRemoveCi(project.id)}

@@ -10,7 +10,7 @@ import type { DesiredFeatureId, MarginSettings, Solution, UserStockItem } from '
 import { calculateTariffSavings, formatCurrencyBRL } from '../helpers';
 import { renderWithShell, Shell } from '../test-helpers/render-with-shell';
 import type { BatteryCatalogOption, InverterCatalogOption } from '../types';
-import { SizingTab } from './SizingTab';
+import { TechnicalSizingEditor as SizingTab } from './TechnicalSizingEditor';
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));

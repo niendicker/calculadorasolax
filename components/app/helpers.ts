@@ -75,7 +75,7 @@ export function checkPhaseVoltageCompatibility(
  * fall under the one documented exception for) the grid type chosen in
  * Configurações — the wizard blocks calculating (and exporting the PDF,
  * which always follows canCalculate) in this case, and shows a matching
- * warning in SizingTab's Microrrede panel. */
+ * warning in the technical editor's Microrrede panel. */
 export function isMicrogridPhaseVoltageIncompatible(
   desiredFeatures: DesiredFeatureId[],
   microgrid: MicrogridConfig | null,
@@ -128,7 +128,7 @@ export function normalizeAccessoryLine(raw: string | AccessoryLine): AccessoryLi
 /** True when Gerador is selected and its rated power can't cover the
  * registered loads' peak power — the wizard blocks calculating in this case
  * (see canCalculate in useCalculation.ts) and shows a matching warning in
- * SizingTab's Gerador panel, both driven by this single check. */
+ * technical editor's Gerador panel, both driven by this single check. */
 export function isGeneratorPowerInsufficient(
   desiredFeatures: DesiredFeatureId[],
   generator: GeneratorConfig | null,

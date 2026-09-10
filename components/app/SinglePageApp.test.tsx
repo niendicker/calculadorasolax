@@ -152,7 +152,8 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   }
 
-  fireEvent.click((await screen.findAllByRole('button', { name: 'Workspace' }))[0]);
+  const quickViewButton = (await screen.findAllByRole('button', { name: 'Visualização rápida' }))[0];
+  fireEvent.click(quickViewButton.closest('[role="button"]') as HTMLElement);
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: projectName })).toBeInTheDocument());
   fireEvent.click(screen.getByRole('button', { name: /^Rede elétrica:/ }));
   await waitFor(() => expect(screen.getByRole('tab', { name: 'Rede e inversor' })).toBeInTheDocument());
@@ -777,7 +778,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     // wholesale: `vi.stubGlobal('URL', { ...URL, ... })` swaps the real
     // constructor for a plain object, which breaks any `new URL(...)` the
     // bundler's own dynamic-import machinery does internally to resolve
-    // SizingTab's lazy chunk — silently failing that import.
+    // technical editor's lazy chunk — silently failing that import.
     const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake-url');
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});

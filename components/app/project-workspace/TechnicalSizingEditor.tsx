@@ -53,11 +53,11 @@ import type { AutosaveStatus } from '../hooks/useAutosave';
 import { PageHeader, PageSummary } from '../shell/slots';
 import { Metric, MicrogridGuideDialog, SolutionSkeleton, WhatsAppIcon } from '../shared-ui';
 import { gridLabels, gridOptions, type BatteryCatalogOption, type InverterCatalogOption, type ProductMedia } from '../types';
-import { ConfigurationSummary } from './sizing/ConfigurationSummary';
-import { DesiredFeaturesPicker, featureIcons } from './sizing/DesiredFeaturesPicker';
-import { desiredFeatureHasPendingIssue } from './sizing/feature-status';
-import { BatteryModelPicker, InverterModelPicker } from './sizing/ModelPickers';
-import { ResultSummary, SolutionMetricCards } from './sizing/ResultSummary';
+import { ConfigurationSummary } from '../tabs/sizing/ConfigurationSummary';
+import { DesiredFeaturesPicker, featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
+import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
+import { BatteryModelPicker, InverterModelPicker } from '../tabs/sizing/ModelPickers';
+import { ResultSummary, SolutionMetricCards } from '../tabs/sizing/ResultSummary';
 
 
 /** The unified overview grid mixes the 6 desired-feature ids with two
@@ -78,7 +78,7 @@ interface PickerItem {
   meta: string;
 }
 
-export function SizingTab({
+export function TechnicalSizingEditor({
   projectName,
   currentProjectId,
   onBackToProject,

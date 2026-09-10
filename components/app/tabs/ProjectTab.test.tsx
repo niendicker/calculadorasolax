@@ -4,7 +4,8 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyAddress } from '@/lib/address';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
-import type { Client, ProjectInfo, SavedProject } from '@/lib/types';
+import type { Client, ProjectInfo, SavedCiProject, SavedProject } from '@/lib/types';
+import { defaultCiOptions } from '@/lib/store/defaults';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import { renderWithShell } from '../test-helpers/render-with-shell';
@@ -52,6 +53,22 @@ function makeProject(partial: Partial<SavedProject> & Pick<SavedProject, 'id'>):
     },
     solution: null,
     services: [],
+    ...partial,
+  };
+}
+
+function makeCiProject(partial: Partial<SavedCiProject> & Pick<SavedCiProject, 'id'>): SavedCiProject {
+  return {
+    installationType: 'commercial_industrial',
+    name: 'Projeto C&I salvo',
+    clientId: null,
+    address: emptyAddress(),
+    notes: '',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    calculationOptions: defaultCiOptions,
+    calculationResult: null,
+    calculationVersion: null,
     ...partial,
   };
 }
@@ -116,6 +133,7 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     batteryCatalog: [],
     inverterCatalog: [],
     accessoryCatalog: [],
+    ciBessCatalog: [],
     initialLoading: false,
     topology: null,
     batteryModel: null,
@@ -127,8 +145,6 @@ function setup(overrides: Partial<Parameters<typeof ProjectTab>[0]> & StoreOverr
     onSave: vi.fn(),
     onNew: vi.fn(),
     onCancelNew: vi.fn(),
-    onOpen: vi.fn(),
-    onOpenSizing: vi.fn(),
     onOpenWorkspace: vi.fn(),
     onRemove: vi.fn(),
     onRefreshSolution: vi.fn(),
@@ -186,22 +202,6 @@ describe('ProjectTab: empty and list states', () => {
   it('shows the live "Configuração salva junto" summary for a brand-new, not-yet-saved draft', () => {
     setup({ projectDetailsVisible: true, currentProjectId: null });
     expect(screen.getByText('Configuração salva junto')).toBeInTheDocument();
-  });
-
-  it('shows the same rich SelectedProjectSummary (not "Configuração salva junto") while editing an already-saved project', () => {
-    setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    expect(screen.queryByText('Configuração salva junto')).not.toBeInTheDocument();
-    // The project card action is not shown while editing its draft.
-    expect(screen.queryByRole('button', { name: 'Excluir projeto Casa de praia' })).not.toBeInTheDocument();
-    // No "unselect" affordance while editing — "Fechar" on the draft card
-    // itself (with its own discard confirmation) is what exits editing.
-    expect(screen.queryByRole('button', { name: 'Fechar resumo do projeto' })).not.toBeInTheDocument();
   });
 
   it('shows filled-in requirements in the live summary panel once topology/battery/grid/loads/solution are set', () => {
@@ -310,7 +310,7 @@ describe('ProjectTab: aggregate stats', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
     const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
-    fireEvent.click(card!);
+    fireEvent.click(within(card! as HTMLElement).getByRole('button', { name: 'Visualização rápida' }));
 
     expect(screen.queryByRole('heading', { name: 'Resumo dos projetos' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
@@ -573,124 +573,36 @@ describe('ProjectTab: new project draft', () => {
   });
 });
 
-describe('ProjectTab: opening an existing project edits it in place', () => {
-  it('replaces the clicked card with the draft form instead of adding a separate card', () => {
-    setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' }), makeProject({ id: 'p2', name: 'Escritório' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    // The card for p1 became the editable form (its name only shows as an input value)...
-    expect(screen.getByLabelText('Nome do projeto')).toHaveValue('Casa de praia');
-    expect(screen.getByText('Editando projeto')).toBeInTheDocument();
-    // ...while p2's card is hidden entirely, so it can't be clicked into by mistake mid-edit.
-    expect(screen.queryByText('Escritório')).not.toBeInTheDocument();
-    // Only one "Novo projeto" trigger card should exist for a genuinely new draft, and it must be absent here.
-    expect(screen.queryByText('Novo projeto', { selector: '.text-base' })).not.toBeInTheDocument();
-  });
-
-  it('offers a technical solution shortcut while editing an already-saved project', () => {
-    const { props } = setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Solução técnica' }));
-    expect(props.onOpenSizing).toHaveBeenCalledWith('p1');
-  });
-
-  it('closes immediately on Fechar when editing an existing project with no unsaved changes', () => {
-    const { props } = setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
-    expect(props.onCancelNew).toHaveBeenCalled();
-  });
-
-  it('disables Salvar projeto, with a tooltip, when editing an existing project with no unsaved changes', () => {
-    setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    const button = screen.getByRole('button', { name: 'Salvar' });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'Nenhuma alteração para salvar.');
-  });
-
-  it('keeps Salvar projeto enabled once an existing project is edited', () => {
-    setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia editada', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    const button = screen.getByRole('button', { name: 'Salvar' });
-    expect(button).toBeEnabled();
-    expect(button).not.toHaveAttribute('title');
-  });
-
-  it('asks for confirmation on Fechar when editing an existing project with unsaved changes', async () => {
-    const { props } = setup({
-      savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia editada', clientId: null, address: emptyAddress(), notes: '' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Descartar alterações do projeto' }));
-    const confirmButton = await screen.findByRole('button', { name: 'Descartar' }, { timeout: 1000 });
-    fireEvent.click(confirmButton);
-
-    expect(props.onCancelNew).toHaveBeenCalled();
-  });
-
-  it('closes immediately on Fechar even when the saved project\'s services came back from the DB with reordered keys', () => {
-    // Postgres jsonb doesn't preserve object key order on read — a service
-    // line saved as { serviceId, name, qty } can come back as
-    // { qty, name, serviceId } (or any other order) without anything having
-    // actually changed. The dirty-check must not be fooled by that.
-    const { props } = setup({
-      savedProjects: [
-        makeProject({
-          id: 'p1',
-          name: 'Casa de praia',
-          services: [{ qty: 2, name: 'Instalação', serviceId: 'srv1' } as unknown as { serviceId: string; name: string; qty: number }],
-        }),
-      ],
-      currentProjectId: 'p1',
-      projectDetailsVisible: true,
-      projectInfo: { name: 'Casa de praia', clientId: null, address: emptyAddress(), notes: '' },
-      services: [{ serviceId: 'srv1', name: 'Instalação', qty: 2 }],
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
-    expect(props.onCancelNew).toHaveBeenCalled();
-  });
-
-  it('clicking Editar on a saved project delegates to onOpen with its id and also opens its summary', () => {
+describe('ProjectTab: opening the workspace', () => {
+  it('clicking the card opens the workspace with its id', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    expect(props.onOpen).toHaveBeenCalledWith('p1');
+    const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
+    fireEvent.click(card!);
+    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
+  });
+
+  it('clicking Visualização rápida on a saved project selects it without opening the workspace', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    fireEvent.click(screen.getByRole('button', { name: 'Visualização rápida' }));
     expect(props.onShowSummary).toHaveBeenCalledTimes(1);
+    expect(props.onOpenWorkspace).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
   });
 
-  it('clicking Workspace on a saved project delegates to onOpenWorkspace with its id', () => {
-    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
-    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
+  it('clicking a C&I card opens its workspace', () => {
+    const { props } = setup({ savedCiProjects: [makeCiProject({ id: 'ci1', name: 'Fábrica Alfa' })] });
+    const card = screen.getAllByText('Fábrica Alfa').map((el) => el.closest('[role="button"]')).find(Boolean);
+    fireEvent.click(card!);
+    expect(props.onOpenCi).toHaveBeenCalledWith('ci1');
+  });
+
+  it('clicking Visualização rápida on a C&I project shows its summary without opening the workspace', () => {
+    const { props } = setup({ savedCiProjects: [makeCiProject({ id: 'ci1', name: 'Fábrica Alfa' })] });
+    fireEvent.click(screen.getByRole('button', { name: 'Visualização rápida' }));
+    expect(props.onShowSummary).toHaveBeenCalledTimes(1);
+    expect(props.onOpenCi).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
+    expect(screen.getByText('Configuração')).toBeInTheDocument();
   });
 
 });
@@ -699,7 +611,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
   function clickCard(name: string) {
     const card = screen.getAllByText(name).map((el) => el.closest('[role="button"]')).find(Boolean);
     if (!card) throw new Error(`Card for "${name}" not found`);
-    fireEvent.click(card);
+    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Visualização rápida' }));
   }
 
   it('shows a rich read-only summary in the side panel when a card is selected', () => {
