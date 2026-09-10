@@ -4,10 +4,10 @@
 // badges (the calculation engine isn't wired to any UI yet, docs/CI-MODULE-PLAN.md
 // Fase 6 "fatia estreita"), just enough to identify, reopen and delete a
 // saved C&I project. Mirrors ProjectCard's visual language rather than its
-// residential-specific logic. The card opens the workspace; its secondary
-// action selects the project for the shell's quick-view summary.
+// residential-specific logic. The card selects the project for the shell's
+// quick-view summary; its secondary action opens the workspace.
 
-import { Eye, Users } from 'lucide-react';
+import { FolderOpen, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import type { Client, ProjectStatus, SavedCiProject } from '@/lib/types';
@@ -43,11 +43,11 @@ export function CiProjectCard({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      onClick={onOpen}
+      onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onOpen();
+          onSelect();
         }
       }}
       className={cn(
@@ -79,9 +79,9 @@ export function CiProjectCard({
         </div>
       </div>
       <div className="mt-auto space-y-2 border-t pt-3">
-        <Button size="sm" variant="outline" className="w-full" onClick={stopAnd(onSelect)}>
-          <Eye className="h-4 w-4" />
-          Visualização rápida
+        <Button size="sm" variant="outline" className="w-full" onClick={stopAnd(onOpen)}>
+          <FolderOpen className="h-4 w-4" />
+          Abrir workspace
         </Button>
         <p className="pt-0.5 text-center text-[0.7rem] text-muted-foreground/70">
           Atualizado em{' '}

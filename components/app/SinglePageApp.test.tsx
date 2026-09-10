@@ -152,8 +152,8 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   }
 
-  const quickViewButton = (await screen.findAllByRole('button', { name: 'Visualização rápida' }))[0];
-  fireEvent.click(quickViewButton.closest('[role="button"]') as HTMLElement);
+  const openWorkspaceButton = (await screen.findAllByRole('button', { name: 'Abrir workspace' }))[0];
+  fireEvent.click(openWorkspaceButton);
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: projectName })).toBeInTheDocument());
   fireEvent.click(screen.getByRole('button', { name: /^Rede elétrica:/ }));
   await waitFor(() => expect(screen.getByRole('tab', { name: 'Rede e inversor' })).toBeInTheDocument());

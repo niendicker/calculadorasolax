@@ -5,7 +5,7 @@ import {
   AlertTriangle,
   Clock,
   Download,
-  Eye,
+  FolderOpen,
   Loader2,
   Mail,
   MoreHorizontal,
@@ -233,11 +233,11 @@ export function ProjectCard({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      onClick={onOpenWorkspace}
+      onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onOpenWorkspace();
+          onSelect();
         }
       }}
       className={cn(
@@ -331,9 +331,9 @@ export function ProjectCard({
       </div>
 
       <div className="mt-auto space-y-2 border-t pt-3">
-        <Button size="sm" variant="outline" className="w-full" onClick={stopAnd(onSelect)}>
-          <Eye className="h-4 w-4" />
-          Visualização rápida
+        <Button size="sm" variant="outline" className="w-full" onClick={stopAnd(onOpenWorkspace)}>
+          <FolderOpen className="h-4 w-4" />
+          Abrir workspace
         </Button>
         <p className="pt-0.5 text-center text-[0.7rem] text-muted-foreground/70">
           Atualizado em{' '}

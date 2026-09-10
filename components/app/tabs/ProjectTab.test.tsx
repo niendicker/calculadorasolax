@@ -171,16 +171,15 @@ function openProjectActions(projectName: string) {
 }
 
 describe('ProjectTab: empty and list states', () => {
-  it('disables the new C&I project action while the flow is unavailable', () => {
+  it('starts a new C&I project from the project header', () => {
     const onNewCi = vi.fn();
     setup({ onNewCi });
 
     const button = screen.getByRole('button', { name: 'Novo projeto C&I' });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'Disponível em breve');
+    expect(button).toBeEnabled();
 
     fireEvent.click(button);
-    expect(onNewCi).not.toHaveBeenCalled();
+    expect(onNewCi).toHaveBeenCalledOnce();
   });
 
   it('shows an onboarding hint for a brand-new user with no saved projects', () => {
@@ -322,7 +321,7 @@ describe('ProjectTab: aggregate stats', () => {
     setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
 
     const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
-    fireEvent.click(within(card! as HTMLElement).getByRole('button', { name: 'Visualização rápida' }));
+    fireEvent.click(card!);
 
     expect(screen.queryByRole('heading', { name: 'Resumo dos projetos' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
@@ -586,35 +585,36 @@ describe('ProjectTab: new project draft', () => {
 });
 
 describe('ProjectTab: opening the workspace', () => {
-  it('clicking the card opens the workspace with its id', () => {
+  it('clicking the card selects the project summary without opening the workspace', () => {
     const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
     const card = screen.getAllByText('Casa de praia').map((el) => el.closest('[role="button"]')).find(Boolean);
     fireEvent.click(card!);
-    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
-  });
-
-  it('clicking Visualização rápida on a saved project selects it without opening the workspace', () => {
-    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Visualização rápida' }));
     expect(props.onShowSummary).toHaveBeenCalledTimes(1);
     expect(props.onOpenWorkspace).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
   });
 
-  it('clicking a C&I card opens its workspace', () => {
+  it('clicking Abrir workspace on a saved project opens the workspace', () => {
+    const { props } = setup({ savedProjects: [makeProject({ id: 'p1', name: 'Casa de praia' })] });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir workspace' }));
+    expect(props.onOpenWorkspace).toHaveBeenCalledWith('p1');
+    expect(props.onShowSummary).not.toHaveBeenCalled();
+  });
+
+  it('clicking a C&I card selects its summary without opening the workspace', () => {
     const { props } = setup({ savedCiProjects: [makeCiProject({ id: 'ci1', name: 'Fábrica Alfa' })] });
     const card = screen.getAllByText('Fábrica Alfa').map((el) => el.closest('[role="button"]')).find(Boolean);
     fireEvent.click(card!);
-    expect(props.onOpenCi).toHaveBeenCalledWith('ci1');
-  });
-
-  it('clicking Visualização rápida on a C&I project shows its summary without opening the workspace', () => {
-    const { props } = setup({ savedCiProjects: [makeCiProject({ id: 'ci1', name: 'Fábrica Alfa' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Visualização rápida' }));
     expect(props.onShowSummary).toHaveBeenCalledTimes(1);
     expect(props.onOpenCi).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Fechar resumo do projeto' })).toBeInTheDocument();
-    expect(screen.getByText('Configuração')).toBeInTheDocument();
+  });
+
+  it('clicking Abrir workspace on a C&I project opens its workspace', () => {
+    const { props } = setup({ savedCiProjects: [makeCiProject({ id: 'ci1', name: 'Fábrica Alfa' })] });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir workspace' }));
+    expect(props.onOpenCi).toHaveBeenCalledWith('ci1');
+    expect(props.onShowSummary).not.toHaveBeenCalled();
   });
 
 });
@@ -623,7 +623,7 @@ describe('ProjectTab: selecting a project without opening it', () => {
   function clickCard(name: string) {
     const card = screen.getAllByText(name).map((el) => el.closest('[role="button"]')).find(Boolean);
     if (!card) throw new Error(`Card for "${name}" not found`);
-    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Visualização rápida' }));
+    fireEvent.click(card);
   }
 
   it('shows a rich read-only summary in the side panel when a card is selected', () => {
