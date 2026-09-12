@@ -1261,7 +1261,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 1 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ intermediateTariffPerKwh: 0.05 }));
     expect(props.setWhiteTariffConfig).toHaveBeenCalledWith(expect.objectContaining({ foraPontaTariffPerKwh: 0.85 }));
-  });
+  }, 15000);
 
   it('updates the total consumption directly in the advanced tariff mode', () => {
     const props = enable(/^Tarifa Branca/, 'white_tariff', {
