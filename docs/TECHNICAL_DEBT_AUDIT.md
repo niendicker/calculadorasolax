@@ -27,9 +27,9 @@ e validadas no estado atual do código:
   ajustados para evitar atualizações durante a renderização e ciclos de
   reexecução desnecessários.
 
-Validação realizada: lint e TypeScript sem erros; 119 arquivos de teste e 2.373
-testes passando; cobertura global de 89,66% de statements, 84,43% de branches,
-89,84% de functions e 91,19% de lines. O CI agora gera o relatório HTML,
+Validação realizada: lint e TypeScript sem erros; 121 arquivos de teste e 2.385
+testes passando; cobertura global de 89,87% de statements, 84,57% de branches,
+90,12% de functions e 91,38% de lines. O CI agora gera o relatório HTML,
 publica-o como artefato e aplica um piso de cobertura para evitar regressões.
 `git diff --check` também passou. O build de produção não pôde ser concluído
 neste ambiente porque o Next.js não conseguiu baixar a fonte Inter do Google
@@ -100,6 +100,8 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   e limpeza do estado visual em `LoadCurveChart`.
 - `b9bcf204`: cobertura do repository de produtos BESS C&I, incluindo listagem,
   criação, atualização e ativação/desativação.
+- `e147f803` e `d0d4663f`: cobertura direta dos repositories de cálculo
+  residencial e C&I, incluindo invocação, persistência, cache e histórico.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
