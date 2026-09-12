@@ -14,7 +14,7 @@
 // ProjectInfoModal — nothing here touches SavedProject or residential state.
 
 import { useState } from 'react';
-import { BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Client, ProjectInfo } from '@/lib/types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -38,6 +38,34 @@ const navigation: WorkspaceNavItem[] = [
   { id: 'strategy', label: 'Estratégia', icon: SlidersHorizontal },
   { id: 'results', label: 'Resultados', icon: BarChart3 },
 ];
+
+function getNavigationWithStatus(ciOptions: CommercialIndustrialOptions): WorkspaceNavItem[] {
+  const bessConfigured =
+    ciOptions.bessProductId !== null &&
+    (ciOptions.sizing.mode === 'fixed'
+      ? ciOptions.sizing.moduleCount !== null
+      : ciOptions.sizing.minModules !== null && ciOptions.sizing.maxModules !== null);
+  const curveConfigured = ciOptions.loadCurve !== null && ciOptions.loadCurve.points.length > 0;
+  const tariffConfigured = ciOptions.tariff !== null;
+  const configuredBySection: Record<string, boolean> = {
+    bess: bessConfigured,
+    curve: curveConfigured,
+    tariff: tariffConfigured,
+  };
+
+  return navigation.map((item) => {
+    if (configuredBySection[item.id] !== false) return item;
+
+    return {
+      ...item,
+      notification: {
+        label: 'Pendente',
+        ariaLabel: `Faltam valores na aba ${item.label}`,
+        icon: AlertTriangle,
+      },
+    };
+  });
+}
 
 export function CommercialIndustrialWorkspace({
   projectInfo,
@@ -72,13 +100,14 @@ export function CommercialIndustrialWorkspace({
 }) {
   const [section, setSectionState] = useState<CiWorkspaceSection>('overview');
   const client = clients.find((item) => item.id === projectInfo.clientId) ?? null;
+  const workspaceNavigation = getNavigationWithStatus(ciOptions);
 
   return (
     <ProjectWorkspaceShell
       title={projectInfo.name || 'Projeto C&I sem nome'}
       autosaveStatus={autosaveStatus}
       autosaveLastSavedAt={autosaveLastSavedAt}
-      navigation={navigation}
+      navigation={workspaceNavigation}
       activeSection={section}
       onSectionChange={(id) => setSectionState(id as CiWorkspaceSection)}
       subtitle={<p className="text-sm text-muted-foreground">Projeto Comercial &amp; Industrial (BESS)</p>}

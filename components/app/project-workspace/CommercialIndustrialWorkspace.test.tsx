@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions, defaultProjectInfo } from '@/lib/store/defaults';
+import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CommercialIndustrialWorkspace } from './CommercialIndustrialWorkspace';
 
 const { listActiveCiBessProducts } = vi.hoisted(() => ({ listActiveCiBessProducts: vi.fn() }));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts }));
 
-function renderWorkspace(overrides: { currentCiProjectId?: string | null } = {}) {
+function renderWorkspace(overrides: { currentCiProjectId?: string | null; ciOptions?: CommercialIndustrialOptions } = {}) {
   return render(
     <CommercialIndustrialWorkspace
       projectInfo={defaultProjectInfo}
@@ -17,7 +18,7 @@ function renderWorkspace(overrides: { currentCiProjectId?: string | null } = {})
       onUpdateProjectInfo={vi.fn()}
       onSaveProject={vi.fn()}
       onBackToProjects={vi.fn()}
-      ciOptions={defaultCiOptions}
+      ciOptions={overrides.ciOptions ?? defaultCiOptions}
       onUpdateCiOptions={vi.fn()}
       currentCiProjectId={overrides.currentCiProjectId ?? null}
       calculationResult={null}
@@ -29,6 +30,52 @@ function renderWorkspace(overrides: { currentCiProjectId?: string | null } = {})
 }
 
 describe('CommercialIndustrialWorkspace', () => {
+  beforeEach(() => {
+    listActiveCiBessProducts.mockResolvedValue([]);
+  });
+
+  it('indicates which configuration tabs still have missing values', () => {
+    renderWorkspace();
+
+    expect(screen.getByRole('status', { name: 'Faltam valores na aba Configuração BESS' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Faltam valores na aba Curva de carga' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Faltam valores na aba Tarifa' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Faltam valores na aba Estratégia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Faltam valores na aba Resultados' })).not.toBeInTheDocument();
+  });
+
+  it('removes pending indicators after the required configuration is filled', () => {
+    renderWorkspace({
+      ciOptions: {
+        ...defaultCiOptions,
+        bessProductId: 'bess-product-1',
+        loadCurve: {
+          points: [{ timestamp: '2026-01-01T00:00:00-03:00', powerKw: 10 }],
+          resolutionMinutes: 60,
+          timezone: 'America/Sao_Paulo',
+          profileBasis: 'representative_period',
+          periodStart: '2026-01-01',
+          periodEnd: '2026-01-07',
+          source: 'manual',
+        },
+        tariff: {
+          energyRatePeakBrlPerMwh: 100,
+          energyRateOffPeakBrlPerMwh: 50,
+          demandRateBrlPerKwMonth: 10,
+          contractedDemandKw: 10,
+          peakStart: '18:00',
+          peakEnd: '21:00',
+          tariffModality: 'verde',
+          market: 'cativo',
+          icmsPercent: 0,
+          pisCofinsPercent: 0,
+        },
+      },
+    });
+
+    expect(screen.queryByText('Pendente')).not.toBeInTheDocument();
+  });
+
   it('shows the project identification card on Visão geral, and the BESS panel on Configuração BESS', async () => {
     listActiveCiBessProducts.mockResolvedValue([]);
     renderWorkspace();

@@ -102,7 +102,28 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
     expect(getModeButton('Suave')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('in Suave mode, dragging a point tapers the change into neighbors and stops exactly at the brush radius', async () => {
+  it('changes the point style when switching between Normal and Suave', () => {
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
+    const point = getSlider(12);
+
+    expect(point).toHaveAttribute('r', '7');
+    expect(point).toHaveAttribute('fill', '#ffffff');
+    expect(point).toHaveAttribute('stroke', '#24506b');
+
+    fireEvent.click(getModeButton('Suave'));
+
+    expect(point).toHaveAttribute('r', '8');
+    expect(point).toHaveAttribute('fill', '#24506b');
+    expect(point).toHaveAttribute('stroke', '#ffffff');
+
+    fireEvent.click(getModeButton('Normal'));
+
+    expect(point).toHaveAttribute('r', '7');
+    expect(point).toHaveAttribute('fill', '#ffffff');
+    expect(point).toHaveAttribute('stroke', '#24506b');
+  });
+
+  it('in Suave mode, gives the dragged point priority and tapers only the excess into neighbors', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
     fireEvent.click(getModeButton('Suave'));
@@ -117,11 +138,13 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
     const delta = result[12] - 50;
     expect(delta).not.toBe(0);
 
-    // Raised-cosine falloff at BRUSH_RADIUS_HOURS=3: weight(1)=0.75, weight(2)=0.25, weight(3)=0.
-    expect(result[11]).toBeCloseTo(50 + delta * 0.75, 1);
-    expect(result[13]).toBeCloseTo(50 + delta * 0.75, 1);
-    expect(result[10]).toBeCloseTo(50 + delta * 0.25, 1);
-    expect(result[14]).toBeCloseTo(50 + delta * 0.25, 1);
+    // The first 5 kW belong entirely to the dragged point. The excess uses
+    // the raised-cosine falloff: weight(1)=0.75, weight(2)=0.25, weight(3)=0.
+    const adjacentDelta = Math.sign(delta) * Math.max(0, Math.abs(delta) - 5);
+    expect(result[11]).toBe(Math.round((50 + adjacentDelta * 0.75) * 10) / 10);
+    expect(result[13]).toBe(Math.round((50 + adjacentDelta * 0.75) * 10) / 10);
+    expect(result[10]).toBe(Math.round((50 + adjacentDelta * 0.25) * 10) / 10);
+    expect(result[14]).toBe(Math.round((50 + adjacentDelta * 0.25) * 10) / 10);
     expect(result[9]).toBe(50); // distance 3 -> weight 0
     expect(result[15]).toBe(50);
     expect(result[0]).toBe(50); // well outside the radius
@@ -143,12 +166,13 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
     expect(delta).not.toBe(0);
 
     // Hour 0 is 1h from 23h going forward through midnight, hour 1 is 2h, hour 2 is 3h.
-    expect(result[0]).toBeCloseTo(50 + delta * 0.75, 1);
-    expect(result[1]).toBeCloseTo(50 + delta * 0.25, 1);
+    const adjacentDelta = Math.sign(delta) * Math.max(0, Math.abs(delta) - 5);
+    expect(result[0]).toBe(Math.round((50 + adjacentDelta * 0.75) * 10) / 10);
+    expect(result[1]).toBe(Math.round((50 + adjacentDelta * 0.25) * 10) / 10);
     expect(result[2]).toBe(50);
   });
 
-  it('keyboard nudges also propagate to neighbors in Suave mode', async () => {
+  it('does not move neighbors for a sub-threshold keyboard nudge in Suave mode', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
     fireEvent.click(getModeButton('Suave'));
@@ -158,7 +182,23 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
 
     const result = onChange.mock.calls.at(-1)![0] as number[];
     expect(result[12]).toBe(51);
-    expect(result[11]).toBeCloseTo(50.75, 1);
+    expect(result[11]).toBe(50);
+    expect(result[9]).toBe(50);
+  });
+
+  it('starts moving neighbors only after the smooth threshold is exceeded', async () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
+    fireEvent.click(getModeButton('Suave'));
+
+    fireEvent.keyDown(getSlider(12), { key: 'ArrowUp', shiftKey: true });
+    fireEvent.keyDown(getSlider(12), { key: 'ArrowUp' });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const result = onChange.mock.calls.at(-1)![0] as number[];
+    expect(result[12]).toBe(56);
+    expect(result[11]).toBeCloseTo(50.75, 1); // (56 - 50) - 5, then × 0.75
+    expect(result[10]).toBeCloseTo(50.25, 1);
     expect(result[9]).toBe(50);
   });
 

@@ -21,6 +21,10 @@ const EDIT_MODES: { id: EditMode; label: string }[] = [
 // is enough to visibly round out a single-point tweak on a 24-point day
 // without a drag one hour away accidentally reshaping the whole morning.
 const BRUSH_RADIUS_HOURS = 3;
+// Let the point under the pointer absorb small corrections first. This keeps
+// fine adjustments from making the surrounding hours drift immediately; only
+// the movement beyond this band is distributed by the smooth brush.
+const SMOOTH_ADJACENT_THRESHOLD_KW = 5;
 const VIEW_WIDTH = 640;
 const VIEW_HEIGHT = 220;
 // left is generous on purpose: a 3-digit "### kW" label right-aligned with
@@ -62,12 +66,11 @@ function circularHourDistance(a: number, b: number): number {
   return Math.min(diff, HOURS_PER_DAY - diff);
 }
 
-/** Normal mode: only the dragged hour changes. Smooth mode: the same delta
- * (not the absolute value) is applied to every hour within
- * BRUSH_RADIUS_HOURS, tapering with a raised-cosine falloff — 1 at the
- * dragged point, 0 at the radius edge — so the dragged hour still lands
- * exactly where the user dropped it, and neighbors ease into the change
- * instead of forming a sawtooth. */
+/** Normal mode: only the dragged hour changes. Smooth mode gives the dragged
+ * hour priority: it moves freely within SMOOTH_ADJACENT_THRESHOLD_KW, and
+ * only the excess is applied to the neighbors within BRUSH_RADIUS_HOURS.
+ * The falloff is raised-cosine — 1 at the dragged point, 0 at the radius
+ * edge — so the dragged hour still lands exactly where the user dropped it. */
 function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mode: EditMode): number[] {
   if (mode === 'normal') {
     const next = hourlyKw.slice();
@@ -76,11 +79,13 @@ function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mo
   }
 
   const delta = newValue - hourlyKw[hour];
+  const adjacentDelta = Math.sign(delta) * Math.max(0, Math.abs(delta) - SMOOTH_ADJACENT_THRESHOLD_KW);
   return hourlyKw.map((value, i) => {
+    if (i === hour) return newValue;
     const distance = circularHourDistance(hour, i);
     if (distance > BRUSH_RADIUS_HOURS) return value;
     const weight = (Math.cos((Math.PI * distance) / BRUSH_RADIUS_HOURS) + 1) / 2;
-    return Math.round(Math.max(0, value + delta * weight) * 10) / 10;
+    return Math.round(Math.max(0, value + adjacentDelta * weight) * 10) / 10;
   });
 }
 
@@ -114,6 +119,7 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
   const [editMode, setEditMode] = useState<EditMode>('normal');
   const pendingRef = useRef<number[] | null>(null);
   const frameRef = useRef<number | null>(null);
+  const smoothInteractionRef = useRef<{ hour: number; startingKw: number[] } | null>(null);
 
   useEffect(
     () => () => {
@@ -136,11 +142,25 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
   // below — is coalesced to at most once per animation frame.
   function updateHour(hour: number, kw: number) {
     setLocalKw((previous) => {
-      const next = applyPointUpdate(previous, hour, Math.round(kw * 10) / 10, editMode);
+      const roundedKw = Math.round(kw * 10) / 10;
+      const smoothStartingKw = smoothInteractionRef.current?.hour === hour ? smoothInteractionRef.current.startingKw : previous;
+      const next = applyPointUpdate(editMode === 'smooth' ? smoothStartingKw : previous, hour, roundedKw, editMode);
       pendingRef.current = next;
       if (frameRef.current == null) frameRef.current = requestAnimationFrame(commitPending);
       return next;
     });
+  }
+
+  function beginInteraction(hour: number) {
+    if (editMode === 'smooth' && smoothInteractionRef.current?.hour !== hour) {
+      smoothInteractionRef.current = { hour, startingKw: localKw.slice() };
+    }
+  }
+
+  function beginPointerInteraction(hour: number) {
+    if (editMode === 'smooth') {
+      smoothInteractionRef.current = { hour, startingKw: localKw.slice() };
+    }
   }
 
   const maxKw = niceCeiling(Math.max(...localKw, 1));
@@ -164,6 +184,7 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
 
   function handlePointerDown(hour: number, event: React.PointerEvent<SVGCircleElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
+    beginPointerInteraction(hour);
     setActiveHour(hour);
     updateHour(hour, pointerPositionToKw(event.clientY));
   }
@@ -175,6 +196,7 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
 
   function handlePointerUp(event: React.PointerEvent<SVGCircleElement>) {
     event.currentTarget.releasePointerCapture(event.pointerId);
+    smoothInteractionRef.current = null;
     setActiveHour(null);
   }
 
@@ -182,9 +204,11 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
     const step = event.shiftKey ? 5 : 1;
     if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
       event.preventDefault();
+      beginInteraction(hour);
       updateHour(hour, Math.max(0, localKw[hour] + step));
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
       event.preventDefault();
+      beginInteraction(hour);
       updateHour(hour, Math.max(0, localKw[hour] - step));
     }
   }
@@ -202,7 +226,10 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
             key={mode.id}
             type="button"
             aria-pressed={editMode === mode.id}
-            onClick={() => setEditMode(mode.id)}
+            onClick={() => {
+              smoothInteractionRef.current = null;
+              setEditMode(mode.id);
+            }}
             className={cn(
               'flex h-7 items-center justify-center rounded-md px-3 text-xs font-medium transition',
               editMode === mode.id
@@ -271,11 +298,14 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
             <circle
               cx={xToPx(hour)}
               cy={yToPx(kw, maxKw)}
-              r={7}
-              fill={card}
-              stroke={primary}
+              r={editMode === 'smooth' ? 8 : 7}
+              fill={editMode === 'smooth' ? primary : card}
+              stroke={editMode === 'smooth' ? card : primary}
               strokeWidth={2}
-              className="cursor-ns-resize focus:outline-none focus-visible:stroke-[3]"
+              className={cn(
+                'cursor-ns-resize focus:outline-none focus-visible:stroke-[3]',
+                editMode === 'smooth' ? 'drop-shadow-sm' : 'drop-shadow-none'
+              )}
               tabIndex={0}
               role="slider"
               aria-label={`Potência às ${hour}h`}
@@ -288,7 +318,10 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
               onPointerUp={handlePointerUp}
               onKeyDown={(event) => handleKeyDown(hour, event)}
               onFocus={() => setActiveHour(hour)}
-              onBlur={() => setActiveHour((current) => (current === hour ? null : current))}
+              onBlur={() => {
+                if (smoothInteractionRef.current?.hour === hour) smoothInteractionRef.current = null;
+                setActiveHour((current) => (current === hour ? null : current));
+              }}
             />
             {activeHour === hour && (
               <text

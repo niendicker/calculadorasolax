@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { RefreshCw, Search } from 'lucide-react';
+import { LayoutGrid, RefreshCw, Search, Table2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,7 @@ export function UsersPanel({
   saving: boolean;
 }) {
   const [query, setQuery] = useState('');
+  const [view, setView] = useState<'cards' | 'table'>('cards');
 
   const visibleUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -40,16 +41,46 @@ export function UsersPanel({
     <section className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SectionHeader title="Usuários cadastrados" count={visibleUsers.length} />
-        <label className="relative block sm:w-64">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Buscar usuário"
-            className="pl-8 md:pl-8"
-            placeholder="Buscar por nome, email ou empresa..."
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex items-center gap-0.5 self-end rounded-lg border bg-muted/40 p-0.5" role="group" aria-label="Exibição dos usuários">
+            <button
+              type="button"
+              aria-pressed={view === 'cards'}
+              aria-label="Exibir usuários em cards"
+              onClick={() => setView('cards')}
+              className={cn(
+                'flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                view === 'cards' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Cards</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'table'}
+              aria-label="Exibir usuários em tabela"
+              onClick={() => setView('table')}
+              className={cn(
+                'flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                view === 'table' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Table2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Tabela</span>
+            </button>
+          </div>
+          <label className="relative block sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              aria-label="Buscar usuário"
+              className="pl-8 md:pl-8"
+              placeholder="Buscar por nome, email ou empresa..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+        </div>
       </div>
       {visibleUsers.length === 0 && (
         <Card>
@@ -58,46 +89,94 @@ export function UsersPanel({
           </CardContent>
         </Card>
       )}
-      <div className="grid gap-3 md:grid-cols-2">
-        {visibleUsers.map((user) => (
-          <Card key={user.id} size="sm">
-            <CardHeader>
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <CardTitle className="truncate">{user.full_name || user.email}</CardTitle>
-                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+      {visibleUsers.length > 0 && view === 'table' ? (
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <table className="w-full min-w-[42rem] text-sm" aria-label="Usuários cadastrados em tabela">
+            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b">
+                <th scope="col" className="px-4 py-3 font-semibold">Usuário</th>
+                <th scope="col" className="px-3 py-3 font-semibold">Perfil</th>
+                <th scope="col" className="hidden px-3 py-3 font-semibold md:table-cell">Empresa</th>
+                <th scope="col" className="hidden px-3 py-3 font-semibold lg:table-cell">Telefone</th>
+                <th scope="col" className="px-3 py-3 font-semibold">Cadastro</th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleUsers.map((user) => (
+                <tr key={user.id} className="border-b transition-colors last:border-0 hover:bg-muted/30">
+                  <td className="max-w-64 px-4 py-3 align-middle">
+                    <p className="truncate font-medium">{user.full_name || user.email}</p>
+                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                  </td>
+                  <td className="px-3 py-3 align-middle">
+                    <Badge variant={user.role === 'admin' ? 'secondary' : 'outline'}>
+                      {user.role === 'admin' ? 'admin' : 'usuário'}
+                    </Badge>
+                  </td>
+                  <td className="hidden max-w-48 truncate px-3 py-3 text-muted-foreground md:table-cell">{user.company_name || '-'}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-3 text-muted-foreground lg:table-cell">{user.phone || '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatUserDate(user.created_at)}</td>
+                  <td className="px-4 py-3 text-right align-middle">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="whitespace-nowrap"
+                      disabled={saving || !user.email}
+                      onClick={() => onResetPassword(user.email)}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Resetar senha
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {visibleUsers.map((user) => (
+            <Card key={user.id} size="sm">
+              <CardHeader>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <CardTitle className="truncate">{user.full_name || user.email}</CardTitle>
+                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                  <Badge variant={user.role === 'admin' ? 'secondary' : 'outline'}>
+                    {user.role === 'admin' ? 'admin' : 'usuário'}
+                  </Badge>
                 </div>
-                <Badge variant={user.role === 'admin' ? 'secondary' : 'outline'}>
-                  {user.role === 'admin' ? 'admin' : 'usuário'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-2 text-sm">
-                <DetailItem label="Telefone" value={user.phone || '-'} />
-                <DetailItem label="Empresa" value={user.company_name || '-'} />
-                <DetailItem
-                  label="Cadastro"
-                  value={new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(
-                    new Date(user.created_at)
-                  )}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={saving || !user.email}
-                onClick={() => onResetPassword(user.email)}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Resetar senha
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2 text-sm">
+                  <DetailItem label="Telefone" value={user.phone || '-'} />
+                  <DetailItem label="Empresa" value={user.company_name || '-'} />
+                  <DetailItem label="Cadastro" value={formatUserDate(user.created_at)} />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || !user.email}
+                  onClick={() => onResetPassword(user.email)}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Resetar senha
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </section>
   );
+}
+
+function formatUserDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Data não informada';
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date);
 }
 
 export function MetricsPanel({

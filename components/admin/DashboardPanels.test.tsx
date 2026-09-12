@@ -94,6 +94,26 @@ describe('UsersPanel', () => {
     expect(screen.getByText('Nenhum usuário encontrado para essa busca.')).toBeInTheDocument();
   });
 
+  it('switches between the card and responsive table views', () => {
+    render(
+      <UsersPanel
+        users={[makeUser({ id: 'u1', email: 'ana@x.com', full_name: 'Ana', company_name: 'Solax' })]}
+        onResetPassword={vi.fn()}
+        saving={false}
+      />
+    );
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir usuários em tabela' }));
+    expect(screen.getByRole('table', { name: 'Usuários cadastrados em tabela' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Empresa' })).toBeInTheDocument();
+    expect(screen.getByText('Solax')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exibir usuários em tabela' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir usuários em cards' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
   it('resets a password, and disables the button while saving', () => {
     const onResetPassword = vi.fn();
     const { rerender } = render(
