@@ -605,12 +605,24 @@ type InlineSaveState = 'idle' | 'saving' | 'saved' | 'error';
  *  feedback since there's no surrounding form/submit button. */
 function useInlineSave<T>(update: (value: T) => Promise<void>) {
   const [state, setState] = useState<InlineSaveState>('idle');
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
+
   async function run(value: T) {
     setState('saving');
     try {
       await update(value);
       setState('saved');
-      setTimeout(() => setState('idle'), 2000);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = setTimeout(() => {
+        resetTimerRef.current = null;
+        setState('idle');
+      }, 2000);
     } catch {
       setState('error');
     }
