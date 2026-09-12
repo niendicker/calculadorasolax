@@ -27,9 +27,9 @@ e validadas no estado atual do código:
   ajustados para evitar atualizações durante a renderização e ciclos de
   reexecução desnecessários.
 
-Validação realizada: lint e TypeScript sem erros; 115 arquivos de teste e 2.337
-testes passando; cobertura global de 87,56% de statements, 82,54% de branches,
-87,99% de functions e 89,20% de lines. O CI agora gera o relatório HTML,
+Validação realizada: lint e TypeScript sem erros; 116 arquivos de teste e 2.347
+testes passando; cobertura global de 88,62% de statements, 83,45% de branches,
+88,79% de functions e 90,26% de lines. O CI agora gera o relatório HTML,
 publica-o como artefato e aplica um piso de cobertura para evitar regressões.
 `git diff --check` também passou. O build de produção não pôde ser concluído
 neste ambiente porque o Next.js não conseguiu baixar a fonte Inter do Google
@@ -88,6 +88,8 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
 - `5b274c15`: cobertura do snapshot completo de compartilhamento público.
 - `8bc9547e`: cobertura da criação rápida de clientes e seus erros de limite.
 - `ed1fc708`: relatório de cobertura e piso de cobertura no CI.
+- `326c2122`: cobertura do modal de solicitação a fornecedores.
+- `c2e4e05b`: cobertura dos resultados C&I e geração do memorial PDF.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
@@ -462,7 +464,7 @@ externas.
 
 ### Testabilidade
 
-A suite possui 115 arquivos e 2.337 testes passando. A lógica de cálculo tem
+A suite possui 116 arquivos e 2.347 testes passando. A lógica de cálculo tem
 boa cobertura, incluindo testes de espelho, e os fluxos recentes de tarifas,
 compartilhamento, guia e criação rápida de clientes agora possuem cenários de
 sucesso, estados vazios e falhas relevantes.
