@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoadCurvePoint } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { LoadCurveChart } from './LoadCurveChart';
@@ -24,6 +24,7 @@ interface FakeUPlotInstance {
   setScaleCalls: unknown[];
   redrawCalls: unknown[];
   destroyed: boolean;
+  chart: unknown;
 }
 
 vi.mock('uplot', () => ({
@@ -31,6 +32,14 @@ vi.mock('uplot', () => ({
     root = document.createElement('div');
     over = document.createElement('div');
     scales = { x: { min: 0, max: 1 } };
+    bbox = { top: 10, height: 200 };
+    ctx = {
+      createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+      save: vi.fn(),
+      restore: vi.fn(),
+      fillRect: vi.fn(),
+      fillStyle: '',
+    };
     private record: FakeUPlotInstance;
 
     constructor(options: unknown, data: unknown, target?: HTMLElement) {
@@ -47,6 +56,7 @@ vi.mock('uplot', () => ({
         setScaleCalls: [],
         redrawCalls: [],
         destroyed: false,
+        chart: this,
       };
       instances.push(this.record);
     }
@@ -55,6 +65,9 @@ vi.mock('uplot', () => ({
     // pixel positions and assert on the resulting index range.
     posToVal(px: number) {
       return px / 10;
+    }
+    valToPos(value: number) {
+      return value * 10;
     }
     setScale(key: string, opts: unknown) {
       this.record.setScaleCalls.push(opts);
@@ -88,8 +101,80 @@ const samplePoints: LoadCurvePoint[] = [
   point('2026-01-05T00:30:00Z', 8),
 ];
 
+type TestChartOptions = {
+  axes: Array<{
+    splits: (...args: unknown[]) => number[];
+    values: (_self: unknown, ticks: number[]) => string[];
+  }>;
+  series: Array<{
+    value: (_self: unknown, rawValue?: number | null) => string;
+    fill?: (self: never) => unknown;
+  }>;
+  hooks: {
+    setScale: Array<(self: never, key: string) => void>;
+    draw: Array<(self: never) => void>;
+  };
+};
+
+let resizeCallback: (() => void) | null = null;
+let nextAnimationFrameId = 1;
+const animationFrames = new Map<number, FrameRequestCallback>();
+
+function chartOptions(instance: FakeUPlotInstance = instances.at(-1)!): TestChartOptions {
+  return instance.options as TestChartOptions;
+}
+
+function chartObject(instance: FakeUPlotInstance = instances.at(-1)!) {
+  return instance.chart as {
+    bbox: { top: number; height: number };
+    ctx: { fillRect: ReturnType<typeof vi.fn>; createLinearGradient: ReturnType<typeof vi.fn> };
+    scales: { x: { min: number | null; max: number | null } };
+  };
+}
+
+function mockChartRect(over: HTMLElement, width = 300, height = 240) {
+  vi.spyOn(over, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    width,
+    height,
+    right: width,
+    bottom: height,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
+
+function flushAnimationFrames() {
+  const callbacks = Array.from(animationFrames.values());
+  animationFrames.clear();
+  callbacks.forEach((callback) => callback(0));
+}
+
 beforeEach(() => {
   instances.length = 0;
+  resizeCallback = null;
+  animationFrames.clear();
+  nextAnimationFrameId = 1;
+  vi.stubGlobal(
+    'ResizeObserver',
+    class TestResizeObserver {
+      constructor(callback: unknown) {
+        resizeCallback = callback as () => void;
+      }
+      observe() {}
+      disconnect() {}
+    }
+  );
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    const id = nextAnimationFrameId++;
+    animationFrames.set(id, callback);
+    return id;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    animationFrames.delete(id);
+  });
 });
 
 describe('LoadCurveChart', () => {
@@ -135,6 +220,118 @@ describe('LoadCurveChart', () => {
 
     expect(container).toBeEmptyDOMElement();
     expect(instances).toHaveLength(0);
+  });
+
+  it('configures axis, legend and area-fill formatters for boundary and fallback cases', () => {
+    const points = [
+      point('2026-01-05T00:00:00', 10),
+      point('2026-01-05T01:30:00', 12),
+      point('2026-01-06T00:00:00', 8),
+    ];
+    render(<LoadCurveChart points={points} resolutionMinutes={60} />);
+
+    const instance = instances[0];
+    const options = chartOptions(instance);
+    const chart = chartObject(instance);
+    const axis = options.axes[0];
+
+    expect(axis.splits({}, 0, 0, 2)).toEqual([0, 2]);
+    expect(axis.splits({}, 0, 0, 1)).toHaveLength(6);
+    expect(axis.splits({}, 0, 1, 1)).toEqual([1]);
+    expect(axis.values({}, [0, 1, 2, 99])).toHaveLength(4);
+    expect(options.axes[1].values({}, [0, 2.5])).toEqual(['0 kW', '2.5 kW']);
+    expect(options.series[0].value({}, 1)).toContain('01:30');
+    expect(options.series[1].value({}, null)).toBe('—');
+    expect(options.series[1].value({}, 12.345)).toBe('12.35 kW');
+
+    const fill = options.series[1].fill!;
+    expect(fill(chart as never)).toBeDefined();
+    chart.bbox = { top: Number.NaN, height: Number.NaN };
+    expect(fill(chart as never)).toBeDefined();
+    expect(chart.ctx.createLinearGradient).toHaveBeenCalledTimes(2);
+  });
+
+  it('tracks zoom state and exposes a button to restore the full x range', () => {
+    render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} />);
+
+    const instance = instances[0];
+    const chart = chartObject(instance);
+    const setScale = chartOptions(instance).hooks.setScale[0];
+
+    act(() => {
+      chart.scales.x = { min: 0, max: 1 };
+      setScale(instance.chart as never, 'y');
+      setScale(instance.chart as never, 'x');
+    });
+    expect(screen.getByRole('button', { name: 'Redefinir zoom' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Redefinir zoom' }));
+    expect(instance.setScaleCalls.at(-1)).toEqual({ min: 0, max: 2 });
+
+    act(() => {
+      chart.scales.x = { min: 0, max: 2 };
+      setScale(instance.chart as never, 'x');
+    });
+    expect(screen.queryByRole('button', { name: 'Redefinir zoom' })).not.toBeInTheDocument();
+  });
+
+  it('pauses wheel zoom updates into one animation frame and clamps both zoom directions', () => {
+    const manyPoints = Array.from({ length: 30 }, (_, index) => point(`2026-01-05T${String(index).padStart(2, '0')}:00:00Z`, index + 1));
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+
+    const instance = instances[0];
+    const chart = chartObject(instance);
+    chart.scales.x = { min: 0, max: 29 };
+    mockChartRect(instance.over);
+
+    fireEvent.wheel(instance.over, { clientX: 150, deltaY: -100 });
+    fireEvent.wheel(instance.over, { clientX: 150, deltaY: 100 });
+    expect(instance.setScaleCalls).toHaveLength(0);
+
+    flushAnimationFrames();
+    expect(instance.setScaleCalls).toHaveLength(1);
+    const range = instance.setScaleCalls[0] as { min: number; max: number };
+    expect(range.min).toBeGreaterThanOrEqual(0);
+    expect(range.max).toBeLessThanOrEqual(29);
+    expect(range.max - range.min).toBeGreaterThan(0);
+  });
+
+  it('resets a pending wheel frame on unmount and ignores unavailable x scales', () => {
+    const { unmount } = render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} />);
+    const instance = instances[0];
+    const chart = chartObject(instance);
+    mockChartRect(instance.over);
+
+    chart.scales.x = { min: null, max: null };
+    fireEvent.wheel(instance.over, { clientX: 100, deltaY: -100 });
+    expect(animationFrames.size).toBe(0);
+
+    chart.scales.x = { min: 0, max: 2 };
+    fireEvent.wheel(instance.over, { clientX: 100, deltaY: -100 });
+    expect(animationFrames.size).toBe(1);
+    unmount();
+    expect(animationFrames.size).toBe(0);
+    flushAnimationFrames();
+    expect(instance.setScaleCalls).toHaveLength(0);
+  });
+
+  it('resizes the chart and clears pinned selections', () => {
+    render(<LoadCurveChart points={samplePoints.concat(point('2026-01-05T00:45:00Z', 20))} resolutionMinutes={15} />);
+    const instance = instances[0];
+    mockChartRect(instance.over);
+
+    fireEvent.mouseDown(instance.over, { button: 0, shiftKey: true, clientX: 0 });
+    fireEvent.mouseMove(document, { clientX: 30 });
+    fireEvent.mouseUp(document, { clientX: 30 });
+    expect(screen.getByRole('button', { name: /Limpar/ })).toBeInTheDocument();
+
+    const target = instance.target!;
+    Object.defineProperty(target, 'clientWidth', { configurable: true, value: 640 });
+    act(() => resizeCallback?.());
+
+    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 240 });
+    expect(instance.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
+    expect(screen.queryByRole('button', { name: /Limpar/ })).not.toBeInTheDocument();
   });
 });
 
