@@ -27,9 +27,9 @@ e validadas no estado atual do código:
   ajustados para evitar atualizações durante a renderização e ciclos de
   reexecução desnecessários.
 
-Validação realizada: lint e TypeScript sem erros; 117 arquivos de teste e 2.352
-testes passando; cobertura global de 88,62% de statements, 83,46% de branches,
-88,79% de functions e 90,26% de lines. O CI agora gera o relatório HTML,
+Validação realizada: lint e TypeScript sem erros; 118 arquivos de teste e 2.359
+testes passando; cobertura global de 88,89% de statements, 83,91% de branches,
+89,17% de functions e 90,48% de lines. O CI agora gera o relatório HTML,
 publica-o como artefato e aplica um piso de cobertura para evitar regressões.
 `git diff --check` também passou. O build de produção não pôde ser concluído
 neste ambiente porque o Next.js não conseguiu baixar a fonte Inter do Google
@@ -94,6 +94,8 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   seguro para colunas nulas.
 - `37e03e23`: timer de salvamento inline cancelado no unmount.
 - `173f85cd`: retorno de foco dos diálogos de confirmação tornado determinístico.
+- `f6417db7`: cobertura da tabela de cargas, incluindo edição, validação,
+  fases, tensão e ações de duplicação/remoção.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
