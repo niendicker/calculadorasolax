@@ -19,6 +19,14 @@ const testCiOptions: CommercialIndustrialOptions = {
   rankingCriterion: 'PAYBACK',
 };
 
+const dynamicMocks = vi.hoisted(() => ({
+  buildMemorialPdf: vi.fn(),
+  listProducts: vi.fn(),
+}));
+
+vi.mock('./ci-memorial-pdf', () => ({ buildCiMemorialPdfBlob: dynamicMocks.buildMemorialPdf }));
+vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts: dynamicMocks.listProducts }));
+
 function panelProps(projectId: string | null, overrides: { onFlushSave?: () => Promise<unknown> } = {}) {
   return {
     projectId,
@@ -90,6 +98,8 @@ function makeResult(overrides: Partial<CommercialIndustrialResult> = {}): Commer
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());
+  dynamicMocks.buildMemorialPdf.mockResolvedValue(new Blob(['pdf']));
+  dynamicMocks.listProducts.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -176,5 +186,57 @@ describe('CiResultsPanel', () => {
       expect(screen.getByText('Não foi possível salvar as alterações antes de calcular. Tente novamente.')).toBeInTheDocument()
     );
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('renders non-recommended, technically invalid scenarios and warnings', async () => {
+    const result = makeResult({
+      recommendation: { scenarioId: null, reason: 'Nenhum cenário atende ao retorno mínimo.' },
+      warnings: ['A curva possui lacunas.'],
+    });
+    result.scenarios = [{ ...result.scenarios[0], technicalValidity: false, technicalWarnings: ['Subdimensionado.'] }, ...result.scenarios.slice(1)];
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(result) });
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    expect(await screen.findByText(/Nenhum cenário economicamente viável/)).toBeInTheDocument();
+    expect(screen.getByText('Inválido')).toBeInTheDocument();
+    expect(screen.getByText('Avisos técnicos')).toBeInTheDocument();
+    expect(screen.getByText('A curva possui lacunas.')).toBeInTheDocument();
+  });
+
+  it('generates and downloads the C&I memorial PDF', async () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:memorial');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(makeResult()) });
+    render(
+      <CiResultsPanel
+        {...panelProps('ci-project-1')}
+        ciOptions={{ ...testCiOptions, bessProductId: 'product-1' }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+    await screen.findByRole('button', { name: 'Gerar memorial (PDF)' });
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar memorial (PDF)' }));
+
+    await waitFor(() => expect(dynamicMocks.buildMemorialPdf).toHaveBeenCalledOnce());
+    expect(dynamicMocks.listProducts).toHaveBeenCalledOnce();
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:memorial');
+  });
+
+  it('shows an error when memorial generation fails', async () => {
+    dynamicMocks.buildMemorialPdf.mockRejectedValue(new Error('PDF unavailable'));
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(makeResult()) });
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+    await screen.findByRole('button', { name: 'Gerar memorial (PDF)' });
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar memorial (PDF)' }));
+
+    expect(await screen.findByText('Não foi possível gerar o memorial em PDF. Tente novamente.')).toBeInTheDocument();
   });
 });
