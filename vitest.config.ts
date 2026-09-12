@@ -32,6 +32,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
+      thresholds: {
+        // Keep a small safety floor below the current baseline so new code
+        // cannot silently lower coverage while the suite continues to grow.
+        statements: 86,
+        branches: 80,
+        functions: 86,
+        lines: 87,
+      },
       include: ['lib/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'supabase/functions/**/*.ts'],
       exclude: [
         '**/*.test.ts',
