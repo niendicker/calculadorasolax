@@ -27,9 +27,9 @@ e validadas no estado atual do código:
   ajustados para evitar atualizações durante a renderização e ciclos de
   reexecução desnecessários.
 
-Validação realizada: lint e TypeScript sem erros; 124 arquivos de teste e 2.406
-testes passando; cobertura global de 90,21% de statements, 84,78% de branches,
-90,61% de functions e 91,69% de lines. O CI agora gera o relatório HTML,
+Validação realizada: lint e TypeScript sem erros; 125 arquivos de teste e 2.414
+testes passando; cobertura global de 90,27% de statements, 84,82% de branches,
+90,64% de functions e 91,74% de lines. O CI agora gera o relatório HTML,
 publica-o como artefato e aplica um piso de cobertura para evitar regressões.
 `git diff --check` também passou. O build de produção não pôde ser concluído
 neste ambiente porque o Next.js não conseguiu baixar a fonte Inter do Google
@@ -108,6 +108,10 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   consultas, eventos, mapeamentos e submissão ao parceiro.
 - `52ea6082`: cobertura direta do repository de cotação a fornecedores,
   incluindo preferências, fornecedores padrão, eventos e solicitações.
+- `fa95ea84`: cobertura direta do repository de projetos C&I, incluindo
+  persistência, exclusão, status e filtro por tipo de instalação.
+- `9f52b494`: asserção do snapshot de compartilhamento tornada determinística,
+  removendo dependência de dígitos presentes no timestamp gerado.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
