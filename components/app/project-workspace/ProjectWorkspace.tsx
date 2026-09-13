@@ -1598,7 +1598,7 @@ function MissingPriceModal({ item, isNewProduct, onClose, onSave }: { item: Miss
         return;
       }
       if (event.key !== 'Tab') return;
-      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])') ?? []);
       if (!focusable.length) return;
       if (event.shiftKey && document.activeElement === focusable[0]) {
         event.preventDefault();

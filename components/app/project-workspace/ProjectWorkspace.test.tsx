@@ -1057,4 +1057,50 @@ describe('ProjectWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Gerando relatório...' }));
     expect(onGenerateReport).not.toHaveBeenCalled();
   });
+
+  it('wraps keyboard focus in the price dialog and closes it from the backdrop', async () => {
+    const onAddToStock = vi.fn().mockResolvedValue(undefined);
+    const solution = {
+      inverterId: 'inverter-1', inverterModel: 'X3-ULT-30K', inverterQty: 1, inverterRatedPowerW: 30000,
+      batteryId: 'battery-1', batteryModel: 'T-BAT H 5.8 V2', batteryQty: 1, pvPowerKw: null, accessories: [],
+    } as Solution;
+
+    renderWorkspace({ solution, onAddToStock });
+    fireEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar · X3-ULT-30K' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Adicionar produto' });
+    const first = within(dialog).getByRole('button', { name: 'Fechar' });
+    const last = within(dialog).getByRole('button', { name: 'Cancelar' });
+    last.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+
+    first.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(last);
+
+    fireEvent.mouseDown(dialog.parentElement as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Adicionar produto' })).not.toBeInTheDocument());
+  });
+
+  it('closes the report preview when the backdrop is clicked', async () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:report-backdrop');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const solution = {
+      inverterId: 'inverter-1', inverterModel: 'X3-ULT-30K', inverterQty: 1, inverterRatedPowerW: 30000,
+      batteryId: 'battery-1', batteryModel: 'T-BAT H 5.8 V2', batteryQty: 1, pvPowerKw: null, accessories: [],
+    } as Solution;
+
+    renderWorkspace({ solution, lastReport: { blob: new Blob(['pdf']), generatedAt: new Date('2026-09-12T15:30:00Z') } });
+    fireEvent.click(screen.getByRole('button', { name: 'Relatório' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Visualizar prévia' }));
+    const preview = await screen.findByRole('dialog', { name: 'Prévia do relatório' });
+
+    fireEvent.click(preview);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia do relatório' })).not.toBeInTheDocument());
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:report-backdrop');
+  });
 });

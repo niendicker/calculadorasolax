@@ -44,7 +44,7 @@ export function ProjectInfoModal({ field, projectInfo, clients, onClose, onSave 
       : null;
 
     const getFocusableElements = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"]):not([disabled])'
     ) ?? []);
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
