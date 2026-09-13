@@ -171,15 +171,15 @@ function openProjectActions(projectName: string) {
 }
 
 describe('ProjectTab: empty and list states', () => {
-  it('starts a new C&I project from the project header', () => {
+  it('keeps the new C&I project action disabled', () => {
     const onNewCi = vi.fn();
     setup({ onNewCi });
 
     const button = screen.getByRole('button', { name: 'Novo projeto C&I' });
-    expect(button).toBeEnabled();
+    expect(button).toBeDisabled();
 
     fireEvent.click(button);
-    expect(onNewCi).toHaveBeenCalledOnce();
+    expect(onNewCi).not.toHaveBeenCalled();
   });
 
   it('shows an onboarding hint for a brand-new user with no saved projects', () => {

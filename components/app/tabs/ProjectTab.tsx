@@ -212,7 +212,7 @@ export function ProjectTab({
               <Plus className="h-4 w-4" />
               Novo projeto
             </Button>
-            <Button variant="outline" onClick={onNewCi}>
+            <Button variant="outline" onClick={onNewCi} disabled title="Novo projeto C&I indisponível no momento.">
               <Plus className="h-4 w-4" />
               Novo projeto C&amp;I
             </Button>
