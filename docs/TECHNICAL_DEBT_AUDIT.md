@@ -27,9 +27,9 @@ e validadas no estado atual do código:
   ajustados para evitar atualizações durante a renderização e ciclos de
   reexecução desnecessários.
 
-Validação realizada: lint e TypeScript sem erros; 126 arquivos de teste e 2.421
-testes passando; cobertura global de 90,59% de statements, 85,02% de branches,
-91,17% de functions e 92,04% de lines. O CI agora gera o relatório HTML,
+Validação realizada: lint e TypeScript sem erros; 126 arquivos de teste e 2.423
+testes passando; cobertura global de 90,71% de statements, 85,13% de branches,
+91,23% de functions e 92,16% de lines. O CI agora gera o relatório HTML,
 publica-o como artefato e aplica um piso de cobertura para evitar regressões.
 `git diff --check` também passou. O build de produção não pôde ser concluído
 neste ambiente porque o Next.js não conseguiu baixar a fonte Inter do Google
@@ -116,6 +116,8 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   pendentes, falhas de persistência e prévia temporária de relatório.
 - `69cce764`: cobertura direta do editor de informações do projeto, incluindo
   validação do nome, cliente, endereço, observações e ações do formulário.
+- `238dc69a`: ciclo de foco dos modais passou a ignorar controles desabilitados,
+  com regressões cobrindo Tab, Shift+Tab e fechamento pelo backdrop.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
