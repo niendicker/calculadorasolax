@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type AppTab = 'project' | 'sizing' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile';
+type AppTab = 'project' | 'sizing' | 'ciWorkspace' | 'catalog' | 'purchases' | 'myStock' | 'clients' | 'profile';
 
 /** UI-only state for the application chrome. Domain state remains in the
  * wizard store and feature hooks; this hook owns only portals, drawers and

@@ -42,6 +42,7 @@ export function useCalculation({
   const [error, setError] = useState<string | null>(null);
   const [secondaryError, setSecondaryError] = useState<string | null>(null);
   const [productMedia, setProductMedia] = useState<Record<string, ProductMedia>>({});
+  const [calculationRevision, setCalculationRevision] = useState(0);
 
   // Tracks the residentialOptions snapshot as of the last calculate() call
   // (set the moment it starts, not when it resolves) — lets the "Calcular"
@@ -239,8 +240,11 @@ export function useCalculation({
 
     const [primaryResult] = await Promise.allSettled(calls);
     setLoading(false);
+    if (primaryResult.status === 'fulfilled' && primaryResult.value === null) {
+      setCalculationRevision((revision) => revision + 1);
+    }
     return primaryResult.status === 'fulfilled' ? primaryResult.value : null;
   }
 
-  return { loading, error, secondaryError, canCalculate, hasUncalculatedChanges, calculate, productMedia };
+  return { loading, error, secondaryError, canCalculate, hasUncalculatedChanges, calculate, productMedia, calculationRevision };
 }

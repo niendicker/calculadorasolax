@@ -4,7 +4,7 @@
 **Escopo:** repositório completo da Calculadora SolaX  
 **Tipo:** diagnóstico read-only; nenhum código foi alterado durante a auditoria
 
-## Status desta implementação — 2026-08-28
+## Status desta implementação — 2026-09-12
 
 As prioridades altas e médias levantadas para esta branch foram implementadas
 e validadas no estado atual do código:
@@ -27,15 +27,19 @@ e validadas no estado atual do código:
   ajustados para evitar atualizações durante a renderização e ciclos de
   reexecução desnecessários.
 
-Validação realizada: lint e TypeScript sem erros; 90 arquivos de teste e 2.009
-testes passando; `git diff --check` sem problemas. O build de produção não pôde
-ser concluído neste ambiente porque o Next.js não conseguiu baixar a fonte
-Inter do Google Fonts. A checagem das Edge Functions também depende de acesso
-à rede para baixar o pacote JSR do Supabase.
+Validação realizada: lint e TypeScript sem erros; 126 arquivos de teste e 2.423
+testes passando; cobertura global de 90,71% de statements, 85,13% de branches,
+91,23% de functions e 92,16% de lines. O CI agora gera o relatório HTML,
+publica-o como artefato e aplica um piso de cobertura para evitar regressões.
+`git diff --check` também passou. O build de produção não pôde ser concluído
+neste ambiente porque o Next.js não conseguiu baixar a fonte Inter do Google
+Fonts. A checagem das Edge Functions também depende de acesso à rede para
+baixar o pacote JSR do Supabase.
 
-Permanecem apenas melhorias de prioridade baixa ou dependentes de ambiente:
-redução de avisos de `act(...)` em testes assíncronos, execução contínua de
-pgTAP/E2E, medição do bundle e otimização do catálogo inicial.
+Permanecem melhorias de prioridade baixa ou dependentes de ambiente: redução de
+avisos de `act(...)` em testes assíncronos, ampliação de testes de handlers e
+repositories de baixa cobertura, execução contínua de pgTAP/E2E, medição do
+bundle e otimização do catálogo inicial.
 
 ## Status de implementação
 
@@ -78,6 +82,42 @@ Após a auditoria, as seguintes etapas foram implementadas em commits separados:
   e teste de integração do fluxo cálculo → métrica.
 - `67157789`: conexões HTTPS de fornecedores fixadas ao IP público validado,
   mantendo o hostname original para TLS e `Host`.
+- `3cb6fb9d`: cobertura do serviço de tarifas ANEEL e do cache local.
+- `e00dc375`: cobertura de exportação PDF e compartilhamento de cotação.
+- `cc585081`: cobertura do painel automático de tarifas e do guia de uso.
+- `5b274c15`: cobertura do snapshot completo de compartilhamento público.
+- `8bc9547e`: cobertura da criação rápida de clientes e seus erros de limite.
+- `ed1fc708`: relatório de cobertura e piso de cobertura no CI.
+- `326c2122`: cobertura do modal de solicitação a fornecedores.
+- `c2e4e05b`: cobertura dos resultados C&I e geração do memorial PDF.
+- `9485cfb5`: dataset ANEEL centralizado entre serviço e endpoints, com fallback
+  seguro para colunas nulas.
+- `37e03e23`: timer de salvamento inline cancelado no unmount.
+- `173f85cd`: retorno de foco dos diálogos de confirmação tornado determinístico.
+- `f6417db7`: cobertura da tabela de cargas, incluindo edição, validação,
+  fases, tensão e ações de duplicação/remoção.
+- `3b07f7ea`: cobertura dos formatadores do gráfico, zoom, pan, seleção, resize
+  e limpeza do estado visual em `LoadCurveChart`.
+- `b9bcf204`: cobertura do repository de produtos BESS C&I, incluindo listagem,
+  criação, atualização e ativação/desativação.
+- `e147f803` e `d0d4663f`: cobertura direta dos repositories de cálculo
+  residencial e C&I, incluindo invocação, persistência, cache e histórico.
+- `6b7ea361`: cobertura direta do repository de sincronização de fornecedores,
+  incluindo ciclo de vida da execução, ofertas e IDs externos.
+- `c87ac729`: cobertura direta do repository de pedidos de compra, incluindo
+  consultas, eventos, mapeamentos e submissão ao parceiro.
+- `52ea6082`: cobertura direta do repository de cotação a fornecedores,
+  incluindo preferências, fornecedores padrão, eventos e solicitações.
+- `fa95ea84`: cobertura direta do repository de projetos C&I, incluindo
+  persistência, exclusão, status e filtro por tipo de instalação.
+- `9f52b494`: asserção do snapshot de compartilhamento tornada determinística,
+  removendo dependência de dígitos presentes no timestamp gerado.
+- `3c5d7e75`: cobertura dos estados do Workspace de projeto, incluindo preços
+  pendentes, falhas de persistência e prévia temporária de relatório.
+- `69cce764`: cobertura direta do editor de informações do projeto, incluindo
+  validação do nome, cliente, endereço, observações e ações do formulário.
+- `238dc69a`: ciclo de foco dos modais passou a ignorar controles desabilitados,
+  com regressões cobrindo Tab, Shift+Tab e fechamento pelo backdrop.
 
 A refatoração estrutural principal foi concluída de forma incremental. O JSX
 restante do `SinglePageApp` é composição visual do shell e das abas; as regras
@@ -85,7 +125,8 @@ de negócio e integrações críticas estão em hooks e módulos próprios.
 
 Permanecem como melhorias futuras: execução contínua do pgTAP no ambiente de
 produção, testes de integração ponta a ponta, medição de bundle e redução do
-catálogo carregado no primeiro acesso.
+catálogo carregado no primeiro acesso. O CI já executa pgTAP quando as
+credenciais do ambiente estão configuradas e publica a cobertura da suíte.
 
 ## Resumo executivo
 
@@ -451,8 +492,10 @@ externas.
 
 ### Testabilidade
 
-A suite possui 80 arquivos e 1.929 testes passando na auditoria. A lógica de
-cálculo tem boa cobertura, incluindo testes de espelho.
+A suite possui 117 arquivos e 2.352 testes passando. A lógica de cálculo tem
+boa cobertura, incluindo testes de espelho, e os fluxos recentes de tarifas,
+compartilhamento, guia e criação rápida de clientes agora possuem cenários de
+sucesso, estados vazios e falhas relevantes.
 
 As lacunas principais são:
 

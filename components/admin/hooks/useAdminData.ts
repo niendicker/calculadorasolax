@@ -13,11 +13,13 @@ import {
   fetchApprovedSolutions,
 } from '../helpers';
 import { listAdminCatalogRows } from '@/lib/data/admin-repository';
+import { listCiBessProducts } from '@/lib/data/ci-bess-products-repository';
 import {
   type AccessoryRow,
   type AccessoryRuleRow,
   type AdminActivityLogRow,
   type BatteryRow,
+  type CiBessProductRow,
   type EssCompatibilityRuleRow,
   type InverterRow,
   type LoadCatalogRow,
@@ -33,6 +35,7 @@ export type ResourceKey =
   | 'inverters'
   | 'batteries'
   | 'accessories'
+  | 'ciBessProducts'
   | 'loadCatalog'
   | 'presets'
   | 'rules'
@@ -50,6 +53,7 @@ export const TAB_RESOURCES: Record<TabKey, ResourceKey[]> = {
   inverters: ['inverters', 'batteries', 'essRules'],
   batteries: ['batteries'],
   accessories: ['accessories', 'rules', 'inverters', 'batteries'],
+  ciBessProducts: ['ciBessProducts'],
   rules: ['accessories', 'rules', 'inverters', 'batteries', 'essRules'],
   loads: ['loadCatalog'],
   presets: ['presets', 'loadCatalog'],
@@ -91,6 +95,7 @@ export function useAdminData({
   const [inverters, setInverters] = useState<InverterRow[]>([]);
   const [batteries, setBatteries] = useState<BatteryRow[]>([]);
   const [accessories, setAccessories] = useState<AccessoryRow[]>([]);
+  const [ciBessProducts, setCiBessProducts] = useState<CiBessProductRow[]>([]);
   const [loadCatalogItems, setLoadCatalogItems] = useState<LoadCatalogRow[]>([]);
   const [presets, setPresets] = useState<PresetRow[]>([]);
   const [rules, setRules] = useState<AccessoryRuleRow[]>([]);
@@ -158,6 +163,14 @@ export function useAdminData({
           const { data, error: fetchError } = await listAdminCatalogRows(supabase, 'accessories', ACCESSORY_COLUMNS);
           if (!fetchError) setAccessories((data ?? []) as unknown as AccessoryRow[]);
           return { error: fetchError };
+        }
+        case 'ciBessProducts': {
+          try {
+            setCiBessProducts(await listCiBessProducts());
+            return { error: null };
+          } catch (fetchError) {
+            return { error: fetchError instanceof Error ? fetchError : new Error('Não foi possível carregar os produtos C&I.') };
+          }
         }
         case 'loadCatalog': {
           const { data, error: fetchError } = await supabase
@@ -308,6 +321,7 @@ export function useAdminData({
     inverters,
     batteries,
     accessories,
+    ciBessProducts,
     loadCatalogItems,
     presets,
     rules,

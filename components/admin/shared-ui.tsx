@@ -205,14 +205,14 @@ export function ProductMediaFields({
   setDocuments,
   uploadAsset,
 }: {
-  table: 'inverters' | 'batteries' | 'accessories';
+  table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products';
   model: string | undefined;
   imageUrl: string | null | undefined;
   documents: ProductDocument[] | undefined;
   setImageUrl: (url: string) => void;
   setDocuments: (documents: ProductDocument[]) => void;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
@@ -725,7 +725,10 @@ export function RecordCardGrid({
     media?: ReactNode;
     removing?: boolean;
     onEdit: () => void;
-    onRemove: () => void;
+    /** Omit entirely for catalogs where hard delete isn't offered — e.g.
+     * ci_bess_products, whose MVP scope only supports activate/deactivate so
+     * a product already referenced by a project's id stays resolvable. */
+    onRemove?: () => void;
     removeDescription?: string;
     onDeactivate?: () => void;
     deactivateDescription?: string;
@@ -786,14 +789,16 @@ export function RecordCardGrid({
                   onConfirm={item.onDeactivate}
                 />
               )}
-              <ConfirmDeleteButton
-                ariaLabel={`Remover ${item.title}`}
-                title={`Remover ${item.title}?`}
-                description={item.removeDescription ?? 'Esse registro será removido do cadastro administrativo.'}
-                confirmLabel="Remover"
-                disabled={item.removing}
-                onConfirm={item.onRemove}
-              />
+              {item.onRemove && (
+                <ConfirmDeleteButton
+                  ariaLabel={`Remover ${item.title}`}
+                  title={`Remover ${item.title}?`}
+                  description={item.removeDescription ?? 'Esse registro será removido do cadastro administrativo.'}
+                  confirmLabel="Remover"
+                  disabled={item.removing}
+                  onConfirm={item.onRemove}
+                />
+              )}
             </div>
           </CardContent>
         </Card>

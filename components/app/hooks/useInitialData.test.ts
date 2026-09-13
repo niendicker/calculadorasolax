@@ -70,6 +70,7 @@ function baseHookProps(overrides: Record<string, unknown> = {}) {
     supabase: makeSupabase(),
     fetchClients: vi.fn().mockResolvedValue(undefined),
     fetchProjects: vi.fn().mockResolvedValue(undefined),
+    fetchCiProjects: vi.fn().mockResolvedValue(undefined),
     fetchUserLoadCatalog: vi.fn().mockResolvedValue(undefined),
     fetchUserStockItems: vi.fn().mockResolvedValue(undefined),
     fetchUserLoadPresets: vi.fn().mockResolvedValue(undefined),
@@ -161,6 +162,7 @@ describe('useInitialData: logged-in user', () => {
     });
     expect(props.fetchClients).toHaveBeenCalled();
     expect(props.fetchProjects).toHaveBeenCalled();
+    expect(props.fetchCiProjects).toHaveBeenCalled();
     expect(props.fetchUserLoadCatalog).toHaveBeenCalled();
     expect(props.fetchUserStockItems).toHaveBeenCalled();
     expect(props.fetchUserLoadPresets).toHaveBeenCalled();

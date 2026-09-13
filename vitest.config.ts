@@ -18,10 +18,28 @@ export default defineConfig({
     // Deno's own test runner — it imports via `jsr:` specifiers Vitest/Node
     // can't resolve. Run it with `deno test --allow-env
     // calculate-residential/index.test.ts` from supabase/functions instead.
-    exclude: ['node_modules', '.next', '.claude', 'supabase/functions/calculate-residential/index.test.ts'],
+    // calculate-commercial-industrial/index.ts is the same situation, plus
+    // its own imports use explicit .ts extensions (required by Deno,
+    // rejected by tsc's bundler moduleResolution) — see
+    // supabase/functions/_shared/commercial-industrial/index.ts's comment.
+    exclude: [
+      'node_modules',
+      '.next',
+      '.claude',
+      'supabase/functions/calculate-residential/index.test.ts',
+      'supabase/functions/calculate-commercial-industrial/index.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
+      thresholds: {
+        // Keep a small safety floor below the current baseline so new code
+        // cannot silently lower coverage while the suite continues to grow.
+        statements: 86,
+        branches: 80,
+        functions: 86,
+        lines: 87,
+      },
       include: ['lib/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'supabase/functions/**/*.ts'],
       exclude: [
         '**/*.test.ts',
@@ -36,6 +54,7 @@ export default defineConfig({
         // needs a Deno test runner, not Vitest, so it's out of this project's
         // coverage goal for now.
         'supabase/functions/calculate-residential/index.ts',
+        'supabase/functions/calculate-commercial-industrial/index.ts',
       ],
     },
   },

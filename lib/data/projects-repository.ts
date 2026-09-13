@@ -59,6 +59,11 @@ export async function listProjectRecords() {
   const { data, error } = await supabase
     .from('projects')
     .select('id, user_id, name, client_id, address, notes, residential_options, solution, services, status, updated_at')
+    // Without this filter, C&I rows (see ci-projects-repository.ts's own
+    // `.eq('installation_type', 'commercial_industrial')`) came back here
+    // too and were mapped through projectFromRow as if they were
+    // residential, with empty/default residentialOptions and no solution.
+    .eq('installation_type', 'residential')
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return data ?? [];

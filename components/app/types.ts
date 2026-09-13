@@ -94,6 +94,24 @@ export interface AccessoryCatalogOption {
   documents: ProductDocument[];
 }
 
+/** A C&I BESS product from the admin-managed catalog (`ci_bess_products`),
+ * for the Portfólio product picker — no `nickname` field, unlike the
+ * residential catalogs, since that table has no such column. */
+export interface CiBessCatalogOption {
+  id: string;
+  model: string;
+  manufacturer: string;
+  description: string | null;
+  modulePowerKw: number;
+  moduleCapacityKwh: number;
+  efficiencyPercent: number;
+  socMinPercent: number;
+  socMaxPercent: number;
+  warrantyYears: number;
+  imageUrl: string | null;
+  documents: ProductDocument[];
+}
+
 export interface ApprovedInverterCombo {
   gridTopology: string;
   batteryTopology: 'HV' | 'LV';

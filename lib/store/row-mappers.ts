@@ -4,13 +4,14 @@
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
 import { addressFromJson } from '@/lib/address';
-import { defaultResidential, sanitizeDesiredFeatures } from './defaults';
+import { defaultCiOptions, defaultResidential, sanitizeDesiredFeatures } from './defaults';
 import type {
   Client,
   ProjectEvent,
   ProjectServiceLine,
   ProjectStatus,
   ResidentialOptions,
+  SavedCiProject,
   SavedProject,
   Solution,
   StockProductType,
@@ -21,6 +22,7 @@ import type {
   UserStockItem,
 } from '@/lib/types';
 import type { LoadPresetLoad, SingleLoad } from '@/lib/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -117,6 +119,31 @@ export function projectFromRow(row: Record<string, unknown>): SavedProject {
     residentialOptions: residentialOptionsFromJson(row.residential_options),
     solution: (row.solution as Solution | null) ?? null,
     services: Array.isArray(row.services) ? (row.services as ProjectServiceLine[]) : [],
+  };
+}
+
+/** Same shallow-merge-over-defaults idiom as residentialOptionsFromJson —
+ * missing fields (an empty `{}` for a project that hasn't been configured
+ * yet, or one saved before a field existed) fall back to the default
+ * rather than producing a half-populated options object. */
+export function commercialIndustrialOptionsFromJson(value: unknown): CommercialIndustrialOptions {
+  if (!isRecord(value)) return defaultCiOptions;
+  return { ...defaultCiOptions, ...value } as CommercialIndustrialOptions;
+}
+
+export function ciProjectFromRow(row: Record<string, unknown>): SavedCiProject {
+  return {
+    id: row.id as string,
+    installationType: 'commercial_industrial',
+    name: (row.name as string) ?? '',
+    clientId: (row.client_id as string | null) ?? null,
+    address: addressFromJson(row.address),
+    notes: (row.notes as string | null) ?? '',
+    updatedAt: row.updated_at as string,
+    status: (row.status as ProjectStatus | undefined) ?? 'draft',
+    calculationOptions: commercialIndustrialOptionsFromJson(row.calculation_options),
+    calculationResult: (row.calculation_result as CommercialIndustrialResult | null) ?? null,
+    calculationVersion: (row.calculation_version as string | null) ?? null,
   };
 }
 

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Battery,
+  BatteryCharging,
   Boxes,
   Cable,
   Database,
@@ -12,6 +13,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
+import type { CiBessProductRecord } from '@/lib/data/ci-bess-products-repository';
 import type { BatteryFlag, BatteryTopology, InverterFlag, ProductDocument } from '@/lib/types';
 
 export type { BatteryFlag, InverterFlag };
@@ -23,6 +25,7 @@ export type TabKey =
   | 'inverters'
   | 'batteries'
   | 'accessories'
+  | 'ciBessProducts'
   | 'rules'
   | 'loads'
   | 'presets'
@@ -182,6 +185,12 @@ export interface AccessoryRow {
   image_url: string | null;
   documents: ProductDocument[];
 }
+
+/** The C&I BESS catalog row shape lives in ci-bess-products-repository.ts
+ * (it also defines the create/update/setActive functions this admin editor
+ * calls) — aliased here so it fits the *Row naming this file's other catalog
+ * types use, without redeclaring the same fields twice. */
+export type CiBessProductRow = CiBessProductRecord;
 
 export interface LoadCatalogRow {
   id: string;
@@ -354,6 +363,7 @@ export type AdminLogEntity =
   | 'inverter'
   | 'battery'
   | 'accessory'
+  | 'ci_bess_product'
   | 'solution'
   | 'rule'
   | 'load_catalog_item'
@@ -379,6 +389,7 @@ export const tabs: { key: TabKey; label: string; icon: typeof Database }[] = [
   { key: 'batteries', label: 'Baterias', icon: Battery },
   { key: 'inverters', label: 'Inversores', icon: Zap },
   { key: 'accessories', label: 'Acessórios', icon: Cable },
+  { key: 'ciBessProducts', label: 'C&I BESS', icon: BatteryCharging },
   { key: 'rules', label: 'Regras', icon: ListChecks },
   { key: 'loads', label: 'Cargas', icon: Plug },
   { key: 'presets', label: 'Predefinições', icon: Layers },
@@ -447,6 +458,21 @@ export const emptyAccessory: Partial<AccessoryRow> = {
   description: '',
   active: true,
   warranty_years: 2,
+  image_url: '',
+  documents: [],
+};
+
+export const emptyCiBessProduct: Partial<CiBessProductRow> = {
+  model: '',
+  manufacturer: '',
+  description: '',
+  active: true,
+  module_power_kw: 0,
+  module_capacity_kwh: 0,
+  efficiency_percent: 95,
+  soc_min_percent: 10,
+  soc_max_percent: 100,
+  warranty_years: 10,
   image_url: '',
   documents: [],
 };

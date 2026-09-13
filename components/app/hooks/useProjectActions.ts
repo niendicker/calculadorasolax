@@ -12,12 +12,10 @@ export function useProjectActions({
   saveCurrentProject,
   newProjectDraft,
   cancelProjectDraft,
-  loadProject,
   removeProject,
   refreshProjectSolution,
   updateProjectStatus,
   onProjectSaved,
-  setActiveTab,
 }: {
   profile: InlineProfile | null;
   router: ReturnType<typeof useRouter>;
@@ -25,12 +23,10 @@ export function useProjectActions({
   saveCurrentProject: () => Promise<SavedProject>;
   newProjectDraft: () => void;
   cancelProjectDraft: () => void;
-  loadProject: (id: string, options?: { showDetails?: boolean }) => void;
   removeProject: (id: string) => Promise<void>;
   refreshProjectSolution: (id: string) => Promise<SavedProject>;
   updateProjectStatus: (id: string, status: ProjectStatus) => Promise<SavedProject>;
   onProjectSaved?: (project: SavedProject) => void;
-  setActiveTab: (tab: 'project' | 'sizing' | 'catalog' | 'clients') => void;
 }) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   // Bumped on every new status message (even repeats of the same text) so the
@@ -69,20 +65,6 @@ export function useProjectActions({
   function cancelNewProject() {
     cancelProjectDraft();
     report(null);
-  }
-
-  function openProject(id: string) {
-    loadProject(id);
-    report('Projeto carregado.');
-  }
-
-  function openProjectSizing(id: string) {
-    // showDetails: false — jumping to Dimensionamento shouldn't leave the
-    // project sitting in edit mode back on the Projeto tab (only "Editar"
-    // should do that).
-    loadProject(id, { showDetails: false });
-    setActiveTab('sizing');
-    report('Projeto carregado.');
   }
 
   async function deleteProject(id: string) {
@@ -137,8 +119,6 @@ export function useProjectActions({
     saveProject,
     startNewProject,
     cancelNewProject,
-    openProject,
-    openProjectSizing,
     deleteProject,
     refreshProjectSolution: refreshSolution,
     updateProjectStatus: updateStatus,

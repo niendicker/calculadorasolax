@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { createClient } from '@/lib/supabase/client';
 import { listGeneratedSolutions, persistAdminEntity, recordAdminActivity, removeAdminEntities, removeAdminEntity } from '@/lib/data/admin-repository';
+import { createCiBessProduct, setCiBessProductActive, updateCiBessProduct } from '@/lib/data/ci-bess-products-repository';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
 import { AdminNav } from './AdminNav';
 import { ActivityLogsPanel, MetricsPanel, UsersPanel } from './DashboardPanels';
 import { AccessoriesEditor } from './editors/AccessoriesEditor';
 import { BatteriesEditor } from './editors/BatteriesEditor';
+import { CiBessProductsEditor } from './editors/CiBessProductsEditor';
 import { InvertersEditor } from './editors/InvertersEditor';
 import { LoadCatalogEditor } from './editors/LoadCatalogEditor';
 import { PresetsEditor } from './editors/PresetsEditor';
@@ -22,6 +24,7 @@ import { buildRuleGeneratedSolutions, getLogTarget, sanitizePathPart } from './h
 import {
   buildAccessoryPayload,
   buildBatteryPayload,
+  buildCiBessProductPayload,
   buildEssRulePayload,
   buildInverterPayload,
   buildLoadCatalogPayload,
@@ -33,6 +36,7 @@ import { AdminLoadingSkeleton } from './shared-ui';
 import {
   emptyAccessory,
   emptyBattery,
+  emptyCiBessProduct,
   emptyEssRule,
   emptyInverter,
   emptyLoadCatalogItem,
@@ -44,6 +48,7 @@ import {
   type AdminLogAction,
   type AdminLogEntity,
   type BatteryRow,
+  type CiBessProductRow,
   type EssCompatibilityRuleRow,
   type GeneratedSolutionPayload,
   type InverterRow,
@@ -69,6 +74,7 @@ export function AdminPanel() {
     inverters,
     batteries,
     accessories,
+    ciBessProducts,
     loadCatalogItems,
     presets,
     rules,
@@ -91,6 +97,7 @@ export function AdminPanel() {
   const [inverterForm, setInverterForm] = useState<Partial<InverterRow>>(emptyInverter);
   const [batteryForm, setBatteryForm] = useState<Partial<BatteryRow>>(emptyBattery);
   const [accessoryForm, setAccessoryForm] = useState<Partial<AccessoryRow>>(emptyAccessory);
+  const [ciBessProductForm, setCiBessProductForm] = useState<Partial<CiBessProductRow>>(emptyCiBessProduct);
   const [loadCatalogForm, setLoadCatalogForm] = useState<Partial<LoadCatalogRow>>(emptyLoadCatalogItem);
   const [presetForm, setPresetForm] = useState<Partial<PresetRow>>(emptyPreset);
   const [ruleForm, setRuleForm] = useState<Partial<AccessoryRuleRow>>(emptyRule);
@@ -220,7 +227,7 @@ export function AdminPanel() {
   }
 
   async function uploadProductAsset(
-    table: 'inverters' | 'batteries' | 'accessories',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
@@ -293,6 +300,84 @@ export function AdminPanel() {
       successMessage: 'Acessório salvo.',
       resetForm: () => setAccessoryForm(emptyAccessory),
       afterPersist,
+    });
+  }
+
+  // Doesn't go through saveEntity/removeRow (which call the generic
+  // persistAdminEntity/removeAdminEntity over the `supabase` client in this
+  // component's scope) — ci-bess-products-repository.ts was built with its
+  // own create/update/setActive functions specifically for this admin editor
+  // (see that file's own top comment), so this mirrors saveEntity's shape
+  // (status, activity log, form reset, resource refresh) around those calls
+  // instead. There's also no "Remover" here on purpose: the plan's MVP scope
+  // for this catalog only supports activate/deactivate, not hard delete, so
+  // a product already referenced by a project's id stays resolvable.
+  async function saveCiBessProduct(afterPersist?: () => void) {
+    const id = ciBessProductForm.id;
+    setSaving(true);
+    setStatus(id ? 'Atualizando produto C&I...' : 'Salvando produto C&I...');
+    setError(null);
+    const beforeData = id ? ciBessProducts.find((row) => row.id === id) : null;
+    const action: AdminLogAction = id ? 'update' : 'create';
+    const payload = buildCiBessProductPayload(ciBessProductForm);
+
+    let saved: CiBessProductRow;
+    try {
+      saved = id ? await updateCiBessProduct(id, payload) : await createCiBessProduct(payload);
+    } catch (persistError) {
+      setSaving(false);
+      return setFailure(persistError instanceof Error ? persistError.message : 'Não foi possível salvar o produto C&I.');
+    }
+
+    afterPersist?.();
+    await recordActivityLog({
+      entityType: 'ci_bess_product',
+      action,
+      targetId: saved.id,
+      targetLabel: saved.model || 'Produto sem modelo',
+      summary: `${action === 'create' ? 'Criou' : 'Atualizou'} o produto C&I ${saved.model || 'sem modelo'}.`,
+      beforeData,
+      afterData: payload,
+    });
+    setCiBessProductForm(emptyCiBessProduct);
+    setSuccess('Produto C&I salvo.');
+    await loadResource('ciBessProducts');
+    setSaving(false);
+  }
+
+  async function deactivateCiBessProduct(id: string) {
+    setSaving(true);
+    setRemovingIds((current) => new Set(current).add(id));
+    setStatus('Inativando produto C&I...');
+    setError(null);
+    const beforeData = ciBessProducts.find((row) => row.id === id) ?? null;
+    setSaving(false);
+
+    try {
+      await setCiBessProductActive(id, false);
+    } catch (persistError) {
+      setRemovingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      return setFailure(persistError instanceof Error ? persistError.message : 'Não foi possível inativar o produto C&I.');
+    }
+    await recordActivityLog({
+      entityType: 'ci_bess_product',
+      action: 'deactivate',
+      targetId: id,
+      targetLabel: beforeData?.model || 'Produto sem modelo',
+      summary: `Inativou o produto C&I ${beforeData?.model || 'sem modelo'}.`,
+      beforeData,
+      afterData: beforeData ? { ...beforeData, active: false } : null,
+    });
+    setSuccess('Produto C&I inativado com sucesso.');
+    await loadResource('ciBessProducts');
+    setRemovingIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
     });
   }
 
@@ -745,6 +830,19 @@ export function AdminPanel() {
                     rules={rules}
                     saving={saving}
                     onViewRules={viewAccessoryRules}
+                  />
+                )}
+
+                {activeTab === 'ciBessProducts' && (
+                  <CiBessProductsEditor
+                    rows={ciBessProducts}
+                    form={ciBessProductForm}
+                    setForm={setCiBessProductForm}
+                    onSave={saveCiBessProduct}
+                    onDeactivate={deactivateCiBessProduct}
+                    removingIds={removingIds}
+                    uploadAsset={uploadProductAsset}
+                    saving={saving}
                   />
                 )}
 

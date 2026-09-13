@@ -1,21 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cache } from '@/lib/tariff/cache';
-
-const ANEEL_CKAN_API = 'https://dadosabertos.aneel.gov.br/api/3/action';
-const DEFAULT_RESOURCE_ID = process.env.ANEEL_TARIFF_RESOURCE_ID || 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
-
-interface CkanDatastoreRecord {
-  _id: number;
-  [key: string]: string | number | null;
-}
-
-interface CkanDatastoreResponse {
-  success: boolean;
-  result: {
-    records: CkanDatastoreRecord[];
-    total: number;
-  };
-}
+import { fetchAneelDataset } from '@/lib/tariff/aneel-service';
 
 export async function GET(request: Request) {
   try {
@@ -29,34 +13,7 @@ export async function GET(request: Request) {
       );
     }
 
-    let records = cache.getDataset();
-
-    if (!records) {
-      const url = new URL(`${ANEEL_CKAN_API}/datastore_search`);
-      url.searchParams.append('resource_id', DEFAULT_RESOURCE_ID);
-      url.searchParams.append('limit', '10000');
-
-      const response = await fetch(url.toString(), {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(20_000),
-      });
-
-      if (!response.ok) {
-        throw new Error(`ANEEL API responded with HTTP ${response.status}`);
-      }
-
-      const data: CkanDatastoreResponse = await response.json();
-      if (!data.success || !data.result?.records) {
-        throw new Error('Invalid ANEEL response structure');
-      }
-
-      records = data.result.records;
-      cache.setDataset(records);
-    }
-
-    if (!records) {
-      return NextResponse.json({ accessantAgents: [] });
-    }
+    const records = await fetchAneelDataset();
 
     const GENERATOR_PREFIXES = ['EOL', 'UFV', 'UTE', 'UHE', 'PCH', 'CGH', 'CGU', 'UTN'];
 

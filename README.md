@@ -11,6 +11,7 @@ Documentação complementar:
 - [Variáveis de ambiente](docs/ENVIRONMENT.md)
 - [Operação, deploy e migração](docs/OPERATIONS.md)
 - [Segurança e permissões](docs/SECURITY.md)
+- [Planejamento do módulo C&I — BESS](docs/CI-MODULE-PLAN.md)
 
 ## Stack
 

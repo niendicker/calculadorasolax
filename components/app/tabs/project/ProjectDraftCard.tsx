@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, FileText, MapPin, Plus, Save, StickyNote, User, UserPlus, Wrench, X } from 'lucide-react';
+import { FileText, MapPin, Plus, Save, StickyNote, User, UserPlus, Wrench, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
@@ -59,14 +59,12 @@ function SectionLabel({ icon, children }: { icon: React.ReactNode; children: Rea
 export function ProjectDraftCard({
   projectInfo,
   clients,
-  isNew,
   isDirty,
   setProjectInfo,
   onManagePortfolio,
   onAddClient,
   onSave,
   onCancel,
-  onOpenSizing,
   nameError,
   userServices,
   services,
@@ -76,14 +74,8 @@ export function ProjectDraftCard({
 }: {
   projectInfo: ProjectInfo;
   clients: Client[];
-  isNew: boolean;
-  /** Whether the draft differs from its starting point (blank for a new
-   *  project, last-saved values for one being edited) — gates a discard
-   *  confirmation on "Fechar" so a misclick can't silently lose input. Also
-   *  disables "Salvar projeto" once an EXISTING project's draft already
-   *  matches what's saved, so there's nothing to redundantly re-save — but
-   *  not for a brand-new (isNew) draft, where the button must stay clickable
-   *  even blank so its "Informe um nome" validation can still surface. */
+  /** Whether the new-project draft has any input — gates a discard
+   *  confirmation on "Fechar" so a misclick can't silently lose input. */
   isDirty: boolean;
   setProjectInfo: (partial: Partial<ProjectInfo>) => void;
   /** Sends the seller to Portfólio — used by the "Portfólio" tag inline in
@@ -92,10 +84,6 @@ export function ProjectDraftCard({
   onAddClient: (input: { name: string; email: string; phone: string; document: string; notes: string }) => Promise<Client>;
   onSave: () => void;
   onCancel: () => void;
-  /** Jumps straight to Dimensionamento for this project — only offered once
-   *  it's actually saved (isNew: false), since a brand-new draft has no id
-   *  yet for the sizing tab to load. */
-  onOpenSizing?: () => void;
   nameError: boolean;
   userServices: UserServiceItem[];
   services: ProjectServiceLine[];
@@ -108,7 +96,7 @@ export function ProjectDraftCard({
   return (
     <Card className="sm:col-span-2">
       <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <CardTitle className="text-base">{isNew ? 'Novo projeto' : 'Editando projeto'}</CardTitle>
+        <CardTitle className="text-base">Novo projeto</CardTitle>
         {isDirty ? (
           <ConfirmDeleteButton
             ariaLabel="Descartar alterações do projeto"
@@ -265,24 +253,6 @@ export function ProjectDraftCard({
             </div>
           )}
         </div>
-        {!isNew && onOpenSizing && (
-          <button
-            type="button"
-            aria-label="Solução técnica"
-            onClick={onOpenSizing}
-            className="group flex items-center gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:col-span-2"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Calculator className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Abrir solução técnica</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Clique aqui para revisar as cargas, configurações e equipamentos deste projeto.
-              </span>
-            </span>
-          </button>
-        )}
         <div className="flex justify-end gap-2 md:col-span-2">
           {isDirty ? (
             <ConfirmDeleteButton
@@ -302,8 +272,6 @@ export function ProjectDraftCard({
           <Button
             type="button"
             onClick={onSave}
-            disabled={!isNew && !isDirty}
-            title={isNew || isDirty ? undefined : 'Nenhuma alteração para salvar.'}
           >
             <Save className="h-4 w-4" />
             Salvar

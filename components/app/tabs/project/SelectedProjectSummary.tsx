@@ -131,7 +131,7 @@ export function SelectedProjectSummary({
       {metrics && project.solution && (
         <>
           <Separator />
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             <Metric
               icon={Gauge}
               label="Nominal"

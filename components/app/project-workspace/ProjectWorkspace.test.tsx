@@ -45,23 +45,24 @@ describe('ProjectWorkspace', () => {
   });
 
   function renderWorkspace(overrides: Partial<React.ComponentProps<typeof ProjectWorkspace>> = {}) {
+    const props: React.ComponentProps<typeof ProjectWorkspace> = {
+      projectInfo,
+      client: { id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' },
+      residentialOptions,
+      solution: null,
+      nominalW: 180,
+      peakW: 540,
+      dailyKwh: 0.36,
+      solutionIsStale: false,
+      inverterCatalog,
+      availableInverterModels: null,
+      children: <div>Fluxo técnico atual</div>,
+      ...overrides,
+    };
+
     return render(
       <NextIntlClientProvider locale="pt" messages={ptMessages}>
-        <ProjectWorkspace
-        projectInfo={projectInfo}
-        client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
-        residentialOptions={residentialOptions}
-        solution={null}
-        nominalW={180}
-        peakW={540}
-        dailyKwh={0.36}
-        solutionIsStale={false}
-        inverterCatalog={inverterCatalog}
-        availableInverterModels={null}
-        {...overrides}
-      >
-        <div>Fluxo técnico atual</div>
-        </ProjectWorkspace>
+        <ProjectWorkspace {...props} />
       </NextIntlClientProvider>
     );
   }
@@ -153,6 +154,67 @@ describe('ProjectWorkspace', () => {
 
     fireEvent.click(headerAction);
     expect(onRefreshSolution).toHaveBeenCalledOnce();
+  });
+
+  it('marks the solution tab after a successful recalculation and clears the mark when opened', () => {
+    const view = renderWorkspace({ calculationRevision: 0 });
+
+    view.rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
+          residentialOptions={residentialOptions}
+          solution={null}
+          calculationRevision={1}
+          nominalW={180}
+          peakW={540}
+          dailyKwh={0.36}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.getByRole('status', { name: 'Nova solução disponível' })).toBeInTheDocument();
+    const solutionTab = screen.getByRole('button', { name: 'Solução' });
+    expect(within(solutionTab).getByText('Nova')).toBeInTheDocument();
+
+    fireEvent.click(solutionTab);
+
+    expect(screen.queryByRole('status', { name: 'Nova solução disponível' })).not.toBeInTheDocument();
+    expect(solutionTab).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('does not mark the solution tab when the recalculation finishes while it is open', () => {
+    const view = renderWorkspace({ calculationRevision: 0 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
+
+    view.rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
+          residentialOptions={residentialOptions}
+          solution={null}
+          calculationRevision={1}
+          nominalW={180}
+          peakW={540}
+          dailyKwh={0.36}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.queryByRole('status', { name: 'Nova solução disponível' })).not.toBeInTheDocument();
   });
 
   it('keeps clear next to recalculation and confirms the workspace reset', async () => {
@@ -840,5 +902,205 @@ describe('ProjectWorkspace', () => {
     expect(onRefreshSolution).toHaveBeenCalledTimes(1);
     expect(onOpenTechnical).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Configurar e dimensionar' })).toBeInTheDocument();
+  });
+
+  it('renders only the technical flow when the workspace is disabled', () => {
+    renderWorkspace({ enabled: false });
+
+    expect(screen.getByText('Fluxo técnico atual')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Residência Silva' })).not.toBeInTheDocument();
+  });
+
+  it('updates the price of an existing portfolio product from the budget', async () => {
+    const onUpdateStockItemValue = vi.fn().mockResolvedValue(undefined);
+    const solution = {
+      inverterId: 'inverter-1',
+      inverterModel: 'X3-ULT-30K',
+      inverterQty: 1,
+      inverterRatedPowerW: 30000,
+      batteryId: 'battery-1',
+      batteryModel: 'T-BAT H 5.8 V2',
+      batteryQty: 1,
+      pvPowerKw: null,
+      accessories: [],
+    } as Solution;
+
+    renderWorkspace({
+      solution,
+      userStockItems: [{ id: 'stock-inverter', productType: 'inverter', productModel: 'X3-ULT-30K', unitValue: 0, createdAt: '', updatedAt: '' }],
+      onUpdateStockItemValue,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Definir preço · X3-ULT-30K' }));
+    const dialog = screen.getByRole('dialog', { name: 'Definir preço' });
+    fireEvent.change(within(dialog).getByLabelText('Preço'), { target: { value: '9.876,50' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar preço' }));
+
+    await waitFor(() => expect(onUpdateStockItemValue).toHaveBeenCalledWith('stock-inverter', 9876.5));
+  });
+
+  it('keeps the price modal open and reports a save failure', async () => {
+    const onAddToStock = vi.fn().mockRejectedValue(new Error('portfolio unavailable'));
+    const solution = {
+      inverterId: 'inverter-1',
+      inverterModel: 'X3-ULT-30K',
+      inverterQty: 1,
+      inverterRatedPowerW: 30000,
+      batteryId: 'battery-1',
+      batteryModel: 'T-BAT H 5.8 V2',
+      batteryQty: 1,
+      pvPowerKw: null,
+      accessories: [],
+    } as Solution;
+
+    renderWorkspace({ solution, onAddToStock });
+    fireEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar · X3-ULT-30K' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Adicionar produto' });
+    const price = within(dialog).getByLabelText('Preço');
+    expect(within(dialog).getByRole('button', { name: 'Adicionar produto' })).toBeDisabled();
+    fireEvent.change(price, { target: { value: 'R$ 1.234,56' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Adicionar produto' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Não foi possível salvar o preço. Tente novamente.');
+    expect(onAddToStock).toHaveBeenCalledWith({ productType: 'inverter', productModel: 'X3-ULT-30K', unitValue: 1234.56 });
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Adicionar produto' })).not.toBeInTheDocument());
+  });
+
+  it('shows the generated report preview, download and removal actions', async () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:report-preview');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const onDownloadLastReport = vi.fn();
+    const onClearLastReport = vi.fn();
+    const onGenerateReport = vi.fn();
+    const solution = {
+      inverterId: 'inverter-1',
+      inverterModel: 'X3-ULT-30K',
+      inverterQty: 1,
+      inverterRatedPowerW: 30000,
+      batteryId: 'battery-1',
+      batteryModel: 'T-BAT H 5.8 V2',
+      batteryQty: 1,
+      pvPowerKw: null,
+      accessories: [],
+    } as Solution;
+
+    renderWorkspace({
+      solution,
+      onGenerateReport,
+      onDownloadLastReport,
+      onClearLastReport,
+      lastReport: { blob: new Blob(['pdf'], { type: 'application/pdf' }), generatedAt: new Date('2026-09-12T15:30:00Z') },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Relatório' }));
+    expect(screen.getByText('Último relatório gerado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gerar nova versão' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Visualizar prévia' }));
+    expect(await screen.findByTitle('Prévia do relatório')).toHaveAttribute('src', 'blob:report-preview');
+    expect(createObjectURL).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Baixar novamente' }));
+    expect(onDownloadLastReport).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia do relatório' })).not.toBeInTheDocument());
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:report-preview');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Visualizar prévia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remover prévia' }));
+    expect(onClearLastReport).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog', { name: 'Prévia do relatório' })).not.toBeInTheDocument();
+    expect(onGenerateReport).not.toHaveBeenCalled();
+  });
+
+  it('disables report generation when there is no solution or while it is generating', () => {
+    const onGenerateReport = vi.fn();
+    const { rerender } = renderWorkspace({ onGenerateReport });
+    fireEvent.click(screen.getByRole('button', { name: 'Relatório' }));
+
+    expect(screen.getByText('Nenhuma solução disponível')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gerar relatório' })).toBeDisabled();
+
+    rerender(
+      <NextIntlClientProvider locale="pt" messages={ptMessages}>
+        <ProjectWorkspace
+          projectInfo={projectInfo}
+          client={undefined}
+          residentialOptions={residentialOptions}
+          solution={{
+            inverterId: 'inverter-1', inverterModel: 'X3-ULT-30K', inverterQty: 1, inverterRatedPowerW: 30000,
+            batteryId: 'battery-1', batteryModel: 'T-BAT H 5.8 V2', batteryQty: 1, pvPowerKw: null, accessories: [],
+          }}
+          nominalW={180}
+          peakW={540}
+          dailyKwh={0.36}
+          solutionIsStale={false}
+          inverterCatalog={inverterCatalog}
+          availableInverterModels={null}
+          onGenerateReport={onGenerateReport}
+          generatingReport
+        >
+          <div>Fluxo técnico atual</div>
+        </ProjectWorkspace>
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Gerando relatório...' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Gerando relatório...' }));
+    expect(onGenerateReport).not.toHaveBeenCalled();
+  });
+
+  it('wraps keyboard focus in the price dialog and closes it from the backdrop', async () => {
+    const onAddToStock = vi.fn().mockResolvedValue(undefined);
+    const solution = {
+      inverterId: 'inverter-1', inverterModel: 'X3-ULT-30K', inverterQty: 1, inverterRatedPowerW: 30000,
+      batteryId: 'battery-1', batteryModel: 'T-BAT H 5.8 V2', batteryQty: 1, pvPowerKw: null, accessories: [],
+    } as Solution;
+
+    renderWorkspace({ solution, onAddToStock });
+    fireEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar · X3-ULT-30K' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Adicionar produto' });
+    const first = within(dialog).getByRole('button', { name: 'Fechar' });
+    const last = within(dialog).getByRole('button', { name: 'Cancelar' });
+    last.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+
+    first.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(last);
+
+    fireEvent.mouseDown(dialog.parentElement as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Adicionar produto' })).not.toBeInTheDocument());
+  });
+
+  it('closes the report preview when the backdrop is clicked', async () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:report-backdrop');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const solution = {
+      inverterId: 'inverter-1', inverterModel: 'X3-ULT-30K', inverterQty: 1, inverterRatedPowerW: 30000,
+      batteryId: 'battery-1', batteryModel: 'T-BAT H 5.8 V2', batteryQty: 1, pvPowerKw: null, accessories: [],
+    } as Solution;
+
+    renderWorkspace({ solution, lastReport: { blob: new Blob(['pdf']), generatedAt: new Date('2026-09-12T15:30:00Z') } });
+    fireEvent.click(screen.getByRole('button', { name: 'Relatório' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Visualizar prévia' }));
+    const preview = await screen.findByRole('dialog', { name: 'Prévia do relatório' });
+
+    fireEvent.click(preview);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Prévia do relatório' })).not.toBeInTheDocument());
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:report-backdrop');
   });
 });

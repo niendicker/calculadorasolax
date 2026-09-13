@@ -942,7 +942,11 @@ describe('buildQuoteShareSnapshot', () => {
     const serialized = JSON.stringify(snapshot);
     // Margin settings/cost basis values must never leak into the snapshot.
     expect(serialized).not.toContain('4321');
-    expect(serialized).not.toContain('30');
+    expect(snapshot).not.toHaveProperty('marginSettings');
+    expect(snapshot).not.toHaveProperty('userStockItems');
+    expect(serialized).not.toContain('inverterPercent');
+    expect(serialized).not.toContain('batteryPercent');
+    expect(serialized).not.toContain('accessoryPercent');
     // Internal rule identifiers must never leak either.
     expect(serialized).not.toContain('REGRA-INTERNA-42');
     expect(serialized).not.toContain('battery_rules_v3.xlsx');
