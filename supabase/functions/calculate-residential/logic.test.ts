@@ -969,12 +969,12 @@ describe('solutionSupportsMicrogrid', () => {
     expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 4000, onGridPhases: 1 }))).toBe(true);
   });
 
-  it('rejects when the on-grid power plus margin exceeds max_power_per_phase_w', () => {
+  it('rejects when the on-grid power exceeds max_power_per_phase_w', () => {
     const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
-    // 2501 W * 1.2 / 3 phases exceeds the 1000 W per-phase limit.
-    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2501, onGridPhases: 3 }))).toBe(false);
-    // Equality is accepted: 2500 W * 1.2 / 3 phases = 1000 W per phase.
-    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 2500, onGridPhases: 3 }))).toBe(true);
+    // 3001 W / 3 phases exceeds the 1000 W per-phase limit.
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3001, onGridPhases: 3 }))).toBe(false);
+    // Equality is accepted: 3000 W / 3 phases = 1000 W per phase.
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }))).toBe(true);
   });
 });
 

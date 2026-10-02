@@ -1367,7 +1367,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ voltageV: 380 }));
   });
 
-  it('summarizes the microgrid limits with the fixed 20% margin', () => {
+  it('summarizes the microgrid limits without an additional margin', () => {
     setup({
       residentialOptions: {
         ...emptyResidentialOptions,
@@ -1384,9 +1384,8 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     });
     fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
     expect(screen.getByText('5.00 kW')).toBeInTheDocument();
-    expect(screen.getByText('20%')).toBeInTheDocument();
-    expect(screen.getByText('mín. 6.00 kW')).toBeInTheDocument();
-    expect(screen.getByText('mín. 2.00 kW/fase')).toBeInTheDocument();
+    expect(screen.getByText('mín. 5.00 kW')).toBeInTheDocument();
+    expect(screen.getByText('mín. 1.67 kW/fase')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 

@@ -107,9 +107,9 @@ export function solutionSupportsMicrogrid(
   inverterMaxPowerPerPhaseW: number | null,
   microgrid: MicrogridConfig
 ): boolean {
-  const requiredPowerW = microgrid.onGridApparentPowerVA * 1.2;
-  if (requiredPowerW > solution.rated_power_w) return false;
-  if (requiredPowerW > solution.battery_power_w) return false;
+  const requiredPowerW = microgrid.onGridApparentPowerVA;
+  if (requiredPowerW >= solution.rated_power_w) return false;
+  if (requiredPowerW >= solution.battery_power_w) return false;
   if (inverterMaxPowerPerPhaseW !== null) {
     const requiredPerPhaseW = requiredPowerW / microgrid.onGridPhases;
     if (requiredPerPhaseW > inverterMaxPowerPerPhaseW) return false;

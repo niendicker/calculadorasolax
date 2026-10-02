@@ -334,6 +334,17 @@ describe('solutionHasInsufficientMargin', () => {
     const adequate = makeSolution({ inverterRatedPowerW: 5000, inverterPeakPowerW: 7000, availableEnergyWh: 3240 });
     expect(solutionHasInsufficientMargin(adequate, params)).toBe(false);
   });
+
+  it('treats exact microgrid power as insufficient because support must stay strictly above the existing system', () => {
+    const microgridSolution = makeSolution({ inverterRatedPowerW: 2000, batteryPowerW: 2000 });
+    expect(
+      solutionHasInsufficientMargin(microgridSolution, {
+        ...params,
+        desiredFeatures: ['microgrid'],
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+      })
+    ).toBe(true);
+  });
 });
 
 describe('calculateSystemCost', () => {

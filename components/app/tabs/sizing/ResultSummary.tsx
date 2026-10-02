@@ -24,6 +24,7 @@ import {
   calculateDegradedPaybackMonths,
   calculateTariffSavings,
   formatCurrencyBRL,
+  marginRowIsInsufficient,
   normalizeAccessoryLine,
   solutionMetrics,
   type MarginRow,
@@ -116,7 +117,7 @@ function MarginSummary({ rows }: { rows: MarginRow[] }) {
       <div className="mt-2 space-y-2">
         {withMargin.map((row) => {
           const isDecisive = row.key === decisiveKey;
-          const insufficient = row.marginPct !== null && row.marginPct < 0;
+          const insufficient = marginRowIsInsufficient(row);
           return (
             <div
               key={row.key}

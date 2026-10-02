@@ -46,6 +46,7 @@ import {
   buildMarginSummary,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  marginRowIsInsufficient,
   solutionHasInsufficientMargin,
   WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT,
 } from '../helpers';
@@ -441,7 +442,7 @@ export function TechnicalSizingEditor({
           solution: activeSolution,
         })
       : [];
-  const solutionTabHasIssue = solutionMarginRows.some((row) => row.providedValue < row.requiredValue);
+  const solutionTabHasIssue = solutionMarginRows.some(marginRowIsInsufficient);
 
   // Broader than solutionTabHasIssue on purpose: blocks PDF export whenever
   // *either* battery search (primary or secondary) came back short on power/
