@@ -398,6 +398,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ci_bess_products: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          documents: Json
+          efficiency_percent: number
+          id: string
+          image_url: string | null
+          manufacturer: string
+          model: string
+          module_capacity_kwh: number
+          module_power_kw: number
+          soc_max_percent: number
+          soc_min_percent: number
+          updated_at: string
+          warranty_years: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          documents?: Json
+          efficiency_percent: number
+          id?: string
+          image_url?: string | null
+          manufacturer: string
+          model: string
+          module_capacity_kwh: number
+          module_power_kw: number
+          soc_max_percent: number
+          soc_min_percent: number
+          updated_at?: string
+          warranty_years: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          documents?: Json
+          efficiency_percent?: number
+          id?: string
+          image_url?: string | null
+          manufacturer?: string
+          model?: string
+          module_capacity_kwh?: number
+          module_power_kw?: number
+          soc_max_percent?: number
+          soc_min_percent?: number
+          updated_at?: string
+          warranty_years?: number
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           created_at: string
@@ -692,6 +746,59 @@ export type Database = {
         }
         Relationships: []
       }
+      project_calculation_runs: {
+        Row: {
+          created_at: string
+          engine_version: string
+          error_message: string | null
+          id: string
+          input_fingerprint: string
+          input_snapshot: Json
+          installation_type: string
+          project_id: string
+          result_snapshot: Json
+          selected_scenario_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          engine_version: string
+          error_message?: string | null
+          id?: string
+          input_fingerprint: string
+          input_snapshot: Json
+          installation_type: string
+          project_id: string
+          result_snapshot: Json
+          selected_scenario_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          engine_version?: string
+          error_message?: string | null
+          id?: string
+          input_fingerprint?: string
+          input_snapshot?: Json
+          installation_type?: string
+          project_id?: string
+          result_snapshot?: Json
+          selected_scenario_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_calculation_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_events: {
         Row: {
           actor_id: string | null
@@ -733,85 +840,16 @@ export type Database = {
           },
         ]
       }
-      supplier_quote_requests: {
-        Row: {
-          attempt_started_at: string | null
-          claim_token: string | null
-          created_at: string
-          error_message: string | null
-          id: string
-          idempotency_key: string
-          last_attempt_at: string
-          last_sent_at: string | null
-          project_id: string
-          send_count: number
-          sent_at: string | null
-          status: string
-          supplier_id: string
-          user_id: string
-        }
-        Insert: {
-          attempt_started_at?: string | null
-          claim_token?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key: string
-          last_attempt_at?: string
-          last_sent_at?: string | null
-          project_id: string
-          send_count?: number
-          sent_at?: string | null
-          status?: string
-          supplier_id: string
-          user_id: string
-        }
-        Update: {
-          attempt_started_at?: string | null
-          claim_token?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string
-          last_attempt_at?: string
-          last_sent_at?: string | null
-          project_id?: string
-          send_count?: number
-          sent_at?: string | null
-          status?: string
-          supplier_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "supplier_quote_requests_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_quote_requests_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_quote_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       projects: {
         Row: {
           address: Json | null
+          calculation_options: Json
+          calculation_result: Json | null
+          calculation_version: string | null
           client_id: string | null
           created_at: string
           id: string
+          installation_type: string
           name: string
           notes: string | null
           residential_options: Json
@@ -823,9 +861,13 @@ export type Database = {
         }
         Insert: {
           address?: Json | null
+          calculation_options?: Json
+          calculation_result?: Json | null
+          calculation_version?: string | null
           client_id?: string | null
           created_at?: string
           id?: string
+          installation_type?: string
           name: string
           notes?: string | null
           residential_options?: Json
@@ -837,9 +879,13 @@ export type Database = {
         }
         Update: {
           address?: Json | null
+          calculation_options?: Json
+          calculation_result?: Json | null
+          calculation_version?: string | null
           client_id?: string | null
           created_at?: string
           id?: string
+          installation_type?: string
           name?: string
           notes?: string | null
           residential_options?: Json
@@ -1239,6 +1285,72 @@ export type Database = {
           },
         ]
       }
+      supplier_quote_requests: {
+        Row: {
+          attempt_started_at: string | null
+          claim_token: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          idempotency_key: string
+          last_attempt_at: string
+          last_sent_at: string | null
+          project_id: string
+          send_count: number
+          sent_at: string | null
+          status: string
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          attempt_started_at?: string | null
+          claim_token?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key: string
+          last_attempt_at?: string
+          last_sent_at?: string | null
+          project_id: string
+          send_count?: number
+          sent_at?: string | null
+          status?: string
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          attempt_started_at?: string | null
+          claim_token?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string
+          last_attempt_at?: string
+          last_sent_at?: string | null
+          project_id?: string
+          send_count?: number
+          sent_at?: string | null
+          status?: string
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_quote_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_quote_requests_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_sync_runs: {
         Row: {
           finished_at: string | null
@@ -1516,6 +1628,21 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: undefined
       }
+      claim_supplier_quote_requests: {
+        Args: {
+          p_idempotency_key: string
+          p_project_id: string
+          p_supplier_ids: string[]
+        }
+        Returns: {
+          claim_token: string
+          claimed: boolean
+          request_id: string
+          retry_at: string
+          status: string
+          supplier_id: string
+        }[]
+      }
       create_purchase_order: {
         Args: {
           p_customer_notes?: string
@@ -1539,21 +1666,6 @@ export type Database = {
         Returns: string[]
       }
       is_admin: { Args: never; Returns: boolean }
-      claim_supplier_quote_requests: {
-        Args: {
-          p_idempotency_key: string
-          p_project_id: string
-          p_supplier_ids: string[]
-        }
-        Returns: {
-          claim_token: string | null
-          claimed: boolean
-          request_id: string
-          retry_at: string | null
-          status: string
-          supplier_id: string
-        }[]
-      }
       submit_purchase_order_to_partner: {
         Args: {
           p_external_order_id: string
@@ -1694,3 +1806,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

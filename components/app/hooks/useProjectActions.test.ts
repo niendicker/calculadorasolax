@@ -56,12 +56,10 @@ function setup(overrides: Partial<Parameters<typeof useProjectActions>[0]> = {})
     saveCurrentProject: vi.fn().mockResolvedValue(fakeProject),
     newProjectDraft: vi.fn(),
     cancelProjectDraft: vi.fn(),
-    loadProject: vi.fn(),
     removeProject: vi.fn().mockResolvedValue(undefined),
     duplicateProject: vi.fn().mockResolvedValue(fakeProject),
     refreshProjectSolution: vi.fn().mockResolvedValue(fakeProject),
     updateProjectStatus: vi.fn().mockResolvedValue(fakeProject),
-    setActiveTab: vi.fn(),
     ...overrides,
   };
   const { result } = renderHook(() => useProjectActions(props));
@@ -129,17 +127,15 @@ describe('useProjectActions: statusId / dismissProjectStatus', () => {
     const { result } = setup();
     expect(result.current.statusId).toBe(0);
 
-    act(() => result.current.openProject('p1'));
+    act(() => result.current.startNewProject());
     expect(result.current.statusId).toBe(1);
-
-    act(() => result.current.openProjectSizing('p1'));
-    expect(result.current.projectStatus).toBe('Projeto carregado.');
-    expect(result.current.statusId).toBe(2);
   });
 
-  it('dismissProjectStatus clears the status without touching statusId', () => {
+  it('dismissProjectStatus clears the status without touching statusId', async () => {
     const { result } = setup();
-    act(() => result.current.openProject('p1'));
+    await act(async () => {
+      await result.current.saveProject();
+    });
     expect(result.current.projectStatus).not.toBeNull();
 
     act(() => result.current.dismissProjectStatus());
@@ -176,26 +172,7 @@ describe('useProjectActions: draft lifecycle', () => {
   });
 });
 
-describe('useProjectActions: open/openSizing/delete', () => {
-  it('openProject loads the project and reports it loaded', () => {
-    const { result, props } = setup();
-
-    act(() => result.current.openProject('p1'));
-
-    expect(props.loadProject).toHaveBeenCalledWith('p1');
-    expect(result.current.projectStatus).toBe('Projeto carregado.');
-  });
-
-  it('openProjectSizing loads the project, switches tab and reports it loaded', () => {
-    const { result, props } = setup();
-
-    act(() => result.current.openProjectSizing('p1'));
-
-    expect(props.loadProject).toHaveBeenCalledWith('p1', { showDetails: false });
-    expect(props.setActiveTab).toHaveBeenCalledWith('sizing');
-    expect(result.current.projectStatus).toBe('Projeto carregado.');
-  });
-
+describe('useProjectActions: delete', () => {
   it('deleteProject removes the project and reports success', async () => {
     const { result, props } = setup();
 

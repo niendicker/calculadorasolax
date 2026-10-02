@@ -1,13 +1,13 @@
 import type { StateCreator } from 'zustand';
 import { createClient } from '@/lib/supabase/client';
-import type { MarginSettings, StockProductType } from '@/lib/types';
+import type { MarginableProductType, MarginSettings } from '@/lib/types';
 import type { TablesUpdate } from '@/lib/database.types';
 import type { WizardStore } from '../wizard-store';
 
 export interface MarginSlice {
   marginSettings: MarginSettings;
   fetchMarginSettings: () => Promise<void>;
-  updateMarginPercent: (category: StockProductType, percent: number) => Promise<void>;
+  updateMarginPercent: (category: MarginableProductType, percent: number) => Promise<void>;
 }
 
 export const zeroMargins: MarginSettings = { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 };

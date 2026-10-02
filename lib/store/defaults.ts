@@ -5,13 +5,29 @@
 
 import { emptyAddress } from '@/lib/address';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import type { DesiredFeatureId, IndustrialOptions, ProjectInfo, ResidentialOptions } from '@/lib/types';
+import type { DesiredFeatureId, ProjectInfo, ResidentialOptions } from '@/lib/types';
+import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export const defaultProjectInfo: ProjectInfo = {
   name: '',
   clientId: null,
   address: emptyAddress(),
   notes: '',
+};
+
+/** Mirrors the shared engine's DEFAULT_FINANCIAL_ASSUMPTIONS/plan section 11
+ * values (12%/10 years) — inlined rather than imported as a runtime value
+ * from supabase/functions/_shared/, to keep this file's only coupling to
+ * that tree at the type level (see the `import type` above). If the shared
+ * defaults ever change, update both. */
+export const defaultCiOptions: CommercialIndustrialOptions = {
+  loadCurve: null,
+  tariff: null,
+  bessProductId: null,
+  strategy: 'HYBRID',
+  sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
+  financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
+  rankingCriterion: 'PAYBACK',
 };
 
 export const defaultResidential: ResidentialOptions = {
@@ -32,14 +48,6 @@ export const defaultResidential: ResidentialOptions = {
   atsPhotoUrl: null,
   atsBackupAcknowledged: false,
   maxPowerPerPhaseW: null,
-};
-
-export const defaultIndustrial: IndustrialOptions = {
-  gridPowerKw: null,
-  pvPowerKwp: null,
-  backupPowerKw: null,
-  backupHours: null,
-  demandCharge: false,
 };
 
 const VALID_DESIRED_FEATURE_IDS = new Set(DESIRED_FEATURE_DEFINITIONS.map((feature) => feature.id));

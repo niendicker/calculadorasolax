@@ -89,7 +89,14 @@ Aplicar migrations somente após revisar o diff e confirmar o ambiente alvo:
 npx supabase migration list
 npx supabase db push --linked --yes
 npx supabase functions deploy calculate-residential --project-ref SEU_PROJECT_REF
+npx supabase functions deploy calculate-commercial-industrial --project-ref SEU_PROJECT_REF
 ```
+
+`supabase functions deploy --project-ref` fala com a API de gerenciamento do
+Supabase Cloud — não funciona em self-hosted, mesmo com o projeto linkado.
+Em self-hosted, deployar uma função é copiar seus arquivos para o volume que
+o container `supabase-edge-functions-*` monta em `/home/deno/functions` e
+reiniciar esse container; ver `docs/SELF_HOSTED_SETUP.md`.
 
 Depois validar:
 

@@ -16,6 +16,8 @@ Todas as rotas abaixo usam JSON salvo indicação contrária. Rotas autenticadas
 |---|---|---|---|
 | POST | `/api/calculations/residential` | usuário autenticado | Valida opções e chama a Edge Function |
 | POST | `/api/metrics/simulations` | usuário autenticado | Registra métrica pertencente ao usuário da sessão |
+| POST | `/api/projects/:projectId/calculations` | dono do projeto | Calcula um estudo C&I a partir de `calculation_options` já salvo, grava snapshot em `project_calculation_runs` e no cache do projeto |
+| GET | `/api/projects/:projectId/calculations` | dono do projeto | Lista o histórico leve de execuções (sem os snapshots completos) |
 
 ## Projetos, cotações e pedidos
 

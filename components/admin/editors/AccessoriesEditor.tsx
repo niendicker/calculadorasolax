@@ -33,7 +33,7 @@ export function AccessoriesEditor(props: {
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File

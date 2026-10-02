@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { type ClientsSlice, createClientsSlice } from './slices/clients-slice';
+import { createCommercialIndustrialSlice, type CommercialIndustrialSlice } from './slices/commercial-industrial-slice';
 import { createLoadCatalogSlice, type LoadCatalogSlice } from './slices/load-catalog-slice';
 import { createMarginSlice, type MarginSlice } from './slices/margin-slice';
 import { createProjectsSlice, type ProjectsSlice } from './slices/projects-slice';
@@ -27,6 +28,7 @@ export interface WizardStore
     ServicesSlice,
     MarginSlice,
     ResidentialSlice,
+    CommercialIndustrialSlice,
     SessionSlice {}
 
 export const useWizardStore = create<WizardStore>()(
@@ -39,6 +41,7 @@ export const useWizardStore = create<WizardStore>()(
       ...createServicesSlice(set, get, api),
       ...createMarginSlice(set, get, api),
       ...createResidentialSlice(set, get, api),
+      ...createCommercialIndustrialSlice(set, get, api),
       ...createSessionSlice(set, get, api),
     }),
     wizardPersistenceOptions

@@ -16,7 +16,7 @@ import type { InverterCatalogOption } from '../../types';
  * flag among whatever's chosen in Configurações (see InverterSupportSummary),
  * or just an unacknowledged confirmation (ATS/generator/microgrid checkboxes).
  * Shared between each feature's own tab (see DesiredFeaturesPicker) and the
- * "Funcionalidades" main tab (see SizingTab), which shows the same warning
+ * "Funcionalidades" main tab (see the technical editor), which shows the same warning
  * whenever any of its feature tabs would. */
 export function desiredFeatureHasPendingIssue(
   id: DesiredFeatureId,

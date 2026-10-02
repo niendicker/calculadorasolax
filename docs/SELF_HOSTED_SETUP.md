@@ -152,3 +152,47 @@ Validar:
 - o túnel SSH não chega no container `supabase-db-*`;
 - o destino não está vazio durante migração inicial completa;
 - há drift entre o schema remoto e as migrations do repositório.
+
+## Deploy de uma Edge Function (self-hosted)
+
+`npx supabase functions deploy --project-ref` fala com a API de gerenciamento
+do Supabase Cloud e não funciona aqui, mesmo com `supabase link` feito e o
+projeto correto. Uma função nova (ou uma atualizada) só entra em vigor depois
+de copiada para o volume que o container do Edge Runtime monta, seguido de um
+restart desse container — o mesmo mecanismo que
+`scripts/migrate-supabase-cloud-to-selfhosted-v5.sh --functions-only` usa
+internamente (`find_edge_container`), mas para copiar direto do repositório
+local em vez de baixar do Cloud:
+
+```bash
+# No servidor onde a stack self-hosted roda (via SSH), com sudo para o Docker.
+EDGE_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep '^supabase-edge-functions-' | head -1)
+
+FUNCTIONS_VOLUME=$(sudo docker inspect "$EDGE_CONTAINER" \
+  --format '{{range .Mounts}}{{if eq .Destination "/home/deno/functions"}}{{println .Source}}{{end}}{{end}}' \
+  | head -n1 | xargs)
+
+REPO_PATH=/caminho/para/calculadora/src   # onde este repositório está clonado nesse servidor
+FUNCTION_NAME=calculate-commercial-industrial
+
+sudo cp -a "$REPO_PATH/supabase/functions/$FUNCTION_NAME" "$FUNCTIONS_VOLUME/"
+# Repita o cp -a para cada subpasta de `supabase/functions/_shared/` que a
+# função importa (ex.: `_shared/commercial-industrial`) — o volume já deve
+# ter as pastas usadas pelas funções existentes; só faltam as novas.
+sudo mkdir -p "$FUNCTIONS_VOLUME/_shared"
+sudo cp -a "$REPO_PATH/supabase/functions/_shared/commercial-industrial" "$FUNCTIONS_VOLUME/_shared/"
+
+sudo docker restart "$EDGE_CONTAINER"
+```
+
+Validar sem efeitos colaterais (não precisa de autenticação, só confirma que
+o worker sobe):
+
+```bash
+curl -i -X OPTIONS "https://SEU_DOMINIO/functions/v1/$FUNCTION_NAME"
+```
+
+`200` com os headers de CORS = função carregada. Um `500` com
+`"InvalidWorkerCreation: ... could not find an appropriate entrypoint"`
+significa que o `index.ts` da função (ou um módulo de `_shared` que ela
+importa) ainda não está no volume.

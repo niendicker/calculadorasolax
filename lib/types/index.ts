@@ -1,3 +1,10 @@
+// Type-only — erased at compile time, so this never pulls Deno-oriented
+// runtime code into the browser bundle. The engine itself can't live here
+// (Deno can't import outside supabase/functions/, see
+// lib/desired-features.ts's comment on the same constraint), but its types
+// have no such restriction.
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+
 export type BatteryTopology = 'HighVoltage' | 'LowVoltage';
 
 /** Converts the wizard-facing BatteryTopology to the catalog/DB storage
@@ -260,7 +267,12 @@ export interface UserLoadCatalogItem {
   updatedAt: string;
 }
 
-export type StockProductType = 'inverter' | 'battery' | 'accessory';
+export type StockProductType = 'inverter' | 'battery' | 'accessory' | 'ci_bess';
+
+/** Product types with a per-category sell margin (see MarginSettings). C&I
+ * BESS is priced 1:1 from user_stock_items.unit_value with no markup layer
+ * on top (closed decision, docs/CI-MODULE-PLAN.md section 4.3/6.1). */
+export type MarginableProductType = Exclude<StockProductType, 'ci_bess'>;
 
 export type UserServicePricingUnit =
   | 'project'
@@ -445,14 +457,6 @@ export interface Client {
   updatedAt: string;
 }
 
-export interface IndustrialOptions {
-  gridPowerKw: number | null;
-  pvPowerKwp: number | null;
-  backupPowerKw: number | null;
-  backupHours: number | null;
-  demandCharge: boolean;
-}
-
 /** One accessory line in a computed Solution, carrying the metadata from
  * whichever accessory_rules row matched it (or system defaults for
  * accessories baked directly into the approved solution, with no rule). */
@@ -512,6 +516,27 @@ export interface SavedProject {
   residentialOptions: ResidentialOptions;
   solution: Solution | null;
   services: ProjectServiceLine[];
+}
+
+/** Parallel to SavedProject, for a Commercial & Industrial project
+ * (docs/CI-MODULE-PLAN.md) — deliberately its own type, not merged into
+ * SavedProject, so nothing that already assumes every SavedProject has
+ * `residentialOptions`/`solution` (PDF export, quote sharing, orçamento,
+ * admin) needs to change for C&I to exist. `installationType` doubles as
+ * the discriminator against SavedProject when a screen needs to render
+ * both kinds together (e.g. the Projetos list). */
+export interface SavedCiProject {
+  id: string;
+  installationType: 'commercial_industrial';
+  name: string;
+  clientId: string | null;
+  address: Address;
+  notes: string;
+  updatedAt: string;
+  status: ProjectStatus;
+  calculationOptions: CommercialIndustrialOptions;
+  calculationResult: CommercialIndustrialResult | null;
+  calculationVersion: string | null;
 }
 
 export interface SimulationNode {

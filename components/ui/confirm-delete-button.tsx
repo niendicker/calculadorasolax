@@ -206,7 +206,10 @@ export function ConfirmDeleteModalButton({
     if (saving) return;
     setOpen(false);
     setError(null);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    // The trigger remains mounted while the portal closes, so focusing it
+    // synchronously avoids a race with test cleanup and environments without
+    // a reliable animation-frame scheduler.
+    triggerRef.current?.focus();
   }, [saving]);
 
   useEffect(() => {
@@ -253,7 +256,7 @@ export function ConfirmDeleteModalButton({
       await onConfirm();
       setSaving(false);
       setOpen(false);
-      requestAnimationFrame(() => triggerRef.current?.focus());
+      triggerRef.current?.focus();
     } catch (caughtError) {
       setSaving(false);
       setError(caughtError instanceof Error ? caughtError.message : `Não foi possível excluir ${itemType}. Tente novamente.`);

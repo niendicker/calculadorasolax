@@ -6,10 +6,11 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import { emptyAddress } from '@/lib/address';
+import { defaultCiOptions } from '@/lib/store/defaults';
 import { useWizardStore } from '@/lib/store/wizard-store';
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
-import type { Client, SavedProject, Solution } from '@/lib/types';
+import type { Client, SavedCiProject, SavedProject, Solution } from '@/lib/types';
 import { SinglePageApp } from './SinglePageApp';
 
 function makeSolution(partial: Partial<Solution> = {}): Solution {
@@ -55,6 +56,22 @@ function makeSavedProject(partial: Partial<SavedProject> & Pick<SavedProject, 'i
     },
     solution: null,
     services: [],
+    ...partial,
+  };
+}
+
+function makeSavedCiProject(partial: Partial<SavedCiProject> & Pick<SavedCiProject, 'id'>): SavedCiProject {
+  return {
+    installationType: 'commercial_industrial',
+    name: 'Projeto C&I salvo',
+    clientId: null,
+    address: emptyAddress(),
+    notes: '',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    status: 'draft',
+    calculationOptions: defaultCiOptions,
+    calculationResult: null,
+    calculationVersion: null,
     ...partial,
   };
 }
@@ -135,7 +152,8 @@ async function goToSizingViaProject(navScope: () => ReturnType<typeof within> = 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   }
 
-  fireEvent.click((await screen.findAllByRole('button', { name: 'Workspace' }))[0]);
+  const openWorkspaceButton = (await screen.findAllByRole('button', { name: 'Abrir workspace' }))[0];
+  fireEvent.click(openWorkspaceButton);
   await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: projectName })).toBeInTheDocument());
   fireEvent.click(screen.getByRole('button', { name: /^Rede elétrica:/ }));
   await waitFor(() => expect(screen.getByRole('tab', { name: 'Rede e inversor' })).toBeInTheDocument());
@@ -255,6 +273,49 @@ describe('SinglePageApp: initial load and navigation', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeInTheDocument());
 
     await goToSizingViaProject();
+  });
+
+  it('opens the C&I workspace (not the residential one) when clicking a C&I project in the sidebar', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
+
+    act(() => {
+      useWizardStore.setState({
+        savedProjects: [makeSavedProject({ id: 'p1', name: 'Casa da Praia' })],
+        savedCiProjects: [makeSavedCiProject({ id: 'ci1', name: 'Fábrica Alfa' })],
+      });
+    });
+
+    fireEvent.click(sidebarNav().getByRole('button', { name: 'Abrir workspace Fábrica Alfa' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fábrica Alfa' })).toBeInTheDocument());
+    expect(screen.getByText('Projeto Comercial & Industrial (BESS)')).toBeInTheDocument();
+  });
+
+  it('caps the sidebar project lists at 5 per group and offers "Ver todos" for the rest', async () => {
+    setupSupabase();
+    renderApp();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
+
+    act(() => {
+      useWizardStore.setState({
+        savedProjects: Array.from({ length: 7 }, (_, index) => makeSavedProject({ id: `p${index}`, name: `Residencial ${index}` })),
+        savedCiProjects: Array.from({ length: 6 }, (_, index) => makeSavedCiProject({ id: `ci${index}`, name: `Industrial ${index}` })),
+      });
+    });
+
+    const workspaceGroup = within(sidebarNav().getByRole('group', { name: 'Workspaces' }));
+    expect(workspaceGroup.getAllByRole('button', { name: /^Abrir workspace Residencial/ })).toHaveLength(5);
+    expect(workspaceGroup.getAllByRole('button', { name: /^Abrir workspace Industrial/ })).toHaveLength(5);
+
+    const viewAllResidential = workspaceGroup.getByRole('button', { name: 'Ver todos (7)' });
+    const viewAllCi = workspaceGroup.getByRole('button', { name: 'Ver todos (6)' });
+    expect(viewAllResidential).toBeInTheDocument();
+    expect(viewAllCi).toBeInTheDocument();
+
+    fireEvent.click(viewAllCi);
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
   });
 
   it('shows an "Administração" link only for admin profiles', async () => {
@@ -717,7 +778,7 @@ describe('SinglePageApp: solution-dependent behavior', () => {
     // wholesale: `vi.stubGlobal('URL', { ...URL, ... })` swaps the real
     // constructor for a plain object, which breaks any `new URL(...)` the
     // bundler's own dynamic-import machinery does internally to resolve
-    // SizingTab's lazy chunk — silently failing that import.
+    // technical editor's lazy chunk — silently failing that import.
     const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake-url');
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});

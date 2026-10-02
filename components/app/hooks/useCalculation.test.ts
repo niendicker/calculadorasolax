@@ -362,6 +362,7 @@ describe('useCalculation: calculate', () => {
     );
     expect(result.current.error).toBeNull();
     expect(result.current.loading).toBe(false);
+    expect(result.current.calculationRevision).toBe(1);
   });
 
   it('clears the solution and sets a mapped error message when the function call fails', async () => {
@@ -375,6 +376,7 @@ describe('useCalculation: calculate', () => {
 
     expect(setSolution).toHaveBeenCalledWith(null);
     expect(result.current.error).toBe(getCalculationErrorMessage(undefined));
+    expect(result.current.calculationRevision).toBe(0);
   });
 
   it('sets a network error message when the Supabase call throws', async () => {

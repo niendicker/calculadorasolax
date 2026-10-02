@@ -44,7 +44,9 @@ import {
   type ProductMedia,
 } from './types';
 
-const COLORS = {
+/** Exported so other PDF reports (e.g. the C&I memorial) share the same
+ * brand palette instead of redefining it. */
+export const COLORS = {
   primary: '#24506B',
   primaryBg: '#F1F5FB',
   text: '#1a1a1a',

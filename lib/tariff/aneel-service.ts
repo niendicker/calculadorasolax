@@ -34,7 +34,7 @@ export interface EnergyTariffResult {
 const ANEEL_CKAN_API = 'https://dadosabertos.aneel.gov.br/api/3/action';
 const DEFAULT_RESOURCE_ID = process.env.ANEEL_TARIFF_RESOURCE_ID || 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
 
-interface CkanDatastoreRecord {
+export interface CkanDatastoreRecord {
   _id: number;
   [key: string]: string | number | null;
 }
@@ -49,7 +49,7 @@ interface CkanDatastoreResponse {
 
 export async function fetchTariffsFromAneel(query: AneelTariffQuery): Promise<EnergyTariffResult | null> {
   try {
-    const records = await queryAneelDatastore();
+    const records = await fetchAneelDataset();
     if (records.length === 0) return null;
 
     const updatedQuery = { ...query };
@@ -72,7 +72,7 @@ export async function fetchTariffsFromAneel(query: AneelTariffQuery): Promise<En
 
 export async function getLatestTariffDate(): Promise<string | null> {
   try {
-    const records = await queryAneelDatastore();
+    const records = await fetchAneelDataset();
     if (records.length === 0) return null;
 
     const today = new Date();
@@ -124,7 +124,10 @@ export async function getLatestTariffDate(): Promise<string | null> {
   }
 }
 
-async function queryAneelDatastore(): Promise<CkanDatastoreRecord[]> {
+/** Loads the ANEEL datastore once per cache TTL. Route handlers that need to
+ * expose derived catalog data should use this boundary instead of duplicating
+ * the remote request and cache policy. */
+export async function fetchAneelDataset(): Promise<CkanDatastoreRecord[]> {
   const cached = cache.getDataset();
   if (cached) {
     return cached;
@@ -257,14 +260,14 @@ function isWithinValidity(record: CkanDatastoreRecord, referenceDate: Date): boo
 
 function findField(record: CkanDatastoreRecord, possibleNames: string[]): string | null {
   for (const name of possibleNames) {
-    if (name in record) return name;
+    if (name in record && record[name] !== null) return name;
   }
 
   const recordKeys = Object.keys(record);
   for (const key of recordKeys) {
     const lowerKey = key.toLowerCase();
     for (const name of possibleNames) {
-      if (lowerKey === name.toLowerCase()) return key;
+      if (lowerKey === name.toLowerCase() && record[key] !== null) return key;
     }
   }
 

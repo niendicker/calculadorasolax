@@ -21,6 +21,7 @@ import type {
   AccessoryRow,
   AccessoryRuleRow,
   BatteryRow,
+  CiBessProductRow,
   EssCompatibilityRuleRow,
   InverterRow,
   LoadCatalogRow,
@@ -99,6 +100,23 @@ export function buildAccessoryPayload(form: Partial<AccessoryRow>) {
     description: form.description?.trim() || null,
     active: form.active ?? true,
     warranty_years: Math.max(1, toNumber(form.warranty_years, 2)),
+    image_url: form.image_url?.trim() || null,
+    documents: form.documents ?? [],
+  };
+}
+
+export function buildCiBessProductPayload(form: Partial<CiBessProductRow>) {
+  return {
+    model: form.model?.trim() ?? '',
+    manufacturer: form.manufacturer?.trim() ?? '',
+    description: form.description?.trim() || null,
+    active: form.active ?? true,
+    module_power_kw: Math.max(0, toNumber(form.module_power_kw, 0)),
+    module_capacity_kwh: Math.max(0, toNumber(form.module_capacity_kwh, 0)),
+    efficiency_percent: clampNumber(form.efficiency_percent, 0, 100, 95),
+    soc_min_percent: clampNumber(form.soc_min_percent, 0, 100, 10),
+    soc_max_percent: clampNumber(form.soc_max_percent, 0, 100, 100),
+    warranty_years: Math.max(1, toNumber(form.warranty_years, 10)),
     image_url: form.image_url?.trim() || null,
     documents: form.documents ?? [],
   };

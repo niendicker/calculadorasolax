@@ -13,12 +13,14 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
     projectInfo: state.projectInfo,
     currentProjectId: state.currentProjectId,
     residentialOptions: state.residentialOptions,
-    industrialOptions: state.industrialOptions,
     solution: state.solution,
     secondarySolution: state.secondarySolution,
     services: state.services,
     loadCatalog: state.loadCatalog,
     loadPresets: state.loadPresets,
+    ciProjectInfo: state.ciProjectInfo,
+    currentCiProjectId: state.currentCiProjectId,
+    ciOptions: state.ciOptions,
   }),
   merge: (persistedState, currentState) => {
     const persisted = (persistedState ?? {}) as PersistedWizardState;
@@ -34,7 +36,7 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
         ...residentialOptions,
         desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),
       },
-      industrialOptions: { ...currentState.industrialOptions, ...persisted.industrialOptions },
+      ciOptions: { ...currentState.ciOptions, ...persistedWithoutDemo.ciOptions },
     };
   },
 };

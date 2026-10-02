@@ -41,6 +41,11 @@ type WhiteTariffField =
   | 'intermediateTariffPerKwh'
   | 'foraPontaTariffPerKwh';
 
+type WhiteTariffRateField =
+  | 'pontaTariffPerKwh'
+  | 'intermediateTariffPerKwh'
+  | 'foraPontaTariffPerKwh';
+
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
@@ -1245,14 +1250,15 @@ export function WhiteTariffPanel({
     }
   }
 
-  function markFieldAsEdited(fieldName: string) {
-    if (!whiteTariff) return;
-    const edited = new Set(whiteTariff.manuallyEditedFields || []);
-    edited.add(fieldName);
-    onWhiteTariffChange({
-      ...whiteTariff,
-      manuallyEditedFields: Array.from(edited),
-    });
+  function updateTariff(field: WhiteTariffRateField, tariffValue: number) {
+    const next: WhiteTariffConfig = { ...currentWhiteTariff, [field]: tariffValue };
+    if (whiteTariff) {
+      const edited = new Set(whiteTariff.manuallyEditedFields || []);
+      edited.add(field);
+      next.manuallyEditedFields = Array.from(edited);
+    }
+    onWhiteTariffChange(next);
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
   }
 
   return (
@@ -1385,21 +1391,9 @@ export function WhiteTariffPanel({
             offPeakTariffManuallyEdited={Boolean(whiteTariff?.manuallyEditedFields?.includes('foraPontaTariffPerKwh'))}
             onPontaChange={(pontaConsumptionPercent) => updateDistribution({ pontaConsumptionPercent })}
             onIntermediateChange={(intermediateConsumptionPercent) => updateDistribution({ intermediateConsumptionPercent })}
-            onPontaTariffChange={(pontaTariffPerKwh) => {
-              markFieldAsEdited('pontaTariffPerKwh');
-              onWhiteTariffChange({ ...currentWhiteTariff, pontaTariffPerKwh });
-              setFieldErrors((current) => ({ ...current, pontaTariffPerKwh: undefined }));
-            }}
-            onIntermediateTariffChange={(intermediateTariffPerKwh) => {
-              markFieldAsEdited('intermediateTariffPerKwh');
-              onWhiteTariffChange({ ...currentWhiteTariff, intermediateTariffPerKwh });
-              setFieldErrors((current) => ({ ...current, intermediateTariffPerKwh: undefined }));
-            }}
-            onOffPeakTariffChange={(foraPontaTariffPerKwh) => {
-              markFieldAsEdited('foraPontaTariffPerKwh');
-              onWhiteTariffChange({ ...currentWhiteTariff, foraPontaTariffPerKwh });
-              setFieldErrors((current) => ({ ...current, foraPontaTariffPerKwh: undefined }));
-            }}
+            onPontaTariffChange={(pontaTariffPerKwh) => updateTariff('pontaTariffPerKwh', pontaTariffPerKwh)}
+            onIntermediateTariffChange={(intermediateTariffPerKwh) => updateTariff('intermediateTariffPerKwh', intermediateTariffPerKwh)}
+            onOffPeakTariffChange={(foraPontaTariffPerKwh) => updateTariff('foraPontaTariffPerKwh', foraPontaTariffPerKwh)}
             onPontaBlur={() => validateAndSet('pontaConsumptionPercent')}
             onIntermediateBlur={() => validateAndSet('intermediateConsumptionPercent')}
             onPontaTariffBlur={() => validateAndSet('pontaTariffPerKwh')}
