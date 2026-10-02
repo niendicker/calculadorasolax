@@ -70,7 +70,7 @@ describe('desiredFeatureHasPendingIssue', () => {
   it('flags a required-flag feature when narrowed by availableInverterModels has none supporting it', () => {
     expect(
       call('microgrid', ['microgrid'], {
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, photoUrl: null, powerNoticeAcknowledged: true },
         inverterCatalog: [inverterNoFlags],
         availableInverterModels: new Set(['NoFlags']),
       })
@@ -80,7 +80,7 @@ describe('desiredFeatureHasPendingIssue', () => {
   it('does not flag on required-flag narrowing when availableInverterModels is null (unconstrained)', () => {
     expect(
       call('microgrid', ['microgrid'], {
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, photoUrl: null, powerNoticeAcknowledged: true },
         inverterCatalog: [inverter],
         availableInverterModels: null,
       })
@@ -90,7 +90,7 @@ describe('desiredFeatureHasPendingIssue', () => {
   it('flags microgrid when power is zero', () => {
     expect(
       call('microgrid', ['microgrid'], {
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 0, photoUrl: null, powerNoticeAcknowledged: true },
       })
     ).toBe(true);
   });
@@ -98,7 +98,7 @@ describe('desiredFeatureHasPendingIssue', () => {
   it('flags microgrid when phase/voltage incompatible with grid type', () => {
     expect(
       call('microgrid', ['microgrid'], {
-        microgrid: { voltageV: 380, onGridPhases: 3, onGridApparentPowerVA: 1000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 380, onGridPhases: 3, onGridApparentPowerVA: 1000, photoUrl: null, powerNoticeAcknowledged: true },
         gridType: 'singlePhase_220',
       })
     ).toBe(true);
@@ -107,7 +107,7 @@ describe('desiredFeatureHasPendingIssue', () => {
   it('does not flag microgrid when power set and compatible', () => {
     expect(
       call('microgrid', ['microgrid'], {
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, photoUrl: null, powerNoticeAcknowledged: true },
         gridType: 'singlePhase_220',
       })
     ).toBe(false);

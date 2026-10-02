@@ -21,9 +21,6 @@ export const emptyMicrogridConfig: MicrogridConfig = {
   voltageV: 220,
   onGridPhases: 1,
   onGridApparentPowerVA: 0,
-  // The wizard no longer lets the user opt out of this — enabling
-  // Microrrede always means it's a fundamental requirement now.
-  isFundamentalRequirement: true,
   photoUrl: null,
   powerNoticeAcknowledged: true,
 };

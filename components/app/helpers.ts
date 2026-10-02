@@ -896,18 +896,16 @@ export function buildQuoteShareSnapshot(
       ? { totalCost: systemCostEstimate.totalCost, isComplete: systemCostEstimate.isComplete }
       : null;
 
-  const marginRows = solution.microgridAlternative
-    ? []
-    : buildMarginSummary({
-        desiredFeatures: residentialOptions.desiredFeatures,
-        whiteTariff: residentialOptions.whiteTariff,
-        microgrid: residentialOptions.microgrid,
-        pv: residentialOptions.pv,
-        nominalW,
-        peakW,
-        dailyKwh,
-        solution,
-      });
+  const marginRows = buildMarginSummary({
+    desiredFeatures: residentialOptions.desiredFeatures,
+    whiteTariff: residentialOptions.whiteTariff,
+    microgrid: residentialOptions.microgrid,
+    pv: residentialOptions.pv,
+    nominalW,
+    peakW,
+    dailyKwh,
+    solution,
+  });
 
   const products: QuoteShareSnapshot['products'] = [
     { category: 'Inversor', model: solution.inverterModel, qty: solution.inverterQty ?? 1 },

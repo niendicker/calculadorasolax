@@ -130,7 +130,6 @@ export function TechnicalSizingEditor({
   services = [],
   userServices = [],
   marginSettings,
-  onChooseMicrogridVariant,
   summaryDrawerOpen,
   initialActiveItem,
   onBackToWorkspace,
@@ -222,7 +221,6 @@ export function TechnicalSizingEditor({
   services?: ProjectServiceLine[];
   userServices?: UserServiceItem[];
   marginSettings: MarginSettings;
-  onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
   /** True while the summary panel is showing as a mobile/tablet drawer (see
    *  SinglePageApp's summaryDrawerOpen) — always false on desktop, where the
    *  panel is a permanently-visible column instead of something that gets
@@ -430,7 +428,7 @@ export function TechnicalSizingEditor({
   // what's required on any operational margin row (same rows/gating as
   // ResultSummary's buildMarginSummary call below).
   const solutionMarginRows =
-    activeSolution && !activeSolution.microgridAlternative
+    activeSolution
       ? buildMarginSummary({
           desiredFeatures: residentialOptions.desiredFeatures,
           whiteTariff: residentialOptions.whiteTariff,
@@ -448,10 +446,7 @@ export function TechnicalSizingEditor({
   // *either* battery search (primary or secondary) came back short on power/
   // energy, not just whichever tab happens to be active right now — the
   // printed report always includes both solutions regardless of which tab is
-  // selected on screen (see project-quote-pdf.tsx). Skips a solution still
-  // sitting on an unchosen microgrid alternative — there's no export button
-  // reachable in that state (see ResultSummary's MicrogridVariantChoice
-  // early-return), so there's nothing to gate yet.
+  // selected on screen (see project-quote-pdf.tsx).
   const marginCheckParams = {
     desiredFeatures: residentialOptions.desiredFeatures,
     whiteTariff: residentialOptions.whiteTariff,
@@ -462,7 +457,7 @@ export function TechnicalSizingEditor({
     dailyKwh,
   };
   const hasInsufficientSolution = [solution, secondarySolution].some(
-    (s) => s && !s.microgridAlternative && solutionHasInsufficientMargin(s, marginCheckParams)
+    (s) => s && solutionHasInsufficientMargin(s, marginCheckParams)
   );
 
   // Shared between both summary sub-tabs (see PageSummary below) so it stays
@@ -672,10 +667,7 @@ export function TechnicalSizingEditor({
           ) : (
             !loading &&
             !activeError &&
-            activeSolution &&
-            !activeSolution.microgridAlternative && (
-              <SolutionMetricCards solution={activeSolution} batteryCatalog={batteryCatalog} />
-            )
+            activeSolution && <SolutionMetricCards solution={activeSolution} batteryCatalog={batteryCatalog} />
           )}
           <Separator />
         </div>
@@ -743,7 +735,6 @@ export function TechnicalSizingEditor({
                 marginSettings={marginSettings}
                 whiteTariff={residentialOptions.whiteTariff}
                 pv={residentialOptions.pv}
-                onChooseMicrogridVariant={onChooseMicrogridVariant}
                 desiredFeatures={residentialOptions.desiredFeatures}
                 microgrid={residentialOptions.microgrid}
                 nominalW={nominalW}

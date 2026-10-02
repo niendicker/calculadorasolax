@@ -3,7 +3,6 @@ import {
   batteryTopologyMap,
   blockingDesiredFeatures,
   buildSolutionPayload,
-  computeHardFilterFeatures,
   desiredPvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
@@ -246,14 +245,7 @@ export async function handleCalculateResidential(
 
     const microgridSelected = desiredFeatures.includes('microgrid');
     const microgridConfig = microgridSelected ? options.microgrid : null;
-    const microgridIsFundamental = microgridConfig?.isFundamentalRequirement ?? false;
-
-    // When microgrid is selected but not a hard requirement, the baseline
-    // ("economic") recommendation below is computed without it — the
-    // dedicated microgrid block further down decides whether to also offer
-    // a microgrid-compatible alternative on top of this baseline.
-    const hardFilterFeatures = computeHardFilterFeatures(desiredFeatures, microgridIsFundamental);
-    const requiredFlags = requiredInverterFlags(hardFilterFeatures);
+    const requiredFlags = requiredInverterFlags(desiredFeatures);
 
     // Hoisted above runPipeline: the desired PV array is now a real
     // requirement gate (filterSolutionsByPvCapacity below), not just a
@@ -263,7 +255,7 @@ export async function handleCalculateResidential(
     const desiredPvKw = pv ? desiredPvPowerKw(pv) : 0;
 
     type PipelineResult =
-      | { ok: true; compatibleSolutions: ApprovedSolution[]; microgridAlternativeSolution: ApprovedSolution | null }
+      | { ok: true; compatibleSolutions: ApprovedSolution[] }
       | { ok: false; response: Response };
 
     // Runs the flags → ESS rule → microgrid gates against a given candidate
@@ -303,7 +295,7 @@ export async function handleCalculateResidential(
               response: jsonResponse(
                 {
                   error: 'no_solution_matches_desired_features',
-                  blockingFeatures: blockingDesiredFeatures(hardFilterFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
+                  blockingFeatures: blockingDesiredFeatures(desiredFeatures, (candidateInverters ?? []) as InverterCapabilities[]),
                 },
                 { status: 422 }
               ),
@@ -360,11 +352,8 @@ export async function handleCalculateResidential(
       // Microgrid compatibility is checked last, against whatever already
       // satisfies every other requirement — it needs the inverter's own
       // max_power_per_phase_w, which the generic flag-filter above may not
-      // have fetched (e.g. when microgrid was excluded from
-      // hardFilterFeatures, or when it's the only flag-based feature
-      // selected).
-      let microgridAlternativeSolution: ApprovedSolution | null = null;
-
+      // have fetched (the flag filter only selects model and flags when
+      // microgrid is the only flag-based feature).
       if (microgridConfig) {
         const candidateModels = Array.from(new Set(pool.map((solution) => solution.inverter_model)));
 
@@ -381,7 +370,6 @@ export async function handleCalculateResidential(
         const microgridResult = resolveMicrogridSelection(
           pool,
           microgridConfig,
-          microgridIsFundamental,
           (microgridInverters ?? []) as InverterCapabilities[]
         );
 
@@ -396,10 +384,9 @@ export async function handleCalculateResidential(
         }
 
         pool = microgridResult.compatibleSolutions;
-        microgridAlternativeSolution = microgridResult.microgridAlternativeSolution;
       }
 
-      return { ok: true, compatibleSolutions: pool, microgridAlternativeSolution };
+      return { ok: true, compatibleSolutions: pool };
     }
 
     let pipelineResult = await runPipeline(compatibleSolutions);
@@ -434,24 +421,19 @@ export async function handleCalculateResidential(
     }
 
     compatibleSolutions = pipelineResult.compatibleSolutions;
-    const microgridAlternativeSolution = pipelineResult.microgridAlternativeSolution;
 
     const solution = compatibleSolutions[0] as ApprovedSolution;
 
     // PV sizing: only relevant when the customer opts into PV via the 'pv'
     // desired feature. pv_oversizing_percent lives on the inverter catalog
     // row (not denormalized onto approved_solutions, unlike rated_power_w),
-    // so it needs its own lookup — for both the primary and, if present, the
-    // microgrid-alternative solution's inverter.
-    const pvInverterModels = Array.from(
-      new Set([solution.inverter_model, microgridAlternativeSolution?.inverter_model].filter((m): m is string => Boolean(m)))
-    );
+    // so it needs its own lookup.
     const pvOversizingByModel = new Map<string, number>();
-    if (desiredFeatures.includes('pv') && pvInverterModels.length > 0) {
+    if (desiredFeatures.includes('pv')) {
       const { data: inverterRows, error: inverterErr } = await supabase
         .from('inverters')
         .select('model, pv_oversizing_percent')
-        .in('model', pvInverterModels);
+        .in('model', [solution.inverter_model]);
       if (inverterErr) {
         console.error(inverterErr);
         return jsonResponse({ error: 'inverter_lookup_failed' }, { status: 500 });
@@ -502,18 +484,6 @@ export async function handleCalculateResidential(
       standardGridTopology,
       desiredFeatures,
     });
-
-    if (microgridAlternativeSolution) {
-      const microgridAlternative = buildSolutionPayload(microgridAlternativeSolution, {
-        usefulEnergyWhPerBattery,
-        pv,
-        pvOversizingPercent: pvOversizingByModel.get(microgridAlternativeSolution.inverter_model) ?? 100,
-        accessoryRules,
-        standardGridTopology,
-        desiredFeatures,
-      });
-      return jsonResponse({ ...payload, microgridAlternative });
-    }
 
     return jsonResponse(payload);
   } catch (err) {

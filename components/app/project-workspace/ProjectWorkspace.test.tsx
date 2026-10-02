@@ -127,7 +127,6 @@ describe('ProjectWorkspace', () => {
           voltageV: 220,
           onGridPhases: 1,
           onGridApparentPowerVA: 5000,
-          isFundamentalRequirement: true,
           photoUrl: null,
           powerNoticeAcknowledged: true,
         },

@@ -511,9 +511,7 @@ function ProductsSection({
     (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
   );
   const metrics = solutionMetrics(solution, batteryCatalog);
-  const marginRows: MarginRow[] = solution.microgridAlternative
-    ? []
-    : buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
+  const marginRows: MarginRow[] = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
 
   const productLines: ReactElement<Parameters<typeof ProductLine>[0]>[] = [];
   productLines.push(

@@ -263,7 +263,7 @@ Deno.test('retries with the relaxed pool when the ESS rule rejects the strict po
   assertEquals(body.solutionId, 'sol-relaxed-only');
 });
 
-Deno.test('microgrid as a fundamental requirement with no compatible solution returns 422 blocking microgrid', async () => {
+Deno.test('microgrid with no compatible solution returns 422 blocking microgrid', async () => {
   const supabase = makeFakeSupabase({
     tableResults: {
       approved_solutions: { data: [makeSolutionRow({ rated_power_w: 3000, battery_power_w: 3000 })], error: null },
@@ -275,7 +275,7 @@ Deno.test('microgrid as a fundamental requirement with no compatible solution re
   const req = postRequest(
     makeOptions({
       desiredFeatures: ['microgrid'],
-      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: true },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000 },
     })
   );
   const res = await handleCalculateResidential(req, supabase);
@@ -334,17 +334,14 @@ Deno.test('a desired PV array too big for the cheapest inverter promotes to a bi
   assertEquals(body.solutionId, 'big');
 });
 
-Deno.test('microgrid as an optional extra surfaces a microgridAlternative instead of blocking', async () => {
-  const economic = makeSolutionRow({ id: 'economic', inverter_model: 'no-microgrid', rated_power_w: 3000, battery_power_w: 3000 });
-  const withMicrogrid = makeSolutionRow({
-    id: 'microgrid-capable',
-    inverter_model: 'has-microgrid',
-    rated_power_w: 8000,
-    battery_power_w: 8000,
-  });
+Deno.test('microgrid promotes to the smallest solution that stays strictly above the on-grid power, even when the legacy optional flag is sent', async () => {
+  // Smallest-first, same as the real strict query's ORDER BY rated_power_w ASC.
+  const noFlag = makeSolutionRow({ id: 'no-flag', inverter_model: 'no-microgrid', rated_power_w: 3000, battery_power_w: 3000 });
+  const equalToOnGrid = makeSolutionRow({ id: 'equal', inverter_model: 'has-microgrid', rated_power_w: 5000, battery_power_w: 5000 });
+  const bigger = makeSolutionRow({ id: 'bigger', inverter_model: 'has-microgrid', rated_power_w: 8000, battery_power_w: 8000 });
   const supabase = makeFakeSupabase({
     tableResults: {
-      approved_solutions: { data: [economic, withMicrogrid], error: null },
+      approved_solutions: { data: [noFlag, equalToOnGrid, bigger], error: null },
       inverters: {
         data: [
           { model: 'no-microgrid', flags: [], max_power_per_phase_w: null },
@@ -358,13 +355,13 @@ Deno.test('microgrid as an optional extra surfaces a microgridAlternative instea
   const req = postRequest(
     makeOptions({
       desiredFeatures: ['microgrid'],
-      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: false },
+      // Projects saved before microgrid became always-fundamental still carry this flag.
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, isFundamentalRequirement: false },
     })
   );
   const res = await handleCalculateResidential(req, supabase);
   assertEquals(res.status, 200);
   const body = await res.json();
-  assertEquals(body.solutionId, 'economic');
-  assertExists(body.microgridAlternative);
-  assertEquals(body.microgridAlternative.solutionId, 'microgrid-capable');
+  assertEquals(body.solutionId, 'bigger');
+  assertEquals(body.microgridAlternative, undefined);
 });

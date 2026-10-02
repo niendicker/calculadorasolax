@@ -1009,46 +1009,6 @@ describe('SinglePageApp: solution-dependent behavior', () => {
 
     expect(screen.getByRole('dialog', { name: 'Complete os dados da empresa' })).toBeInTheDocument();
   });
-
-  it('switches from the economic to the microgrid variant when chosen', async () => {
-    setupSupabase();
-    renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
-
-    const economic = makeSolution({ batteryModel: 'TP-HS3.6' });
-    const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
-    act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
-
-    await goToSizingViaProject();
-    await openWorkspaceSection('Solução');
-    await waitFor(() => expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument());
-
-    const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
-    fireEvent.click(within(microgridCard).getByRole('button', { name: 'Usar esta versão' }));
-
-    expect(useWizardStore.getState().solution?.batteryModel).toBe('TP-LD53');
-    expect(useWizardStore.getState().solution?.microgridAlternative).toBeUndefined();
-  });
-
-  it('keeps the economic variant when chosen, dropping the microgrid alternative', async () => {
-    setupSupabase();
-    renderApp();
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Projetos' })).toBeInTheDocument());
-
-    const economic = makeSolution({ batteryModel: 'TP-HS3.6' });
-    const microgrid = makeSolution({ batteryModel: 'TP-LD53', batteryQty: 2 });
-    act(() => { useWizardStore.setState({ solution: { ...economic, microgridAlternative: microgrid } }); });
-
-    await goToSizingViaProject();
-    await openWorkspaceSection('Solução');
-    await waitFor(() => expect(screen.getByText('Versão Econômica')).toBeInTheDocument());
-
-    const economicCard = screen.getByText('Versão Econômica').closest('.rounded-lg') as HTMLElement;
-    fireEvent.click(within(economicCard).getByRole('button', { name: 'Usar esta versão' }));
-
-    expect(useWizardStore.getState().solution?.batteryModel).toBe('TP-HS3.6');
-    expect(useWizardStore.getState().solution?.microgridAlternative).toBeUndefined();
-  });
 });
 
 describe('SinglePageApp: availableInverterModels / maxPowerPerPhaseW derivation', () => {
@@ -1437,7 +1397,7 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
         desiredFeatures: ['external_ats', 'microgrid', 'external_generator', 'pv', 'white_tariff'],
         atsPhotoUrl: 'ats.png',
         atsBackupAcknowledged: true,
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, photoUrl: null, powerNoticeAcknowledged: true },
         generator: { voltageV: 380, phases: 3, apparentPowerVA: 10000, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: true },
         pv: { monthlyConsumptionKwh: 500, hsp: 4 },
         whiteTariff: { requiredPowerW: 5000, pontaEnergyWh: 2000, intermediateEnergyWh: 1000, pontaTariffPerKwh: 1, intermediateTariffPerKwh: 0.9, foraPontaTariffPerKwh: 0.5 },

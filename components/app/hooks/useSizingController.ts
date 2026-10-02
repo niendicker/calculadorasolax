@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { uploadPublicAsset } from '@/lib/data/storage-repository';
-import type { ResidentialOptions, Solution } from '@/lib/types';
+import type { ResidentialOptions } from '@/lib/types';
 import { gridTypePhaseCount } from '@/lib/store/wizard-store';
 import { expansionModelSet } from '../helpers';
 import { availableInverterModelsFor, type ApprovedInverterCombo, type BatteryCatalogOption, type InverterCatalogOption, type InlineProfile } from '../types';
@@ -14,8 +14,6 @@ export function useSizingController({
   inverterCatalog,
   approvedInverterCombos,
   calculate,
-  solution,
-  setSolution,
   setSummaryDrawerOpen,
   setBatteryModel,
   setSecondaryBatteryModel,
@@ -31,8 +29,6 @@ export function useSizingController({
   inverterCatalog: InverterCatalogOption[];
   approvedInverterCombos: ApprovedInverterCombo[];
   calculate: () => void;
-  solution: Solution | null;
-  setSolution: (solution: Solution | null) => void;
   setSummaryDrawerOpen: (open: boolean) => void;
   setBatteryModel: (model: string | null) => void;
   setSecondaryBatteryModel: (model: string | null) => void;
@@ -72,15 +68,6 @@ export function useSizingController({
     if (defaultBattery) setBatteryModel(defaultBattery.model);
   }
 
-  function chooseMicrogridVariant(variant: 'economic' | 'microgrid') {
-    if (!solution?.microgridAlternative) return;
-    if (variant === 'economic') {
-      setSolution({ ...solution, microgridAlternative: undefined });
-    } else {
-      setSolution({ ...solution.microgridAlternative, microgridAlternative: undefined });
-    }
-  }
-
   async function uploadFeaturePhoto(file: File, slot: 'ats' | 'microgrid' | 'generator') {
     if (!profile) throw new Error('Não foi possível identificar o usuário.');
     const extension = file.name.split('.').pop();
@@ -101,7 +88,6 @@ export function useSizingController({
     setInverterModel,
     setMinInverterQty,
     resetResidentialToDefaults,
-    chooseMicrogridVariant,
     uploadFeaturePhoto,
     calculateAndShowSummary,
   };

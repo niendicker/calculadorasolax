@@ -51,7 +51,6 @@ import { gridLabels, topologyLabels } from '../types';
 import { cn } from '@/lib/utils';
 import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, marginRowIsInsufficient, normalizeAccessoryLine, servicePricingUnitLabel, solutionMetrics, type MissingCostItem } from '../helpers';
 import { CatalogProductCard, DocPreviewModal, MicrogridGuideDialog } from '../shared-ui';
-import { MicrogridVariantChoice } from '../tabs/sizing/ResultSummary';
 import { PageSummary } from '../shell/slots';
 import { ProjectInfoEditor } from './ProjectInfoEditor';
 import { ProjectInfoModal, type ProjectInfoEditField } from './ProjectInfoModal';
@@ -436,7 +435,6 @@ export function ProjectWorkspace({
   onAddToStock,
   onUpdateStockItemValue,
   onUpdateServiceValue,
-  onChooseMicrogridVariant,
   quoteProject,
   profile,
   userStockItems = [],
@@ -490,7 +488,6 @@ export function ProjectWorkspace({
   onAddToStock?: (input: { productType: StockProductType; productModel: string; unitValue: number }) => Promise<void>;
   onUpdateStockItemValue?: (id: string, unitValue: number) => Promise<void>;
   onUpdateServiceValue?: (id: string, unitValue: number) => Promise<void>;
-  onChooseMicrogridVariant?: (variant: 'economic' | 'microgrid') => void;
   quoteProject?: SavedProject;
   profile?: InlineProfile | null;
   userStockItems?: UserStockItem[];
@@ -935,7 +932,6 @@ export function ProjectWorkspace({
             nominalW={nominalW}
             peakW={peakW}
                 dailyKwh={dailyKwh}
-                onChooseMicrogridVariant={onChooseMicrogridVariant}
               />
         </>
       ) : section === 'budget' ? (
@@ -1062,7 +1058,6 @@ function SolutionSection({
   nominalW,
   peakW,
   dailyKwh,
-  onChooseMicrogridVariant,
 }: {
   solution: Solution | null;
   stale: boolean;
@@ -1076,13 +1071,12 @@ function SolutionSection({
   nominalW: number;
   peakW: number;
   dailyKwh: number;
-  onChooseMicrogridVariant?: (variant: 'economic' | 'microgrid') => void;
 }) {
   const [view, setView] = useState<'summary' | 'margins' | 'criteria'>('summary');
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const metrics = solution ? solutionMetrics(solution, batteryCatalog) : null;
-  const marginRows = solution && !solution.microgridAlternative
+  const marginRows = solution
     ? buildMarginSummary({
         desiredFeatures: residentialOptions.desiredFeatures,
         whiteTariff: residentialOptions.whiteTariff,
@@ -1103,17 +1097,6 @@ function SolutionSection({
     )
     : [];
 
-  if (solution?.microgridAlternative && onChooseMicrogridVariant) {
-    return (
-      <MicrogridVariantChoice
-        economic={solution}
-        withMicrogrid={solution.microgridAlternative}
-        onChoose={onChooseMicrogridVariant}
-        productMedia={productMedia}
-        batteryCatalog={batteryCatalog}
-      />
-    );
-  }
   const accessoryGroups = solution
     ? [
         { title: 'Inclusos no Inversor ou Bateria', items: solution.accessories.map(normalizeAccessoryLine).filter((item) => item.bundled) },

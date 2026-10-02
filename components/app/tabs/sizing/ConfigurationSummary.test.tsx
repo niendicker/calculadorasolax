@@ -133,7 +133,7 @@ describe('ConfigurationSummary', () => {
       residentialOptions: {
         ...baseResidentialOptions,
         desiredFeatures: ['microgrid'],
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, photoUrl: null, powerNoticeAcknowledged: true },
       },
     });
     expect(screen.getByText('Ativado · 5.0 kW')).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('ConfigurationSummary', () => {
       residentialOptions: {
         ...baseResidentialOptions,
         desiredFeatures: ['microgrid'],
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 0, photoUrl: null, powerNoticeAcknowledged: true },
       },
     });
     expect(screen.getAllByText('Ativado').length).toBeGreaterThan(0);

@@ -125,20 +125,6 @@ export interface InverterCapabilities {
   max_power_per_phase_w: number | null;
 }
 
-/** Whether microgrid should be enforced as a hard filter on the baseline
- * recommendation, or left out of it (to be offered as a separate
- * microgridAlternative by resolveMicrogridSelection instead). Only relevant
- * when 'microgrid' is actually a desired feature — otherwise it's a no-op. */
-export function computeHardFilterFeatures(
-  desiredFeatures: DesiredFeatureId[],
-  microgridIsFundamental: boolean
-): DesiredFeatureId[] {
-  const microgridSelected = desiredFeatures.includes('microgrid');
-  return microgridSelected && !microgridIsFundamental
-    ? desiredFeatures.filter((feature) => feature !== 'microgrid')
-    : desiredFeatures;
-}
-
 /** Narrows compatibleSolutions to those whose inverter satisfies every
  * requiredFlags entry. `blocked` is true when that leaves nothing — the
  * caller is expected to then compute blockingDesiredFeatures for the error
@@ -191,23 +177,17 @@ export function filterSolutionsByPvCapacity(
   return { compatibleSolutions: filtered, blocked: filtered.length === 0 };
 }
 
-/** Decides how microgrid compatibility affects the final solution set, given
- * compatibleSolutions already ranked best-first by every other requirement:
- * - When microgrid is a hard requirement, it's enforced directly — the
- *   returned compatibleSolutions become the microgrid-compatible subset
- *   (`blocked: true` when that subset is empty, meaning no solution can
- *   satisfy it at all).
- * - Otherwise compatibleSolutions is left untouched (microgrid was excluded
- *   from the baseline's hard filters upstream, by computeHardFilterFeatures)
- *   and, if the best microgrid-compatible candidate differs from the best
- *   overall one, it's surfaced separately as microgridAlternativeSolution —
- *   never blocking in this branch. */
+/** Enforces microgrid compatibility as a hard requirement: selecting
+ * Microrrede always means the solution must coexist with the existing
+ * on-grid system, even if that forces a bigger system. Keeps the
+ * best-first order of compatibleSolutions, so the first survivor is the
+ * smallest solution that satisfies every requirement including microgrid.
+ * `blocked: true` when no candidate can support the on-grid system. */
 export function resolveMicrogridSelection(
   compatibleSolutions: ApprovedSolution[],
   microgridConfig: MicrogridConfig,
-  microgridIsFundamental: boolean,
   candidateInverters: InverterCapabilities[]
-): { compatibleSolutions: ApprovedSolution[]; microgridAlternativeSolution: ApprovedSolution | null; blocked: boolean } {
+): { compatibleSolutions: ApprovedSolution[]; blocked: boolean } {
   const inverterByModel = new Map(candidateInverters.map((inverter) => [inverter.model, inverter]));
   const microgridCompatibleSolutions = compatibleSolutions.filter((candidate) => {
     const inverter = inverterByModel.get(candidate.inverter_model);
@@ -216,17 +196,7 @@ export function resolveMicrogridSelection(
     return solutionSupportsMicrogrid(candidate, inverter.max_power_per_phase_w, microgridConfig);
   });
 
-  if (microgridIsFundamental) {
-    if (!microgridCompatibleSolutions.length) {
-      return { compatibleSolutions, microgridAlternativeSolution: null, blocked: true };
-    }
-    return { compatibleSolutions: microgridCompatibleSolutions, microgridAlternativeSolution: null, blocked: false };
-  }
-
-  const economicTop = compatibleSolutions[0];
-  const microgridTop = microgridCompatibleSolutions[0] ?? null;
-  const microgridAlternativeSolution = microgridTop && microgridTop.id !== economicTop.id ? microgridTop : null;
-  return { compatibleSolutions, microgridAlternativeSolution, blocked: false };
+  return { compatibleSolutions: microgridCompatibleSolutions, blocked: microgridCompatibleSolutions.length === 0 };
 }
 
 /** Mirrors lib/types.ts WhiteTariffConfig. */
@@ -251,7 +221,6 @@ export interface MicrogridConfig {
   voltageV: number;
   onGridPhases: 1 | 2 | 3;
   onGridApparentPowerVA: number;
-  isFundamentalRequirement: boolean;
   photoUrl?: string | null;
   powerNoticeAcknowledged?: boolean;
 }
@@ -873,9 +842,6 @@ export function validateResidentialOptions(raw: unknown): string[] {
       }
       if (typeof microgrid.onGridApparentPowerVA !== 'number' || microgrid.onGridApparentPowerVA <= 0) {
         errors.push('microgrid.onGridApparentPowerVA must be a number > 0');
-      }
-      if (typeof microgrid.isFundamentalRequirement !== 'boolean') {
-        errors.push('microgrid.isFundamentalRequirement must be a boolean');
       }
     }
   }
