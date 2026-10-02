@@ -630,7 +630,6 @@ export function SinglePageApp() {
     setInverterModel: setSizingInverterModel,
     setMinInverterQty: setSizingMinInverterQty,
     resetResidentialToDefaults,
-    chooseMicrogridVariant,
     uploadFeaturePhoto,
     calculateAndShowSummary,
   } = useSizingController({
@@ -641,8 +640,6 @@ export function SinglePageApp() {
     inverterCatalog,
     approvedInverterCombos,
     calculate,
-    solution,
-    setSolution,
     setSummaryDrawerOpen,
     setBatteryModel,
     setSecondaryBatteryModel,
@@ -1194,7 +1191,6 @@ export function SinglePageApp() {
               onOpenProfile={openProfile}
               onManagePortfolio={openPortfolioTab}
               onOpenBudget={openWorkspaceBudget}
-              onChooseMicrogridVariant={chooseMicrogridVariant}
               onGenerateReport={exportPdf}
               generatingReport={exportingPdf}
               lastReport={lastReport}
@@ -1254,7 +1250,6 @@ export function SinglePageApp() {
                 services={services}
                 userServices={userServices}
                 marginSettings={marginSettings}
-                onChooseMicrogridVariant={chooseMicrogridVariant}
                 summaryDrawerOpen={summaryDrawerOpen}
                 initialActiveItem={workspaceResource}
                 onBackToWorkspace={workspaceReturnAvailable ? returnToWorkspace : undefined}

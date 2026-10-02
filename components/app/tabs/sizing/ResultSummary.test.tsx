@@ -2,7 +2,7 @@
 
 import { NextIntlClientProvider } from 'next-intl';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import ptMessages from '@/messages/pt.json';
 import type {
   DesiredFeatureId,
@@ -91,7 +91,6 @@ function renderResult(overrides: Partial<React.ComponentProps<typeof ResultSumma
     marginSettings: zeroMargin,
     whiteTariff: null,
     pv: null,
-    onChooseMicrogridVariant: vi.fn(),
     desiredFeatures: [] as DesiredFeatureId[],
     microgrid: null as MicrogridConfig | null,
     nominalW: 5000,
@@ -347,59 +346,10 @@ describe('ResultSummary: margin summary', () => {
       solution: { ...baseSolution, pvPowerKw: 3, pvMonthlyGenerationKwh: 300, batteryPowerW: 2000 },
       desiredFeatures: ['pv', 'microgrid'],
       pv: { monthlyConsumptionKwh: 400, hsp: 4 },
-      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 3000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 3000, photoUrl: null, powerNoticeAcknowledged: true },
     });
     expect(screen.getByText('Geração FV')).toBeInTheDocument();
     expect(screen.getByText('Microrrede (inversor)')).toBeInTheDocument();
     expect(screen.getByText('Microrrede (bateria)')).toBeInTheDocument();
-  });
-});
-
-describe('ResultSummary: microgrid variant choice', () => {
-  const withMicrogrid: Omit<Solution, 'microgridAlternative'> = {
-    ...baseSolution,
-    inverterModel: 'X1-Hybrid-8.0kW-G4',
-    batteryQty: 2,
-    inverterQty: 1,
-  };
-
-  it('renders both options and calls onChoose with the selected variant', () => {
-    const onChooseMicrogridVariant = vi.fn();
-    renderResult({
-      solution: { ...baseSolution, microgridAlternative: withMicrogrid },
-      onChooseMicrogridVariant,
-    });
-    expect(screen.getByText('Versão Econômica')).toBeInTheDocument();
-    expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument();
-    const buttons = screen.getAllByText('Usar esta versão');
-    fireEvent.click(buttons[1]);
-    expect(onChooseMicrogridVariant).toHaveBeenCalledWith('microgrid');
-    fireEvent.click(buttons[0]);
-    expect(onChooseMicrogridVariant).toHaveBeenCalledWith('economic');
-  });
-
-  it('shows a multi-part battery description when the variant splits across master+expansion', () => {
-    const master: BatteryCatalogOption = { ...battery, id: 'bm', model: 'MASTER', expansionModel: 'SLAVE' };
-    const slave: BatteryCatalogOption = { ...battery, id: 'bs', model: 'SLAVE' };
-    renderResult({
-      solution: {
-        ...baseSolution,
-        batteryModel: 'MASTER',
-        batteryQty: 2,
-        microgridAlternative: { ...withMicrogrid, batteryModel: 'MASTER', batteryQty: 2 },
-      },
-      batteryCatalog: [master, slave],
-    });
-    expect(screen.getAllByText(/MASTER/).length).toBeGreaterThan(0);
-  });
-
-  it('shows nicknames from productMedia in the variant choice cards', () => {
-    renderResult({
-      solution: { ...baseSolution, microgridAlternative: withMicrogrid },
-      productMedia: {
-        'X1-Hybrid-5.0kW-G4': { model: 'X1-Hybrid-5.0kW-G4', nickname: 'Econômico Nick', imageUrl: null, documents: [] },
-      },
-    });
-    expect(screen.getByText(/Econômico Nick/)).toBeInTheDocument();
   });
 });

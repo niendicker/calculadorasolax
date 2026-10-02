@@ -44,9 +44,12 @@
 # outside those entries is touched.
 #
 # Requires .env.tunnel.local at the repo root (same file db-push-tunnel.sh
-# uses) — only SSH_HOST is needed here, defaulting to "hostinger" like that
-# script. EDGE_CONTAINER and FUNCTIONS_VOLUME are auto-discovered but can be
-# overridden in the same file.
+# uses) — SSH_HOST defaults to "hostinger" like that script. EDGE_CONTAINER
+# picks the target stack's Edge Runtime container: the host runs several
+# Supabase stacks, so when it's unset the script lists the running ones
+# (with their Coolify project names) and asks — or, without a terminal or
+# with --yes, refuses and prints the list. FUNCTIONS_VOLUME is discovered
+# from that container but can be overridden in the same file.
 #
 # The SSH user needs: docker CLI access (same as db-push-tunnel.sh already
 # assumes) and sudo rights to read/write inside the functions volume and
@@ -118,14 +121,58 @@ confirm() {
   esac
 }
 
-if [ -z "$EDGE_CONTAINER" ]; then
-  echo "Discovering the remote Edge Runtime container..."
-  EDGE_CONTAINER=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
-    "docker ps --filter 'name=^supabase-edge-functions-' --format '{{.Names}}' | head -n 1")
-fi
-if [ -z "$EDGE_CONTAINER" ]; then
+# The host runs more than one Supabase stack (one per Coolify project), so
+# the container is never guessed: it comes from EDGE_CONTAINER, or the user
+# picks it from a list labeled with each stack's Coolify project/resource.
+echo "Listing remote Edge Runtime containers..."
+EDGE_CANDIDATES=()
+EDGE_LABELS=()
+while IFS=$'\t' read -r name project resource environment; do
+  [ -n "$name" ] || continue
+  EDGE_CANDIDATES+=("$name")
+  EDGE_LABELS+=("projeto: ${project:-?} · recurso: ${resource:-?} · ambiente: ${environment:-?}")
+done < <(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+  "docker ps --filter 'name=^supabase-edge-functions-' --format '{{.Names}}\t{{.Label \"coolify.projectName\"}}\t{{.Label \"coolify.resourceName\"}}\t{{.Label \"coolify.environmentName\"}}'")
+
+if [ "${#EDGE_CANDIDATES[@]}" -eq 0 ]; then
   echo "Error: no running supabase-edge-functions-* container was found on $SSH_HOST." >&2
-  echo "Set EDGE_CONTAINER in $ENV_FILE or verify the Supabase stack." >&2
+  echo "Verify the Supabase stack." >&2
+  exit 1
+fi
+
+print_edge_candidates() {
+  local i
+  for i in "${!EDGE_CANDIDATES[@]}"; do
+    printf '  %d) %s\n     %s\n' "$((i + 1))" "${EDGE_CANDIDATES[$i]}" "${EDGE_LABELS[$i]}"
+  done
+}
+
+if [ -n "$EDGE_CONTAINER" ]; then
+  found=false
+  for candidate in "${EDGE_CANDIDATES[@]}"; do
+    [ "$candidate" = "$EDGE_CONTAINER" ] && found=true
+  done
+  if [ "$found" = false ]; then
+    echo "Error: EDGE_CONTAINER=$EDGE_CONTAINER is not a running Edge Runtime container on $SSH_HOST." >&2
+    echo "Running containers:" >&2
+    print_edge_candidates >&2
+    exit 1
+  fi
+elif [ -t 0 ] && [ "$ASSUME_YES" = false ]; then
+  echo "EDGE_CONTAINER is not set. Choose the Edge Runtime container:"
+  print_edge_candidates
+  read -r -p "Number [1-${#EDGE_CANDIDATES[@]}]: " choice
+  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#EDGE_CANDIDATES[@]}" ]; then
+    echo "Invalid choice." >&2
+    exit 1
+  fi
+  EDGE_CONTAINER="${EDGE_CANDIDATES[$((choice - 1))]}"
+  echo "Tip: set EDGE_CONTAINER=$EDGE_CONTAINER in $ENV_FILE to skip this prompt."
+  echo
+else
+  echo "Error: EDGE_CONTAINER is not set and there is no terminal to choose one (or --yes was passed)." >&2
+  echo "Set EDGE_CONTAINER in $ENV_FILE to one of:" >&2
+  print_edge_candidates >&2
   exit 1
 fi
 

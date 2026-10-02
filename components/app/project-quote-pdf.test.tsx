@@ -139,7 +139,7 @@ describe('buildProjectQuotePdfBlob', () => {
           foraPontaTariffPerKwh: 0.6,
           totalMonthlyConsumptionKwh: 400,
         },
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: true, photoUrl: 'x', powerNoticeAcknowledged: false },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, photoUrl: 'x', powerNoticeAcknowledged: false },
         generator: { voltageV: 220, phases: 1, apparentPowerVA: 5000, photoUrl: 'x', ownAtsAcknowledged: true },
         atsPhotoUrl: 'x',
         atsBackupAcknowledged: true,

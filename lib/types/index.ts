@@ -115,12 +115,6 @@ export interface MicrogridConfig {
   onGridPhases: 1 | 2 | 3;
   /** Apparent power of the existing on-grid system (VA). */
   onGridApparentPowerVA: number;
-  /** When true, microgrid compatibility is enforced even if it forces a bigger
-   * system; when false, the app offers a choice between the smallest solution
-   * and the smallest one that also supports microgrid (see Solution.microgridAlternative).
-   * The wizard always creates new configs with this set to true — false only
-   * ever occurs in projects saved before that was the case. */
-  isFundamentalRequirement: boolean;
   /** Optional reference photo of the existing on-grid installation, uploaded by the user. */
   photoUrl: string | null;
   /** User confirms they're aware the on-grid system's power must be lower than
@@ -499,10 +493,6 @@ export interface Solution {
   solutionCode?: string;
   sourceFile?: string;
   comments?: string[];
-  /** Present only when 'microgrid' is selected as a non-fundamental requirement
-   * and the microgrid-compatible solution differs from this one — the primary
-   * Solution is the "Versão Econômica", this is the "Versão c/ Microrrede". */
-  microgridAlternative?: Omit<Solution, 'microgridAlternative'>;
 }
 
 export interface SavedProject {

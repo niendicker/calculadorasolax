@@ -140,7 +140,7 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
       activeTab: 'microgrid',
       value: ['microgrid'],
       onMicrogridChange,
-      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 0, photoUrl: null, powerNoticeAcknowledged: true },
     });
     fireEvent.click(screen.getByText('Habilitado'));
     expect(onMicrogridChange).toHaveBeenCalledWith(null);
@@ -510,7 +510,6 @@ describe('DesiredFeaturesPicker: microgrid tab', () => {
     voltageV: 220,
     onGridPhases: 1,
     onGridApparentPowerVA: 5000,
-    isFundamentalRequirement: true,
     photoUrl: null,
     powerNoticeAcknowledged: true,
   };

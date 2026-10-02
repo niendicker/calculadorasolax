@@ -34,7 +34,6 @@ function setup() {
     setMinInverterQty: vi.fn(),
     setMaxPowerPerPhaseW: vi.fn(),
     resetResidential: vi.fn(),
-    setSolution: vi.fn(),
     setSummaryDrawerOpen: vi.fn(),
   };
   const calculate = vi.fn();
@@ -47,7 +46,6 @@ function setup() {
       inverterCatalog: [],
       approvedInverterCombos: [],
       calculate,
-      solution: null,
       ...setters,
     })
   );

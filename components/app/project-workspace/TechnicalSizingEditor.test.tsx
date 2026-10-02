@@ -127,7 +127,6 @@ function setup(overrides: Record<string, unknown> = {}) {
     productMedia: {},
     userStockItems: [] as UserStockItem[],
     marginSettings: { inverterPercent: 0, batteryPercent: 0, accessoryPercent: 0 } as MarginSettings,
-    onChooseMicrogridVariant: vi.fn(),
     summaryDrawerOpen: false,
     ...overrides,
   };
@@ -887,7 +886,6 @@ describe('SizingTab: funcionalidades desejadas', () => {
           voltageV: 220,
           onGridPhases: 1,
           onGridApparentPowerVA: 500,
-          isFundamentalRequirement: true,
           photoUrl: null,
           powerNoticeAcknowledged: true,
         },
@@ -906,7 +904,6 @@ describe('SizingTab: funcionalidades desejadas', () => {
           voltageV: 380,
           onGridPhases: 3,
           onGridApparentPowerVA: 500,
-          isFundamentalRequirement: true,
           photoUrl: null,
           powerNoticeAcknowledged: true,
         },
@@ -1024,7 +1021,7 @@ describe('SizingTab: funcionalidades desejadas', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Microrrede/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
     expect(props.setMicrogridConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ onGridPhases: 1, voltageV: 220, isFundamentalRequirement: true })
+      expect.objectContaining({ onGridPhases: 1, voltageV: 220 })
     );
   });
 
@@ -1361,7 +1358,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
 
   it('updates microgrid voltage when trifásico is already selected', () => {
     const props = enable(/^Microrrede/, 'microgrid', {
-      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Tensão do sistema ongrid' })).getByRole('radio', { name: '380V' }));
     expect(props.setMicrogridConfig).toHaveBeenCalledWith(expect.objectContaining({ voltageV: 380 }));
@@ -1376,7 +1373,6 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
           voltageV: 220,
           onGridPhases: 3,
           onGridApparentPowerVA: 5000,
-          isFundamentalRequirement: true,
           photoUrl: null,
           powerNoticeAcknowledged: false,
         },
@@ -1513,7 +1509,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   it('still warns for microgrid when the mismatch is not the documented exception, stating the correct selection', () => {
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'singlePhase_220',
-      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     expect(
       screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\)\. Selecione Monofásico e 220V/)
@@ -1525,7 +1521,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   it('mentions the documented microgrid exception when the network would allow it, alongside the exact match', () => {
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'threePhase_380',
-      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     expect(
       screen.getByText(/Selecione Trifásico e 380V \(ou Monofásico 220V, aceito como exceção para microrrede\)/)
@@ -1539,7 +1535,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     // detour, so no phase option should be highlighted, only the voltage.
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'threePhase_380',
-      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     const phaseRadios = within(screen.getByRole('radiogroup', { name: 'Fases do sistema ongrid' })).getAllByRole('radio');
     for (const radio of phaseRadios) {
@@ -1554,7 +1550,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
   it('highlights both the network phase and the documented 1-phase exception for microgrid, but not the current selection', () => {
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'threePhase_380',
-      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, isFundamentalRequirement: true, photoUrl: null },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     const phaseGroup = screen.getByRole('radiogroup', { name: 'Fases do sistema ongrid' });
     const threePhaseOption = within(phaseGroup).getByRole('radio', { name: 'Trifásico' });
@@ -2238,31 +2234,6 @@ describe('SizingTab: Solução tab accessories and microgrid variant choice', ()
     });
     const accessoriesSection = screen.getByText('Acessórios').closest('div') as HTMLElement;
     expect(within(accessoriesSection).getByText('Mede o consumo em tempo real.')).toBeInTheDocument();
-  });
-
-  it('lets the user choose between the economic and microgrid variants', () => {
-    const microgridSolution: Solution = { ...fakeSolution, inverterModel: 'X1-MG', batteryQty: 2 };
-    const economicSolution: Solution = { ...fakeSolution, microgridAlternative: microgridSolution };
-    const { props } = setup({ solution: economicSolution });
-
-    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
-    expect(screen.getByText('Versão Econômica')).toBeInTheDocument();
-    expect(screen.getByText('Versão c/ Microrrede')).toBeInTheDocument();
-
-    const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
-    fireEvent.click(within(microgridCard).getByRole('button', { name: 'Usar esta versão' }));
-    expect(props.onChooseMicrogridVariant).toHaveBeenCalledWith('microgrid');
-  });
-
-  it('shows a joined "qty x model" list for the microgrid variant when it needs a battery expansion', () => {
-    const masterBattery: BatteryCatalogOption = { ...battery, model: 'T58 Master', expansionModel: 'T58 Slave' };
-    const microgridSolution: Solution = { ...fakeSolution, batteryModel: 'T58 Master', batteryQty: 3 };
-    const economicSolution: Solution = { ...fakeSolution, batteryModel: 'T58 Master', batteryQty: 1, microgridAlternative: microgridSolution };
-    setup({ solution: economicSolution, batteryCatalog: [masterBattery, lvBattery] });
-
-    fireEvent.click(screen.getByRole('tab', { name: /^Solução/ }));
-    const microgridCard = screen.getByText('Versão c/ Microrrede').closest('.rounded-lg') as HTMLElement;
-    expect(within(microgridCard).getByText('1× T58 Master + 2× T58 Slave')).toBeInTheDocument();
   });
 
   it('falls back to the inverter value alone when the battery is missing from the catalog', () => {

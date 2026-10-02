@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Battery, BatteryCharging, ChevronDown, Gauge, Package, Plug, Sun, TrendingUp, Wallet, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { batteryQuantityBreakdown } from '@/lib/battery-quantity-breakdown';
 import type {
   DesiredFeatureId,
@@ -159,7 +158,6 @@ export function ResultSummary({
   marginSettings,
   whiteTariff,
   pv,
-  onChooseMicrogridVariant,
   desiredFeatures,
   microgrid,
   nominalW,
@@ -178,7 +176,6 @@ export function ResultSummary({
   marginSettings: MarginSettings;
   whiteTariff: WhiteTariffConfig | null;
   pv: PvConfig | null;
-  onChooseMicrogridVariant: (variant: 'economic' | 'microgrid') => void;
   desiredFeatures: DesiredFeatureId[];
   microgrid: MicrogridConfig | null;
   nominalW: number;
@@ -232,18 +229,6 @@ export function ResultSummary({
         paybackMonths % 12 ? ` e ${paybackMonths % 12} ${paybackMonths % 12 === 1 ? 'mês' : 'meses'}` : ''
       }`
     : null;
-
-  if (solution.microgridAlternative) {
-    return (
-      <MicrogridVariantChoice
-        economic={solution}
-        withMicrogrid={solution.microgridAlternative}
-        onChoose={onChooseMicrogridVariant}
-        productMedia={productMedia}
-        batteryCatalog={batteryCatalog}
-      />
-    );
-  }
 
   const marginRows = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
 
@@ -489,86 +474,6 @@ export function ResultSummary({
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
       <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
-    </div>
-  );
-}
-
-export function MicrogridVariantChoice({
-  economic,
-  withMicrogrid,
-  onChoose,
-  productMedia,
-  batteryCatalog,
-}: {
-  economic: Solution;
-  withMicrogrid: Solution;
-  onChoose: (variant: 'economic' | 'microgrid') => void;
-  productMedia: Record<string, ProductMedia>;
-  batteryCatalog: BatteryCatalogOption[];
-}) {
-  const options: { variant: 'economic' | 'microgrid'; label: string; description: string; solution: Solution }[] = [
-    {
-      variant: 'economic',
-      label: 'Versão Econômica',
-      description: 'Menor sistema que atende às cargas e demais funcionalidades, sem garantir a microrrede.',
-      solution: economic,
-    },
-    {
-      variant: 'microgrid',
-      label: 'Versão c/ Microrrede',
-      description: 'Sistema dimensionado para suportar o sistema ongrid junto com a microrrede.',
-      solution: withMicrogrid,
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-        <p className="text-sm font-medium">Escolha uma versão do sistema</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          A Microrrede não é um requisito fundamental e exigi-la deixaria o sistema maior que o necessário. Compare
-          as duas opções abaixo e escolha qual usar.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {options.map((option) => {
-          const batteryParts = batteryQuantityBreakdown(
-            option.solution.batteryModel,
-            option.solution.batteryQty,
-            batteryCatalog,
-            (option.solution.inverterQty ?? 1) * (option.solution.batteryPortsUsed ?? 1)
-          );
-          return (
-            <div key={option.variant} className="flex flex-col gap-3 rounded-lg border bg-background p-3">
-              <div>
-                <p className="text-sm font-semibold">{option.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Inversor</p>
-                  <p className="font-medium">
-                    {productMedia[option.solution.inverterModel]?.nickname || option.solution.inverterModel} · x
-                    {option.solution.inverterQty ?? 1}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bateria</p>
-                  <p className="font-medium">
-                    {batteryParts.length > 1
-                      ? batteryParts.map((part) => `${part.qty}× ${productMedia[part.model]?.nickname || part.model}`).join(' + ')
-                      : `${productMedia[option.solution.batteryModel]?.nickname || option.solution.batteryModel} · x${option.solution.batteryQty}`}
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" onClick={() => onChoose(option.variant)}>
-                Usar esta versão
-              </Button>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

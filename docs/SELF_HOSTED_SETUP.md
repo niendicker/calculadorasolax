@@ -166,7 +166,10 @@ local em vez de baixar do Cloud:
 
 ```bash
 # No servidor onde a stack self-hosted roda (via SSH), com sudo para o Docker.
-EDGE_CONTAINER=$(sudo docker ps --format '{{.Names}}' | grep '^supabase-edge-functions-' | head -1)
+# O servidor roda mais de uma stack Supabase: filtre pelo projeto do Coolify,
+# nunca pegue o primeiro container da lista.
+EDGE_CONTAINER=$(sudo docker ps --filter 'name=^supabase-edge-functions-' \
+  --filter 'label=coolify.projectName=calculadora' --format '{{.Names}}')
 
 FUNCTIONS_VOLUME=$(sudo docker inspect "$EDGE_CONTAINER" \
   --format '{{range .Mounts}}{{if eq .Destination "/home/deno/functions"}}{{println .Source}}{{end}}{{end}}' \

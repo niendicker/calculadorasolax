@@ -50,7 +50,6 @@ function makeMicrogrid(partial: Partial<MicrogridConfig> = {}): MicrogridConfig 
     voltageV: 220,
     onGridPhases: 1,
     onGridApparentPowerVA: 1000,
-    isFundamentalRequirement: true,
     photoUrl: null,
     powerNoticeAcknowledged: false,
     ...partial,
@@ -250,7 +249,7 @@ describe('buildMarginSummary', () => {
     const rows = buildMarginSummary({
       desiredFeatures: ['microgrid'],
       whiteTariff: null,
-      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, photoUrl: null, powerNoticeAcknowledged: false },
       pv: null,
       nominalW: 3000,
       peakW: 6000,
@@ -277,7 +276,7 @@ describe('buildMarginSummary', () => {
     const rows = buildMarginSummary({
       desiredFeatures: [],
       whiteTariff: null,
-      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, photoUrl: null, powerNoticeAcknowledged: false },
       pv: null,
       nominalW: 3000,
       peakW: 6000,
@@ -341,7 +340,7 @@ describe('solutionHasInsufficientMargin', () => {
       solutionHasInsufficientMargin(microgridSolution, {
         ...params,
         desiredFeatures: ['microgrid'],
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 2000, photoUrl: null, powerNoticeAcknowledged: true },
       })
     ).toBe(true);
   });

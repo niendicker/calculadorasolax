@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   blockingDesiredFeatures,
   buildSolutionPayload,
-  computeHardFilterFeatures,
   computePvMonthlyGenerationKwh,
   computePvPowerKw,
   desiredPvPowerKw,
@@ -829,24 +828,6 @@ describe('blockingDesiredFeatures', () => {
   });
 });
 
-describe('computeHardFilterFeatures', () => {
-  it('leaves desiredFeatures untouched when microgrid is not selected', () => {
-    expect(computeHardFilterFeatures(['backup', 'pv'], false)).toEqual(['backup', 'pv']);
-  });
-
-  it('drops microgrid when it is selected but not a fundamental requirement', () => {
-    expect(computeHardFilterFeatures(['backup', 'microgrid'], false)).toEqual(['backup']);
-  });
-
-  it('keeps microgrid when it is a fundamental requirement', () => {
-    expect(computeHardFilterFeatures(['backup', 'microgrid'], true)).toEqual(['backup', 'microgrid']);
-  });
-
-  it('is a no-op when microgrid is fundamental but not actually selected', () => {
-    expect(computeHardFilterFeatures(['backup'], true)).toEqual(['backup']);
-  });
-});
-
 describe('filterSolutionsByRequiredFlags', () => {
   function makeInverter(partial: Partial<InverterCapabilities> = {}): InverterCapabilities {
     return { model: 'X1-Hybrid-5.0-D', flags: [], max_power_per_phase_w: null, ...partial };
@@ -942,7 +923,6 @@ describe('solutionSupportsMicrogrid', () => {
     return {
       onGridPhases: 1,
       onGridApparentPowerVA: 1000,
-      isFundamentalRequirement: false,
       ...partial,
     };
   }
@@ -983,7 +963,6 @@ describe('resolveMicrogridSelection', () => {
     return {
       onGridPhases: 1,
       onGridApparentPowerVA: 1000,
-      isFundamentalRequirement: false,
       ...partial,
     };
   }
@@ -992,77 +971,27 @@ describe('resolveMicrogridSelection', () => {
     return { model: 'X1-Hybrid-5.0-D', flags: ['microgrid'], max_power_per_phase_w: null, ...partial };
   }
 
-  describe('when microgrid is a fundamental requirement', () => {
-    it('narrows compatibleSolutions to the microgrid-compatible subset', () => {
-      const compatible = makeSolution({ id: 's1', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
-      const incompatible = makeSolution({ id: 's2', inverter_model: 'no-flag', rated_power_w: 8000, battery_power_w: 8000 });
-      const inverters = [makeInverter({ model: 'ok' }), makeInverter({ model: 'no-flag', flags: [] })];
-      const microgrid = makeMicrogrid({ isFundamentalRequirement: true, onGridApparentPowerVA: 1000 });
+  it('narrows compatibleSolutions to the microgrid-compatible subset, keeping the best-first order', () => {
+    const tooSmall = makeSolution({ id: 's1', inverter_model: 'ok', rated_power_w: 3000, battery_power_w: 3000 });
+    const noFlag = makeSolution({ id: 's2', inverter_model: 'no-flag', rated_power_w: 8000, battery_power_w: 8000 });
+    const smallestCompatible = makeSolution({ id: 's3', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
+    const largerCompatible = makeSolution({ id: 's4', inverter_model: 'ok', rated_power_w: 10000, battery_power_w: 10000 });
+    const inverters = [makeInverter({ model: 'ok' }), makeInverter({ model: 'no-flag', flags: [] })];
+    const microgrid = makeMicrogrid({ onGridApparentPowerVA: 5000 });
 
-      expect(resolveMicrogridSelection([compatible, incompatible], microgrid, true, inverters)).toEqual({
-        compatibleSolutions: [compatible],
-        microgridAlternativeSolution: null,
-        blocked: false,
-      });
-    });
-
-    it('reports blocked when nothing satisfies microgrid, instead of falling back silently', () => {
-      const solution = makeSolution({ id: 's1', inverter_model: 'no-flag' });
-      const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
-      const microgrid = makeMicrogrid({ isFundamentalRequirement: true });
-
-      expect(resolveMicrogridSelection([solution], microgrid, true, inverters)).toEqual({
-        compatibleSolutions: [solution],
-        microgridAlternativeSolution: null,
-        blocked: true,
-      });
+    expect(resolveMicrogridSelection([tooSmall, noFlag, smallestCompatible, largerCompatible], microgrid, inverters)).toEqual({
+      compatibleSolutions: [smallestCompatible, largerCompatible],
+      blocked: false,
     });
   });
 
-  describe('when microgrid is optional', () => {
-    it('leaves compatibleSolutions untouched and never blocks', () => {
-      const economicTop = makeSolution({ id: 's1', inverter_model: 'no-flag' });
-      const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
-      const microgrid = makeMicrogrid({ isFundamentalRequirement: false });
+  it('reports blocked when nothing satisfies microgrid, instead of falling back silently', () => {
+    const solution = makeSolution({ id: 's1', inverter_model: 'no-flag' });
+    const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
 
-      expect(resolveMicrogridSelection([economicTop], microgrid, false, inverters)).toEqual({
-        compatibleSolutions: [economicTop],
-        microgridAlternativeSolution: null,
-        blocked: false,
-      });
-    });
-
-    it('surfaces the best microgrid-compatible solution as an alternative when it differs from the top pick', () => {
-      const economicTop = makeSolution({ id: 's1', inverter_model: 'no-flag', rated_power_w: 5000, battery_power_w: 5000 });
-      const microgridCandidate = makeSolution({ id: 's2', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
-      const inverters = [makeInverter({ model: 'no-flag', flags: [] }), makeInverter({ model: 'ok' })];
-      const microgrid = makeMicrogrid({ isFundamentalRequirement: false, onGridApparentPowerVA: 1000 });
-
-      expect(resolveMicrogridSelection([economicTop, microgridCandidate], microgrid, false, inverters)).toEqual({
-        compatibleSolutions: [economicTop, microgridCandidate],
-        microgridAlternativeSolution: microgridCandidate,
-        blocked: false,
-      });
-    });
-
-    it('does not surface an alternative when the best microgrid-compatible solution is already the top pick', () => {
-      const economicTop = makeSolution({ id: 's1', inverter_model: 'ok', rated_power_w: 8000, battery_power_w: 8000 });
-      const inverters = [makeInverter({ model: 'ok' })];
-      const microgrid = makeMicrogrid({ isFundamentalRequirement: false, onGridApparentPowerVA: 1000 });
-
-      expect(resolveMicrogridSelection([economicTop], microgrid, false, inverters)).toEqual({
-        compatibleSolutions: [economicTop],
-        microgridAlternativeSolution: null,
-        blocked: false,
-      });
-    });
-
-    it('does not surface an alternative when no candidate is microgrid-compatible', () => {
-      const economicTop = makeSolution({ id: 's1', inverter_model: 'no-flag' });
-      const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
-      const microgrid = makeMicrogrid({ isFundamentalRequirement: false });
-
-      expect(resolveMicrogridSelection([economicTop], microgrid, false, inverters).microgridAlternativeSolution).toBeNull();
+    expect(resolveMicrogridSelection([solution], makeMicrogrid(), inverters)).toEqual({
+      compatibleSolutions: [],
+      blocked: true,
     });
   });
 });
@@ -1397,19 +1326,18 @@ describe('validateResidentialOptions', () => {
     const valid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['microgrid'],
-      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 5000, isFundamentalRequirement: false },
+      microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 5000 },
     });
     expect(valid).toEqual([]);
 
     const invalid = validateResidentialOptions({
       ...validPayload(),
       desiredFeatures: ['microgrid'],
-      microgrid: { voltageV: -1, onGridPhases: 4, onGridApparentPowerVA: -1, isFundamentalRequirement: 'yes' },
+      microgrid: { voltageV: -1, onGridPhases: 4, onGridApparentPowerVA: -1 },
     });
     expect(invalid.some((e) => e.includes('voltageV'))).toBe(true);
     expect(invalid.some((e) => e.includes('onGridPhases'))).toBe(true);
     expect(invalid.some((e) => e.includes('onGridApparentPowerVA'))).toBe(true);
-    expect(invalid.some((e) => e.includes('isFundamentalRequirement'))).toBe(true);
   });
 
   it('requires a well-formed generator config when external_generator is a desired feature', () => {

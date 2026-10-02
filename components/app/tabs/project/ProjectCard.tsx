@@ -209,7 +209,7 @@ export function ProjectCard({
   // read straight from the project's stored solution/loads (no need to
   // recalculate just to know whether it's already insufficient).
   const hasSolutionAlert =
-    project.solution && !project.solution.microgridAlternative
+    project.solution
       ? solutionHasInsufficientMargin(project.solution, {
           desiredFeatures: project.residentialOptions.desiredFeatures,
           whiteTariff: project.residentialOptions.whiteTariff,

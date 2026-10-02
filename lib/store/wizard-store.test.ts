@@ -538,7 +538,7 @@ describe('setDesiredFeatures', () => {
       residentialOptions: {
         ...s.residentialOptions,
         whiteTariff: { requiredPowerW: 1000, pontaEnergyWh: 2000, intermediateEnergyWh: 0, pontaTariffPerKwh: 1.0, intermediateTariffPerKwh: 0.95, foraPontaTariffPerKwh: 0.5 },
-        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, isFundamentalRequirement: false, photoUrl: null, powerNoticeAcknowledged: false },
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, photoUrl: null, powerNoticeAcknowledged: false },
         generator: { voltageV: 220, phases: 1, apparentPowerVA: 1000, photoUrl: null, ownAtsAcknowledged: false },
         atsPhotoUrl: 'https://example.com/ats.jpg',
         atsBackupAcknowledged: true,
@@ -573,7 +573,7 @@ describe('setWhiteTariffConfig / setMicrogridConfig / setGeneratorConfig / setAt
 
   it('sets each feature config independently', () => {
     const whiteTariff = { requiredPowerW: 500, pontaEnergyWh: 1000, intermediateEnergyWh: 0, pontaTariffPerKwh: 0.8, intermediateTariffPerKwh: 0.95, foraPontaTariffPerKwh: 0.3 };
-    const microgrid = { voltageV: 220, onGridPhases: 3 as const, onGridApparentPowerVA: 5000, isFundamentalRequirement: true, photoUrl: null, powerNoticeAcknowledged: true };
+    const microgrid = { voltageV: 220, onGridPhases: 3 as const, onGridApparentPowerVA: 5000, photoUrl: null, powerNoticeAcknowledged: true };
     const generator = { voltageV: 380, phases: 3 as const, apparentPowerVA: 8000, photoUrl: null, ownAtsAcknowledged: true };
 
     useWizardStore.getState().setWhiteTariffConfig(whiteTariff);
