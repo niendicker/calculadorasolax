@@ -165,16 +165,6 @@ export function isGeneratorAtsUnacknowledged(desiredFeatures: DesiredFeatureId[]
   return !generator?.ownAtsAcknowledged;
 }
 
-/** True when Microrrede is selected and the user hasn't yet confirmed
- * they're aware the on-grid system's power must stay below the solution's
- * inverter/battery power — the wizard blocks calculating until this is
- * checked (see canCalculate in useCalculation.ts). */
-export const MICROGRID_POWER_MARGIN_PERCENT = 20;
-
-export function recommendedMicrogridSupportPowerW(onGridPowerW: number): number {
-  return Math.max(0, onGridPowerW) * (1 + MICROGRID_POWER_MARGIN_PERCENT / 100);
-}
-
 /** True when Fotovoltaico is selected but the customer hasn't yet entered
  * the monthly consumption and HSP it needs to size the PV array from — the
  * wizard blocks calculating until both are filled in (see canCalculate in
@@ -408,6 +398,14 @@ export interface MarginRow {
   unit: 'W' | 'Wh';
 }
 
+/** Uses the same boundary semantics as the residential calculation engine:
+ * microgrid support must be strictly above the existing on-grid system's
+ * power, while the ordinary load/energy requirements accept equality. */
+export function marginRowIsInsufficient(row: MarginRow): boolean {
+  const microgridRow = row.key === 'microgrid_inverter' || row.key === 'microgrid_battery';
+  return microgridRow ? row.providedValue <= row.requiredValue : row.providedValue < row.requiredValue;
+}
+
 /** Builds the "how much slack does the chosen solution have over what the
  * customer actually needs" rows, using the exact same gating formulas the
  * Edge Function used to pick this solution — so the margins shown here
@@ -511,7 +509,7 @@ export function solutionHasInsufficientMargin(
   solution: Solution,
   params: Omit<Parameters<typeof buildMarginSummary>[0], 'solution'>
 ): boolean {
-  return buildMarginSummary({ ...params, solution }).some((row) => row.providedValue < row.requiredValue);
+  return buildMarginSummary({ ...params, solution }).some(marginRowIsInsufficient);
 }
 
 export function formatCurrencyBRL(value: number): string {

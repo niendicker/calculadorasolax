@@ -30,6 +30,7 @@ import {
   calculateTariffSavings,
   formatCurrencyBRL,
   maskDocument,
+  marginRowIsInsufficient,
   normalizeAccessoryLine,
   solutionMetrics,
   type MarginRow,
@@ -293,7 +294,7 @@ function DesiredFeatureDetail({
       if (!microgrid) return <Text style={styles.featureDetail}>-</Text>;
       return (
         <Text style={styles.featureDetail}>
-          {`Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · Pot. CA on-grid ${formatAcPower(microgrid.onGridApparentPowerVA)} · margem de potência 20%`}
+          {`Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · Pot. CA on-grid ${formatAcPower(microgrid.onGridApparentPowerVA)}`}
           {microgrid.photoUrl ? ' · foto anexada' : ''}
         </Text>
       );
@@ -637,7 +638,7 @@ function ProductsSection({
           <Text style={styles.subBoxTitle}>Margens operacionais</Text>
           {marginRows.map((row, index) => {
             const marginPct = row.requiredValue > 0 ? ((row.providedValue - row.requiredValue) / row.requiredValue) * 100 : null;
-            const insufficient = marginPct !== null && marginPct < 0;
+            const insufficient = marginRowIsInsufficient(row);
             const isDcPower = row.key === 'microgrid_battery';
             const formatValue = (value: number) => row.unit === 'W'
               ? (isDcPower ? formatDcPower(value) : formatAcPower(value))

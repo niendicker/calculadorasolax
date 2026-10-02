@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { MicrogridConfig, ResidentialGridType } from '@/lib/types';
-import { recommendedMicrogridSupportPowerW } from '../../../helpers';
 import type { InverterCatalogOption } from '../../../types';
 import { InverterSupportSummary } from '../InverterSupportSummary';
 import {
@@ -47,7 +46,7 @@ export function MicrogridPanel({
   onUploadPhoto: (file: File, slot: 'ats' | 'microgrid' | 'generator') => Promise<string>;
 }) {
   const microgridExistingPowerW = microgrid?.onGridApparentPowerVA ?? 0;
-  const microgridRequiredPowerW = recommendedMicrogridSupportPowerW(microgridExistingPowerW);
+  const microgridRequiredPowerW = microgridExistingPowerW;
   const microgridRequiredPerPhaseW = microgridRequiredPowerW / (microgrid?.onGridPhases ?? 1);
 
   return (
@@ -130,9 +129,8 @@ export function MicrogridPanel({
       {!microgridExistingPowerW && <p role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0"/>Informe a potência nominal AC do inversor on-grid existente.</p>}
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">Resumo instantâneo</p><Badge variant="outline" className={microgridExistingPowerW ? 'border-primary/30 text-primary' : 'text-muted-foreground'}>{microgridExistingPowerW ? 'Limite calculado' : 'Potência pendente'}</Badge></div>
-        <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <div><p className="text-xs text-muted-foreground">Sistema existente</p><strong>{(microgridExistingPowerW / 1000).toFixed(2)} kW</strong></div>
-          <div><p className="text-xs text-muted-foreground">Margem aplicada</p><strong>20%</strong></div>
           <div><p className="text-xs text-muted-foreground">Inversor e baterias</p><strong>mín. {(microgridRequiredPowerW / 1000).toFixed(2)} kW</strong></div>
           <div><p className="text-xs text-muted-foreground">Limite por fase</p><strong>mín. {(microgridRequiredPerPhaseW / 1000).toFixed(2)} kW/fase</strong></div>
         </div>
