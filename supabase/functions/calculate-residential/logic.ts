@@ -13,6 +13,7 @@ import {
   type PeakCalcMode,
   type SingleLoad,
 } from '../_shared/calculation-math.ts';
+import { microgridPerPhasePowerW, type MicrogridGridType } from '../_shared/microgrid-connection.ts';
 
 export type { PeakCalcMode, SingleLoad } from '../_shared/calculation-math.ts';
 export {
@@ -100,18 +101,20 @@ export function blockingDesiredFeatures(
 /** Whether a solution can coexist with the on-grid system described by
  * microgrid: the on-grid apparent power must stay under both the inverter's
  * rated power and the battery bank's power, and — when the inverter declares
- * a per-phase limit — under that limit once split across the on-grid
- * system's own phases (avoids overloading a single phase). */
+ * a per-phase limit — under that limit once spread over the phases the
+ * on-grid system loads, which depends on how it connects to the network
+ * (see microgridOnGridConnection). */
 export function solutionSupportsMicrogrid(
   solution: ApprovedSolution,
   inverterMaxPowerPerPhaseW: number | null,
-  microgrid: MicrogridConfig
+  microgrid: MicrogridConfig,
+  gridType: MicrogridGridType
 ): boolean {
   const requiredPowerW = microgrid.onGridApparentPowerVA;
   if (requiredPowerW >= solution.rated_power_w) return false;
   if (requiredPowerW >= solution.battery_power_w) return false;
   if (inverterMaxPowerPerPhaseW !== null) {
-    const requiredPerPhaseW = requiredPowerW / microgrid.onGridPhases;
+    const requiredPerPhaseW = microgridPerPhasePowerW(gridType, microgrid.onGridPhases, requiredPowerW);
     if (requiredPerPhaseW > inverterMaxPowerPerPhaseW) return false;
   }
   return true;
@@ -186,6 +189,7 @@ export function filterSolutionsByPvCapacity(
 export function resolveMicrogridSelection(
   compatibleSolutions: ApprovedSolution[],
   microgridConfig: MicrogridConfig,
+  gridType: MicrogridGridType,
   candidateInverters: InverterCapabilities[]
 ): { compatibleSolutions: ApprovedSolution[]; blocked: boolean } {
   const inverterByModel = new Map(candidateInverters.map((inverter) => [inverter.model, inverter]));
@@ -193,7 +197,7 @@ export function resolveMicrogridSelection(
     const inverter = inverterByModel.get(candidate.inverter_model);
     if (!inverter) return false;
     if (!inverterSatisfiesRequiredFlags(inverter.flags, ['microgrid'])) return false;
-    return solutionSupportsMicrogrid(candidate, inverter.max_power_per_phase_w, microgridConfig);
+    return solutionSupportsMicrogrid(candidate, inverter.max_power_per_phase_w, microgridConfig, gridType);
   });
 
   return { compatibleSolutions: microgridCompatibleSolutions, blocked: microgridCompatibleSolutions.length === 0 };
@@ -219,6 +223,7 @@ export interface WhiteTariffConfig {
 /** Mirrors lib/types.ts MicrogridConfig. */
 export interface MicrogridConfig {
   voltageV: number;
+  /** 2 is legacy (a 220V monofásico wired fase-fase) and treated as 1. */
   onGridPhases: 1 | 2 | 3;
   onGridApparentPowerVA: number;
   photoUrl?: string | null;

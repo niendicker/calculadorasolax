@@ -929,32 +929,53 @@ describe('solutionSupportsMicrogrid', () => {
 
   it('accepts when on-grid power is comfortably below inverter and battery power', () => {
     const solution = makeSolution({ rated_power_w: 5000, battery_power_w: 2800 });
-    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 1000 }))).toBe(true);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 1000 }), 'threePhase_380')).toBe(true);
   });
 
   it('rejects when on-grid power is at or above the inverter rated power', () => {
     const solution = makeSolution({ rated_power_w: 5000, battery_power_w: 8000 });
-    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 5000 }))).toBe(false);
-    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 6000 }))).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 5000 }), 'threePhase_380')).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 6000 }), 'threePhase_380')).toBe(false);
   });
 
   it('rejects when on-grid power is at or above the battery power', () => {
     const solution = makeSolution({ rated_power_w: 8000, battery_power_w: 2800 });
-    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 2800 }))).toBe(false);
-    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 3000 }))).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 2800 }), 'threePhase_380')).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 3000 }), 'threePhase_380')).toBe(false);
   });
 
   it('ignores the per-phase check when the inverter has no max_power_per_phase_w', () => {
     const solution = makeSolution({ rated_power_w: 5000, battery_power_w: 8000 });
-    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 4000, onGridPhases: 1 }))).toBe(true);
+    expect(solutionSupportsMicrogrid(solution, null, makeMicrogrid({ onGridApparentPowerVA: 4000, onGridPhases: 1 }), 'threePhase_380')).toBe(true);
   });
 
   it('rejects when the on-grid power exceeds max_power_per_phase_w', () => {
     const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
     // 3001 W / 3 phases exceeds the 1000 W per-phase limit.
-    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3001, onGridPhases: 3 }))).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3001, onGridPhases: 3 }), 'threePhase_380')).toBe(false);
     // Equality is accepted: 3000 W / 3 phases = 1000 W per phase.
-    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }))).toBe(true);
+    expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }), 'threePhase_380')).toBe(true);
+  });
+
+  it('puts the full power of a fase-neutro monofásico on one phase', () => {
+    const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
+    expect(solutionSupportsMicrogrid(solution, 3000, makeMicrogrid({ onGridApparentPowerVA: 3001, onGridPhases: 1 }), 'threePhase_380')).toBe(false);
+    expect(solutionSupportsMicrogrid(solution, 3000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 1 }), 'singlePhase_220')).toBe(true);
+  });
+
+  it('spreads a fase-fase monofásico over two phases by V_fn / V_ff', () => {
+    const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
+    // 110/220V bifásica: 6000 W × 110/220 = 3000 W per phase.
+    expect(solutionSupportsMicrogrid(solution, 3000, makeMicrogrid({ onGridApparentPowerVA: 6000, onGridPhases: 1 }), 'splitPhase_220')).toBe(true);
+    expect(solutionSupportsMicrogrid(solution, 3000, makeMicrogrid({ onGridApparentPowerVA: 6001, onGridPhases: 1 }), 'splitPhase_220')).toBe(false);
+    // 220V trifásica (127V F-N): 5000 W × 127/220 ≈ 2886 W per phase.
+    expect(solutionSupportsMicrogrid(solution, 2900, makeMicrogrid({ onGridApparentPowerVA: 5000, onGridPhases: 1 }), 'threePhase_220')).toBe(true);
+    expect(solutionSupportsMicrogrid(solution, 2800, makeMicrogrid({ onGridApparentPowerVA: 5000, onGridPhases: 1 }), 'threePhase_220')).toBe(false);
+  });
+
+  it('treats a legacy bifásico on-grid as a fase-fase monofásico', () => {
+    const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
+    expect(solutionSupportsMicrogrid(solution, 3000, makeMicrogrid({ onGridApparentPowerVA: 6000, onGridPhases: 2 }), 'splitPhase_220')).toBe(true);
   });
 });
 
@@ -979,7 +1000,7 @@ describe('resolveMicrogridSelection', () => {
     const inverters = [makeInverter({ model: 'ok' }), makeInverter({ model: 'no-flag', flags: [] })];
     const microgrid = makeMicrogrid({ onGridApparentPowerVA: 5000 });
 
-    expect(resolveMicrogridSelection([tooSmall, noFlag, smallestCompatible, largerCompatible], microgrid, inverters)).toEqual({
+    expect(resolveMicrogridSelection([tooSmall, noFlag, smallestCompatible, largerCompatible], microgrid, 'singlePhase_220', inverters)).toEqual({
       compatibleSolutions: [smallestCompatible, largerCompatible],
       blocked: false,
     });
@@ -989,7 +1010,7 @@ describe('resolveMicrogridSelection', () => {
     const solution = makeSolution({ id: 's1', inverter_model: 'no-flag' });
     const inverters = [makeInverter({ model: 'no-flag', flags: [] })];
 
-    expect(resolveMicrogridSelection([solution], makeMicrogrid(), inverters)).toEqual({
+    expect(resolveMicrogridSelection([solution], makeMicrogrid(), 'singlePhase_220', inverters)).toEqual({
       compatibleSolutions: [],
       blocked: true,
     });

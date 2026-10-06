@@ -5,7 +5,7 @@
 
 import { emptyAddress } from '@/lib/address';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
-import type { DesiredFeatureId, ProjectInfo, ResidentialOptions } from '@/lib/types';
+import type { DesiredFeatureId, MicrogridConfig, ProjectInfo, ResidentialOptions } from '@/lib/types';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export const defaultProjectInfo: ProjectInfo = {
@@ -60,4 +60,13 @@ const VALID_DESIRED_FEATURE_IDS = new Set(DESIRED_FEATURE_DEFINITIONS.map((featu
 export function sanitizeDesiredFeatures(desiredFeatures: DesiredFeatureId[] | undefined): DesiredFeatureId[] {
   if (!Array.isArray(desiredFeatures)) return [];
   return desiredFeatures.filter((id) => VALID_DESIRED_FEATURE_IDS.has(id));
+}
+
+/** Projects saved before the bifásico on-grid option was removed may carry
+ * onGridPhases: 2 — always a 220V monofásico wired fase-fase, so it maps to 1
+ * with the same per-phase load (normalizeOnGridPhases in
+ * supabase/functions/_shared/microgrid-connection.ts). */
+export function sanitizeMicrogridConfig(microgrid: MicrogridConfig | null | undefined): MicrogridConfig | null {
+  if (!microgrid) return null;
+  return { ...microgrid, onGridPhases: microgrid.onGridPhases === 3 ? 3 : 1 };
 }

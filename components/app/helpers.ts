@@ -29,6 +29,7 @@ import {
   totalNominalW,
   totalPeakW,
 } from '@/lib/store/wizard-calculations';
+import { microgridOnGridConnection, microgridOnGridOptions } from '@/supabase/functions/_shared/microgrid-connection';
 import { gridLabels, topologyLabels, type BatteryCatalogOption, type InlineProfile, type InverterCatalogOption } from './types';
 
 export { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart };
@@ -37,6 +38,16 @@ function phaseLabel(phases: number): string {
   if (phases === 1) return 'Monofásico';
   if (phases === 2) return 'Bifásico';
   return 'Trifásico';
+}
+
+/** How the Microrrede's on-grid inverter is described in the PDF and the
+ * quote-request text: phase count, voltage and — for a monofásico, once the
+ * grid type is known — the connection it implies. */
+export function microgridOnGridLabel(microgrid: MicrogridConfig, gridType: ResidentialGridType | null): string {
+  const base = `${phaseLabel(microgrid.onGridPhases)} ${microgrid.voltageV}V`;
+  if (microgrid.onGridPhases !== 1 || !gridType) return base;
+  const { connection } = microgridOnGridConnection(gridType, microgrid.onGridPhases);
+  return `${base} (${connection === 'phaseToPhase' ? 'fase-fase' : 'fase-neutro'})`;
 }
 
 /** Network phases/voltage implied by each ResidentialGridType, so the
@@ -50,11 +61,12 @@ export const gridTypePhaseVoltage: Record<ResidentialGridType, { phases: 1 | 2 |
 };
 
 /** Compatibility between a chosen grid type and a phases+voltage selection.
- * `forMicrogrid` allows one documented exception: a 380V trifásico or 220V
- * bifásico network can still host a 220V monofásico on-grid inverter. Every
- * other combination (and the generator, which never gets the exception)
- * requires an exact match. Returns 'unknown' when no grid type is chosen yet
- * in Configurações — there's nothing to compare against. */
+ * The generator requires an exact match with the network. The microgrid's
+ * on-grid inverter follows microgridOnGridOptions instead: there is no
+ * bifásico on-grid, so a 220V monofásico is accepted on every network
+ * (fase-neutro or fase-fase), plus a trifásico matching a trifásico network.
+ * Returns 'unknown' when no grid type is chosen yet in Configurações —
+ * there's nothing to compare against. */
 export function checkPhaseVoltageCompatibility(
   gridType: ResidentialGridType | null,
   phases: 1 | 2 | 3,
@@ -62,20 +74,19 @@ export function checkPhaseVoltageCompatibility(
   { forMicrogrid }: { forMicrogrid: boolean }
 ): 'unknown' | 'compatible' | 'incompatible' {
   if (!gridType) return 'unknown';
-  const network = gridTypePhaseVoltage[gridType];
-  if (phases === network.phases && voltageV === network.voltage) return 'compatible';
   if (forMicrogrid) {
-    const networkAllowsException = gridType === 'threePhase_380' || gridType === 'splitPhase_220';
-    if (networkAllowsException && phases === 1 && voltageV === 220) return 'compatible';
+    const valid = microgridOnGridOptions[gridType].some((option) => option.phases === phases && option.voltageV === voltageV);
+    return valid ? 'compatible' : 'incompatible';
   }
-  return 'incompatible';
+  const network = gridTypePhaseVoltage[gridType];
+  return phases === network.phases && voltageV === network.voltage ? 'compatible' : 'incompatible';
 }
 
-/** True when Microrrede is selected and its phases/voltage don't match (or
- * fall under the one documented exception for) the grid type chosen in
- * Configurações — the wizard blocks calculating (and exporting the PDF,
- * which always follows canCalculate) in this case, and shows a matching
- * warning in the technical editor's Microrrede panel. */
+/** True when Microrrede is selected and its phases/voltage aren't one of the
+ * on-grid options the grid type chosen in Configurações can host — the
+ * wizard blocks calculating (and exporting the PDF, which always follows
+ * canCalculate) in this case, and shows a matching warning in the technical
+ * editor's Microrrede panel. */
 export function isMicrogridPhaseVoltageIncompatible(
   desiredFeatures: DesiredFeatureId[],
   microgrid: MicrogridConfig | null,
@@ -648,7 +659,7 @@ function buildFeatureLines(project: ShareableProject): string[] {
   for (const feature of features) {
     if (feature === 'microgrid' && project.microgrid) {
       const config = project.microgrid;
-      lines.push(`- ${desiredFeatureLabel(feature)}: inversor on-grid existente de ${(config.onGridApparentPowerVA / 1000).toFixed(2)} kVA, ${phaseLabel(config.onGridPhases)}, ${config.voltageV} V`);
+      lines.push(`- ${desiredFeatureLabel(feature)}: inversor on-grid existente de ${(config.onGridApparentPowerVA / 1000).toFixed(2)} kVA, ${microgridOnGridLabel(config, project.gridType)}`);
     } else if (feature === 'external_generator' && project.generator) {
       const config = project.generator;
       lines.push(`- ${desiredFeatureLabel(feature)}: gerador de ${(config.apparentPowerVA / 1000).toFixed(2)} kVA, ${phaseLabel(config.phases)}, ${config.voltageV} V`);

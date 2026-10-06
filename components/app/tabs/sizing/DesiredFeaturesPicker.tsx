@@ -32,7 +32,7 @@ import { emptyGeneratorConfig, ExternalGeneratorPanel } from './features/Externa
 import { emptyMicrogridConfig, MicrogridPanel } from './features/MicrogridPanel';
 import { emptyPvConfig, PvPanel } from './features/PvPanel';
 import { emptyWhiteTariffConfig, WhiteTariffPanel } from './features/WhiteTariffPanel';
-import { defaultPhaseVoltageForGridType } from './PhaseVoltagePicker';
+import { defaultMicrogridPhaseVoltage, defaultPhaseVoltageForGridType } from './PhaseVoltagePicker';
 
 export const featureIcons: Record<DesiredFeatureId, LucideIcon> = {
   backup: HousePlug,
@@ -133,7 +133,7 @@ export function DesiredFeaturesPicker({
       onChange([...value, id]);
       if (id === 'white_tariff' && !whiteTariff) onWhiteTariffChange(emptyWhiteTariffConfig);
       if (id === 'microgrid' && !microgrid) {
-        const defaults = defaultPhaseVoltageForGridType(gridType);
+        const defaults = defaultMicrogridPhaseVoltage(gridType);
         onMicrogridChange({ ...emptyMicrogridConfig, onGridPhases: defaults.phases, voltageV: defaults.voltage });
       }
       if (id === 'external_generator' && !generator) {

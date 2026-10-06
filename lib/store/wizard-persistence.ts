@@ -1,5 +1,5 @@
 import type { PersistOptions } from 'zustand/middleware';
-import { sanitizeDesiredFeatures } from './defaults';
+import { sanitizeDesiredFeatures, sanitizeMicrogridConfig } from './defaults';
 import type { WizardStore } from './wizard-store';
 
 type PersistedWizardState = Partial<WizardStore>;
@@ -35,6 +35,7 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
       residentialOptions: {
         ...residentialOptions,
         desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),
+        microgrid: sanitizeMicrogridConfig(residentialOptions.microgrid),
       },
       ciOptions: { ...currentState.ciOptions, ...persistedWithoutDemo.ciOptions },
     };

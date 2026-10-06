@@ -4,7 +4,7 @@
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
 import { addressFromJson } from '@/lib/address';
-import { defaultCiOptions, defaultResidential, sanitizeDesiredFeatures } from './defaults';
+import { defaultCiOptions, defaultResidential, sanitizeDesiredFeatures, sanitizeMicrogridConfig } from './defaults';
 import type {
   Client,
   ProjectEvent,
@@ -60,6 +60,7 @@ export function residentialOptionsFromJson(value: unknown): ResidentialOptions {
     desiredFeatures: sanitizeDesiredFeatures(
       Array.isArray(value.desiredFeatures) ? (value.desiredFeatures as ResidentialOptions['desiredFeatures']) : undefined
     ),
+    microgrid: sanitizeMicrogridConfig(isRecord(value.microgrid) ? (value.microgrid as unknown as ResidentialOptions['microgrid']) : null),
   };
 }
 

@@ -5,6 +5,7 @@ import type { ResidentialGridType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { checkPhaseVoltageCompatibility, gridTypePhaseVoltage } from '../../helpers';
 import { gridLabels } from '../../types';
+import { microgridOnGridOptions, type OnGridPhases } from '@/supabase/functions/_shared/microgrid-connection';
 
 const phaseOptions: { value: 1 | 2 | 3; label: string }[] = [
   { value: 1, label: 'Monofásico' },
@@ -16,18 +17,22 @@ export function PhasePicker({
   value,
   onChange,
   ariaLabel,
+  options = [1, 2, 3],
   recommendedValues = [],
 }: {
   value: 1 | 2 | 3;
   onChange: (value: 1 | 2 | 3) => void;
   ariaLabel: string;
+  /** Phase counts offered — Microrrede leaves out bifásico, since there is
+   * no bifásico on-grid inverter. */
+  options?: (1 | 2 | 3)[];
   /** Phase(s) that would fix an incompatible selection — highlighted in green,
    * never auto-applied. Empty when the current selection is already fine. */
   recommendedValues?: (1 | 2 | 3)[];
 }) {
   return (
     <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={ariaLabel}>
-      {phaseOptions.map((option) => {
+      {phaseOptions.filter((option) => options.includes(option.value)).map((option) => {
         const active = value === option.value;
         const recommended = !active && recommendedValues.includes(option.value);
         return (
@@ -135,9 +140,17 @@ export function defaultPhaseVoltageForGridType(gridType: ResidentialGridType | n
   return gridType ? gridTypePhaseVoltage[gridType] : { phases: 1, voltage: 220 };
 }
 
+/** Same as defaultPhaseVoltageForGridType, for the Microrrede's on-grid
+ * inverter: the network's own trifásico where there is one, otherwise a 220V
+ * monofásico (there is no bifásico on-grid). */
+export function defaultMicrogridPhaseVoltage(gridType: ResidentialGridType | null): { phases: OnGridPhases; voltage: 220 | 380 } {
+  const option = gridType ? microgridOnGridOptions[gridType][0] : { phases: 1 as const, voltageV: 220 as const };
+  return { phases: option.phases, voltage: option.voltageV };
+}
+
 /** Which phase count(s) would fix the current Microrrede/Gerador
- * selection — the network's own phase count, plus (microgrid only) 1-phase
- * when the documented exception applies. Empty once the current phase/voltage
+ * selection — the network's own phase count for the generator, or every
+ * phase count in microgridOnGridOptions for the microgrid. Empty once the current phase/voltage
  * is already compatible. When the current phase is already one of the valid
  * options (only the voltage is off), recommends just that phase — which,
  * being already active, shows no highlight — rather than also pointing at the
@@ -153,9 +166,9 @@ export function recommendedPhases(
 ): (1 | 2 | 3)[] {
   if (!gridType) return [];
   if (checkPhaseVoltageCompatibility(gridType, phases, voltageV, { forMicrogrid }) !== 'incompatible') return [];
-  const network = gridTypePhaseVoltage[gridType];
-  const exceptionApplies = forMicrogrid && (gridType === 'threePhase_380' || gridType === 'splitPhase_220');
-  const validPhases: (1 | 2 | 3)[] = exceptionApplies && network.phases !== 1 ? [network.phases, 1] : [network.phases];
+  const validPhases: (1 | 2 | 3)[] = forMicrogrid
+    ? microgridOnGridOptions[gridType].map((option) => option.phases)
+    : [gridTypePhaseVoltage[gridType].phases];
   return validPhases.includes(phases) ? [phases] : validPhases;
 }
 
@@ -172,17 +185,15 @@ export function recommendedVoltageForPhase(
 ): 220 | 380 | null {
   if (!gridType) return null;
   if (checkPhaseVoltageCompatibility(gridType, phases, voltageV, { forMicrogrid }) !== 'incompatible') return null;
+  if (forMicrogrid) return microgridOnGridOptions[gridType].find((option) => option.phases === phases)?.voltageV ?? null;
   const network = gridTypePhaseVoltage[gridType];
-  if (phases === network.phases) return network.voltage;
-  const exceptionApplies = forMicrogrid && (gridType === 'threePhase_380' || gridType === 'splitPhase_220');
-  return exceptionApplies && phases === 1 ? 220 : null;
+  return phases === network.phases ? network.voltage : null;
 }
 
 /** Blocks calculating (and, since export always follows canCalculate,
  * exporting the PDF too — see canCalculate in useCalculation.ts) when the
- * phases+voltage chosen for the on-grid/generator system don't match (or,
- * for microgrid, don't fall under its one documented exception — see
- * checkPhaseVoltageCompatibility) the grid type already chosen in
+ * phases+voltage chosen for the on-grid/generator system aren't compatible
+ * (see checkPhaseVoltageCompatibility) with the grid type already chosen in
  * Configurações. Renders nothing until a grid type is chosen, or once the
  * combination is compatible. */
 export function PhaseVoltageCompatibilityWarning({
@@ -204,18 +215,20 @@ export function PhaseVoltageCompatibilityWarning({
 
   // What the user should pick instead — not applied automatically, just
   // spelled out so they don't have to reverse-engineer it from the grid type.
-  const network = gridTypePhaseVoltage[gridType];
-  const networkPhaseLabel = phaseOptions.find((option) => option.value === network.phases)?.label ?? '';
-  const networkVoltageLabel =
-    voltageOptionsForPhases(network.phases).find((option) => option.value === network.voltage)?.label ?? `${network.voltage}V`;
-  const microgridExceptionApplies = forMicrogrid && (gridType === 'threePhase_380' || gridType === 'splitPhase_220');
+  const validOptions = forMicrogrid
+    ? microgridOnGridOptions[gridType].map((option) => ({ phases: option.phases, voltage: option.voltageV }))
+    : [gridTypePhaseVoltage[gridType]];
+  const validLabels = validOptions.map(({ phases: validPhases, voltage }) => {
+    const validPhaseLabel = phaseOptions.find((option) => option.value === validPhases)?.label ?? '';
+    const validVoltageLabel = voltageOptionsForPhases(validPhases).find((option) => option.value === voltage)?.label ?? `${voltage}V`;
+    return `${validPhaseLabel} ${validVoltageLabel}`;
+  });
 
   return (
     <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       A tensão/fases selecionadas ({phaseLabel} {voltageLabel}) são incompatíveis com o tipo de rede configurado (
-      {gridLabels[gridType]}). Selecione {networkPhaseLabel} e {networkVoltageLabel}
-      {microgridExceptionApplies ? ` (ou Monofásico 220V, aceito como exceção para microrrede)` : ''} para poder calcular.
+      {gridLabels[gridType]}). Selecione {validLabels.join(' ou ')} para poder calcular.
     </p>
   );
 }

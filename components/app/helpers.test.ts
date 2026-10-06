@@ -825,7 +825,7 @@ describe('buildSupplierQuoteRequestEmail', () => {
     expect(text).toContain('Funcionalidades selecionadas:');
     expect(text).toContain('- Backup');
     expect(text).toContain('- Backup Total');
-    expect(text).toContain('- Microrrede: inversor on-grid existente de 7.50 kVA, Trifásico, 380 V');
+    expect(text).toContain('- Microrrede: inversor on-grid existente de 7.50 kVA, Trifásico 380V');
     expect(text).toContain('- Gerador: gerador de 12.00 kVA, Trifásico, 380 V');
     expect(text).toContain('- Fotovoltaico: consumo médio de 900.00 kWh/mês, HSP de 5.2 h/dia');
     expect(text).toContain('- Tarifa Branca: energia diária de 12.00 kWh/dia, potência requerida de 6.00 kW');
@@ -1142,8 +1142,13 @@ describe('checkPhaseVoltageCompatibility', () => {
     expect(checkPhaseVoltageCompatibility('threePhase_380', 1, 220, { forMicrogrid: false })).toBe('incompatible');
   });
 
-  it('does not apply the exception outside its two documented grid types', () => {
-    expect(checkPhaseVoltageCompatibility('threePhase_220', 1, 220, { forMicrogrid: true })).toBe('incompatible');
+  it('accepts a 220V monofásico on-grid on a 220V trifásico network (wired fase-fase)', () => {
+    expect(checkPhaseVoltageCompatibility('threePhase_220', 1, 220, { forMicrogrid: true })).toBe('compatible');
+    expect(checkPhaseVoltageCompatibility('threePhase_220', 1, 220, { forMicrogrid: false })).toBe('incompatible');
+  });
+
+  it('rejects a bifásico on-grid on every network, since there is no bifásico on-grid inverter', () => {
+    expect(checkPhaseVoltageCompatibility('splitPhase_220', 2, 220, { forMicrogrid: true })).toBe('incompatible');
   });
 });
 

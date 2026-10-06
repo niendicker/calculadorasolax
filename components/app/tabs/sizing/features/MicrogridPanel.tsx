@@ -16,6 +16,39 @@ import {
   voltageOptionsForPhases,
 } from '../PhaseVoltagePicker';
 import { PhotoUploadField } from '../PhotoUploadField';
+import {
+  microgridOnGridConnection,
+  microgridPerPhasePowerW,
+  normalizeOnGridPhases,
+} from '@/supabase/functions/_shared/microgrid-connection';
+
+/** Phase-neutral voltage label of the networks where a 220V monofásico
+ * on-grid has to be wired fase-fase. */
+const phaseToPhaseLegLabel: Partial<Record<ResidentialGridType, string>> = {
+  splitPhase_220: '110V',
+  threePhase_220: '127V',
+};
+
+function OnGridConnectionNote({ gridType, phases }: { gridType: ResidentialGridType | null; phases: 1 | 3 }) {
+  if (!gridType || phases !== 1) return null;
+  const { connection, perPhaseFactor } = microgridOnGridConnection(gridType, phases);
+  const share = (perPhaseFactor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  return (
+    <p className="text-xs text-muted-foreground">
+      {connection === 'phaseToPhase' ? (
+        <>
+          <strong className="font-medium text-foreground">Ligação fase-fase</strong> (entre 2 fases de{' '}
+          {phaseToPhaseLegLabel[gridType]}): cada uma dessas fases do inversor híbrido recebe ≈{share}% da potência do on-grid.
+        </>
+      ) : (
+        <>
+          <strong className="font-medium text-foreground">Ligação fase-neutro</strong>: toda a potência do on-grid fica em uma
+          única fase do inversor híbrido.
+        </>
+      )}
+    </p>
+  );
+}
 
 export const emptyMicrogridConfig: MicrogridConfig = {
   voltageV: 220,
@@ -44,7 +77,8 @@ export function MicrogridPanel({
 }) {
   const microgridExistingPowerW = microgrid?.onGridApparentPowerVA ?? 0;
   const microgridRequiredPowerW = microgridExistingPowerW;
-  const microgridRequiredPerPhaseW = microgridRequiredPowerW / (microgrid?.onGridPhases ?? 1);
+  const onGridPhases = microgrid?.onGridPhases ?? 1;
+  const microgridRequiredPerPhaseW = microgridPerPhasePowerW(gridType, onGridPhases, microgridRequiredPowerW);
 
   return (
     <div className="space-y-3">
@@ -64,10 +98,12 @@ export function MicrogridPanel({
       <div className="space-y-1.5">
         <Label>Fases</Label>
         <PhasePicker
-          value={microgrid?.onGridPhases ?? 1}
+          value={onGridPhases}
           ariaLabel="Fases do sistema ongrid"
-          recommendedValues={recommendedPhases(gridType, microgrid?.onGridPhases ?? 1, microgrid?.voltageV ?? 220, true)}
-          onChange={(phases) => {
+          options={[1, 3]}
+          recommendedValues={recommendedPhases(gridType, onGridPhases, microgrid?.voltageV ?? 220, true)}
+          onChange={(selected) => {
+            const phases = normalizeOnGridPhases(selected);
             const validVoltages = voltageOptionsForPhases(phases).map((option) => option.value);
             const currentVoltage = microgrid?.voltageV ?? 220;
             onMicrogridChange({
@@ -83,11 +119,11 @@ export function MicrogridPanel({
           <Label>Tensão</Label>
           <VoltagePicker
             value={microgrid?.voltageV ?? 220}
-            phases={microgrid?.onGridPhases ?? 1}
+            phases={onGridPhases}
             ariaLabel="Tensão do sistema ongrid"
             recommendedValue={recommendedVoltageForPhase(
               gridType,
-              microgrid?.onGridPhases ?? 1,
+              onGridPhases,
               microgrid?.voltageV ?? 220,
               true
             )}
@@ -117,9 +153,10 @@ export function MicrogridPanel({
           />
         </div>
       </div>
+      <OnGridConnectionNote gridType={gridType} phases={onGridPhases} />
       <PhaseVoltageCompatibilityWarning
         gridType={gridType}
-        phases={microgrid?.onGridPhases ?? 1}
+        phases={onGridPhases}
         voltageV={microgrid?.voltageV ?? 220}
         forMicrogrid
       />
