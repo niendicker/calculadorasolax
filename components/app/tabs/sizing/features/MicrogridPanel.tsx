@@ -161,6 +161,13 @@ export function MicrogridPanel({
         forMicrogrid
       />
       {!microgridExistingPowerW && <p role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0"/>Informe a potência nominal AC do inversor on-grid existente.</p>}
+      <PhotoUploadField
+        label="Foto da etiqueta do inversor ongrid"
+        photoUrl={microgrid?.photoUrl ?? null}
+        slot="microgrid"
+        onUploadPhoto={onUploadPhoto}
+        onChange={(photoUrl) => onMicrogridChange({ ...(microgrid ?? emptyMicrogridConfig), photoUrl })}
+      />
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">Resumo instantâneo</p><Badge variant="outline" className={microgridExistingPowerW ? 'border-primary/30 text-primary' : 'text-muted-foreground'}>{microgridExistingPowerW ? 'Limite calculado' : 'Potência pendente'}</Badge></div>
         <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
@@ -170,13 +177,6 @@ export function MicrogridPanel({
         </div>
         <p className="mt-3 text-xs text-muted-foreground">A solução final é validada automaticamente contra a potência nominal, a potência das baterias e o limite de cada fase.</p>
       </div>
-      <PhotoUploadField
-        label="Foto da etiqueta do inversor ongrid"
-        photoUrl={microgrid?.photoUrl ?? null}
-        slot="microgrid"
-        onUploadPhoto={onUploadPhoto}
-        onChange={(photoUrl) => onMicrogridChange({ ...(microgrid ?? emptyMicrogridConfig), photoUrl })}
-      />
     </div>
   );
 }
