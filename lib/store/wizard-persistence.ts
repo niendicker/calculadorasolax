@@ -29,13 +29,15 @@ export const wizardPersistenceOptions: PersistOptions<WizardStore, PersistedWiza
     void legacyDemoId;
     void legacyDemoSnapshot;
     const residentialOptions = { ...currentState.residentialOptions, ...persistedWithoutDemo.residentialOptions };
+    const desiredFeatures = sanitizeDesiredFeatures(residentialOptions.desiredFeatures);
     return {
       ...currentState,
       ...persistedWithoutDemo,
       residentialOptions: {
         ...residentialOptions,
-        desiredFeatures: sanitizeDesiredFeatures(residentialOptions.desiredFeatures),
+        desiredFeatures,
         microgrid: sanitizeMicrogridConfig(residentialOptions.microgrid),
+        generator: desiredFeatures.includes('external_generator') ? residentialOptions.generator : null,
       },
       ciOptions: { ...currentState.ciOptions, ...persistedWithoutDemo.ciOptions },
     };

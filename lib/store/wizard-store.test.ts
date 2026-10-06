@@ -566,6 +566,23 @@ describe('setDesiredFeatures', () => {
 
     expect(useWizardStore.getState().residentialOptions.whiteTariff).toEqual(whiteTariff);
   });
+
+  it('does not keep the generator when microgrid and generator are requested together', () => {
+    useWizardStore.setState((s) => ({
+      residentialOptions: {
+        ...s.residentialOptions,
+        microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 1000, photoUrl: null, powerNoticeAcknowledged: false },
+        generator: { voltageV: 220, phases: 1, apparentPowerVA: 1000, photoUrl: null, ownAtsAcknowledged: false },
+      },
+    }));
+
+    useWizardStore.getState().setDesiredFeatures(['microgrid', 'external_generator']);
+
+    const options = useWizardStore.getState().residentialOptions;
+    expect(options.desiredFeatures).toEqual(['microgrid']);
+    expect(options.microgrid).not.toBeNull();
+    expect(options.generator).toBeNull();
+  });
 });
 
 describe('setWhiteTariffConfig / setMicrogridConfig / setGeneratorConfig / setAtsPhotoUrl', () => {

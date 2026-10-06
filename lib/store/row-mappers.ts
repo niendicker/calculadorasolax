@@ -53,14 +53,16 @@ export function residentialOptionsFromJson(value: unknown): ResidentialOptions {
   const loads = Array.isArray(value.loads)
     ? value.loads.map(singleLoadFromJson).filter((load): load is SingleLoad => load !== null)
     : [];
+  const desiredFeatures = sanitizeDesiredFeatures(
+    Array.isArray(value.desiredFeatures) ? (value.desiredFeatures as ResidentialOptions['desiredFeatures']) : undefined
+  );
   return {
     ...defaultResidential,
     ...value,
     loads,
-    desiredFeatures: sanitizeDesiredFeatures(
-      Array.isArray(value.desiredFeatures) ? (value.desiredFeatures as ResidentialOptions['desiredFeatures']) : undefined
-    ),
+    desiredFeatures,
     microgrid: sanitizeMicrogridConfig(isRecord(value.microgrid) ? (value.microgrid as unknown as ResidentialOptions['microgrid']) : null),
+    generator: desiredFeatures.includes('external_generator') ? value.generator as ResidentialOptions['generator'] : null,
   };
 }
 

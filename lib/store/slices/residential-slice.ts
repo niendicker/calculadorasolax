@@ -15,7 +15,7 @@ import type {
   Solution,
   WhiteTariffConfig,
 } from '@/lib/types';
-import { defaultResidential } from '../defaults';
+import { defaultResidential, sanitizeDesiredFeatures } from '../defaults';
 import type { WizardStore } from '../wizard-store';
 
 export interface ResidentialSlice {
@@ -109,20 +109,23 @@ export const createResidentialSlice: StateCreator<WizardStore, [], [], Residenti
     })),
 
   setDesiredFeatures: (desiredFeatures) =>
-    set((s) => ({
-      residentialOptions: {
-        ...s.residentialOptions,
-        desiredFeatures,
-        whiteTariff: desiredFeatures.includes('white_tariff') ? s.residentialOptions.whiteTariff : null,
-        microgrid: desiredFeatures.includes('microgrid') ? s.residentialOptions.microgrid : null,
-        generator: desiredFeatures.includes('external_generator') ? s.residentialOptions.generator : null,
-        pv: desiredFeatures.includes('pv') ? s.residentialOptions.pv : null,
-        atsPhotoUrl: desiredFeatures.includes('external_ats') ? s.residentialOptions.atsPhotoUrl : null,
-        atsBackupAcknowledged: desiredFeatures.includes('external_ats')
-          ? s.residentialOptions.atsBackupAcknowledged
-          : false,
-      },
-    })),
+    set((s) => {
+      const normalizedDesiredFeatures = sanitizeDesiredFeatures(desiredFeatures);
+      return {
+        residentialOptions: {
+          ...s.residentialOptions,
+          desiredFeatures: normalizedDesiredFeatures,
+          whiteTariff: normalizedDesiredFeatures.includes('white_tariff') ? s.residentialOptions.whiteTariff : null,
+          microgrid: normalizedDesiredFeatures.includes('microgrid') ? s.residentialOptions.microgrid : null,
+          generator: normalizedDesiredFeatures.includes('external_generator') ? s.residentialOptions.generator : null,
+          pv: normalizedDesiredFeatures.includes('pv') ? s.residentialOptions.pv : null,
+          atsPhotoUrl: normalizedDesiredFeatures.includes('external_ats') ? s.residentialOptions.atsPhotoUrl : null,
+          atsBackupAcknowledged: normalizedDesiredFeatures.includes('external_ats')
+            ? s.residentialOptions.atsBackupAcknowledged
+            : false,
+        },
+      };
+    }),
 
   setWhiteTariffConfig: (whiteTariff) =>
     set((s) => ({

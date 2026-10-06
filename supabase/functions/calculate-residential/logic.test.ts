@@ -1301,6 +1301,14 @@ describe('validateResidentialOptions', () => {
     expect(errors.some((e) => e.includes('desiredFeatures'))).toBe(true);
   });
 
+  it('rejects microgrid and external generator together', () => {
+    const errors = validateResidentialOptions({
+      ...validPayload(),
+      desiredFeatures: ['microgrid', 'external_generator'],
+    });
+    expect(errors).toContain('microgrid and external_generator cannot be enabled together');
+  });
+
   it('requires a well-formed whiteTariff config when white_tariff is a desired feature', () => {
     const missing = validateResidentialOptions({ ...validPayload(), desiredFeatures: ['white_tariff'] });
     expect(missing.some((e) => e.includes('whiteTariff'))).toBe(true);

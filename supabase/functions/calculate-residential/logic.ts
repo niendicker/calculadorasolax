@@ -778,6 +778,10 @@ export function validateResidentialOptions(raw: unknown): string[] {
 
   const desiredFeatures = Array.isArray(options.desiredFeatures) ? (options.desiredFeatures as unknown[]) : [];
 
+  if (desiredFeatures.includes('microgrid') && desiredFeatures.includes('external_generator')) {
+    errors.push('microgrid and external_generator cannot be enabled together');
+  }
+
   if (desiredFeatures.includes('white_tariff')) {
     const whiteTariff = options.whiteTariff as Record<string, unknown> | null | undefined;
     if (!whiteTariff || typeof whiteTariff !== 'object') {

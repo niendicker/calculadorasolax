@@ -109,6 +109,64 @@ describe('DesiredFeaturesPicker: tabs and toggling', () => {
     expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ phases: 3, voltageV: 220 }));
   });
 
+  it('explains the incompatibility before replacing an active generator with microgrid', () => {
+    renderPicker({
+      activeTab: 'microgrid',
+      value: ['external_generator'],
+      generator: { voltageV: 220, phases: 1, apparentPowerVA: 8000, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: true },
+    });
+
+    expect(screen.getByRole('status')).toHaveTextContent('Microrrede não é compatível com Gerador');
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Substituir Gerador por Microrrede?');
+  });
+
+  it('replaces the incompatible configuration only after confirmation', () => {
+    const onChange = vi.fn();
+    const onMicrogridChange = vi.fn();
+    const onGeneratorChange = vi.fn();
+    renderPicker({
+      activeTab: 'microgrid',
+      value: ['external_generator'],
+      onChange,
+      onMicrogridChange,
+      onGeneratorChange,
+      generator: { voltageV: 220, phases: 1, apparentPowerVA: 8000, powerFactor: 0.8, safetyMarginW: 1000, photoUrl: null, ownAtsAcknowledged: true },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Substituir por Microrrede' }));
+    expect(onChange).toHaveBeenCalledWith(['microgrid']);
+    expect(onGeneratorChange).toHaveBeenCalledWith(null);
+    expect(onMicrogridChange).toHaveBeenCalledWith(expect.objectContaining({ onGridPhases: 1, voltageV: 220 }));
+  });
+
+  it('supports replacing microgrid with generator using the same confirmation flow', () => {
+    const onChange = vi.fn();
+    const onMicrogridChange = vi.fn();
+    const onGeneratorChange = vi.fn();
+    renderPicker({
+      activeTab: 'external_generator',
+      value: ['microgrid'],
+      onChange,
+      onMicrogridChange,
+      onGeneratorChange,
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 5000, photoUrl: null, powerNoticeAcknowledged: true },
+      gridType: 'threePhase_220',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Habilitar' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Substituir Microrrede por Gerador?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Substituir por Gerador' }));
+    expect(onChange).toHaveBeenCalledWith(['external_generator']);
+    expect(onMicrogridChange).toHaveBeenCalledWith(null);
+    expect(onGeneratorChange).toHaveBeenCalledWith(expect.objectContaining({ phases: 3, voltageV: 220 }));
+  });
+
   it('toggles a feature on, seeding pv default config', () => {
     const onPvChange = vi.fn();
     renderPicker({ activeTab: 'pv', onPvChange });

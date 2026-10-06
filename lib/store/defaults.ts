@@ -59,7 +59,13 @@ const VALID_DESIRED_FEATURE_IDS = new Set(DESIRED_FEATURE_DEFINITIONS.map((featu
  * generic "invalid payload" error with no obvious cause. */
 export function sanitizeDesiredFeatures(desiredFeatures: DesiredFeatureId[] | undefined): DesiredFeatureId[] {
   if (!Array.isArray(desiredFeatures)) return [];
-  return desiredFeatures.filter((id) => VALID_DESIRED_FEATURE_IDS.has(id));
+  const sanitized = desiredFeatures.filter((id) => VALID_DESIRED_FEATURE_IDS.has(id));
+  // Microrrede and external generator are mutually exclusive. Keep the
+  // microgrid entry when repairing old persisted projects with both flags;
+  // the UI offers an explicit confirmation when the user makes this change.
+  return sanitized.includes('microgrid')
+    ? sanitized.filter((id) => id !== 'external_generator')
+    : sanitized;
 }
 
 /** Projects saved before the bifásico on-grid option was removed may carry
