@@ -31,6 +31,7 @@ import {
   formatCurrencyBRL,
   maskDocument,
   marginRowIsInsufficient,
+  microgridOnGridLabel,
   normalizeAccessoryLine,
   solutionMetrics,
   type MarginRow,
@@ -256,6 +257,7 @@ function DesiredFeatureDetail({
   whiteTariff,
   backupEnabled,
   microgrid,
+  gridType,
   generator,
   atsPhotoUrl,
   atsBackupAcknowledged,
@@ -264,6 +266,7 @@ function DesiredFeatureDetail({
   whiteTariff: WhiteTariffConfig | null;
   backupEnabled: boolean;
   microgrid: MicrogridConfig | null;
+  gridType: ResidentialGridType | null;
   generator: GeneratorConfig | null;
   atsPhotoUrl: string | null;
   atsBackupAcknowledged: boolean;
@@ -294,7 +297,7 @@ function DesiredFeatureDetail({
       if (!microgrid) return <Text style={styles.featureDetail}>-</Text>;
       return (
         <Text style={styles.featureDetail}>
-          {`Rede existente ${microgrid.voltageV}V · ${microgrid.onGridPhases}F · Pot. CA on-grid ${formatAcPower(microgrid.onGridApparentPowerVA)}`}
+          {`On-grid existente ${microgridOnGridLabel(microgrid, gridType)} · Pot. CA on-grid ${formatAcPower(microgrid.onGridApparentPowerVA)}`}
           {microgrid.photoUrl ? ' · foto anexada' : ''}
         </Text>
       );
@@ -844,6 +847,7 @@ export function ProjectQuotePdfDocument({
                         whiteTariff={whiteTariff}
                         backupEnabled={desiredFeatures.includes('backup')}
                         microgrid={microgrid ?? null}
+                        gridType={gridType}
                         generator={generator ?? null}
                         atsPhotoUrl={atsPhotoUrl ?? null}
                         atsBackupAcknowledged={atsBackupAcknowledged ?? false}

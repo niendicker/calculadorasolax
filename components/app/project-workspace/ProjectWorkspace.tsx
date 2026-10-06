@@ -1114,8 +1114,7 @@ function SolutionSection({
           <p className="text-sm text-muted-foreground">Equipamentos, margens e critérios do dimensionamento.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!solution && onRefreshSolution && <Button onClick={onRefreshSolution} disabled={recalculatingSolution} aria-busy={recalculatingSolution}>{recalculatingSolution ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}{recalculatingSolution ? 'Calculando solução...' : 'Calcular solução'}</Button>}
-          {!solution && onOpenTechnical && <Button variant={onRefreshSolution ? 'outline' : 'default'} onClick={onOpenTechnical}>Configurar e dimensionar</Button>}
+          {!solution && onOpenTechnical && <Button onClick={onOpenTechnical}>Configurar e dimensionar</Button>}
         </div>
       </div>
 

@@ -111,8 +111,10 @@ export interface MicrogridConfig {
   /** Voltage of the existing on-grid system (V). Informational only — not
    * validated against the recommended solution. */
   voltageV: number;
-  /** Number of phases of the existing on-grid system. */
-  onGridPhases: 1 | 2 | 3;
+  /** Number of phases of the existing on-grid system. There is no bifásico
+   * on-grid inverter: a 220V monofásico on a 110/220V network is wired
+   * fase-fase (see supabase/functions/_shared/microgrid-connection.ts). */
+  onGridPhases: 1 | 3;
   /** Apparent power of the existing on-grid system (VA). */
   onGridApparentPowerVA: number;
   /** Optional reference photo of the existing on-grid installation, uploaded by the user. */

@@ -196,6 +196,16 @@ describe('projectFromRow', () => {
     expect(options.whiteTariff).toBeNull();
     expect(options.operationHours).toBe(0);
   });
+
+  it('removes the incompatible generator from legacy configurations with microgrid', () => {
+    const options = residentialOptionsFromJson({
+      desiredFeatures: ['microgrid', 'external_generator'],
+      generator: { voltageV: 220, phases: 1, apparentPowerVA: 8000 },
+    });
+
+    expect(options.desiredFeatures).toEqual(['microgrid']);
+    expect(options.generator).toBeNull();
+  });
 });
 
 describe('userServiceFromRow', () => {

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { createClient } from '@/lib/supabase/client';
 import { calculateResidentialSolution } from '@/lib/calculate-residential';
+import { getCalculationErrorMessage } from '@/lib/calculation-error-messages';
 import { listProductMedia } from '@/lib/data/product-media-repository';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
-import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
+import { desiredFeatureHasPendingIssue, desiredFeatureLacksInverterSupport } from '../tabs/sizing/feature-status';
 import {
   normalizeAccessoryLine,
 } from '../helpers';
@@ -169,21 +170,32 @@ export function useCalculation({
     [approvedInverterCombos, gridType, topology]
   );
 
-  const hasPendingEnabledFeature = residentialOptions.desiredFeatures.some((id) =>
-    desiredFeatureHasPendingIssue(id, residentialOptions.desiredFeatures, {
-      microgrid: residentialOptions.microgrid,
-      generator: residentialOptions.generator,
-      pv: residentialOptions.pv,
-      whiteTariff: residentialOptions.whiteTariff,
-      atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
-      gridType: residentialOptions.gridType,
-      peakW,
-      loadsCount: residentialOptions.loads.length,
-      operationHours: residentialOptions.operationHours,
-      inverterCatalog,
-      availableInverterModels,
-      selectedInverterModel: residentialOptions.inverterModel,
-    })
+  const inverterSupportContext = {
+    inverterCatalog,
+    availableInverterModels,
+    selectedInverterModel: residentialOptions.inverterModel,
+  };
+  const unsupportedDesiredFeatures = residentialOptions.desiredFeatures.filter((id) =>
+    desiredFeatureLacksInverterSupport(id, residentialOptions.desiredFeatures, inverterSupportContext)
+  );
+
+  const hasPendingNonSupportIssue = residentialOptions.desiredFeatures.some(
+    (id) =>
+      desiredFeatureHasPendingIssue(id, residentialOptions.desiredFeatures, {
+        microgrid: residentialOptions.microgrid,
+        generator: residentialOptions.generator,
+        pv: residentialOptions.pv,
+        whiteTariff: residentialOptions.whiteTariff,
+        atsBackupAcknowledged: residentialOptions.atsBackupAcknowledged,
+        gridType: residentialOptions.gridType,
+        peakW,
+        loadsCount: residentialOptions.loads.length,
+        operationHours: residentialOptions.operationHours,
+        inverterCatalog,
+        availableInverterModels,
+        selectedInverterModel: residentialOptions.inverterModel,
+        ignoreInverterSupport: true,
+      })
   );
 
   const canCalculate = Boolean(
@@ -191,7 +203,7 @@ export function useCalculation({
     residentialOptions.batteryModel &&
     residentialOptions.gridType &&
     residentialOptions.loads.length > 0 &&
-    !hasPendingEnabledFeature
+    !hasPendingNonSupportIssue
   );
 
   async function runCalculation(
@@ -231,6 +243,18 @@ export function useCalculation({
     setSecondaryError(null);
     if (!residentialOptions.secondaryBatteryModel) {
       setSecondarySolution(null);
+    }
+
+    if (unsupportedDesiredFeatures.length > 0) {
+      const unsupportedFeatureError = getCalculationErrorMessage(
+        'no_solution_matches_desired_features',
+        unsupportedDesiredFeatures
+      );
+      setSolution(null);
+      setSecondarySolution(null);
+      setError(unsupportedFeatureError);
+      setLoading(false);
+      return unsupportedFeatureError;
     }
 
     const calls = [runCalculation(residentialOptions.batteryModel as string, setSolution, setError)];

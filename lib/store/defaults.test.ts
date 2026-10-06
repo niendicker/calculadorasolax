@@ -25,4 +25,8 @@ describe('sanitizeDesiredFeatures', () => {
   it('returns [] for an empty array', () => {
     expect(sanitizeDesiredFeatures([])).toEqual([]);
   });
+
+  it('keeps microgrid and removes the incompatible generator from legacy data', () => {
+    expect(sanitizeDesiredFeatures(['microgrid', 'external_generator'])).toEqual(['microgrid']);
+  });
 });

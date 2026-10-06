@@ -1456,7 +1456,7 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     enable(/^Gerador/, 'external_generator', { gridType: 'threePhase_220' });
     expect(
       screen.getByText(
-        /A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\)\. Selecione Trifásico e 220V/
+        /A tensão\/fases selecionadas \(Monofásico 220V\) são incompatíveis com o tipo de rede configurado \(Trifásico 220V\)\. Selecione Trifásico 220V para poder calcular/
       )
     ).toBeInTheDocument();
   });
@@ -1506,25 +1506,23 @@ describe('SizingTab: white tariff / microgrid / generator fields', () => {
     expect(screen.queryByText(/são incompatíveis com o tipo de rede configurado/)).not.toBeInTheDocument();
   });
 
-  it('still warns for microgrid when the mismatch is not the documented exception, stating the correct selection', () => {
+  it('warns for microgrid when the on-grid is not one the network can host, stating the correct selection', () => {
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'singlePhase_220',
       microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     expect(
-      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\)\. Selecione Monofásico e 220V/)
+      screen.getByText(/são incompatíveis com o tipo de rede configurado \(Monofásico 220V\)\. Selecione Monofásico 220V para poder calcular/)
     ).toBeInTheDocument();
-    // No documented exception applies to a Monofásico network, so it shouldn't be mentioned.
-    expect(screen.queryByText(/aceito como exceção/)).not.toBeInTheDocument();
   });
 
-  it('mentions the documented microgrid exception when the network would allow it, alongside the exact match', () => {
+  it('lists every on-grid option the network can host when the microgrid selection is incompatible', () => {
     enable(/^Microrrede/, 'microgrid', {
       gridType: 'threePhase_380',
       microgrid: { voltageV: 220, onGridPhases: 3, onGridApparentPowerVA: 0, photoUrl: null },
     });
     expect(
-      screen.getByText(/Selecione Trifásico e 380V \(ou Monofásico 220V, aceito como exceção para microrrede\)/)
+      screen.getByText(/Selecione Trifásico 380V ou Monofásico 220V para poder calcular/)
     ).toBeInTheDocument();
   });
 

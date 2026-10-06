@@ -10,6 +10,35 @@ import {
 } from '../../helpers';
 import type { InverterCatalogOption } from '../../types';
 
+type InverterSupportContext = {
+  inverterCatalog: InverterCatalogOption[];
+  availableInverterModels: Set<string> | null;
+  selectedInverterModel: string | null;
+};
+
+/** Returns true when the current inverter selection cannot support a feature's
+ * required capability. Kept separate from the other feature validations so a
+ * calculation can surface this exact actionable error instead of silently
+ * disabling the Calculate action. */
+export function desiredFeatureLacksInverterSupport(
+  id: DesiredFeatureId,
+  value: DesiredFeatureId[],
+  { inverterCatalog, availableInverterModels, selectedInverterModel }: InverterSupportContext
+): boolean {
+  if (!value.includes(id)) return false;
+
+  const requiredFlag = DESIRED_FEATURE_DEFINITIONS.find((feature) => feature.id === id)?.requiresInverterFlag;
+  if (!requiredFlag) return false;
+
+  const narrowedCatalog = selectedInverterModel
+    ? inverterCatalog.filter((inverter) => inverter.model === selectedInverterModel)
+    : availableInverterModels
+      ? inverterCatalog.filter((inverter) => availableInverterModels.has(inverter.model))
+      : null;
+
+  return narrowedCatalog !== null && !narrowedCatalog.some((inverter) => inverter.flags.includes(requiredFlag));
+}
+
 /** True when an enabled desired feature still has something pending review —
  * a blocking inconsistency (generator power/phase-voltage, microgrid
  * phase-voltage), no available inverter supporting the feature's required
@@ -34,6 +63,7 @@ export function desiredFeatureHasPendingIssue(
     inverterCatalog,
     availableInverterModels,
     selectedInverterModel,
+    ignoreInverterSupport = false,
   }: {
     microgrid: MicrogridConfig | null;
     generator: GeneratorConfig | null;
@@ -47,20 +77,13 @@ export function desiredFeatureHasPendingIssue(
     inverterCatalog: InverterCatalogOption[];
     availableInverterModels: Set<string> | null;
     selectedInverterModel: string | null;
+    ignoreInverterSupport?: boolean;
   }
 ): boolean {
   if (!value.includes(id)) return false;
 
-  const requiredFlag = DESIRED_FEATURE_DEFINITIONS.find((feature) => feature.id === id)?.requiresInverterFlag;
-  if (requiredFlag) {
-    const narrowedCatalog = selectedInverterModel
-      ? inverterCatalog.filter((inverter) => inverter.model === selectedInverterModel)
-      : availableInverterModels
-        ? inverterCatalog.filter((inverter) => availableInverterModels.has(inverter.model))
-        : null;
-    if (narrowedCatalog !== null && !narrowedCatalog.some((inverter) => inverter.flags.includes(requiredFlag))) {
-      return true;
-    }
+  if (!ignoreInverterSupport && desiredFeatureLacksInverterSupport(id, value, { inverterCatalog, availableInverterModels, selectedInverterModel })) {
+    return true;
   }
 
   switch (id) {

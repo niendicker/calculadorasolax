@@ -370,6 +370,7 @@ export async function handleCalculateResidential(
         const microgridResult = resolveMicrogridSelection(
           pool,
           microgridConfig,
+          options.gridType,
           (microgridInverters ?? []) as InverterCapabilities[]
         );
 
