@@ -93,7 +93,7 @@ export function getCalculationErrorMessage(
     const labels = blockingFeatures.map((feature) => desiredFeatureLabel(feature));
     const featureList = labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
     const plural = labels.length > 1;
-    return `Nenhum inversor disponível suporta ${plural ? 'as funcionalidades' : 'a funcionalidade'} "${featureList}" com a configuração atual. Tente escolher outro inversor ou remover ${plural ? 'essas funcionalidades' : 'essa funcionalidade'}.`;
+    return `Nenhum inversor da seleção atual suporta ${plural ? 'as funcionalidades' : 'a funcionalidade'} "${featureList}". Escolha outro inversor ou remova ${plural ? 'essas funcionalidades' : 'essa funcionalidade'}.`;
   }
   if (code && MESSAGES[code]) return MESSAGES[code];
   return FALLBACK_MESSAGE;

@@ -193,7 +193,7 @@ describe('useCalculation: canCalculate', () => {
     expect(result.current.canCalculate).toBe(false);
   });
 
-  it('blocks calculation when an enabled feature has no compatible inverter available', () => {
+  it('allows calculation to surface the exact unsupported feature', async () => {
     const { result } = renderCalculation(
       baseProps({
         inverterCatalog: [{ ...supportedInverter, flags: [] }],
@@ -212,7 +212,15 @@ describe('useCalculation: canCalculate', () => {
         },
       })
     );
-    expect(result.current.canCalculate).toBe(false);
+
+    expect(result.current.canCalculate).toBe(true);
+    let resultError: string | null = null;
+    await act(async () => {
+      resultError = await result.current.calculate();
+    });
+    expect(resultError).toContain('Microrrede');
+    expect(resultError).toContain('Nenhum inversor da seleção atual');
+    expect(result.current.error).toBe(resultError);
   });
 
   it('is false when Gerador is selected but its power is below the loads peak power', () => {
