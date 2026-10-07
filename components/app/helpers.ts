@@ -473,6 +473,52 @@ export function buildMarginSummary({
   // power and energy checks visible as a separate resource group. The base
   // rows below still represent the combined sizing requirement.
   if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff') && whiteTariff) {
+    rows.push(
+      {
+        key: 'backup_nominal_inverter',
+        label: 'Potência padrão do Backup (inversor)',
+        requiredValue: nominalW,
+        providedValue: solution.inverterRatedPowerW ?? 0,
+        unit: 'W',
+      },
+      {
+        key: 'backup_peak_inverter',
+        label: 'Potência máxima do Backup (inversor)',
+        requiredValue: peakW,
+        providedValue: solution.inverterPeakPowerW ?? 0,
+        unit: 'W',
+      }
+    );
+    if (solution.batteryPowerW != null) {
+      rows.push(
+        {
+          key: 'backup_nominal_battery',
+          label: 'Potência padrão do Backup (bateria)',
+          requiredValue: nominalW,
+          providedValue: solution.batteryPowerW,
+          unit: 'W',
+        },
+        {
+          key: 'backup_peak_battery',
+          label: 'Potência máxima do Backup (bateria)',
+          requiredValue: peakW,
+          providedValue: solution.batteryPowerW,
+          unit: 'W',
+        }
+      );
+    }
+    rows.push({
+      key: 'backup_energy',
+      label: 'Energia do Backup',
+      requiredValue: effectiveTargetEnergyWh(
+        ['backup'],
+        whiteTariff,
+        dailyKwh * 1000,
+        WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT
+      ),
+      providedValue: solution.availableEnergyWh ?? 0,
+      unit: 'Wh',
+    });
     rows.push({
       key: 'white_tariff_inverter',
       label: 'Tarifa Branca (inversor)',

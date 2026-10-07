@@ -14,9 +14,10 @@ function resourceForRow(row: MarginRow, desiredFeatures: DesiredFeatureId[]): st
   if (row.key.startsWith('white_tariff_')) return 'Tarifa Branca';
   if (row.key.startsWith('microgrid_')) return 'Microrrede';
   if (row.key === 'pv') return 'Fotovoltaico';
+  if (row.key.startsWith('backup_')) return 'Backup';
   if (row.key === 'nominal' || row.key === 'peak' || row.key.endsWith('_battery') || row.key === 'energy') {
     if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff')) {
-      return row.key === 'energy' ? 'Backup + Tarifa Branca' : 'Requisitos combinados';
+      return 'Requisitos combinados';
     }
     if (desiredFeatures.includes('backup')) return 'Backup';
     if (desiredFeatures.includes('white_tariff')) return 'Tarifa Branca';
@@ -28,9 +29,9 @@ function resourceForRow(row: MarginRow, desiredFeatures: DesiredFeatureId[]): st
 function metricForRow(row: MarginRow): MetricKey {
   if (row.key === 'white_tariff_energy') return 'tariff_energy';
   if (row.key.startsWith('white_tariff_')) return 'tariff_power';
-  if (row.key === 'nominal' || row.key === 'nominal_battery') return 'nominal';
-  if (row.key === 'peak' || row.key === 'peak_battery') return 'peak';
-  if (row.key === 'energy') return 'energy';
+  if (row.key === 'nominal' || row.key === 'nominal_battery' || row.key === 'backup_nominal_inverter' || row.key === 'backup_nominal_battery') return 'nominal';
+  if (row.key === 'peak' || row.key === 'peak_battery' || row.key === 'backup_peak_inverter' || row.key === 'backup_peak_battery') return 'peak';
+  if (row.key === 'energy' || row.key === 'backup_energy') return 'energy';
   if (row.key.startsWith('microgrid_')) return 'microgrid';
   return 'pv';
 }
@@ -39,7 +40,7 @@ function metricLabel(key: MetricKey): string {
   const labels: Record<MetricKey, string> = {
     nominal: 'Potência padrão',
     peak: 'Potência máxima',
-    energy: 'Energia disponível',
+    energy: 'Energia',
     microgrid: 'Potência do on-grid',
     pv: 'Potência FV máxima',
     tariff_power: 'Potência exigida',
@@ -95,10 +96,27 @@ function MetricHeading({ metric }: { metric: MetricColumn }) {
   );
 }
 
+function CombinedRequirementsNote() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-primary/10 bg-primary/[0.035] px-3 py-2 lg:px-4">
+      <span className="inline-flex items-center gap-1 text-[0.7rem] font-medium text-foreground">
+        <HousePlug className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+        Backup
+        <span className="text-muted-foreground" aria-hidden="true">+</span>
+        <TrendingUp className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+        Tarifa Branca
+      </span>
+      <span className="text-[0.65rem] text-muted-foreground">
+        Potência considera o maior requisito; energia soma os dois.
+      </span>
+    </div>
+  );
+}
+
 function equipmentForRow(row: MarginRow): string {
   if (row.key === 'white_tariff_battery' || row.key === 'white_tariff_energy') return 'Bateria';
   if (row.key === 'white_tariff_inverter') return 'Inversor';
-  if (row.key.endsWith('_battery') || row.key === 'energy' || row.key === 'microgrid_battery') return 'Bateria';
+  if (row.key.endsWith('_battery') || row.key === 'energy' || row.key === 'backup_energy' || row.key === 'microgrid_battery') return 'Bateria';
   if (row.key === 'pv') return 'Arranjo FV';
   return 'Inversor';
 }
@@ -192,6 +210,24 @@ export function MarginComparisonTable({
     equipment.metrics[metric] = row;
   }
 
+  for (const group of groups) {
+    const energyIndex = group.metrics.findIndex((metric) => metric.key === 'energy');
+    if (energyIndex >= 0 && energyIndex !== group.metrics.length - 1) {
+      const [energyMetric] = group.metrics.splice(energyIndex, 1);
+      group.metrics.push(energyMetric);
+    }
+  }
+
+  if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff')) {
+    const backupIndex = groups.findIndex((group) => group.label === 'Backup');
+    if (backupIndex >= 0) {
+      const [backupGroup] = groups.splice(backupIndex, 1);
+      const combinedIndex = groups.findIndex((group) => group.label === 'Requisitos combinados');
+      if (combinedIndex >= 0) groups.splice(combinedIndex + 1, 0, backupGroup);
+      else groups.splice(backupIndex, 0, backupGroup);
+    }
+  }
+
   const insufficientCount = rows.filter(marginRowIsInsufficient).length;
 
   return (
@@ -226,6 +262,7 @@ export function MarginComparisonTable({
             </div>
 
             <div className="min-w-0">
+            {group.label === 'Requisitos combinados' && <CombinedRequirementsNote />}
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full border-collapse text-left text-sm">
                 <caption className="sr-only">Margens de {group.label.toLocaleLowerCase()} por equipamento</caption>
