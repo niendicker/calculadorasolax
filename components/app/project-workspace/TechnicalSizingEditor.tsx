@@ -437,6 +437,7 @@ export function TechnicalSizingEditor({
           nominalW,
           peakW,
           dailyKwh,
+          pvOversizingPercent: inverterCatalog.find((item) => item.model === activeSolution.inverterModel)?.pvOversizingPercent,
           solution: activeSolution,
         })
       : [];

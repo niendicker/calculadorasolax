@@ -239,8 +239,8 @@ describe('buildMarginSummary', () => {
       solution: baseSolution,
     });
     expect(rows).toEqual([
-      { key: 'nominal', label: 'Potência padrão', requiredValue: 3000, providedValue: 5000, unit: 'W' },
-      { key: 'peak', label: 'Potência máxima', requiredValue: 6000, providedValue: 7000, unit: 'W' },
+      { key: 'nominal', label: 'Potência padrão (inversor)', requiredValue: 3000, providedValue: 5000, unit: 'W' },
+      { key: 'peak', label: 'Potência máxima (inversor)', requiredValue: 6000, providedValue: 7000, unit: 'W' },
       { key: 'energy', label: 'Energia', requiredValue: 3000, providedValue: 3240, unit: 'Wh' },
     ]);
   });
@@ -286,7 +286,7 @@ describe('buildMarginSummary', () => {
     expect(rows.some((row) => row.key.startsWith('microgrid'))).toBe(false);
   });
 
-  it('adds a Geração FV row (monthly kWh) only when the feature is active with a positive consumption target', () => {
+  it('compares estimated PV kWp with the inverter solution maximum when PV is active', () => {
     const rows = buildMarginSummary({
       desiredFeatures: ['pv'],
       whiteTariff: null,
@@ -295,18 +295,18 @@ describe('buildMarginSummary', () => {
       nominalW: 3000,
       peakW: 6000,
       dailyKwh: 3,
-      solution: { ...baseSolution, pvMonthlyGenerationKwh: 350 },
+      solution: { ...baseSolution, pvPowerKw: 4.5, pvMonthlyGenerationKwh: 350 },
     });
     expect(rows).toContainEqual({
       key: 'pv',
-      label: 'Geração FV',
-      requiredValue: 400000,
-      providedValue: 350000,
-      unit: 'Wh',
+      label: 'Potência FV (kWp)',
+      requiredValue: 4500,
+      providedValue: 10000,
+      unit: 'kWp',
     });
   });
 
-  it('omits the Geração FV row when the feature is not active, even with a pv config present', () => {
+  it('omits the PV power margin when the feature is not active, even with a PV config present', () => {
     const rows = buildMarginSummary({
       desiredFeatures: [],
       whiteTariff: null,

@@ -17,13 +17,13 @@ import type {
   WhiteTariffConfig,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { MarginComparisonTable } from '../../MarginComparisonTable';
 import {
   buildMarginSummary,
   calculateSystemCost,
   calculateDegradedPaybackMonths,
   calculateTariffSavings,
   formatCurrencyBRL,
-  marginRowIsInsufficient,
   normalizeAccessoryLine,
   solutionMetrics,
   type MarginRow,
@@ -69,41 +69,22 @@ export function SolutionMetricCards({
   );
 }
 
-function formatMarginValue(value: number, unit: 'W' | 'Wh') {
-  const kiloValue = value / 1000;
-  return unit === 'W' ? `${kiloValue.toFixed(2)} kVA` : `${kiloValue.toFixed(2)} kWh`;
-}
-
-/** Signed headroom in the row's own unit (e.g. "+0.85 kVA") — shown instead of
- * a relative percentage so the number reads as a concrete amount of slack
- * rather than an abstract ratio that's hard to compare against the
- * "Necessário"/"Solução oferece" values right below it. */
-function formatMarginDelta(value: number, unit: 'W' | 'Wh') {
-  const formatted = formatMarginValue(Math.abs(value), unit);
-  return value >= 0 ? `+${formatted}` : `-${formatted}`;
-}
-
 /** Shows how much slack the recommended solution has over what the customer
- * actually needs on each gating dimension, highlighting whichever one has
- * the least slack — the real reason a bigger/smaller solution wasn't picked
- * instead. A negative margin means the solution doesn't actually meet that
- * requirement — the Edge Function intentionally falls back to the largest
+ * actually needs on each comparison, highlighting the tightest margin. A
+ * negative margin means the solution doesn't meet that requirement — the Edge
+ * Function intentionally falls back to the largest
  * available combination when nothing fully qualifies (see
  * calculate-residential/logic.ts's rankByLeastShortfall), so this is a real,
  * expected outcome, not an anomaly; it's called out distinctly (destructive
  * styling) and blocks PDF export (see hasInsufficientSolution in the technical editor)
  * until the customer adjusts the configuration. */
-function MarginSummary({ rows }: { rows: MarginRow[] }) {
+function MarginSummary({ rows, desiredFeatures }: { rows: MarginRow[]; desiredFeatures: DesiredFeatureId[] }) {
   if (rows.length === 0) return null;
 
-  const withMargin = rows.map((row) => ({
-    ...row,
-    marginPct: row.requiredValue > 0 ? ((row.providedValue - row.requiredValue) / row.requiredValue) * 100 : null,
-  }));
-
-  const decisiveKey = withMargin.reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
-    if (row.marginPct === null) return tightest;
-    if (!tightest || row.marginPct < tightest.marginPct) return { key: row.key, marginPct: row.marginPct };
+  const decisiveKey = rows.reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
+    if (row.requiredValue <= 0) return tightest;
+    const marginPct = ((row.providedValue - row.requiredValue) / row.requiredValue) * 100;
+    if (!tightest || marginPct < tightest.marginPct) return { key: row.key, marginPct };
     return tightest;
   }, null)?.key;
 
@@ -113,35 +94,8 @@ function MarginSummary({ rows }: { rows: MarginRow[] }) {
         <Gauge className="h-4 w-4 text-primary" />
         Margem sobre a necessidade do cliente
       </div>
-      <div className="mt-2 space-y-2">
-        {withMargin.map((row) => {
-          const isDecisive = row.key === decisiveKey;
-          const insufficient = marginRowIsInsufficient(row);
-          return (
-            <div
-              key={row.key}
-              className={cn('rounded-md px-2 py-1.5', isDecisive && 'bg-primary/5 ring-1 ring-primary/20')}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                  {row.label}
-                  {isDecisive && (
-                    <Badge variant={insufficient ? 'destructive' : 'secondary'} className="text-[0.65rem]">
-                      {insufficient ? 'Insuficiente' : 'Fator decisivo'}
-                    </Badge>
-                  )}
-                </span>
-                <span className={cn('text-sm font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
-                  {row.marginPct !== null ? formatMarginDelta(row.providedValue - row.requiredValue, row.unit) : '-'}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Necessário {formatMarginValue(row.requiredValue, row.unit)} · Solução oferece{' '}
-                {formatMarginValue(row.providedValue, row.unit)}
-              </p>
-            </div>
-          );
-        })}
+      <div className="mt-3">
+        <MarginComparisonTable rows={rows} desiredFeatures={desiredFeatures} decisiveKey={decisiveKey} />
       </div>
     </div>
   );
@@ -230,11 +184,21 @@ export function ResultSummary({
       }`
     : null;
 
-  const marginRows = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
+  const marginRows = buildMarginSummary({
+    desiredFeatures,
+    whiteTariff,
+    microgrid,
+    pv,
+    nominalW,
+    peakW,
+    dailyKwh,
+    pvOversizingPercent: inverterPerformance?.pvOversizingPercent,
+    solution,
+  });
 
   return (
     <div className="space-y-3">
-      <MarginSummary rows={marginRows} />
+      <MarginSummary rows={marginRows} desiredFeatures={desiredFeatures} />
       <div className="rounded-lg border bg-background p-3">
         <div className="grid gap-3 sm:grid-cols-[1fr_88px]">
           <div className="min-w-0">

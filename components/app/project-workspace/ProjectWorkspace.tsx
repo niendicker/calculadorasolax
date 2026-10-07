@@ -49,7 +49,8 @@ import { featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption, InlineProfile, InverterCatalogOption, ProductMedia } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 import { cn } from '@/lib/utils';
-import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, marginRowIsInsufficient, normalizeAccessoryLine, servicePricingUnitLabel, solutionMetrics, type MissingCostItem } from '../helpers';
+import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, normalizeAccessoryLine, servicePricingUnitLabel, solutionMetrics, type MissingCostItem } from '../helpers';
+import { MarginComparisonTable } from '../MarginComparisonTable';
 import { CatalogProductCard, DocPreviewModal, MicrogridGuideDialog } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
 import { ProjectInfoEditor } from './ProjectInfoEditor';
@@ -1085,6 +1086,7 @@ function SolutionSection({
         nominalW,
         peakW,
         dailyKwh,
+        pvOversizingPercent: inverterCatalog.find((item) => item.model === solution.inverterModel)?.pvOversizingPercent,
         solution,
       })
     : [];
@@ -1236,7 +1238,9 @@ function SolutionSection({
               )}
             </div>
           )}
-          {view === 'margins' && <div className="grid gap-3 sm:grid-cols-3">{marginRows.map((row) => { const delta = row.providedValue - row.requiredValue; const insufficient = marginRowIsInsufficient(row); return <Card key={row.key} className={cn(insufficient && 'border-destructive/50')}><CardContent className="p-4"><p className="text-sm font-medium">{row.label}</p><p className={cn('mt-2 text-xl font-semibold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>{delta >= 0 ? '+' : '-'}{row.unit === 'W' ? formatKva(Math.abs(delta)) : formatKwh(Math.abs(delta) / 1000)}</p><p className="mt-2 text-xs text-muted-foreground">Necessário {row.unit === 'W' ? formatKva(row.requiredValue) : formatKwh(row.requiredValue / 1000)} · Solução {row.unit === 'W' ? formatKva(row.providedValue) : formatKwh(row.providedValue / 1000)}</p><StateBadge state={insufficient ? 'attention' : 'configured'} /></CardContent></Card>; })}</div>}
+          {view === 'margins' && (
+            <MarginComparisonTable rows={marginRows} desiredFeatures={residentialOptions.desiredFeatures} />
+          )}
           {view === 'criteria' && <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Critérios considerados</h3></CardHeader><CardContent className="space-y-2 pt-0">{[
             ['Rede elétrica', residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'],
             ['Cargas consideradas', `${residentialOptions.loads.length} cadastradas`],
