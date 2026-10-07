@@ -273,7 +273,7 @@ function StockControl({
       <div className="border-t pt-2">
         <Badge variant="secondary" className="w-fit gap-1">
           <Check className="h-3 w-3" />
-          No catálogo
+          No portfólio
         </Badge>
       </div>
     );
@@ -299,7 +299,7 @@ function StockControl({
         }}
       >
         <Plus className="h-3.5 w-3.5" />
-        Adicionar ao meu catálogo
+        Adicionar ao meu portfólio
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

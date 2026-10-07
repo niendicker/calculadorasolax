@@ -183,29 +183,29 @@ describe('CatalogTab: stock control', () => {
   it('adds a product to the user catalog', async () => {
     const { props } = setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu portfólio' }));
 
     await waitFor(() =>
       expect(props.onAddToStock).toHaveBeenCalledWith({ productType: 'inverter', productModel: 'X1-Hybrid-5.0kW-G4', unitValue: 0 })
     );
   });
 
-  it('shows "No catálogo" instead of the add button once already in stock', () => {
+  it('shows "No portfólio" instead of the add button once already in stock', () => {
     setup({
       userStockItems: [
         { id: 's1', productType: 'inverter', productModel: 'X1-Hybrid-5.0kW-G4', unitValue: 0, createdAt: '', updatedAt: '' },
       ],
     });
 
-    expect(screen.getByText('No catálogo')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Adicionar ao meu catálogo' })).not.toBeInTheDocument();
+    expect(screen.getByText('No portfólio')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adicionar ao meu portfólio' })).not.toBeInTheDocument();
   });
 
   it('shows a limit-reached error verbatim when adding fails', async () => {
     const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 14 itens no catálogo atingido.'));
     setup({ onAddToStock });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu portfólio' }));
 
     await waitFor(() => expect(screen.getByText('Limite de 14 itens no catálogo atingido.')).toBeInTheDocument());
   });
@@ -214,7 +214,7 @@ describe('CatalogTab: stock control', () => {
     const onAddToStock = vi.fn().mockRejectedValue(new Error('boom'));
     setup({ onAddToStock });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar ao meu portfólio' }));
 
     await waitFor(() =>
       expect(screen.getByText('Não foi possível adicionar ao catálogo. Tente novamente.')).toBeInTheDocument()
