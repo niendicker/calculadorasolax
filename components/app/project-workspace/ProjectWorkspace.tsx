@@ -692,8 +692,8 @@ export function ProjectWorkspace({
           <Card>
             <CardHeader className="pb-2"><h2 className="text-sm font-semibold">Recursos</h2></CardHeader>
             <CardContent className="pt-0">
-              <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} onClick={() => openSizingSection('loads')} inset />
-              {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} onClick={() => openResourceEditor(item.id)} inset />)}
+              <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} icon={ClipboardList} onClick={() => openSizingSection('loads')} inset />
+              {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} icon={item.icon} onClick={() => openResourceEditor(item.id)} inset />)}
             </CardContent>
           </Card>
         </div>
