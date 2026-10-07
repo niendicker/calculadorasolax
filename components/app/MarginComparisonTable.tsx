@@ -153,17 +153,17 @@ function MarginStatus({ insufficient }: { insufficient: boolean }) {
   );
 }
 
-function MetricValue({ row, decisive }: { row: MarginRow; decisive: boolean }) {
+function MetricValue({ row, highlight }: { row: MarginRow; highlight: boolean }) {
   const delta = row.providedValue - row.requiredValue;
   const insufficient = marginRowIsInsufficient(row);
   return (
-    <div className="space-y-1">
+    <div className={cn('space-y-1 rounded-md', highlight && 'bg-primary/5 px-2 py-1.5 ring-1 ring-inset ring-primary/25')}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <span className={cn('font-bold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
           {delta >= 0 ? '+' : '-'}{formatValue(Math.abs(delta), row)}
         </span>
         {insufficient && <span className="text-[0.65rem] font-semibold text-destructive">Insuficiente</span>}
-        {decisive && <span className="text-[0.65rem] font-semibold text-primary">Fator decisivo</span>}
+        {highlight && <span className="text-[0.65rem] font-semibold text-primary">Menor margem</span>}
       </div>
       <p className="text-[0.7rem]">
         <span className="text-muted-foreground">Projeto </span>
@@ -179,11 +179,9 @@ function MetricValue({ row, decisive }: { row: MarginRow; decisive: boolean }) {
 export function MarginComparisonTable({
   rows,
   desiredFeatures,
-  decisiveKey,
 }: {
   rows: MarginRow[];
   desiredFeatures: DesiredFeatureId[];
-  decisiveKey?: string;
 }) {
   if (rows.length === 0) return null;
 
@@ -229,6 +227,13 @@ export function MarginComparisonTable({
   }
 
   const insufficientCount = rows.filter(marginRowIsInsufficient).length;
+  const lowestMarginKey = rows
+    .filter((row) => resourceForRow(row, desiredFeatures) === 'Requisitos combinados' && row.requiredValue > 0)
+    .reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
+      const marginPct = ((row.providedValue - row.requiredValue) / row.requiredValue) * 100;
+      if (!tightest || marginPct < tightest.marginPct) return { key: row.key, marginPct };
+      return tightest;
+    }, null)?.key;
 
   return (
     <div className="space-y-3">
@@ -282,7 +287,7 @@ export function MarginComparisonTable({
                         const row = equipment.metrics[metric.key];
                         return (
                           <td key={metric.key} className="px-3 py-3 align-top">
-                            {row ? <MetricValue row={row} decisive={row.key === decisiveKey} /> : <span className="text-muted-foreground">—</span>}
+                            {row ? <MetricValue row={row} highlight={row.key === lowestMarginKey} /> : <span className="text-muted-foreground">—</span>}
                           </td>
                         );
                       })}
@@ -302,7 +307,7 @@ export function MarginComparisonTable({
                     return (
                       <div key={equipment.label} className="flex items-start justify-between gap-3 px-3 py-2">
                         <span className="w-20 shrink-0 pt-0.5"><EquipmentLabel label={equipment.label} /></span>
-                        <MetricValue row={row} decisive={row.key === decisiveKey} />
+                        <MetricValue row={row} highlight={row.key === lowestMarginKey} />
                       </div>
                     );
                   })}

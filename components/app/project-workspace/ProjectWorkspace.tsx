@@ -49,7 +49,7 @@ import { featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption, InlineProfile, InverterCatalogOption, ProductMedia } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 import { cn } from '@/lib/utils';
-import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, normalizeAccessoryLine, servicePricingUnitLabel, solutionMetrics, type MissingCostItem } from '../helpers';
+import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, normalizeAccessoryLine, servicePricingUnitLabel, type MissingCostItem } from '../helpers';
 import { MarginComparisonTable } from '../MarginComparisonTable';
 import { CatalogProductCard, DocPreviewModal, MicrogridGuideDialog } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
@@ -993,14 +993,6 @@ function CardIcon({ icon: Icon }: { icon: typeof PanelTop }) {
   return <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span>;
 }
 
-function MetricCard({ label, value, icon: Icon, compact = false }: { label: string; value: string; icon: typeof Zap; compact?: boolean }) {
-  if (compact) {
-    return <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Icon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0"><div className="truncate text-xs text-muted-foreground">{label}</div><p className="mt-0.5 truncate text-xl font-semibold leading-tight tabular-nums">{value}</p></div></div>;
-  }
-
-  return <Card className="p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="h-4 w-4" aria-hidden="true" />{label}</div><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></Card>;
-}
-
 function SummaryMetric({ label, value, unit, icon: Icon }: { label: string; value: string; unit: string; icon: LucideIcon }) {
   return (
     <div className="flex min-w-0 items-center gap-3 rounded-xl border bg-background px-3 py-2.5 shadow-sm">
@@ -1076,7 +1068,6 @@ function SolutionSection({
   const [view, setView] = useState<'summary' | 'margins' | 'criteria'>('summary');
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
-  const metrics = solution ? solutionMetrics(solution, batteryCatalog) : null;
   const marginRows = solution
     ? buildMarginSummary({
         desiredFeatures: residentialOptions.desiredFeatures,
@@ -1131,20 +1122,14 @@ function SolutionSection({
           {stale && <div className="flex items-start gap-2 rounded-lg border border-amber-300/70 bg-amber-50/60 p-3 text-sm text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>As configurações do Workspace foram alteradas após o último cálculo. Recalcule para atualizar esta solução.</span></div>}
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1" role="group" aria-label="Detalhes da solução">
             {([
-              ['summary', 'Resumo'],
+              ['summary', 'Equipamentos'],
               ['margins', 'Margens'],
               ['criteria', 'Critérios'],
             ] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === id ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}>{label}</button>)}
           </div>
 
-          {view === 'summary' && metrics && (
+          {view === 'summary' && (
             <div className="space-y-4">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <MetricCard compact label="Potência do inversor" value={solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} icon={Zap} />
-                <MetricCard compact label="Potência da bateria" value={solution.batteryPowerW ? formatKw(solution.batteryPowerW) : 'Não informado'} icon={Battery} />
-                <MetricCard compact label="Potência máxima" value={metrics.peakW != null ? formatKva(metrics.peakW) : 'Não informado'} icon={Gauge} />
-                <MetricCard compact label="Energia útil" value={formatKwh(metrics.energyKwh)} icon={BatteryCharging} />
-              </div>
               <Card>
                 <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Sistema Inteligente de Armazenamento de Energia</h3><p className="mt-0.5 text-xs text-muted-foreground">Inversor e banco de baterias selecionados para este dimensionamento.</p></CardHeader>
                 <CardContent className="space-y-3 pt-0">
