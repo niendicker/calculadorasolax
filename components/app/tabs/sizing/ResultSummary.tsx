@@ -70,8 +70,8 @@ export function SolutionMetricCards({
 }
 
 /** Shows how much slack the recommended solution has over what the customer
- * actually needs on each comparison, highlighting the tightest margin. A
- * negative margin means the solution doesn't meet that requirement — the Edge
+ * actually needs on each comparison. A negative margin means the solution
+ * doesn't meet that requirement — the Edge
  * Function intentionally falls back to the largest
  * available combination when nothing fully qualifies (see
  * calculate-residential/logic.ts's rankByLeastShortfall), so this is a real,
@@ -81,13 +81,6 @@ export function SolutionMetricCards({
 function MarginSummary({ rows, desiredFeatures }: { rows: MarginRow[]; desiredFeatures: DesiredFeatureId[] }) {
   if (rows.length === 0) return null;
 
-  const decisiveKey = rows.reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
-    if (row.requiredValue <= 0) return tightest;
-    const marginPct = ((row.providedValue - row.requiredValue) / row.requiredValue) * 100;
-    if (!tightest || marginPct < tightest.marginPct) return { key: row.key, marginPct };
-    return tightest;
-  }, null)?.key;
-
   return (
     <div className="rounded-lg border bg-background p-3">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -95,7 +88,7 @@ function MarginSummary({ rows, desiredFeatures }: { rows: MarginRow[]; desiredFe
         Margem sobre a necessidade do cliente
       </div>
       <div className="mt-3">
-        <MarginComparisonTable rows={rows} desiredFeatures={desiredFeatures} decisiveKey={decisiveKey} />
+        <MarginComparisonTable rows={rows} desiredFeatures={desiredFeatures} />
       </div>
     </div>
   );
