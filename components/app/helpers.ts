@@ -406,7 +406,7 @@ export interface MarginRow {
   label: string;
   requiredValue: number;
   providedValue: number;
-  unit: 'W' | 'Wh';
+  unit: 'W' | 'Wh' | 'kWp';
 }
 
 /** Uses the same boundary semantics as the residential calculation engine:
@@ -418,9 +418,7 @@ export function marginRowIsInsufficient(row: MarginRow): boolean {
 }
 
 /** Builds the "how much slack does the chosen solution have over what the
- * customer actually needs" rows, using the exact same gating formulas the
- * Edge Function used to pick this solution — so the margins shown here
- * match why this solution (and not a smaller one) was recommended. */
+ * customer actually needs" rows. */
 export function buildMarginSummary({
   desiredFeatures,
   whiteTariff,
@@ -429,6 +427,7 @@ export function buildMarginSummary({
   nominalW,
   peakW,
   dailyKwh,
+  pvOversizingPercent,
   solution,
 }: {
   desiredFeatures: DesiredFeatureId[];
@@ -438,19 +437,20 @@ export function buildMarginSummary({
   nominalW: number;
   peakW: number;
   dailyKwh: number;
+  pvOversizingPercent?: number | null;
   solution: Solution;
 }): MarginRow[] {
   const rows: MarginRow[] = [
     {
       key: 'nominal',
-      label: 'Potência padrão',
+      label: 'Potência padrão (inversor)',
       requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
       providedValue: solution.inverterRatedPowerW ?? 0,
       unit: 'W',
     },
     {
       key: 'peak',
-      label: 'Potência máxima',
+      label: 'Potência máxima (inversor)',
       requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
       providedValue: solution.inverterPeakPowerW ?? 0,
       unit: 'W',
@@ -469,18 +469,72 @@ export function buildMarginSummary({
     },
   ];
 
-  // PV is sized (computePvPowerKw in the Edge Function) to cover the
-  // customer's own total monthly consumption, capped by the recommended
-  // inverter's pv_oversizing_percent — so the solution's own generation
-  // estimate can fall short of that target on a heavily-capped inverter,
-  // same spirit as the other margin rows.
-  if (desiredFeatures.includes('pv') && pv && pv.monthlyConsumptionKwh > 0) {
+  // When Backup and Tarifa Branca are both active, keep the tariff's own
+  // power and energy checks visible as a separate resource group. The base
+  // rows below still represent the combined sizing requirement.
+  if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff') && whiteTariff) {
+    rows.push({
+      key: 'white_tariff_inverter',
+      label: 'Tarifa Branca (inversor)',
+      requiredValue: whiteTariff.requiredPowerW,
+      providedValue: solution.inverterRatedPowerW ?? 0,
+      unit: 'W',
+    });
+    if (solution.batteryPowerW != null) {
+      rows.push({
+        key: 'white_tariff_battery',
+        label: 'Tarifa Branca (bateria)',
+        requiredValue: whiteTariff.requiredPowerW,
+        providedValue: solution.batteryPowerW,
+        unit: 'W',
+      });
+    }
+    rows.push({
+      key: 'white_tariff_energy',
+      label: 'Energia da Tarifa Branca',
+      requiredValue: effectiveTargetEnergyWh(
+        ['white_tariff'],
+        whiteTariff,
+        0,
+        WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT
+      ),
+      providedValue: solution.availableEnergyWh ?? 0,
+      unit: 'Wh',
+    });
+  }
+
+  // Backup loads are supplied by both the inverter and the battery bank.
+  // Show the battery's power margin separately so a strong inverter cannot
+  // hide a battery bank that falls short of the nominal or peak requirement.
+  if (desiredFeatures.includes('backup') && solution.batteryPowerW != null) {
+    rows.push(
+      {
+        key: 'nominal_battery',
+        label: 'Potência padrão (bateria)',
+        requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+        providedValue: solution.batteryPowerW,
+        unit: 'W',
+      },
+      {
+        key: 'peak_battery',
+        label: 'Potência máxima (bateria)',
+        requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
+        providedValue: solution.batteryPowerW,
+        unit: 'W',
+      }
+    );
+  }
+
+  // Show the kWp headroom between the estimated array and the maximum that
+  // the recommended inverter(s) allow at their configured oversizing ratio.
+  if (desiredFeatures.includes('pv') && pv && solution.pvPowerKw != null) {
+    const oversizingPercent = pvOversizingPercent ?? 100;
     rows.push({
       key: 'pv',
-      label: 'Geração FV',
-      requiredValue: pv.monthlyConsumptionKwh * 1000,
-      providedValue: (solution.pvMonthlyGenerationKwh ?? 0) * 1000,
-      unit: 'Wh',
+      label: 'Potência FV (kWp)',
+      requiredValue: solution.pvPowerKw * 1000,
+      providedValue: (solution.inverterRatedPowerW ?? 0) * (1 + oversizingPercent / 100),
+      unit: 'kWp',
     });
   }
 
@@ -915,6 +969,7 @@ export function buildQuoteShareSnapshot(
     nominalW,
     peakW,
     dailyKwh,
+    pvOversizingPercent: inverterPerformance?.pvOversizingPercent,
     solution,
   });
 

@@ -348,7 +348,7 @@ describe('ResultSummary: margin summary', () => {
       pv: { monthlyConsumptionKwh: 400, hsp: 4 },
       microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 3000, photoUrl: null, powerNoticeAcknowledged: true },
     });
-    expect(screen.getByText('Geração FV')).toBeInTheDocument();
+    expect(screen.getByText('Potência FV máxima')).toBeInTheDocument();
     expect(screen.getByText('Microrrede (inversor)')).toBeInTheDocument();
     expect(screen.getByText('Microrrede (bateria)')).toBeInTheDocument();
   });

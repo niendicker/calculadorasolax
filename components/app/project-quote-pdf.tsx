@@ -514,7 +514,17 @@ function ProductsSection({
     (solution.inverterQty ?? 1) * (solution.batteryPortsUsed ?? 1)
   );
   const metrics = solutionMetrics(solution, batteryCatalog);
-  const marginRows: MarginRow[] = buildMarginSummary({ desiredFeatures, whiteTariff, microgrid, pv, nominalW, peakW, dailyKwh, solution });
+  const marginRows: MarginRow[] = buildMarginSummary({
+    desiredFeatures,
+    whiteTariff,
+    microgrid,
+    pv,
+    nominalW,
+    peakW,
+    dailyKwh,
+    pvOversizingPercent: inverterCatalog.find((item) => item.model === solution.inverterModel)?.pvOversizingPercent,
+    solution,
+  });
 
   const productLines: ReactElement<Parameters<typeof ProductLine>[0]>[] = [];
   productLines.push(
@@ -640,11 +650,16 @@ function ProductsSection({
           {marginRows.map((row, index) => {
             const marginPct = row.requiredValue > 0 ? ((row.providedValue - row.requiredValue) / row.requiredValue) * 100 : null;
             const insufficient = marginRowIsInsufficient(row);
-            const isDcPower = row.key === 'microgrid_battery';
-            const formatValue = (value: number) => row.unit === 'W'
-              ? (isDcPower ? formatDcPower(value) : formatAcPower(value))
-              : formatEnergy(value);
+            const isDcPower = row.key.endsWith('_battery');
+            const formatValue = (value: number) => row.unit === 'kWp'
+              ? formatPvPower(value / 1000)
+              : row.unit === 'W'
+                ? (isDcPower ? formatDcPower(value) : formatAcPower(value))
+                : formatEnergy(value);
             const delta = row.providedValue - row.requiredValue;
+            const comparison = row.key === 'pv'
+              ? `Projeto ${formatValue(row.requiredValue)} · Máximo permitido ${formatValue(row.providedValue)}`
+              : `Necessário ${formatValue(row.requiredValue)} · ${row.key === 'nominal' || row.key === 'peak' ? 'Inversor selecionado' : 'Solução oferece'} ${formatValue(row.providedValue)}`;
             return (
               <View
                 key={row.key}
@@ -653,7 +668,7 @@ function ProductsSection({
               >
                 <Text style={styles.subBoxRowLabel}>{(insufficient ? '⚠ ' : '') + row.label}</Text>
                 <Text style={[styles.subBoxRowValue, styleIf(insufficient, styles.subBoxRowValueAlert)]}>
-                  {`Necessário ${formatValue(row.requiredValue)} · ${row.key === 'nominal' || row.key === 'peak' ? 'Inversor selecionado' : 'Solução oferece'} ${formatValue(row.providedValue)}`}
+                  {comparison}
                   {marginPct !== null && ` (${delta >= 0 ? '+' : '-'}${formatValue(Math.abs(delta))}${row.requiredValue > 0 ? `, ${marginPct >= 0 ? '+' : ''}${marginPct.toFixed(0)}%` : ''})`}
                 </Text>
               </View>
