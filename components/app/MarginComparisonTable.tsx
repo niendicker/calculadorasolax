@@ -268,9 +268,11 @@ function combinedSourceMetrics(rows: MarginRow[], desiredFeatures: DesiredFeatur
 export function MarginComparisonTable({
   rows: allRows,
   desiredFeatures,
+  sectionBackground = 'background',
 }: {
   rows: MarginRow[];
   desiredFeatures: DesiredFeatureId[];
+  sectionBackground?: 'background' | 'card';
 }) {
   const hasPowerResource = desiredFeatures.some((feature) =>
     feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff'
@@ -343,8 +345,8 @@ export function MarginComparisonTable({
       )}
       <div className="space-y-2">
         {groups.map((group) => (
-          <section key={group.label} aria-label={group.label} className="overflow-hidden rounded-xl border bg-background lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="bg-muted/10 px-3 py-2 lg:border-r lg:border-border/60 lg:px-4 lg:py-3">
+          <section key={group.label} aria-label={group.label} className={cn('overflow-hidden rounded-xl border lg:grid lg:grid-cols-[220px_minmax(0,1fr)]', sectionBackground === 'card' ? 'bg-card' : 'bg-background')}>
+            <div className={cn('px-3 py-2 lg:border-r lg:border-border/60 lg:px-4 lg:py-3', sectionBackground === 'background' && 'bg-muted/10')}>
             <ResourceHeading label={group.label} />
             </div>
 

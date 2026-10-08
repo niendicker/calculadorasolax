@@ -1295,7 +1295,7 @@ function SolutionSection({
             </div>
           )}
           {view === 'margins' && (
-            <MarginComparisonTable rows={marginRows} desiredFeatures={residentialOptions.desiredFeatures} />
+            <MarginComparisonTable rows={marginRows} desiredFeatures={residentialOptions.desiredFeatures} sectionBackground="card" />
           )}
           {view === 'criteria' && <Card><CardHeader className="pb-3"><h3 className="text-sm font-semibold">Critérios considerados</h3></CardHeader><CardContent className="space-y-2 pt-0">{[
             ['Rede elétrica', residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'],
