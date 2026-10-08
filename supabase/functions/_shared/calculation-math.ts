@@ -57,6 +57,27 @@ export function effectiveTargetPowerW(
   return Math.max(backupFloor, whiteTariffFloor);
 }
 
+/** Continuous requirements also set a floor for maximum power. */
+export function effectiveTargetPowers(
+  desiredFeatures: readonly string[],
+  whiteTariff: WhiteTariffEnergyRequirement | null,
+  microgrid: { onGridApparentPowerVA: number } | null,
+  nominalW: number,
+  peakW: number
+): { nominalW: number; peakW: number } {
+  const microgridPowerW = desiredFeatures.includes('microgrid') && microgrid
+    ? Math.max(0, microgrid.onGridApparentPowerVA)
+    : 0;
+  const nominalTarget = Math.max(
+    effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+    microgridPowerW
+  );
+  return {
+    nominalW: nominalTarget,
+    peakW: Math.max(nominalTarget, effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW)),
+  };
+}
+
 /** Shared battery-energy floor. Backup reserve and the Tarifa Branca daily
  * arbitrage cycle stack because they are separate capacity requirements. */
 export function effectiveTargetEnergyWh(

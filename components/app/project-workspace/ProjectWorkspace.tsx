@@ -1123,7 +1123,7 @@ function SolutionSection({
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1" role="group" aria-label="Detalhes da solução">
             {([
               ['summary', 'Equipamentos'],
-              ['margins', 'Margens'],
+              ['margins', 'Margens operacionais'],
               ['criteria', 'Critérios'],
             ] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === id ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}>{label}</button>)}
           </div>

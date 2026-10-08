@@ -12,6 +12,7 @@ import type { LoadPhase, ResidentialGridType, SingleLoad } from '@/lib/types';
 export {
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  effectiveTargetPowers,
   totalDailyKwh,
   totalNominalW,
   totalPeakW,

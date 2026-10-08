@@ -5,7 +5,7 @@ import {
   buildSolutionPayload,
   desiredPvPowerKw,
   effectiveTargetEnergyWh,
-  effectiveTargetPowerW,
+  effectiveTargetPowers,
   filterSolutionsByPvCapacity,
   filterSolutionsByRequiredFlags,
   gridTopologyMap,
@@ -96,8 +96,9 @@ export async function handleCalculateResidential(
     // brief-surge rating (peak_power_w) — otherwise an inverter that can only
     // deliver that power for a few seconds could get approved for a multi-hour
     // tariff window.
-    const minRatedPowerW = effectiveTargetPowerW(desiredFeatures, options.whiteTariff, nominalW);
-    const targetPowerW = effectiveTargetPowerW(desiredFeatures, options.whiteTariff, peakW);
+    const { nominalW: minRatedPowerW, peakW: targetPowerW } = effectiveTargetPowers(
+      desiredFeatures, options.whiteTariff, options.microgrid, nominalW, peakW
+    );
     let usefulEnergyWhPerBattery: number | null = null;
 
     if (options.batteryModel) {

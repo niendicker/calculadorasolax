@@ -227,6 +227,38 @@ describe('buildMarginSummary', () => {
     availableEnergyWh: 3240,
   });
 
+  it.each([
+    { microgridPower: 8000, tariffPower: 4000, nominalW: 3000, peakW: 6000, expectedNominal: 8000, expectedPeak: 8000 },
+    { microgridPower: 8000, tariffPower: 15000, nominalW: 3000, peakW: 12000, expectedNominal: 15000, expectedPeak: 15000 },
+    { microgridPower: 8000, tariffPower: 4000, nominalW: 3000, peakW: 12000, expectedNominal: 8000, expectedPeak: 12000 },
+    { microgridPower: 1000, tariffPower: 1000, nominalW: 5000, peakW: 2000, expectedNominal: 5000, expectedPeak: 5000 },
+  ])('keeps displayed inverter and battery requirements consistent: $expectedNominal/$expectedPeak', ({ microgridPower, tariffPower, nominalW, peakW, expectedNominal, expectedPeak }) => {
+    const rows = buildMarginSummary({
+      desiredFeatures: ['backup', 'microgrid', 'white_tariff'],
+      whiteTariff: {
+        requiredPowerW: tariffPower,
+        pontaEnergyWh: 6000,
+        intermediateEnergyWh: 2000,
+        pontaTariffPerKwh: 1.2,
+        intermediateTariffPerKwh: 0.95,
+        foraPontaTariffPerKwh: 0.7,
+      },
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: microgridPower, photoUrl: null, powerNoticeAcknowledged: false },
+      pv: null,
+      nominalW,
+      peakW,
+      dailyKwh: 3,
+      solution: { ...baseSolution, batteryPowerW: 16000 },
+    });
+    const required = (key: string) => rows.find((row) => row.key === key)?.requiredValue;
+    expect(required('nominal')).toBe(expectedNominal);
+    expect(required('nominal_battery')).toBe(expectedNominal);
+    expect(required('peak')).toBe(expectedPeak);
+    expect(required('peak_battery')).toBe(expectedPeak);
+    expect(required('backup_peak_inverter')).toBe(Math.max(nominalW, peakW));
+    expect(required('backup_peak_battery')).toBe(Math.max(nominalW, peakW));
+  });
+
   it('computes Potência padrão/Pico/Energia rows from the load-derived targets vs the solution', () => {
     const rows = buildMarginSummary({
       desiredFeatures: ['backup'],

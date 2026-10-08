@@ -24,7 +24,7 @@ import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
 import {
   effectiveTargetEnergyWh,
-  effectiveTargetPowerW,
+  effectiveTargetPowers,
   totalDailyKwh,
   totalNominalW,
   totalPeakW,
@@ -393,7 +393,7 @@ export function solutionMetrics(
   };
 }
 
-export { effectiveTargetEnergyWh, effectiveTargetPowerW } from '@/lib/store/wizard-calculations';
+export { effectiveTargetEnergyWh, effectiveTargetPowerW, effectiveTargetPowers } from '@/lib/store/wizard-calculations';
 
 /** Efficiency used by the sizing UI when presenting the estimated storage
  * requirement. The calculation service selects a solution from raw usable
@@ -440,18 +440,23 @@ export function buildMarginSummary({
   pvOversizingPercent?: number | null;
   solution: Solution;
 }): MarginRow[] {
+  const { nominalW: combinedRegimePowerW, peakW: combinedPeakPowerW } = effectiveTargetPowers(
+    desiredFeatures, whiteTariff, microgrid, nominalW, peakW
+  );
+  const backupPeakPowerW = Math.max(nominalW, peakW);
+
   const rows: MarginRow[] = [
     {
       key: 'nominal',
       label: 'Potência padrão (inversor)',
-      requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+      requiredValue: combinedRegimePowerW,
       providedValue: solution.inverterRatedPowerW ?? 0,
       unit: 'W',
     },
     {
       key: 'peak',
       label: 'Potência máxima (inversor)',
-      requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
+      requiredValue: combinedPeakPowerW,
       providedValue: solution.inverterPeakPowerW ?? 0,
       unit: 'W',
     },
@@ -484,7 +489,7 @@ export function buildMarginSummary({
       {
         key: 'backup_peak_inverter',
         label: 'Potência máxima do Backup (inversor)',
-        requiredValue: peakW,
+        requiredValue: backupPeakPowerW,
         providedValue: solution.inverterPeakPowerW ?? 0,
         unit: 'W',
       }
@@ -501,7 +506,7 @@ export function buildMarginSummary({
         {
           key: 'backup_peak_battery',
           label: 'Potência máxima do Backup (bateria)',
-          requiredValue: peakW,
+          requiredValue: backupPeakPowerW,
           providedValue: solution.batteryPowerW,
           unit: 'W',
         }
@@ -557,14 +562,14 @@ export function buildMarginSummary({
       {
         key: 'nominal_battery',
         label: 'Potência padrão (bateria)',
-        requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+        requiredValue: combinedRegimePowerW,
         providedValue: solution.batteryPowerW,
         unit: 'W',
       },
       {
         key: 'peak_battery',
         label: 'Potência máxima (bateria)',
-        requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
+        requiredValue: combinedPeakPowerW,
         providedValue: solution.batteryPowerW,
         unit: 'W',
       }

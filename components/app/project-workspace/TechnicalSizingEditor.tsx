@@ -45,7 +45,7 @@ import { cn } from '@/lib/utils';
 import {
   buildMarginSummary,
   effectiveTargetEnergyWh,
-  effectiveTargetPowerW,
+  effectiveTargetPowers,
   marginRowIsInsufficient,
   solutionHasInsufficientMargin,
   WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT,
@@ -400,13 +400,14 @@ export function TechnicalSizingEditor({
   // The Resumo cards must reflect everything the solution needs to cover, not
   // just the registered loads — e.g. Tarifa Branca raises the power/energy
   // floor, same targets the Edge Function actually sizes against (see
-  // effectiveTargetPowerW/effectiveTargetEnergyWh). Passing the full
+  // effectiveTargetPowers/effectiveTargetEnergyWh). Passing the full
   // nominalW/peakW/dailyKwh straight through is safe even when Backup is
   // disabled — those two functions only count the loads' own floor while
   // 'backup' is itself a desired feature, so there's no need to pre-zero
   // anything here anymore.
-  const summaryNominalW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, nominalW);
-  const summaryPeakW = effectiveTargetPowerW(residentialOptions.desiredFeatures, residentialOptions.whiteTariff, peakW);
+  const { nominalW: summaryNominalW, peakW: summaryPeakW } = effectiveTargetPowers(
+    residentialOptions.desiredFeatures, residentialOptions.whiteTariff, residentialOptions.microgrid, nominalW, peakW
+  );
   const summaryDailyKwh =
     effectiveTargetEnergyWh(
       residentialOptions.desiredFeatures,

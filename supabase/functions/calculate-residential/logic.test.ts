@@ -7,6 +7,7 @@ import {
   desiredPvPowerKw,
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  effectiveTargetPowers,
   filterSolutionsByPvCapacity,
   filterSolutionsByRequiredFlags,
   inverterSatisfiesRequiredFlags,
@@ -1092,6 +1093,52 @@ describe('rankByLeastShortfall', () => {
     rankByLeastShortfall(input, targets);
     expect(input[0].id).toBe('a');
     expect(input[1].id).toBe('b');
+  });
+});
+
+describe('effectiveTargetPowers', () => {
+  it.each([
+    { features: [], nominal: 0, peak: 0 },
+    { features: ['backup'], nominal: 3000, peak: 6000 },
+    { features: ['microgrid'], nominal: 8000, peak: 8000 },
+    { features: ['white_tariff'], nominal: 4000, peak: 4000 },
+    { features: ['backup', 'microgrid'], nominal: 8000, peak: 8000 },
+    { features: ['backup', 'white_tariff'], nominal: 4000, peak: 6000 },
+    { features: ['microgrid', 'white_tariff'], nominal: 8000, peak: 8000 },
+    { features: ['backup', 'microgrid', 'white_tariff'], nominal: 8000, peak: 8000 },
+  ])('combines only active power sources: $features', ({ features, nominal, peak }) => {
+    expect(effectiveTargetPowers(
+      features,
+      makeWhiteTariff({ requiredPowerW: 4000 }),
+      { onGridApparentPowerVA: 8000 },
+      3000,
+      6000
+    )).toEqual({ nominalW: nominal, peakW: peak });
+  });
+
+  it('keeps a larger backup surge requirement', () => {
+    expect(effectiveTargetPowers(
+      ['backup', 'microgrid', 'white_tariff'],
+      makeWhiteTariff({ requiredPowerW: 4000 }),
+      { onGridApparentPowerVA: 8000 },
+      3000,
+      12000
+    )).toEqual({ nominalW: 8000, peakW: 12000 });
+  });
+
+  it('never lowers maximum below continuous power when the selected surge is smaller', () => {
+    expect(effectiveTargetPowers(['backup'], null, null, 5000, 2000))
+      .toEqual({ nominalW: 5000, peakW: 5000 });
+  });
+
+  it('uses tariff power as the continuous and maximum floor when it dominates', () => {
+    expect(effectiveTargetPowers(
+      ['backup', 'microgrid', 'white_tariff'],
+      makeWhiteTariff({ requiredPowerW: 15000 }),
+      { onGridApparentPowerVA: 8000 },
+      3000,
+      12000
+    )).toEqual({ nominalW: 15000, peakW: 15000 });
   });
 });
 
