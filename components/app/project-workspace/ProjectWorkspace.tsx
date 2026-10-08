@@ -1213,6 +1213,7 @@ function SolutionSection({
                       documents={inverterMedia?.documents ?? []}
                       specs={[
                         ['Potência', `${solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} · pico ${solution.inverterPeakPowerW ? formatKva(solution.inverterPeakPowerW) : 'Não informado'}`],
+                        ['Bateria', `${solution.batteryPortsUsed ?? 1} ${(solution.batteryPortsUsed ?? 1) === 1 ? 'porta' : 'portas'}`],
                         ['Quantidade', `${solution.inverterQty ?? 1} un.`],
                         ['Garantia', `${inverterCatalogEntry?.warrantyYears ?? 10} anos`],
                       ]}
@@ -1248,7 +1249,6 @@ function SolutionSection({
                             ],
                             ['Quantidade', `${part.qty} un.`],
                             ['Garantia', battery ? `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos` : 'Não informado'],
-                            ...(battery?.expansionModel ? [['Expansão', battery.expansionModel] as [string, string]] : []),
                           ]}
                           appearance="summary"
                           onPreviewImage={setPreviewImage}

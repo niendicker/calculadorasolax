@@ -811,7 +811,7 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByText('T58 V2 Master')).toBeInTheDocument();
     expect(screen.getAllByText('BMS Integrado')).toHaveLength(1);
     expect(screen.queryByText('Principal')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Expansão').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Expansão')).not.toBeInTheDocument();
     expect(screen.getAllByText('T58 Slave').length).toBeGreaterThan(0);
   });
 
