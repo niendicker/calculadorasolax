@@ -303,9 +303,7 @@ describe('ResultSummary: financial analysis', () => {
 });
 
 describe('ResultSummary: margin summary', () => {
-  it('renders nothing when there are no margin rows to show (edge case guarded by rows.length===0)', () => {
-    // With Backup selected, buildMarginSummary always returns the 3 base rows,
-    // so MarginSummary always renders something — verify the decisive/insufficient styling paths instead.
+  it('marks insufficient combined requirements when Backup is active', () => {
     renderResult({
       desiredFeatures: ['backup'],
       solution: { ...baseSolution, inverterRatedPowerW: 1000, inverterPeakPowerW: 1000, availableEnergyWh: 1000 },
@@ -314,7 +312,8 @@ describe('ResultSummary: margin summary', () => {
       dailyKwh: 5,
     });
     expect(screen.getByText('Margem sobre a necessidade do cliente')).toBeInTheDocument();
-    expect(screen.getByText('Insuficiente')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Margens de requisitos combinados por equipamento' });
+    expect(within(table).getAllByText('Insuficiente')).toHaveLength(3);
   });
 
   it('shows the margin as absolute headroom in the row\'s own unit, not a percentage', () => {
@@ -325,12 +324,13 @@ describe('ResultSummary: margin summary', () => {
       peakW: 7000,
       dailyKwh: 5,
     });
-    // Potência padrão: providedValue 6000W - requiredValue 5000W = +1.00 kVA.
-    expect(screen.getByText('+1.00 kVA')).toBeInTheDocument();
+    // Potência padrão: providedValue 6000W - requiredValue 5000W = 1 kVA.
+    const table = screen.getByRole('table', { name: 'Margens de requisitos combinados por equipamento' });
+    expect(within(table).getByText('1 kVA')).toBeInTheDocument();
     expect(screen.queryByText(/^[+-]\d+%$/)).not.toBeInTheDocument();
   });
 
-  it('shows the decisive-factor badge for the tightest positive margin', () => {
+  it('shows the lowest-margin badge for the tightest positive combined requirement', () => {
     renderResult({
       desiredFeatures: ['backup'],
       solution: { ...baseSolution, inverterRatedPowerW: 6000, inverterPeakPowerW: 20000, availableEnergyWh: 20000 },
@@ -338,7 +338,8 @@ describe('ResultSummary: margin summary', () => {
       peakW: 7000,
       dailyKwh: 5,
     });
-    expect(screen.getByText('Fator decisivo')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Margens de requisitos combinados por equipamento' });
+    expect(within(table).getByText('Menor margem')).toBeInTheDocument();
   });
 
   it('includes pv and microgrid rows when those features are active', () => {
@@ -348,8 +349,10 @@ describe('ResultSummary: margin summary', () => {
       pv: { monthlyConsumptionKwh: 400, hsp: 4 },
       microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 3000, photoUrl: null, powerNoticeAcknowledged: true },
     });
-    expect(screen.getByText('Potência FV máxima')).toBeInTheDocument();
-    expect(screen.getByText('Microrrede (inversor)')).toBeInTheDocument();
-    expect(screen.getByText('Microrrede (bateria)')).toBeInTheDocument();
+    const pvTable = screen.getByRole('table', { name: 'Margens de fotovoltaico por equipamento' });
+    expect(within(pvTable).getByRole('columnheader', { name: 'Potência FV máxima' })).toBeInTheDocument();
+    const microgridTable = screen.getByRole('table', { name: 'Margens de microrrede por equipamento' });
+    expect(within(microgridTable).getByRole('rowheader', { name: 'Inversor' })).toBeInTheDocument();
+    expect(within(microgridTable).getByRole('rowheader', { name: 'Bateria' })).toBeInTheDocument();
   });
 });

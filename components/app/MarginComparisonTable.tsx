@@ -354,9 +354,9 @@ export function MarginComparisonTable({
                 <caption className="sr-only">Margens de {group.label.toLocaleLowerCase()} por equipamento</caption>
                 <thead className="text-xs text-muted-foreground">
                   <tr>
-                    <th scope="col" className="w-20 px-1 py-2"><span className="sr-only">Equipamento</span></th>
+                    <th scope="col" className="w-20 px-1 pb-1 pt-2"><span className="sr-only">Equipamento</span></th>
                     {group.metrics.map((metric) => (
-                        <th key={metric.key} scope="col" className="px-3 py-2 font-medium">
+                        <th key={metric.key} scope="col" className="px-3 pb-1 pt-2 font-medium">
                           <MetricHeading
                             metric={metric}
                             combinedRequirement={group.label === 'Requisitos combinados'}
@@ -368,7 +368,7 @@ export function MarginComparisonTable({
                 <tbody>
                   {group.equipment.map((equipment, equipmentIndex) => (
                     <tr key={equipment.label} className={equipment.label === 'Bateria' ? 'border-t border-border/50' : undefined}>
-                    <th scope="row" className="px-1 py-2.5 text-center font-medium"><EquipmentLabel label={equipment.label} /></th>
+                    <th scope="row" className={cn('px-1 text-center font-medium', equipmentIndex === 0 ? 'pb-2.5 pt-1' : 'py-2.5')}><EquipmentLabel label={equipment.label} /></th>
                       {group.metrics.map((metric) => {
                         const isSharedEnergy = metric.key === 'energy' || metric.key === 'tariff_energy';
                         const sharedEnergyRow = isSharedEnergy
@@ -382,7 +382,7 @@ export function MarginComparisonTable({
                           <td
                             key={metric.key}
                             rowSpan={isSharedEnergy ? group.equipment.length : undefined}
-                            className={cn('px-3 py-2.5', isSharedEnergy ? 'align-top' : 'align-middle')}
+                            className={cn('px-3', equipmentIndex === 0 ? 'pb-2.5 pt-1' : 'py-2.5', isSharedEnergy || equipmentIndex === 0 ? 'align-top' : 'align-middle')}
                           >
                             {row ? (
                               <MetricValue
@@ -424,7 +424,7 @@ export function MarginComparisonTable({
                     const isSharedEnergy = metric.key === 'energy' || metric.key === 'tariff_energy';
                     if (isSharedEnergy && equipment.label !== 'Bateria') return null;
                     return (
-                      <div key={equipment.label} className="flex items-start justify-between gap-3 px-3 py-1.5">
+                      <div key={equipment.label} className={cn('flex items-start justify-between gap-3 px-3 pb-1.5', row.key === projectRow?.key ? 'pt-0.5' : 'pt-1.5')}>
                         <span className="w-20 shrink-0 pt-0.5"><EquipmentLabel label={isSharedEnergy ? 'Solução' : equipment.label} /></span>
                         <MetricValue
                           row={row}

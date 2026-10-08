@@ -651,9 +651,9 @@ describe('ProjectWorkspace', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
-    expect(screen.getByRole('button', { name: 'Resumo' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Margens' }));
-    expect(screen.getByText('Potência padrão')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Equipamentos' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Margens operacionais' }));
+    expect(screen.getByRole('region', { name: 'Requisitos combinados' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
     expect(screen.getByRole('heading', { name: 'Solicitar cotação ao fornecedor' })).toBeInTheDocument();
@@ -886,7 +886,7 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByRole('dialog', { name: 'Manual' })).toBeInTheDocument();
   });
 
-  it('calculates directly from the solution section when no solution exists yet', () => {
+  it('keeps recalculation available in the header when no solution exists yet', () => {
     const onOpenTechnical = vi.fn();
     const onRefreshSolution = vi.fn();
 
@@ -896,7 +896,7 @@ describe('ProjectWorkspace', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Solução' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Calcular solução' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recalcular solução' }));
 
     expect(onRefreshSolution).toHaveBeenCalledTimes(1);
     expect(onOpenTechnical).not.toHaveBeenCalled();
