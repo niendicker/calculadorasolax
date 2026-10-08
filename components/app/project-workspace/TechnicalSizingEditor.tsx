@@ -516,14 +516,20 @@ export function TechnicalSizingEditor({
         <div className="flex flex-wrap items-center gap-2">
           <AutosaveIndicator status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
           <ConfirmDeleteModalButton
-            ariaLabel="Limpar dimensionamento"
+            ariaLabel="Limpar projeto"
             itemName="dimensionamento atual"
             itemType="dimensionamento"
-            title="Limpar dimensionamento?"
-            description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-            label="Limpar"
+            title="Limpar dados do projeto?"
+            description="Limpa os dados de dimensionamento do projeto atual."
+            affectedItems={[
+              'Todas as cargas cadastradas',
+              'Configurações técnicas e recursos, restaurados ao padrão',
+              'Solução calculada',
+            ]}
+            label="Limpar projeto"
             icon={<Eraser className="h-4 w-4" />}
-            confirmLabel="Limpar"
+            confirmLabel="Limpar dados do projeto"
+            pendingLabel="Limpando projeto..."
             triggerVariant="outline"
             onConfirm={() => resetResidential()}
           />

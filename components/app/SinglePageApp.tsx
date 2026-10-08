@@ -656,7 +656,7 @@ export function SinglePageApp() {
   // (that's what refreshProjectSolution below reads, which is meant for
   // recalculating a project from the projects list, outside of editing).
   // Reusing that action here made "Recalcular solução" replay whatever error
-  // was present before the user's most recent edit, until autosave's 12s
+  // was present before the user's most recent edit, until autosave's 3s
   // debounce caught up — even after the user had already fixed the problem.
   async function recalculateCurrentProjectSolution() {
     if (!canCalculate) {

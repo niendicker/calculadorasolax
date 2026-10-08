@@ -51,7 +51,7 @@ import { featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import type { BatteryCatalogOption, InlineProfile, InverterCatalogOption, ProductMedia } from '../types';
 import { gridLabels, topologyLabels } from '../types';
 import { cn } from '@/lib/utils';
-import { buildMarginSummary, calculateSystemCost, formatCurrencyBRL, normalizeAccessoryLine, servicePricingUnitLabel, type MissingCostItem } from '../helpers';
+import { buildMarginSummary, calculateSystemCost, effectiveTargetEnergyWh, effectiveTargetPowers, formatCurrencyBRL, normalizeAccessoryLine, servicePricingUnitLabel, WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT, type MissingCostItem } from '../helpers';
 import { MarginComparisonTable } from '../MarginComparisonTable';
 import { CatalogProductCard, DocPreviewModal, MicrogridGuideDialog } from '../shared-ui';
 import { PageSummary } from '../shell/slots';
@@ -165,11 +165,11 @@ function ResourceCard({ item, onOpen, onLearnMore }: { item: ResourceItem; onOpe
   );
 }
 
-function SummaryRow({ label, value, state, icon: Icon, showValue = false, onClick, inset = false }: { label: string; value: string; state?: ResourceState; icon?: LucideIcon; showValue?: boolean; onClick?: () => void; inset?: boolean }) {
+function SummaryRow({ label, value, state, icon: Icon, showValue = false, onClick, inset = false, active = false, navigation = false }: { label: string; value: string; state?: ResourceState; icon?: LucideIcon; showValue?: boolean; onClick?: () => void; inset?: boolean; active?: boolean; navigation?: boolean }) {
   const content = (
     <>
-      <span className="flex min-w-0 items-center gap-2 truncate text-sm text-muted-foreground">
-        {Icon && <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+      <span className={cn('flex min-w-0 items-center gap-2 truncate text-sm', active ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+        {Icon && <Icon className={cn('h-4 w-4 shrink-0', !navigation && 'text-primary')} aria-hidden="true" />}
         <span className="truncate">{label}</span>
       </span>
       <span className="flex min-w-0 items-center justify-end gap-2">
@@ -178,8 +178,8 @@ function SummaryRow({ label, value, state, icon: Icon, showValue = false, onClic
       </span>
     </>
   );
-  const className = cn('flex w-full items-center justify-between gap-3 border-b py-2.5 text-left last:border-b-0', inset && 'px-2');
-  return onClick ? <button type="button" onClick={onClick} className={cn(className, 'rounded-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50')}>{content}</button> : <div className={className}>{content}</div>;
+  const className = cn('flex w-full items-center justify-between text-left', navigation ? 'min-h-9 gap-2 rounded-lg border border-transparent px-3 py-2' : 'gap-3 border-b py-2.5 last:border-b-0', inset && 'px-2');
+  return onClick ? <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className={cn(className, 'transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', navigation ? 'hover:bg-muted hover:text-foreground' : 'rounded-sm hover:bg-muted/50', active && (navigation ? 'border-primary/20 bg-primary/10' : 'bg-primary/5'))}>{content}</button> : <div className={className}>{content}</div>;
 }
 
 function EditableSummaryRow({ label, value, icon: Icon, onClick }: { label: string; value: string; icon?: LucideIcon; onClick: () => void }) {
@@ -512,6 +512,7 @@ export function ProjectWorkspace({
   children: ReactNode;
 }) {
   const [section, setSectionState] = useState<WorkspaceSection>('overview');
+  const [activeConfigurationItem, setActiveConfigurationItem] = useState<'gridType' | 'inverter' | 'battery'>('gridType');
   const [hasNewSolution, setHasNewSolution] = useState(false);
   const lastSeenCalculationRevisionRef = useRef(calculationRevision);
   const [microgridGuideOpen, setMicrogridGuideOpen] = useState(false);
@@ -572,6 +573,15 @@ export function ProjectWorkspace({
   const technicalConfigurationState: ResourceState = residentialOptions.gridType && residentialOptions.topology && residentialOptions.batteryModel
     ? 'configured'
     : 'attention';
+  const sidebarSummary = workspaceSidebarSummary(residentialOptions, section, activeResourceId, nominalW, peakW, dailyKwh);
+
+  function openConfigurationEditor(item: 'gridType' | 'inverter' | 'battery') {
+    setActiveConfigurationItem(item);
+    setSectionState('configuration');
+    const initialItem = item === 'battery' ? 'battery' : 'gridType';
+    if (onOpenConfiguration) onOpenConfiguration(initialItem);
+    else onOpenResource?.(initialItem);
+  }
 
   function openResourceEditor(id: DesiredFeatureId | 'loads' | 'battery') {
     if (id === 'loads') {
@@ -579,8 +589,7 @@ export function ProjectWorkspace({
       return;
     }
     if (id === 'battery' && onOpenConfiguration) {
-      setSectionState('configuration');
-      onOpenConfiguration('battery');
+      openConfigurationEditor('battery');
       return;
     }
     setSectionState('resource');
@@ -672,14 +681,21 @@ export function ProjectWorkspace({
           )}
           {onResetSizing && (
             <ConfirmDeleteModalButton
-              ariaLabel="Limpar dimensionamento"
+              ariaLabel="Limpar projeto"
               itemName="dimensionamento atual"
               itemType="dimensionamento"
-              title="Limpar dimensionamento?"
-              description="Cargas, configurações e a solução calculada nesta aba serão apagadas."
-              label="Limpar"
+              title="Limpar dados do projeto?"
+              description="Limpa os dados de dimensionamento do projeto atual."
+              affectedItems={[
+                'Todas as cargas cadastradas',
+                'Configurações técnicas e recursos, restaurados ao padrão',
+                'Solução calculada',
+                'Serviços do projeto',
+              ]}
+              label="Limpar projeto"
               icon={<Trash2 className="h-4 w-4" />}
-              confirmLabel="Limpar"
+              confirmLabel="Limpar dados do projeto"
+              pendingLabel="Limpando projeto..."
               triggerVariant="outline"
               onConfirm={onResetSizing}
             />
@@ -689,18 +705,34 @@ export function ProjectWorkspace({
     >
       {section !== 'overview' && <PageSummary>
         <div className="space-y-4">
-          <div className="grid gap-2">
-            <SummaryMetric label="Nominal" value={(nominalW / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} unit="kVA" icon={Gauge} />
-            <SummaryMetric label="Máxima" value={(peakW / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} unit="kVA" icon={Zap} />
-            <SummaryMetric label="Energia" value={dailyKwh.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} unit="kWh" icon={BatteryCharging} />
-          </div>
-          <Card>
-            <CardHeader className="pb-2"><h2 className="text-sm font-semibold">Recursos</h2></CardHeader>
-            <CardContent className="pt-0">
-              <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} icon={ClipboardList} onClick={() => openSizingSection('loads')} inset />
-              {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} icon={item.icon} onClick={() => openResourceEditor(item.id)} inset />)}
-            </CardContent>
-          </Card>
+          <nav aria-label="Configurações técnicas do projeto" className="space-y-1">
+            <div className="flex items-center gap-3 px-3 pb-2">
+              <h2 className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">Configurações técnicas</h2>
+              <span className="h-px flex-1 bg-border/50" aria-hidden="true" />
+            </div>
+            <SummaryRow label="Rede elétrica" value={residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'} icon={Zap} showValue onClick={() => openConfigurationEditor('gridType')} active={section === 'configuration' && activeConfigurationItem === 'gridType'} navigation />
+            <SummaryRow label="Inversor" value={residentialOptions.inverterModel || 'Automático'} icon={CircuitBoard} showValue onClick={() => openConfigurationEditor('inverter')} active={section === 'configuration' && activeConfigurationItem === 'inverter'} navigation />
+            <SummaryRow label="Bateria" value={residentialOptions.batteryModel || 'Não selecionada'} icon={BatteryCharging} showValue onClick={() => openConfigurationEditor('battery')} active={section === 'configuration' && activeConfigurationItem === 'battery'} navigation />
+          </nav>
+          <nav aria-label="Recursos do projeto" className="space-y-1">
+            <div className="flex items-center gap-3 px-3 pb-2">
+              <h2 className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">Recursos</h2>
+              <span className="h-px flex-1 bg-border/50" aria-hidden="true" />
+            </div>
+            <SummaryRow label="Cargas" value={`${residentialOptions.loads.length}`} state={residentialOptions.loads.length > 0 ? 'configured' : 'attention'} icon={ClipboardList} onClick={() => openSizingSection('loads')} active={section === 'loads'} navigation />
+            {resources.map((item) => <SummaryRow key={item.id} label={item.label} value="" state={item.state} icon={item.icon} onClick={() => openResourceEditor(item.id)} active={section === 'resource' && activeResourceId === item.id} navigation />)}
+          </nav>
+          {sidebarSummary.metrics.length > 0 && (
+            <section aria-label={`Indicadores de ${sidebarSummary.label}`} className="space-y-2 px-2 pt-3">
+              <div className="flex items-center gap-3 pb-2">
+                <h3 className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">{sidebarSummary.label}</h3>
+                <span className="h-px flex-1 bg-border/50" aria-hidden="true" />
+              </div>
+              <div className="space-y-2">
+                {sidebarSummary.metrics.map((metric) => <SummaryMetric key={metric.label} label={metric.label} value={metric.value == null ? '—' : metric.value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} unit={metric.unit} icon={metric.icon} />)}
+              </div>
+            </section>
+          )}
         </div>
       </PageSummary>}
       {section === 'overview' ? (
@@ -760,13 +792,13 @@ export function ProjectWorkspace({
                         label="Rede elétrica"
                         icon={Zap}
                         value={residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'}
-                        onClick={() => onOpenConfiguration ? onOpenConfiguration() : onOpenResource?.('gridType')}
+                        onClick={() => openConfigurationEditor('gridType')}
                       />
                       <EditableSummaryRow
                         label="Inversor"
                         icon={CircuitBoard}
                         value={residentialOptions.inverterModel || 'Automático'}
-                        onClick={() => onOpenConfiguration ? onOpenConfiguration() : onOpenResource?.('gridType')}
+                        onClick={() => openConfigurationEditor('inverter')}
                       />
                       <EditableSummaryRow
                         label="Bateria"
@@ -1002,19 +1034,51 @@ function CardIcon({ icon: Icon }: { icon: typeof PanelTop }) {
 
 function SummaryMetric({ label, value, unit, icon: Icon }: { label: string; value: string; unit: string; icon: LucideIcon }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border bg-background px-3 py-2.5 shadow-sm">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Icon className="h-4 w-4" aria-hidden="true" />
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>{label}</span>
       </span>
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-1 tabular-nums">
-          <span className="truncate text-lg font-semibold leading-tight">{value}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{unit}</span>
-        </div>
-        <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      </div>
+      <span className="flex shrink-0 items-baseline gap-1 tabular-nums">
+        <span className="text-sm font-medium">{value}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{unit}</span>
+      </span>
     </div>
   );
+}
+
+type SidebarMetric = { label: string; value: number | null; unit: string; icon: LucideIcon };
+
+function workspaceSidebarSummary(options: ResidentialOptions, section: WorkspaceSection, resource: DesiredFeatureId | null | undefined, nominalW: number, peakW: number, dailyKwh: number): { label: string; metrics: SidebarMetric[] } {
+  const loadMetrics: SidebarMetric[] = [
+    { label: 'Nominal', value: nominalW / 1000, unit: 'kVA', icon: Gauge },
+    { label: 'Máxima', value: Math.max(nominalW, peakW) / 1000, unit: 'kVA', icon: Zap },
+    { label: 'Energia', value: dailyKwh, unit: 'kWh', icon: BatteryCharging },
+  ];
+  if (section === 'loads') return { label: 'Cargas do projeto', metrics: loadMetrics };
+  if (section === 'configuration' || section === 'project' || section === 'overview') return { label: '', metrics: [] };
+  if (section === 'resource') {
+    if (!resource || !options.desiredFeatures.includes(resource)) return { label: '', metrics: [] };
+    const label = desiredFeatureLabel(resource);
+    switch (resource) {
+      case 'backup': return { label, metrics: loadMetrics };
+      case 'microgrid': return { label, metrics: [{ label: 'Nominal AC', value: options.microgrid ? options.microgrid.onGridApparentPowerVA / 1000 : null, unit: 'kVA', icon: Gauge }] };
+      case 'white_tariff': return { label, metrics: [
+        { label: 'Potência', value: options.whiteTariff ? options.whiteTariff.requiredPowerW / 1000 : null, unit: 'kW', icon: Gauge },
+        { label: 'Energia necessária', value: options.whiteTariff ? effectiveTargetEnergyWh(['white_tariff'], options.whiteTariff, 0, WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT) / 1000 : null, unit: 'kWh', icon: BatteryCharging },
+      ] };
+      case 'pv': return { label, metrics: [{ label: 'Consumo mensal', value: options.pv?.monthlyConsumptionKwh ?? null, unit: 'kWh/mês', icon: BatteryCharging }] };
+      case 'external_generator': return { label, metrics: [{ label: 'Potência do gerador', value: options.generator ? options.generator.apparentPowerVA / 1000 : null, unit: 'kVA', icon: Gauge }] };
+      default: return { label, metrics: [] };
+    }
+  }
+  if (!options.desiredFeatures.some((id) => id === 'backup' || id === 'microgrid' || id === 'white_tariff')) return { label: '', metrics: [] };
+  const powers = effectiveTargetPowers(options.desiredFeatures, options.whiteTariff, options.microgrid, nominalW, peakW);
+  return { label: 'Requisitos combinados', metrics: [
+    { label: 'Nominal', value: powers.nominalW / 1000, unit: 'kVA', icon: Gauge },
+    { label: 'Máxima', value: powers.peakW / 1000, unit: 'kVA', icon: Zap },
+    { label: 'Energia', value: effectiveTargetEnergyWh(options.desiredFeatures, options.whiteTariff, dailyKwh * 1000, WHITE_TARIFF_DISPLAY_EFFICIENCY_PERCENT) / 1000, unit: 'kWh', icon: BatteryCharging },
+  ] };
 }
 
 function SolutionValue({ label, value, icon: Icon }: { label: string; value: string; icon?: LucideIcon }) {

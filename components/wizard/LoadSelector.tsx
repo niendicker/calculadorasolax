@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
-import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
+import { ConfirmDeleteButton, ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -645,12 +645,19 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                 Revise consumo, partida e ligação elétrica de cada equipamento.
               </p>
             </div>
-            <ConfirmDeleteButton
+            <ConfirmDeleteModalButton
               ariaLabel="Limpar cargas"
               label="Limpar cargas"
+              itemName="cargas do projeto"
+              itemType="cargas"
               title="Limpar todas as cargas?"
-              description="Todas as cargas deste projeto serão excluídas, inclusive as ocultas pelo filtro de fase. Essa ação não pode ser desfeita."
+              description="Exclui todas as cargas cadastradas neste projeto."
+              affectedItems={[
+                `${residentialOptions.loads.length} ${residentialOptions.loads.length === 1 ? 'carga cadastrada' : 'cargas cadastradas'}`,
+                'Inclui as cargas de todas as fases, mesmo as ocultas pelo filtro',
+              ]}
               confirmLabel="Excluir todas as cargas"
+              pendingLabel="Limpando cargas..."
               triggerVariant="outline"
               disabled={residentialOptions.loads.length === 0}
               onConfirm={handleClearLoads}

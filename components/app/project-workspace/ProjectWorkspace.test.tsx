@@ -221,7 +221,7 @@ describe('ProjectWorkspace', () => {
     const onRefreshSolution = vi.fn();
     renderWorkspace({ onResetSizing, onRefreshSolution });
 
-    const clearButton = screen.getByRole('button', { name: 'Limpar dimensionamento' });
+    const clearButton = screen.getByRole('button', { name: 'Limpar projeto' });
     const recalculateButton = screen.getByRole('button', { name: 'Recalcular solução' });
     const actions = recalculateButton.parentElement as HTMLElement;
     const clearWrapper = clearButton.parentElement as HTMLElement;
@@ -240,7 +240,7 @@ describe('ProjectWorkspace', () => {
     expect(header.nextElementSibling).toHaveAttribute('aria-label', 'Seções do projeto');
 
     fireEvent.click(clearButton);
-    const dialog = await screen.findByRole('dialog', { name: 'Limpar dimensionamento?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Limpar dados do projeto?' });
     expect(dialog).toBeInTheDocument();
     expect(onResetSizing).not.toHaveBeenCalled();
 
@@ -248,16 +248,16 @@ describe('ProjectWorkspace', () => {
     expect(onResetSizing).not.toHaveBeenCalled();
 
     fireEvent.click(clearButton);
-    fireEvent.click(await screen.findByRole('button', { name: /^Limpar$/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar dados do projeto' }));
     expect(onResetSizing).toHaveBeenCalledOnce();
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Limpar dimensionamento?' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Limpar dados do projeto?' })).not.toBeInTheDocument());
 
     fireEvent.click(clearButton);
-    const secondDialog = await screen.findByRole('dialog', { name: 'Limpar dimensionamento?' });
-    expect(within(secondDialog).getByRole('button', { name: /^Limpar$/ })).toBeInTheDocument();
-    expect(within(secondDialog).queryByRole('button', { name: 'Excluindo dimensionamento...' })).not.toBeInTheDocument();
+    const secondDialog = await screen.findByRole('dialog', { name: 'Limpar dados do projeto?' });
+    expect(within(secondDialog).getByRole('button', { name: 'Limpar dados do projeto' })).toBeInTheDocument();
+    expect(within(secondDialog).queryByRole('button', { name: 'Limpando projeto...' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(secondDialog).getByRole('button', { name: /^Limpar$/ }));
+    fireEvent.click(within(secondDialog).getByRole('button', { name: 'Limpar dados do projeto' }));
     expect(onResetSizing).toHaveBeenCalledTimes(2);
   });
 
@@ -296,8 +296,8 @@ describe('ProjectWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /Inversor/ }));
     fireEvent.click(screen.getByRole('button', { name: /Bateria/ }));
 
-    expect(onOpenConfiguration).toHaveBeenNthCalledWith(1);
-    expect(onOpenConfiguration).toHaveBeenNthCalledWith(2);
+    expect(onOpenConfiguration).toHaveBeenNthCalledWith(1, 'gridType');
+    expect(onOpenConfiguration).toHaveBeenNthCalledWith(2, 'gridType');
     expect(onOpenConfiguration).toHaveBeenNthCalledWith(3, 'battery');
     expect(onOpenConfiguration).toHaveBeenCalledTimes(3);
     expect(onOpenResource).not.toHaveBeenCalled();

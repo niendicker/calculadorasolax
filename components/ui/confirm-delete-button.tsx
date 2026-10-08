@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, X } from 'lucide-react';
+import { AlertTriangle, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface ConfirmDeleteButtonProps {
   ariaLabel: string;
@@ -169,6 +170,8 @@ interface ConfirmDeleteModalButtonProps {
   disabled?: boolean;
   showIcon?: boolean;
   description?: string;
+  affectedItems?: string[];
+  pendingLabel?: string;
   onConfirm: () => Promise<void> | void;
 }
 
@@ -187,6 +190,8 @@ export function ConfirmDeleteModalButton({
   disabled = false,
   showIcon = true,
   description,
+  affectedItems,
+  pendingLabel,
   onConfirm,
 }: ConfirmDeleteModalButtonProps) {
   const [open, setOpen] = useState(false);
@@ -198,6 +203,15 @@ export function ConfirmDeleteModalButton({
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const warningId = useId();
+  const detailed = Boolean(affectedItems?.length);
+
+  useEffect(() => {
+    if (!open || !detailed) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [open, detailed]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
@@ -288,20 +302,52 @@ export function ConfirmDeleteModalButton({
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            aria-describedby={descriptionId}
-            className="w-full max-w-md rounded-xl border bg-card p-5 text-card-foreground shadow-2xl"
+            aria-describedby={detailed ? `${descriptionId} ${warningId}` : descriptionId}
+            aria-busy={saving}
+            className={cn('w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-2xl', detailed ? 'max-h-[calc(100dvh-2rem)] overflow-y-auto' : 'p-5')}
           >
-            <h2 id={titleId} className="text-base font-semibold">{title ?? `Excluir ${itemType}?`}</h2>
-            <p id={descriptionId} className="mt-2 text-sm leading-5 text-muted-foreground">
-              {description ?? `O ${itemType} “${itemName}” será removido do seu portfólio. Esta ação não poderá ser desfeita.`}
-            </p>
-            {error && <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
-            <div className="mt-5 flex justify-end gap-2">
-              <Button ref={cancelRef} type="button" variant="ghost" disabled={saving} onClick={close}>
+            {detailed ? (
+              <>
+                <div className="flex items-start gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive" aria-hidden="true">
+                    <Trash2 className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 id={titleId} className="text-lg font-semibold leading-6">{title ?? `Excluir ${itemType}?`}</h2>
+                    <p id={descriptionId} className="mt-1.5 text-sm leading-5 text-muted-foreground">{description ?? `Confirme a exclusão de ${itemName}.`}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Fechar confirmação" disabled={saving} onClick={close}>
+                    <X className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="space-y-4 px-5 py-5 sm:px-6">
+                  <div className="rounded-lg border bg-muted/30 p-3.5">
+                    <p className="text-xs font-semibold text-muted-foreground">Esta ação afeta</p>
+                    <ul className="mt-2 list-disc space-y-1.5 pl-4 text-sm leading-5 marker:text-muted-foreground">
+                      {affectedItems?.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <p id={warningId} className="flex items-start gap-2 text-sm leading-5">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+                    <span>Essa ação não pode ser desfeita.</span>
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id={titleId} className="text-base font-semibold">{title ?? `Excluir ${itemType}?`}</h2>
+                <p id={descriptionId} className="mt-2 text-sm leading-5 text-muted-foreground">
+                  {description ?? `O ${itemType} “${itemName}” será removido do seu portfólio. Esta ação não poderá ser desfeita.`}
+                </p>
+              </>
+            )}
+            {error && <p role="alert" className={cn('rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive', detailed ? 'mx-5 mb-5 sm:mx-6' : 'mt-3')}>{error}</p>}
+            <div className={cn('flex gap-2', detailed ? 'flex-col-reverse border-t bg-muted/20 px-5 py-4 sm:flex-row sm:justify-end sm:px-6' : 'mt-5 justify-end')}>
+              <Button ref={cancelRef} type="button" variant={detailed ? 'outline' : 'ghost'} className={detailed ? 'h-10 md:h-10' : undefined} disabled={saving} onClick={close}>
                 Cancelar
               </Button>
-              <Button type="button" variant="destructive" disabled={saving} onClick={() => void confirm()}>
-                {saving ? `Excluindo ${itemType}...` : (confirmLabel ?? `Excluir ${itemType}`)}
+              <Button type="button" variant="destructive" className={detailed ? 'h-10 border-destructive/30 md:h-10' : undefined} disabled={saving} onClick={() => void confirm()}>
+                {saving ? (pendingLabel ?? `Excluindo ${itemType}...`) : (confirmLabel ?? `Excluir ${itemType}`)}
               </Button>
             </div>
           </div>

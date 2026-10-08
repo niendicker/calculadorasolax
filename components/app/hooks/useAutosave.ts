@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-// Long on purpose: this fires with no explicit "Salvar" button anymore, so it
-// must never trigger mid-typing — only once the user has actually paused.
-export const AUTOSAVE_DEBOUNCE_MS = 12000;
+// Save after three seconds without edits; each new edit restarts the timer.
+export const AUTOSAVE_DEBOUNCE_MS = 3000;
 
 export type AutosaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 

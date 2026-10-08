@@ -185,10 +185,10 @@ describe('SizingTab: title bar', () => {
   it('asks for confirmation before clearing the sizing, and only calls resetResidential once confirmed', async () => {
     const { props } = setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar projeto' }));
     expect(props.resetResidential).not.toHaveBeenCalled();
 
-    const confirmButton = await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 });
+    const confirmButton = await screen.findByRole('button', { name: 'Limpar dados do projeto' }, { timeout: 1000 });
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(props.resetResidential).toHaveBeenCalled());
@@ -197,8 +197,8 @@ describe('SizingTab: title bar', () => {
   it('does not clear the sizing when the confirmation is dismissed', async () => {
     const { props } = setup();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Limpar dimensionamento?' }, { timeout: 1000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar projeto' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Limpar dados do projeto?' }, { timeout: 1000 });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
 
     expect(props.resetResidential).not.toHaveBeenCalled();

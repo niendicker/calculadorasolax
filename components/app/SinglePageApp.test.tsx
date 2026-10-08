@@ -1360,8 +1360,8 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     renderApp();
     await goToSizingViaProject();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar projeto' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar dados do projeto' }, { timeout: 1000 }));
 
     expect(useWizardStore.getState().residentialOptions.topology).toBe('HighVoltage');
     expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('TP-HS3.6');
@@ -1408,8 +1408,8 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     renderApp();
     await goToSizingViaProject();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar projeto' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar dados do projeto' }, { timeout: 1000 }));
 
     const { residentialOptions, solution, secondarySolution } = useWizardStore.getState();
     expect(residentialOptions).toMatchObject({
@@ -1473,8 +1473,8 @@ describe('SinglePageApp: Limpar pre-selects a default HV battery', () => {
     renderApp();
     await goToSizingViaProject();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar dimensionamento' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Limpar' }, { timeout: 1000 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar projeto' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Limpar dados do projeto' }, { timeout: 1000 }));
 
     expect(useWizardStore.getState().residentialOptions.batteryModel).toBe('T58 V2 Master');
   });
