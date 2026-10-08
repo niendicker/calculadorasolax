@@ -19,6 +19,7 @@ export type { PeakCalcMode, SingleLoad } from '../_shared/calculation-math.ts';
 export {
   effectiveTargetEnergyWh,
   effectiveTargetPowerW,
+  effectiveTargetPowers,
   totalDailyKwh,
   totalNominalW,
   totalPeakW,

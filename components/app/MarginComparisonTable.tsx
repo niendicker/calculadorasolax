@@ -1,8 +1,10 @@
 'use client';
 
-import { BatteryCharging, CheckCircle2, CircleAlert, Gauge, HousePlug, Network, SolarPanel, TrendingUp, Zap, type LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { BatteryCharging, CheckCircle2, CircuitBoard, CircleAlert, Gauge, HousePlug, Info, Layers3, Network, SolarPanel, TrendingUp, Zap, type LucideIcon } from 'lucide-react';
 import type { DesiredFeatureId } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/ui/tooltip';
 import { marginRowIsInsufficient, type MarginRow } from './helpers';
 
 type MetricKey = 'nominal' | 'peak' | 'energy' | 'microgrid' | 'pv' | 'tariff_power' | 'tariff_energy';
@@ -10,18 +12,13 @@ type MetricColumn = { key: MetricKey; label: string; icon: LucideIcon };
 type EquipmentRow = { label: string; metrics: Partial<Record<MetricKey, MarginRow>> };
 type MarginGroup = { label: string; metrics: MetricColumn[]; equipment: EquipmentRow[] };
 
-function resourceForRow(row: MarginRow, desiredFeatures: DesiredFeatureId[]): string {
+function resourceForRow(row: MarginRow): string {
   if (row.key.startsWith('white_tariff_')) return 'Tarifa Branca';
   if (row.key.startsWith('microgrid_')) return 'Microrrede';
   if (row.key === 'pv') return 'Fotovoltaico';
   if (row.key.startsWith('backup_')) return 'Backup';
-  if (row.key === 'nominal' || row.key === 'peak' || row.key.endsWith('_battery') || row.key === 'energy') {
-    if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff')) {
-      return 'Requisitos combinados';
-    }
-    if (desiredFeatures.includes('backup')) return 'Backup';
-    if (desiredFeatures.includes('white_tariff')) return 'Tarifa Branca';
-    return row.key === 'energy' ? 'Energia' : 'Dimensionamento';
+  if (['nominal', 'peak', 'nominal_battery', 'peak_battery', 'energy'].includes(row.key)) {
+    return 'Requisitos combinados';
   }
   return 'Outros requisitos';
 }
@@ -62,54 +59,109 @@ function metricIcon(key: MetricKey): LucideIcon {
   return icons[key];
 }
 
-function resourceIcon(label: string): LucideIcon {
-  const icons: Record<string, LucideIcon> = {
+const resourceIcons: Record<string, LucideIcon> = {
     Backup: HousePlug,
+    'Requisitos combinados': Layers3,
     Microrrede: Network,
     Fotovoltaico: SolarPanel,
     'Tarifa Branca': TrendingUp,
     Energia: BatteryCharging,
     Dimensionamento: Gauge,
-  };
-  return icons[label] ?? Zap;
-}
+};
 
 function ResourceHeading({ label }: { label: string }) {
-  const Icon = resourceIcon(label);
+  const Icon = resourceIcons[label] ?? Zap;
+  const descriptions: Record<string, string> = {
+    Backup: 'Atende cargas essenciais quando a rede falha.',
+    'Tarifa Branca': 'Atende o consumo no horário de ponta.',
+    Fotovoltaico: 'Geração estimada e limite dos inversores.',
+    Microrrede: 'Operação em modo de microrrede.',
+  };
+
   return (
-    <div className="flex items-center gap-2 lg:flex-col lg:items-start lg:gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary lg:h-9 lg:w-9">
-        <Icon className="h-4 w-4 lg:h-[18px] lg:w-[18px]" aria-hidden="true" />
+    <div className="flex min-w-0 items-start gap-3 lg:flex-col lg:gap-3">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <h3 className="text-left text-sm font-semibold text-foreground">{label}</h3>
+      <div className="min-w-0">
+        <div>
+          <h3 className="text-left text-lg font-semibold leading-tight text-foreground">
+            {label}
+          </h3>
+        {label !== 'Requisitos combinados' && (
+          <p className="mt-1.5 text-xs leading-4 text-muted-foreground">
+            {descriptions[label] ?? 'Requisitos do sistema e capacidade disponível na solução.'}
+          </p>
+        )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function MetricHeading({ metric }: { metric: MetricColumn }) {
+const metricColors: Partial<Record<MetricKey, { icon: string; value: string }>> = {
+    nominal: {
+      icon: 'text-sky-600 dark:text-sky-400',
+      value: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+    },
+    peak: {
+      icon: 'text-amber-600 dark:text-amber-400',
+      value: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+    },
+    energy: {
+      icon: 'text-emerald-600 dark:text-emerald-400',
+      value: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    },
+};
+
+function MetricHeading({ metric, combinedRequirement }: { metric: MetricColumn; combinedRequirement: boolean }) {
   const Icon = metric.icon;
+  const colors = combinedRequirement ? metricColors[metric.key] : undefined;
+  const combinedTooltip: Partial<Record<MetricKey, string>> = {
+    nominal: 'Considera o maior requisito de potência padrão entre os recursos ativos: Backup, Tarifa Branca e Microrrede.',
+    peak: 'Considera o maior valor entre o pico do Backup e a potência padrão combinada, incluindo Tarifa Branca e Microrrede quando ativas.',
+    energy: 'Soma a energia necessária dos recursos ativos: Backup e/ou Tarifa Branca. Microrrede não adiciona uma necessidade de energia.',
+  };
+  const tooltip = combinedRequirement ? combinedTooltip[metric.key] : undefined;
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-      {metric.label}
+    <span className="flex flex-col items-start gap-1">
+      <span className="inline-flex items-center gap-1.5">
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', colors?.icon ?? 'text-primary')} aria-hidden="true" />
+        {metric.label}
+        {tooltip && (
+          <Tooltip className="ml-1 inline-flex align-middle" content={tooltip}>
+            <Info
+              className="inline-block h-[0.75em] w-[0.75em] text-muted-foreground transition-colors hover:text-primary focus-visible:text-primary"
+              tabIndex={0}
+              aria-label={`Origem do valor de ${metric.label.toLocaleLowerCase()}`}
+            />
+          </Tooltip>
+        )}
+      </span>
     </span>
   );
 }
 
-function CombinedRequirementsNote() {
+function ProjectValue({ row, metric, sourceMetrics, combinedRequirement }: {
+  row: MarginRow;
+  metric: MetricKey;
+  sourceMetrics: MetricKey[];
+  combinedRequirement: boolean;
+}) {
+  const sourceColor = sourceMetrics.length === 1
+    ? metricColors[sourceMetrics[0]]?.value
+    : sourceMetrics.length > 1
+      ? 'bg-gradient-to-r from-sky-500/10 to-amber-500/10 text-foreground'
+      : undefined;
+  const color = combinedRequirement ? metricColors[metric]?.value : sourceColor;
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-primary/10 bg-primary/[0.035] px-3 py-2 lg:px-4">
-      <span className="inline-flex items-center gap-1 text-[0.7rem] font-medium text-foreground">
-        <HousePlug className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-        Backup
-        <span className="text-muted-foreground" aria-hidden="true">+</span>
-        <TrendingUp className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-        Tarifa Branca
+    <p className="text-[0.65rem] font-normal text-muted-foreground">
+      Projeto{' '}
+      <span className={cn('tabular-nums', color && `rounded px-1 py-0.5 font-semibold ${color}`)}>
+        {sourceMetrics.length > 0 && <span className="sr-only">Usado no requisito combinado: </span>}
+        {formatValue(row.requiredValue, row)}
       </span>
-      <span className="text-[0.65rem] text-muted-foreground">
-        Potência considera o maior requisito; energia soma os dois.
-      </span>
-    </div>
+    </p>
   );
 }
 
@@ -121,14 +173,15 @@ function equipmentForRow(row: MarginRow): string {
   return 'Inversor';
 }
 
-function equipmentIcon(label: string): LucideIcon {
-  if (label === 'Bateria') return BatteryCharging;
-  if (label === 'Arranjo FV') return SolarPanel;
-  return Zap;
-}
+const equipmentIcons: Record<string, LucideIcon> = {
+  Bateria: BatteryCharging,
+  'Arranjo FV': SolarPanel,
+  Solução: Layers3,
+  Inversor: CircuitBoard,
+};
 
 function EquipmentLabel({ label }: { label: string }) {
-  const Icon = equipmentIcon(label);
+  const Icon = equipmentIcons[label] ?? Zap;
   return (
     <span className="inline-flex w-full flex-col items-center gap-1 text-center text-xs font-medium text-muted-foreground">
       <Icon className="h-5 w-5 shrink-0 text-primary/80" aria-hidden="true" />
@@ -140,7 +193,7 @@ function EquipmentLabel({ label }: { label: string }) {
 function formatValue(value: number, row: MarginRow): string {
   const scaled = value / 1000;
   const unit = row.unit === 'Wh' ? 'kWh' : row.unit === 'kWp' ? 'kWp' : equipmentForRow(row) === 'Bateria' ? 'kW' : 'kVA';
-  return `${scaled.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${unit}`;
+  return `${scaled.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })} ${unit}`;
 }
 
 function MarginStatus({ insufficient }: { insufficient: boolean }) {
@@ -153,22 +206,28 @@ function MarginStatus({ insufficient }: { insufficient: boolean }) {
   );
 }
 
-function MetricValue({ row, highlight }: { row: MarginRow; highlight: boolean }) {
+function MetricValue({
+  row,
+  highlight,
+  projectValue,
+}: {
+  row: MarginRow;
+  highlight: boolean;
+  projectValue?: ReactNode;
+}) {
   const delta = row.providedValue - row.requiredValue;
   const insufficient = marginRowIsInsufficient(row);
   return (
-    <div className={cn('space-y-1 rounded-md', highlight && 'bg-primary/5 px-2 py-1.5 ring-1 ring-inset ring-primary/25')}>
+    <div className={cn('space-y-1 rounded-md', highlight && 'bg-primary/5 px-2 py-1 ring-1 ring-inset ring-primary/25')}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span className={cn('font-bold tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
-          {delta >= 0 ? '+' : '-'}{formatValue(Math.abs(delta), row)}
+        <span className={cn('text-base font-bold leading-tight tabular-nums', insufficient ? 'text-destructive' : 'text-primary')}>
+          {delta < 0 && '−'}{formatValue(Math.abs(delta), row)}
         </span>
         {insufficient && <span className="text-[0.65rem] font-semibold text-destructive">Insuficiente</span>}
         {highlight && <span className="text-[0.65rem] font-semibold text-primary">Menor margem</span>}
       </div>
+      {projectValue}
       <p className="text-[0.7rem]">
-        <span className="text-muted-foreground">Projeto </span>
-        <span className="font-medium tabular-nums text-muted-foreground">{formatValue(row.requiredValue, row)}</span>
-        <span className="px-1.5 text-muted-foreground" aria-hidden="true">·</span>
         <span className="text-muted-foreground">Solução </span>
         <span className="font-medium tabular-nums text-muted-foreground">{formatValue(row.providedValue, row)}</span>
       </p>
@@ -176,18 +235,52 @@ function MetricValue({ row, highlight }: { row: MarginRow; highlight: boolean })
   );
 }
 
+function combinedSourceMetrics(rows: MarginRow[], desiredFeatures: DesiredFeatureId[]): Map<string, MetricKey[]> {
+  const sources = new Map<string, MetricKey[]>();
+  if (!desiredFeatures.some((feature) => feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff')) return sources;
+
+  const rowsByKey = new Map(rows.map((row) => [row.key, row]));
+  const matchesCombinedValue = (sourceKey: string, combinedKey: string) => {
+    const sourceValue = rowsByKey.get(sourceKey)?.requiredValue;
+    const combinedValue = rowsByKey.get(combinedKey)?.requiredValue;
+    return sourceValue != null && combinedValue != null && Math.abs(sourceValue - combinedValue) < 0.001;
+  };
+  const addSource = (sourceKey: string, metric: MetricKey) => {
+    const sourceMetrics = sources.get(sourceKey) ?? [];
+    if (!sourceMetrics.includes(metric)) sourceMetrics.push(metric);
+    sources.set(sourceKey, sourceMetrics);
+  };
+
+  // Power requirements use the largest active source; energy requirements stack.
+  for (const sourceKey of ['backup_nominal_inverter', 'white_tariff_inverter', 'microgrid_inverter']) {
+    if (matchesCombinedValue(sourceKey, 'nominal')) addSource(sourceKey, 'nominal');
+  }
+  for (const sourceKey of ['backup_peak_inverter', 'white_tariff_inverter', 'microgrid_inverter']) {
+    if (matchesCombinedValue(sourceKey, 'peak')) addSource(sourceKey, 'peak');
+  }
+  for (const sourceKey of ['backup_energy', 'white_tariff_energy']) {
+    if (rowsByKey.has(sourceKey)) addSource(sourceKey, 'energy');
+  }
+
+  return sources;
+}
+
 export function MarginComparisonTable({
-  rows,
+  rows: allRows,
   desiredFeatures,
 }: {
   rows: MarginRow[];
   desiredFeatures: DesiredFeatureId[];
 }) {
+  const hasPowerResource = desiredFeatures.some((feature) =>
+    feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff'
+  );
+  const rows = allRows.filter((row) => hasPowerResource || resourceForRow(row) !== 'Requisitos combinados');
   if (rows.length === 0) return null;
 
   const groups: MarginGroup[] = [];
   for (const row of rows) {
-    const resource = resourceForRow(row, desiredFeatures);
+    const resource = resourceForRow(row);
     let group = groups.find((item) => item.label === resource);
     if (!group) {
       group = { label: resource, metrics: [], equipment: [] };
@@ -216,7 +309,7 @@ export function MarginComparisonTable({
     }
   }
 
-  if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff')) {
+  if (hasPowerResource) {
     const backupIndex = groups.findIndex((group) => group.label === 'Backup');
     if (backupIndex >= 0) {
       const [backupGroup] = groups.splice(backupIndex, 1);
@@ -227,67 +320,84 @@ export function MarginComparisonTable({
   }
 
   const insufficientCount = rows.filter(marginRowIsInsufficient).length;
+  const combinedSources = combinedSourceMetrics(rows, desiredFeatures);
   const lowestMarginKey = rows
-    .filter((row) => resourceForRow(row, desiredFeatures) === 'Requisitos combinados' && row.requiredValue > 0)
+    .filter((row) => resourceForRow(row) === 'Requisitos combinados' && row.requiredValue > 0)
     .reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
       const marginPct = ((row.providedValue - row.requiredValue) / row.requiredValue) * 100;
       if (!tightest || marginPct < tightest.marginPct) return { key: row.key, marginPct };
       return tightest;
     }, null)?.key;
-
   return (
-    <div className="space-y-3">
-      <div
-        className={cn(
-          'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5',
-          insufficientCount > 0
-            ? 'border-destructive/30 bg-destructive/5'
-            : 'border-emerald-600/20 bg-emerald-600/5 dark:border-emerald-400/20 dark:bg-emerald-400/5'
-        )}
-        role="status"
-      >
-        <div className="flex items-center gap-2">
-          <MarginStatus insufficient={insufficientCount > 0} />
-          <span className="text-xs text-muted-foreground">
-            {insufficientCount > 0
-              ? `${insufficientCount} de ${rows.length} verificações precisam de atenção`
-              : `${rows.length} verificações atendidas`}
-          </span>
-        </div>
-        {insufficientCount > 0 && (
+    <div className="space-y-2">
+      {insufficientCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2" role="status">
+          <div className="flex items-center gap-2">
+            <MarginStatus insufficient />
+            <span className="text-xs text-muted-foreground">
+              {insufficientCount} de {rows.length} verificações precisam de atenção
+            </span>
+          </div>
           <span className="hidden text-xs font-medium text-destructive sm:inline">Revise os valores destacados</span>
-        )}
-      </div>
-
-      <div className="space-y-3">
+        </div>
+      )}
+      <div className="space-y-2">
         {groups.map((group) => (
-          <section key={group.label} aria-label={group.label} className="overflow-hidden rounded-lg border bg-background lg:grid lg:grid-cols-[140px_minmax(0,1fr)]">
-            <div className="border-b bg-muted/30 px-3 py-2.5 lg:border-b-0 lg:border-r lg:px-4 lg:py-4">
-              <ResourceHeading label={group.label} />
+          <section key={group.label} aria-label={group.label} className="overflow-hidden rounded-xl border bg-background lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="bg-muted/10 px-3 py-2 lg:border-r lg:border-border/60 lg:px-4 lg:py-3">
+            <ResourceHeading label={group.label} />
             </div>
 
             <div className="min-w-0">
-            {group.label === 'Requisitos combinados' && <CombinedRequirementsNote />}
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full border-collapse text-left text-sm">
                 <caption className="sr-only">Margens de {group.label.toLocaleLowerCase()} por equipamento</caption>
-                <thead className="bg-muted/20 text-xs text-muted-foreground">
+                <thead className="text-xs text-muted-foreground">
                   <tr>
-                    <th scope="col" className="w-32 px-3 py-2"><span className="sr-only">Equipamento</span></th>
+                    <th scope="col" className="w-20 px-1 pb-1 pt-2"><span className="sr-only">Equipamento</span></th>
                     {group.metrics.map((metric) => (
-                      <th key={metric.key} scope="col" className="px-3 py-2 font-medium"><MetricHeading metric={metric} /></th>
+                        <th key={metric.key} scope="col" className="px-3 pb-1 pt-2 font-medium">
+                          <MetricHeading
+                            metric={metric}
+                            combinedRequirement={group.label === 'Requisitos combinados'}
+                          />
+                        </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {group.equipment.map((equipment) => (
-                    <tr key={equipment.label} className="border-t border-border/60">
-                    <th scope="row" className="px-3 py-3 text-center font-medium"><EquipmentLabel label={equipment.label} /></th>
+                  {group.equipment.map((equipment, equipmentIndex) => (
+                    <tr key={equipment.label} className={equipment.label === 'Bateria' ? 'border-t border-border/50' : undefined}>
+                    <th scope="row" className={cn('px-1 text-center font-medium', equipmentIndex === 0 ? 'pb-2.5 pt-1' : 'py-2.5')}><EquipmentLabel label={equipment.label} /></th>
                       {group.metrics.map((metric) => {
-                        const row = equipment.metrics[metric.key];
+                        const isSharedEnergy = metric.key === 'energy' || metric.key === 'tariff_energy';
+                        const sharedEnergyRow = isSharedEnergy
+                          ? group.equipment.find((item) => item.metrics[metric.key])?.metrics[metric.key]
+                          : undefined;
+                        if (isSharedEnergy && equipmentIndex > 0) return null;
+
+                        const row = isSharedEnergy ? sharedEnergyRow : equipment.metrics[metric.key];
+                        const projectRow = group.equipment.find((item) => item.metrics[metric.key])?.metrics[metric.key];
                         return (
-                          <td key={metric.key} className="px-3 py-3 align-top">
-                            {row ? <MetricValue row={row} highlight={row.key === lowestMarginKey} /> : <span className="text-muted-foreground">—</span>}
+                          <td
+                            key={metric.key}
+                            rowSpan={isSharedEnergy ? group.equipment.length : undefined}
+                            className={cn('px-3', equipmentIndex === 0 ? 'pb-2.5 pt-1' : 'py-2.5', isSharedEnergy || equipmentIndex === 0 ? 'align-top' : 'align-middle')}
+                          >
+                            {row ? (
+                              <MetricValue
+                                row={row}
+                                highlight={row.key === lowestMarginKey}
+                                projectValue={row.key === projectRow?.key ? (
+                                  <ProjectValue
+                                    row={row}
+                                    metric={metric.key}
+                                    sourceMetrics={combinedSources.get(row.key) ?? []}
+                                    combinedRequirement={group.label === 'Requisitos combinados'}
+                                  />
+                                ) : undefined}
+                              />
+                            ) : <span className="text-muted-foreground">—</span>}
                           </td>
                         );
                       })}
@@ -297,22 +407,43 @@ export function MarginComparisonTable({
               </table>
             </div>
 
-            <div className="divide-y lg:hidden">
-              {group.metrics.map((metric) => (
+            <div className="lg:hidden">
+              {group.metrics.map((metric) => {
+                const projectRow = group.equipment.find((item) => item.metrics[metric.key])?.metrics[metric.key];
+                return (
                 <section key={metric.key} aria-label={metric.label}>
-                  <h4 className="px-3 pb-1 pt-2.5 text-left text-xs font-semibold text-muted-foreground"><MetricHeading metric={metric} /></h4>
+                  <h4 className="px-3 pb-0.5 pt-2 text-left text-xs font-semibold text-muted-foreground">
+                    <MetricHeading
+                      metric={metric}
+                      combinedRequirement={group.label === 'Requisitos combinados'}
+                    />
+                  </h4>
                   {group.equipment.map((equipment) => {
                     const row = equipment.metrics[metric.key];
                     if (!row) return null;
+                    const isSharedEnergy = metric.key === 'energy' || metric.key === 'tariff_energy';
+                    if (isSharedEnergy && equipment.label !== 'Bateria') return null;
                     return (
-                      <div key={equipment.label} className="flex items-start justify-between gap-3 px-3 py-2">
-                        <span className="w-20 shrink-0 pt-0.5"><EquipmentLabel label={equipment.label} /></span>
-                        <MetricValue row={row} highlight={row.key === lowestMarginKey} />
+                      <div key={equipment.label} className={cn('flex items-start justify-between gap-3 px-3 pb-1.5', row.key === projectRow?.key ? 'pt-0.5' : 'pt-1.5')}>
+                        <span className="w-20 shrink-0 pt-0.5"><EquipmentLabel label={isSharedEnergy ? 'Solução' : equipment.label} /></span>
+                        <MetricValue
+                          row={row}
+                          highlight={row.key === lowestMarginKey}
+                          projectValue={row.key === projectRow?.key ? (
+                            <ProjectValue
+                              row={row}
+                              metric={metric.key}
+                              sourceMetrics={combinedSources.get(row.key) ?? []}
+                              combinedRequirement={group.label === 'Requisitos combinados'}
+                            />
+                          ) : undefined}
+                        />
                       </div>
                     );
                   })}
                 </section>
-              ))}
+                );
+              })}
             </div>
             </div>
           </section>

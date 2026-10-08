@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import {
   AlertTriangle,
@@ -8,6 +8,7 @@ import {
   BatteryCharging,
   CheckCircle2,
   ChevronRight,
+  CircuitBoard,
   Clock3,
   ClipboardList,
   Download,
@@ -19,6 +20,7 @@ import {
   Link2,
   Layers3,
   Loader2,
+  MapPin,
   Package,
   PanelTop,
   Plus,
@@ -122,44 +124,43 @@ function formatPtValue(value: number, unit: string, maximumFractionDigits = 2) {
 
 function ResourceCard({ item, onOpen, onLearnMore }: { item: ResourceItem; onOpen?: () => void; onLearnMore?: () => void }) {
   const Icon = item.icon;
-  const content = (
-    <>
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <span className="truncate">{item.label}</span>
-        </span>
-        <span className="mt-1 block"><StateBadge state={item.state} /></span>
-        {item.state !== 'inactive' && <span className="mt-1 block truncate text-xs text-muted-foreground">{item.summary}</span>}
-      </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-    </>
-  );
-  const card = onOpen ? (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex h-full min-h-24 w-full items-center gap-3 rounded-xl border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      {content}
-    </button>
-  ) : <div className="flex h-full min-h-24 items-center gap-3 rounded-xl border bg-background p-3 text-left">{content}</div>;
+  const cardId = useId();
+  const showSummary = item.state !== 'inactive';
   return (
-    <div className="relative h-full">
-      {card}
-      {onLearnMore && (
+    <div className={cn(
+      'relative flex h-full min-h-24 w-full items-center gap-3 rounded-xl border bg-background p-3 text-left',
+      onOpen && 'transition-colors hover:border-primary/40 hover:bg-muted/30'
+    )}>
+      {onOpen && (
         <button
           type="button"
-          aria-label={`Saiba mais sobre ${item.label}`}
-          title={`Saiba mais sobre ${item.label}`}
-          onClick={onLearnMore}
-          className="absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+          onClick={onOpen}
+          aria-labelledby={`${cardId}-label ${cardId}-state${showSummary ? ` ${cardId}-summary` : ''}`}
+          className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
       )}
+      <span className="pointer-events-none relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="pointer-events-none relative min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <span id={`${cardId}-label`} className="truncate">{item.label}</span>
+          {onLearnMore && (
+            <button
+              type="button"
+              aria-label={`Saiba mais sobre ${item.label}`}
+              title={`Saiba mais sobre ${item.label}`}
+              onClick={onLearnMore}
+              className="pointer-events-auto relative z-10 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </span>
+        <span id={`${cardId}-state`} className="mt-1 block"><StateBadge state={item.state} /></span>
+        {showSummary && <span id={`${cardId}-summary`} className="mt-1 block truncate text-xs text-muted-foreground">{item.summary}</span>}
+      </span>
+      <ChevronRight className="pointer-events-none relative h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </div>
   );
 }
@@ -181,10 +182,13 @@ function SummaryRow({ label, value, state, icon: Icon, showValue = false, onClic
   return onClick ? <button type="button" onClick={onClick} className={cn(className, 'rounded-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50')}>{content}</button> : <div className={className}>{content}</div>;
 }
 
-function EditableSummaryRow({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
+function EditableSummaryRow({ label, value, icon: Icon, onClick }: { label: string; value: string; icon?: LucideIcon; onClick: () => void }) {
   return (
     <button type="button" aria-label={`${label}: ${value}`} onClick={onClick} className="flex w-full items-center justify-between gap-3 border-b py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/50 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-      <span className="min-w-0 truncate text-sm text-muted-foreground">{label}</span>
+      <span className="flex min-w-0 items-center gap-2 truncate text-sm text-muted-foreground">
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+        <span className="truncate">{label}</span>
+      </span>
       <span className="flex min-w-0 items-center justify-end gap-2">
         <span className="truncate text-right text-sm font-medium">{value}</span>
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -723,16 +727,16 @@ export function ProjectWorkspace({
                   <div className="mt-2">
                     {(onUpdateProjectInfo || onSaveProject) && (
                       <>
-                        <EditableSummaryRow label="Nome da instalação" value={projectInfo.name || 'Não informado'} onClick={() => setProjectInfoEditField('name')} />
-                        <EditableSummaryRow label="Cliente" value={client?.name || 'Não informado'} onClick={() => setProjectInfoEditField('client')} />
-                        <EditableSummaryRow label="Endereço" value={formatAddress(projectInfo.address) || 'Não informado'} onClick={() => setProjectInfoEditField('address')} />
+                        <EditableSummaryRow label="Nome da instalação" value={projectInfo.name || 'Não informado'} icon={ClipboardList} onClick={() => setProjectInfoEditField('name')} />
+                        <EditableSummaryRow label="Cliente" value={client?.name || 'Não informado'} icon={UserRound} onClick={() => setProjectInfoEditField('client')} />
+                        <EditableSummaryRow label="Endereço" value={formatAddress(projectInfo.address) || 'Não informado'} icon={MapPin} onClick={() => setProjectInfoEditField('address')} />
                       </>
                     )}
                     {!onUpdateProjectInfo && !onSaveProject && (
                       <>
-                        <SummaryRow label="Nome da instalação" value={projectInfo.name || 'Não informado'} showValue />
-                        <SummaryRow label="Cliente" value={client?.name || 'Não informado'} showValue />
-                        <SummaryRow label="Endereço" value={formatAddress(projectInfo.address) || 'Não informado'} showValue />
+                        <SummaryRow label="Nome da instalação" value={projectInfo.name || 'Não informado'} icon={ClipboardList} showValue />
+                        <SummaryRow label="Cliente" value={client?.name || 'Não informado'} icon={UserRound} showValue />
+                        <SummaryRow label="Endereço" value={formatAddress(projectInfo.address) || 'Não informado'} icon={MapPin} showValue />
                       </>
                     )}
                   </div>
@@ -754,16 +758,19 @@ export function ProjectWorkspace({
                     <>
                       <EditableSummaryRow
                         label="Rede elétrica"
+                        icon={Zap}
                         value={residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Não configurada'}
                         onClick={() => onOpenConfiguration ? onOpenConfiguration() : onOpenResource?.('gridType')}
                       />
                       <EditableSummaryRow
                         label="Inversor"
+                        icon={CircuitBoard}
                         value={residentialOptions.inverterModel || 'Automático'}
                         onClick={() => onOpenConfiguration ? onOpenConfiguration() : onOpenResource?.('gridType')}
                       />
                       <EditableSummaryRow
                         label="Bateria"
+                        icon={BatteryCharging}
                         value={residentialOptions.batteryModel
                           ? `${residentialOptions.batteryModel}${residentialOptions.topology ? ` · ${topologyLabels[residentialOptions.topology]}` : ''}`
                           : 'Não selecionada'}
@@ -781,7 +788,7 @@ export function ProjectWorkspace({
                       <SummaryRow
                         label="Inversor"
                         value={residentialOptions.inverterModel || 'Automático'}
-                        icon={Zap}
+                        icon={CircuitBoard}
                         showValue
                       />
                       <SummaryRow
@@ -789,7 +796,7 @@ export function ProjectWorkspace({
                         value={residentialOptions.batteryModel
                           ? `${residentialOptions.batteryModel}${residentialOptions.topology ? ` · ${topologyLabels[residentialOptions.topology]}` : ''}`
                           : 'Não selecionada'}
-                        icon={Battery}
+                        icon={BatteryCharging}
                         showValue
                       />
                     </>
@@ -1123,7 +1130,7 @@ function SolutionSection({
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1" role="group" aria-label="Detalhes da solução">
             {([
               ['summary', 'Equipamentos'],
-              ['margins', 'Margens'],
+              ['margins', 'Margens operacionais'],
               ['criteria', 'Critérios'],
             ] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', view === id ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground')}>{label}</button>)}
           </div>

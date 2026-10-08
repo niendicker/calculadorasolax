@@ -24,7 +24,7 @@ import { formatAddress, isAddressEmpty } from '@/lib/address';
 import { batteryQuantityBreakdown, expansionModelSet, type BatteryQuantityPart } from '@/lib/battery-quantity-breakdown';
 import {
   effectiveTargetEnergyWh,
-  effectiveTargetPowerW,
+  effectiveTargetPowers,
   totalDailyKwh,
   totalNominalW,
   totalPeakW,
@@ -393,7 +393,7 @@ export function solutionMetrics(
   };
 }
 
-export { effectiveTargetEnergyWh, effectiveTargetPowerW } from '@/lib/store/wizard-calculations';
+export { effectiveTargetEnergyWh, effectiveTargetPowerW, effectiveTargetPowers } from '@/lib/store/wizard-calculations';
 
 /** Efficiency used by the sizing UI when presenting the estimated storage
  * requirement. The calculation service selects a solution from raw usable
@@ -440,18 +440,27 @@ export function buildMarginSummary({
   pvOversizingPercent?: number | null;
   solution: Solution;
 }): MarginRow[] {
-  const rows: MarginRow[] = [
+  const { nominalW: combinedRegimePowerW, peakW: combinedPeakPowerW } = effectiveTargetPowers(
+    desiredFeatures, whiteTariff, microgrid, nominalW, peakW
+  );
+  const backupPeakPowerW = Math.max(nominalW, peakW);
+  const hasPowerResource = desiredFeatures.some((feature) =>
+    feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff'
+  );
+
+  const rows: MarginRow[] = [];
+  if (hasPowerResource) rows.push(
     {
       key: 'nominal',
       label: 'Potência padrão (inversor)',
-      requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+      requiredValue: combinedRegimePowerW,
       providedValue: solution.inverterRatedPowerW ?? 0,
       unit: 'W',
     },
     {
       key: 'peak',
       label: 'Potência máxima (inversor)',
-      requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
+      requiredValue: combinedPeakPowerW,
       providedValue: solution.inverterPeakPowerW ?? 0,
       unit: 'W',
     },
@@ -467,12 +476,10 @@ export function buildMarginSummary({
       providedValue: solution.availableEnergyWh ?? 0,
       unit: 'Wh',
     },
-  ];
+  );
 
-  // When Backup and Tarifa Branca are both active, keep the tariff's own
-  // power and energy checks visible as a separate resource group. The base
-  // rows below still represent the combined sizing requirement.
-  if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff') && whiteTariff) {
+  // Keep each active resource's requirements separate from the consolidated targets.
+  if (desiredFeatures.includes('backup')) {
     rows.push(
       {
         key: 'backup_nominal_inverter',
@@ -484,7 +491,7 @@ export function buildMarginSummary({
       {
         key: 'backup_peak_inverter',
         label: 'Potência máxima do Backup (inversor)',
-        requiredValue: peakW,
+        requiredValue: backupPeakPowerW,
         providedValue: solution.inverterPeakPowerW ?? 0,
         unit: 'W',
       }
@@ -501,7 +508,7 @@ export function buildMarginSummary({
         {
           key: 'backup_peak_battery',
           label: 'Potência máxima do Backup (bateria)',
-          requiredValue: peakW,
+          requiredValue: backupPeakPowerW,
           providedValue: solution.batteryPowerW,
           unit: 'W',
         }
@@ -519,6 +526,8 @@ export function buildMarginSummary({
       providedValue: solution.availableEnergyWh ?? 0,
       unit: 'Wh',
     });
+  }
+  if (desiredFeatures.includes('white_tariff') && whiteTariff) {
     rows.push({
       key: 'white_tariff_inverter',
       label: 'Tarifa Branca (inversor)',
@@ -549,22 +558,22 @@ export function buildMarginSummary({
     });
   }
 
-  // Backup loads are supplied by both the inverter and the battery bank.
+  // Active power resources are supported by both the inverter and the battery bank.
   // Show the battery's power margin separately so a strong inverter cannot
   // hide a battery bank that falls short of the nominal or peak requirement.
-  if (desiredFeatures.includes('backup') && solution.batteryPowerW != null) {
+  if (hasPowerResource && solution.batteryPowerW != null) {
     rows.push(
       {
         key: 'nominal_battery',
         label: 'Potência padrão (bateria)',
-        requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, nominalW),
+        requiredValue: combinedRegimePowerW,
         providedValue: solution.batteryPowerW,
         unit: 'W',
       },
       {
         key: 'peak_battery',
         label: 'Potência máxima (bateria)',
-        requiredValue: effectiveTargetPowerW(desiredFeatures, whiteTariff, peakW),
+        requiredValue: combinedPeakPowerW,
         providedValue: solution.batteryPowerW,
         unit: 'W',
       }
