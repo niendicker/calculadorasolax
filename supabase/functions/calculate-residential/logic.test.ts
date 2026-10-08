@@ -958,6 +958,16 @@ describe('solutionSupportsMicrogrid', () => {
     expect(solutionSupportsMicrogrid(solution, 1000, makeMicrogrid({ onGridApparentPowerVA: 3000, onGridPhases: 3 }), 'threePhase_380')).toBe(true);
   });
 
+  it('scales the per-phase limit with parallel inverters while preserving total and battery limits', () => {
+    const parallel = makeSolution({ inverter_quantity: 2, rated_power_w: 10000, battery_power_w: 10000 });
+    const microgrid = makeMicrogrid({ onGridApparentPowerVA: 6000, onGridPhases: 1 });
+    expect(solutionSupportsMicrogrid(parallel, 3000, microgrid, 'singlePhase_220')).toBe(true);
+    expect(solutionSupportsMicrogrid(parallel, 3000, { ...microgrid, onGridApparentPowerVA: 6001 }, 'singlePhase_220')).toBe(false);
+    expect(solutionSupportsMicrogrid({ ...parallel, inverter_quantity: 1 }, 3000, microgrid, 'singlePhase_220')).toBe(false);
+    expect(solutionSupportsMicrogrid({ ...parallel, battery_power_w: 6000 }, 3000, microgrid, 'singlePhase_220')).toBe(false);
+    expect(solutionSupportsMicrogrid({ ...parallel, rated_power_w: 6000 }, 3000, microgrid, 'singlePhase_220')).toBe(false);
+  });
+
   it('puts the full power of a fase-neutro monofásico on one phase', () => {
     const solution = makeSolution({ rated_power_w: 10000, battery_power_w: 10000 });
     expect(solutionSupportsMicrogrid(solution, 3000, makeMicrogrid({ onGridApparentPowerVA: 3001, onGridPhases: 1 }), 'threePhase_380')).toBe(false);

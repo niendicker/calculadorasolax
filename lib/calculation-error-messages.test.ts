@@ -9,6 +9,7 @@ describe('getCalculationErrorMessage', () => {
       'no_approved_solution',
       'no_compatible_ess_rule',
       'no_solution_matches_desired_features',
+      'microgrid_power_insufficient',
       'battery_lookup_failed',
       'inverter_lookup_failed',
       'solution_lookup_failed',
@@ -26,6 +27,15 @@ describe('getCalculationErrorMessage', () => {
     expect(noSolution).not.toBe(noEss);
     expect(noSolution.toLowerCase()).toContain('bateria');
     expect(noEss.toLowerCase()).toContain('compat');
+  });
+
+  it('explains microgrid power shortfalls separately from unsupported functionality', () => {
+    const message = getCalculationErrorMessage('microgrid_power_insufficient');
+    expect(message).toContain('potência suficiente');
+    expect(message).toContain('inversores em paralelo');
+    expect(message).toContain('banco de baterias');
+    expect(message).toContain('limite por fase');
+    expect(message).not.toBe(getCalculationErrorMessage('no_solution_matches_desired_features', ['microgrid']));
   });
 
   it('falls back to a generic message for an unknown or missing code', () => {

@@ -379,7 +379,7 @@ export async function handleCalculateResidential(
           return {
             ok: false,
             response: jsonResponse(
-              { error: 'no_solution_matches_desired_features', blockingFeatures: ['microgrid'] },
+              { error: 'microgrid_power_insufficient' },
               { status: 422 }
             ),
           };

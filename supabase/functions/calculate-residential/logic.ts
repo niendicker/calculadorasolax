@@ -102,7 +102,7 @@ export function blockingDesiredFeatures(
 /** Whether a solution can coexist with the on-grid system described by
  * microgrid: the on-grid apparent power must stay under both the inverter's
  * rated power and the battery bank's power, and — when the inverter declares
- * a per-phase limit — under that limit once spread over the phases the
+ * a per-phase limit — under the parallel bank's combined limit once spread over the phases the
  * on-grid system loads, which depends on how it connects to the network
  * (see microgridOnGridConnection). */
 export function solutionSupportsMicrogrid(
@@ -116,7 +116,8 @@ export function solutionSupportsMicrogrid(
   if (requiredPowerW >= solution.battery_power_w) return false;
   if (inverterMaxPowerPerPhaseW !== null) {
     const requiredPerPhaseW = microgridPerPhasePowerW(gridType, microgrid.onGridPhases, requiredPowerW);
-    if (requiredPerPhaseW > inverterMaxPowerPerPhaseW) return false;
+    const parallelPhaseLimitW = inverterMaxPowerPerPhaseW * (solution.inverter_quantity ?? 1);
+    if (requiredPerPhaseW > parallelPhaseLimitW) return false;
   }
   return true;
 }

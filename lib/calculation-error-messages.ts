@@ -17,6 +17,8 @@ const MESSAGES: Record<string, string> = {
     'Nenhuma solução compatível foi encontrada para essa combinação de inversor e bateria. Tente outro modelo de bateria ou inversor.',
   no_solution_matches_desired_features:
     'Nenhuma combinação aprovada atende às funcionalidades desejadas selecionadas. Tente escolher outro inversor ou remover alguma funcionalidade.',
+  microgrid_power_insufficient:
+    'Há inversores compatíveis com Microrrede, mas nenhuma combinação aprovada nas configurações selecionadas tem potência suficiente para atender ao on-grid. A potência total dos inversores em paralelo e do banco de baterias deve superar a potência do on-grid, respeitando também o limite por fase. Revise o modelo de inversor, o banco de baterias ou a potência informada do on-grid.',
   battery_lookup_failed: 'Erro interno ao consultar a bateria selecionada. Tente novamente em instantes.',
   inverter_lookup_failed: 'Erro interno ao consultar o inversor selecionado. Tente novamente em instantes.',
   solution_lookup_failed: 'Erro interno ao buscar combinações aprovadas. Tente novamente em instantes.',

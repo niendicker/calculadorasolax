@@ -365,3 +365,45 @@ Deno.test('microgrid promotes to the smallest solution that stays strictly above
   assertEquals(body.solutionId, 'bigger');
   assertEquals(body.microgridAlternative, undefined);
 });
+
+Deno.test('microgrid selects parallel inverters when one inverter cannot carry the on-grid power', async () => {
+  const single = makeSolutionRow({ rated_power_w: 5000, battery_power_w: 8000 });
+  const parallel = makeSolutionRow({ id: 'parallel', inverter_quantity: 2, rated_power_w: 10000, battery_power_w: 10000 });
+  const supabase = makeFakeSupabase({
+    tableResults: {
+      approved_solutions: { data: [single, parallel], error: null },
+      inverters: { data: [{ model: single.inverter_model, flags: ['microgrid'], max_power_per_phase_w: 5000 }], error: null },
+      accessory_rules: { data: [], error: null },
+    },
+  });
+  const res = await handleCalculateResidential(postRequest(makeOptions({
+    desiredFeatures: ['microgrid'],
+    microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 6000 },
+  })), supabase);
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.solutionId, 'parallel');
+  assertEquals(body.inverterQty, 2);
+});
+
+for (const [limit, solutionOverrides] of [
+  ['inverter', { rated_power_w: 6000, battery_power_w: 10000 }],
+  ['battery', { rated_power_w: 10000, battery_power_w: 6000 }],
+  ['phase', { rated_power_w: 10000, battery_power_w: 10000 }],
+] as const) {
+  Deno.test(`microgrid returns a power-specific error when the ${limit} limit is insufficient`, async () => {
+    const solution = makeSolutionRow(solutionOverrides);
+    const supabase = makeFakeSupabase({
+      tableResults: {
+        approved_solutions: { data: [solution], error: null },
+        inverters: { data: [{ model: solution.inverter_model, flags: ['microgrid'], max_power_per_phase_w: limit === 'phase' ? 5000 : null }], error: null },
+      },
+    });
+    const res = await handleCalculateResidential(postRequest(makeOptions({
+      desiredFeatures: ['microgrid'],
+      microgrid: { voltageV: 220, onGridPhases: 1, onGridApparentPowerVA: 6000 },
+    })), supabase);
+    assertEquals(res.status, 422);
+    assertEquals((await res.json()).error, 'microgrid_power_insufficient');
+  });
+}
