@@ -114,6 +114,7 @@ export function DesiredFeaturesPicker({
   const confirmationCancelRef = useRef<HTMLButtonElement | null>(null);
   const confirmationTitleId = useId();
   const confirmationDescriptionId = useId();
+  const confirmationWarningId = useId();
   const closeConfirmation = useCallback(() => {
     setPendingFeature(null);
     requestAnimationFrame(() => featureToggleRef.current?.focus());
@@ -408,43 +409,52 @@ export function DesiredFeaturesPicker({
             role="dialog"
             aria-modal="true"
             aria-labelledby={confirmationTitleId}
-            aria-describedby={confirmationDescriptionId}
-            className="w-full max-w-md rounded-2xl border bg-card p-5 text-card-foreground shadow-2xl sm:p-6"
+            aria-describedby={hasConfigToRemove ? `${confirmationDescriptionId} ${confirmationWarningId}` : confirmationDescriptionId}
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border bg-card text-card-foreground shadow-2xl"
           >
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+            <div className="flex items-start gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <ArrowRight className="size-5" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 id={confirmationTitleId} className="text-base font-semibold">Substituir {featureToRemove} por {featureToEnable}?</h2>
-                  <Button type="button" variant="ghost" size="icon-xs" aria-label="Fechar confirmação" onClick={closeConfirmation}>
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                <h2 id={confirmationTitleId} className="text-lg font-semibold leading-6">Substituir {featureToRemove} por {featureToEnable}?</h2>
                 <p id={confirmationDescriptionId} className="mt-1.5 text-sm leading-5 text-muted-foreground">
-                  Para habilitar {featureToEnable}, {featureToRemove} será desativado{hasConfigToRemove ? ' e os dados preenchidos serão apagados.' : '.'}
+                  Para habilitar {featureToEnable}, {featureToRemove} será desativado.
                 </p>
               </div>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="Fechar confirmação" onClick={closeConfirmation}>
+                <X className="size-4" aria-hidden="true" />
+              </Button>
             </div>
 
-            <div className="mt-5 flex items-center gap-3 rounded-xl border bg-muted/30 px-3 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground">Será desativado</p>
-                <p className="mt-0.5 truncate text-sm font-semibold text-destructive">{featureToRemove}</p>
+            <div className="space-y-4 px-5 py-5 sm:px-6">
+              <div className="rounded-lg border bg-muted/30 p-3.5">
+                <p className="text-xs font-semibold text-muted-foreground">Esta ação afeta</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground">Será desativado</p>
+                    <p className="mt-0.5 truncate text-sm font-semibold text-destructive">{featureToRemove}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <div className="min-w-0 flex-1 text-right">
+                    <p className="text-xs text-muted-foreground">Será habilitado</p>
+                    <p className="mt-0.5 truncate text-sm font-semibold text-primary">{featureToEnable}</p>
+                  </div>
+                </div>
               </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <div className="min-w-0 flex-1 text-right">
-                <p className="text-xs text-muted-foreground">Será habilitado</p>
-                <p className="mt-0.5 truncate text-sm font-semibold text-primary">{featureToEnable}</p>
-              </div>
+              {hasConfigToRemove && (
+                <p id={confirmationWarningId} className="flex items-start gap-2 text-sm leading-5">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+                  <span>Os dados preenchidos de {featureToRemove} serão apagados. Essa ação não pode ser desfeita.</span>
+                </p>
+              )}
             </div>
 
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button ref={confirmationCancelRef} type="button" variant="outline" className="w-full sm:w-auto" onClick={closeConfirmation}>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/20 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+              <Button ref={confirmationCancelRef} type="button" variant="outline" className="h-10 w-full sm:w-auto md:h-10" onClick={closeConfirmation}>
                 Cancelar
               </Button>
-              <Button type="button" variant="destructive" className="h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-4 sm:w-auto" onClick={confirmFeatureSwitch}>
+              <Button type="button" variant="destructive" className="h-10 w-full border-destructive/30 whitespace-normal text-center leading-4 sm:w-auto md:h-10" onClick={confirmFeatureSwitch}>
                 Substituir por {featureToEnable}
               </Button>
             </div>
