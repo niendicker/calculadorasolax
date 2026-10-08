@@ -32,6 +32,7 @@ const INVALID_FIELD_LABELS: Record<string, string> = {
   topology: 'topologia da bateria',
   batteryModel: 'modelo da bateria',
   inverterModel: 'modelo do inversor',
+  minInverterQty: 'quantidade mínima de inversores',
   gridType: 'tipo de rede',
   loads: 'cargas',
   operationHours: 'tempo de operação',
@@ -46,8 +47,16 @@ const INVALID_FIELD_LABELS: Record<string, string> = {
   'whiteTariff.pontaWindowHours': 'Tarifa Branca: duração da ponta',
   'whiteTariff.intermediateWindowHours': 'Tarifa Branca: duração intermediária',
   'generator.powerFactor': 'Gerador: fator de potência',
+  'generator.voltageV': 'Gerador: tensão',
+  'generator.phases': 'Gerador: número de fases',
+  'generator.apparentPowerVA': 'Gerador: potência aparente',
   'generator.safetyMarginW': 'Gerador: margem operacional',
   'microgrid.onGridApparentPowerVA': 'Microrrede: potência nominal AC',
+  'microgrid.voltageV': 'Microrrede: tensão',
+  'microgrid.onGridPhases': 'Microrrede: número de fases',
+  'pv.monthlyConsumptionKwh': 'Fotovoltaico: consumo mensal',
+  'pv.hsp': 'Fotovoltaico: horas de sol pleno (HSP)',
+  'whiteTariff.inputMode': 'Tarifa Branca: modo de preenchimento',
   'whiteTariff.pontaTariffPerKwh': 'Tarifa Branca: tarifa de ponta',
   'whiteTariff.intermediateTariffPerKwh': 'Tarifa Branca: tarifa intermediária',
   'whiteTariff.foraPontaTariffPerKwh': 'Tarifa Branca: tarifa fora de ponta',
@@ -56,26 +65,78 @@ const INVALID_FIELD_LABELS: Record<string, string> = {
   pv: 'configuração fotovoltaica',
 };
 
+const VALIDATION_MESSAGES: Record<string, string> = {
+  'loads must be a non-empty array': 'Nenhuma carga cadastrada. Adicione ao menos uma carga em Cargas do projeto.',
+  'whiteTariff is required when desiredFeatures includes white_tariff': 'Preencha a configuração do recurso Tarifa Branca.',
+  'microgrid is required when desiredFeatures includes microgrid': 'Preencha a configuração do recurso Microrrede.',
+  'generator is required when desiredFeatures includes external_generator': 'Preencha a configuração do recurso Gerador.',
+  'pv is required when desiredFeatures includes pv': 'Preencha o consumo mensal e as horas de sol pleno (HSP) no recurso Fotovoltaico.',
+  'microgrid and external_generator cannot be enabled together': 'Microrrede e Gerador não podem ser ativados juntos. Desative um desses recursos.',
+  'whiteTariff must include energy in ponta or intermediate period': 'Tarifa Branca: informe o consumo de energia na ponta ou no período intermediário.',
+  'whiteTariff tariffs must be greater than 0': 'Tarifa Branca: informe tarifas maiores que zero para ponta, período intermediário e fora de ponta.',
+  'whiteTariff expensive tariffs must be >= off-peak tariff': 'Tarifa Branca: as tarifas de ponta e intermediária devem ser maiores ou iguais à tarifa fora de ponta.',
+  'generator.apparentPowerVA is insufficient for loads and charging margin': 'Gerador: aumente a potência para atender às cargas e à margem de recarga.',
+};
+
+const LOAD_FIELD_MESSAGES: Record<string, string> = {
+  powerW: 'informe uma potência maior que zero (VA)',
+  qty: 'informe uma quantidade inteira maior que zero',
+  ipInRatio: 'informe uma relação IP/IN maior ou igual a 1',
+  usageMode: 'selecione o modo de uso: percentual ou horas fixas',
+  usageFactor: 'informe um fator de uso entre 0% e 100%',
+  fixedHours: 'informe as horas fixas entre 0 e 24 horas',
+};
+
+function invalidDetailMessage(detail: string): string | null {
+  if (VALIDATION_MESSAGES[detail]) return VALIDATION_MESSAGES[detail];
+  const loadField = /^loads\[(\d+)\](?:\.(\w+))? /.exec(detail);
+  if (loadField) {
+    const instruction = loadField[2] ? LOAD_FIELD_MESSAGES[loadField[2]] : 'remova a carga inválida e cadastre-a novamente';
+    return instruction ? `Carga ${Number(loadField[1]) + 1}: ${instruction}.` : null;
+  }
+  const field = Object.keys(INVALID_FIELD_LABELS)
+    .sort((a, b) => b.length - a.length)
+    .find((candidate) => detail === candidate || detail.startsWith(`${candidate} `));
+  if (!field) return null;
+  const label = INVALID_FIELD_LABELS[field];
+  if (field === 'gridType') return 'Selecione um tipo de rede válido em Configurações técnicas.';
+  if (field === 'topology') return 'Selecione uma topologia de bateria válida em Configurações técnicas.';
+  if (field === 'operationHours') return 'Informe um tempo de operação entre 0 e 24 horas.';
+  if (/must be (?:a number )?(?:>= 0)/.test(detail)) return `Informe um valor maior ou igual a zero para ${label}.`;
+  if (/must be (?:a number )?(?:>|greater than) 0/.test(detail)) return `Informe um valor maior que zero para ${label}.`;
+  if (detail.includes('positive integer')) return `Informe um número inteiro maior que zero para ${label}.`;
+  if (detail.includes('between 0.1 and 1')) return `Informe um valor entre 0,1 e 1 para ${label}.`;
+  if (detail.includes('must be 1, 2, or 3')) return `Selecione 1, 2 ou 3 para ${label}.`;
+  return `Revise o campo ${label}.`;
+}
+
 /** Converts the Edge Function's validator details into field names a user can
  * act on. Raw validator strings stay internal: they are useful to developers,
  * but expose implementation names and English diagnostics in the UI. */
 function invalidPayloadMessage(details: unknown): string | null {
   if (!Array.isArray(details)) return null;
 
-  const labels = details
+  const messages = details
     .filter((detail): detail is string => typeof detail === 'string')
-    .map((detail) => {
-      const field = Object.keys(INVALID_FIELD_LABELS)
-        .sort((a, b) => b.length - a.length)
-        .find((candidate) => detail === candidate || detail.startsWith(`${candidate} `));
-      return field ? INVALID_FIELD_LABELS[field] : null;
-    })
-    .filter((label): label is string => Boolean(label));
+    .map((detail) => ({
+      message: invalidDetailMessage(detail),
+      stage: detail.startsWith('loads') ? 1
+        : detail.startsWith('operationHours') ? 2
+        : detail.startsWith('microgrid') ? 3
+        : detail.startsWith('generator') ? 4
+        : detail.startsWith('pv') ? 5
+        : detail.startsWith('whiteTariff') ? 6
+        : 0,
+    }))
+    .filter((entry): entry is { message: string; stage: number } => Boolean(entry.message));
 
-  const uniqueLabels = [...new Set(labels)];
-  if (!uniqueLabels.length) return null;
+  // Resolve general settings before loads and individual resources, even if
+  // the backend reports its validation errors in a different order.
+  const firstStage = Math.min(...messages.map((entry) => entry.stage));
+  const uniqueMessages = [...new Set(messages.filter((entry) => entry.stage === firstStage).map((entry) => entry.message))];
+  if (!uniqueMessages.length) return null;
 
-  return `Revise os seguintes campos antes de calcular: ${uniqueLabels.join(', ')}.`;
+  return uniqueMessages.join(' ');
 }
 
 /** Message for a known Edge Function error code (the `error` field of its JSON body).

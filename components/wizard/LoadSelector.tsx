@@ -7,7 +7,7 @@ import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, ChevronDown, Clock, LayoutGrid, ListPlus, Plus, SlidersHorizontal, Table2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Clock, ListPlus, Plus, SlidersHorizontal } from 'lucide-react';
 import { ACCOUNT_LIMITS, isLimitError, limitReachedMessage } from '@/lib/limits';
 import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loadPhases, totalPowerByPhase, useWizardStore } from '@/lib/store/wizard-store';
 import type { CatalogItem, LoadPresetLoad, LoadPhase, LoadVoltage, SingleLoad } from '@/lib/types';
@@ -16,7 +16,6 @@ import { InfoLabel } from '@/components/ui/tooltip';
 import { SearchInput } from '@/components/app/shared-ui';
 import { AddLoadTile } from './load-selector/AddLoadTile';
 import { LoadCard } from './load-selector/LoadCard';
-import { LoadTable } from './load-selector/LoadTable';
 import { MAX_OPERATION_HOURS, MINE_FILTER, loadMatchesPhase, newLoad } from './load-selector/load-selector-utils';
 import { PeakModeButton } from './load-selector/PeakModeButton';
 import { PhaseDot } from './load-selector/phase-indicators';
@@ -99,6 +98,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
     userLoadCatalog,
     addLoad,
     removeLoad,
+    clearLoads,
     updateLoad,
     setPeakCalcMode,
     saveManualLoadToCatalog,
@@ -121,7 +121,6 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
   );
   const [catalogSaveWarning, setCatalogSaveWarning] = useState<string | null>(null);
   const [loadLimitMessage, setLoadLimitMessage] = useState<string | null>(null);
-  const [loadView, setLoadView] = useState<'cards' | 'table'>('cards');
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [selectedLoadIdsForPreset, setSelectedLoadIdsForPreset] = useState<Set<string>>(new Set());
   const [presetName, setPresetName] = useState('');
@@ -181,6 +180,16 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
   function handleDuplicateLoad(load: SingleLoad) {
     const added = addLoad({ ...load, id: crypto.randomUUID() });
     setLoadLimitMessage(added ? null : limitReachedMessage('cargas neste projeto', ACCOUNT_LIMITS.loadsPerProject));
+  }
+
+  function handleClearLoads() {
+    clearLoads();
+    setLoadLimitMessage(null);
+    setPhaseFilter('all');
+    setDragOverPhase(null);
+    setSelectedLoadIdsForPreset(new Set());
+    setSavePresetOpen(false);
+    setPresetSaveError(null);
   }
 
   function handleAddFromCatalog(item: CatalogItem) {
@@ -294,7 +303,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
               onClick={() => handleSubTabClick('presets')}
               className={cn('-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', activeSubTab === 'presets' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground')}
             >
-              Predefinições
+              Grupos de cargas
             </button>
             <button
               type="button"
@@ -303,13 +312,13 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
               onClick={() => handleSubTabClick('catalog')}
               className={cn('-mb-px border-b-2 px-0.5 pb-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', activeSubTab === 'catalog' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground')}
             >
-              {t('catalog')}
+              Cargas Individuais
             </button>
           </div>
           {activeSubTab === 'presets' && (
           <div className="space-y-3">
             {!savePresetOpen && (
-            <div className="flex gap-4 border-b" role="tablist" aria-label="Predefinições">
+            <div className="flex gap-4 border-b" role="tablist" aria-label="Grupos de cargas">
               <button
                 type="button"
                 role="tab"
@@ -322,7 +331,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                     : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
-                Predefinições do sistema
+                Predefinidos
               </button>
               <button
                 type="button"
@@ -336,7 +345,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                     : 'border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground'
                 )}
               >
-                Minhas predefinições ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
+                Meus grupos ({userLoadPresets.length}/{ACCOUNT_LIMITS.userPresets})
               </button>
             </div>
             )}
@@ -561,7 +570,7 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                 Configurações avançadas
               </span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                Ajuste picos de partida e distribuição entre fases quando necessário.
+                Ajuste como os picos de partida entram no cálculo.
               </span>
             </span>
             <ChevronDown className={cn('mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform', advancedOpen && 'rotate-180')} aria-hidden="true" />
@@ -615,29 +624,49 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
             )}
           </div>
           )}
-          {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
+          {residentialOptions.loads.length === 0 && (
+            <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+              Adicione ao menos uma carga para liberar estas configurações.
+            </p>
+          )}
+          </div>
+          )}
+          </section>
+          <section className="order-2 space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Cargas do projeto</h3>
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-primary">
+                  {residentialOptions.loads.length}/{ACCOUNT_LIMITS.loadsPerProject}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Revise consumo, partida e ligação elétrica de cada equipamento.
+              </p>
+            </div>
+            <ConfirmDeleteButton
+              ariaLabel="Limpar cargas"
+              label="Limpar cargas"
+              title="Limpar todas as cargas?"
+              description="Todas as cargas deste projeto serão excluídas, inclusive as ocultas pelo filtro de fase. Essa ação não pode ser desfeita."
+              confirmLabel="Excluir todas as cargas"
+              triggerVariant="outline"
+              disabled={residentialOptions.loads.length === 0}
+              onConfirm={handleClearLoads}
+            />
+          </div>
+          {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
+            <div className="border-b border-border/50 pb-3">
               <p className="text-xs font-medium">
                 <InfoLabel
                   label="Potência por fase"
-                  tip="Soma da potência nominal das cargas em cada fase. Cargas trifásicas dividem a potência igualmente entre as três fases. Arraste uma carga monofásica para uma fase para conectá-la a ela em ligação fase-neutro. Selecione uma fase para filtrar as cargas exibidas abaixo."
+                  tip="Soma da potência nominal das cargas em cada fase. Cargas trifásicas dividem a potência igualmente entre as três fases. Arraste uma carga monofásica para uma fase para conectá-la a ela em ligação fase-neutro. Selecione uma fase para filtrar as cargas exibidas abaixo. Clique novamente na fase selecionada para exibir todas as cargas."
                 />
               </p>
               <div
-                className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"
+                className={cn('mt-2 grid gap-2', visiblePhases.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}
               >
-                <button
-                  type="button"
-                  aria-pressed={effectivePhaseFilter === 'all'}
-                  onClick={() => setPhaseFilter('all')}
-                  className={cn(
-                    'rounded-lg border p-2 text-center transition-colors',
-                    effectivePhaseFilter === 'all' ? 'border-primary bg-primary/10' : 'bg-muted/40 hover:bg-muted/70'
-                  )}
-                >
-                  <p className="text-[0.7rem] font-medium uppercase text-muted-foreground">Todas</p>
-                  <p className="text-sm font-semibold">{residentialOptions.loads.length}</p>
-                </button>
                 {visiblePhases.map((phase) => {
                   const phaseW = phaseTotals[phase];
                   const overLimit = Boolean(maxPowerPerPhaseW) && phaseW > (maxPowerPerPhaseW as number);
@@ -712,111 +741,11 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
               )}
             </div>
           )}
-          {residentialOptions.loads.length === 0 && (
-            <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-              Adicione ao menos uma carga para liberar estas configurações.
-            </p>
-          )}
-          </div>
-          )}
-          </section>
-          <section className="order-2 space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold">Cargas do projeto</h3>
-                <Badge variant="secondary" className="border-primary/20 bg-primary/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-primary">
-                  {residentialOptions.loads.length}/{ACCOUNT_LIMITS.loadsPerProject}
-                </Badge>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Revise consumo, partida e ligação elétrica de cada equipamento.
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 p-0.5" role="group" aria-label="Exibição das cargas">
-                <button
-                  type="button"
-                  aria-pressed={loadView === 'cards'}
-                  aria-label="Exibir cargas em cards"
-                  onClick={() => setLoadView('cards')}
-                  className={cn('flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', loadView === 'cards' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Cards</span>
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={loadView === 'table'}
-                  aria-label="Exibir cargas em tabela"
-                  onClick={() => setLoadView('table')}
-                  className={cn('flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', loadView === 'table' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-                >
-                  <Table2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Tabela</span>
-                </button>
-              </div>
-            </div>
-          </div>
           {effectivePhaseFilter !== 'all' && visibleLoads.length === 0 && (
             <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
               Nenhuma carga conectada à fase {effectivePhaseFilter}.
             </p>
           )}
-          {loadView === 'table' ? (
-            <div className="space-y-3">
-              {/* Once the table is showing, "Adicionar carga" moves into its
-                  header (last column) — this tile is only needed as a
-                  fallback when there are no confirmed loads yet to render a
-                  table for. */}
-              {!visibleLoads.some((load) => load.powerW > 0) && (
-                <AddLoadTile
-                  onAdd={handleAddBlank}
-                  disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-                  className="min-h-16 flex-row justify-center gap-3 rounded-xl border-solid border-border bg-background p-3 text-center shadow-sm hover:border-primary/70 hover:bg-primary/[0.03] sm:p-4"
-                />
-              )}
-              {visibleLoads.some((load) => load.powerW === 0) && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {visibleLoads.filter((load) => load.powerW === 0).map((load) => (
-                    <LoadCard
-                      key={load.id}
-                      load={load}
-                      gridType={residentialOptions.gridType}
-                      loadCatalog={loadCatalog}
-                      userLoadCatalog={userLoadCatalog}
-                      nameKey={nameKey}
-                      peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
-                      operationHours={residentialOptions.operationHours}
-                      onUpdate={updateLoad}
-                      onRemove={(id) => { removeLoad(id); setLoadLimitMessage(null); }}
-                      onDuplicate={handleDuplicateLoad}
-                      duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-                      saveManualLoadToCatalog={saveManualLoadToCatalog}
-                      onCatalogSaveWarning={setCatalogSaveWarning}
-                      presetSelectionMode={savePresetOpen}
-                      presetSelected={selectedLoadIdsForPreset.has(load.id)}
-                      onTogglePresetSelected={() => toggleLoadForPreset(load.id)}
-                    />
-                  ))}
-                </div>
-              )}
-              {visibleLoads.some((load) => load.powerW > 0) && (
-                <LoadTable
-                  loads={visibleLoads.filter((load) => load.powerW > 0)}
-                  gridType={residentialOptions.gridType}
-                  peakCalcMode={residentialOptions.peakCalcMode ?? 'sum'}
-                  operationHours={residentialOptions.operationHours}
-                  onUpdate={updateLoad}
-                  onRemove={(id) => { removeLoad(id); setLoadLimitMessage(null); }}
-                  onDuplicate={handleDuplicateLoad}
-                  duplicateDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-                  onAddLoad={handleAddBlank}
-                  addDisabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-                />
-              )}
-            </div>
-          ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <AddLoadTile
                 onAdd={handleAddBlank}
@@ -844,7 +773,6 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                 />
               ))}
             </div>
-          )}
           </section>
         </div>
     </div>

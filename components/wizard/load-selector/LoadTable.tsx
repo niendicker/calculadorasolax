@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Zap, ZapOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { LoadPhase, LoadPhaseType, LoadVoltage, PeakCalcMode, ResidentialGridType, SingleLoad } from '@/lib/types';
@@ -224,7 +224,10 @@ function LoadTableRow({ load, gridType, peakCalcMode, operationHours, onUpdate, 
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {peakCalcMode === 'select' && (
-                    <button type="button" aria-pressed={includedInPeak} aria-label={includedInPeak ? `Não contar ${load.name} na potência máxima` : `Contar ${load.name} na potência máxima`} onClick={() => onUpdate(load.id, { includedInPeak: !includedInPeak })} className={cn('rounded-full border px-2.5 py-1 text-xs font-medium', includedInPeak ? 'border-primary/30 bg-primary/5 text-primary' : 'border-muted text-muted-foreground')}>
+                    <button type="button" aria-pressed={includedInPeak} aria-label={includedInPeak ? `Não contar ${load.name} na potência máxima` : `Contar ${load.name} na potência máxima`} onClick={() => onUpdate(load.id, { includedInPeak: !includedInPeak })} className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50', includedInPeak ? 'border-primary/50 bg-primary/15 text-primary hover:bg-primary/25' : 'border-dashed border-border bg-muted/40 text-muted-foreground hover:bg-muted/70')}>
+                      {includedInPeak
+                        ? <Zap className="h-3.5 w-3.5 shrink-0 fill-current" aria-hidden="true" />
+                        : <ZapOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                       {includedInPeak ? 'Incluída no pico' : 'Fora do pico'}
                     </button>
                   )}

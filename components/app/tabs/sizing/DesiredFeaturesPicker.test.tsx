@@ -265,7 +265,7 @@ describe('DesiredFeaturesPicker: backup tab', () => {
     expect(screen.getByText('Por quanto tempo as cargas devem operar?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revisar cargas (2)' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Resumo das cargas cadastradas' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Predefinições')).not.toBeInTheDocument();
+    expect(screen.queryByText('Grupos de cargas')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Revisar cargas (2)' }));
     expect(onOpenLoads).toHaveBeenCalledTimes(1);

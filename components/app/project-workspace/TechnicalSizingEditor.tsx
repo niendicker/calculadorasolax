@@ -57,6 +57,7 @@ import { gridLabels, gridOptions, type BatteryCatalogOption, type InverterCatalo
 import { ConfigurationSummary } from '../tabs/sizing/ConfigurationSummary';
 import { DesiredFeaturesPicker, featureIcons } from '../tabs/sizing/DesiredFeaturesPicker';
 import { desiredFeatureHasPendingIssue } from '../tabs/sizing/feature-status';
+import { residentialCalculationIssues } from '../tabs/sizing/calculation-issues';
 import { BatteryModelPicker, InverterModelPicker } from '../tabs/sizing/ModelPickers';
 import { ResultSummary, SolutionMetricCards } from '../tabs/sizing/ResultSummary';
 
@@ -382,18 +383,13 @@ export function TechnicalSizingEditor({
 
   const isConfigItem = activeItem === 'gridType' || activeItem === 'battery';
 
-  const calculateRequirements = [
-    !residentialOptions.gridType && 'selecione o tipo de rede',
-    !residentialOptions.topology && 'selecione a topologia da bateria',
-    !residentialOptions.batteryModel && 'selecione o modelo da bateria',
-    residentialOptions.loads.length === 0 && 'adicione ao menos uma carga',
-  ].filter(Boolean) as string[];
+  const calculateRequirements = residentialCalculationIssues(residentialOptions, peakW);
   const calculateHelpText = !hasUncalculatedChanges
     ? 'Nenhuma alteração desde o último cálculo.'
     : canCalculate
       ? undefined
       : calculateRequirements.length > 0
-        ? `Para calcular, ${calculateRequirements.join(', ')}.`
+        ? calculateRequirements.join(' ')
         : 'Revise as configurações pendentes antes de calcular.';
   const calculateHelpTextIsTooltipOnly = calculateHelpText === 'Revise as configurações pendentes antes de calcular.';
 

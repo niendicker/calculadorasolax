@@ -48,6 +48,7 @@ export interface ResidentialSlice {
   /** Returns false (no-op) instead of adding when the project is already at ACCOUNT_LIMITS.loadsPerProject. */
   addLoad: (load: SingleLoad) => boolean;
   removeLoad: (id: string) => void;
+  clearLoads: () => void;
   updateLoad: (id: string, partial: Partial<SingleLoad>) => void;
   setSolution: (solution: Solution | null) => void;
   setSecondarySolution: (solution: Solution | null) => void;
@@ -184,6 +185,11 @@ export const createResidentialSlice: StateCreator<WizardStore, [], [], Residenti
         ...s.residentialOptions,
         loads: s.residentialOptions.loads.filter((l) => l.id !== id),
       },
+    })),
+
+  clearLoads: () =>
+    set((s) => ({
+      residentialOptions: { ...s.residentialOptions, loads: [] },
     })),
 
   updateLoad: (id, partial) =>

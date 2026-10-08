@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, Trash2, X, Zap } from 'lucide-react';
+import { AlertTriangle, BatteryCharging, Copy, MoreHorizontal, Plug, Trash2, X, Zap, ZapOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -114,7 +114,7 @@ export function LoadCard({
   onCatalogSaveWarning: (message: string | null) => void;
   /** When set, clicking the card toggles it in/out of the predefinição being
    * built instead of expanding it for editing — see "Adicionar predefinição"
-   * in the Minhas predefinições tab. */
+   * in the Meus grupos tab. */
   presetSelectionMode?: boolean;
   presetSelected?: boolean;
   onTogglePresetSelected?: () => void;
@@ -875,7 +875,12 @@ export function LoadCard({
               ref={includedToggleTipRef}
               variant="ghost"
               size="icon"
-              className="relative shrink-0 md:h-7 md:w-7"
+              className={cn(
+                'relative shrink-0 border md:h-7 md:w-7',
+                includedInPeak
+                  ? 'border-primary/50 bg-primary/15 text-primary hover:bg-primary/25'
+                  : 'border-dashed border-border bg-muted/40 text-muted-foreground hover:bg-muted/70'
+              )}
               onClick={(event) => {
                 event.stopPropagation();
                 onUpdate(load.id, { includedInPeak: !includedInPeak });
@@ -891,7 +896,9 @@ export function LoadCard({
                   : `Contar ${load.name} na potência máxima`
               }
             >
-              <Zap className={cn('h-3.5 w-3.5', includedInPeak ? 'text-primary' : 'text-muted-foreground')} />
+              {includedInPeak
+                ? <Zap className="h-4 w-4 fill-current" aria-hidden="true" />
+                : <ZapOff className="h-4 w-4" aria-hidden="true" />}
               <TooltipBubble triggerRef={includedToggleTipRef} openUp={includedToggleTipOpenUp} visible={includedToggleTipVisible} align="end">
                 {includedInPeak
                   ? 'Conta na potência máxima, clique para excluir'

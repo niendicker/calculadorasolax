@@ -66,7 +66,7 @@ describe('getCalculationErrorMessage', () => {
     ]);
 
     expect(message).toBe(
-      'Revise os seguintes campos antes de calcular: Tarifa Branca: energia na ponta, Tarifa Branca: tarifa intermediária.'
+      'Informe um valor maior ou igual a zero para Tarifa Branca: energia na ponta. Informe um valor maior ou igual a zero para Tarifa Branca: tarifa intermediária.'
     );
   });
 
@@ -76,7 +76,7 @@ describe('getCalculationErrorMessage', () => {
         'operationHours must be a number between 0 and 24',
         'operationHours must be finite',
       ])
-    ).toBe('Revise os seguintes campos antes de calcular: tempo de operação.');
+    ).toBe('Informe um tempo de operação entre 0 e 24 horas.');
 
     expect(getCalculationErrorMessage('invalid_payload', undefined, ['internalSecret must be present'])).toBe(
       getCalculationErrorMessage('invalid_payload')

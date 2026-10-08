@@ -1,5 +1,7 @@
 'use client';
 
+import { residentialCalculationIssues } from './tabs/sizing/calculation-issues';
+
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -658,7 +660,7 @@ export function SinglePageApp() {
   // debounce caught up — even after the user had already fixed the problem.
   async function recalculateCurrentProjectSolution() {
     if (!canCalculate) {
-      reportStatus('Complete a configuração de rede, bateria e cargas antes de recalcular.');
+      reportStatus(residentialCalculationIssues(residentialOptions, peakW).join(' ') || 'Revise as pendências indicadas nos recursos ativados antes de recalcular.');
       return;
     }
     const resultError = await calculate();

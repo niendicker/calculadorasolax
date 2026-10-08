@@ -71,7 +71,7 @@ describe('LoadSelector: collapsible sections', () => {
   it('shows the Presets tab by default, with the outer section expanded', () => {
     renderLoadSelector();
 
-    expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Grupos de cargas' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 
@@ -79,7 +79,7 @@ describe('LoadSelector: collapsible sections', () => {
     renderLoadSelector();
 
     fireEvent.click(screen.getByRole('button', { name: 'Recolher cargas' }));
-    expect(screen.queryByRole('tab', { name: 'Predefinições' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Grupos de cargas' })).not.toBeInTheDocument();
     expect(screen.queryByText('Residencial essencial')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expandir cargas' }));
@@ -90,18 +90,18 @@ describe('LoadSelector: collapsible sections', () => {
     renderLoadSelector();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher cargas' }));
 
-    expect(screen.queryByRole('tab', { name: 'Catálogo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Cargas Individuais' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Expandir cargas' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
-    expect(screen.getByRole('tab', { name: 'Catálogo' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Cargas Individuais' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Buscar equipamento...' })).toBeInTheDocument();
   });
 
-  it('switches to the Catálogo tab', () => {
+  it('switches to the Cargas Individuais tab', () => {
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     // The search field starts collapsed into an icon button, matching the
     // same SearchInput pattern used by the other app tabs.
@@ -111,8 +111,8 @@ describe('LoadSelector: collapsible sections', () => {
   });
 });
 
-describe('LoadSelector: load display modes', () => {
-  it('switches from cards to the editable table and keeps row editing connected to the store', () => {
+describe('LoadSelector: card display', () => {
+  it('shows only cards and keeps editing connected to the store', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -121,28 +121,24 @@ describe('LoadSelector: load display modes', () => {
     }));
     renderLoadSelector();
 
-    expect(screen.getByRole('button', { name: 'Exibir cargas em cards' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
+    expect(screen.queryByRole('group', { name: 'Exibição das cargas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Cargas do projeto em tabela' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expandir Chuveiro' })).toBeInTheDocument();
 
-    expect(screen.getByRole('table', { name: 'Cargas do projeto em tabela' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Exibir cargas em tabela' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.queryByRole('button', { name: 'Expandir Chuveiro' })).not.toBeInTheDocument();
-
-    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Chuveiro'));
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Quantidade Chuveiro' }), { target: { value: '3' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Quantidade/ }), { target: { value: '3' } });
     expect(useWizardStore.getState().residentialOptions.loads[0].qty).toBe(3);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar edição de Chuveiro' }));
-    expect(screen.queryByRole('spinbutton', { name: 'Quantidade Chuveiro' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher Chuveiro' }));
+    expect(screen.queryByRole('spinbutton', { name: /Quantidade/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Chuveiro'));
-    expect(screen.getByRole('spinbutton', { name: 'Quantidade Chuveiro' })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: /Quantidade/ })).toBeInTheDocument();
     fireEvent.click(screen.getByText('Chuveiro'));
-    expect(screen.queryByRole('spinbutton', { name: 'Quantidade Chuveiro' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: /Quantidade/ })).not.toBeInTheDocument();
   });
 
-  it('moves "Adicionar carga" into the table header once there is a confirmed load to show a table for', () => {
+  it('keeps the "Adicionar carga" tile alongside confirmed loads', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -150,11 +146,8 @@ describe('LoadSelector: load display modes', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
 
-    const table = screen.getByRole('table', { name: 'Cargas do projeto em tabela' });
-    const addButton = within(table).getByRole('button', { name: 'Adicionar carga' });
-    // Only the one inside the table header — the standalone tile is gone.
+    const addButton = screen.getByRole('button', { name: 'Adicionar carga' });
     expect(screen.getAllByRole('button', { name: 'Adicionar carga' })).toHaveLength(1);
 
     fireEvent.click(addButton);
@@ -163,15 +156,14 @@ describe('LoadSelector: load display modes', () => {
     expect(loads.some((load) => load.powerW === 0)).toBe(true);
   });
 
-  it('keeps the standalone "Adicionar carga" tile in table view when there is no confirmed load yet', () => {
+  it('shows the "Adicionar carga" tile when there is no confirmed load yet', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
 
     expect(screen.queryByRole('table', { name: 'Cargas do projeto em tabela' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Adicionar carga' })).toBeInTheDocument();
   });
 
-  it('edits "Fator de uso" as a 0-100% value in the table view too', () => {
+  it('edits "Fator de uso" as a 0-100% value in cards', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -180,10 +172,9 @@ describe('LoadSelector: load display modes', () => {
     }));
     renderLoadSelector();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exibir cargas em tabela' }));
     fireEvent.click(screen.getByText('Chuveiro'));
 
-    const usageFactorInput = screen.getByRole('spinbutton', { name: 'Fator de uso Chuveiro' });
+    const usageFactorInput = screen.getByRole('spinbutton', { name: /Fator de uso/ });
     expect(usageFactorInput).toHaveValue(100);
 
     fireEvent.change(usageFactorInput, { target: { value: '60' } });
@@ -192,14 +183,14 @@ describe('LoadSelector: load display modes', () => {
 });
 
 describe('LoadSelector: adding from a system preset', () => {
-  it('adds every load from the preset and stays on the Predefinições tab', () => {
+  it('adds every load from the preset and stays on the Grupos de cargas tab', () => {
     renderLoadSelector();
 
     fireEvent.click(screen.getByRole('button', { name: /Residencial essencial/ }));
 
     expect(useWizardStore.getState().residentialOptions.loads).toHaveLength(1);
     expect(useWizardStore.getState().residentialOptions.loads[0]).toMatchObject({ name: 'Chuveiro elétrico', powerW: 5500 });
-    expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Grupos de cargas' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('shows a specific message when the preset does not fully fit the remaining capacity', () => {
@@ -230,7 +221,7 @@ describe('LoadSelector: adding from a system preset', () => {
 describe('LoadSelector: user presets', () => {
   it('shows the empty state and disables "Adicionar predefinição" with no loads yet', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
     expect(screen.getByText('Nenhuma predefinição pessoal ainda. Monte as cargas do projeto e salve como predefinição para reutilizar depois.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Adicionar predefinição/ })).toBeDisabled();
   });
@@ -238,7 +229,7 @@ describe('LoadSelector: user presets', () => {
   it('lists a saved user preset and removes it via the confirm popover', async () => {
     useWizardStore.setState({ userLoadPresets: [userPreset] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
 
     expect(screen.getByText('Meu preset')).toBeInTheDocument();
     expect(screen.getByText('1/3', { exact: false })).toBeInTheDocument();
@@ -253,7 +244,7 @@ describe('LoadSelector: user presets', () => {
   it('adds every load from a user preset', () => {
     useWizardStore.setState({ userLoadPresets: [userPreset] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
 
     fireEvent.click(screen.getByText('Meu preset').closest('button') as HTMLElement);
 
@@ -276,7 +267,7 @@ describe('LoadSelector: user presets', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
 
     fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
     fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Meu novo preset' } });
@@ -294,19 +285,19 @@ describe('LoadSelector: user presets', () => {
       },
     });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
     expect(screen.getByText('Meu preset')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
 
     expect(screen.queryByText('Meu preset')).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Predefinições do sistema' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /Minhas predefinições/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Predefinidos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Meus grupos/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
     expect(screen.getByText('Meu preset')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Predefinições do sistema' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Predefinidos' })).toBeInTheDocument();
   });
 
   it('only saves the loads left checked in the picker, letting the user deselect some', async () => {
@@ -339,7 +330,7 @@ describe('LoadSelector: user presets', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
     fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
 
     // Both registered loads start selected (clicking a load card toggles it);
@@ -363,7 +354,7 @@ describe('LoadSelector: user presets', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
     fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
 
     fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Vazio' } });
@@ -380,7 +371,7 @@ describe('LoadSelector: user presets', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
     fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
 
     const loadCard = screen.getByRole('button', { name: /Chuveiro/ });
@@ -404,7 +395,7 @@ describe('LoadSelector: user presets', () => {
       })),
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
 
     expect(screen.queryByRole('button', { name: /Adicionar predefinição/ })).not.toBeInTheDocument();
   });
@@ -419,7 +410,7 @@ describe('LoadSelector: user presets', () => {
       residentialOptions: { ...s.residentialOptions, loads: [{ id: 'l1', name: 'X', powerW: 100, qty: 1, ipInRatio: 1 }] },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: /Minhas predefinições/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Meus grupos/ }));
     fireEvent.click(screen.getByRole('button', { name: /Adicionar predefinição/ }));
 
     fireEvent.change(screen.getByLabelText('Nome da predefinição'), { target: { value: 'Meu preset' } });
@@ -432,17 +423,17 @@ describe('LoadSelector: user presets', () => {
     expect(screen.queryByLabelText('Nome da predefinição')).not.toBeInTheDocument();
   });
 
-  it('re-clicking the already-active Predefinições do sistema tab is a no-op', () => {
+  it('re-clicking the already-active Predefinidos tab is a no-op', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Predefinições do sistema' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Predefinidos' }));
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
   });
 
-  it('re-clicking the already-active Predefinições switcher tab keeps the section open', () => {
+  it('re-clicking the already-active Grupos de cargas switcher tab keeps the section open', () => {
     renderLoadSelector();
-    expect(screen.getByRole('tab', { name: 'Predefinições' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Grupos de cargas' })).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Predefinições' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Grupos de cargas' }));
 
     expect(screen.getByText('Residencial essencial')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recolher cargas' })).toBeInTheDocument();
@@ -452,7 +443,7 @@ describe('LoadSelector: user presets', () => {
 describe('LoadSelector: catalog', () => {
   it('adds a load from the general catalog', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByText('Ar-condicionado 9000 BTU'));
 
@@ -465,7 +456,7 @@ describe('LoadSelector: catalog', () => {
       loadCatalog: [catalogItem, { ...catalogItem, id: 'c2', namePt: 'Chuveiro elétrico' }],
     });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Buscar equipamento...' }));
     fireEvent.change(screen.getByPlaceholderText('Buscar equipamento...'), { target: { value: 'chuveiro' } });
@@ -480,7 +471,7 @@ describe('LoadSelector: catalog', () => {
       userLoadCatalog: [userCatalogItem],
     });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'heating' }));
 
@@ -495,14 +486,14 @@ describe('LoadSelector: catalog', () => {
 
   it('hides the "Minhas" filter chip when the user has no personal catalog items', () => {
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
     expect(screen.queryByRole('button', { name: 'Minhas' })).not.toBeInTheDocument();
   });
 
   it('isolates personal catalog items when the "Minhas" filter chip is active', () => {
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
     expect(screen.getByText('Bomba dágua')).toBeInTheDocument();
@@ -515,7 +506,7 @@ describe('LoadSelector: catalog', () => {
   it('defaults the "Minhas" filter to active when defaultToMine is set and the user has personal items', () => {
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector({ defaultToMine: true });
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     expect(screen.getByRole('button', { name: 'Minhas' })).toHaveClass('border-primary');
     expect(screen.getByText('Bomba dágua')).toBeInTheDocument();
@@ -524,7 +515,7 @@ describe('LoadSelector: catalog', () => {
 
   it('ignores defaultToMine when the user has no personal catalog items', () => {
     renderLoadSelector({ defaultToMine: true });
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     expect(screen.getByText('Ar-condicionado 9000 BTU')).toBeInTheDocument();
   });
@@ -532,7 +523,7 @@ describe('LoadSelector: catalog', () => {
   it('shows user catalog items alongside the general catalog, tagged as "Meu", and adds from it', () => {
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     expect(screen.getByText('Meu')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Bomba dágua'));
@@ -546,7 +537,7 @@ describe('LoadSelector: catalog', () => {
     );
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
@@ -563,7 +554,7 @@ describe('LoadSelector: catalog', () => {
     );
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
@@ -578,7 +569,7 @@ describe('LoadSelector: catalog', () => {
     );
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
@@ -599,7 +590,7 @@ describe('LoadSelector: catalog', () => {
   it('cancels out of the delete-confirmation view without removing the item', async () => {
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
@@ -612,7 +603,7 @@ describe('LoadSelector: catalog', () => {
   it('closes the menu on Escape and on an outside click', async () => {
     useWizardStore.setState({ userLoadCatalog: [userCatalogItem] });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Opções de Bomba dágua' }));
     expect(await screen.findByRole('dialog', { name: 'Opções de Bomba dágua' })).toBeInTheDocument();
@@ -1112,7 +1103,7 @@ describe('LoadSelector: added loads list', () => {
       },
     }));
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
 
     fireEvent.click(screen.getByText('Ar-condicionado 9000 BTU'));
 
@@ -1265,7 +1256,11 @@ describe('LoadSelector: added loads list', () => {
     const dataTransfer3 = { getData: () => 'ghost-id', setData: vi.fn(), effectAllowed: '' };
     fireEvent.drop(phaseL3, { dataTransfer: dataTransfer3 });
 
-    fireEvent.click(screen.getByRole('button', { name: /^Todas/ }));
+    // Clicking the selected phase again restores the complete list.
+    fireEvent.click(phaseL3);
+    expect(phaseL3).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(phaseL3);
+    expect(phaseL3).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('clears and blur-reverts qty, IP/IN and Fator de uso', () => {
@@ -1383,7 +1378,7 @@ describe('LoadSelector: added loads list', () => {
       userLoadCatalog: [userCatalogItem, { ...userCatalogItem, id: 'u2', name: 'Ventilador de mesa' }],
     });
     renderLoadSelector();
-    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cargas Individuais' }));
     fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Buscar equipamento...' }));

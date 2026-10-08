@@ -2358,7 +2358,7 @@ describe('SizingTab: cargas', () => {
     // overview grid — reopen Backup to land on the now-enabled panel.
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
     expect(screen.getByText('Por quanto tempo as cargas devem operar?')).toBeInTheDocument();
-    expect(screen.queryByText('Predefinições')).not.toBeInTheDocument();
+    expect(screen.queryByText('Grupos de cargas')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Habilitado' }));
     expect(props.setDesiredFeatures).toHaveBeenCalledWith([]);
@@ -2388,7 +2388,7 @@ describe('SizingTab: cargas', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Backup' }));
 
     expect(screen.queryByRole('tab', { name: 'Catálogo' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Predefinições')).not.toBeInTheDocument();
+    expect(screen.queryByText('Grupos de cargas')).not.toBeInTheDocument();
   });
 });
 
