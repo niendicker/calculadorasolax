@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ClipboardCopy, FileText, Lightbulb, Paperclip, Search, X, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ClipboardCopy, Lightbulb, Paperclip, Search, X, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -527,6 +527,21 @@ export function ProductImage({
   );
 }
 
+function productDocumentLabel(document: ProductDocument): string {
+  return document.name?.trim().replace(/\.pdf$/i, '').trim() || 'Documento';
+}
+
+function PdfDocumentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <rect x="1" y="11" width="22" height="11" rx="2" className="fill-red-600 dark:fill-red-500" stroke="none" />
+      <text x="12" y="19.5" textAnchor="middle" fill="white" stroke="none" fontFamily="Arial, sans-serif" fontSize="8.5" fontWeight="700">PDF</text>
+    </svg>
+  );
+}
+
 export function ProductAttachments({
   media,
   onPreview,
@@ -547,9 +562,11 @@ export function ProductAttachments({
           key={`${media.model}-${document.url}`}
           type="button"
           onClick={() => onPreview(document)}
-          className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
+          title={productDocumentLabel(document)}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          {document.name || 'Documento'}
+          <PdfDocumentIcon />
+          <span className="min-w-0 truncate">{productDocumentLabel(document)}</span>
         </button>
       ))}
     </div>
@@ -576,31 +593,32 @@ export function ProductDocumentsList({
   if (documents.length === 0) return null;
 
   return (
-    <div className={cn('min-w-0 border-t pt-2', compact && 'border-border/40 pt-2.5', className)}>
+    <div className={cn('min-w-0 pt-2', compact && 'pt-2.5', className)}>
       <div
         className={cn(
-          'mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground',
-          compact && 'mb-2 text-[11px] uppercase tracking-[0.03em] text-muted-foreground/85'
+          'mb-1.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.03em] text-muted-foreground',
+          compact && 'mb-2 text-muted-foreground/85'
         )}
       >
-        <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>Documentos ({documents.length})</span>
+        <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="shrink-0">Documentos ({documents.length})</span>
+        <span className="h-px min-w-0 flex-1 bg-border/60" aria-hidden="true" />
       </div>
       <div className={cn('grid gap-1.5 sm:grid-cols-2', showAllDocuments && 'max-h-24 overflow-y-auto pr-1')}>
         {visibleDocuments.map((document) => (
           <button
             key={`${model}-${document.url}`}
             type="button"
-            title={document.name || 'Documento'}
+            title={productDocumentLabel(document)}
             className={cn(
-              'flex min-w-0 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-primary transition hover:bg-primary/10',
+              'flex min-w-0 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
               compact &&
-                'rounded-lg border border-border/45 bg-background/90 px-2.5 py-2 text-[12px] text-foreground hover:border-primary/25 hover:bg-primary/5 hover:text-primary'
+                'rounded-lg px-2.5 py-2 text-[12px] text-foreground hover:bg-primary/5 hover:text-primary'
             )}
             onClick={() => onPreviewDoc(document)}
           >
-            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">{document.name || 'Documento'}</span>
+            <PdfDocumentIcon />
+            <span className="min-w-0 flex-1 truncate">{productDocumentLabel(document)}</span>
           </button>
         ))}
       </div>
