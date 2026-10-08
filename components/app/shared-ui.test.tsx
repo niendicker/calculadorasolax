@@ -434,6 +434,6 @@ describe('CatalogProductCard', () => {
     );
 
     const title = screen.getByText('T-BAT H 5.8 V2');
-    expect(title.parentElement).toContainElement(screen.getByText('BMS Integrado'));
+    expect(title.parentElement?.parentElement).toContainElement(screen.getByText('BMS Integrado'));
   });
 });

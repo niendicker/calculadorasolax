@@ -46,7 +46,7 @@ export interface ProjectWorkspaceShellProps {
   title: string;
   /** Defaults to "Em andamento" — the only value ProjectWorkspace.tsx ever
    * passed before this extraction. */
-  statusLabel?: string;
+  statusLabel?: string | null;
   autosaveStatus: AutosaveStatus;
   autosaveLastSavedAt: Date | null;
   /** The client/grid-type line under the title — content-specific, so the
@@ -108,14 +108,12 @@ export function ProjectWorkspaceShell({
       <div className="sticky top-0 z-30 bg-background pb-3 lg:pt-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{title}</h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> {statusLabel}</span>
+            <h1 className="min-w-0 max-w-full truncate text-2xl font-semibold tracking-tight">{title}</h1>
+            {statusLabel && <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> {statusLabel}</span>}
             <WorkspaceAutosaveStatus status={autosaveStatus} lastSavedAt={autosaveLastSavedAt} />
+            {actions && <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>}
           </div>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            {subtitle}
-            <div className="flex flex-wrap items-center gap-2">{actions}</div>
-          </div>
+          {subtitle && <div className="mt-1">{subtitle}</div>}
         </div>
         <nav className="mt-4 flex items-stretch overflow-x-auto rounded-xl border border-border/70 bg-card/70 p-1" aria-label="Seções do projeto">
           {navigation.map(({ id, label, icon: Icon, notification }, index) => {

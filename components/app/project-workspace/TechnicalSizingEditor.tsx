@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
-  Battery,
   BatteryCharging,
   Calculator,
   Check,
@@ -371,7 +370,7 @@ export function TechnicalSizingEditor({
     },
     {
       id: 'battery',
-      icon: Battery,
+      icon: BatteryCharging,
       label: 'Baterias',
       description: 'Topologia e modelo do banco de baterias que atende os requisitos definidos.',
       state: residentialOptions.batteryModel ? 'on' : 'warn',
@@ -792,7 +791,7 @@ export function TechnicalSizingEditor({
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </Button>}
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="tablist" aria-label="Itens de dimensionamento">
+              <div className={cn('flex min-w-0 flex-1 flex-wrap items-center gap-1.5', workspaceConfigurationMode && 'justify-end')} role="tablist" aria-label="Itens de dimensionamento">
                 {/* Contextual, not a fixed set of 8: showing every item at
                  * once was what forced the wrapping/grouping workarounds.
                  * While a feature is open, only the other features are
@@ -866,18 +865,15 @@ export function TechnicalSizingEditor({
                     <div>
                       <p className="text-sm font-medium">Mínimo de inversores em paralelo</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Força a busca a considerar apenas soluções com pelo menos essa quantidade de inversores
-                        trabalhando em paralelo — dividir a potência entre mais de um inversor às vezes permite
-                        atender o projeto com um banco de baterias menor. Deixe em &quot;Automático&quot; para o
-                        sistema escolher a combinação mais econômica.
+                        Defina a quantidade mínima em paralelo ou deixe em &quot;Automático&quot; para buscar a combinação mais econômica.
                       </p>
                     </div>
                     <div
-                      className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1"
+                      className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
                       role="tablist"
                       aria-label="Mínimo de inversores em paralelo"
                     >
-                      {([null, 2, 3, 4] as const).map((option) => {
+                      {([null, 2, 3] as const).map((option) => {
                         const active = (residentialOptions.minInverterQty ?? null) === option;
                         return (
                           <button
@@ -1086,7 +1082,7 @@ function PickerPill({ item, active, onClick }: { item: PickerItem; active: boole
           : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/40 hover:text-foreground'
       )}
     >
-      <Icon className={cn('h-3.5 w-3.5 shrink-0', active && 'text-primary')} aria-hidden="true" />
+      <Icon className={cn('shrink-0', item.id === 'gridType' || item.id === 'battery' ? 'h-5 w-5' : 'h-3.5 w-3.5', active && 'text-primary')} aria-hidden="true" />
       {item.label}
       {item.state === 'warn' ? (
         <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" />

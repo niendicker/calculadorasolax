@@ -138,7 +138,7 @@ describe('LoadSelector: card display', () => {
     expect(screen.queryByRole('spinbutton', { name: /Quantidade/ })).not.toBeInTheDocument();
   });
 
-  it('keeps the "Adicionar carga" tile alongside confirmed loads', () => {
+  it('keeps the "Adicionar carga" button available alongside confirmed loads', () => {
     useWizardStore.setState((s) => ({
       residentialOptions: {
         ...s.residentialOptions,
@@ -156,7 +156,7 @@ describe('LoadSelector: card display', () => {
     expect(loads.some((load) => load.powerW === 0)).toBe(true);
   });
 
-  it('shows the "Adicionar carga" tile when there is no confirmed load yet', () => {
+  it('shows the "Adicionar carga" button when there is no confirmed load yet', () => {
     renderLoadSelector();
 
     expect(screen.queryByRole('table', { name: 'Cargas do projeto em tabela' })).not.toBeInTheDocument();
@@ -633,13 +633,13 @@ describe('LoadSelector: blank load card', () => {
     expect(count).toHaveClass('text-sm', 'font-semibold', 'text-primary');
   });
 
-  it('shows the "Adicionar carga" tile even with no loads yet, and adds a blank draft card on click', () => {
+  it('shows the "Adicionar carga" button beside "Limpar cargas" and adds a blank draft card on click', () => {
     renderLoadSelector();
 
     const projectLoads = screen.getByRole('heading', { name: 'Cargas do projeto' }).closest('section');
     expect(projectLoads).not.toBeNull();
     const addLoadCard = within(projectLoads as HTMLElement).getByRole('button', { name: 'Adicionar carga' });
-    expect(addLoadCard).toHaveClass('h-full', 'min-h-0');
+    expect(addLoadCard.parentElement).toContainElement(within(projectLoads as HTMLElement).getByRole('button', { name: 'Limpar cargas' }));
     expect(addLoadCard.parentElement?.firstElementChild).toBe(addLoadCard);
     fireEvent.click(addLoadCard);
 

@@ -533,7 +533,7 @@ function productDocumentLabel(document: ProductDocument): string {
 
 function PdfDocumentIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
       <path d="M14 2v6h6" />
       <rect x="1" y="11" width="22" height="11" rx="2" className="fill-red-600 dark:fill-red-500" stroke="none" />
@@ -662,6 +662,9 @@ export function CatalogProductCard({
   topRightAction,
   compactContent = false,
   appearance = 'default',
+  className,
+  titleActions,
+  documentEmptyState,
 }: {
   fallbackIcon: React.ReactNode;
   model: string;
@@ -685,6 +688,9 @@ export function CatalogProductCard({
   /** Keeps portfolio cards stable when friendly names or model codes are long. */
   compactContent?: boolean;
   appearance?: 'default' | 'summary';
+  className?: string;
+  titleActions?: React.ReactNode;
+  documentEmptyState?: React.ReactNode;
 }) {
   const summary = appearance === 'summary';
 
@@ -692,7 +698,8 @@ export function CatalogProductCard({
     <div
       className={cn(
         'relative grid gap-3 rounded-xl border bg-card p-3 text-left shadow-sm sm:grid-cols-[112px_1fr]',
-        summary && 'gap-4 rounded-2xl border-border/60 p-4 shadow-none'
+        summary && 'gap-4 rounded-2xl border-border/60 p-4 shadow-none',
+        className
       )}
     >
       {topRightAction && <div className="absolute right-2 top-2 z-10">{topRightAction}</div>}
@@ -718,16 +725,19 @@ export function CatalogProductCard({
       <div className={cn('min-w-0 space-y-1.5', topRightAction && 'pr-9', summary && 'space-y-2.5 self-start')}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p
-              className={cn(
-                'min-w-0 break-words text-base font-semibold leading-snug',
-                compactContent && 'line-clamp-2',
-                summary && 'text-lg font-semibold uppercase leading-tight tracking-[0.01em]'
-              )}
-              title={nickname || model}
-            >
-              {nickname || model}
-            </p>
+            <div className="min-w-0">
+              {!nickname && <span className="block text-xs font-normal text-muted-foreground">Modelo</span>}
+              <p
+                className={cn(
+                  'min-w-0 break-words text-base font-semibold leading-snug',
+                  compactContent && 'line-clamp-2',
+                  summary && 'text-lg font-semibold uppercase leading-tight tracking-[0.01em]'
+                )}
+                title={nickname || model}
+              >
+                {nickname || model}
+              </p>
+            </div>
             {statusBadges && statusBadges.length > 0 && (
               <div className="flex shrink-0 flex-wrap gap-1">
                 {statusBadges.map((badge) => (
@@ -742,6 +752,7 @@ export function CatalogProductCard({
               </div>
             )}
           </div>
+          {titleActions}
         </div>
         {nickname && (
           <p
@@ -752,7 +763,7 @@ export function CatalogProductCard({
             )}
             title={model}
           >
-            {model}
+            Modelo: <span>{model}</span>
           </p>
         )}
         {badges && badges.length > 0 && (
@@ -784,7 +795,7 @@ export function CatalogProductCard({
               <div
                 key={label}
                 className={cn(
-                  'grid grid-cols-[minmax(4.5rem,0.65fr)_minmax(0,1.35fr)] gap-2 px-2.5 py-1.5',
+                  'grid grid-cols-[minmax(4.5rem,0.65fr)_minmax(0,1.35fr)] items-center gap-2 px-2.5 py-1.5',
                   index > 0 && 'border-t',
                   summary && 'gap-3 px-3 py-2',
                   summary && index > 0 && 'border-border/35'
@@ -805,6 +816,7 @@ export function CatalogProductCard({
         )}
       </div>
       <ProductDocumentsList model={model} documents={documents} onPreviewDoc={onPreviewDoc} compact={summary} className="sm:col-span-2" />
+      {documents.length === 0 && documentEmptyState && <div className="sm:col-span-2">{documentEmptyState}</div>}
       {stockControl && <div className="min-w-0 sm:col-span-2">{stockControl}</div>}
     </div>
   );

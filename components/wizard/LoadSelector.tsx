@@ -14,11 +14,9 @@ import type { CatalogItem, LoadPresetLoad, LoadPhase, LoadVoltage, SingleLoad } 
 import { cn } from '@/lib/utils';
 import { InfoLabel } from '@/components/ui/tooltip';
 import { SearchInput } from '@/components/app/shared-ui';
-import { AddLoadTile } from './load-selector/AddLoadTile';
 import { LoadCard } from './load-selector/LoadCard';
 import { MAX_OPERATION_HOURS, MINE_FILTER, loadMatchesPhase, newLoad } from './load-selector/load-selector-utils';
 import { PeakModeButton } from './load-selector/PeakModeButton';
-import { PhaseDot } from './load-selector/phase-indicators';
 import { PresetCard } from './load-selector/PresetCard';
 import { UserLoadCatalogItemMenu } from './load-selector/UserLoadCatalogItemMenu';
 
@@ -645,23 +643,36 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                 Revise consumo, partida e ligação elétrica de cada equipamento.
               </p>
             </div>
-            <ConfirmDeleteModalButton
-              ariaLabel="Limpar cargas"
-              label="Limpar cargas"
-              itemName="cargas do projeto"
-              itemType="cargas"
-              title="Limpar todas as cargas?"
-              description="Exclui todas as cargas cadastradas neste projeto."
-              affectedItems={[
-                `${residentialOptions.loads.length} ${residentialOptions.loads.length === 1 ? 'carga cadastrada' : 'cargas cadastradas'}`,
-                'Inclui as cargas de todas as fases, mesmo as ocultas pelo filtro',
-              ]}
-              confirmLabel="Excluir todas as cargas"
-              pendingLabel="Limpando cargas..."
-              triggerVariant="outline"
-              disabled={residentialOptions.loads.length === 0}
-              onConfirm={handleClearLoads}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddBlank}
+                size="lg"
+                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Adicionar carga
+              </Button>
+              <ConfirmDeleteModalButton
+                ariaLabel="Limpar cargas"
+                label="Limpar cargas"
+                itemName="cargas do projeto"
+                itemType="cargas"
+                title="Limpar todas as cargas?"
+                description="Exclui todas as cargas cadastradas neste projeto."
+                affectedItems={[
+                  `${residentialOptions.loads.length} ${residentialOptions.loads.length === 1 ? 'carga cadastrada' : 'cargas cadastradas'}`,
+                  'Inclui as cargas de todas as fases, mesmo as ocultas pelo filtro',
+                ]}
+                confirmLabel="Excluir todas as cargas"
+                pendingLabel="Limpando cargas..."
+                triggerVariant="outline"
+                triggerSize="lg"
+                disabled={residentialOptions.loads.length === 0}
+                onConfirm={handleClearLoads}
+              />
+            </div>
           </div>
           {residentialOptions.loads.length > 0 && gridType && gridTypePhaseCount[gridType] > 1 && (
             <div className="border-b border-border/50 pb-3">
@@ -710,14 +721,13 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
                         });
                       }}
                       className={cn(
-                        'rounded-lg border p-2 text-center transition-colors',
-                        overLimit ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/40 hover:bg-muted/70',
-                        active && 'border-primary bg-primary/10',
-                        dragOverPhase === phase && 'border-primary bg-primary/10 ring-2 ring-primary/40'
+                        'rounded-lg p-2 text-center transition-colors',
+                        overLimit ? 'bg-destructive/5' : 'bg-card hover:bg-muted/30',
+                        active && 'bg-primary/10',
+                        dragOverPhase === phase && 'bg-primary/20'
                       )}
                     >
                       <p className="flex items-center justify-center gap-1 text-[0.7rem] font-medium uppercase text-muted-foreground">
-                        <PhaseDot phase={phase} />
                         Fase {phase}
                       </p>
                       <p className={cn('text-sm font-semibold', overLimit && 'text-destructive')}>
@@ -754,10 +764,6 @@ export function LoadSelector({ defaultToMine = false, showOperationHours = true,
             </p>
           )}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <AddLoadTile
-                onAdd={handleAddBlank}
-                disabled={residentialOptions.loads.length >= ACCOUNT_LIMITS.loadsPerProject}
-              />
               {visibleLoads.map((load) => (
                 <LoadCard
                   key={load.id}

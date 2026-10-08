@@ -166,6 +166,7 @@ interface ConfirmDeleteModalButtonProps {
   title?: string;
   confirmLabel?: string;
   triggerVariant?: 'destructive' | 'outline';
+  triggerSize?: 'sm' | 'default' | 'lg';
   icon?: React.ReactNode;
   disabled?: boolean;
   showIcon?: boolean;
@@ -186,6 +187,7 @@ export function ConfirmDeleteModalButton({
   title,
   confirmLabel,
   triggerVariant = 'destructive',
+  triggerSize = 'sm',
   icon,
   disabled = false,
   showIcon = true,
@@ -283,7 +285,7 @@ export function ConfirmDeleteModalButton({
         ref={triggerRef}
         type="button"
         variant={triggerVariant}
-        size="sm"
+        size={triggerSize}
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => { setError(null); setOpen(true); }}

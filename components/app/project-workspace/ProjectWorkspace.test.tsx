@@ -73,7 +73,7 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByRole('heading', { name: 'Residência Silva' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Navegação estrutural' })).not.toBeInTheDocument();
     expect(screen.getByText('Salvo')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Cliente' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Cliente' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cliente: Marcelo Grande')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cargas' })).toBeInTheDocument();
     expect(screen.getByText('Configurações gerais')).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe('ProjectWorkspace', () => {
     expect(screen.queryByText('Potência nominal')).not.toBeInTheDocument();
     expect(screen.queryByText('Potência máxima')).not.toBeInTheDocument();
     expect(screen.queryByText('Energia diária')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Trifásico 380V').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Trifásico 380V').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Automático')).toBeInTheDocument();
     expect(screen.getByText('T-BAT H 5.8 V2 · Alta tensão (HV)')).toBeInTheDocument();
     expect(screen.getAllByText('Requer atenção').length).toBeGreaterThan(0);
@@ -229,14 +229,13 @@ describe('ProjectWorkspace', () => {
     expect(clearWrapper.parentElement).toBe(actions);
     expect(Array.from(actions.children).indexOf(recalculateButton)).toBeLessThan(Array.from(actions.children).indexOf(clearWrapper));
 
-    // Same line as the client name — not their own separate row anymore.
-    const clientLine = actions.parentElement as HTMLElement;
-    expect(clientLine).toHaveClass('justify-between');
-    expect(within(clientLine).getByRole('img', { name: 'Cliente' })).toBeInTheDocument();
-    expect(clientLine.previousElementSibling).toContainElement(screen.getByRole('heading', { name: 'Residência Silva' }));
+    const headerLine = actions.parentElement as HTMLElement;
+    expect(actions).toHaveClass('ml-auto', 'justify-end');
+    expect(headerLine).toContainElement(screen.getByRole('heading', { name: 'Residência Silva' }));
+    expect(within(headerLine).queryByRole('img', { name: 'Cliente' })).not.toBeInTheDocument();
 
-    // The header is just those two lines — the section tabs come right after.
-    const header = clientLine.parentElement as HTMLElement;
+    // The section tabs follow the single header line.
+    const header = headerLine.parentElement as HTMLElement;
     expect(header.nextElementSibling).toHaveAttribute('aria-label', 'Seções do projeto');
 
     fireEvent.click(clearButton);

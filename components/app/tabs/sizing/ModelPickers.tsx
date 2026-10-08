@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Battery, Check, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TooltipBubble, useTooltipFlip } from '@/components/ui/tooltip';
@@ -9,7 +8,7 @@ import { expansionModelSet } from '@/lib/battery-quantity-breakdown';
 import { batteryTopologyToCatalog, catalogToBatteryTopology } from '@/lib/types';
 import type { BatteryTopology, ProductDocument, Solution, UserStockItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { BatteryCardsSkeleton, DocPreviewModal, ImagePreviewModal } from '../../shared-ui';
+import { BatteryCardsSkeleton, CatalogProductCard, DocPreviewModal, ImagePreviewModal } from '../../shared-ui';
 import { topologyLabels, type BatteryCatalogOption, type InverterCatalogOption } from '../../types';
 
 function InStockBadge() {
@@ -161,19 +160,18 @@ export function BatteryModelPicker({
                 role="button"
                 tabIndex={0}
                 aria-pressed={selected || selectedSecondary}
-                onClick={() => selectBattery(battery)}
+                onClick={(event) => {
+                  if ((event.target as Element).closest('button')) return;
+                  selectBattery(battery);
+                }}
                 onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     selectBattery(battery);
                   }
                 }}
-                className={cn(
-                  'relative grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
-                  selected || selectedSecondary
-                    ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
-                    : 'hover:border-primary/50 hover:bg-muted/60'
-                )}
+                className="relative cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {(selected || selectedSecondary) && (
                   <span className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
@@ -185,67 +183,32 @@ export function BatteryModelPicker({
                     {selected ? '1' : '2'}
                   </span>
                 )}
-                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-card">
-                  {battery.imageUrl ? (
-                    <button
-                      type="button"
-                      className="relative h-full w-full cursor-zoom-in transition hover:bg-muted/70"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setPreviewImage({ url: battery.imageUrl as string, alt: battery.model });
-                      }}
-                    >
-                      <Image src={battery.imageUrl} alt={battery.model} fill sizes="96px" className="object-contain p-2" />
-                    </button>
-                  ) : (
-                    <Battery className="h-8 w-8 text-muted-foreground" />
+                <CatalogProductCard
+                  fallbackIcon={<Battery className="h-8 w-8 text-muted-foreground" />}
+                  model={battery.model}
+                  nickname={battery.nickname}
+                  imageUrl={battery.imageUrl}
+                  documents={battery.documents}
+                  documentEmptyState={<span className="text-xs text-muted-foreground">Sem anexos</span>}
+                  className={cn(
+                    'transition',
+                    selected || selectedSecondary
+                      ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
+                      : 'hover:border-primary/50 hover:bg-muted/60'
                   )}
-                </div>
-                <div className="min-w-0 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      {battery.nickname ? (
-                        <>
-                          <p className="min-w-0 break-words text-base font-bold leading-snug">{battery.nickname}</p>
-                          <p className="min-w-0 break-words text-xs text-muted-foreground">{battery.model}</p>
-                        </>
-                      ) : (
-                        <p className="min-w-0 break-words text-sm font-semibold leading-snug">{battery.model}</p>
-                      )}
-                    </div>
+                  titleActions={
                     <div className={cn('flex shrink-0 flex-wrap justify-end gap-1', (selected || selectedSecondary) && 'pr-6')}>
-                      {inStock && (
-                        <InStockBadge />
-                      )}
-                      <Badge variant="secondary">{battery.topology}</Badge>
+                      {inStock && <InStockBadge />}
                     </div>
-                  </div>
-                  <div className="grid gap-1 text-xs text-muted-foreground">
-                    <span>Capacidade: {battery.capacityKwh} kWh</span>
-                    <span>
-                      Energia útil: {usefulEnergyKwh.toFixed(2)} kWh · SOC mín. {battery.minSocPercent}%
-                    </span>
-                    <span>
-                      Potência: {battery.standardPowerKw ?? '-'} kW · máxima {battery.peakPowerKw ?? '-'} kW
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 flex-wrap gap-1">
-                    {battery.documents.length > 0 ? (
-                      battery.documents.map((document) => (
-                        <button
-                          key={`${battery.id}-${document.url}`}
-                          type="button"
-                          className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                          onClick={(event) => { event.stopPropagation(); setPreviewDoc(document); }}
-                        >
-                          {document.name || 'Documento'}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Sem anexos</span>
-                    )}
-                  </div>
-                </div>
+                  }
+                  specs={[
+                    ['Capacidade', `${battery.capacityKwh} kWh · útil ${usefulEnergyKwh.toFixed(2)} kWh`],
+                    ['SOC mín.', `${battery.minSocPercent}%`],
+                    ['Potência', `${battery.standardPowerKw ?? '-'} kW · pico ${battery.peakPowerKw ?? '-'} kW`],
+                  ]}
+                  onPreviewImage={setPreviewImage}
+                  onPreviewDoc={setPreviewDoc}
+                />
               </div>
             );
           })}
@@ -381,83 +344,49 @@ export function InverterModelPicker({
                 role="button"
                 tabIndex={0}
                 aria-pressed={selected}
-                onClick={() => setInverterModel(inverter.model)}
+                onClick={(event) => {
+                  if ((event.target as Element).closest('button')) return;
+                  setInverterModel(inverter.model);
+                }}
                 onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     setInverterModel(inverter.model);
                   }
                 }}
-                className={cn(
-                  'relative grid cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:grid-cols-[88px_1fr]',
-                  selected
-                    ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
-                    : 'hover:border-primary/50 hover:bg-muted/60'
-                )}
+                className="relative cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {selected && (
                   <span className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
                     <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
                   </span>
                 )}
-                <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-card">
-                  {inverter.imageUrl ? (
-                    <button
-                      type="button"
-                      className="relative h-full w-full cursor-zoom-in transition hover:bg-muted/70"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setPreviewImage({ url: inverter.imageUrl as string, alt: inverter.model });
-                      }}
-                    >
-                      <Image src={inverter.imageUrl} alt={inverter.model} fill sizes="96px" className="object-contain p-2" />
-                    </button>
-                  ) : (
-                    <Zap className="h-8 w-8 text-muted-foreground" />
+                <CatalogProductCard
+                  fallbackIcon={<Zap className="h-8 w-8 text-muted-foreground" />}
+                  model={inverter.model}
+                  nickname={inverter.nickname}
+                  imageUrl={inverter.imageUrl}
+                  documents={inverter.documents}
+                  documentEmptyState={<span className="text-xs text-muted-foreground">Sem anexos</span>}
+                  className={cn(
+                    'transition',
+                    selected
+                      ? 'border-primary bg-primary/[0.06] shadow-sm ring-1 ring-primary/20'
+                      : 'hover:border-primary/50 hover:bg-muted/60'
                   )}
-                </div>
-                <div className="min-w-0 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      {inverter.nickname ? (
-                        <>
-                          <p className="min-w-0 break-words text-base font-bold leading-snug">{inverter.nickname}</p>
-                          <p className="min-w-0 break-words text-xs text-muted-foreground">{inverter.model}</p>
-                        </>
-                      ) : (
-                        <p className="min-w-0 break-words text-sm font-semibold leading-snug">{inverter.model}</p>
-                      )}
-                    </div>
+                  titleActions={
                     <div className={cn('flex shrink-0 flex-wrap justify-end gap-1', selected && 'pr-6')}>
-                      {inStock && (
-                        <InStockBadge />
-                      )}
-                      <Badge variant="secondary">{inverter.topology}</Badge>
+                      {inStock && <InStockBadge />}
                     </div>
-                  </div>
-                  <div className="grid gap-1 text-xs text-muted-foreground">
-                    <span>Fases: {inverter.phases}</span>
-                    <span>
-                      Potência: {inverter.standardPowerKva ?? '-'} kVA · máxima {inverter.peakPowerKva ?? '-'} kVA
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 flex-wrap gap-1">
-                    {inverter.documents.length > 0 ? (
-                      inverter.documents.map((document) => (
-                        <button
-                          key={`${inverter.id}-${document.url}`}
-                          type="button"
-                          className="max-w-full truncate rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                          onClick={(event) => { event.stopPropagation(); setPreviewDoc(document); }}
-                        >
-                          {document.name || 'Documento'}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Sem anexos</span>
-                    )}
-                  </div>
-                </div>
+                  }
+                  specs={[
+                    ['Fases', `${inverter.phases}`],
+                    ['Potência', `${inverter.standardPowerKva ?? '-'} kVA · pico ${inverter.peakPowerKva ?? '-'} kVA`],
+                  ]}
+                  onPreviewImage={setPreviewImage}
+                  onPreviewDoc={setPreviewDoc}
+                />
               </div>
             );
           })}

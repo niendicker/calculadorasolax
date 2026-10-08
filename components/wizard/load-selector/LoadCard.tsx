@@ -12,7 +12,6 @@ import { gridTypePhaseCount, gridTypePhaseToPhaseVoltages, gridTypeVoltages, loa
 import type { CatalogItem, LoadPhase, PeakCalcMode, ResidentialGridType, SingleLoad, UserLoadCatalogItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { MAX_OPERATION_HOURS, setDragPreview } from './load-selector-utils';
-import { PhaseTag, TriPhaseDots } from './phase-indicators';
 
 /** Above this IP/IN, the inrush current is high enough that a soft starter
  * or VFD is worth suggesting to smooth the motor's startup — purely an
@@ -849,15 +848,15 @@ export function LoadCard({
               {voltageV}V ·{' '}
               {phaseType === 'trifasica' ? (
                 <span className="inline-flex items-center gap-1">
-                  <TriPhaseDots /> Trifásica
+                  Trifásica
                 </span>
               ) : load.phase2 ? (
                 <span className="inline-flex items-center gap-1">
-                  Mono · <PhaseTag phase={phase} /> <PhaseTag phase={load.phase2} />
+                  Mono · {phase}–{load.phase2}
                 </span>
               ) : phaseCount > 1 ? (
                 <span className="inline-flex items-center gap-1">
-                  Mono · <PhaseTag phase={phase} />
+                  Mono · {phase}
                 </span>
               ) : (
                 'Mono'

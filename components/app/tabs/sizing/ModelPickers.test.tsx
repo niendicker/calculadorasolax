@@ -171,10 +171,14 @@ describe('BatteryModelPicker', () => {
   });
 
   it('opens the image preview modal and document preview modal', () => {
-    renderBatteryPicker({ topology: 'HighVoltage' });
+    const setBatteryModel = vi.fn();
+    renderBatteryPicker({ topology: 'HighVoltage', setBatteryModel });
     const zoomButtons = screen.getAllByRole('button').filter((btn) => btn.className.includes('cursor-zoom-in'));
+    fireEvent.keyDown(zoomButtons[0], { key: 'Enter' });
     fireEvent.click(zoomButtons[0]);
+    fireEvent.keyDown(screen.getByText('Manual').closest('button')!, { key: ' ' });
     fireEvent.click(screen.getByText('Manual'));
+    expect(setBatteryModel).not.toHaveBeenCalled();
   });
 
   it('shows "Sem anexos" when a battery has no documents', () => {
@@ -334,10 +338,14 @@ describe('InverterModelPicker', () => {
   });
 
   it('opens image and document preview modals', () => {
-    renderInverterPicker();
+    const setInverterModel = vi.fn();
+    renderInverterPicker({ setInverterModel });
     const zoomButtons = screen.getAllByRole('button').filter((btn) => btn.className.includes('cursor-zoom-in'));
+    fireEvent.keyDown(zoomButtons[0], { key: 'Enter' });
     fireEvent.click(zoomButtons[0]);
+    fireEvent.keyDown(screen.getByText('Datasheet').closest('button')!, { key: ' ' });
     fireEvent.click(screen.getByText('Datasheet'));
+    expect(setInverterModel).not.toHaveBeenCalled();
   });
 
   it('shows "Sem anexos" for inverters without documents', () => {

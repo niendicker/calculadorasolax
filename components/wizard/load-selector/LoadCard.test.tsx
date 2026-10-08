@@ -346,11 +346,11 @@ describe('LoadCard: confirmed card header', () => {
 
   it('shows "Mono" alone with no phase tag on a single-phase (phaseCount 1) grid', () => {
     render(<LoadCard {...baseProps({ gridType: 'singlePhase_220' })} />);
-    // On a single-phase grid the summary reads "<V>V · Mono" with no PhaseTag appended.
+    // On a single-phase grid the summary reads "<V>V · Mono" with no phase appended.
     expect(screen.getByText(/·\s*Mono$/)).toBeInTheDocument();
   });
 
-  it('shows trifásica indicator dots for a three-phase load', () => {
+  it('shows the trifásica label for a three-phase load', () => {
     render(<LoadCard {...baseProps({ gridType: 'threePhase_220', load: fullLoad({ phaseType: 'trifasica', voltageV: 220 }) })} />);
     expect(screen.getByText('Trifásica')).toBeInTheDocument();
   });

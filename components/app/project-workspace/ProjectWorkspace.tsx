@@ -640,23 +640,12 @@ export function ProjectWorkspace({
   return (
     <ProjectWorkspaceShell
       title={projectInfo.name || 'Projeto sem nome'}
+      statusLabel={null}
       autosaveStatus={autosaveStatus}
       autosaveLastSavedAt={autosaveLastSavedAt}
       navigation={workspaceNavigation}
       activeSection={section}
       onSectionChange={(id) => changeSection(id as WorkspaceSection)}
-      subtitle={
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="inline-flex" role="img" aria-label="Cliente" title="Cliente">
-              <UserRound className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <span>{client?.name || 'Não informado'}</span>
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>{residentialOptions.gridType ? gridLabels[residentialOptions.gridType] : 'Rede não configurada'}</span>
-        </p>
-      }
       actions={
         <>
           {onRefreshSolution && (
@@ -705,6 +694,13 @@ export function ProjectWorkspace({
     >
       {section !== 'overview' && <PageSummary>
         <div className="space-y-4">
+          <header className="space-y-1 px-3 pb-3">
+            <h2 className="text-sm font-semibold">Workspace</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 break-words text-xs text-muted-foreground">{projectInfo.name || 'Projeto sem nome'}</p>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted/70 px-2 py-1 text-xs font-medium text-muted-foreground"><Flag className="h-3 w-3" aria-hidden="true" /> Em andamento</span>
+            </div>
+          </header>
           <nav aria-label="Configurações técnicas do projeto" className="space-y-1">
             <div className="flex items-center gap-3 px-3 pb-2">
               <h2 className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">Configurações técnicas</h2>
@@ -1212,9 +1208,9 @@ function SolutionSection({
                       imageUrl={inverterMedia?.imageUrl ?? null}
                       documents={inverterMedia?.documents ?? []}
                       specs={[
+                        ['Quantidade', `${solution.inverterQty ?? 1} un.`],
                         ['Potência', `${solution.inverterRatedPowerW ? formatKva(solution.inverterRatedPowerW) : 'Não informado'} · pico ${solution.inverterPeakPowerW ? formatKva(solution.inverterPeakPowerW) : 'Não informado'}`],
                         ['Bateria', `${solution.batteryPortsUsed ?? 1} ${(solution.batteryPortsUsed ?? 1) === 1 ? 'porta' : 'portas'}`],
-                        ['Quantidade', `${solution.inverterQty ?? 1} un.`],
                         ['Garantia', `${inverterCatalogEntry?.warrantyYears ?? 10} anos`],
                       ]}
                       appearance="summary"
@@ -1235,19 +1231,19 @@ function SolutionSection({
                           documents={partMedia?.documents ?? []}
                           statusBadges={index === 0 ? ['BMS Integrado'] : undefined}
                           specs={[
-                            [
-                              'Capacidade',
-                              battery
-                                ? `${formatPtValue(battery.capacityKwh, 'kWh')} · útil ${usefulEnergyKwh != null ? formatPtValue(usefulEnergyKwh, 'kWh') : 'Não informado'}`
-                                : (index === 0 && solution.availableEnergyWh ? formatKwh(solution.availableEnergyWh / 1000) : 'Não informado'),
-                            ],
+                            ['Quantidade', `${part.qty} un.`],
                             [
                               'Potência',
                               battery
                                 ? `${battery.standardPowerKw != null ? formatPtValue(battery.standardPowerKw, 'kW') : '-'} · pico ${battery.peakPowerKw != null ? formatPtValue(battery.peakPowerKw, 'kW') : '-'}`
                                 : (solution.batteryPowerW ? formatKw(solution.batteryPowerW) : 'Não informado'),
                             ],
-                            ['Quantidade', `${part.qty} un.`],
+                            [
+                              'Energia',
+                              battery
+                                ? `${formatPtValue(battery.capacityKwh, 'kWh')} · útil ${usefulEnergyKwh != null ? formatPtValue(usefulEnergyKwh, 'kWh') : 'Não informado'}`
+                                : (index === 0 && solution.availableEnergyWh ? formatKwh(solution.availableEnergyWh / 1000) : 'Não informado'),
+                            ],
                             ['Garantia', battery ? `${battery.warrantyYears ?? 10} anos ou ${battery.warrantyCycles ?? 6000} ciclos` : 'Não informado'],
                           ]}
                           appearance="summary"
