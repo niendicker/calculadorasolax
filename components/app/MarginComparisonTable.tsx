@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { BatteryCharging, CheckCircle2, CircuitBoard, CircleAlert, Gauge, HousePlug, Info, Layers3, Network, SolarPanel, TrendingUp, Zap, type LucideIcon } from 'lucide-react';
 import type { DesiredFeatureId } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -11,18 +12,13 @@ type MetricColumn = { key: MetricKey; label: string; icon: LucideIcon };
 type EquipmentRow = { label: string; metrics: Partial<Record<MetricKey, MarginRow>> };
 type MarginGroup = { label: string; metrics: MetricColumn[]; equipment: EquipmentRow[] };
 
-function resourceForRow(row: MarginRow, desiredFeatures: DesiredFeatureId[]): string {
+function resourceForRow(row: MarginRow): string {
   if (row.key.startsWith('white_tariff_')) return 'Tarifa Branca';
   if (row.key.startsWith('microgrid_')) return 'Microrrede';
   if (row.key === 'pv') return 'Fotovoltaico';
   if (row.key.startsWith('backup_')) return 'Backup';
-  if (row.key === 'nominal' || row.key === 'peak' || row.key.endsWith('_battery') || row.key === 'energy') {
-    if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff')) {
-      return 'Requisitos combinados';
-    }
-    if (desiredFeatures.includes('backup')) return 'Backup';
-    if (desiredFeatures.includes('white_tariff')) return 'Tarifa Branca';
-    return row.key === 'energy' ? 'Energia' : 'Dimensionamento';
+  if (['nominal', 'peak', 'nominal_battery', 'peak_battery', 'energy'].includes(row.key)) {
+    return 'Requisitos combinados';
   }
   return 'Outros requisitos';
 }
@@ -103,19 +99,7 @@ function ResourceHeading({ label }: { label: string }) {
   );
 }
 
-function MetricHeading({
-  metric,
-  projectRow,
-  projectValueSourceMetrics,
-  combinedRequirement,
-}: {
-  metric: MetricColumn;
-  projectRow?: MarginRow;
-  projectValueSourceMetrics: MetricKey[];
-  combinedRequirement: boolean;
-}) {
-  const Icon = metric.icon;
-  const metricColors: Partial<Record<MetricKey, { icon: string; value: string }>> = {
+const metricColors: Partial<Record<MetricKey, { icon: string; value: string }>> = {
     nominal: {
       icon: 'text-sky-600 dark:text-sky-400',
       value: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
@@ -128,18 +112,15 @@ function MetricHeading({
       icon: 'text-emerald-600 dark:text-emerald-400',
       value: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
     },
-  };
+};
+
+function MetricHeading({ metric, combinedRequirement }: { metric: MetricColumn; combinedRequirement: boolean }) {
+  const Icon = metric.icon;
   const colors = combinedRequirement ? metricColors[metric.key] : undefined;
-  const sourceColor = projectValueSourceMetrics.length === 1
-    ? metricColors[projectValueSourceMetrics[0]]?.value
-    : projectValueSourceMetrics.length > 1
-      ? 'bg-gradient-to-r from-sky-500/10 to-amber-500/10 text-foreground'
-      : undefined;
-  const projectValueColor = colors?.value ?? sourceColor;
   const combinedTooltip: Partial<Record<MetricKey, string>> = {
-    nominal: 'Considera o maior requisito entre Backup, Tarifa Branca e, quando aplicável, Microrrede.',
+    nominal: 'Considera o maior requisito de potência padrão entre os recursos ativos: Backup, Tarifa Branca e Microrrede.',
     peak: 'Considera o maior valor entre o pico do Backup e a potência padrão combinada, incluindo Tarifa Branca e Microrrede quando ativas.',
-    energy: 'Soma a energia necessária para Backup e Tarifa Branca.',
+    energy: 'Soma a energia necessária dos recursos ativos: Backup e/ou Tarifa Branca. Microrrede não adiciona uma necessidade de energia.',
   };
   const tooltip = combinedRequirement ? combinedTooltip[metric.key] : undefined;
   return (
@@ -157,19 +138,30 @@ function MetricHeading({
           </Tooltip>
         )}
       </span>
-      {projectRow && (
-        <span className="text-[0.65rem] font-normal text-muted-foreground">
-          Projeto{' '}
-          <span className={cn(
-            'tabular-nums',
-            projectValueColor && `rounded px-1 py-0.5 font-semibold ${projectValueColor}`
-          )}>
-            {projectValueSourceMetrics.length > 0 && <span className="sr-only">Usado no requisito combinado: </span>}
-            {formatValue(projectRow.requiredValue, projectRow)}
-          </span>
-        </span>
-      )}
     </span>
+  );
+}
+
+function ProjectValue({ row, metric, sourceMetrics, combinedRequirement }: {
+  row: MarginRow;
+  metric: MetricKey;
+  sourceMetrics: MetricKey[];
+  combinedRequirement: boolean;
+}) {
+  const sourceColor = sourceMetrics.length === 1
+    ? metricColors[sourceMetrics[0]]?.value
+    : sourceMetrics.length > 1
+      ? 'bg-gradient-to-r from-sky-500/10 to-amber-500/10 text-foreground'
+      : undefined;
+  const color = combinedRequirement ? metricColors[metric]?.value : sourceColor;
+  return (
+    <p className="text-[0.65rem] font-normal text-muted-foreground">
+      Projeto{' '}
+      <span className={cn('tabular-nums', color && `rounded px-1 py-0.5 font-semibold ${color}`)}>
+        {sourceMetrics.length > 0 && <span className="sr-only">Usado no requisito combinado: </span>}
+        {formatValue(row.requiredValue, row)}
+      </span>
+    </p>
   );
 }
 
@@ -217,9 +209,11 @@ function MarginStatus({ insufficient }: { insufficient: boolean }) {
 function MetricValue({
   row,
   highlight,
+  projectValue,
 }: {
   row: MarginRow;
   highlight: boolean;
+  projectValue?: ReactNode;
 }) {
   const delta = row.providedValue - row.requiredValue;
   const insufficient = marginRowIsInsufficient(row);
@@ -232,6 +226,7 @@ function MetricValue({
         {insufficient && <span className="text-[0.65rem] font-semibold text-destructive">Insuficiente</span>}
         {highlight && <span className="text-[0.65rem] font-semibold text-primary">Menor margem</span>}
       </div>
+      {projectValue}
       <p className="text-[0.7rem]">
         <span className="text-muted-foreground">Solução </span>
         <span className="font-medium tabular-nums text-muted-foreground">{formatValue(row.providedValue, row)}</span>
@@ -242,7 +237,7 @@ function MetricValue({
 
 function combinedSourceMetrics(rows: MarginRow[], desiredFeatures: DesiredFeatureId[]): Map<string, MetricKey[]> {
   const sources = new Map<string, MetricKey[]>();
-  if (!desiredFeatures.includes('backup') || !desiredFeatures.includes('white_tariff')) return sources;
+  if (!desiredFeatures.some((feature) => feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff')) return sources;
 
   const rowsByKey = new Map(rows.map((row) => [row.key, row]));
   const matchesCombinedValue = (sourceKey: string, combinedKey: string) => {
@@ -271,17 +266,21 @@ function combinedSourceMetrics(rows: MarginRow[], desiredFeatures: DesiredFeatur
 }
 
 export function MarginComparisonTable({
-  rows,
+  rows: allRows,
   desiredFeatures,
 }: {
   rows: MarginRow[];
   desiredFeatures: DesiredFeatureId[];
 }) {
+  const hasPowerResource = desiredFeatures.some((feature) =>
+    feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff'
+  );
+  const rows = allRows.filter((row) => hasPowerResource || resourceForRow(row) !== 'Requisitos combinados');
   if (rows.length === 0) return null;
 
   const groups: MarginGroup[] = [];
   for (const row of rows) {
-    const resource = resourceForRow(row, desiredFeatures);
+    const resource = resourceForRow(row);
     let group = groups.find((item) => item.label === resource);
     if (!group) {
       group = { label: resource, metrics: [], equipment: [] };
@@ -310,7 +309,7 @@ export function MarginComparisonTable({
     }
   }
 
-  if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff')) {
+  if (hasPowerResource) {
     const backupIndex = groups.findIndex((group) => group.label === 'Backup');
     if (backupIndex >= 0) {
       const [backupGroup] = groups.splice(backupIndex, 1);
@@ -323,7 +322,7 @@ export function MarginComparisonTable({
   const insufficientCount = rows.filter(marginRowIsInsufficient).length;
   const combinedSources = combinedSourceMetrics(rows, desiredFeatures);
   const lowestMarginKey = rows
-    .filter((row) => resourceForRow(row, desiredFeatures) === 'Requisitos combinados' && row.requiredValue > 0)
+    .filter((row) => resourceForRow(row) === 'Requisitos combinados' && row.requiredValue > 0)
     .reduce<{ key: string; marginPct: number } | null>((tightest, row) => {
       const marginPct = ((row.providedValue - row.requiredValue) / row.requiredValue) * 100;
       if (!tightest || marginPct < tightest.marginPct) return { key: row.key, marginPct };
@@ -356,19 +355,14 @@ export function MarginComparisonTable({
                 <thead className="text-xs text-muted-foreground">
                   <tr>
                     <th scope="col" className="w-20 px-1 py-2"><span className="sr-only">Equipamento</span></th>
-                    {group.metrics.map((metric) => {
-                      const projectRow = group.equipment.find((item) => item.metrics[metric.key])?.metrics[metric.key];
-                      return (
+                    {group.metrics.map((metric) => (
                         <th key={metric.key} scope="col" className="px-3 py-2 font-medium">
                           <MetricHeading
                             metric={metric}
-                            projectRow={projectRow}
-                            projectValueSourceMetrics={projectRow ? combinedSources.get(projectRow.key) ?? [] : []}
                             combinedRequirement={group.label === 'Requisitos combinados'}
                           />
                         </th>
-                      );
-                    })}
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -383,6 +377,7 @@ export function MarginComparisonTable({
                         if (isSharedEnergy && equipmentIndex > 0) return null;
 
                         const row = isSharedEnergy ? sharedEnergyRow : equipment.metrics[metric.key];
+                        const projectRow = group.equipment.find((item) => item.metrics[metric.key])?.metrics[metric.key];
                         return (
                           <td
                             key={metric.key}
@@ -393,6 +388,14 @@ export function MarginComparisonTable({
                               <MetricValue
                                 row={row}
                                 highlight={row.key === lowestMarginKey}
+                                projectValue={row.key === projectRow?.key ? (
+                                  <ProjectValue
+                                    row={row}
+                                    metric={metric.key}
+                                    sourceMetrics={combinedSources.get(row.key) ?? []}
+                                    combinedRequirement={group.label === 'Requisitos combinados'}
+                                  />
+                                ) : undefined}
                               />
                             ) : <span className="text-muted-foreground">—</span>}
                           </td>
@@ -412,8 +415,6 @@ export function MarginComparisonTable({
                   <h4 className="px-3 pb-0.5 pt-2 text-left text-xs font-semibold text-muted-foreground">
                     <MetricHeading
                       metric={metric}
-                      projectRow={projectRow}
-                      projectValueSourceMetrics={projectRow ? combinedSources.get(projectRow.key) ?? [] : []}
                       combinedRequirement={group.label === 'Requisitos combinados'}
                     />
                   </h4>
@@ -428,6 +429,14 @@ export function MarginComparisonTable({
                         <MetricValue
                           row={row}
                           highlight={row.key === lowestMarginKey}
+                          projectValue={row.key === projectRow?.key ? (
+                            <ProjectValue
+                              row={row}
+                              metric={metric.key}
+                              sourceMetrics={combinedSources.get(row.key) ?? []}
+                              combinedRequirement={group.label === 'Requisitos combinados'}
+                            />
+                          ) : undefined}
                         />
                       </div>
                     );

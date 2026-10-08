@@ -444,8 +444,12 @@ export function buildMarginSummary({
     desiredFeatures, whiteTariff, microgrid, nominalW, peakW
   );
   const backupPeakPowerW = Math.max(nominalW, peakW);
+  const hasPowerResource = desiredFeatures.some((feature) =>
+    feature === 'backup' || feature === 'microgrid' || feature === 'white_tariff'
+  );
 
-  const rows: MarginRow[] = [
+  const rows: MarginRow[] = [];
+  if (hasPowerResource) rows.push(
     {
       key: 'nominal',
       label: 'Potência padrão (inversor)',
@@ -472,12 +476,10 @@ export function buildMarginSummary({
       providedValue: solution.availableEnergyWh ?? 0,
       unit: 'Wh',
     },
-  ];
+  );
 
-  // When Backup and Tarifa Branca are both active, keep the tariff's own
-  // power and energy checks visible as a separate resource group. The base
-  // rows below still represent the combined sizing requirement.
-  if (desiredFeatures.includes('backup') && desiredFeatures.includes('white_tariff') && whiteTariff) {
+  // Keep each active resource's requirements separate from the consolidated targets.
+  if (desiredFeatures.includes('backup')) {
     rows.push(
       {
         key: 'backup_nominal_inverter',
@@ -524,6 +526,8 @@ export function buildMarginSummary({
       providedValue: solution.availableEnergyWh ?? 0,
       unit: 'Wh',
     });
+  }
+  if (desiredFeatures.includes('white_tariff') && whiteTariff) {
     rows.push({
       key: 'white_tariff_inverter',
       label: 'Tarifa Branca (inversor)',
@@ -554,10 +558,10 @@ export function buildMarginSummary({
     });
   }
 
-  // Backup loads are supplied by both the inverter and the battery bank.
+  // Active power resources are supported by both the inverter and the battery bank.
   // Show the battery's power margin separately so a strong inverter cannot
   // hide a battery bank that falls short of the nominal or peak requirement.
-  if (desiredFeatures.includes('backup') && solution.batteryPowerW != null) {
+  if (hasPowerResource && solution.batteryPowerW != null) {
     rows.push(
       {
         key: 'nominal_battery',

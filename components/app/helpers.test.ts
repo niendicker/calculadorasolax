@@ -270,7 +270,7 @@ describe('buildMarginSummary', () => {
       dailyKwh: 3,
       solution: baseSolution,
     });
-    expect(rows).toEqual([
+    expect(rows.filter((row) => ['nominal', 'peak', 'energy'].includes(row.key))).toEqual([
       { key: 'nominal', label: 'Potência padrão (inversor)', requiredValue: 3000, providedValue: 5000, unit: 'W' },
       { key: 'peak', label: 'Potência máxima (inversor)', requiredValue: 6000, providedValue: 7000, unit: 'W' },
       { key: 'energy', label: 'Energia', requiredValue: 3000, providedValue: 3240, unit: 'Wh' },
