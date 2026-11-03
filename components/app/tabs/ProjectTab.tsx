@@ -54,6 +54,7 @@ export function ProjectTab({
   onOpenCi,
   onRemoveCi,
   onUpdateCiStatus,
+  canAccessCi = false,
 }: {
   batteryCatalog: BatteryCatalogOption[];
   inverterCatalog: InverterCatalogOption[];
@@ -101,6 +102,8 @@ export function ProjectTab({
   onOpenCi: (id: string) => void;
   onRemoveCi: (id: string) => void;
   onUpdateCiStatus: (id: string, status: ProjectStatus) => void;
+  /** Whether the user has permission to create and access C&I projects. */
+  canAccessCi?: boolean;
 }) {
   const {
     projectInfo,
@@ -212,7 +215,12 @@ export function ProjectTab({
               <Plus className="h-4 w-4" />
               Novo projeto
             </Button>
-            <Button variant="outline" onClick={onNewCi} disabled title="Novo projeto C&I indisponível no momento.">
+            <Button
+              variant="outline"
+              onClick={onNewCi}
+              disabled={!canAccessCi}
+              title={canAccessCi ? 'Criar novo projeto Comercial & Industrial' : 'Módulo C&I restrito. Solicite liberação ao administrador.'}
+            >
               <Plus className="h-4 w-4" />
               Novo projeto C&amp;I
             </Button>

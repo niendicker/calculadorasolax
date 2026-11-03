@@ -109,6 +109,7 @@ export function MyStockTab({
   onRemoveService,
   marginSettings,
   onUpdateMarginPercent,
+  canAccessCi = true,
 }: {
   userStockItems: UserStockItem[];
   inverterCatalog: InverterCatalogOption[];
@@ -126,6 +127,8 @@ export function MyStockTab({
   onRemoveService: (id: string) => Promise<void>;
   marginSettings: MarginSettings;
   onUpdateMarginPercent: (category: MarginableProductType, percent: number) => Promise<void>;
+  /** Whether the user has permission to access C&I products in portfolio. */
+  canAccessCi?: boolean;
 }) {
   const [previewDoc, setPreviewDoc] = useState<ProductDocument | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
@@ -221,7 +224,14 @@ export function MyStockTab({
   const unpricedProductCount = userStockItems.length - pricedProductCount;
   const portfolioCost = userStockItems.reduce((total, item) => total + item.unitValue, 0);
   const configuredMarginCount = Object.values(marginSettings).filter((value) => value > 0).length;
-  const activeSectionDefinition = sectionDefinitions.find((section) => section.type === activeSection) ?? sectionDefinitions[0];
+
+  const visibleSectionDefinitions = useMemo(
+    () => (canAccessCi ? sectionDefinitions : sectionDefinitions.filter((s) => s.type !== 'ci_bess')),
+    [canAccessCi]
+  );
+
+  const effectiveActiveSection = !canAccessCi && activeSection === 'ci_bess' ? 'inverter' : activeSection;
+  const activeSectionDefinition = visibleSectionDefinitions.find((section) => section.type === effectiveActiveSection) ?? visibleSectionDefinitions[0];
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
@@ -293,12 +303,12 @@ export function MyStockTab({
             {userStockItems.length > 0 && (
               <>
                 <div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Tipo de produto">
-                  {sectionDefinitions.map((section) => {
+                  {visibleSectionDefinitions.map((section) => {
                     const sectionItems = userStockItems.filter((item) => item.productType === section.type);
                     return (
                       <PortfolioSectionCard
                         key={section.type}
-                        active={activeSection === section.type}
+                        active={effectiveActiveSection === section.type}
                         icon={section.icon}
                         label={section.label}
                         count={sectionItems.length}
@@ -322,9 +332,9 @@ export function MyStockTab({
                       className="!pl-11"
                     />
                   </label>
-                  {activeSection !== 'ci_bess' && (
+                  {effectiveActiveSection !== 'ci_bess' && (
                     <CategoryMarginInline
-                      productType={activeSection}
+                      productType={effectiveActiveSection}
                       productLabel={activeSectionDefinition.label}
                       marginSettings={marginSettings}
                       onUpdateMarginPercent={onUpdateMarginPercent}
@@ -334,8 +344,8 @@ export function MyStockTab({
               </>
             )}
 
-              {sectionDefinitions.map((section) => {
-              if (section.type !== activeSection) return null;
+              {visibleSectionDefinitions.map((section) => {
+              if (section.type !== effectiveActiveSection) return null;
               const items = userStockItems.filter((item) => item.productType === section.type);
               const normalizedQuery = productQuery.trim().toLowerCase();
               const filteredItems = items.filter((item) => {
@@ -379,11 +389,11 @@ export function MyStockTab({
               );
               })}
               <AddProductCard
-                key={activeSection}
-                sections={sectionDefinitions}
+                key={effectiveActiveSection}
+                sections={visibleSectionDefinitions}
                 catalogByType={catalogByType}
                 userStockItems={userStockItems}
-                defaultProductType={activeSection}
+                defaultProductType={effectiveActiveSection}
                 atLimit={atLimit}
                 stockCount={userStockItems.length}
                 stockLimit={ACCOUNT_LIMITS.userStockItems}

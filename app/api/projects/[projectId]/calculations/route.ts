@@ -4,6 +4,7 @@ import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/
 import { getNetworkErrorMessage, resolveCommercialIndustrialCalculationErrorMessage } from '@/lib/calculation-error-messages';
 import {
   cacheProjectCalculationResult,
+  checkUserCiAccess,
   findBessProductModel,
   findOwnCiProject,
   findUserBessUnitPrice,
@@ -31,6 +32,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
   const rate = consumeRateLimit(`ci-calculation:${user.id}:${getRequestClientKey(request)}`, { limit: 30, windowMs: 60_000 });
   if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
+
+  try {
+    const hasCiAccess = await checkUserCiAccess(supabase, user.id);
+    if (!hasCiAccess) {
+      return NextResponse.json(
+        { error: 'Acesso ao módulo C&I não liberado para este usuário. Solicite autorização ao administrador.' },
+        { status: 403 }
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: getNetworkErrorMessage() }, { status: 502 });
+  }
 
   let project;
   try {

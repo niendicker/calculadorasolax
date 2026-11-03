@@ -675,6 +675,21 @@ export function AdminPanel() {
     setSuccess(`Email de redefinição enviado para ${email}.`);
   }
 
+  async function updateUserFeatureFlags(userId: string, flags: string[]) {
+    setSaving(true);
+    setStatus('Atualizando permissões do usuário...');
+    setError(null);
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ feature_flags: flags })
+      .eq('id', userId);
+    setSaving(false);
+
+    if (updateError) return setFailure(updateError.message);
+    setSuccess('Permissões do usuário atualizadas com sucesso.');
+    await loadResource('users');
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     router.replace('/pt/login');
@@ -759,7 +774,12 @@ export function AdminPanel() {
                 )}
 
                 {activeTab === 'users' && (
-                  <UsersPanel users={users} onResetPassword={sendPasswordReset} saving={saving} />
+                  <UsersPanel
+                    users={users}
+                    onResetPassword={sendPasswordReset}
+                    onUpdateFeatureFlags={updateUserFeatureFlags}
+                    saving={saving}
+                  />
                 )}
 
                 {activeTab === 'solutions' && (

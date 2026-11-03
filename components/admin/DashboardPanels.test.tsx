@@ -125,6 +125,44 @@ describe('UsersPanel', () => {
     rerender(<UsersPanel users={[makeUser({ id: 'u1', email: 'ana@x.com', full_name: 'Ana' })]} onResetPassword={onResetPassword} saving />);
     expect(screen.getByRole('button', { name: /Resetar senha/ })).toBeDisabled();
   });
+
+  it('displays feature flags badges and opens permissions modal', async () => {
+    const onUpdateFeatureFlags = vi.fn().mockResolvedValue(undefined);
+    render(
+      <UsersPanel
+        users={[makeUser({ id: 'u1', email: 'ana@x.com', full_name: 'Ana', feature_flags: ['ci', 'ci_backup'] })]}
+        onResetPassword={vi.fn()}
+        onUpdateFeatureFlags={onUpdateFeatureFlags}
+        saving={false}
+      />
+    );
+
+    expect(screen.getByText('C&I')).toBeInTheDocument();
+    expect(screen.getByText('Backup')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Permissões/ }));
+    expect(screen.getByRole('dialog', { name: /Permissões de Ana/ })).toBeInTheDocument();
+
+    // Checkboxes are checked initially
+    const ciCheckbox = screen.getByLabelText(/Liberar Comercial & Industrial/);
+    const backupCheckbox = screen.getByLabelText(/Liberar C&I Backup/);
+    expect(ciCheckbox).toBeChecked();
+    expect(backupCheckbox).toBeChecked();
+
+    // Unchecking CI also unchecks backup
+    fireEvent.click(ciCheckbox);
+    expect(ciCheckbox).not.toBeChecked();
+    expect(backupCheckbox).not.toBeChecked();
+
+    // Checking backup automatically checks CI too
+    fireEvent.click(backupCheckbox);
+    expect(backupCheckbox).toBeChecked();
+    expect(ciCheckbox).toBeChecked();
+
+    // Save
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar permissões' }));
+    expect(onUpdateFeatureFlags).toHaveBeenCalledWith('u1', ['ci', 'ci_backup']);
+  });
 });
 
 describe('MetricsPanel', () => {

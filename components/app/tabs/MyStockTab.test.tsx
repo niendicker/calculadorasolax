@@ -685,6 +685,11 @@ describe('MyStockTab: BESS C&I stock card', () => {
 
     expect(screen.getByText(/produto BESS C&I/)).toBeInTheDocument();
   });
+
+  it('hides the BESS C&I tab when canAccessCi is false', () => {
+    setup({ canAccessCi: false, userStockItems: [ciBessStockItem] });
+    expect(screen.queryByRole('tab', { name: /BESS C&I/ })).not.toBeInTheDocument();
+  });
 });
 
 describe('MyStockTab: adding a service', () => {

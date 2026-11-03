@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { LayoutGrid, RefreshCw, Search, Table2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutGrid, RefreshCw, Search, ShieldCheck, Table2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,17 +17,179 @@ import type {
   UserProfileRow,
 } from './types';
 
+function UserPermissionsModal({
+  user,
+  onClose,
+  onSave,
+  saving,
+}: {
+  user: UserProfileRow | null;
+  onClose: () => void;
+  onSave: (userId: string, flags: string[]) => Promise<void>;
+  saving: boolean;
+}) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const [flags, setFlags] = useState<string[]>(() => user?.feature_flags ?? []);
+
+  useEffect(() => {
+    if (!user) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [user, onClose]);
+
+  if (!user) return null;
+
+  const hasCi = flags.includes('ci');
+  const hasCiBackup = flags.includes('ci_backup');
+
+  function toggleCi() {
+    setFlags((curr) => {
+      if (curr.includes('ci')) {
+        // Desmarcar C&I remove obrigatoriamente C&I Backup
+        return curr.filter((f) => f !== 'ci' && f !== 'ci_backup');
+      }
+      return [...curr, 'ci'];
+    });
+  }
+
+  function toggleCiBackup() {
+    setFlags((curr) => {
+      if (curr.includes('ci_backup')) {
+        return curr.filter((f) => f !== 'ci_backup');
+      }
+      // Marcar C&I Backup ativa obrigatoriamente C&I
+      return curr.includes('ci') ? [...curr, 'ci_backup'] : [...curr, 'ci', 'ci_backup'];
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-[1px]" role="presentation">
+      <button type="button" className="absolute inset-0 cursor-default" aria-label="Fechar permissões" onClick={onClose} />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-permissions-modal-title"
+        className="relative z-10 my-auto w-full max-w-md overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b bg-muted/20 px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 id="user-permissions-modal-title" className="text-base font-semibold tracking-tight">
+                Permissões de {user.full_name || user.email}
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{user.email}</p>
+            </div>
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Fechar permissões" onClick={onClose}>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        <div className="space-y-4 p-5 sm:p-6">
+          <p className="text-xs text-muted-foreground">
+            Defina quais módulos e recursos avançados estão disponíveis para este usuário.
+          </p>
+
+          <div className="space-y-3">
+            <label
+              className={cn(
+                'flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors',
+                hasCi ? 'border-primary/50 bg-primary/5' : 'bg-background hover:bg-muted/40'
+              )}
+            >
+              <input
+                type="checkbox"
+                aria-label="Liberar Comercial & Industrial (C&I)"
+                checked={hasCi}
+                onChange={toggleCi}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Comercial &amp; Industrial (C&amp;I)</span>
+                  {hasCi && <Badge variant="secondary" className="text-[10px]">Ativo</Badge>}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  Permite criar projetos C&amp;I, importar curva de carga horária, tarifação e dimensionamento de BESS.
+                </p>
+              </div>
+            </label>
+
+            <label
+              className={cn(
+                'flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors',
+                hasCiBackup ? 'border-amber-500/50 bg-amber-500/5' : 'bg-background hover:bg-muted/40'
+              )}
+            >
+              <input
+                type="checkbox"
+                aria-label="Liberar C&I Backup (Falta de Rede)"
+                checked={hasCiBackup}
+                onChange={toggleCiBackup}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">C&amp;I Backup (Falta de Rede)</span>
+                  {hasCiBackup && <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">Ativo</Badge>}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  Permite dimensionamento e análises de backup para falta de rede em C&amp;I. Ativar esta opção também ativa o módulo C&amp;I.
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                await onSave(user.id, flags);
+                onClose();
+              }}
+              disabled={saving}
+            >
+              {saving ? 'Salvando...' : 'Salvar permissões'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function UsersPanel({
   users,
   onResetPassword,
+  onUpdateFeatureFlags,
   saving,
 }: {
   users: UserProfileRow[];
   onResetPassword: (email: string) => void;
+  onUpdateFeatureFlags?: (userId: string, flags: string[]) => Promise<void>;
   saving: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'cards' | 'table'>('cards');
+  const [permissionsUser, setPermissionsUser] = useState<UserProfileRow | null>(null);
 
   const visibleUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -91,11 +253,12 @@ export function UsersPanel({
       )}
       {visibleUsers.length > 0 && view === 'table' ? (
         <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full min-w-[42rem] text-sm" aria-label="Usuários cadastrados em tabela">
+          <table className="w-full min-w-[46rem] text-sm" aria-label="Usuários cadastrados em tabela">
             <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr className="border-b">
                 <th scope="col" className="px-4 py-3 font-semibold">Usuário</th>
                 <th scope="col" className="px-3 py-3 font-semibold">Perfil</th>
+                <th scope="col" className="px-3 py-3 font-semibold">Permissões</th>
                 <th scope="col" className="hidden px-3 py-3 font-semibold md:table-cell">Empresa</th>
                 <th scope="col" className="hidden px-3 py-3 font-semibold lg:table-cell">Telefone</th>
                 <th scope="col" className="px-3 py-3 font-semibold">Cadastro</th>
@@ -114,20 +277,51 @@ export function UsersPanel({
                       {user.role === 'admin' ? 'admin' : 'usuário'}
                     </Badge>
                   </td>
+                  <td className="px-3 py-3 align-middle">
+                    <div className="flex flex-wrap gap-1">
+                      {user.feature_flags?.includes('ci') && (
+                        <Badge variant="secondary" className="text-[10px] font-medium">
+                          C&amp;I
+                        </Badge>
+                      )}
+                      {user.feature_flags?.includes('ci_backup') && (
+                        <Badge variant="outline" className="text-[10px] font-medium text-amber-700 border-amber-300">
+                          Backup
+                        </Badge>
+                      )}
+                      {(!user.feature_flags || user.feature_flags.length === 0) && (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="hidden max-w-48 truncate px-3 py-3 text-muted-foreground md:table-cell">{user.company_name || '-'}</td>
                   <td className="hidden whitespace-nowrap px-3 py-3 text-muted-foreground lg:table-cell">{user.phone || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatUserDate(user.created_at)}</td>
                   <td className="px-4 py-3 text-right align-middle">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="whitespace-nowrap"
-                      disabled={saving || !user.email}
-                      onClick={() => onResetPassword(user.email)}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Resetar senha
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      {onUpdateFeatureFlags && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="whitespace-nowrap"
+                          disabled={saving}
+                          onClick={() => setPermissionsUser(user)}
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                          Permissões
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="whitespace-nowrap"
+                        disabled={saving || !user.email}
+                        onClick={() => onResetPassword(user.email)}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Resetar senha
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -153,21 +347,57 @@ export function UsersPanel({
                 <div className="grid gap-2 text-sm">
                   <DetailItem label="Telefone" value={user.phone || '-'} />
                   <DetailItem label="Empresa" value={user.company_name || '-'} />
+                  <DetailItem
+                    label="Permissões"
+                    value={
+                      user.feature_flags && user.feature_flags.length > 0 ? (
+                        <span className="inline-flex flex-wrap gap-1">
+                          {user.feature_flags.includes('ci') && <Badge variant="secondary" className="text-[10px]">C&amp;I</Badge>}
+                          {user.feature_flags.includes('ci_backup') && <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">Backup</Badge>}
+                        </span>
+                      ) : (
+                        '-'
+                      )
+                    }
+                  />
                   <DetailItem label="Cadastro" value={formatUserDate(user.created_at)} />
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={saving || !user.email}
-                  onClick={() => onResetPassword(user.email)}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Resetar senha
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {onUpdateFeatureFlags && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={saving}
+                      onClick={() => setPermissionsUser(user)}
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      Permissões
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={saving || !user.email}
+                    onClick={() => onResetPassword(user.email)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Resetar senha
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+
+      {permissionsUser && onUpdateFeatureFlags && (
+        <UserPermissionsModal
+          key={permissionsUser.id}
+          user={permissionsUser}
+          onClose={() => setPermissionsUser(null)}
+          onSave={onUpdateFeatureFlags}
+          saving={saving}
+        />
       )}
     </section>
   );

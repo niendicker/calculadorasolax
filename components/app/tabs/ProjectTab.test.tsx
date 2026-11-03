@@ -171,7 +171,7 @@ function openProjectActions(projectName: string) {
 }
 
 describe('ProjectTab: empty and list states', () => {
-  it('keeps the new C&I project action disabled', () => {
+  it('keeps the new C&I project action disabled when canAccessCi is false', () => {
     const onNewCi = vi.fn();
     setup({ onNewCi });
 
@@ -180,6 +180,17 @@ describe('ProjectTab: empty and list states', () => {
 
     fireEvent.click(button);
     expect(onNewCi).not.toHaveBeenCalled();
+  });
+
+  it('enables the new C&I project action when canAccessCi is true', () => {
+    const onNewCi = vi.fn();
+    setup({ onNewCi, canAccessCi: true });
+
+    const button = screen.getByRole('button', { name: 'Novo projeto C&I' });
+    expect(button).not.toBeDisabled();
+
+    fireEvent.click(button);
+    expect(onNewCi).toHaveBeenCalledTimes(1);
   });
 
   it('shows an onboarding hint for a brand-new user with no saved projects', () => {

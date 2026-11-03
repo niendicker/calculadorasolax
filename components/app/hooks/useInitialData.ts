@@ -98,7 +98,7 @@ export function useInitialData({
       if (userData.user) {
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url, company_document')
+          .select('id, email, full_name, phone, role, company_name, company_address, company_logo_url, company_document, feature_flags')
           .eq('id', userData.user.id)
           .maybeSingle();
 
@@ -112,6 +112,7 @@ export function useInitialData({
           companyAddress: addressFromJson(profileData?.company_address),
           companyLogoUrl: profileData?.company_logo_url ?? '',
           companyDocument: profileData?.company_document ?? '',
+          featureFlags: (profileData as { feature_flags?: string[] } | null)?.feature_flags ?? [],
         });
 
         try {

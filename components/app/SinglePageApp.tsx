@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/client';
 import { isLimitError } from '@/lib/limits';
 import { useWizardStore, totalDailyKwh, totalNominalW, totalPeakW } from '@/lib/store/wizard-store';
@@ -320,6 +321,9 @@ export function SinglePageApp() {
     deleteAccount,
   } = useProfileActions({ supabase, profile, setProfile, router, locale, clearUserData, setActiveTab });
 
+  const hasCiFlag = profile?.role === 'admin' || Boolean(profile?.featureFlags?.includes('ci'));
+  const canAccessCi = hasCiFlag || savedCiProjects.length > 0;
+
   const { changeTab, openMobileTab } = useTabNavigation({
     activeTab,
     setActiveTab,
@@ -389,6 +393,10 @@ export function SinglePageApp() {
   // parallel status mechanism — it's already generic (just a message
   // setter), see useProjectActions.ts's own docstring on reportStatus.
   function startNewCiProject() {
+    if (!hasCiFlag) {
+      reportStatus('Acesso ao módulo C&I restrito. Solicite autorização ao administrador.');
+      return;
+    }
     newCiProjectDraft();
     changeTab('ciWorkspace');
     reportStatus(null);
@@ -442,6 +450,10 @@ export function SinglePageApp() {
   // openProjectWorkspace this doesn't need a workspaceNavigation state; the
   // dedicated 'ciWorkspace' tab is enough.
   function openCiProjectWorkspace(id: string) {
+    if (!canAccessCi) {
+      reportStatus('Acesso ao módulo C&I restrito. Solicite autorização ao administrador.');
+      return;
+    }
     loadCiProject(id, { showDetails: false });
     setSummaryDrawerOpen(false);
     changeTab('ciWorkspace');
@@ -1064,6 +1076,7 @@ export function SinglePageApp() {
               onOpenCi={openCiProjectWorkspace}
               onRemoveCi={deleteCiProject}
               onUpdateCiStatus={updateCiProjectStatusAction}
+              canAccessCi={hasCiFlag}
             />
           ) : activeTab === 'catalog' ? (
             <CatalogTab
@@ -1092,6 +1105,7 @@ export function SinglePageApp() {
               onRemoveService={removeService}
               marginSettings={marginSettings}
               onUpdateMarginPercent={updateMarginPercent}
+              canAccessCi={hasCiFlag}
             />
           ) : activeTab === 'purchases' ? (
             <SupplyTab
@@ -1133,21 +1147,38 @@ export function SinglePageApp() {
               />
             )
           ) : activeTab === 'ciWorkspace' ? (
-            <CommercialIndustrialWorkspace
-              projectInfo={ciProjectInfo}
-              clients={clients}
-              profile={profile}
-              onUpdateProjectInfo={setCiProjectInfo}
-              onSaveProject={() => { void saveCiProject_(); }}
-              onBackToProjects={() => { clearCiWorkspaceUrl(); cancelCiProjectDraft(); changeTab('project'); }}
-              ciOptions={ciOptions}
-              onUpdateCiOptions={setCiOptions}
-              currentCiProjectId={currentCiProjectId}
-              calculationResult={savedCiProjects.find((project) => project.id === currentCiProjectId)?.calculationResult ?? null}
-              onFlushSave={saveCiProject}
-              autosaveStatus={ciAutosaveStatus}
-              autosaveLastSavedAt={ciAutosaveLastSavedAt}
-            />
+            canAccessCi ? (
+              <CommercialIndustrialWorkspace
+                projectInfo={ciProjectInfo}
+                clients={clients}
+                profile={profile}
+                onUpdateProjectInfo={setCiProjectInfo}
+                onSaveProject={() => { void saveCiProject_(); }}
+                onBackToProjects={() => { clearCiWorkspaceUrl(); cancelCiProjectDraft(); changeTab('project'); }}
+                ciOptions={ciOptions}
+                onUpdateCiOptions={setCiOptions}
+                currentCiProjectId={currentCiProjectId}
+                calculationResult={savedCiProjects.find((project) => project.id === currentCiProjectId)?.calculationResult ?? null}
+                onFlushSave={saveCiProject}
+                autosaveStatus={ciAutosaveStatus}
+                autosaveLastSavedAt={ciAutosaveLastSavedAt}
+              />
+            ) : (
+              <div className="mx-auto max-w-lg p-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Módulo C&amp;I Restrito</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-sm text-muted-foreground">
+                    <p>O acesso ao módulo Comercial &amp; Industrial está disponível apenas para usuários autorizados.</p>
+                    <p>Solicite a liberação deste recurso ao administrador da plataforma.</p>
+                    <Button type="button" onClick={() => { clearCiWorkspaceUrl(); changeTab('project'); }}>
+                      Voltar para Projetos
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )
           ) : (
             <ProjectWorkspace
               enabled={workspaceOpen && Boolean(currentProjectId)}

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   createClientMock,
+  checkUserCiAccessMock,
   findOwnCiProjectMock,
   findBessProductModelMock,
   findUserBessUnitPriceMock,
@@ -11,6 +12,7 @@ const {
   listCalculationRunsMock,
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
+  checkUserCiAccessMock: vi.fn(),
   findOwnCiProjectMock: vi.fn(),
   findBessProductModelMock: vi.fn(),
   findUserBessUnitPriceMock: vi.fn(),
@@ -22,6 +24,7 @@ const {
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: createClientMock }));
 vi.mock('@/lib/data/commercial-industrial-calculation-repository', () => ({
+  checkUserCiAccess: checkUserCiAccessMock,
   findOwnCiProject: findOwnCiProjectMock,
   findBessProductModel: findBessProductModelMock,
   findUserBessUnitPrice: findUserBessUnitPriceMock,
@@ -56,6 +59,7 @@ beforeEach(() => {
   createClientMock.mockResolvedValue({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
   });
+  checkUserCiAccessMock.mockResolvedValue(true);
   findOwnCiProjectMock.mockResolvedValue(ciProject);
   findBessProductModelMock.mockResolvedValue('T-BESS-100');
   findUserBessUnitPriceMock.mockResolvedValue(45000);
@@ -95,6 +99,18 @@ describe('POST /api/projects/[projectId]/calculations', () => {
 
     expect(response.status).toBe(401);
     expect(findOwnCiProjectMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when user has no CI feature flag', async () => {
+    checkUserCiAccessMock.mockResolvedValue(false);
+    const { POST } = await import('./route');
+
+    const response = await POST(makeRequest(), makeParams());
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: 'Acesso ao módulo C&I não liberado para este usuário. Solicite autorização ao administrador.',
+    });
   });
 
   it('returns 404 without distinguishing "not found" from "not yours"', async () => {

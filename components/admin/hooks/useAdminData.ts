@@ -213,7 +213,7 @@ export function useAdminData({
         case 'users': {
           const { data, error: fetchError } = await supabase
             .from('profiles')
-            .select('id, email, full_name, phone, role, company_name, created_at, updated_at')
+            .select('id, email, full_name, phone, role, company_name, created_at, updated_at, feature_flags')
             .order('created_at', { ascending: false });
           if (!fetchError) setUsers((data ?? []) as UserProfileRow[]);
           return { error: fetchError };

@@ -15,6 +15,7 @@ supabase-migration.env
 supabase/.temp/
 supabase/.branches/
 .local-backups/
+.local/
 
 # OS
 .DS_Store

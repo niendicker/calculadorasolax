@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   cacheProjectCalculationResult,
+  checkUserCiAccess,
   findBessProductModel,
   findOwnCiProject,
   findUserBessUnitPrice,
@@ -147,5 +148,27 @@ describe('commercial-industrial-calculation-repository', () => {
     const { client } = makeClient({ data: null, error });
 
     await expect(listCalculationRuns(client, 'project-1')).rejects.toBe(error);
+  });
+
+  describe('checkUserCiAccess', () => {
+    it('retorna true para admin independente das flags', async () => {
+      const { client } = makeClient({ data: { role: 'admin', feature_flags: [] }, error: null });
+      await expect(checkUserCiAccess(client, 'u1')).resolves.toBe(true);
+    });
+
+    it('retorna true para usuário com flag ci', async () => {
+      const { client } = makeClient({ data: { role: 'user', feature_flags: ['ci'] }, error: null });
+      await expect(checkUserCiAccess(client, 'u1')).resolves.toBe(true);
+    });
+
+    it('retorna false para usuário sem flag ci', async () => {
+      const { client } = makeClient({ data: { role: 'user', feature_flags: [] }, error: null });
+      await expect(checkUserCiAccess(client, 'u1')).resolves.toBe(false);
+    });
+
+    it('retorna false se perfil não for encontrado', async () => {
+      const { client } = makeClient({ data: null, error: null });
+      await expect(checkUserCiAccess(client, 'u1')).resolves.toBe(false);
+    });
   });
 });

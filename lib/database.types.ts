@@ -697,6 +697,7 @@ export type Database = {
           company_name: string
           created_at: string
           email: string
+          feature_flags: string[]
           full_name: string
           id: string
           margin_accessory_percent: number
@@ -715,6 +716,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           email: string
+          feature_flags?: string[]
           full_name?: string
           id: string
           margin_accessory_percent?: number
@@ -733,6 +735,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           email?: string
+          feature_flags?: string[]
           full_name?: string
           id?: string
           margin_accessory_percent?: number

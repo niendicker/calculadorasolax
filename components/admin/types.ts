@@ -318,6 +318,7 @@ export interface UserProfileRow {
   company_name: string | null;
   created_at: string;
   updated_at: string;
+  feature_flags?: string[];
 }
 
 export type SupplierQuoteRequestStatus = 'pending' | 'sending' | 'sent' | 'failed';
