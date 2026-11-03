@@ -339,7 +339,7 @@ describe('LoadCurveChart', () => {
     Object.defineProperty(target, 'clientWidth', { configurable: true, value: 640 });
     act(() => resizeCallback?.());
 
-    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 240 });
+    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 180 });
     expect(instance.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
     expect(screen.queryByRole('button', { name: /Limpar/ })).not.toBeInTheDocument();
   });

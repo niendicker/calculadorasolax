@@ -1,15 +1,17 @@
 'use client';
 
 // Lets the user draw a representative day's load shape by dragging 24 hourly
-// points directly on a small chart — the companion to LoadCurveChart.tsx's
-// read-only, 672-point uPlot view, not a replacement for it. Hand-rolled SVG,
-// not uPlot: uPlot has no draggable-point support to build on top of, and a
-// 24-point chart with no need for zoom/pan/hundreds-of-points canvas
-// performance is exactly the "small chart" case docs/CI-MODULE-PLAN.md
-// section 8.3 says to reach for plain SVG before a library.
+// points directly on an SVG chart, synchronized with a lateral numeric editor
+// for the selected hour. Features normal & smooth brush modes, undo support,
+// and independent controls for weekdays and weekends.
 
 import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, RefreshCw, Undo2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { cn, readCssVar } from '@/lib/utils';
+import { DAILY_CURVE_PRESETS } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
 
 const HOURS_PER_DAY = 24;
 type EditMode = 'normal' | 'smooth';
@@ -17,21 +19,12 @@ const EDIT_MODES: { id: EditMode; label: string }[] = [
   { id: 'normal', label: 'Normal' },
   { id: 'smooth', label: 'Suave' },
 ];
-// Fixed, not user-adjustable (plan: "pincel de raio fixo") — 3h on each side
-// is enough to visibly round out a single-point tweak on a 24-point day
-// without a drag one hour away accidentally reshaping the whole morning.
+
 const BRUSH_RADIUS_HOURS = 3;
-// Let the point under the pointer absorb small corrections first. This keeps
-// fine adjustments from making the surrounding hours drift immediately; only
-// the movement beyond this band is distributed by the smooth brush.
 const SMOOTH_ADJACENT_THRESHOLD_KW = 5;
 const VIEW_WIDTH = 640;
-const VIEW_HEIGHT = 220;
-// left is generous on purpose: a 3-digit "### kW" label right-aligned with
-// only ~8px of gap needs more room than it looks like it should — too little
-// clips its leading digit against the SVG's own left edge (the same lesson
-// learned the hard way sizing LoadCurveChart.tsx's uPlot y-axis gutter).
-const MARGIN = { top: 12, right: 12, bottom: 28, left: 54 };
+const VIEW_HEIGHT = 235;
+const MARGIN = { top: 26, right: 14, bottom: 26, left: 54 };
 const PLOT_WIDTH = VIEW_WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_HEIGHT = VIEW_HEIGHT - MARGIN.top - MARGIN.bottom;
 const X_AXIS_HOURS = [0, 6, 12, 18, 23];
@@ -40,8 +33,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Rounds up to a "nice" axis ceiling (1/2/5/10 × a power of ten) instead of
- * the raw max, so gridlines land on round kW values. */
 function niceCeiling(value: number): number {
   if (value <= 0) return 10;
   const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
@@ -58,19 +49,11 @@ function yToPx(kw: number, maxKw: number): number {
   return MARGIN.top + PLOT_HEIGHT - (kw / maxKw) * PLOT_HEIGHT;
 }
 
-/** Shortest hour-of-day distance between two hours, wrapping past midnight
- * (23h and 0h are 1h apart, not 23h apart) — the brush's falloff needs this
- * so smoothing near a day boundary doesn't stop dead at the array edges. */
 function circularHourDistance(a: number, b: number): number {
   const diff = Math.abs(a - b) % HOURS_PER_DAY;
   return Math.min(diff, HOURS_PER_DAY - diff);
 }
 
-/** Normal mode: only the dragged hour changes. Smooth mode gives the dragged
- * hour priority: it moves freely within SMOOTH_ADJACENT_THRESHOLD_KW, and
- * only the excess is applied to the neighbors within BRUSH_RADIUS_HOURS.
- * The falloff is raised-cosine — 1 at the dragged point, 0 at the radius
- * edge — so the dragged hour still lands exactly where the user dropped it. */
 function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mode: EditMode): number[] {
   if (mode === 'normal') {
     const next = hourlyKw.slice();
@@ -89,37 +72,59 @@ function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mo
   });
 }
 
-// Deliberately floors at 0 only, with no upper clamp: `maxKw` is the current
-// frame's axis ceiling, derived from today's values — clamping drag input to
-// it would make any point already at the top impossible to raise further
-// (raising it needs a higher maxKw, which needs the raise to have already
-// happened). Dragging above the visible plot extrapolates past the current
-// ceiling instead; the axis then grows to fit on the very next render.
 function pxToKw(pxY: number, maxKw: number): number {
   const fraction = (MARGIN.top + PLOT_HEIGHT - pxY) / PLOT_HEIGHT;
   return Math.max(0, fraction * maxKw);
 }
 
-interface DailyCurveEditorProps {
-  /** 24 kW values, index = local hour of day (0-23). */
-  hourlyKw: number[];
-  onChange: (hourlyKw: number[]) => void;
+export interface DailyCurveEditorProps {
+  /** 24 kW values for direct single-day editing. */
+  hourlyKw?: number[];
+  onChange?: (hourlyKw: number[]) => void;
+  /** Full dual-pattern props when orchestrated with weekday/weekend. */
+  weekdayKw?: number[];
+  weekendKw?: number[];
+  activePattern?: 'weekday' | 'weekend';
+  onPatternChange?: (pattern: 'weekday' | 'weekend') => void;
+  onUpdatePatternKw?: (pattern: 'weekday' | 'weekend', kw: number[]) => void;
+  selectedPresetId?: string | null;
+  onSelectPreset?: (presetId: string) => void;
 }
 
-export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) {
+export function DailyCurveEditor({
+  hourlyKw,
+  onChange,
+  weekdayKw,
+  weekendKw,
+  activePattern = 'weekday',
+  onPatternChange,
+  onUpdatePatternKw,
+  selectedPresetId,
+  onSelectPreset,
+}: DailyCurveEditorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  // Seeded once from the initial `hourlyKw` and updated locally on every
-  // drag from then on. If the parent needs to reset this to a different
-  // starting pattern (a new preset, or switching the weekday/weekend tab),
-  // it does so by remounting with a different `key` — the idiomatic React
-  // way to treat a prop as "initial state only" — rather than this syncing
-  // via an effect on every `hourlyKw` change.
-  const [localKw, setLocalKw] = useState(hourlyKw);
+
+  // Determine active dataset: dual-pattern mode if weekday/weekend provided, fallback to hourlyKw
+  const isDualPattern = Boolean(weekdayKw && weekendKw);
+  const activeDataset = isDualPattern
+    ? (activePattern === 'weekday' ? weekdayKw! : weekendKw!)
+    : (hourlyKw ?? new Array(HOURS_PER_DAY).fill(0));
+
+  const [localKw, setLocalKw] = useState(activeDataset);
+  const [selectedHour, setSelectedHour] = useState<number>(12);
   const [activeHour, setActiveHour] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<EditMode>('normal');
+  const [undoKw, setUndoKw] = useState<number[] | null>(null);
+
   const pendingRef = useRef<number[] | null>(null);
   const frameRef = useRef<number | null>(null);
   const smoothInteractionRef = useRef<{ hour: number; startingKw: number[] } | null>(null);
+
+  // Synchronize localKw when active dataset changes externally
+  useEffect(() => {
+    setLocalKw(activeDataset);
+    setUndoKw(null);
+  }, [activeDataset]);
 
   useEffect(
     () => () => {
@@ -131,16 +136,16 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
   function commitPending() {
     frameRef.current = null;
     if (pendingRef.current) {
-      onChange(pendingRef.current);
+      if (isDualPattern && onUpdatePatternKw) {
+        onUpdatePatternKw(activePattern, pendingRef.current);
+      }
+      onChange?.(pendingRef.current);
       pendingRef.current = null;
     }
   }
 
-  // Mirrors attachPanAndZoom in LoadCurveChart.tsx: the dragged point moves
-  // instantly (cheap, local state), but `onChange` — which can cascade into
-  // rebuilding up to 672 curve points and a uPlot setData in the preview
-  // below — is coalesced to at most once per animation frame.
   function updateHour(hour: number, kw: number) {
+    setUndoKw(null);
     setLocalKw((previous) => {
       const roundedKw = Math.round(kw * 10) / 10;
       const smoothStartingKw = smoothInteractionRef.current?.hour === hour ? smoothInteractionRef.current.startingKw : previous;
@@ -149,6 +154,46 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
       if (frameRef.current == null) frameRef.current = requestAnimationFrame(commitPending);
       return next;
     });
+  }
+
+  function commitHourImmediately(hour: number, kw: number) {
+    if (frameRef.current != null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    pendingRef.current = null;
+    setUndoKw(null);
+    setLocalKw((previous) => {
+      const roundedKw = Math.round(kw * 10) / 10;
+      const next = applyPointUpdate(previous, hour, roundedKw, 'normal');
+      if (isDualPattern && onUpdatePatternKw) {
+        onUpdatePatternKw(activePattern, next);
+      }
+      onChange?.(next);
+      return next;
+    });
+  }
+
+  function handleClearCurve() {
+    setUndoKw(localKw.slice());
+    const cleared = new Array(HOURS_PER_DAY).fill(0);
+    setLocalKw(cleared);
+    if (isDualPattern && onUpdatePatternKw) {
+      onUpdatePatternKw(activePattern, cleared);
+    }
+    onChange?.(cleared);
+  }
+
+  function handleUndo() {
+    if (undoKw) {
+      const restored = undoKw.slice();
+      setLocalKw(restored);
+      if (isDualPattern && onUpdatePatternKw) {
+        onUpdatePatternKw(activePattern, restored);
+      }
+      onChange?.(restored);
+      setUndoKw(null);
+    }
   }
 
   function beginInteraction(hour: number) {
@@ -172,7 +217,7 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
 
   const linePath = localKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' ');
   const areaPath = `${linePath} L ${xToPx(HOURS_PER_DAY - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`;
-  const gradientId = 'daily-curve-editor-area';
+  const gradientId = `daily-curve-editor-area-${activePattern}`;
 
   function pointerPositionToKw(clientY: number): number {
     const svg = svgRef.current;
@@ -186,6 +231,7 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
     event.currentTarget.setPointerCapture(event.pointerId);
     beginPointerInteraction(hour);
     setActiveHour(hour);
+    setSelectedHour(hour);
     updateHour(hour, pointerPositionToKw(event.clientY));
   }
 
@@ -202,14 +248,26 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
 
   function handleKeyDown(hour: number, event: React.KeyboardEvent<SVGCircleElement>) {
     const step = event.shiftKey ? 5 : 1;
-    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+    if (event.key === 'ArrowUp') {
       event.preventDefault();
       beginInteraction(hour);
       updateHour(hour, Math.max(0, localKw[hour] + step));
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+    } else if (event.key === 'ArrowDown') {
       event.preventDefault();
       beginInteraction(hour);
       updateHour(hour, Math.max(0, localKw[hour] - step));
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      const prevHour = (hour + HOURS_PER_DAY - 1) % HOURS_PER_DAY;
+      setSelectedHour(prevHour);
+      const prevEl = svgRef.current?.querySelector(`circle[data-hour="${prevHour}"]`) as HTMLElement | null;
+      prevEl?.focus();
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      const nextHour = (hour + 1) % HOURS_PER_DAY;
+      setSelectedHour(nextHour);
+      const nextEl = svgRef.current?.querySelector(`circle[data-hour="${nextHour}"]`) as HTMLElement | null;
+      nextEl?.focus();
     }
   }
 
@@ -218,126 +276,322 @@ export function DailyCurveEditor({ hourlyKw, onChange }: DailyCurveEditorProps) 
       ? { from: Math.max(0, activeHour - BRUSH_RADIUS_HOURS), to: Math.min(HOURS_PER_DAY - 1, activeHour + BRUSH_RADIUS_HOURS) }
       : null;
 
+  const currentSelectedKw = localKw[selectedHour] ?? 0;
+
   return (
-    <div className="space-y-2">
-      <div className="grid w-fit grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-        {EDIT_MODES.map((mode) => (
-          <button
-            key={mode.id}
-            type="button"
-            aria-pressed={editMode === mode.id}
-            onClick={() => {
-              smoothInteractionRef.current = null;
-              setEditMode(mode.id);
-            }}
-            className={cn(
-              'flex h-7 items-center justify-center rounded-md px-3 text-xs font-medium transition',
-              editMode === mode.id
-                ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-            )}
-          >
-            {mode.label}
-          </button>
-        ))}
-      </div>
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-        className="h-[220px] w-full touch-none select-none"
-        role="img"
-        aria-label="Editor da curva diária — arraste os pontos para ajustar a potência de cada hora"
-      >
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={primary} stopOpacity={0.3} />
-            <stop offset="100%" stopColor={primary} stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-
-        {brushRange && (
-          // Visual-only approximation: doesn't wrap past midnight the way the
-          // actual falloff (circularHourDistance) does, so a brush centered
-          // near 0h/23h looks slightly truncated here even though the data
-          // effect on the other side of midnight is real. A cosmetic
-          // simplification, not a data bug.
-          <rect
-            x={xToPx(brushRange.from)}
-            y={MARGIN.top}
-            width={xToPx(brushRange.to) - xToPx(brushRange.from)}
-            height={PLOT_HEIGHT}
-            fill={primary}
-            opacity={0.08}
-          />
-        )}
-
-        {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
-          const kw = maxKw * fraction;
-          const y = yToPx(kw, maxKw);
-          return (
-            <g key={fraction}>
-              <line x1={MARGIN.left} y1={y} x2={VIEW_WIDTH - MARGIN.right} y2={y} stroke={border} strokeWidth={1} />
-              <text x={MARGIN.left - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={11} fill={mutedForeground}>
-                {Math.round(kw)} kW
-              </text>
-            </g>
-          );
-        })}
-
-        {X_AXIS_HOURS.map((hour) => (
-          <text key={hour} x={xToPx(hour)} y={VIEW_HEIGHT - 8} textAnchor="middle" fontSize={11} fill={mutedForeground}>
-            {hour}h
-          </text>
-        ))}
-
-        <path d={areaPath} fill={`url(#${gradientId})`} />
-        <path d={linePath} fill="none" stroke={primary} strokeWidth={2} />
-
-        {localKw.map((kw, hour) => (
-          <g key={hour}>
-            <circle
-              cx={xToPx(hour)}
-              cy={yToPx(kw, maxKw)}
-              r={editMode === 'smooth' ? 8 : 7}
-              fill={editMode === 'smooth' ? primary : card}
-              stroke={editMode === 'smooth' ? card : primary}
-              strokeWidth={2}
+    <div className="space-y-3">
+      {/* Top Controls Header: Pattern Segmented Control & Smooth Mode */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {isDualPattern && onPatternChange ? (
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            <button
+              type="button"
+              aria-pressed={activePattern === 'weekday'}
+              onClick={() => onPatternChange('weekday')}
               className={cn(
-                'cursor-ns-resize focus:outline-none focus-visible:stroke-[3]',
-                editMode === 'smooth' ? 'drop-shadow-sm' : 'drop-shadow-none'
+                'flex h-7 items-center justify-center rounded-md px-3 text-xs font-medium transition',
+                activePattern === 'weekday'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
               )}
-              tabIndex={0}
-              role="slider"
-              aria-label={`Potência às ${hour}h`}
-              aria-valuemin={0}
-              aria-valuemax={maxKw}
-              aria-valuenow={kw}
-              aria-valuetext={`${kw.toFixed(1)} kW`}
-              onPointerDown={(event) => handlePointerDown(hour, event)}
-              onPointerMove={(event) => handlePointerMove(hour, event)}
-              onPointerUp={handlePointerUp}
-              onKeyDown={(event) => handleKeyDown(hour, event)}
-              onFocus={() => setActiveHour(hour)}
-              onBlur={() => {
-                if (smoothInteractionRef.current?.hour === hour) smoothInteractionRef.current = null;
-                setActiveHour((current) => (current === hour ? null : current));
-              }}
-            />
-            {activeHour === hour && (
-              <text
-                x={clamp(xToPx(hour), MARGIN.left + 24, VIEW_WIDTH - MARGIN.right - 24)}
-                y={Math.max(yToPx(kw, maxKw) - 14, MARGIN.top + 10)}
-                textAnchor="middle"
-                fontSize={12}
-                fontWeight={600}
-                fill={foreground}
+            >
+              Dias úteis
+            </button>
+            <button
+              type="button"
+              aria-pressed={activePattern === 'weekend'}
+              onClick={() => onPatternChange('weekend')}
+              className={cn(
+                'flex h-7 items-center justify-center rounded-md px-3 text-xs font-medium transition',
+                activePattern === 'weekend'
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+              )}
+            >
+              Fim de semana
+            </button>
+          </div>
+        ) : <div />}
+
+        <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            {EDIT_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                aria-pressed={editMode === mode.id}
+                onClick={() => {
+                  smoothInteractionRef.current = null;
+                  setEditMode(mode.id);
+                }}
+                className={cn(
+                  'flex h-7 items-center justify-center rounded-md px-2.5 text-xs font-medium transition',
+                  editMode === mode.id
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
               >
-                {kw.toFixed(1)} kW
-              </text>
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Main 2-Column Area: SVG Chart + Side Numerical Editor Panel */}
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch">
+        {/* Left Column: Interactive SVG Chart */}
+        <div className="flex-1 min-w-0 flex flex-col justify-between space-y-2">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+            className="h-[235px] w-full touch-none select-none rounded-lg bg-card"
+            role="img"
+            aria-label="Editor da curva diária — arraste os pontos para ajustar a potência de cada hora"
+          >
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={primary} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={primary} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+
+            {brushRange && (
+              <rect
+                x={xToPx(brushRange.from)}
+                y={MARGIN.top}
+                width={xToPx(brushRange.to) - xToPx(brushRange.from)}
+                height={PLOT_HEIGHT}
+                fill={primary}
+                opacity={0.08}
+              />
             )}
-          </g>
-        ))}
-      </svg>
+
+            {/* Gridlines & Y-axis labels */}
+            {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+              const kw = maxKw * fraction;
+              const y = yToPx(kw, maxKw);
+              return (
+                <g key={fraction}>
+                  <line x1={MARGIN.left} y1={y} x2={VIEW_WIDTH - MARGIN.right} y2={y} stroke={border} strokeWidth={1} />
+                  <text x={MARGIN.left - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={11} fill={mutedForeground}>
+                    {Math.round(kw)} kW
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* X-axis ticks */}
+            {X_AXIS_HOURS.map((hour) => (
+              <text key={hour} x={xToPx(hour)} y={VIEW_HEIGHT - 8} textAnchor="middle" fontSize={11} fill={mutedForeground}>
+                {hour}h
+              </text>
+            ))}
+
+            {/* Vertical Guideline for Selected Hour */}
+            {selectedHour !== null && (
+              <line
+                x1={xToPx(selectedHour)}
+                y1={MARGIN.top}
+                x2={xToPx(selectedHour)}
+                y2={MARGIN.top + PLOT_HEIGHT}
+                stroke={primary}
+                strokeDasharray="3 3"
+                strokeWidth={1.5}
+                opacity={0.4}
+              />
+            )}
+
+            {/* Shaded Area and Curve Line */}
+            <path d={areaPath} fill={`url(#${gradientId})`} />
+            <path d={linePath} fill="none" stroke={primary} strokeWidth={2} />
+
+            {/* Interactive Points (Sliders) */}
+            {localKw.map((kw, hour) => {
+              const cx = xToPx(hour);
+              const cy = yToPx(kw, maxKw);
+              const isSelected = selectedHour === hour;
+              const isHoveredOrActive = activeHour === hour;
+
+              return (
+                <g key={hour}>
+                  <circle
+                    data-hour={hour}
+                    cx={cx}
+                    cy={cy}
+                    r={editMode === 'smooth' ? 8 : 7}
+                    fill={editMode === 'smooth' ? primary : card}
+                    stroke={editMode === 'smooth' ? card : primary}
+                    strokeWidth={isSelected ? 3.5 : 2}
+                    className={cn(
+                      'cursor-ns-resize focus:outline-none transition-transform',
+                      isSelected && 'drop-shadow-sm',
+                      editMode === 'smooth' ? 'drop-shadow-sm' : 'drop-shadow-none'
+                    )}
+                    tabIndex={0}
+                    role="slider"
+                    aria-label={`Potência às ${hour}h`}
+                    aria-valuemin={0}
+                    aria-valuemax={maxKw}
+                    aria-valuenow={kw}
+                    aria-valuetext={`${kw.toFixed(1)} kW`}
+                    onPointerDown={(event) => handlePointerDown(hour, event)}
+                    onPointerMove={(event) => handlePointerMove(hour, event)}
+                    onPointerUp={handlePointerUp}
+                    onKeyDown={(event) => handleKeyDown(hour, event)}
+                    onClick={() => setSelectedHour(hour)}
+                    onFocus={() => {
+                      setActiveHour(hour);
+                      setSelectedHour(hour);
+                    }}
+                    onBlur={() => {
+                      if (smoothInteractionRef.current?.hour === hour) smoothInteractionRef.current = null;
+                      setActiveHour((current) => (current === hour ? null : current));
+                    }}
+                  />
+
+                  {/* Tooltip badge for active/selected point */}
+                  {(isSelected || isHoveredOrActive) && (
+                    <g>
+                      <rect
+                        x={clamp(cx - 36, MARGIN.left, VIEW_WIDTH - MARGIN.right - 72)}
+                        y={Math.max(cy - 26, MARGIN.top - 18)}
+                        width={72}
+                        height={18}
+                        rx={4}
+                        fill={foreground}
+                        opacity={0.92}
+                      />
+                      <text
+                        x={clamp(cx, MARGIN.left + 36, VIEW_WIDTH - MARGIN.right - 36)}
+                        y={Math.max(cy - 13, MARGIN.top - 5)}
+                        textAnchor="middle"
+                        fontSize={10}
+                        fontWeight={600}
+                        fill={card}
+                      >
+                        {String(hour).padStart(2, '0')}:00 · {kw.toFixed(1)} kW
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Bottom Bar: Instructions and Discrete Clear Action */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
+            <span>Arraste os pontos ou edite o valor ao lado.</span>
+            {undoKw ? (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span>Curva zerada.</span>
+                <Button type="button" variant="link" size="xs" onClick={handleUndo} className="h-auto p-0 font-semibold text-primary">
+                  <Undo2 className="h-3 w-3 mr-1" /> Desfazer
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClearCurve}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+              >
+                Limpar curva
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Lateral Numeric Editor Panel (~205-210px) */}
+        <div className="w-full lg:w-[210px] shrink-0 rounded-xl border border-border/80 bg-muted/30 p-3.5 flex flex-col justify-between space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
+              <span className="text-xs font-semibold text-foreground">Ponto selecionado</span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                {activePattern === 'weekday' ? 'Dia útil' : 'Fim de sem.'}
+              </span>
+            </div>
+
+            {/* Hour Selector with Navigation Buttons */}
+            <div className="space-y-1">
+              <label htmlFor="select-hour-dropdown" className="text-[11px] font-medium text-muted-foreground">
+                Horário
+              </label>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 bg-background"
+                  onClick={() => setSelectedHour((h) => (h + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
+                  aria-label="Hora anterior"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Select
+                  id="select-hour-dropdown"
+                  value={String(selectedHour)}
+                  onChange={(e) => setSelectedHour(Number(e.target.value))}
+                  aria-label="Horário selecionado"
+                  className="h-8 text-xs font-medium text-foreground bg-background"
+                >
+                  {Array.from({ length: HOURS_PER_DAY }, (_, i) => (
+                    <option key={i} value={i}>
+                      {`${String(i).padStart(2, '0')}:00`}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 bg-background"
+                  onClick={() => setSelectedHour((h) => (h + 1) % HOURS_PER_DAY)}
+                  aria-label="Próxima hora"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Featured Active Power Numeric Input */}
+            <div className="space-y-1">
+              <label htmlFor="active-power-input" className="text-[11px] font-medium text-muted-foreground">
+                Potência ativa
+              </label>
+              <div className="relative">
+                <Input
+                  id="active-power-input"
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={currentSelectedKw}
+                  onChange={(e) => {
+                    const parsed = parseFloat(e.target.value);
+                    if (!isNaN(parsed)) {
+                      commitHourImmediately(selectedHour, Math.max(0, parsed));
+                    }
+                  }}
+                  className="h-9 pr-9 text-base font-semibold tabular-nums text-foreground bg-background"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                  kW
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lateral Footer: Auto-update Indicator & Keyboard Hints */}
+          <div className="space-y-1.5 border-t border-border/60 pt-2.5 text-[11px] text-muted-foreground">
+            <p className="flex items-center gap-1.5">
+              <RefreshCw className="h-3 w-3 shrink-0 text-primary" />
+              <span>Atualização automática da prévia</span>
+            </p>
+            <p className="text-[10px] leading-tight text-muted-foreground/80">
+              Dica: use ↑/↓ para ajustar e ←/→ para trocar de horário.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

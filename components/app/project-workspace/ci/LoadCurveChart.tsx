@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
 import type { LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 
-const CHART_HEIGHT = 240;
+const CHART_HEIGHT = 180;
 const MIN_SELECTION_DRAG_PX = 4;
 
 export interface CurveRangeSelection {
@@ -357,6 +357,41 @@ function buildOptions(
       },
     ],
     hooks: {
+      drawClear: [
+        (self) => {
+          const points = pointsRef.current;
+          if (!points || points.length === 0) return;
+          const top = Number.isFinite(self.bbox.top) ? self.bbox.top : 0;
+          const height = Number.isFinite(self.bbox.height) ? self.bbox.height : CHART_HEIGHT;
+
+          self.ctx.save();
+          self.ctx.fillStyle = 'rgba(100, 116, 139, 0.08)';
+
+          let rangeStart: number | null = null;
+          for (let i = 0; i < points.length; i++) {
+            const d = new Date(points[i].timestamp);
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            if (isWeekend) {
+              if (rangeStart === null) rangeStart = i;
+            } else if (rangeStart !== null) {
+              const left = self.valToPos(rangeStart, 'x', true);
+              const right = self.valToPos(i, 'x', true);
+              if (Number.isFinite(left) && Number.isFinite(right)) {
+                self.ctx.fillRect(Math.min(left, right), top, Math.abs(right - left), height);
+              }
+              rangeStart = null;
+            }
+          }
+          if (rangeStart !== null) {
+            const left = self.valToPos(rangeStart, 'x', true);
+            const right = self.valToPos(points.length - 1, 'x', true);
+            if (Number.isFinite(left) && Number.isFinite(right)) {
+              self.ctx.fillRect(Math.min(left, right), top, Math.abs(right - left), height);
+            }
+          }
+          self.ctx.restore();
+        },
+      ],
       setScale: [
         (self, key) => {
           if (key !== 'x') return;
@@ -686,7 +721,19 @@ export function LoadCurveChart({
   const summaryA = summaryFor(selections.a);
   const summaryB = summaryFor(selections.b);
 
-  const peakKw = points.reduce((max, p) => (p.powerKw > max ? p.powerKw : max), 0);
+  const totalPoints = points.length;
+  let peakKw = 0;
+  let minKw = totalPoints > 0 ? points[0].powerKw : 0;
+  let sumKw = 0;
+  for (const p of points) {
+    if (p.powerKw > peakKw) peakKw = p.powerKw;
+    if (p.powerKw < minKw) minKw = p.powerKw;
+    sumKw += p.powerKw;
+  }
+  const intervalHours = resolutionMinutes / 60;
+  const totalEnergyKwh = sumKw * intervalHours;
+  const averageKw = totalPoints > 0 ? sumKw / totalPoints : 0;
+
   const hasContract = Boolean(contractedDemandKw && contractedDemandKw > 0);
   const hasExceedance = Boolean(hasContract && peakKw > (contractedDemandKw ?? 0));
   const exceedanceKw = hasExceedance ? peakKw - (contractedDemandKw ?? 0) : 0;
@@ -694,41 +741,40 @@ export function LoadCurveChart({
   const marginKw = hasContract && !hasExceedance && contractedDemandKw ? contractedDemandKw - peakKw : 0;
 
   return (
-    <div className="space-y-2">
-      {hasContract && (
-        <div
-          className={cn(
-            'flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs',
-            hasExceedance
-              ? 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200'
-              : 'border-border bg-muted/30 text-muted-foreground'
-          )}
-        >
-          <div className="flex items-center gap-1.5 font-medium">
-            {hasExceedance ? (
-              <>
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                <span>
-                  Ultrapassagem detectada: pico de {peakKw.toFixed(2)} kW excede o contrato ({contractedDemandKw} kW) em{' '}
-                  <strong className="font-semibold text-foreground">
-                    +{exceedanceKw.toFixed(2)} kW (+{exceedancePercent.toFixed(1)}%)
-                  </strong>
-                  .
-                </span>
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                <span>
-                  Demanda contratada ({contractedDemandKw} kW): pico de {peakKw.toFixed(2)} kW dentro do contrato (margem livre de{' '}
-                  <strong className="font-semibold text-foreground">{marginKw.toFixed(2)} kW</strong>).
-                </span>
-              </>
-            )}
-          </div>
-          <span className="text-[11px] font-normal text-muted-foreground">Linha tracejada vermelha no gráfico</span>
+    <div className="space-y-3">
+      {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
+      <div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
+        <div className="p-3">
+          <p className="text-xs font-medium text-muted-foreground">Demanda máxima</p>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {peakKw.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kW</span>
+          </p>
         </div>
-      )}
+        <div className="p-3">
+          <p className="text-xs font-medium text-muted-foreground">Demanda mínima</p>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {minKw.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kW</span>
+          </p>
+        </div>
+        <div className="p-3">
+          <p className="text-xs font-medium text-muted-foreground">Potência média</p>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {averageKw.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kW</span>
+          </p>
+        </div>
+        <div className="p-3">
+          <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {totalEnergyKwh.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kWh</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Gráfico semanal (~180px) com uPlot e fundo de fins de semana */}
       <div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
         {isZoomed && (
@@ -842,6 +888,46 @@ export function LoadCurveChart({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Base do painel: Status da demanda contratada */}
+      {hasContract ? (
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs',
+            hasExceedance
+              ? 'border-destructive/40 bg-destructive/10 text-destructive dark:text-red-300'
+              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+          )}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            {hasExceedance ? (
+              <>
+                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive dark:text-red-400" aria-hidden="true" />
+                <span>
+                  <strong>Demanda contratada excedida</strong> (Ultrapassagem detectada): pico de {peakKw.toFixed(2)} kW excede o contrato ({contractedDemandKw} kW) em{' '}
+                  <strong className="font-semibold text-foreground">
+                    +{exceedanceKw.toFixed(2)} kW (+{exceedancePercent.toFixed(1)}%)
+                  </strong>
+                  .
+                </span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <span>
+                  <strong>Dentro da demanda contratada</strong>: pico de {peakKw.toFixed(2)} kW dentro do contrato ({contractedDemandKw} kW), com margem livre de{' '}
+                  <strong className="font-semibold text-foreground">{marginKw.toFixed(2)} kW</strong>.
+                </span>
+              </>
+            )}
+          </div>
+          <span className="text-[11px] font-normal text-muted-foreground">Linha tracejada vermelha no gráfico</span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2 text-xs text-muted-foreground">
+          <span>Demanda contratada: não definida (configure na etapa Tarifa para acompanhar limites).</span>
         </div>
       )}
     </div>

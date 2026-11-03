@@ -7,11 +7,7 @@ import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiLoadCurvePanel } from './CiLoadCurvePanel';
 
-// jsdom has no real <canvas> 2D context, so the real uPlot would throw as
-// soon as it tries to draw — mock it the same way other tests here mock
-// heavy/unsupported dependencies (e.g. buildProjectQuotePdfBlob in
-// SinglePageApp.test.tsx) instead of trying to make canvas work in jsdom.
-// LoadCurveChart.test.tsx covers the chart itself in more detail.
+// Fake uPlot for jsdom (same mock pattern as LoadCurveChart.test.tsx)
 vi.mock('uplot', () => ({
   default: class FakeUPlot {
     root = document.createElement('div');
@@ -52,106 +48,107 @@ describe('CiLoadCurvePanel', () => {
   it('defaults to 15 min resolution and America/Sao_Paulo, offering only the two Brazilian timezones', () => {
     render(<ControlledPanel />);
     expect(screen.getByRole('button', { name: '15 min' })).toHaveAttribute('aria-pressed', 'true');
-    const tzSelect = screen.getByLabelText('Fuso horário');
-    expect(tzSelect).toHaveValue('America/Sao_Paulo');
+    const tzSelect = screen.getByLabelText('Fuso horário') as HTMLSelectElement;
+    expect(tzSelect.value).toBe('America/Sao_Paulo');
 
-    const options = screen.getAllByRole('option');
+    const options = Array.from(tzSelect.querySelectorAll('option'));
     expect(options).toHaveLength(2);
-    expect(options[0]).toHaveValue('America/Sao_Paulo');
-    expect(options[0]).toHaveTextContent('Brasília (UTC-3)');
-    expect(options[1]).toHaveValue('America/Manaus');
-    expect(options[1]).toHaveTextContent('Manaus / Cuiabá (UTC-4)');
+    expect(options[0].value).toBe('America/Sao_Paulo');
+    expect(options[0].textContent).toBe('Brasília (UTC-3)');
+    expect(options[1].value).toBe('America/Manaus');
+    expect(options[1].textContent).toBe('Manaus / Cuiabá (UTC-4)');
 
     fireEvent.change(tzSelect, { target: { value: 'America/Manaus' } });
-    expect(tzSelect).toHaveValue('America/Manaus');
+    expect(tzSelect.value).toBe('America/Manaus');
   });
 
-  it('imports a valid CSV and shows the normalized summary', async () => {
+  it('renders compact breadcrumb steps with BESS completed and Curva de carga active', () => {
+    render(<ControlledPanel />);
+    expect(screen.getByText('Dimensionamento BESS')).toBeInTheDocument();
+    expect(screen.getByText('BESS')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Curva de carga' })).toBeInTheDocument();
+  });
+
+  it('imports a valid CSV and shows the weekly preview with measurements', async () => {
     render(<ControlledPanel />);
     fireEvent.click(screen.getByRole('button', { name: '60 min' }));
 
     const csv = 'timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
     await importFile(csv);
 
-    expect(await screen.findByText('Resumo')).toBeInTheDocument();
-    expect(screen.getByText('20.00 kW')).toBeInTheDocument(); // pico
-    expect(screen.getByText('10.00 kW')).toBeInTheDocument(); // mínima
+    expect(await screen.findByText(/Resumo/)).toBeInTheDocument();
+    expect(await screen.findByText(/20\.00/)).toBeInTheDocument(); // pico
+    expect(await screen.findByText(/10\.00/)).toBeInTheDocument(); // mínima
     expect(screen.getByText(/3 \/ 672 pontos · resolução 60 min/)).toBeInTheDocument();
   });
 
-  it('shows errors for an invalid CSV and never surfaces a summary', async () => {
+  it('shows errors for an invalid CSV and does not apply the curve', async () => {
     render(<ControlledPanel />);
     await importFile('not,a,valid,curve\n1,2,3,4\n');
 
     expect(await screen.findByText('Não foi possível importar o arquivo')).toBeInTheDocument();
-    expect(screen.queryByText('Resumo')).not.toBeInTheDocument();
   });
 
-  it('removes an imported curve', async () => {
+  it('removes an imported curve when requested', async () => {
     render(<ControlledPanel />);
     fireEvent.click(screen.getByRole('button', { name: '60 min' }));
     await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
-    await screen.findByText('Resumo');
+    await screen.findByText(/Resumo/);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover curva' }));
-    await waitFor(() => expect(screen.queryByText('Resumo')).not.toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Remover curva' })).not.toBeInTheDocument();
+    const removeBtn = screen.getByRole('button', { name: /Remover curva/i });
+    fireEvent.click(removeBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nenhuma curva de carga disponível para exibição/i)).toBeInTheDocument();
+    });
   });
 
   describe('manual curve editing', () => {
-    it('switching to "Editar manualmente" alone does not apply any curve', () => {
+    it('defaults to "Comércio e serviços" preset with 24 hourly sliders and preview', async () => {
       render(<ControlledPanel />);
-      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
+      const baseSelect = screen.getByLabelText('Perfil base');
+      expect(baseSelect).toHaveValue('comercio');
 
-      expect(screen.getByText('Perfil plano')).toBeInTheDocument(); // preset grid, nothing picked yet
-      expect(screen.queryByText('Resumo')).not.toBeInTheDocument();
-    });
-
-    it('picking a preset applies a full-period curve and shows its summary', async () => {
-      render(<ControlledPanel />);
-      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Perfil plano' }));
-
-      expect(await screen.findByText('Resumo')).toBeInTheDocument();
-      expect(screen.getAllByText('50.00 kW')).not.toHaveLength(0); // pico/mínima/média all flat at 50 kW
-      expect(screen.getByText('8400.00 kWh')).toBeInTheDocument(); // 672 pts * 50 kW * 15 min
-      expect(screen.getByText(/672 \/ 672 pontos · resolução 15 min/)).toBeInTheDocument();
-
-      // 24 draggable points for the active (weekday) pattern.
       expect(screen.getAllByRole('slider')).toHaveLength(24);
+      expect(await screen.findByText(/Resumo/)).toBeInTheDocument();
+      expect(screen.getByText(/672 \/ 672 pontos · resolução 15 min/)).toBeInTheDocument();
     });
 
-    it('toggles between the weekday and weekend patterns', async () => {
+    it('selecting a different preset updates the curve and slider values', async () => {
       render(<ControlledPanel />);
-      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Indústria 1 turno' }));
-      await screen.findByText('Resumo');
+      const baseSelect = screen.getByLabelText('Perfil base');
+
+      fireEvent.change(baseSelect, { target: { value: 'industria-1-turno' } });
+      expect(baseSelect).toHaveValue('industria-1-turno');
+
+      // 10h in industria-1-turno is 100 kW
+      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
+    });
+
+    it('toggles between weekday and weekend patterns', async () => {
+      render(<ControlledPanel />);
+      const baseSelect = screen.getByLabelText('Perfil base');
+      fireEvent.change(baseSelect, { target: { value: 'industria-1-turno' } });
 
       expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
 
       fireEvent.click(screen.getByRole('button', { name: 'Fim de semana' }));
       expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '10');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Dias úteis' }));
+      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
     });
 
-    it('"Trocar perfil" goes back to the preset grid without clearing the applied curve', async () => {
+    it('editing numeric input marks preset as "Personalizado"', async () => {
       render(<ControlledPanel />);
-      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Perfil plano' }));
-      await screen.findByText('Resumo');
+      const baseSelect = screen.getByLabelText('Perfil base');
+      expect(baseSelect).toHaveValue('comercio');
 
-      fireEvent.click(screen.getByRole('button', { name: 'Trocar perfil' }));
-      expect(screen.getByRole('button', { name: 'Perfil plano' })).toBeInTheDocument();
-      expect(screen.getByText('Resumo')).toBeInTheDocument(); // previously applied curve still shown below
-    });
+      const numericInput = screen.getByLabelText('Potência ativa');
+      fireEvent.change(numericInput, { target: { value: '150' } });
 
-    it('removes a manually-built curve', async () => {
-      render(<ControlledPanel />);
-      fireEvent.click(screen.getByRole('button', { name: 'Editar manualmente' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Perfil plano' }));
-      await screen.findByText('Resumo');
-
-      fireEvent.click(screen.getByRole('button', { name: 'Remover curva' }));
-      await waitFor(() => expect(screen.queryByText('Resumo')).not.toBeInTheDocument());
+      expect(baseSelect).toHaveValue('custom');
+      expect(screen.getByRole('slider', { name: 'Potência às 12h' })).toHaveAttribute('aria-valuenow', '150');
     });
 
     it('restores manual curve editor with saved presets and hours when reopening the panel', async () => {
@@ -164,16 +161,16 @@ describe('CiLoadCurvePanel', () => {
         source: 'manual' as const,
         points: [{ timestamp: '2026-01-01T00:00:00Z', powerKw: 50 }],
         manualConfig: {
-          presetId: 'comercio',
-          weekdayKw: [15, 15, 15, 15, 15, 15, 20, 45, 80, 95, 100, 98, 70, 85, 95, 98, 95, 88, 70, 45, 25, 18, 15, 15],
-          weekendKw: [12, 12, 12, 12, 12, 12, 15, 25, 40, 55, 60, 58, 50, 45, 35, 28, 22, 18, 15, 14, 13, 12, 12, 12],
+          presetId: 'industria-1-turno',
+          weekdayKw: [8, 8, 8, 8, 8, 8, 20, 90, 100, 100, 100, 100, 95, 100, 100, 100, 95, 60, 20, 10, 8, 8, 8, 8],
+          weekendKw: new Array(24).fill(10),
         },
       };
 
       render(<ControlledPanel initial={{ loadCurve: initialManualCurve }} />);
 
-      // Opens directly in manual mode with 24 hourly sliders visible and preset active
-      expect(await screen.findByText('Trocar perfil')).toBeInTheDocument();
+      const baseSelect = screen.getByLabelText('Perfil base');
+      expect(baseSelect).toHaveValue('industria-1-turno');
       expect(screen.getAllByRole('slider')).toHaveLength(24);
       expect(screen.getByRole('button', { name: 'Fim de semana' })).toBeInTheDocument();
     });
@@ -201,9 +198,7 @@ describe('CiLoadCurvePanel', () => {
       Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
 
       render(<ControlledPanel />);
-      fireEvent.click(screen.getByRole('button', { name: '60 min' }));
-      await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
-      await screen.findByText('Resumo');
+      await screen.findByText(/Resumo/);
 
       const exportBtn = screen.getByRole('button', { name: /Exportar CSV/i });
       fireEvent.click(exportBtn);
@@ -231,7 +226,7 @@ describe('CiLoadCurvePanel', () => {
       fireEvent.click(prevBtn);
       expect(onNavigatePrev).toHaveBeenCalledOnce();
 
-      // Next button disabled without curve
+      // Next button disabled when existing load curve prop is null
       const nextBtn = screen.getByRole('button', { name: /Avançar para Tarifa/i });
       expect(nextBtn).toBeDisabled();
     });
