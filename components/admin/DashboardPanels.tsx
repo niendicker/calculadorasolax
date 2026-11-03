@@ -347,19 +347,19 @@ export function UsersPanel({
                 <div className="grid gap-2 text-sm">
                   <DetailItem label="Telefone" value={user.phone || '-'} />
                   <DetailItem label="Empresa" value={user.company_name || '-'} />
-                  <DetailItem
-                    label="Permissões"
-                    value={
-                      user.feature_flags && user.feature_flags.length > 0 ? (
-                        <span className="inline-flex flex-wrap gap-1">
+                  <div className="min-w-0">
+                    <span className="text-xs text-muted-foreground">Permissões</span>
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {user.feature_flags && user.feature_flags.length > 0 ? (
+                        <>
                           {user.feature_flags.includes('ci') && <Badge variant="secondary" className="text-[10px]">C&amp;I</Badge>}
                           {user.feature_flags.includes('ci_backup') && <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">Backup</Badge>}
-                        </span>
+                        </>
                       ) : (
-                        '-'
-                      )
-                    }
-                  />
+                        <span className="text-sm font-medium">-</span>
+                      )}
+                    </div>
+                  </div>
                   <DetailItem label="Cadastro" value={formatUserDate(user.created_at)} />
                 </div>
                 <div className="flex flex-wrap gap-2">
