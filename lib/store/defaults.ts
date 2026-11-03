@@ -30,7 +30,7 @@ export const defaultCiOptions: CommercialIndustrialOptions = {
   tariff: null,
   bessProductId: null,
   strategy: 'HYBRID',
-  sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
+  sizing: { mode: 'auto', moduleCount: null, minModules: 1, maxModules: 6 },
   financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
   rankingCriterion: 'PAYBACK',
   backup: defaultCiBackupConfig,

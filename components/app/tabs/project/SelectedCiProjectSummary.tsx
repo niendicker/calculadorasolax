@@ -98,7 +98,7 @@ export function SelectedCiProjectSummary({
           value={
             sizing.mode === 'fixed'
               ? String(sizing.moduleCount ?? 'Não definido')
-              : `${sizing.minModules ?? '?'}–${sizing.maxModules ?? '?'} (automático)`
+              : `Automático (${sizing.minModules ?? 1}–${sizing.maxModules ?? 6})`
           }
         />
         <SummaryRow label="Estratégia" value={STRATEGY_LABELS[options.strategy] ?? options.strategy} />

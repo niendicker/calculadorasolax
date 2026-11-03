@@ -171,7 +171,7 @@ export function CiOverviewPanel({
     : `${bessProduct ? `${bessProduct.model} · ${bessProduct.manufacturer}` : 'Produto selecionado'} · ${
         ciOptions.sizing.mode === 'fixed'
           ? `${ciOptions.sizing.moduleCount ?? 1} módulo(s)`
-          : `${ciOptions.sizing.minModules ?? '?'}–${ciOptions.sizing.maxModules ?? '?'} módulos`
+          : `Automático (${ciOptions.sizing.minModules ?? 1}–${ciOptions.sizing.maxModules ?? 6} módulos)`
       }`;
 
   const loadCurve = ciOptions.loadCurve;
