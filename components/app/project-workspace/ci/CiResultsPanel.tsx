@@ -18,9 +18,10 @@
 // materialized server-side) plus the comparison grid.
 
 import { useState } from 'react';
-import { AlertTriangle, FileDown, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
+import { AlertTriangle, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { Client, ProjectInfo } from '@/lib/types';
 import { buildPdfFileName, formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears } from '../../helpers';
 import type { InlineProfile } from '../../types';
@@ -259,6 +260,56 @@ export function CiResultsPanel({
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {result.backup && result.backup.status !== 'disabled' && (
+            <div className="space-y-3 rounded-lg border border-primary/20 bg-muted/20 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <p className="text-sm font-semibold">Confiabilidade e Operação em Falta de Rede (Backup)</p>
+                </div>
+                <span
+                  className={cn(
+                    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+                    result.backup.status === 'fully_covered'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : result.backup.status === 'partially_covered'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-destructive/10 text-destructive'
+                  )}
+                >
+                  {result.backup.status === 'fully_covered'
+                    ? '100% Atendido'
+                    : result.backup.status === 'partially_covered'
+                      ? 'Autonomia Parcial'
+                      : 'Potência Insuficiente'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Autonomia Estimada</p>
+                  <p className="mt-1 text-sm font-semibold">{result.backup.effectiveAutonomyHours.toFixed(1)} horas</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Potência Crítica Suportada</p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {result.selected?.totalPowerKw ?? 0} kW / {result.backup.requiredContinuousPowerKw.toFixed(1)} kW
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Reserva de SOC On-Grid</p>
+                  <p className="mt-1 text-sm font-semibold">{result.backup.recommendedSocReservePercent.toFixed(1)}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Módulos Mín. p/ Autonomia</p>
+                  <p className="mt-1 text-sm font-semibold">{result.backup.minModulesForBackup} módulo(s)</p>
+                </div>
+              </div>
+              {result.backup.warningMessage && (
+                <p className="text-xs text-amber-700 pt-1">{result.backup.warningMessage}</p>
+              )}
             </div>
           )}
 

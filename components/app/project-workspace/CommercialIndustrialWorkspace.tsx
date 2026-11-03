@@ -14,10 +14,11 @@
 // ProjectInfoModal — nothing here touches SavedProject or residential state.
 
 import { useState } from 'react';
-import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, ShieldAlert, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Client, ProjectInfo } from '@/lib/types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { CiBackupPanel } from './ci/CiBackupPanel';
 import { CiConfigurationPanel } from './ci/CiConfigurationPanel';
 import { CiLoadCurvePanel } from './ci/CiLoadCurvePanel';
 import { CiOverviewPanel } from './ci/CiOverviewPanel';
@@ -28,7 +29,7 @@ import { ProjectWorkspaceShell, type WorkspaceNavItem } from './ProjectWorkspace
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import type { InlineProfile } from '../types';
 
-export type CiWorkspaceSection = 'overview' | 'bess' | 'curve' | 'tariff' | 'strategy' | 'results';
+export type CiWorkspaceSection = 'overview' | 'bess' | 'curve' | 'tariff' | 'strategy' | 'backup' | 'results';
 
 const navigation: WorkspaceNavItem[] = [
   { id: 'overview', label: 'Visão geral', icon: ClipboardList },
@@ -36,10 +37,12 @@ const navigation: WorkspaceNavItem[] = [
   { id: 'curve', label: 'Curva de carga', icon: LineChart },
   { id: 'tariff', label: 'Tarifa', icon: Receipt },
   { id: 'strategy', label: 'Estratégia', icon: SlidersHorizontal },
+  { id: 'backup', label: 'Falta de rede', icon: ShieldAlert },
   { id: 'results', label: 'Resultados', icon: BarChart3 },
 ];
 
-function getNavigationWithStatus(ciOptions: CommercialIndustrialOptions): WorkspaceNavItem[] {
+function getNavigationWithStatus(ciOptions: CommercialIndustrialOptions, canAccessCiBackup: boolean): WorkspaceNavItem[] {
+  const filteredNav = canAccessCiBackup ? navigation : navigation.filter((item) => item.id !== 'backup');
   const bessConfigured =
     ciOptions.bessProductId !== null &&
     (ciOptions.sizing.mode === 'fixed'
@@ -47,13 +50,20 @@ function getNavigationWithStatus(ciOptions: CommercialIndustrialOptions): Worksp
       : ciOptions.sizing.minModules !== null && ciOptions.sizing.maxModules !== null);
   const curveConfigured = ciOptions.loadCurve !== null && ciOptions.loadCurve.points.length > 0;
   const tariffConfigured = ciOptions.tariff !== null;
+  const backupConfigured =
+    !ciOptions.backup?.enabled ||
+    (ciOptions.backup.inputMode === 'detailed'
+      ? ciOptions.backup.loads.length > 0
+      : ciOptions.backup.targetPowerKw > 0);
+
   const configuredBySection: Record<string, boolean> = {
     bess: bessConfigured,
     curve: curveConfigured,
     tariff: tariffConfigured,
+    backup: backupConfigured,
   };
 
-  return navigation.map((item) => {
+  return filteredNav.map((item) => {
     if (configuredBySection[item.id] !== false) return item;
 
     return {
@@ -100,7 +110,9 @@ export function CommercialIndustrialWorkspace({
 }) {
   const [section, setSectionState] = useState<CiWorkspaceSection>('overview');
   const client = clients.find((item) => item.id === projectInfo.clientId) ?? null;
-  const workspaceNavigation = getNavigationWithStatus(ciOptions);
+  const canAccessCiBackup = profile?.role === 'admin' || Boolean(profile?.featureFlags?.includes('ci_backup'));
+  const effectiveSection = !canAccessCiBackup && section === 'backup' ? 'overview' : section;
+  const workspaceNavigation = getNavigationWithStatus(ciOptions, canAccessCiBackup);
 
   return (
     <ProjectWorkspaceShell
@@ -108,11 +120,11 @@ export function CommercialIndustrialWorkspace({
       autosaveStatus={autosaveStatus}
       autosaveLastSavedAt={autosaveLastSavedAt}
       navigation={workspaceNavigation}
-      activeSection={section}
+      activeSection={effectiveSection}
       onSectionChange={(id) => setSectionState(id as CiWorkspaceSection)}
       subtitle={<p className="text-sm text-muted-foreground">Projeto Comercial &amp; Industrial (BESS)</p>}
     >
-      {section === 'overview' && (
+      {effectiveSection === 'overview' && (
         <CiOverviewPanel
           projectInfo={projectInfo}
           clients={clients}
@@ -123,11 +135,12 @@ export function CommercialIndustrialWorkspace({
           isSaved={currentCiProjectId !== null}
           ciOptions={ciOptions}
           calculationResult={calculationResult}
+          canAccessCiBackup={canAccessCiBackup}
           onNavigateToSection={setSectionState}
         />
       )}
 
-      {section === 'bess' && (
+      {effectiveSection === 'bess' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
             <CiConfigurationPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
@@ -135,7 +148,7 @@ export function CommercialIndustrialWorkspace({
         </Card>
       )}
 
-      {section === 'curve' && (
+      {effectiveSection === 'curve' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
             <CiLoadCurvePanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
@@ -143,7 +156,7 @@ export function CommercialIndustrialWorkspace({
         </Card>
       )}
 
-      {section === 'tariff' && (
+      {effectiveSection === 'tariff' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
             <CiTariffPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
@@ -151,7 +164,7 @@ export function CommercialIndustrialWorkspace({
         </Card>
       )}
 
-      {section === 'strategy' && (
+      {effectiveSection === 'strategy' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
             <CiStrategyPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
@@ -159,7 +172,15 @@ export function CommercialIndustrialWorkspace({
         </Card>
       )}
 
-      {section === 'results' && (
+      {effectiveSection === 'backup' && canAccessCiBackup && (
+        <Card className="border-0 ring-0">
+          <CardContent className="pt-6">
+            <CiBackupPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
+          </CardContent>
+        </Card>
+      )}
+
+      {effectiveSection === 'results' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
             <CiResultsPanel

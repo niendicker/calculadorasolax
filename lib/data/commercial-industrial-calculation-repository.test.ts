@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   cacheProjectCalculationResult,
   checkUserCiAccess,
+  checkUserCiBackupAccess,
   findBessProductModel,
   findOwnCiProject,
   findUserBessUnitPrice,
@@ -169,6 +170,28 @@ describe('commercial-industrial-calculation-repository', () => {
     it('retorna false se perfil não for encontrado', async () => {
       const { client } = makeClient({ data: null, error: null });
       await expect(checkUserCiAccess(client, 'u1')).resolves.toBe(false);
+    });
+  });
+
+  describe('checkUserCiBackupAccess', () => {
+    it('retorna true para admin independente das flags', async () => {
+      const { client } = makeClient({ data: { role: 'admin', feature_flags: [] }, error: null });
+      await expect(checkUserCiBackupAccess(client, 'u1')).resolves.toBe(true);
+    });
+
+    it('retorna true para usuário com flag ci_backup', async () => {
+      const { client } = makeClient({ data: { role: 'user', feature_flags: ['ci', 'ci_backup'] }, error: null });
+      await expect(checkUserCiBackupAccess(client, 'u1')).resolves.toBe(true);
+    });
+
+    it('retorna false para usuário sem flag ci_backup', async () => {
+      const { client } = makeClient({ data: { role: 'user', feature_flags: ['ci'] }, error: null });
+      await expect(checkUserCiBackupAccess(client, 'u1')).resolves.toBe(false);
+    });
+
+    it('retorna false se perfil não for encontrado', async () => {
+      const { client } = makeClient({ data: null, error: null });
+      await expect(checkUserCiBackupAccess(client, 'u1')).resolves.toBe(false);
     });
   });
 });

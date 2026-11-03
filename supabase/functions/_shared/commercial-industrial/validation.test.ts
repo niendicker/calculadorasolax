@@ -222,4 +222,82 @@ describe('validateCommercialIndustrialOptions', () => {
     const errors = validateCommercialIndustrialOptions(makeOptions({ bessProductId: 42 as never }));
     expect(errors).toContain('bessProductId must be a string or null');
   });
+
+  describe('backup', () => {
+    it('accepts undefined, null, or disabled backup', () => {
+      expect(validateCommercialIndustrialOptions(makeOptions({ backup: undefined }))).toEqual([]);
+      expect(validateCommercialIndustrialOptions(makeOptions({ backup: null as never }))).toEqual([]);
+      expect(
+        validateCommercialIndustrialOptions(
+          makeOptions({
+            backup: {
+              enabled: false,
+              inputMode: 'simple',
+              targetPowerKw: 0,
+              autonomyHours: 4,
+              loads: [],
+              safetyMarginPercent: 10,
+            },
+          })
+        )
+      ).toEqual([]);
+    });
+
+    it('rejects an invalid backup object or inputMode', () => {
+      const errObj = validateCommercialIndustrialOptions(makeOptions({ backup: 'invalid' as never }));
+      expect(errObj).toContain('backup must be a JSON object');
+
+      const errMode = validateCommercialIndustrialOptions(
+        makeOptions({
+          backup: {
+            enabled: true,
+            inputMode: 'quantum' as never,
+            targetPowerKw: 10,
+            autonomyHours: 4,
+            loads: [],
+            safetyMarginPercent: 10,
+          },
+        })
+      );
+      expect(errMode).toContain('backup.inputMode must be "simple" or "detailed"');
+    });
+
+    it('validates simple mode backup inputs', () => {
+      const errors = validateCommercialIndustrialOptions(
+        makeOptions({
+          backup: {
+            enabled: true,
+            inputMode: 'simple',
+            targetPowerKw: -5,
+            autonomyHours: 0,
+            loads: [],
+            safetyMarginPercent: -1,
+          },
+        })
+      );
+      expect(errors).toContain('backup.targetPowerKw must be a number >= 0');
+      expect(errors).toContain('backup.autonomyHours must be a number > 0');
+      expect(errors).toContain('backup.safetyMarginPercent must be a number >= 0');
+    });
+
+    it('validates detailed mode backup loads', () => {
+      const errors = validateCommercialIndustrialOptions(
+        makeOptions({
+          backup: {
+            enabled: true,
+            inputMode: 'detailed',
+            targetPowerKw: 0,
+            autonomyHours: 3,
+            loads: [
+              { id: '1', name: '', powerW: -100, quantity: 0 },
+            ],
+            safetyMarginPercent: 10,
+          },
+        })
+      );
+      expect(errors).toContain('backup.loads[0].name must be a non-empty string');
+      expect(errors).toContain('backup.loads[0].powerW must be a number > 0');
+      expect(errors).toContain('backup.loads[0].quantity must be a positive integer');
+    });
+  });
 });

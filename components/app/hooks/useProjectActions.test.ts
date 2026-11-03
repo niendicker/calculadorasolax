@@ -85,7 +85,7 @@ describe('useProjectActions: saveProject', () => {
       await result.current.saveProject();
     });
 
-    expect(result.current.projectStatus).toContain('Casa de praia');
+    expect(result.current.projectStatus).toBe('Projeto salvo.');
   });
 
   it('notifies the workspace flow after saving a project', async () => {

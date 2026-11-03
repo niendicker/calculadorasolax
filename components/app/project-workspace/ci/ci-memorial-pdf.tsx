@@ -588,6 +588,37 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           </View>
         )}
 
+        {result.backup && result.backup.status !== 'disabled' && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Dimensionamento para Falta de Rede e Contingência (Backup)</Text>
+            <InfoRows
+              rows={[
+                {
+                  label: 'Status de atendimento',
+                  value:
+                    result.backup.status === 'fully_covered'
+                      ? 'Totalmente atendido (100%)'
+                      : result.backup.status === 'partially_covered'
+                        ? 'Atendimento parcial de autonomia'
+                        : 'Potência insuficiente',
+                },
+                { label: 'Autonomia estimada sem rede', value: `${result.backup.effectiveAutonomyHours.toFixed(1)} horas` },
+                {
+                  label: 'Potência crítica contínua',
+                  value: `${result.backup.requiredContinuousPowerKw.toFixed(1)} kW (suportado pelo BESS: ${formatKw(selected?.totalPowerKw ?? 0)})`,
+                },
+                { label: 'Energia requerida para contingência', value: `${result.backup.requiredEnergyKwh.toFixed(1)} kWh` },
+                { label: 'Módulos mínimos p/ autonomia', value: `${result.backup.minModulesForBackup} módulo(s)` },
+                {
+                  label: 'Reserva operacional de SOC mantida',
+                  value: `${result.backup.recommendedSocReservePercent.toFixed(1)}% (não consumida no despacho on-grid)`,
+                },
+                ...(result.backup.warningMessage ? [{ label: 'Observações técnicas', value: result.backup.warningMessage }] : []),
+              ]}
+            />
+          </View>
+        )}
+
         {selected && selected.dispatch.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Curva de carga original × carga após BESS, carga/descarga</Text>

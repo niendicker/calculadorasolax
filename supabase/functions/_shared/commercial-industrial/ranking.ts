@@ -86,10 +86,14 @@ export function isScenarioViable(scenario: ScenarioCandidate, horizonYears: numb
  * substitutes for viability: an empty result here means no scenario should
  * ever be recommended, regardless of criterion. */
 export function rankViableScenarios(scenarios: ScenarioCandidate[], criterion: RankingCriterion, horizonYears: number): ScenarioCandidate[] {
-  return rankScenarios(
-    scenarios.filter((scenario) => isScenarioViable(scenario, horizonYears)),
-    criterion
-  );
+  const viable = scenarios.filter((scenario) => isScenarioViable(scenario, horizonYears));
+  const hasBackupCompliant = viable.some((s) => s.backupResult && s.backupResult.status === 'fully_covered');
+  if (hasBackupCompliant) {
+    const compliant = viable.filter((s) => s.backupResult?.status === 'fully_covered');
+    const nonCompliant = viable.filter((s) => s.backupResult?.status !== 'fully_covered');
+    return [...rankScenarios(compliant, criterion), ...rankScenarios(nonCompliant, criterion)];
+  }
+  return rankScenarios(viable, criterion);
 }
 
 export interface Recommendation {

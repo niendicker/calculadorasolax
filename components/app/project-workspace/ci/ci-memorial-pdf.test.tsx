@@ -204,4 +204,23 @@ describe('buildCiMemorialPdfBlob', () => {
     const blob = await buildCiMemorialPdfBlob(baseInput({ result }));
     expect(await pdfMagicBytes(blob)).toBe('%PDF-');
   });
+
+  it('renders the contingency and backup section when result carries backup metrics', async () => {
+    const result = makeResult({
+      backup: {
+        requiredContinuousPowerKw: 50,
+        requiredPeakPowerKw: 75,
+        requiredEnergyKwh: 200,
+        meetsPower: true,
+        meetsEnergy: true,
+        effectiveAutonomyHours: 4.5,
+        minModulesForBackup: 3,
+        recommendedSocReservePercent: 35,
+        status: 'fully_covered',
+      },
+    });
+    const blob = await buildCiMemorialPdfBlob(baseInput({ result }));
+    expect(blob.size).toBeGreaterThan(100);
+    expect(await pdfMagicBytes(blob)).toBe('%PDF-');
+  });
 });

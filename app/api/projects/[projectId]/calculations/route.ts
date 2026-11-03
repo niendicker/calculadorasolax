@@ -5,6 +5,7 @@ import { getNetworkErrorMessage, resolveCommercialIndustrialCalculationErrorMess
 import {
   cacheProjectCalculationResult,
   checkUserCiAccess,
+  checkUserCiBackupAccess,
   findBessProductModel,
   findOwnCiProject,
   findUserBessUnitPrice,
@@ -60,12 +61,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: 'Este endpoint é exclusivo para projetos C&I.' }, { status: 400 });
   }
 
-  const options = project.calculation_options as { bessProductId?: string | null } | null;
+  const options = project.calculation_options as { bessProductId?: string | null; backup?: { enabled?: boolean } | null } | null;
   if (!options || Object.keys(options).length === 0 || !options.bessProductId) {
     return NextResponse.json(
       { error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' },
       { status: 422 }
     );
+  }
+
+  if (options.backup?.enabled) {
+    try {
+      const hasBackupAccess = await checkUserCiBackupAccess(supabase, user.id);
+      if (!hasBackupAccess) {
+        return NextResponse.json(
+          { error: 'Acesso à funcionalidade de Backup C&I não liberado para este usuário. Solicite autorização ao administrador.' },
+          { status: 403 }
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      return NextResponse.json({ error: getNetworkErrorMessage() }, { status: 502 });
+    }
   }
 
   let unitPriceBrl: number | null;

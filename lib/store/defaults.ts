@@ -6,13 +6,18 @@
 import { emptyAddress } from '@/lib/address';
 import { DESIRED_FEATURE_DEFINITIONS } from '@/lib/desired-features';
 import type { DesiredFeatureId, MicrogridConfig, ProjectInfo, ResidentialOptions } from '@/lib/types';
-import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CiBackupConfig, CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { DEFAULT_CI_BACKUP_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export const defaultProjectInfo: ProjectInfo = {
   name: '',
   clientId: null,
   address: emptyAddress(),
   notes: '',
+};
+
+export const defaultCiBackupConfig: CiBackupConfig = {
+  ...DEFAULT_CI_BACKUP_CONFIG,
 };
 
 /** Mirrors the shared engine's DEFAULT_FINANCIAL_ASSUMPTIONS/plan section 11
@@ -28,6 +33,7 @@ export const defaultCiOptions: CommercialIndustrialOptions = {
   sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
   financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
   rankingCriterion: 'PAYBACK',
+  backup: defaultCiBackupConfig,
 };
 
 export const defaultResidential: ResidentialOptions = {

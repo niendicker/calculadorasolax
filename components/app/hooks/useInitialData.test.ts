@@ -159,6 +159,7 @@ describe('useInitialData: logged-in user', () => {
       companyAddress: emptyAddress(),
       companyLogoUrl: '',
       companyDocument: '',
+      featureFlags: [],
     });
     expect(props.fetchClients).toHaveBeenCalled();
     expect(props.fetchProjects).toHaveBeenCalled();

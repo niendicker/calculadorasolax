@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import ptMessages from '@/messages/pt.json';
 import type { ProjectInfo, ResidentialOptions, Solution } from '@/lib/types';
+import { SummaryPortalProvider } from '../shell/slots';
 import { ProjectWorkspace } from './ProjectWorkspace';
 
 const projectInfo: ProjectInfo = {
@@ -289,18 +290,46 @@ describe('ProjectWorkspace', () => {
   it('opens the existing technical editors from each summary row', () => {
     const onOpenConfiguration = vi.fn();
     const onOpenResource = vi.fn();
-    renderWorkspace({ onOpenConfiguration, onOpenResource });
+    const portalTarget = document.createElement('div');
+    document.body.appendChild(portalTarget);
 
-    fireEvent.click(screen.getByRole('button', { name: /Rede elétrica/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Inversor/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Bateria/ }));
+    try {
+      render(
+        <NextIntlClientProvider locale="pt" messages={ptMessages}>
+          <SummaryPortalProvider value={portalTarget}>
+            <ProjectWorkspace
+              projectInfo={projectInfo}
+              client={{ id: 'client-1', name: 'Marcelo Grande', email: '', phone: '', document: '', notes: '', createdAt: '', updatedAt: '' }}
+              residentialOptions={residentialOptions}
+              solution={null}
+              nominalW={180}
+              peakW={540}
+              dailyKwh={0.36}
+              solutionIsStale={false}
+              inverterCatalog={inverterCatalog}
+              availableInverterModels={null}
+              onOpenConfiguration={onOpenConfiguration}
+              onOpenResource={onOpenResource}
+            >
+              <div>Fluxo técnico atual</div>
+            </ProjectWorkspace>
+          </SummaryPortalProvider>
+        </NextIntlClientProvider>
+      );
 
-    expect(onOpenConfiguration).toHaveBeenNthCalledWith(1, 'gridType');
-    expect(onOpenConfiguration).toHaveBeenNthCalledWith(2, 'gridType');
-    expect(onOpenConfiguration).toHaveBeenNthCalledWith(3, 'battery');
-    expect(onOpenConfiguration).toHaveBeenCalledTimes(3);
-    expect(onOpenResource).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: 'Editar inversor e bateria' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /Rede elétrica/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Inversor/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Bateria/ }));
+
+      expect(onOpenConfiguration).toHaveBeenNthCalledWith(1, 'gridType');
+      expect(onOpenConfiguration).toHaveBeenNthCalledWith(2, 'gridType');
+      expect(onOpenConfiguration).toHaveBeenNthCalledWith(3, 'battery');
+      expect(onOpenConfiguration).toHaveBeenCalledTimes(3);
+      expect(onOpenResource).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Editar inversor e bateria' })).not.toBeInTheDocument();
+    } finally {
+      portalTarget.remove();
+    }
   });
 
   it('opens the battery selection screen from the technical summary row', () => {
@@ -316,7 +345,7 @@ describe('ProjectWorkspace', () => {
   it('opens battery editing through the full technical configuration flow when available', () => {
     const onOpenConfiguration = vi.fn();
     const onOpenResource = vi.fn();
-    renderWorkspace({ onOpenConfiguration, onOpenResource });
+    renderWorkspace({ onOpenConfiguration, onOpenResource, section: 'overview' });
 
     fireEvent.click(screen.getByRole('button', { name: /Bateria/ }));
 

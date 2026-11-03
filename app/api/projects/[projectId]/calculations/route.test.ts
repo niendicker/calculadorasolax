@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   createClientMock,
   checkUserCiAccessMock,
+  checkUserCiBackupAccessMock,
   findOwnCiProjectMock,
   findBessProductModelMock,
   findUserBessUnitPriceMock,
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => ({
   createClientMock: vi.fn(),
   checkUserCiAccessMock: vi.fn(),
+  checkUserCiBackupAccessMock: vi.fn(),
   findOwnCiProjectMock: vi.fn(),
   findBessProductModelMock: vi.fn(),
   findUserBessUnitPriceMock: vi.fn(),
@@ -25,6 +27,7 @@ const {
 vi.mock('@/lib/supabase/server', () => ({ createClient: createClientMock }));
 vi.mock('@/lib/data/commercial-industrial-calculation-repository', () => ({
   checkUserCiAccess: checkUserCiAccessMock,
+  checkUserCiBackupAccess: checkUserCiBackupAccessMock,
   findOwnCiProject: findOwnCiProjectMock,
   findBessProductModel: findBessProductModelMock,
   findUserBessUnitPrice: findUserBessUnitPriceMock,
@@ -60,6 +63,7 @@ beforeEach(() => {
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
   });
   checkUserCiAccessMock.mockResolvedValue(true);
+  checkUserCiBackupAccessMock.mockResolvedValue(true);
   findOwnCiProjectMock.mockResolvedValue(ciProject);
   findBessProductModelMock.mockResolvedValue('T-BESS-100');
   findUserBessUnitPriceMock.mockResolvedValue(45000);
@@ -111,6 +115,24 @@ describe('POST /api/projects/[projectId]/calculations', () => {
     expect(await response.json()).toEqual({
       error: 'Acesso ao módulo C&I não liberado para este usuário. Solicite autorização ao administrador.',
     });
+  });
+
+  it('returns 403 when user has no CI backup feature flag and backup is enabled', async () => {
+    checkUserCiBackupAccessMock.mockResolvedValue(false);
+    findOwnCiProjectMock.mockResolvedValue({
+      id: 'proj-1',
+      installation_type: 'commercial_industrial',
+      calculation_options: { bessProductId: 'product-1', backup: { enabled: true } },
+    });
+    const { POST } = await import('./route');
+
+    const response = await POST(makeRequest(), makeParams());
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: 'Acesso à funcionalidade de Backup C&I não liberado para este usuário. Solicite autorização ao administrador.',
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it('returns 404 without distinguishing "not found" from "not yours"', async () => {

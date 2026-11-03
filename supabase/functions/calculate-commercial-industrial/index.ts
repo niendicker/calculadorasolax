@@ -147,6 +147,7 @@ export async function handleCalculateCommercialIndustrial(
       additionalCostsBrl,
       monthsPerYear: options.financialAssumptions.monthsPerYear,
       financialAssumptions: options.financialAssumptions,
+      backup: options.backup,
     };
 
     const { baseline, scenarios } = buildScenarioGrid(gridInput);
@@ -195,6 +196,7 @@ export async function handleCalculateCommercialIndustrial(
         },
       },
       warnings: scenarios.flatMap((s) => s.technicalWarnings),
+      backup: selected.backupResult,
     };
 
     return jsonResponse(result);

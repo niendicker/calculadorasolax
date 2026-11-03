@@ -4,17 +4,18 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions, defaultProjectInfo } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { InlineProfile } from '../types';
 import { CommercialIndustrialWorkspace } from './CommercialIndustrialWorkspace';
 
 const { listActiveCiBessProducts } = vi.hoisted(() => ({ listActiveCiBessProducts: vi.fn() }));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts }));
 
-function renderWorkspace(overrides: { currentCiProjectId?: string | null; ciOptions?: CommercialIndustrialOptions } = {}) {
+function renderWorkspace(overrides: { currentCiProjectId?: string | null; ciOptions?: CommercialIndustrialOptions; profile?: InlineProfile | null } = {}) {
   return render(
     <CommercialIndustrialWorkspace
       projectInfo={defaultProjectInfo}
       clients={[]}
-      profile={null}
+      profile={overrides.profile ?? null}
       onUpdateProjectInfo={vi.fn()}
       onSaveProject={vi.fn()}
       onBackToProjects={vi.fn()}
@@ -115,5 +116,32 @@ describe('CommercialIndustrialWorkspace', () => {
     renderWorkspace({ currentCiProjectId: 'ci-project-1' });
     fireEvent.click(screen.getByRole('button', { name: 'Resultados' }));
     expect(screen.getByRole('button', { name: 'Calcular' })).toBeInTheDocument();
+  });
+
+  it('hides the Falta de rede tab for users without ci_backup flag', () => {
+    renderWorkspace({ profile: null });
+    expect(screen.queryByRole('button', { name: 'Falta de rede' })).not.toBeInTheDocument();
+  });
+
+  it('shows the Falta de rede tab for users with ci_backup flag and navigates to it', () => {
+    const profileWithBackup: InlineProfile = {
+      id: 'u1',
+      email: 'user@test.com',
+      fullName: 'Test User',
+      phone: '',
+      role: 'user',
+      companyName: '',
+      companyAddress: {} as never,
+      companyLogoUrl: '',
+      companyDocument: '',
+      featureFlags: ['ci', 'ci_backup'],
+    };
+
+    renderWorkspace({ profile: profileWithBackup });
+    const backupTab = screen.getByRole('button', { name: 'Falta de rede' });
+    expect(backupTab).toBeInTheDocument();
+
+    fireEvent.click(backupTab);
+    expect(screen.getByText('Proteção para Falta de Rede (Backup C&I)')).toBeInTheDocument();
   });
 });

@@ -41,6 +41,18 @@ export async function checkUserCiAccess(supabase: SupabaseClient, userId: string
   return row.role === 'admin' || (Array.isArray(row.feature_flags) && row.feature_flags.includes('ci'));
 }
 
+export async function checkUserCiBackupAccess(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role, feature_flags')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return false;
+  const row = data as { role?: string; feature_flags?: string[] };
+  return row.role === 'admin' || (Array.isArray(row.feature_flags) && row.feature_flags.includes('ci_backup'));
+}
+
 export async function findBessProductModel(supabase: SupabaseClient, bessProductId: string) {
   const { data, error } = await supabase.from('ci_bess_products').select('model').eq('id', bessProductId).eq('active', true).maybeSingle();
   if (error) throw error;

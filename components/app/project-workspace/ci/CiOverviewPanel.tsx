@@ -21,6 +21,7 @@ import {
   ClipboardList,
   LineChart,
   Receipt,
+  ShieldAlert,
   SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -121,6 +122,7 @@ export function CiOverviewPanel({
   isSaved,
   ciOptions,
   calculationResult,
+  canAccessCiBackup = false,
   onNavigateToSection,
 }: {
   projectInfo: ProjectInfo;
@@ -137,6 +139,7 @@ export function CiOverviewPanel({
   isSaved: boolean;
   ciOptions: CommercialIndustrialOptions;
   calculationResult: CommercialIndustrialResult | null;
+  canAccessCiBackup?: boolean;
   onNavigateToSection: (section: CiWorkspaceSection) => void;
 }) {
   const [projectInfoEditField, setProjectInfoEditField] = useState<ProjectInfoEditField>(null);
@@ -186,7 +189,25 @@ export function CiOverviewPanel({
     RANKING_LABELS[ciOptions.rankingCriterion] ?? ciOptions.rankingCriterion
   }`;
 
-  const configuredCount = [bessConfigured, curveConfigured, tariffConfigured, true].filter(Boolean).length;
+  const backup = ciOptions.backup;
+  const backupConfigured = Boolean(
+    backup?.enabled &&
+      (backup.inputMode === 'detailed' ? backup.loads.length > 0 : backup.targetPowerKw > 0)
+  );
+  const backupSummary = !backup?.enabled
+    ? 'Desativado'
+    : backup.inputMode === 'detailed'
+      ? `${backup.loads.length} carga${backup.loads.length === 1 ? '' : 's'} · ${backup.autonomyHours}h autonomia`
+      : `${backup.targetPowerKw} kW · ${backup.autonomyHours}h autonomia`;
+
+  const configuredCount = [
+    bessConfigured,
+    curveConfigured,
+    tariffConfigured,
+    true,
+    canAccessCiBackup ? (backup?.enabled ? backupConfigured : true) : null,
+  ].filter((v) => v === true).length;
+  const totalConfigCount = canAccessCiBackup ? 5 : 4;
   const selected = calculationResult?.selected ?? null;
   // A `selected` scenario is still materialized (for reference) even when
   // nothing was actually viable to recommend — Fase 6 audit, Problem #5.
@@ -230,7 +251,7 @@ export function CiOverviewPanel({
           <CardIcon icon={SlidersHorizontal} />
           <div>
             <h2 className="text-base font-semibold">Configuração do estudo</h2>
-            <p className="text-xs text-muted-foreground">{configuredCount} de 4 configurados</p>
+            <p className="text-xs text-muted-foreground">{configuredCount} de {totalConfigCount} configurados</p>
           </div>
         </CardHeader>
         <CardContent className="grid gap-2 pt-0 sm:grid-cols-2">
@@ -262,6 +283,15 @@ export function CiOverviewPanel({
             summary={strategySummary}
             onOpen={() => onNavigateToSection('strategy')}
           />
+          {canAccessCiBackup && (
+            <ConfigCard
+              icon={ShieldAlert}
+              label="Falta de rede (Backup)"
+              configured={backupConfigured}
+              summary={backupSummary}
+              onOpen={() => onNavigateToSection('backup')}
+            />
+          )}
         </CardContent>
       </Card>
 

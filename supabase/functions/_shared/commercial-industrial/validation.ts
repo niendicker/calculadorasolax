@@ -201,6 +201,74 @@ function validateFinancialAssumptions(raw: unknown, errors: string[]): void {
   }
 }
 
+function validateBackup(raw: unknown, errors: string[]): void {
+  if (raw === undefined || raw === null) return;
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('backup must be a JSON object');
+    return;
+  }
+  const backup = raw as Record<string, unknown>;
+  if (typeof backup.enabled !== 'boolean') {
+    errors.push('backup.enabled must be a boolean');
+    return;
+  }
+  if (!backup.enabled) return;
+
+  if (backup.inputMode !== 'simple' && backup.inputMode !== 'detailed') {
+    errors.push('backup.inputMode must be "simple" or "detailed"');
+  }
+
+  if (backup.inputMode === 'simple') {
+    if (!isFiniteNumber(backup.targetPowerKw) || (backup.targetPowerKw as number) < 0) {
+      errors.push('backup.targetPowerKw must be a number >= 0');
+    }
+    if (!isFiniteNumber(backup.autonomyHours) || (backup.autonomyHours as number) <= 0) {
+      errors.push('backup.autonomyHours must be a number > 0');
+    }
+    if (backup.targetPeakPowerKw !== undefined && (!isFiniteNumber(backup.targetPeakPowerKw) || (backup.targetPeakPowerKw as number) < 0)) {
+      errors.push('backup.targetPeakPowerKw must be a number >= 0');
+    }
+  } else if (backup.inputMode === 'detailed') {
+    if (!Array.isArray(backup.loads)) {
+      errors.push('backup.loads must be an array');
+    } else {
+      for (let i = 0; i < backup.loads.length; i++) {
+        const item = backup.loads[i];
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          errors.push(`backup.loads[${i}] must be an object`);
+          continue;
+        }
+        const load = item as Record<string, unknown>;
+        if (typeof load.name !== 'string' || !load.name.trim()) {
+          errors.push(`backup.loads[${i}].name must be a non-empty string`);
+        }
+        if (!isFiniteNumber(load.powerW) || (load.powerW as number) <= 0) {
+          errors.push(`backup.loads[${i}].powerW must be a number > 0`);
+        }
+        if (!isPositiveInteger(load.quantity)) {
+          errors.push(`backup.loads[${i}].quantity must be a positive integer`);
+        }
+      }
+    }
+    if (!isFiniteNumber(backup.autonomyHours) || (backup.autonomyHours as number) <= 0) {
+      errors.push('backup.autonomyHours must be a number > 0');
+    }
+  }
+
+  if (backup.safetyMarginPercent !== undefined && (!isFiniteNumber(backup.safetyMarginPercent) || (backup.safetyMarginPercent as number) < 0)) {
+    errors.push('backup.safetyMarginPercent must be a number >= 0');
+  }
+
+  if (
+    backup.minSocReservePercent !== undefined &&
+    (!isFiniteNumber(backup.minSocReservePercent) ||
+      (backup.minSocReservePercent as number) < 0 ||
+      (backup.minSocReservePercent as number) > 100)
+  ) {
+    errors.push('backup.minSocReservePercent must be a number between 0 and 100');
+  }
+}
+
 /** Validates a raw (untrusted) payload against the CommercialIndustrialOptions
  * contract. Returns an empty array when valid. Mirrors
  * validateResidentialOptions's calling convention so the API route layer can
@@ -227,6 +295,7 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
 
   validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
+  validateBackup(options.backup, errors);
 
   if (!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));

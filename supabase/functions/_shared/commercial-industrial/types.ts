@@ -122,6 +122,54 @@ export interface CiBessProduct {
 /** How buildScenarioGrid's results (scenarios.ts) get ranked — see ranking.ts. */
 export type RankingCriterion = 'PAYBACK' | 'ROI' | 'NPV';
 
+// ─── Backup & Grid Outage Contracts (docs/CI-BACKUP-PLAN.md) ───────────
+
+export interface CiCriticalLoad {
+  id: string;
+  name: string;
+  powerW: number;
+  quantity: number;
+  usageMode?: 'fixed' | 'fraction';
+  usageFactor?: number;
+  fixedHours?: number;
+}
+
+export type CiBackupInputMode = 'simple' | 'detailed';
+
+export interface CiBackupConfig {
+  enabled: boolean;
+  inputMode: CiBackupInputMode;
+  targetPowerKw: number;
+  targetPeakPowerKw?: number;
+  autonomyHours: number;
+  loads: CiCriticalLoad[];
+  safetyMarginPercent: number;
+  minSocReservePercent?: number;
+}
+
+export const DEFAULT_CI_BACKUP_CONFIG: CiBackupConfig = {
+  enabled: false,
+  inputMode: 'simple',
+  targetPowerKw: 0,
+  targetPeakPowerKw: 0,
+  autonomyHours: 4,
+  loads: [],
+  safetyMarginPercent: 10,
+};
+
+export interface CiBackupResult {
+  requiredContinuousPowerKw: number;
+  requiredPeakPowerKw: number;
+  requiredEnergyKwh: number;
+  meetsPower: boolean;
+  meetsEnergy: boolean;
+  effectiveAutonomyHours: number;
+  minModulesForBackup: number;
+  recommendedSocReservePercent: number;
+  status: 'fully_covered' | 'partially_covered' | 'insufficient_power' | 'disabled';
+  warningMessage?: string;
+}
+
 export interface CommercialIndustrialOptions {
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
@@ -130,6 +178,7 @@ export interface CommercialIndustrialOptions {
   sizing: SizingConfig;
   financialAssumptions: FinancialAssumptions;
   rankingCriterion: RankingCriterion;
+  backup?: CiBackupConfig;
 }
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
@@ -180,6 +229,8 @@ export interface ScenarioCandidate {
   /** Delta vs. the next-smaller module count in the same strategy; null for
    * the smallest evaluated count. */
   marginalGain: number | null;
+  /** Contingency & backup evaluation if ci_backup is active. */
+  backupResult?: CiBackupResult;
 }
 
 /** The selected/recommended scenario's full detail — everything a
@@ -259,4 +310,6 @@ export interface CommercialIndustrialResult {
     loadCurve: Pick<LoadCurve, 'resolutionMinutes' | 'profileBasis' | 'periodStart' | 'periodEnd' | 'timezone'>;
   };
   warnings: string[];
+  /** Consolidated backup metrics if backup calculation was enabled. */
+  backup?: CiBackupResult;
 }

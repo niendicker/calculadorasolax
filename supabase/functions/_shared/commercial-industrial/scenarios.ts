@@ -8,11 +8,13 @@
 import { annualizeWeeklyDispatch, computeAnnualEnergyCost, computeAnnualSavings } from './tariff.ts';
 import { runDispatch, summarizeDispatch, type TariffWindow } from './dispatch.ts';
 import { buildCashFlow, computeAnnualRoiPercent, computeCapex, computeDiscountedPaybackYears, computeNpv, computeSimplePaybackYears } from './financial.ts';
+import { computeBackupRequirements, evaluateCandidateBackup } from './backup.ts';
 import type {
   BaselineResult,
   BessRuntimeParams,
   BessStrategyId,
   CashFlowYear,
+  CiBackupConfig,
   CiBessProduct,
   DispatchPoint,
   FinancialAssumptions,
@@ -64,6 +66,7 @@ export interface ScenarioGridInput {
   additionalCostsBrl?: number;
   monthsPerYear: number;
   financialAssumptions: FinancialAssumptions;
+  backup?: CiBackupConfig | null;
 }
 
 export interface ScenarioGridResult {
@@ -112,12 +115,27 @@ function evaluateModuleCount(
   moduleCount: number,
   baselineCost: ReturnType<typeof computeAnnualEnergyCost>
 ): { candidate: ScenarioCandidate; trace: DispatchPoint[]; cashFlow: CashFlowYear[] } {
-  const { curve, product, strategy, tariffWindow, tariff, peakShavingTargetKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions } = input;
+  const { curve, product, strategy, tariffWindow, tariff, peakShavingTargetKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions, backup } = input;
+
+  const backupRequirements = backup?.enabled ? computeBackupRequirements(backup) : null;
+  const backupResult = backupRequirements
+    ? evaluateCandidateBackup(
+        product.modulePowerKw * moduleCount,
+        product.moduleCapacityKwh * moduleCount,
+        product,
+        backupRequirements
+      )
+    : undefined;
+
+  // When backup reserve is required, on-grid dispatch must not discharge below the backup reserve floor
+  const effectiveSocMinPercent = backupResult && backupResult.status !== 'disabled'
+    ? Math.max(product.socMinPercent, backupResult.recommendedSocReservePercent)
+    : product.socMinPercent;
 
   const bess: BessRuntimeParams = {
     totalPowerKw: product.modulePowerKw * moduleCount,
     totalCapacityKwh: product.moduleCapacityKwh * moduleCount,
-    socMinPercent: product.socMinPercent,
+    socMinPercent: effectiveSocMinPercent,
     socMaxPercent: product.socMaxPercent,
     efficiencyPercent: product.efficiencyPercent,
   };
@@ -140,6 +158,9 @@ function evaluateModuleCount(
       );
     }
   }
+  if (backupResult?.warningMessage) {
+    technicalWarnings.push(backupResult.warningMessage);
+  }
 
   const candidate: ScenarioCandidate = {
     scenarioId: `modules-${moduleCount}`,
@@ -150,11 +171,11 @@ function evaluateModuleCount(
     // impossible, so there is no scenario a physical rule invalidates
     // outright. technicalWarnings still surfaces when the result falls
     // short of what the strategy was asked to achieve (undersized BESS).
-    technicalValidity: true,
+    technicalValidity: backupResult ? backupResult.status === 'fully_covered' : true,
     technicalWarnings,
     totalPowerKw: bess.totalPowerKw,
     totalCapacityKwh: bess.totalCapacityKwh,
-    usefulCapacityKwh: (bess.totalCapacityKwh * (bess.socMaxPercent - bess.socMinPercent)) / 100,
+    usefulCapacityKwh: (bess.totalCapacityKwh * (bess.socMaxPercent - product.socMinPercent)) / 100,
     capex,
     annualSavings: savings.annualSavingsBrl,
     energySavings: savings.energySavingsBrl,
@@ -164,6 +185,7 @@ function evaluateModuleCount(
     roiPercent: computeAnnualRoiPercent(capex, savings.annualSavingsBrl),
     npv: computeNpv(cashFlow),
     marginalGain: null,
+    backupResult,
   };
 
   return { candidate, trace, cashFlow };

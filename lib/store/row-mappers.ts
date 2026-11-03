@@ -4,7 +4,7 @@
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
 import { addressFromJson } from '@/lib/address';
-import { defaultCiOptions, defaultResidential, sanitizeDesiredFeatures, sanitizeMicrogridConfig } from './defaults';
+import { defaultCiBackupConfig, defaultCiOptions, defaultResidential, sanitizeDesiredFeatures, sanitizeMicrogridConfig } from './defaults';
 import type {
   Client,
   ProjectEvent,
@@ -131,7 +131,11 @@ export function projectFromRow(row: Record<string, unknown>): SavedProject {
  * rather than producing a half-populated options object. */
 export function commercialIndustrialOptionsFromJson(value: unknown): CommercialIndustrialOptions {
   if (!isRecord(value)) return defaultCiOptions;
-  return { ...defaultCiOptions, ...value } as CommercialIndustrialOptions;
+  const rawRecord = value as Record<string, unknown>;
+  const backup = isRecord(rawRecord.backup)
+    ? ({ ...defaultCiBackupConfig, ...rawRecord.backup } as typeof defaultCiBackupConfig)
+    : defaultCiBackupConfig;
+  return { ...defaultCiOptions, ...rawRecord, backup } as CommercialIndustrialOptions;
 }
 
 export function ciProjectFromRow(row: Record<string, unknown>): SavedCiProject {
