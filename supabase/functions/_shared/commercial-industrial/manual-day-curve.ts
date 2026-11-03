@@ -147,6 +147,25 @@ function interpolateHourlyKw(hourlyKw: number[], hourFraction: number): number {
   return hourlyKw[hour0] + (hourlyKw[hour1] - hourlyKw[hour0]) * fraction;
 }
 
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function getDateTimeFormatter(timezone: string): Intl.DateTimeFormat {
+  let formatter = formatterCache.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    formatterCache.set(timezone, formatter);
+  }
+  return formatter;
+}
+
 /** Converts a local wall-clock date+time in an IANA timezone to a UTC ISO
  * instant. `Intl.DateTimeFormat` only converts instant→local, never the
  * reverse, and this project has no date/timezone library (dispatch.ts's
@@ -156,23 +175,21 @@ function interpolateHourlyKw(hourlyKw: number[], hourFraction: number): number {
  * on in `timezone`, and corrects by the difference. Two passes cover a
  * guess that happens to land close to a DST transition (Brazilian timezones
  * have had none since 2019, but this field is free text). */
-function zonedTimeToUtcIso(isoDate: string, hour: number, minute: number, timezone: string): string {
+function zonedTimeToUtcIso(
+  isoDate: string,
+  hour: number,
+  minute: number,
+  timezone: string,
+  formatter?: Intl.DateTimeFormat
+): string {
   const [year, month, day] = parseIsoDateParts(isoDate);
   const desired = Date.UTC(year, month - 1, day, hour, minute, 0);
   let guess = desired;
 
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
+  const fmt = formatter ?? getDateTimeFormatter(timezone);
 
   for (let pass = 0; pass < 2; pass++) {
-    const parts = formatter.formatToParts(new Date(guess));
+    const parts = fmt.formatToParts(new Date(guess));
     const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? '0');
     const observed = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), 0);
     const diff = desired - observed;
@@ -212,6 +229,7 @@ export function buildManualDayCurve(
   }
 
   const points: LoadCurvePoint[] = [];
+  const formatter = getDateTimeFormatter(metadata.timezone);
   for (const isoDate of dates) {
     const pattern = isWeekendDate(isoDate) ? weekendKw : weekdayKw;
     for (let step = 0; step < stepsPerDay; step++) {
@@ -219,7 +237,7 @@ export function buildManualDayCurve(
       const hour = Math.floor(minuteOfDay / 60);
       const minute = minuteOfDay % 60;
       const powerKw = Math.max(0, Math.round(interpolateHourlyKw(pattern, hour + minute / 60) * 100) / 100);
-      points.push({ timestamp: zonedTimeToUtcIso(isoDate, hour, minute, metadata.timezone), powerKw });
+      points.push({ timestamp: zonedTimeToUtcIso(isoDate, hour, minute, metadata.timezone, formatter), powerKw });
     }
   }
 

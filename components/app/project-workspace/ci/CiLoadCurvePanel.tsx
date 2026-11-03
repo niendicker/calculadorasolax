@@ -10,7 +10,7 @@
 //    contracted demand line, and bottom status banner.
 // 6. Footer with navigation buttons and measurements count.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Sparkles, X } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -123,17 +123,28 @@ export function CiLoadCurvePanel({
   const [activePattern, setActivePattern] = useState<DailyPattern>('weekday');
 
   // Derive CSV parsed curve
-  const parseResult =
-    csvText === null
-      ? null
-      : parseLoadCurveCsv(csvText, { resolutionMinutes, timezone, periodStart, periodEnd, profileBasis: 'representative_period' });
+  const parseResult = useMemo(() => {
+    if (csvText === null) return null;
+    return parseLoadCurveCsv(csvText, {
+      resolutionMinutes,
+      timezone,
+      periodStart,
+      periodEnd,
+      profileBasis: 'representative_period',
+    });
+  }, [csvText, resolutionMinutes, timezone, periodStart, periodEnd]);
   const parsedCurve = parseResult?.ok ? parseResult.curve : null;
 
   // Derive manual curve
-  const manualResult =
-    sourceMode === 'manual' && !isCurveCleared
-      ? buildManualDayCurve(weekdayKw, weekendKw, { resolutionMinutes, timezone, periodStart, periodEnd }, selectedPresetId)
-      : null;
+  const manualResult = useMemo(() => {
+    if (sourceMode !== 'manual' || isCurveCleared) return null;
+    return buildManualDayCurve(
+      weekdayKw,
+      weekendKw,
+      { resolutionMinutes, timezone, periodStart, periodEnd },
+      selectedPresetId
+    );
+  }, [sourceMode, isCurveCleared, weekdayKw, weekendKw, resolutionMinutes, timezone, periodStart, periodEnd, selectedPresetId]);
   const manualCurve = manualResult?.ok ? manualResult.curve : null;
 
   // Active curve displayed in the preview
@@ -141,8 +152,8 @@ export function CiLoadCurvePanel({
     isCurveCleared
       ? null
       : sourceMode === 'csv'
-      ? parsedCurve
-      : (existing && existing.source === 'manual' ? existing : manualCurve);
+      ? (parsedCurve ?? (existing?.source === 'csv' ? existing : null))
+      : (manualCurve ?? (existing?.source === 'manual' ? existing : null));
 
   const errors =
     sourceMode === 'csv'

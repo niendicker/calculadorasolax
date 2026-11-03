@@ -15,7 +15,7 @@
 // uPlot's canvas/DOM code never runs during SSR and its ~50kb only ships
 // once a curve is actually imported.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
@@ -721,18 +721,24 @@ export function LoadCurveChart({
   const summaryA = summaryFor(selections.a);
   const summaryB = summaryFor(selections.b);
 
-  const totalPoints = points.length;
-  let peakKw = 0;
-  let minKw = totalPoints > 0 ? points[0].powerKw : 0;
-  let sumKw = 0;
-  for (const p of points) {
-    if (p.powerKw > peakKw) peakKw = p.powerKw;
-    if (p.powerKw < minKw) minKw = p.powerKw;
-    sumKw += p.powerKw;
-  }
-  const intervalHours = resolutionMinutes / 60;
-  const totalEnergyKwh = sumKw * intervalHours;
-  const averageKw = totalPoints > 0 ? sumKw / totalPoints : 0;
+  const { peakKw, minKw, averageKw, totalEnergyKwh } = useMemo(() => {
+    const total = points.length;
+    let peak = 0;
+    let min = total > 0 ? points[0].powerKw : 0;
+    let sum = 0;
+    for (const p of points) {
+      if (p.powerKw > peak) peak = p.powerKw;
+      if (p.powerKw < min) min = p.powerKw;
+      sum += p.powerKw;
+    }
+    const intervalH = resolutionMinutes / 60;
+    return {
+      peakKw: peak,
+      minKw: min,
+      averageKw: total > 0 ? sum / total : 0,
+      totalEnergyKwh: sum * intervalH,
+    };
+  }, [points, resolutionMinutes]);
 
   const hasContract = Boolean(contractedDemandKw && contractedDemandKw > 0);
   const hasExceedance = Boolean(hasContract && peakKw > (contractedDemandKw ?? 0));

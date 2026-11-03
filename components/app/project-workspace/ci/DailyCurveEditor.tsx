@@ -5,7 +5,7 @@
 // for the selected hour. Features normal & smooth brush modes, undo support,
 // and independent controls for weekdays and weekends.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -209,14 +209,28 @@ export function DailyCurveEditor({
   }
 
   const maxKw = niceCeiling(Math.max(...localKw, 1));
-  const primary = readCssVar('--chart-1', '#24506b');
-  const border = readCssVar('--border', '#d7e0ea');
-  const mutedForeground = readCssVar('--muted-foreground', '#66788a');
-  const foreground = readCssVar('--foreground', '#16324f');
-  const card = readCssVar('--card', '#ffffff');
 
-  const linePath = localKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' ');
-  const areaPath = `${linePath} L ${xToPx(HOURS_PER_DAY - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`;
+  // Cache resolved CSS custom properties to avoid synchronous getComputedStyle flushes on drag
+  const colorsRef = useRef<{ primary: string; border: string; mutedForeground: string; foreground: string; card: string } | null>(null);
+  if (!colorsRef.current) {
+    colorsRef.current = {
+      primary: readCssVar('--chart-1', '#24506b'),
+      border: readCssVar('--border', '#d7e0ea'),
+      mutedForeground: readCssVar('--muted-foreground', '#66788a'),
+      foreground: readCssVar('--foreground', '#16324f'),
+      card: readCssVar('--card', '#ffffff'),
+    };
+  }
+  const { primary, border, mutedForeground, foreground, card } = colorsRef.current;
+
+  const linePath = useMemo(
+    () => localKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' '),
+    [localKw, maxKw]
+  );
+  const areaPath = useMemo(
+    () => `${linePath} L ${xToPx(HOURS_PER_DAY - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`,
+    [linePath]
+  );
   const gradientId = `daily-curve-editor-area-${activePattern}`;
 
   function pointerPositionToKw(clientY: number): number {
