@@ -300,7 +300,13 @@ function buildOptions(
     },
     legend: { show: true, live: true },
     scales: {
-      x: { time: false },
+      x: {
+        time: false,
+        range: (_self, min, max) => {
+          const fullMax = Math.max(pointsRef.current.length - 1, 0);
+          return [min ?? 0, max ?? fullMax];
+        },
+      },
       y: {
         range: (_self, dataMin, dataMax) => {
           const contracted = contractedDemandKwRef.current;
@@ -586,16 +592,25 @@ export function LoadCurveChart({
       isInitialContractMountRef.current = false;
       return;
     }
-    chartRef.current?.redraw();
+    const chart = chartRef.current;
+    if (!chart || chart.scales.x?.min == null) return;
+    chart.redraw(false, true);
   }, [contractedDemandKw]);
 
+  const isInitialSelectionMountRef = useRef(true);
   useEffect(() => {
     selectionsRef.current = selections;
+    if (isInitialSelectionMountRef.current) {
+      isInitialSelectionMountRef.current = false;
+      return;
+    }
+    const chart = chartRef.current;
+    if (!chart || chart.scales.x?.min == null) return;
     // Nothing about the data or scale changed — this just needs the `draw`
     // hook (which reads selectionsRef) to run again so the bands reflect the
     // new state; redraw(false, ...) calls commit() directly instead of
     // re-ranging the x-scale like redraw(true, ...) would.
-    chartRef.current?.redraw(false, false);
+    chart.redraw(false, false);
   }, [selections]);
 
   useEffect(() => {
@@ -632,7 +647,7 @@ export function LoadCurveChart({
     // period) really is a different curve, so that case still jumps back to
     // the full view and drops any selection tied to the old range.
     chart.setData(buildData(points), false);
-    if (lengthChanged) {
+    if (lengthChanged || chart.scales.x?.min == null) {
       const [min, max] = fullXRange(pointsRef);
       chart.setScale('x', { min, max });
       clearChartSelect(chart);
@@ -645,14 +660,15 @@ export function LoadCurveChart({
     const el = containerRef.current;
     if (!el) return;
     const observer = new ResizeObserver(() => {
-      if (chartRef.current && el.clientWidth > 0) {
-        chartRef.current.setSize({ width: el.clientWidth, height: CHART_HEIGHT });
+      const chart = chartRef.current;
+      if (chart && el.clientWidth > 0) {
+        chart.setSize({ width: el.clientWidth, height: CHART_HEIGHT });
         // The comparison bands are repainted by the canvas draw hook on every
         // redraw (setSize triggers one), so they'd actually survive a resize
         // on their own — reset anyway for consistency with the live-drag
         // overlay below, which genuinely is stuck at the old pixel width.
-        setSelections(EMPTY_SELECTIONS);
-        clearChartSelect(chartRef.current);
+        setSelections((previous) => (previous.a || previous.b ? EMPTY_SELECTIONS : previous));
+        clearChartSelect(chart);
       }
     });
     observer.observe(el);

@@ -7,7 +7,7 @@
 // normalization/validation — this panel is just the file picker, metadata
 // form, and result display around them.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Gauge, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -117,7 +117,14 @@ export function CiLoadCurvePanel({
   onNavigatePrev?: () => void;
 }) {
   const existing = ciOptions.loadCurve;
-  const hasManualConfig = Boolean(existing?.manualConfig || existing?.source === 'manual');
+  const initialManualConfig = existing?.manualConfig ?? null;
+  const hasManualConfig = Boolean(
+    initialManualConfig &&
+      Array.isArray(initialManualConfig.weekdayKw) &&
+      initialManualConfig.weekdayKw.length === 24 &&
+      Array.isArray(initialManualConfig.weekendKw) &&
+      initialManualConfig.weekendKw.length === 24
+  );
   const [resolutionMinutes, setResolutionMinutes] = useState<LoadCurveResolutionMinutes>(existing?.resolutionMinutes ?? 15);
   const [timezone, setTimezone] = useState(existing?.timezone ?? 'America/Sao_Paulo');
   const [periodStart, setPeriodStart] = useState(existing?.periodStart ?? todayIsoDate());
@@ -126,9 +133,9 @@ export function CiLoadCurvePanel({
   const [csvText, setCsvText] = useState<string | null>(null);
 
   const [sourceMode, setSourceMode] = useState<CurveSourceMode>(hasManualConfig ? 'manual' : 'csv');
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(existing?.manualConfig?.presetId ?? (existing?.source === 'manual' ? 'custom' : null));
-  const [weekdayKw, setWeekdayKw] = useState<number[] | null>(existing?.manualConfig?.weekdayKw ?? null);
-  const [weekendKw, setWeekendKw] = useState<number[] | null>(existing?.manualConfig?.weekendKw ?? null);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(hasManualConfig ? initialManualConfig!.presetId : null);
+  const [weekdayKw, setWeekdayKw] = useState<number[] | null>(hasManualConfig ? initialManualConfig!.weekdayKw.slice() : null);
+  const [weekendKw, setWeekendKw] = useState<number[] | null>(hasManualConfig ? initialManualConfig!.weekendKw.slice() : null);
   const [activePattern, setActivePattern] = useState<DailyPattern>('weekday');
 
   // Re-derived on every render from csvText + the declared metadata (not
@@ -166,7 +173,13 @@ export function CiLoadCurvePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [csvText, resolutionMinutes, timezone, periodStart, periodEnd]);
 
+  const isInitialManualMountRef = useRef(true);
   useEffect(() => {
+    if (isInitialManualMountRef.current) {
+      isInitialManualMountRef.current = false;
+      // If we already had an existing manual curve on mount, do not redundantly re-emit it
+      if (hasManualConfig) return;
+    }
     if (manualCurve) onChange({ loadCurve: manualCurve });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceMode, weekdayKw, weekendKw, resolutionMinutes, timezone, periodStart, periodEnd]);

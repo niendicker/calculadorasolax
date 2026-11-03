@@ -520,8 +520,36 @@ describe('pan/zoom stability across data updates', () => {
     const instance = instances.at(-1)!;
 
     expect(instance.setDataCalls).toHaveLength(0);
-    expect(instance.redrawCalls).toEqual([[false, false]]);
+    expect(instance.redrawCalls).toHaveLength(0);
     expect(instance.setScaleCalls).toHaveLength(0);
+  });
+
+  it('configures scale x with a defensive range function that prevents null/null corruption', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const instance = instances.at(-1)!;
+    const options = instance.options as {
+      scales: { x: { range: (self: unknown, min: number | null, max: number | null) => [number, number] } };
+    };
+
+    expect(typeof options.scales.x.range).toBe('function');
+    // When min/max are null (e.g. before uPlot commits its scale), it falls back to full range
+    expect(options.scales.x.range(instance.chart, null, null)).toEqual([0, 29]);
+    // When min/max are defined (e.g. user zoomed), it preserves the values
+    expect(options.scales.x.range(instance.chart, 5, 15)).toEqual([5, 15]);
+  });
+
+  it('safely uses setScale if points update occurs while scale is not yet committed', () => {
+    const { rerender } = render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const instance = instances.at(-1)!;
+    const chart = chartObject(instance);
+    // Simulate uncommitted scale (scales.x.min is null)
+    chart.scales.x = { min: null, max: null };
+
+    const tweaked = manyPoints.map((pt, i) => (i === 5 ? { ...pt, powerKw: 999 } : pt));
+    rerender(<LoadCurveChart points={tweaked} resolutionMinutes={60} />);
+
+    // Must NOT call redraw(true, true) which would corrupt uPlot's scale; calls setScale instead
+    expect(instance.setScaleCalls.at(-1)).toEqual({ min: 0, max: 29 });
   });
 
   it('does not touch the x-scale when a same-length points update happens (e.g. live drag-editing a manual curve)', () => {

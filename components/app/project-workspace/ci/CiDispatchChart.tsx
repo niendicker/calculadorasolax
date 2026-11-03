@@ -183,7 +183,13 @@ function buildOptions(
     },
     legend: { show: true, live: true },
     scales: {
-      x: { time: false },
+      x: {
+        time: false,
+        range: (_self, min, max) => {
+          const fullMax = Math.max(pointsRef.current.length - 1, 0);
+          return [min ?? 0, max ?? fullMax];
+        },
+      },
       y: {
         range: (_self, dataMin, dataMax) => {
           const contracted = contractedDemandKwRef.current;
@@ -309,7 +315,9 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
       isInitialContractMountRef.current = false;
       return;
     }
-    chartRef.current?.redraw();
+    const chart = chartRef.current;
+    if (!chart || chart.scales.x?.min == null) return;
+    chart.redraw(false, true);
   }, [contractedDemandKw]);
 
   useEffect(() => {
@@ -335,9 +343,15 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
       skipNextPointsEffectRef.current = false;
       return;
     }
-    if (chartRef.current) {
-      chartRef.current.setData(buildDispatchData(dispatch));
-      chartRef.current.redraw(true, true);
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    chart.setData(buildDispatchData(dispatch));
+    if (chart.scales.x?.min == null) {
+      const [min, max] = fullXRange(pointsRef);
+      chart.setScale('x', { min, max });
+    } else {
+      chart.redraw(true, true);
     }
   }, [dispatch]);
 
