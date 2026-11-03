@@ -18,6 +18,7 @@
 // materialized server-side) plus the comparison grid.
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { AlertTriangle, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,11 @@ import type { Client, ProjectInfo } from '@/lib/types';
 import { buildPdfFileName, formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears } from '../../helpers';
 import type { InlineProfile } from '../../types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
+
+const CiDispatchChart = dynamic(() => import('./CiDispatchChart').then((mod) => mod.CiDispatchChart), {
+  ssr: false,
+  loading: () => <div className="h-[280px] w-full animate-pulse rounded-lg bg-muted" />,
+});
 
 function ScenarioRow({ scenario, recommended }: { scenario: ScenarioCandidate; recommended: boolean }) {
   return (
@@ -147,6 +153,12 @@ export function CiResultsPanel({
   }
 
   const sortedScenarios = result ? [...result.scenarios].sort((a, b) => a.moduleCount - b.moduleCount) : [];
+  const dispatch = result?.selected?.dispatch ?? [];
+  const hasDispatch = dispatch.length > 0;
+  const maxOriginalDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.loadKw)) : 0;
+  const maxGridDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.gridImportKw)) : 0;
+  const peakReductionKw = Math.max(0, maxOriginalDemandKw - maxGridDemandKw);
+  const peakReductionPercent = maxOriginalDemandKw > 0 ? (peakReductionKw / maxOriginalDemandKw) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -260,6 +272,45 @@ export function CiResultsPanel({
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {result.selected && hasDispatch && (
+            <div className="space-y-4 rounded-lg border bg-card p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">Operação e Despacho BESS (Peak Shaving)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Comparativo da carga original versus demanda atendida pela rede após o corte de pico com BESS.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-md border bg-muted/20 p-2.5">
+                  <p className="text-xs text-muted-foreground">Pico de Carga Original</p>
+                  <p className="mt-1 text-sm font-semibold">{formatKw(maxOriginalDemandKw)}</p>
+                </div>
+                <div className="rounded-md border bg-muted/20 p-2.5">
+                  <p className="text-xs text-muted-foreground">Pico com BESS (Rede)</p>
+                  <p className="mt-1 text-sm font-semibold">{formatKw(maxGridDemandKw)}</p>
+                </div>
+                <div className="rounded-md border bg-muted/20 p-2.5">
+                  <p className="text-xs text-muted-foreground">Redução no Pico</p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatKw(peakReductionKw)} ({peakReductionPercent.toFixed(1)}%)
+                  </p>
+                </div>
+                <div className="rounded-md border bg-muted/20 p-2.5">
+                  <p className="text-xs text-muted-foreground">Economia em Demanda</p>
+                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(result.selected.demandSavings)}/ano</p>
+                </div>
+              </div>
+
+              <CiDispatchChart
+                dispatch={dispatch}
+                contractedDemandKw={ciOptions.tariff?.contractedDemandKw}
+              />
             </div>
           )}
 

@@ -16,11 +16,11 @@
 // once a curve is actually imported.
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { Button } from '@/components/ui/button';
-import { readCssVar } from '@/lib/utils';
+import { cn, readCssVar } from '@/lib/utils';
 import type { LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 const CHART_HEIGHT = 240;
@@ -281,6 +281,7 @@ function buildOptions(
   width: number,
   pointsRef: { current: LoadCurvePoint[] },
   selectionsRef: { current: SelectionSlots },
+  contractedDemandKwRef: { current: number | undefined },
   onZoomChange: (zoomed: boolean) => void
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
@@ -298,7 +299,17 @@ function buildOptions(
       drag: { x: false, y: false, setScale: false },
     },
     legend: { show: true, live: true },
-    scales: { x: { time: false } },
+    scales: {
+      x: { time: false },
+      y: {
+        range: (_self, dataMin, dataMax) => {
+          const contracted = contractedDemandKwRef.current;
+          const targetMax = contracted && contracted > 0 ? Math.max(dataMax, contracted) : dataMax;
+          const maxWithPadding = targetMax > 0 ? targetMax * 1.08 : 10;
+          return [Math.min(0, dataMin), maxWithPadding];
+        },
+      },
+    },
     axes: [
       {
         stroke: mutedForeground,
@@ -375,6 +386,37 @@ function buildOptions(
 
           drawBand(selectionsRef.current.a, `${primary}26`);
           drawBand(selectionsRef.current.b, `${secondary}26`);
+
+          const contracted = contractedDemandKwRef.current;
+          if (contracted != null && contracted > 0) {
+            const yPos = self.valToPos(contracted, 'y', true);
+            if (Number.isFinite(yPos) && yPos >= top && yPos <= top + height) {
+              const bLeft = Number.isFinite(self.bbox.left) ? self.bbox.left : 0;
+              const bWidth = Number.isFinite(self.bbox.width) ? self.bbox.width : self.width;
+              self.ctx.save();
+              self.ctx.strokeStyle = '#dc2626';
+              self.ctx.lineWidth = 1.5;
+              if (typeof self.ctx.setLineDash === 'function') {
+                self.ctx.setLineDash([6, 4]);
+              }
+              if (typeof self.ctx.beginPath === 'function') {
+                self.ctx.beginPath();
+                self.ctx.moveTo(bLeft, yPos);
+                self.ctx.lineTo(bLeft + bWidth, yPos);
+                self.ctx.stroke();
+              }
+              if (typeof self.ctx.setLineDash === 'function') {
+                self.ctx.setLineDash([]);
+              }
+              self.ctx.fillStyle = '#dc2626';
+              self.ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+              self.ctx.textAlign = 'right';
+              if (typeof self.ctx.fillText === 'function') {
+                self.ctx.fillText(`Contratada: ${contracted} kW`, bLeft + bWidth - 6, yPos - 4);
+              }
+              self.ctx.restore();
+            }
+          }
         },
       ],
     },
@@ -455,10 +497,19 @@ function PeriodHeader({
   );
 }
 
-export function LoadCurveChart({ points, resolutionMinutes }: { points: LoadCurvePoint[]; resolutionMinutes: LoadCurveResolutionMinutes }) {
+export function LoadCurveChart({
+  points,
+  resolutionMinutes,
+  contractedDemandKw,
+}: {
+  points: LoadCurvePoint[];
+  resolutionMinutes: LoadCurveResolutionMinutes;
+  contractedDemandKw?: number;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
   const pointsRef = useRef(points);
+  const contractedDemandKwRef = useRef(contractedDemandKw);
   // Set right after (re)creating the chart below, consumed by the very next
   // run of the points-sync effect — see that effect for why this is needed.
   const skipNextPointsEffectRef = useRef(false);
@@ -515,7 +566,7 @@ export function LoadCurveChart({ points, resolutionMinutes }: { points: LoadCurv
     const el = containerRef.current;
     if (!el || pointsRef.current.length === 0) return;
 
-    const options = buildOptions(el.clientWidth || 600, pointsRef, selectionsRef, setIsZoomed);
+    const options = buildOptions(el.clientWidth || 600, pointsRef, selectionsRef, contractedDemandKwRef, setIsZoomed);
     const chart = new uPlot(options, buildData(pointsRef.current), el);
     chartRef.current = chart;
     skipNextPointsEffectRef.current = true;
@@ -527,6 +578,16 @@ export function LoadCurveChart({ points, resolutionMinutes }: { points: LoadCurv
       chartRef.current = null;
     };
   }, []);
+
+  const isInitialContractMountRef = useRef(true);
+  useEffect(() => {
+    contractedDemandKwRef.current = contractedDemandKw;
+    if (isInitialContractMountRef.current) {
+      isInitialContractMountRef.current = false;
+      return;
+    }
+    chartRef.current?.redraw();
+  }, [contractedDemandKw]);
 
   useEffect(() => {
     selectionsRef.current = selections;
@@ -609,8 +670,49 @@ export function LoadCurveChart({ points, resolutionMinutes }: { points: LoadCurv
   const summaryA = summaryFor(selections.a);
   const summaryB = summaryFor(selections.b);
 
+  const peakKw = points.reduce((max, p) => (p.powerKw > max ? p.powerKw : max), 0);
+  const hasContract = Boolean(contractedDemandKw && contractedDemandKw > 0);
+  const hasExceedance = Boolean(hasContract && peakKw > (contractedDemandKw ?? 0));
+  const exceedanceKw = hasExceedance ? peakKw - (contractedDemandKw ?? 0) : 0;
+  const exceedancePercent = hasExceedance && contractedDemandKw ? (exceedanceKw / contractedDemandKw) * 100 : 0;
+  const marginKw = hasContract && !hasExceedance && contractedDemandKw ? contractedDemandKw - peakKw : 0;
+
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
+      {hasContract && (
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs',
+            hasExceedance
+              ? 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200'
+              : 'border-border bg-muted/30 text-muted-foreground'
+          )}
+        >
+          <div className="flex items-center gap-1.5 font-medium">
+            {hasExceedance ? (
+              <>
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                <span>
+                  Ultrapassagem detectada: pico de {peakKw.toFixed(2)} kW excede o contrato ({contractedDemandKw} kW) em{' '}
+                  <strong className="font-semibold text-foreground">
+                    +{exceedanceKw.toFixed(2)} kW (+{exceedancePercent.toFixed(1)}%)
+                  </strong>
+                  .
+                </span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <span>
+                  Demanda contratada ({contractedDemandKw} kW): pico de {peakKw.toFixed(2)} kW dentro do contrato (margem livre de{' '}
+                  <strong className="font-semibold text-foreground">{marginKw.toFixed(2)} kW</strong>).
+                </span>
+              </>
+            )}
+          </div>
+          <span className="text-[11px] font-normal text-muted-foreground">Linha tracejada vermelha no gráfico</span>
+        </div>
+      )}
       <div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
         {isZoomed && (

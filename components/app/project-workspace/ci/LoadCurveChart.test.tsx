@@ -32,13 +32,23 @@ vi.mock('uplot', () => ({
     root = document.createElement('div');
     over = document.createElement('div');
     scales = { x: { min: 0, max: 1 } };
-    bbox = { top: 10, height: 200 };
+    bbox = { top: 10, height: 200, left: 0, width: 400 };
     ctx = {
       createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
       save: vi.fn(),
       restore: vi.fn(),
       fillRect: vi.fn(),
       fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      setLineDash: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      fillText: vi.fn(),
+      textAlign: '',
+      font: '',
     };
     private record: FakeUPlotInstance;
 
@@ -537,5 +547,40 @@ describe('pan/zoom stability across data updates', () => {
     rerender(<LoadCurveChart points={reshaped} resolutionMinutes={60} />);
 
     expect(instance.setScaleCalls.at(-1)).toEqual({ min: 0, max: reshaped.length - 1 });
+  });
+
+  it('renders an exceedance alert when the peak exceeds the contracted demand', () => {
+    // samplePoints has peak = 12 kW
+    render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} contractedDemandKw={10} />);
+
+    expect(screen.getByText(/Ultrapassagem detectada/i)).toBeInTheDocument();
+    expect(screen.getByText(/\+2\.00 kW \(\+20\.0%\)/i)).toBeInTheDocument();
+  });
+
+  it('renders a within-contract confirmation when the peak is below or equal to contracted demand', () => {
+    // samplePoints has peak = 12 kW, contract = 15 kW -> 3 kW free margin
+    render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} contractedDemandKw={15} />);
+
+    expect(screen.getByText(/dentro do contrato/i)).toBeInTheDocument();
+    expect(screen.getByText(/3\.00 kW/i)).toBeInTheDocument();
+  });
+
+  it('incorporates contractedDemandKw into the y-scale range calculation and draws horizontal reference', () => {
+    render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} contractedDemandKw={15} />);
+    const instance = instances.at(-1)!;
+
+    const options = instance.options as {
+      scales: { y: { range: (self: unknown, dataMin: number, dataMax: number) => [number, number] } };
+      hooks: { draw: Array<(self: unknown) => void> };
+    };
+
+    const yRange = options.scales.y.range(instance.chart, 0, 12);
+    expect(yRange[0]).toBe(0);
+    expect(yRange[1]).toBeCloseTo(15 * 1.08);
+
+    // Call draw hook to verify it renders the reference line without crashing
+    options.hooks.draw[0](instance.chart);
+    const fakeChart = instance.chart as { ctx: { fillText: ReturnType<typeof vi.fn> } };
+    expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kW'), expect.any(Number), expect.any(Number));
   });
 });
