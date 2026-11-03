@@ -27,6 +27,28 @@ const dynamicMocks = vi.hoisted(() => ({
 vi.mock('./ci-memorial-pdf', () => ({ buildCiMemorialPdfBlob: dynamicMocks.buildMemorialPdf }));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts: dynamicMocks.listProducts }));
 
+vi.mock('uplot', () => ({
+  default: class FakeUPlot {
+    root = document.createElement('div');
+    over = document.createElement('div');
+    scales = { x: { min: 0, max: 1 } };
+    constructor(_opts: unknown, _data: unknown, target?: HTMLElement) {
+      target?.appendChild(this.root);
+    }
+    posToVal() {
+      return 0;
+    }
+    setScale() {}
+    setSelect() {}
+    setData() {}
+    setSize() {}
+    redraw() {}
+    destroy() {
+      this.root.remove();
+    }
+  },
+}));
+
 function panelProps(projectId: string | null, overrides: { onFlushSave?: () => Promise<unknown> } = {}) {
   return {
     projectId,
@@ -238,5 +260,52 @@ describe('CiResultsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Gerar memorial (PDF)' }));
 
     expect(await screen.findByText('Não foi possível gerar o memorial em PDF. Tente novamente.')).toBeInTheDocument();
+  });
+
+  it('renders peak shaving dispatch metrics and chart when dispatch points are present', async () => {
+    const base = makeResult();
+    const resultWithDispatch = makeResult({
+      selected: {
+        ...base.selected!,
+        demandSavings: 45000,
+        dispatch: [
+          {
+            timestamp: '2026-01-01T17:00:00Z',
+            tariffPeriod: 'offPeak',
+            loadKw: 150,
+            chargeKw: 0,
+            dischargeKw: 0,
+            gridImportKw: 150,
+            socKwh: 100,
+          },
+          {
+            timestamp: '2026-01-01T18:00:00Z',
+            tariffPeriod: 'peak',
+            loadKw: 350,
+            chargeKw: 0,
+            dischargeKw: 100,
+            gridImportKw: 250,
+            socKwh: 50,
+          },
+        ],
+      },
+    });
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(resultWithDispatch),
+    });
+
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    expect(await screen.findByText('Operação e Despacho BESS (Peak Shaving)')).toBeInTheDocument();
+    expect(screen.getByText('Pico de Carga Original')).toBeInTheDocument();
+    expect(screen.getAllByText('350,0 kW')).toHaveLength(2); // baseline + peak shaving
+    expect(screen.getByText('Pico com BESS (Rede)')).toBeInTheDocument();
+    expect(screen.getByText('250,0 kW')).toBeInTheDocument();
+    expect(screen.getByText('Redução no Pico')).toBeInTheDocument();
+    expect(screen.getByText(/100,0 kW/)).toBeInTheDocument();
+    expect(screen.getByText('Economia em Demanda')).toBeInTheDocument();
   });
 });

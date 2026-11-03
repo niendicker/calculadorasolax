@@ -337,7 +337,11 @@ export function CiLoadCurvePanel({
         <div className="space-y-3 border-t pt-4">
           <p className="text-sm font-semibold">Curva de carga</p>
           <div className="rounded-lg border bg-card p-3">
-            <LoadCurveChart points={existing.points} resolutionMinutes={existing.resolutionMinutes} />
+            <LoadCurveChart
+              points={existing.points}
+              resolutionMinutes={existing.resolutionMinutes}
+              contractedDemandKw={ciOptions.tariff?.contractedDemandKw}
+            />
           </div>
           <p className="text-sm font-semibold">Resumo</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
