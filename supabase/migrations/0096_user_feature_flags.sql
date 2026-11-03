@@ -1,4 +1,4 @@
--- 0095_user_feature_flags.sql
+-- 0096_user_feature_flags.sql
 -- Add user-level feature flags in profiles with admin-only management and security guard.
 
 -- 1) Add feature_flags column to profiles
