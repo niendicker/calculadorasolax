@@ -71,28 +71,63 @@ describe('CiConfigurationPanel', () => {
     await waitFor(() => expect(card).toHaveAttribute('aria-pressed', 'false'));
   });
 
-  it('shows the fixed-quantity input by default and updates it', async () => {
+  it('shows auto sizing enabled by default, opens advanced customization, and edits values', async () => {
     listActiveCiBessProducts.mockResolvedValue([]);
     render(<ControlledPanel />);
     await screen.findByText(/Nenhum produto BESS ativo cadastrado/);
 
-    const moduleInput = screen.getByLabelText('Módulos');
-    expect(moduleInput).toHaveValue(1);
-    fireEvent.change(moduleInput, { target: { value: '4' } });
-    expect(moduleInput).toHaveValue(4);
-  });
+    expect(screen.getByText('Dimensionamento automático ativado')).toBeInTheDocument();
+    expect(screen.getByText(/A calculadora simula cenários de 1 a 6 módulos/)).toBeInTheDocument();
 
-  it('switches to the auto range and edits min/max modules', async () => {
-    listActiveCiBessProducts.mockResolvedValue([]);
-    render(<ControlledPanel />);
-    await screen.findByText(/Nenhum produto BESS ativo cadastrado/);
+    // Advanced inputs are initially hidden in default auto mode
+    expect(screen.queryByLabelText('Mínimo')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Faixa automática' }));
-    expect(screen.queryByLabelText('Módulos')).not.toBeInTheDocument();
+    // Click to expand customization
+    fireEvent.click(screen.getByRole('button', { name: /Ajustar faixa ou quantidade fixa/ }));
+    expect(screen.getByLabelText('Mínimo')).toHaveValue(1);
+    expect(screen.getByLabelText('Máximo')).toHaveValue(6);
 
+    // Edit range
     fireEvent.change(screen.getByLabelText('Mínimo'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('Máximo'), { target: { value: '8' } });
     expect(screen.getByLabelText('Mínimo')).toHaveValue(2);
     expect(screen.getByLabelText('Máximo')).toHaveValue(8);
+
+    // Switch to fixed quantity mode
+    fireEvent.click(screen.getByRole('button', { name: 'Quantidade fixa' }));
+    expect(screen.getByLabelText('Módulos')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Módulos'), { target: { value: '3' } });
+    expect(screen.getByLabelText('Módulos')).toHaveValue(3);
+    expect(screen.getByText('Quantidade fixa: 3 módulo(s)')).toBeInTheDocument();
+  });
+
+  it('triggers onNavigateNext when a product is selected and next button is clicked', async () => {
+    const onNavigateNext = vi.fn();
+    listActiveCiBessProducts.mockResolvedValue([makeProduct({ id: 'p1', model: 'PowerStack 50' })]);
+
+    const { rerender } = render(
+      <CiConfigurationPanel
+        ciOptions={{ ...defaultCiOptions, bessProductId: 'p1' }}
+        onChange={vi.fn()}
+        onNavigateNext={onNavigateNext}
+      />
+    );
+
+    await screen.findByText('PowerStack 50');
+
+    const nextButton = screen.getByRole('button', { name: /Avançar para Curva de carga/i });
+    expect(nextButton).toBeEnabled();
+    fireEvent.click(nextButton);
+    expect(onNavigateNext).toHaveBeenCalledTimes(1);
+
+    // Disabled when no product selected
+    rerender(
+      <CiConfigurationPanel
+        ciOptions={{ ...defaultCiOptions, bessProductId: null }}
+        onChange={vi.fn()}
+        onNavigateNext={onNavigateNext}
+      />
+    );
+    expect(screen.getByRole('button', { name: /Avançar para Curva de carga/i })).toBeDisabled();
   });
 });

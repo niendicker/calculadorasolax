@@ -143,7 +143,11 @@ export function CommercialIndustrialWorkspace({
       {effectiveSection === 'bess' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
-            <CiConfigurationPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
+            <CiConfigurationPanel
+              ciOptions={ciOptions}
+              onChange={onUpdateCiOptions}
+              onNavigateNext={() => setSectionState('curve')}
+            />
           </CardContent>
         </Card>
       )}

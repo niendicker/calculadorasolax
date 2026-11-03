@@ -6,7 +6,8 @@
 // same workspace; this only owns bessProductId/sizing.
 
 import { useEffect, useState } from 'react';
-import { Battery, Check, Gauge, ShieldCheck, Zap } from 'lucide-react';
+import { Battery, Check, ChevronDown, ChevronUp, ChevronRight, Gauge, ShieldCheck, Sliders, Sparkles, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/ci-bess-products-repository';
 import type { CommercialIndustrialOptions, SizingMode } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -14,19 +15,26 @@ import { cn } from '@/lib/utils';
 import { BatteryCardsSkeleton } from '../../shared-ui';
 
 const sizingModeOptions: { value: SizingMode; label: string; hint: string }[] = [
-  { value: 'fixed', label: 'Quantidade fixa', hint: 'Simula um único número de módulos.' },
   { value: 'auto', label: 'Faixa automática', hint: 'Compara várias quantidades dentro de um intervalo.' },
+  { value: 'fixed', label: 'Quantidade fixa', hint: 'Simula um único número de módulos.' },
 ];
 
 export function CiConfigurationPanel({
   ciOptions,
   onChange,
+  onNavigateNext,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
+  onNavigateNext?: () => void;
 }) {
   const [products, setProducts] = useState<CiBessProductRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isCustomSizing =
+    ciOptions.sizing.mode === 'fixed' ||
+    (ciOptions.sizing.mode === 'auto' && (ciOptions.sizing.minModules !== 1 || ciOptions.sizing.maxModules !== 6));
+  const [showCustomSizing, setShowCustomSizing] = useState(isCustomSizing);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,73 +154,117 @@ export function CiConfigurationPanel({
         )}
       </div>
 
-      <div className="space-y-4 border-t pt-4">
-        <div>
-          <p className="text-sm font-semibold">Quantidade de módulos</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Avalie um número fixo de módulos ou uma faixa para comparar cenários.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:w-fit">
-          {sizingModeOptions.map((option) => {
-            const active = ciOptions.sizing.mode === option.value;
-            return (
+      <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                {ciOptions.sizing.mode === 'fixed'
+                  ? `Quantidade fixa: ${ciOptions.sizing.moduleCount ?? 1} módulo(s)`
+                  : 'Dimensionamento automático ativado'}
+              </p>
               <button
-                key={option.value}
                 type="button"
-                aria-pressed={active}
-                onClick={() => setSizingMode(option.value)}
-                title={option.hint}
-                className={cn(
-                  'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition',
-                  active
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                )}
+                onClick={() => setShowCustomSizing(!showCustomSizing)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
               >
-                {option.label}
+                <Sliders className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{showCustomSizing ? 'Ocultar personalização' : 'Ajustar faixa ou quantidade fixa'}</span>
+                {showCustomSizing ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               </button>
-            );
-          })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {ciOptions.sizing.mode === 'fixed'
+                ? 'A calculadora simulará exclusivamente a quantidade fixa definida abaixo.'
+                : `A calculadora simula cenários de ${ciOptions.sizing.minModules ?? 1} a ${ciOptions.sizing.maxModules ?? 6} módulos e recomenda a quantidade com melhor retorno de investimento (Payback/ROI).`}
+            </p>
+          </div>
         </div>
 
-        {ciOptions.sizing.mode === 'fixed' ? (
-          <label className="flex max-w-40 flex-col gap-1.5 text-sm font-medium">
-            <span>Módulos</span>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={ciOptions.sizing.moduleCount ?? 1}
-              onChange={(event) => setModuleCount(Number(event.target.value))}
-            />
-          </label>
-        ) : (
-          <div className="flex flex-wrap gap-3">
-            <label className="flex max-w-40 flex-col gap-1.5 text-sm font-medium">
-              <span>Mínimo</span>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                value={ciOptions.sizing.minModules ?? 1}
-                onChange={(event) => setMinModules(Number(event.target.value))}
-              />
-            </label>
-            <label className="flex max-w-40 flex-col gap-1.5 text-sm font-medium">
-              <span>Máximo</span>
-              <Input
-                type="number"
-                min={ciOptions.sizing.minModules ?? 1}
-                step={1}
-                value={ciOptions.sizing.maxModules ?? ciOptions.sizing.minModules ?? 1}
-                onChange={(event) => setMaxModules(Number(event.target.value))}
-              />
-            </label>
+        {showCustomSizing && (
+          <div className="space-y-3 border-t pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground">Configuração de módulos para a simulação:</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:w-fit">
+              {sizingModeOptions.map((option) => {
+                const active = ciOptions.sizing.mode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setSizingMode(option.value)}
+                    title={option.hint}
+                    className={cn(
+                      'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition',
+                      active
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {ciOptions.sizing.mode === 'fixed' ? (
+              <label className="flex max-w-40 flex-col gap-1.5 text-sm font-medium">
+                <span>Módulos</span>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={ciOptions.sizing.moduleCount ?? 1}
+                  onChange={(event) => setModuleCount(Number(event.target.value))}
+                />
+              </label>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                <label className="flex max-w-40 flex-col gap-1.5 text-sm font-medium">
+                  <span>Mínimo</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={ciOptions.sizing.minModules ?? 1}
+                    onChange={(event) => setMinModules(Number(event.target.value))}
+                  />
+                </label>
+                <label className="flex max-w-40 flex-col gap-1.5 text-sm font-medium">
+                  <span>Máximo</span>
+                  <Input
+                    type="number"
+                    min={ciOptions.sizing.minModules ?? 1}
+                    step={1}
+                    value={ciOptions.sizing.maxModules ?? ciOptions.sizing.minModules ?? 1}
+                    onChange={(event) => setMaxModules(Number(event.target.value))}
+                  />
+                </label>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {onNavigateNext && (
+        <div className="flex justify-end border-t pt-4">
+          <Button
+            type="button"
+            onClick={onNavigateNext}
+            disabled={!selectedProduct}
+            className="gap-1.5"
+          >
+            Avançar para Curva de carga
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
