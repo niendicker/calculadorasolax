@@ -92,14 +92,13 @@ function mockSvgRect(point: HTMLElement) {
 }
 
 describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
-  function getModeButton(label: string) {
-    return screen.getByRole('button', { name: label });
+  function getSmoothToggle() {
+    return screen.getByRole('button', { name: /Suavizar/i });
   }
 
   it('defaults to Normal mode', () => {
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
-    expect(getModeButton('Normal')).toHaveAttribute('aria-pressed', 'true');
-    expect(getModeButton('Suave')).toHaveAttribute('aria-pressed', 'false');
+    expect(getSmoothToggle()).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('changes the point style when switching between Normal and Suave', () => {
@@ -110,13 +109,13 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
     expect(point).toHaveAttribute('fill', '#ffffff');
     expect(point).toHaveAttribute('stroke', '#24506b');
 
-    fireEvent.click(getModeButton('Suave'));
+    fireEvent.click(getSmoothToggle());
 
     expect(point).toHaveAttribute('r', '8');
     expect(point).toHaveAttribute('fill', '#24506b');
     expect(point).toHaveAttribute('stroke', '#ffffff');
 
-    fireEvent.click(getModeButton('Normal'));
+    fireEvent.click(getSmoothToggle());
 
     expect(point).toHaveAttribute('r', '7');
     expect(point).toHaveAttribute('fill', '#ffffff');
@@ -126,7 +125,7 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
   it('in Suave mode, gives the dragged point priority and tapers only the excess into neighbors', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
-    fireEvent.click(getModeButton('Suave'));
+    fireEvent.click(getSmoothToggle());
 
     const point = getSlider(12);
     mockSvgRect(point);
@@ -153,7 +152,7 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
   it('the brush falloff wraps past midnight', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
-    fireEvent.click(getModeButton('Suave'));
+    fireEvent.click(getSmoothToggle());
 
     const point = getSlider(23);
     mockSvgRect(point);
@@ -175,7 +174,7 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
   it('does not move neighbors for a sub-threshold keyboard nudge in Suave mode', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
-    fireEvent.click(getModeButton('Suave'));
+    fireEvent.click(getSmoothToggle());
 
     fireEvent.keyDown(getSlider(12), { key: 'ArrowUp' });
     await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -189,7 +188,7 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
   it('starts moving neighbors only after the smooth threshold is exceeded', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
-    fireEvent.click(getModeButton('Suave'));
+    fireEvent.click(getSmoothToggle());
 
     fireEvent.keyDown(getSlider(12), { key: 'ArrowUp', shiftKey: true });
     fireEvent.keyDown(getSlider(12), { key: 'ArrowUp' });
@@ -205,8 +204,8 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
   it('switching back to Normal mode only affects the dragged point again', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
-    fireEvent.click(getModeButton('Suave'));
-    fireEvent.click(getModeButton('Normal'));
+    fireEvent.click(getSmoothToggle());
+    fireEvent.click(getSmoothToggle());
 
     fireEvent.keyDown(getSlider(12), { key: 'ArrowUp' });
     await new Promise((resolve) => requestAnimationFrame(resolve));

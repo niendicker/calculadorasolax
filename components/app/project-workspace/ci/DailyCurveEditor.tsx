@@ -6,7 +6,7 @@
 // and independent controls for weekdays and weekends.
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -280,9 +280,9 @@ export function DailyCurveEditor({
 
   return (
     <div className="space-y-3">
-      {/* Top Controls Header: Pattern Segmented Control & Smooth Mode */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {isDualPattern && onPatternChange ? (
+      {/* Top Controls Header: Pattern Segmented Control */}
+      {isDualPattern && onPatternChange && (
+        <div className="flex items-center justify-between gap-3">
           <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
             <button
               type="button"
@@ -311,44 +311,21 @@ export function DailyCurveEditor({
               Fim de semana
             </button>
           </div>
-        ) : <div />}
-
-        <div className="flex items-center gap-2">
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-            {EDIT_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                aria-pressed={editMode === mode.id}
-                onClick={() => {
-                  smoothInteractionRef.current = null;
-                  setEditMode(mode.id);
-                }}
-                className={cn(
-                  'flex h-7 items-center justify-center rounded-md px-2.5 text-xs font-medium transition',
-                  editMode === mode.id
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                )}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
         </div>
-      </div>
+      )}
 
       {/* Main 2-Column Area: SVG Chart + Side Numerical Editor Panel */}
       <div className="flex flex-col lg:flex-row gap-4 items-stretch">
         {/* Left Column: Interactive SVG Chart */}
         <div className="flex-1 min-w-0 flex flex-col justify-between space-y-2">
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-            className="h-[235px] w-full touch-none select-none rounded-lg bg-card"
-            role="img"
-            aria-label="Editor da curva diária — arraste os pontos para ajustar a potência de cada hora"
-          >
+          <div className="relative">
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+              className="h-[235px] w-full touch-none select-none rounded-lg bg-card"
+              role="img"
+              aria-label="Editor da curva diária — arraste os pontos para ajustar a potência de cada hora"
+            >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={primary} stopOpacity={0.3} />
@@ -478,6 +455,33 @@ export function DailyCurveEditor({
               );
             })}
           </svg>
+
+          {/* Opção Suavizar no corpo do gráfico */}
+          <div className="absolute right-2.5 top-2.5 z-10">
+            <button
+              type="button"
+              aria-pressed={editMode === 'smooth'}
+              onClick={() => {
+                smoothInteractionRef.current = null;
+                setEditMode((prev) => (prev === 'smooth' ? 'normal' : 'smooth'));
+              }}
+              className={cn(
+                'flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition border shadow-xs',
+                editMode === 'smooth'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background/90 hover:bg-background text-muted-foreground hover:text-foreground border-border/80 backdrop-blur-xs'
+              )}
+              title={
+                editMode === 'smooth'
+                  ? 'Desativar suavização (ajuste ponto a ponto)'
+                  : 'Ativar suavização (distribui ajuste para vizinhos)'
+              }
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Suavizar</span>
+            </button>
+          </div>
+        </div>
 
           {/* Bottom Bar: Instructions and Discrete Clear Action */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
