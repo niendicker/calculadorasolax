@@ -49,10 +49,21 @@ async function importFile(content: string) {
 }
 
 describe('CiLoadCurvePanel', () => {
-  it('defaults to 15 min resolution and America/Sao_Paulo', () => {
+  it('defaults to 15 min resolution and America/Sao_Paulo, offering only the two Brazilian timezones', () => {
     render(<ControlledPanel />);
     expect(screen.getByRole('button', { name: '15 min' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('Fuso horário')).toHaveValue('America/Sao_Paulo');
+    const tzSelect = screen.getByLabelText('Fuso horário');
+    expect(tzSelect).toHaveValue('America/Sao_Paulo');
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveValue('America/Sao_Paulo');
+    expect(options[0]).toHaveTextContent('Brasília (UTC-3)');
+    expect(options[1]).toHaveValue('America/Manaus');
+    expect(options[1]).toHaveTextContent('Manaus / Cuiabá (UTC-4)');
+
+    fireEvent.change(tzSelect, { target: { value: 'America/Manaus' } });
+    expect(tzSelect).toHaveValue('America/Manaus');
   });
 
   it('imports a valid CSV and shows the normalized summary', async () => {

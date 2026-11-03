@@ -13,6 +13,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Gauge, Tren
 import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { parseLoadCurveCsv, summarizeLoadCurve } from '@/supabase/functions/_shared/commercial-industrial/load-curve';
 import { buildManualDayCurve, DAILY_CURVE_PRESETS, type DailyCurvePreset } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
@@ -83,6 +84,13 @@ function generateCurveCsvContent(points: LoadCurvePoint[]): string {
   return header + rows;
 }
 
+export const BRAZIL_TIMEZONES = [
+  { value: 'America/Sao_Paulo', label: 'Brasília (UTC-3)' },
+  { value: 'America/Manaus', label: 'Manaus / Cuiabá (UTC-4)' },
+] as const;
+
+export type BrazilTimezone = (typeof BRAZIL_TIMEZONES)[number]['value'];
+
 const resolutionOptions: LoadCurveResolutionMinutes[] = [15, 30, 60];
 type CurveSourceMode = 'csv' | 'manual';
 type DailyPattern = 'weekday' | 'weekend';
@@ -125,8 +133,12 @@ export function CiLoadCurvePanel({
       Array.isArray(initialManualConfig.weekendKw) &&
       initialManualConfig.weekendKw.length === 24
   );
+  const initialTimezone =
+    existing?.timezone === 'America/Manaus' || existing?.timezone === 'America/Cuiaba'
+      ? 'America/Manaus'
+      : 'America/Sao_Paulo';
   const [resolutionMinutes, setResolutionMinutes] = useState<LoadCurveResolutionMinutes>(existing?.resolutionMinutes ?? 15);
-  const [timezone, setTimezone] = useState(existing?.timezone ?? 'America/Sao_Paulo');
+  const [timezone, setTimezone] = useState<string>(initialTimezone);
   const [periodStart, setPeriodStart] = useState(existing?.periodStart ?? todayIsoDate());
   const [periodEnd, setPeriodEnd] = useState(existing?.periodEnd ?? addDaysIsoDate(todayIsoDate(), 6));
   const [fileName, setFileName] = useState<string | null>(null);
@@ -252,7 +264,17 @@ export function CiLoadCurvePanel({
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             <span>Fuso horário</span>
-            <Input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="America/Sao_Paulo" />
+            <Select
+              value={timezone}
+              onChange={(event) => setTimezone(event.target.value)}
+              aria-label="Fuso horário"
+            >
+              {BRAZIL_TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </Select>
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             <span>Início do período</span>
