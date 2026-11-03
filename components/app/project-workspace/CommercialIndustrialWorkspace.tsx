@@ -155,7 +155,12 @@ export function CommercialIndustrialWorkspace({
       {effectiveSection === 'curve' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
-            <CiLoadCurvePanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
+            <CiLoadCurvePanel
+              ciOptions={ciOptions}
+              onChange={onUpdateCiOptions}
+              onNavigatePrev={() => setSectionState('bess')}
+              onNavigateNext={() => setSectionState('tariff')}
+            />
           </CardContent>
         </Card>
       )}

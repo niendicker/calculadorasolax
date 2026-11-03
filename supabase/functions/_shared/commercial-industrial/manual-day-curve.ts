@@ -189,7 +189,12 @@ function zonedTimeToUtcIso(isoDate: string, hour: number, minute: number, timezo
  * matches each date's real day of week. Errors out (never silently
  * truncates) if the period/resolution combination would exceed
  * `LOAD_CURVE_MAX_POINTS`, same discipline as parseLoadCurveCsv. */
-export function buildManualDayCurve(weekdayKw: number[], weekendKw: number[], metadata: ManualDayCurveMetadata): BuildManualDayCurveResult {
+export function buildManualDayCurve(
+  weekdayKw: number[],
+  weekendKw: number[],
+  metadata: ManualDayCurveMetadata,
+  presetId?: string | null
+): BuildManualDayCurveResult {
   const errors: string[] = [];
   if (weekdayKw.length !== HOURS_PER_DAY) errors.push(`weekdayKw must have exactly ${HOURS_PER_DAY} entries, one per hour of the day`);
   if (weekendKw.length !== HOURS_PER_DAY) errors.push(`weekendKw must have exactly ${HOURS_PER_DAY} entries, one per hour of the day`);
@@ -228,6 +233,11 @@ export function buildManualDayCurve(weekdayKw: number[], weekendKw: number[], me
       periodStart: metadata.periodStart,
       periodEnd: metadata.periodEnd,
       source: 'manual',
+      manualConfig: {
+        presetId: presetId ?? null,
+        weekdayKw: weekdayKw.slice(),
+        weekendKw: weekendKw.slice(),
+      },
     },
   };
 }

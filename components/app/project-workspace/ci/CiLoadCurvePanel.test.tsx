@@ -142,5 +142,87 @@ describe('CiLoadCurvePanel', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remover curva' }));
       await waitFor(() => expect(screen.queryByText('Resumo')).not.toBeInTheDocument());
     });
+
+    it('restores manual curve editor with saved presets and hours when reopening the panel', async () => {
+      const initialManualCurve = {
+        resolutionMinutes: 15 as const,
+        timezone: 'America/Sao_Paulo',
+        periodStart: '2026-01-01',
+        periodEnd: '2026-01-07',
+        profileBasis: 'representative_period' as const,
+        source: 'manual' as const,
+        points: [{ timestamp: '2026-01-01T00:00:00Z', powerKw: 50 }],
+        manualConfig: {
+          presetId: 'comercio',
+          weekdayKw: [15, 15, 15, 15, 15, 15, 20, 45, 80, 95, 100, 98, 70, 85, 95, 98, 95, 88, 70, 45, 25, 18, 15, 15],
+          weekendKw: [12, 12, 12, 12, 12, 12, 15, 25, 40, 55, 60, 58, 50, 45, 35, 28, 22, 18, 15, 14, 13, 12, 12, 12],
+        },
+      };
+
+      render(<ControlledPanel initial={{ loadCurve: initialManualCurve }} />);
+
+      // Opens directly in manual mode with 24 hourly sliders visible and preset active
+      expect(await screen.findByText('Trocar perfil')).toBeInTheDocument();
+      expect(screen.getAllByRole('slider')).toHaveLength(24);
+      expect(screen.getByRole('button', { name: 'Fim de semana' })).toBeInTheDocument();
+    });
+  });
+
+  describe('csv export and template downloads', () => {
+    it('downloads the sample template CSV', async () => {
+      const createObjectURL = vi.fn().mockReturnValue('blob:template');
+      const revokeObjectURL = vi.fn();
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+
+      render(<ControlledPanel />);
+      const btn = screen.getByRole('button', { name: /Baixar CSV modelo/i });
+      fireEvent.click(btn);
+
+      expect(createObjectURL).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:template');
+    });
+
+    it('exports the currently configured load curve as CSV', async () => {
+      const createObjectURL = vi.fn().mockReturnValue('blob:export');
+      const revokeObjectURL = vi.fn();
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+
+      render(<ControlledPanel />);
+      fireEvent.click(screen.getByRole('button', { name: '60 min' }));
+      await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
+      await screen.findByText('Resumo');
+
+      const exportBtn = screen.getByRole('button', { name: /Exportar CSV/i });
+      fireEvent.click(exportBtn);
+
+      expect(createObjectURL).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:export');
+    });
+  });
+
+  describe('wizard navigation', () => {
+    it('calls onNavigatePrev and onNavigateNext when clicked', async () => {
+      const onNavigatePrev = vi.fn();
+      const onNavigateNext = vi.fn();
+
+      render(
+        <CiLoadCurvePanel
+          ciOptions={defaultCiOptions}
+          onChange={vi.fn()}
+          onNavigatePrev={onNavigatePrev}
+          onNavigateNext={onNavigateNext}
+        />
+      );
+
+      const prevBtn = screen.getByRole('button', { name: /Voltar para BESS/i });
+      fireEvent.click(prevBtn);
+      expect(onNavigatePrev).toHaveBeenCalledOnce();
+
+      // Next button disabled without curve
+      const nextBtn = screen.getByRole('button', { name: /Avançar para Tarifa/i });
+      expect(nextBtn).toBeDisabled();
+    });
   });
 });

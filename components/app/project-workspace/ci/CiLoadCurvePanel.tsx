@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, FileUp, Gauge, TrendingDown, TrendingUp, Zap } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Gauge, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +19,69 @@ import { buildManualDayCurve, DAILY_CURVE_PRESETS, type DailyCurvePreset } from 
 import {
   LOAD_CURVE_MAX_POINTS,
   type CommercialIndustrialOptions,
+  type LoadCurvePoint,
   type LoadCurveResolutionMinutes,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { DailyCurveEditor } from './DailyCurveEditor';
+
+function PresetSparkline({ weekdayKw, weekendKw }: { weekdayKw: number[]; weekendKw: number[] }) {
+  const maxKw = Math.max(...weekdayKw, ...weekendKw, 1);
+  const width = 140;
+  const height = 38;
+  const padY = 3;
+  const usableH = height - padY * 2;
+
+  const toCoords = (arr: number[]) =>
+    arr.map((kw, i) => {
+      const x = (i / (arr.length - 1)) * width;
+      const y = height - padY - (kw / maxKw) * usableH;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+
+  const wPoints = toCoords(weekdayKw);
+  const wePoints = toCoords(weekendKw);
+
+  const wPath = `M ${wPoints.join(' L ')}`;
+  const wePath = `M ${wePoints.join(' L ')}`;
+  const areaPath = `M 0,${height} L ${wPoints.join(' L ')} L ${width},${height} Z`;
+
+  return (
+    <div className="mt-2.5 flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-8 w-full max-w-[140px] overflow-visible" aria-hidden="true">
+        <path d={areaPath} fill="currentColor" className="text-primary/10" />
+        <path d={wePath} fill="none" stroke="currentColor" strokeWidth="1.2" strokeDasharray="3 2" className="text-muted-foreground/60" />
+        <path d={wPath} fill="none" stroke="currentColor" strokeWidth="2" className="text-primary" />
+      </svg>
+      <div className="shrink-0 space-y-0.5 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-0.5 w-2.5 rounded-full bg-primary" />
+          <span>Útil</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-0.5 w-2.5 rounded-full border-t border-dashed border-muted-foreground" />
+          <span>Fim sem.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function generateCurveCsvContent(points: LoadCurvePoint[]): string {
+  const header = 'timestamp,powerKw\n';
+  const rows = points.map((p) => `${p.timestamp},${p.powerKw}`).join('\n');
+  return header + rows;
+}
 
 const resolutionOptions: LoadCurveResolutionMinutes[] = [15, 30, 60];
 type CurveSourceMode = 'csv' | 'manual';
@@ -48,11 +108,16 @@ function addDaysIsoDate(isoDate: string, days: number): string {
 export function CiLoadCurvePanel({
   ciOptions,
   onChange,
+  onNavigateNext,
+  onNavigatePrev,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
+  onNavigateNext?: () => void;
+  onNavigatePrev?: () => void;
 }) {
   const existing = ciOptions.loadCurve;
+  const hasManualConfig = Boolean(existing?.manualConfig || existing?.source === 'manual');
   const [resolutionMinutes, setResolutionMinutes] = useState<LoadCurveResolutionMinutes>(existing?.resolutionMinutes ?? 15);
   const [timezone, setTimezone] = useState(existing?.timezone ?? 'America/Sao_Paulo');
   const [periodStart, setPeriodStart] = useState(existing?.periodStart ?? todayIsoDate());
@@ -60,10 +125,10 @@ export function CiLoadCurvePanel({
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText] = useState<string | null>(null);
 
-  const [sourceMode, setSourceMode] = useState<CurveSourceMode>('csv');
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [weekdayKw, setWeekdayKw] = useState<number[] | null>(null);
-  const [weekendKw, setWeekendKw] = useState<number[] | null>(null);
+  const [sourceMode, setSourceMode] = useState<CurveSourceMode>(hasManualConfig ? 'manual' : 'csv');
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(existing?.manualConfig?.presetId ?? (existing?.source === 'manual' ? 'custom' : null));
+  const [weekdayKw, setWeekdayKw] = useState<number[] | null>(existing?.manualConfig?.weekdayKw ?? null);
+  const [weekendKw, setWeekendKw] = useState<number[] | null>(existing?.manualConfig?.weekendKw ?? null);
   const [activePattern, setActivePattern] = useState<DailyPattern>('weekday');
 
   // Re-derived on every render from csvText + the declared metadata (not
@@ -81,7 +146,7 @@ export function CiLoadCurvePanel({
   // editing manually re-tiles immediately instead of silently going stale.
   const manualResult =
     sourceMode === 'manual' && weekdayKw && weekendKw
-      ? buildManualDayCurve(weekdayKw, weekendKw, { resolutionMinutes, timezone, periodStart, periodEnd })
+      ? buildManualDayCurve(weekdayKw, weekendKw, { resolutionMinutes, timezone, periodStart, periodEnd }, selectedPresetId)
       : null;
   const manualCurve = manualResult?.ok ? manualResult.curve : null;
 
@@ -134,6 +199,28 @@ export function CiLoadCurvePanel({
     setWeekdayKw(null);
     setWeekendKw(null);
     onChange({ loadCurve: null });
+  }
+
+  function handleDownloadTemplate() {
+    const sample = buildManualDayCurve(DAILY_CURVE_PRESETS[0].weekdayKw, DAILY_CURVE_PRESETS[0].weekendKw, {
+      resolutionMinutes,
+      periodStart,
+      periodEnd,
+      timezone,
+    });
+    if (sample.ok) {
+      const csvContent = generateCurveCsvContent(sample.curve.points);
+      downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'modelo-curva-de-carga.csv');
+    }
+  }
+
+  function handleExportCurrentCsv() {
+    if (!existing) return;
+    const csvContent = generateCurveCsvContent(existing.points);
+    downloadBlob(
+      new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }),
+      `curva-carga-${existing.periodStart}_${existing.periodEnd}.csv`
+    );
   }
 
   const summary = existing ? summarizeLoadCurve(existing) : null;
@@ -237,6 +324,10 @@ export function CiLoadCurvePanel({
                 }}
               />
             </label>
+            <Button type="button" variant="outline" size="sm" onClick={handleDownloadTemplate} className="gap-1.5">
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Baixar CSV modelo
+            </Button>
             {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
             {existing && (
               <Button type="button" variant="ghost" size="sm" onClick={clearCurve}>
@@ -247,17 +338,18 @@ export function CiLoadCurvePanel({
         )}
 
         {sourceMode === 'manual' && selectedPresetId === null && (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {DAILY_CURVE_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
                 aria-label={preset.label}
                 onClick={() => selectPreset(preset)}
-                className="rounded-lg border bg-card p-3 text-left text-sm transition hover:border-primary/50 hover:bg-muted/40"
+                className="group rounded-xl border bg-card p-3.5 text-left text-sm transition hover:border-primary/50 hover:bg-muted/40 hover:shadow-sm"
               >
-                <p className="font-semibold">{preset.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{preset.description}</p>
+                <p className="font-semibold text-foreground group-hover:text-primary transition-colors">{preset.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{preset.description}</p>
+                <PresetSparkline weekdayKw={preset.weekdayKw} weekendKw={preset.weekendKw} />
               </button>
             ))}
           </div>
@@ -335,7 +427,20 @@ export function CiLoadCurvePanel({
 
       {existing && summary && (
         <div className="space-y-3 border-t pt-4">
-          <p className="text-sm font-semibold">Curva de carga</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold">Curva de carga aplicada</p>
+              <p className="text-xs text-muted-foreground">
+                Visualização da semana representativa e parâmetros de potência.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleExportCurrentCsv} className="gap-1.5">
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Exportar CSV
+              </Button>
+            </div>
+          </div>
           <div className="rounded-lg border bg-card p-3">
             <LoadCurveChart
               points={existing.points}
@@ -374,6 +479,23 @@ export function CiLoadCurvePanel({
             {summary.pointCount} / {LOAD_CURVE_MAX_POINTS} pontos · resolução {existing.resolutionMinutes} min · {existing.periodStart} a{' '}
             {existing.periodEnd} · {existing.timezone}
           </p>
+        </div>
+      )}
+
+      {(onNavigateNext || onNavigatePrev) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          {onNavigatePrev ? (
+            <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Voltar para BESS
+            </Button>
+          ) : <div />}
+          {onNavigateNext && (
+            <Button type="button" onClick={onNavigateNext} disabled={!existing} className="gap-1.5">
+              Avançar para Tarifa
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
         </div>
       )}
     </div>

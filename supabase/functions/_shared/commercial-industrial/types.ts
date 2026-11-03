@@ -23,6 +23,12 @@ export interface LoadCurvePoint {
   powerKw: number;
 }
 
+export interface LoadCurveManualConfig {
+  presetId: string | null;
+  weekdayKw: number[];
+  weekendKw: number[];
+}
+
 export interface LoadCurve {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
@@ -32,6 +38,7 @@ export interface LoadCurve {
   periodStart: string;
   periodEnd: string;
   source: LoadCurveSource;
+  manualConfig?: LoadCurveManualConfig;
 }
 
 /** Everything about a LoadCurve that the user declares up front — as opposed
