@@ -345,7 +345,7 @@ describe('ProjectWorkspace', () => {
   it('opens battery editing through the full technical configuration flow when available', () => {
     const onOpenConfiguration = vi.fn();
     const onOpenResource = vi.fn();
-    renderWorkspace({ onOpenConfiguration, onOpenResource, section: 'overview' });
+    renderWorkspace({ onOpenConfiguration, onOpenResource });
 
     fireEvent.click(screen.getByRole('button', { name: /Bateria/ }));
 
