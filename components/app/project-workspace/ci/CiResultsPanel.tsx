@@ -19,7 +19,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, ChevronLeft, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronLeft, FileDown, Loader2, Play, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,18 +33,46 @@ const CiDispatchChart = dynamic(() => import('./CiDispatchChart').then((mod) => 
   loading: () => <div className="h-[280px] w-full animate-pulse rounded-lg bg-muted" />,
 });
 
-function ScenarioRow({ scenario, recommended }: { scenario: ScenarioCandidate; recommended: boolean }) {
+function ScenarioRow({
+  scenario,
+  recommended,
+  active,
+  onSelect,
+}: {
+  scenario: ScenarioCandidate;
+  recommended: boolean;
+  active: boolean;
+  onSelect: () => void;
+}) {
   return (
-    <tr className={recommended ? 'bg-primary/[0.06]' : undefined}>
-      <td className="whitespace-nowrap px-3 py-2 text-sm font-medium">
-        {scenario.moduleCount}
+    <tr
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        'cursor-pointer transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        active ? 'bg-primary/10 font-medium' : recommended ? 'bg-primary/[0.04]' : undefined
+      )}
+    >
+      <td className="whitespace-nowrap px-3 py-2 text-sm">
+        <span className="font-semibold">{scenario.moduleCount}</span>
         {recommended && (
           <Badge variant="secondary" className="ml-2">
             Recomendado
           </Badge>
         )}
+        {active && !recommended && (
+          <Badge variant="outline" className="ml-2 border-primary/40 text-primary">
+            Selecionado
+          </Badge>
+        )}
         {!scenario.technicalValidity && (
-          <Badge variant="outline" className="ml-2">
+          <Badge variant="outline" className="ml-2 text-destructive border-destructive/30">
             Inválido
           </Badge>
         )}
@@ -81,6 +109,7 @@ export function CiResultsPanel({
   onNavigatePrev?: () => void;
 }) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
@@ -103,7 +132,9 @@ export function CiResultsPanel({
         setError((data as { error?: string } | null)?.error ?? 'Não foi possível calcular. Tente novamente.');
         return;
       }
-      setResult(data as CommercialIndustrialResult);
+      const calculationResult = data as CommercialIndustrialResult;
+      setResult(calculationResult);
+      setSelectedScenarioId(calculationResult.recommendation.scenarioId ?? calculationResult.selected?.scenarioId ?? null);
     } catch {
       setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
     } finally {
@@ -155,12 +186,28 @@ export function CiResultsPanel({
   }
 
   const sortedScenarios = result ? [...result.scenarios].sort((a, b) => a.moduleCount - b.moduleCount) : [];
+  const currentScenario =
+    sortedScenarios.find((s) => s.scenarioId === selectedScenarioId) ??
+    (result?.selected?.scenarioId === selectedScenarioId ? result.selected : null) ??
+    sortedScenarios.find((s) => s.scenarioId === result?.recommendation.scenarioId) ??
+    result?.selected ??
+    null;
+  const isRecommendedActive =
+    result?.recommendation.scenarioId
+      ? currentScenario?.scenarioId === result.recommendation.scenarioId
+      : currentScenario?.scenarioId === result?.selected?.scenarioId;
+
   const dispatch = result?.selected?.dispatch ?? [];
   const hasDispatch = dispatch.length > 0;
   const maxOriginalDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.loadKw)) : 0;
   const maxGridDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.gridImportKw)) : 0;
   const peakReductionKw = Math.max(0, maxOriginalDemandKw - maxGridDemandKw);
   const peakReductionPercent = maxOriginalDemandKw > 0 ? (peakReductionKw / maxOriginalDemandKw) * 100 : 0;
+
+  const hasBessProduct = Boolean(ciOptions.bessProductId);
+  const hasCurve = Boolean(ciOptions.loadCurve && (ciOptions.loadCurve.points.length > 0 || (ciOptions.loadCurve as any).representativeDays?.length > 0));
+  const hasTariff = Boolean(ciOptions.tariff && (ciOptions.tariff.peakEnergyRateBrlKwh > 0 || ciOptions.tariff.offPeakEnergyRateBrlKwh > 0));
+  const hasStrategy = Boolean(ciOptions.strategy);
 
   return (
     <div className="space-y-6">
@@ -207,6 +254,75 @@ export function CiResultsPanel({
         </div>
       )}
 
+      {!result && !loading && (
+        <div className="rounded-xl border border-muted bg-card/60 p-6 space-y-5">
+          <div className="flex items-start gap-4">
+            <div className="rounded-xl bg-primary/10 p-3 text-primary shrink-0">
+              <BarChart3 className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold text-foreground">Pronto para dimensionar a solução BESS</h3>
+              <p className="text-sm text-muted-foreground">
+                Revise os parâmetros definidos nas abas anteriores antes de executar a otimização econômica e técnica:
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+              <CheckCircle2
+                className={cn('h-5 w-5 shrink-0', hasBessProduct ? 'text-emerald-500' : 'text-muted-foreground/40')}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Produto BESS</p>
+                <p className="truncate text-xs font-medium">{hasBessProduct ? 'Selecionado' : 'Padrão / Não definido'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+              <CheckCircle2
+                className={cn('h-5 w-5 shrink-0', hasCurve ? 'text-emerald-500' : 'text-muted-foreground/40')}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Curva de Carga</p>
+                <p className="truncate text-xs font-medium">{hasCurve ? 'Configurada' : 'Não definida'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+              <CheckCircle2
+                className={cn('h-5 w-5 shrink-0', hasTariff ? 'text-emerald-500' : 'text-muted-foreground/40')}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Tarifas e Demanda</p>
+                <p className="truncate text-xs font-medium">{hasTariff ? 'Estrutura preenchida' : 'Valores padrão'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+              <CheckCircle2
+                className={cn('h-5 w-5 shrink-0', hasStrategy ? 'text-emerald-500' : 'text-muted-foreground/40')}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Estratégia</p>
+                <p className="truncate text-xs font-medium">{ciOptions.strategy || 'HYBRID'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end pt-2">
+            <Button type="button" onClick={runCalculation} disabled={loading} className="gap-2">
+              <Play className="h-4 w-4" aria-hidden="true" />
+              Executar Dimensionamento
+            </Button>
+          </div>
+        </div>
+      )}
+
       {result && (
         <>
           <div className="space-y-3 border-t pt-4">
@@ -233,44 +349,66 @@ export function CiResultsPanel({
             </div>
           </div>
 
-          {result.selected && (
+          {currentScenario && (
             <div
               className={
-                result.recommendation.scenarioId
+                isRecommendedActive
                   ? 'space-y-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-4'
-                  : 'space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4'
+                  : 'space-y-3 rounded-lg border border-muted-foreground/30 bg-muted/20 p-4'
               }
             >
-              <p className="flex items-center gap-1.5 text-sm font-semibold">
-                {result.recommendation.scenarioId ? (
-                  <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  {isRecommendedActive ? (
+                    <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
+                  ) : (
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  )}
+                  {isRecommendedActive
+                    ? (result.recommendation.scenarioId
+                        ? `Cenário recomendado — ${currentScenario.moduleCount} módulo${currentScenario.moduleCount === 1 ? '' : 's'}`
+                        : `Nenhum cenário economicamente viável — menor configuração avaliada: ${currentScenario.moduleCount} módulo${currentScenario.moduleCount === 1 ? '' : 's'} (não recomendada)`)
+                    : `Cenário inspecionado — ${currentScenario.moduleCount} módulo${currentScenario.moduleCount === 1 ? '' : 's'}`}
+                </p>
+                {!isRecommendedActive && result.recommendation.scenarioId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-primary"
+                    onClick={() => setSelectedScenarioId(result.recommendation.scenarioId)}
+                  >
+                    Voltar ao recomendado
+                  </Button>
                 )}
-                {result.recommendation.scenarioId
-                  ? `Cenário recomendado — ${result.selected.moduleCount} módulo${result.selected.moduleCount === 1 ? '' : 's'}`
-                  : `Nenhum cenário economicamente viável — menor configuração avaliada: ${result.selected.moduleCount} módulo${result.selected.moduleCount === 1 ? '' : 's'} (não recomendada)`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isRecommendedActive
+                  ? result.recommendation.reason
+                  : `Visualizando métricas financeiras detalhadas para a configuração de ${currentScenario.moduleCount} módulo(s). Clique em outra linha da tabela para comparar.`}
               </p>
-              <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-muted-foreground">CAPEX</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(result.selected.capex)}</p>
+                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.capex)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Economia anual</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(result.selected.annualSavings)}</p>
+                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.annualSavings)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Payback simples / descontado</p>
                   <p className="mt-1 text-sm font-semibold">
-                    {formatYears(result.selected.paybackYearsSimple)} / {formatYears(result.selected.paybackYearsDiscounted)}
+                    {formatYears(currentScenario.paybackYearsSimple)}
+                    {'paybackYearsDiscounted' in currentScenario && (currentScenario as any).paybackYearsDiscounted !== undefined
+                      ? ` / ${formatYears((currentScenario as any).paybackYearsDiscounted)}`
+                      : ''}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">ROI / NPV</p>
                   <p className="mt-1 text-sm font-semibold">
-                    {formatPercentBRL(result.selected.roiPercent)} / {formatCurrencyBRL(result.selected.npv)}
+                    {formatPercentBRL(currentScenario.roiPercent)} / {formatCurrencyBRL(currentScenario.npv)}
                   </p>
                 </div>
               </div>
@@ -367,7 +505,10 @@ export function CiResultsPanel({
           )}
 
           <div className="space-y-3 border-t pt-4">
-            <p className="text-sm font-semibold">Comparação por quantidade de módulos</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Comparação por quantidade de módulos</p>
+              <p className="text-xs text-muted-foreground">Clique em uma linha para inspecionar os detalhes acima</p>
+            </div>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-left">
                 <thead className="border-b bg-muted/50">
@@ -387,6 +528,8 @@ export function CiResultsPanel({
                       key={scenario.scenarioId}
                       scenario={scenario}
                       recommended={scenario.scenarioId === result.recommendation.scenarioId}
+                      active={scenario.scenarioId === (selectedScenarioId ?? result.recommendation.scenarioId)}
+                      onSelect={() => setSelectedScenarioId(scenario.scenarioId)}
                     />
                   ))}
                 </tbody>

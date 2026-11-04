@@ -308,4 +308,34 @@ describe('CiResultsPanel', () => {
     expect(screen.getByText(/100,0 kW/)).toBeInTheDocument();
     expect(screen.getByText('Economia em Demanda')).toBeInTheDocument();
   });
+
+  it('renders readiness checklist empty state before calculation and allows selecting scenarios', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeResult()),
+    });
+
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+
+    // Readiness empty state
+    expect(screen.getByText('Pronto para dimensionar a solução BESS')).toBeInTheDocument();
+    expect(screen.getByText('Executar Dimensionamento')).toBeInTheDocument();
+
+    // Trigger calculation
+    fireEvent.click(screen.getByRole('button', { name: 'Executar Dimensionamento' }));
+
+    expect(await screen.findByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+
+    // Click on 1 module scenario row to inspect
+    const rows = screen.getAllByRole('row');
+    // Row 0 is header, Row 1 is 1 module, Row 2 is 2 modules
+    fireEvent.click(rows[1]);
+
+    expect(screen.getByText('Cenário inspecionado — 1 módulo')).toBeInTheDocument();
+    expect(screen.getByText('Voltar ao recomendado')).toBeInTheDocument();
+
+    // Return to recommended
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar ao recomendado' }));
+    expect(screen.getByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+  });
 });
