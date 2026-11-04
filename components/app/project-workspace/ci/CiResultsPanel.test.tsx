@@ -309,6 +309,38 @@ describe('CiResultsPanel', () => {
     expect(screen.getByText('Economia em Demanda')).toBeInTheDocument();
   });
 
+  it('renders solar PV generation metric card when solarGenerationKw is present in dispatch', async () => {
+    const base = makeResult();
+    const resultWithSolar = makeResult({
+      selected: {
+        ...base.selected!,
+        demandSavings: 45000,
+        dispatch: [
+          {
+            timestamp: '2026-01-01T12:00:00Z',
+            tariffPeriod: 'offPeak',
+            loadKw: 150,
+            chargeKw: 0,
+            dischargeKw: 0,
+            gridImportKw: 100,
+            socKwh: 100,
+            solarGenerationKw: 50,
+          },
+        ],
+      },
+    });
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(resultWithSolar),
+    });
+
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    expect(await screen.findByText('Geração Solar FV (Semana)')).toBeInTheDocument();
+  });
+
   it('renders readiness checklist empty state before calculation and allows selecting scenarios', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,

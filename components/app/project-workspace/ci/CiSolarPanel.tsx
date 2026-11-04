@@ -58,7 +58,17 @@ export function CiSolarPanel({
           type="button"
           variant={solar.enabled ? 'default' : 'outline'}
           size="sm"
-          onClick={() => updateSolar({ enabled: !solar.enabled })}
+          onClick={() => {
+            if (!solar.enabled) {
+              updateSolar({
+                enabled: true,
+                installedPowerKwp: solar.installedPowerKwp > 0 ? solar.installedPowerKwp : 50,
+                inverterPowerKw: solar.inverterPowerKw > 0 ? solar.inverterPowerKw : (solar.installedPowerKwp > 0 ? solar.installedPowerKwp : 50),
+              });
+            } else {
+              updateSolar({ enabled: false });
+            }
+          }}
           className="shrink-0 font-medium"
         >
           {solar.enabled ? 'Sistema FV Habilitado' : 'Habilitar Geração FV'}

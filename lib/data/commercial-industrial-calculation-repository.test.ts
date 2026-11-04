@@ -56,6 +56,83 @@ describe('commercial-industrial-calculation-repository', () => {
     expect(invoke).toHaveBeenCalledWith('calculate-commercial-industrial', { body });
   });
 
+  it('cai para cálculo direto local quando a Edge Function remota falha', async () => {
+    const { client, invoke } = makeClient();
+    invoke.mockRejectedValue(new Error('Edge function not reachable'));
+    // body with incomplete options returns error gracefully from direct calculation
+    const body = { options: {}, unitPriceBrl: 45000 };
+    const res = await invokeCommercialIndustrialCalculation(client, body);
+    expect(res.data).toBeNull();
+    expect(res.error).toBeDefined();
+  });
+
+  it('calcula diretamente com solar FV preenchendo solarGenerationKw no dispatch', async () => {
+    const bRow = {
+      id: 'bess-1',
+      model: 'BESS 100',
+      module_power_kw: 50,
+      module_capacity_kwh: 100,
+      efficiency_percent: 90,
+      soc_min_percent: 10,
+      soc_max_percent: 90,
+    };
+    const { client, invoke } = makeClient({ data: bRow, error: null });
+    // Simulate remote function returning stale result without solar points
+    invoke.mockResolvedValue({
+      data: {
+        engineVersion: 'ci-v1',
+        selected: {
+          scenarioId: 's1',
+          dispatch: [{ timestamp: '2026-08-24T12:00:00.000Z', loadKw: 100 }],
+        },
+      },
+      error: null,
+    });
+
+    const body = {
+      options: {
+        loadCurve: {
+          points: [{ timestamp: '2026-08-24T15:00:00.000Z', powerKw: 100 }],
+          resolutionMinutes: 60,
+          timezone: 'America/Sao_Paulo',
+          profileBasis: 'representative_period',
+          periodStart: '2026-08-24',
+          periodEnd: '2026-08-24',
+        },
+        tariff: {
+          tariffType: 'verde',
+          contractedDemandKw: 100,
+          energyRatePeakBrlPerMwh: 1200,
+          energyRateOffPeakBrlPerMwh: 400,
+          peakStart: '18:00',
+          peakEnd: '21:00',
+        },
+        bessProductId: 'bess-1',
+        strategy: 'HYBRID',
+        sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
+        financialAssumptions: {
+          discountRatePercent: 12,
+          analysisHorizonYears: 10,
+          annualEnergyInflationPercent: 0,
+          monthsPerYear: 12,
+        },
+        rankingCriterion: 'PAYBACK',
+        solar: {
+          enabled: true,
+          installedPowerKwp: 50,
+          inverterPowerKw: 50,
+          dailyYieldKwhPerKwp: 4.5,
+          prioritizeBessCharging: true,
+        },
+      },
+      unitPriceBrl: 45000,
+    };
+
+    const res = await invokeCommercialIndustrialCalculation(client, body as any);
+    expect(res.data).toBeDefined();
+    expect(res.data?.selected?.dispatch?.[0]?.solarGenerationKw).toBeGreaterThan(0);
+  });
+
   it('busca o preço próprio do produto BESS e retorna null quando não há registro', async () => {
     const { client, query } = makeClient({ data: { unit_value: '45000.50' }, error: null });
 

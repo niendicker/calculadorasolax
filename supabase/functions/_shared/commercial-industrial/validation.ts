@@ -269,6 +269,43 @@ function validateBackup(raw: unknown, errors: string[]): void {
   }
 }
 
+function validateSolar(raw: unknown, errors: string[]): void {
+  if (raw === undefined || raw === null) return;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('solar must be an object');
+    return;
+  }
+  const solar = raw as Record<string, unknown>;
+  if (typeof solar.enabled !== 'boolean') {
+    errors.push('solar.enabled must be a boolean');
+  }
+  if (solar.enabled) {
+    if (!isNonNegativeFiniteNumber(solar.installedPowerKwp)) {
+      errors.push('solar.installedPowerKwp must be a non-negative number');
+    }
+    if (!isNonNegativeFiniteNumber(solar.inverterPowerKw)) {
+      errors.push('solar.inverterPowerKw must be a non-negative number');
+    }
+  }
+}
+
+function validateGenerator(raw: unknown, errors: string[]): void {
+  if (raw === undefined || raw === null) return;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('generator must be an object');
+    return;
+  }
+  const generator = raw as Record<string, unknown>;
+  if (typeof generator.enabled !== 'boolean') {
+    errors.push('generator.enabled must be a boolean');
+  }
+  if (generator.enabled) {
+    if (!isNonNegativeFiniteNumber(generator.ratedPowerKva)) {
+      errors.push('generator.ratedPowerKva must be a non-negative number');
+    }
+  }
+}
+
 /** Validates a raw (untrusted) payload against the CommercialIndustrialOptions
  * contract. Returns an empty array when valid. Mirrors
  * validateResidentialOptions's calling convention so the API route layer can
@@ -296,6 +333,8 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
   validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
   validateBackup(options.backup, errors);
+  validateSolar(options.solar, errors);
+  validateGenerator(options.generator, errors);
 
   if (!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));

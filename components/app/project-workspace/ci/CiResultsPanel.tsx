@@ -201,6 +201,9 @@ export function CiResultsPanel({
 
   const dispatch = result?.selected?.dispatch ?? [];
   const hasDispatch = dispatch.length > 0;
+  const resolutionHours = (ciOptions.loadCurve?.resolutionMinutes ?? 15) / 60;
+  const totalSolarKwh = dispatch.reduce((sum, d) => sum + (d.solarGenerationKw ?? 0) * resolutionHours, 0);
+  const totalGenKwh = dispatch.reduce((sum, d) => sum + (d.generatorKw ?? 0) * resolutionHours, 0);
   const maxOriginalDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.loadKw)) : 0;
   const maxGridDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.gridImportKw)) : 0;
   const peakReductionKw = Math.max(0, maxOriginalDemandKw - maxGridDemandKw);
@@ -428,7 +431,10 @@ export function CiResultsPanel({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className={cn(
+                'grid grid-cols-2 gap-3',
+                totalSolarKwh > 0 || totalGenKwh > 0 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-4'
+              )}>
                 <div className="rounded-md border bg-muted/20 p-2.5">
                   <p className="text-xs text-muted-foreground">Pico de Carga Original</p>
                   <p className="mt-1 text-sm font-semibold">{formatKw(maxOriginalDemandKw)}</p>
@@ -447,6 +453,18 @@ export function CiResultsPanel({
                   <p className="text-xs text-muted-foreground">Economia em Demanda</p>
                   <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(result.selected.demandSavings)}/ano</p>
                 </div>
+                {totalSolarKwh > 0 && (
+                  <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2.5">
+                    <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Geração Solar FV (Semana)</p>
+                    <p className="mt-1 text-sm font-semibold text-amber-700 dark:text-amber-300">{formatKwh(totalSolarKwh, 1)}</p>
+                  </div>
+                )}
+                {totalGenKwh > 0 && (
+                  <div className="rounded-md border border-orange-500/20 bg-orange-500/5 p-2.5">
+                    <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Geração GMG (Semana)</p>
+                    <p className="mt-1 text-sm font-semibold text-orange-700 dark:text-orange-300">{formatKwh(totalGenKwh, 1)}</p>
+                  </div>
+                )}
               </div>
 
               <CiDispatchChart

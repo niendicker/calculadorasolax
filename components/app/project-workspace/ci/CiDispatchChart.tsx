@@ -403,7 +403,7 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
       if (chartRef.current && el.clientWidth > 0) {
         chartRef.current.setSize({ width: el.clientWidth, height: CHART_HEIGHT });

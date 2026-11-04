@@ -193,8 +193,8 @@ export interface CiSolarConfig {
 
 export const DEFAULT_CI_SOLAR_CONFIG: CiSolarConfig = {
   enabled: false,
-  installedPowerKwp: 0,
-  inverterPowerKw: 0,
+  installedPowerKwp: 50,
+  inverterPowerKw: 50,
   dailyYieldKwhPerKwp: 4.5,
   prioritizeBessCharging: true,
 };
