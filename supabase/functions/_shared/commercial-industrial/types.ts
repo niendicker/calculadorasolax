@@ -177,6 +177,52 @@ export interface CiBackupResult {
   warningMessage?: string;
 }
 
+// ─── Solar PV & Generator Contracts ────────────────────────────────────
+
+export interface CiSolarConfig {
+  enabled: boolean;
+  installedPowerKwp: number;
+  inverterPowerKw: number;
+  /** Average daily yield in kWh/kWp (typical Brazil: 4.0 - 5.5). Defaults to 4.5. */
+  dailyYieldKwhPerKwp: number;
+  /** Whether excess solar should be stored in BESS before exporting (default true). */
+  prioritizeBessCharging: boolean;
+  /** Optional custom generation points for representative week, normalized to kW. */
+  generationPoints?: number[];
+}
+
+export const DEFAULT_CI_SOLAR_CONFIG: CiSolarConfig = {
+  enabled: false,
+  installedPowerKwp: 0,
+  inverterPowerKw: 0,
+  dailyYieldKwhPerKwp: 4.5,
+  prioritizeBessCharging: true,
+};
+
+export type CiGeneratorFuelType = 'diesel' | 'natural_gas' | 'biogas';
+export type CiGeneratorDispatchMode = 'blackout_only' | 'peak_and_blackout' | 'peak_support';
+
+export interface CiGeneratorConfig {
+  enabled: boolean;
+  ratedPowerKva: number;
+  powerFactor: number;
+  fuelType: CiGeneratorFuelType;
+  fuelCostBrlPerUnit: number;
+  /** Specific fuel consumption (e.g. liters/kWh or m³/kWh). Defaults to 0.28 L/kWh for diesel. */
+  specificConsumption: number;
+  dispatchMode: CiGeneratorDispatchMode;
+}
+
+export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
+  enabled: false,
+  ratedPowerKva: 0,
+  powerFactor: 0.8,
+  fuelType: 'diesel',
+  fuelCostBrlPerUnit: 6.2,
+  specificConsumption: 0.28,
+  dispatchMode: 'blackout_only',
+};
+
 export interface CommercialIndustrialOptions {
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
@@ -186,6 +232,8 @@ export interface CommercialIndustrialOptions {
   financialAssumptions: FinancialAssumptions;
   rankingCriterion: RankingCriterion;
   backup?: CiBackupConfig;
+  solar?: CiSolarConfig;
+  generator?: CiGeneratorConfig;
 }
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
@@ -205,6 +253,8 @@ export interface DispatchPoint {
   dischargeKw: number;
   gridImportKw: number;
   socKwh: number;
+  solarGenerationKw?: number;
+  generatorKw?: number;
 }
 
 export interface CashFlowYear {
