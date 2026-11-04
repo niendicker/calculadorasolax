@@ -148,6 +148,8 @@ export async function handleCalculateCommercialIndustrial(
       monthsPerYear: options.financialAssumptions.monthsPerYear,
       financialAssumptions: options.financialAssumptions,
       backup: options.backup,
+      solar: options.solar,
+      generator: options.generator,
     };
 
     const { baseline, scenarios } = buildScenarioGrid(gridInput);

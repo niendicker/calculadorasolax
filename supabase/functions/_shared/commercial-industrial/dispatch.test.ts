@@ -960,4 +960,50 @@ describe('summarizeDispatch', () => {
     expect(summary.energyImportedPeakKwh).toBe(80);
     expect(summary.energyImportedTotalKwh).toBe(110);
   });
+
+  it('incorporates solar generation into dispatch and reduces net grid import', () => {
+    const curve = makeCurve([{ hour: 12, powerKw: 100 }], 60);
+    const trace = runDispatch({
+      curve,
+      bess: makeBess({ totalPowerKw: 0, totalCapacityKwh: 0 }),
+      strategy: 'BASE',
+      tariffWindow: DEFAULT_WINDOW,
+      peakShavingTargetKw: null,
+      contractedDemandKw: UNLIMITED_DEMAND,
+      solar: {
+        enabled: true,
+        installedPowerKwp: 60,
+        inverterPowerKw: 50,
+        dailyYieldKwhPerKwp: 4.5,
+        prioritizeBessCharging: true,
+      },
+    });
+
+    expect(trace[0].solarGenerationKw).toBeGreaterThan(0);
+    expect(trace[0].gridImportKw).toBeLessThan(100);
+  });
+
+  it('dispatches generator during peak when residual load exceeds target', () => {
+    const curve = makeCurve([{ hour: 19, powerKw: 150 }], 60);
+    const trace = runDispatch({
+      curve,
+      bess: makeBess({ totalPowerKw: 50, totalCapacityKwh: 50, socMinPercent: 100 }), // can't discharge
+      strategy: 'PEAK_SHAVING',
+      tariffWindow: DEFAULT_WINDOW,
+      peakShavingTargetKw: 80,
+      contractedDemandKw: 80,
+      generator: {
+        enabled: true,
+        ratedPowerKva: 100,
+        powerFactor: 0.8,
+        fuelType: 'diesel',
+        fuelCostBrlPerUnit: 6.2,
+        specificConsumption: 0.28,
+        dispatchMode: 'peak_support',
+      },
+    });
+
+    expect(trace[0].generatorKw).toBeGreaterThan(0);
+    expect(trace[0].gridImportKw).toBeLessThanOrEqual(80);
+  });
 });
