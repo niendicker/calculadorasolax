@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DailyCurveEditor } from './DailyCurveEditor';
 
@@ -161,6 +161,40 @@ describe('DailyCurveEditor', () => {
     fireEvent.pointerMove(untouched, { pointerId: 1, clientY: 5 });
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('expands laterally on large screens to fill available container width', () => {
+    let resizeCallback: (() => void) | undefined;
+    const OriginalResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class MockResizeObserver {
+      constructor(callback: () => void) {
+        resizeCallback = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      const { container } = render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
+      const chartWrapper = screen.getByTestId('daily-chart-container');
+      expect(chartWrapper).toBeInTheDocument();
+
+      // Simulate resizing to large screen (1000px)
+      Object.defineProperty(chartWrapper, 'clientWidth', { configurable: true, value: 1000 });
+      act(() => {
+        resizeCallback?.();
+      });
+
+      const svg = container.querySelector('svg');
+      expect(svg).toHaveAttribute('viewBox', '0 0 1000 235');
+
+      // Hour 23 slider cx should be near right edge: 54 + (1000 - 68) = 986
+      const hour23 = getSlider(23);
+      expect(hour23).toHaveAttribute('cx', '986');
+    } finally {
+      global.ResizeObserver = OriginalResizeObserver;
+    }
   });
 });
 

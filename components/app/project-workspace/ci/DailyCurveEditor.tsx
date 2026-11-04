@@ -22,12 +22,10 @@ const EDIT_MODES: { id: EditMode; label: string }[] = [
 
 const BRUSH_RADIUS_HOURS = 3;
 const SMOOTH_ADJACENT_THRESHOLD_KW = 5;
-const VIEW_WIDTH = 640;
+const DEFAULT_VIEW_WIDTH = 640;
 const VIEW_HEIGHT = 235;
 const MARGIN = { top: 26, right: 14, bottom: 26, left: 54 };
-const PLOT_WIDTH = VIEW_WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_HEIGHT = VIEW_HEIGHT - MARGIN.top - MARGIN.bottom;
-const X_AXIS_HOURS = [0, 6, 12, 18, 23];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -39,10 +37,6 @@ function niceCeiling(value: number): number {
   const normalized = value / magnitude;
   const niceNormalized = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
   return niceNormalized * magnitude;
-}
-
-function xToPx(hour: number): number {
-  return MARGIN.left + (hour / (HOURS_PER_DAY - 1)) * PLOT_WIDTH;
 }
 
 function yToPx(kw: number, maxKw: number): number {
@@ -240,6 +234,38 @@ export function DailyCurveEditor({
   // Keep the scale locked during an active drag gesture so the coordinate mapping doesn't oscillate or jump
   const maxKw = dragScaleMaxRef.current ?? currentMaxKw;
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_VIEW_WIDTH);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateWidth = () => {
+      if (el.clientWidth > 0) {
+        setContainerWidth(el.clientWidth);
+      }
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const viewWidth = Math.max(DEFAULT_VIEW_WIDTH, containerWidth);
+  const plotWidth = viewWidth - MARGIN.left - MARGIN.right;
+
+  const xToPx = (hour: number) => MARGIN.left + (hour / (HOURS_PER_DAY - 1)) * plotWidth;
+
+  const xAxisHours = useMemo(() => {
+    if (viewWidth >= 960) {
+      return [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 23];
+    }
+    if (viewWidth >= 740) {
+      return [0, 3, 6, 9, 12, 15, 18, 21, 23];
+    }
+    return [0, 6, 12, 18, 23];
+  }, [viewWidth]);
+
   // Cache resolved CSS custom properties to avoid synchronous getComputedStyle flushes on drag
   const colorsRef = useRef<{ primary: string; border: string; mutedForeground: string; foreground: string; card: string } | null>(null);
   if (!colorsRef.current) {
@@ -255,11 +281,13 @@ export function DailyCurveEditor({
 
   const linePath = useMemo(
     () => localKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' '),
-    [localKw, maxKw]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [localKw, maxKw, plotWidth]
   );
   const areaPath = useMemo(
     () => `${linePath} L ${xToPx(HOURS_PER_DAY - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`,
-    [linePath]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [linePath, plotWidth]
   );
   const gradientId = `daily-curve-editor-area-${activePattern}`;
 
@@ -380,10 +408,10 @@ export function DailyCurveEditor({
       <div className="flex flex-col lg:flex-row gap-4 items-stretch">
         {/* Left Column: Interactive SVG Chart */}
         <div className="flex-1 min-w-0 flex flex-col justify-between space-y-2">
-          <div className="relative">
+          <div ref={containerRef} data-testid="daily-chart-container" className="relative w-full">
             <svg
               ref={svgRef}
-              viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+              viewBox={`0 0 ${viewWidth} ${VIEW_HEIGHT}`}
               className="h-[235px] w-full touch-none select-none rounded-lg bg-card"
               role="img"
               aria-label="Editor da curva diária — arraste os pontos para ajustar a potência de cada hora"
@@ -412,7 +440,7 @@ export function DailyCurveEditor({
               const y = yToPx(kw, maxKw);
               return (
                 <g key={fraction}>
-                  <line x1={MARGIN.left} y1={y} x2={VIEW_WIDTH - MARGIN.right} y2={y} stroke={border} strokeWidth={1} />
+                  <line x1={MARGIN.left} y1={y} x2={viewWidth - MARGIN.right} y2={y} stroke={border} strokeWidth={1} />
                   <text x={MARGIN.left - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={11} fill={mutedForeground}>
                     {Math.round(kw)} kW
                   </text>
@@ -421,7 +449,7 @@ export function DailyCurveEditor({
             })}
 
             {/* X-axis ticks */}
-            {X_AXIS_HOURS.map((hour) => (
+            {xAxisHours.map((hour) => (
               <text key={hour} x={xToPx(hour)} y={VIEW_HEIGHT - 8} textAnchor="middle" fontSize={11} fill={mutedForeground}>
                 {hour}h
               </text>
@@ -497,7 +525,7 @@ export function DailyCurveEditor({
                     const halfWidth = badgeWidth / 2;
                     const isNearTop = cy < MARGIN.top + 24;
                     const badgeY = isNearTop ? cy + 12 : cy - badgeHeight - 8;
-                    const badgeX = clamp(cx - halfWidth, MARGIN.left, VIEW_WIDTH - MARGIN.right - badgeWidth);
+                    const badgeX = clamp(cx - halfWidth, MARGIN.left, viewWidth - MARGIN.right - badgeWidth);
 
                     return (
                       <g className="pointer-events-none">
