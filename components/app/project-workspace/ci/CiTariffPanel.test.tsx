@@ -71,4 +71,16 @@ describe('CiTariffPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Avançar para Estratégia/i }));
     expect(onNavigateNext).toHaveBeenCalledOnce();
   });
+
+  it('applies tariff presets and peak window presets', () => {
+    render(<ControlledPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'CPFL Paulista (A4 Verde)' }));
+    expect(screen.getByLabelText('Ponta (R$/MWh)')).toHaveValue(1420);
+    expect(screen.getByLabelText('Fora ponta (R$/MWh)')).toHaveValue(510);
+    expect(screen.getByLabelText('Tarifa de demanda (R$/kW-mês)')).toHaveValue(46.8);
+
+    fireEvent.click(screen.getByRole('button', { name: '17:30–20:30' }));
+    expect(screen.getByLabelText('Início')).toHaveValue('17:30');
+    expect(screen.getByLabelText('Fim')).toHaveValue('20:30');
+  });
 });
