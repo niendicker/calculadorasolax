@@ -597,9 +597,9 @@ export function DailyCurveEditor({
                       commitHourImmediately(selectedHour, Math.max(0, parsed));
                     }
                   }}
-                  className="h-9 pr-9 text-base font-semibold tabular-nums text-foreground bg-background"
+                  className="h-9 pr-10 text-base font-semibold tabular-nums text-foreground bg-background [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground select-none">
                   kW
                 </span>
               </div>
