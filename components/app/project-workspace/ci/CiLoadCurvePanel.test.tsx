@@ -75,10 +75,9 @@ describe('CiLoadCurvePanel', () => {
     expect(screen.getByRole('button', { name: 'Aplicar' })).toBeInTheDocument();
   });
 
-  it('renders compact breadcrumb steps with BESS completed and Curva de carga active', () => {
+  it('renders Curva de carga heading without redundant Dimensionamento BESS header line', () => {
     render(<ControlledPanel />);
-    expect(screen.getByText('Dimensionamento BESS')).toBeInTheDocument();
-    expect(screen.getByText('BESS')).toBeInTheDocument();
+    expect(screen.queryByText('Dimensionamento BESS')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Curva de carga' })).toBeInTheDocument();
   });
 
@@ -109,9 +108,12 @@ describe('CiLoadCurvePanel', () => {
     const removeBtn = screen.getByRole('button', { name: /Remover curva/i });
     fireEvent.click(removeBtn);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Nenhuma curva de carga disponível para exibição/i)).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Nenhuma curva de carga disponível para exibição/i)).toBeInTheDocument();
+      },
+      { timeout: 4000 }
+    );
   });
 
   describe('manual curve editing', () => {

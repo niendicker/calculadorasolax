@@ -2,8 +2,7 @@
 
 // Fase 6, section 8.1 item 3 ("Curva de carga") — redesigned load curve interface.
 // Follows the C&I specification:
-// 1. Compact header with "Dimensionamento BESS" and BESS -> Curva de carga -> Tarifa steps.
-// 2. Title "Curva de carga", subtitle, and "Importar CSV" action.
+// 1. Title "Curva de carga", subtitle, and "Importar CSV" action.
 // 3. Compact configuration strip (periodStart, periodEnd, resolution segmented, timezone).
 // 4. Panel "Editor do perfil diário" with base profile select, 2-column layout (chart + lateral editor).
 // 5. Panel "Prévia da semana" with 4 indicators strip, ~180px weekly chart with weekend shading,
@@ -175,12 +174,11 @@ export function CiLoadCurvePanel({
 
   // Emit CSV curve update
   useEffect(() => {
-    if (sourceMode === 'csv' && parsedCurve) {
-      setIsCurveCleared(false);
+    if (sourceMode === 'csv' && parsedCurve && !isCurveCleared) {
       onChange({ loadCurve: parsedCurve });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [csvText, resolutionMinutes, timezone, periodStart, periodEnd, sourceMode]);
+  }, [csvText, resolutionMinutes, timezone, periodStart, periodEnd, sourceMode, isCurveCleared]);
 
   // Emit manual curve update
   const isInitialManualMountRef = useRef(true);
@@ -270,45 +268,7 @@ export function CiLoadCurvePanel({
   const pointCount = activeCurve ? activeCurve.points.length : (existing ? existing.points.length : 0);
   return (
     <div className="space-y-5">
-      {/* 1. Cabeçalho compacto com etapas: Dimensionamento BESS | BESS -> Curva de carga -> Tarifa */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Dimensionamento BESS
-        </span>
-        <nav aria-label="Etapas do dimensionamento" className="flex items-center gap-1.5 text-xs">
-          <button
-            type="button"
-            onClick={onNavigatePrev}
-            className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-              ✓
-            </span>
-            <span>BESS</span>
-          </button>
-          <span className="text-muted-foreground/40">→</span>
-          <span className="flex items-center gap-1 font-semibold text-primary">
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-              2
-            </span>
-            <span>Curva de carga</span>
-          </span>
-          <span className="text-muted-foreground/40">→</span>
-          <button
-            type="button"
-            onClick={onNavigateNext}
-            disabled={!activeCurve}
-            className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-border text-[10px] font-medium text-muted-foreground">
-              3
-            </span>
-            <span>Tarifa</span>
-          </button>
-        </nav>
-      </div>
-
-      {/* 2. Título Curva de carga, subtítulo e ação secundária Importar CSV */}
+      {/* 1. Título Curva de carga, subtítulo e ação secundária Importar CSV */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-[27px]">Curva de carga</h1>
