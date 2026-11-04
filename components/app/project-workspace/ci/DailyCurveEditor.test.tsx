@@ -18,6 +18,18 @@ describe('DailyCurveEditor', () => {
     expect(getSlider(23)).toHaveAttribute('aria-valuenow', '50');
   });
 
+  it('renders expanded floating badge for active/selected point with full hour and kW text', () => {
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
+    // Hour 12 is selected by default
+    const badgeText = screen.getByText('12:00 · 50.0 kW');
+    expect(badgeText).toBeInTheDocument();
+
+    const rect = badgeText.previousElementSibling as SVGRectElement;
+    expect(rect).toBeInTheDocument();
+    expect(rect).toHaveAttribute('width', '108');
+    expect(rect).toHaveAttribute('height', '20');
+  });
+
   it('dragging a point updates its value via onChange, coalesced to one call per frame', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);

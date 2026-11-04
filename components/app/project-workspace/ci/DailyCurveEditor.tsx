@@ -491,29 +491,41 @@ export function DailyCurveEditor({
                   />
 
                   {/* Tooltip badge for active/selected point */}
-                  {(isSelected || isHoveredOrActive) && (
-                    <g>
-                      <rect
-                        x={clamp(cx - 36, MARGIN.left, VIEW_WIDTH - MARGIN.right - 72)}
-                        y={Math.max(cy - 26, MARGIN.top - 18)}
-                        width={72}
-                        height={18}
-                        rx={4}
-                        fill={foreground}
-                        opacity={0.92}
-                      />
-                      <text
-                        x={clamp(cx, MARGIN.left + 36, VIEW_WIDTH - MARGIN.right - 36)}
-                        y={Math.max(cy - 13, MARGIN.top - 5)}
-                        textAnchor="middle"
-                        fontSize={10}
-                        fontWeight={600}
-                        fill={card}
-                      >
-                        {String(hour).padStart(2, '0')}:00 · {kw.toFixed(1)} kW
-                      </text>
-                    </g>
-                  )}
+                  {(isSelected || isHoveredOrActive) && (() => {
+                    const badgeWidth = 108;
+                    const badgeHeight = 20;
+                    const halfWidth = badgeWidth / 2;
+                    const isNearTop = cy < MARGIN.top + 24;
+                    const badgeY = isNearTop ? cy + 12 : cy - badgeHeight - 8;
+                    const badgeX = clamp(cx - halfWidth, MARGIN.left, VIEW_WIDTH - MARGIN.right - badgeWidth);
+
+                    return (
+                      <g className="pointer-events-none">
+                        <rect
+                          x={badgeX}
+                          y={badgeY}
+                          width={badgeWidth}
+                          height={badgeHeight}
+                          rx={5}
+                          fill={foreground}
+                          opacity={0.92}
+                          className="drop-shadow-sm"
+                        />
+                        <text
+                          x={badgeX + halfWidth}
+                          y={badgeY + badgeHeight / 2}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={10}
+                          fontWeight={600}
+                          fill={card}
+                          className="select-none tabular-nums"
+                        >
+                          {String(hour).padStart(2, '0')}:00 · {kw.toFixed(1)} kW
+                        </text>
+                      </g>
+                    );
+                  })()}
                 </g>
               );
             })}
