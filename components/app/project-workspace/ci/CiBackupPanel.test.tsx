@@ -130,4 +130,30 @@ describe('CiBackupPanel', () => {
       })
     );
   });
+
+  it('enables generator and updates generator parameters', () => {
+    const onChange = vi.fn();
+    const ciOptionsBackupEnabled = {
+      ...defaultCiOptions,
+      backup: {
+        enabled: true,
+        inputMode: 'simple' as const,
+        targetPowerKw: 50,
+        autonomyHours: 4,
+        loads: [],
+        safetyMarginPercent: 10,
+      },
+    };
+
+    render(<CiBackupPanel ciOptions={ciOptionsBackupEnabled} onChange={onChange} />);
+
+    expect(screen.getByText('Grupo Motor Gerador (GMG)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Integrar Gerador' }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generator: expect.objectContaining({ enabled: true }),
+      })
+    );
+  });
 });
