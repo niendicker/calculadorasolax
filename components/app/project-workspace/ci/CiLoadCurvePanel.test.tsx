@@ -72,8 +72,7 @@ describe('CiLoadCurvePanel', () => {
     // Click trigger to open custom calendar popover
     fireEvent.click(triggerBtn);
     expect(screen.getByRole('dialog', { name: /Calendário de seleção de período/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Semana completa \(7 dias\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Aplicar período/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aplicar' })).toBeInTheDocument();
   });
 
   it('renders compact breadcrumb steps with BESS completed and Curva de carga active', () => {

@@ -96,16 +96,19 @@ describe('DateRangePicker', () => {
     const day10Btn = screen.getByRole('button', { name: '10 de Janeiro de 2026' });
     fireEvent.click(day10Btn);
 
-    // Prompt changes to step 2
-    expect(screen.getByText(/2\. Escolha a data de término/i)).toBeInTheDocument();
+    // Duration updates to 1 dia
+    expect(screen.getByText('1 dia')).toBeInTheDocument();
 
     // Click day 15 as end date (6 days inclusive <= 7)
     const day15Btn = screen.getByRole('button', { name: '15 de Janeiro de 2026' });
     expect(day15Btn).not.toBeDisabled();
     fireEvent.click(day15Btn);
 
+    // Duration updates to 6 dias
+    expect(screen.getByText('6 dias')).toBeInTheDocument();
+
     // Apply period
-    const applyBtn = screen.getByRole('button', { name: /Aplicar período/i });
+    const applyBtn = screen.getByRole('button', { name: 'Aplicar' });
     expect(applyBtn).not.toBeDisabled();
     fireEvent.click(applyBtn);
 
@@ -143,31 +146,6 @@ describe('DateRangePicker', () => {
     // Day 20 is also blocked
     const day20Btn = screen.getByRole('button', { name: '20 de Janeiro de 2026' });
     expect(day20Btn).toBeDisabled();
-  });
-
-  it('selects full week preset on preset button click', () => {
-    const onChange = vi.fn();
-    render(
-      <DateRangePicker
-        startDate="2026-01-10"
-        endDate="2026-01-12"
-        onChange={onChange}
-        maxDays={7}
-      />
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /Selecionar período/i }));
-
-    const presetBtn = screen.getByRole('button', { name: /Semana completa \(7 dias\)/i });
-    fireEvent.click(presetBtn);
-
-    const applyBtn = screen.getByRole('button', { name: /Aplicar período/i });
-    fireEvent.click(applyBtn);
-
-    expect(onChange).toHaveBeenCalledWith({
-      startDate: '2026-01-10',
-      endDate: '2026-01-16',
-    });
   });
 
   it('cancels draft changes without invoking onChange when clicking Cancelar', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -181,14 +181,6 @@ export function DateRangePicker({
     }
   }
 
-  function handlePresetWeek() {
-    const base = draftStart || startDate || new Date().toISOString().slice(0, 10);
-    const end = addDaysIso(base, maxDays - 1);
-    setDraftStart(base);
-    setDraftEnd(end);
-    setStep('start');
-  }
-
   // Generate calendar days for viewYear & viewMonth
   const firstDayOfWeek = new Date(Date.UTC(viewYear, viewMonth, 1)).getUTCDay();
   const totalDaysInMonth = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate();
@@ -236,10 +228,10 @@ export function DateRangePicker({
           role="dialog"
           aria-modal="true"
           aria-label="Calendário de seleção de período"
-          className="absolute left-0 top-full z-50 mt-1.5 w-[310px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-3.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+          className="absolute left-0 top-full z-50 mt-1.5 w-[280px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header: Month / Year Navigation */}
-          <div className="flex items-center justify-between pb-2 border-b border-border/60">
+          <div className="flex items-center justify-between pb-1.5 border-b border-border/50">
             <Button
               type="button"
               variant="ghost"
@@ -265,19 +257,8 @@ export function DateRangePicker({
             </Button>
           </div>
 
-          {/* Quick preset banner */}
-          <div className="my-2 flex items-center justify-between gap-1 rounded-lg bg-muted/50 p-1">
-            <button
-              type="button"
-              onClick={handlePresetWeek}
-              className="flex-1 rounded-md px-2 py-1 text-[11px] font-medium text-foreground hover:bg-background transition shadow-none"
-            >
-              Semana completa ({maxDays} dias)
-            </button>
-          </div>
-
           {/* Weekday headers */}
-          <div className="grid grid-cols-7 text-center text-[11px] font-medium text-muted-foreground mb-1">
+          <div className="grid grid-cols-7 text-center text-[10.5px] font-medium text-muted-foreground my-1.5">
             {WEEKDAY_NAMES.map((name) => (
               <span key={name} className="py-0.5">
                 {name}
@@ -286,10 +267,10 @@ export function DateRangePicker({
           </div>
 
           {/* Days Grid */}
-          <div className="grid grid-cols-7 gap-y-1">
+          <div className="grid grid-cols-7 gap-y-0.5">
             {/* Empty slots before first day of month */}
             {Array.from({ length: firstDayOfWeek }).map((_, index) => (
-              <div key={`empty-${index}`} className="h-8" />
+              <div key={`empty-${index}`} className="h-7" />
             ))}
 
             {/* Month Days */}
@@ -315,10 +296,10 @@ export function DateRangePicker({
                 <div
                   key={iso}
                   className={cn(
-                    'relative flex h-8 items-center justify-center',
+                    'relative flex h-7 items-center justify-center',
                     !isDisabled && (inRange || inHoverRange) && 'bg-primary/10',
-                    isStart && 'rounded-l-lg',
-                    isEnd && 'rounded-r-lg'
+                    isStart && 'rounded-l-md',
+                    isEnd && 'rounded-r-md'
                   )}
                 >
                   <button
@@ -333,7 +314,7 @@ export function DateRangePicker({
                         : `${day} de ${MONTH_NAMES[viewMonth]} de ${viewYear}`
                     }
                     className={cn(
-                      'flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition',
+                      'flex h-6.5 w-6.5 items-center justify-center rounded-md text-xs font-medium transition',
                       isStart || isEnd
                         ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
                         : inRange || inHoverRange
@@ -349,49 +330,33 @@ export function DateRangePicker({
             })}
           </div>
 
-          {/* Bottom status & upper range lock badge */}
-          <div className="mt-2.5 pt-2 border-t border-border/60 text-[11px] space-y-1.5">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {step === 'start' ? '1. Escolha a data de início' : `2. Escolha a data de término (até ${maxDays} dias)`}
-              </span>
-              <span className="font-semibold text-primary">
-                {activeDuration > 0 ? `${activeDuration} ${activeDuration === 1 ? 'dia' : 'dias'}` : ''}
-              </span>
+          {/* Footer simples: Duração e Ações */}
+          <div className="mt-2.5 flex items-center justify-between border-t border-border/50 pt-2 text-xs">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              {activeDuration > 0
+                ? `${activeDuration} ${activeDuration === 1 ? 'dia' : 'dias'}`
+                : 'Selecione o período'}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => setIsOpen(false)}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                onClick={handleApply}
+                disabled={!draftStart || !draftEnd || activeDuration < minDays || activeDuration > maxDays}
+                className="h-7 px-3 text-xs"
+              >
+                Aplicar
+              </Button>
             </div>
-            <div className="flex items-center justify-between text-muted-foreground text-[10px]">
-              <span>
-                {draftStart ? formatDisplayDate(draftStart) : 'Início'} →{' '}
-                {draftEnd ? formatDisplayDate(draftEnd) : 'Fim'}
-              </span>
-              {maxDays && (
-                <span className="text-muted-foreground/80">
-                  Máx: <strong>{maxDays} dias</strong>
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => setIsOpen(false)}
-              className="text-muted-foreground"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              onClick={handleApply}
-              disabled={!draftStart || !draftEnd || activeDuration < minDays || activeDuration > maxDays}
-              className="px-3"
-            >
-              Aplicar período
-            </Button>
           </div>
         </div>
       )}
