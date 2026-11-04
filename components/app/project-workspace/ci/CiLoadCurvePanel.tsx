@@ -588,7 +588,7 @@ export function CiLoadCurvePanel({
         {onNavigatePrev ? (
           <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar para BESS
+            Voltar para Solar FV
           </Button>
         ) : (
           <div />

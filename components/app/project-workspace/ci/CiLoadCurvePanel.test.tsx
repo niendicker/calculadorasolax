@@ -235,7 +235,7 @@ describe('CiLoadCurvePanel', () => {
         />
       );
 
-      const prevBtn = screen.getByRole('button', { name: /Voltar para BESS/i });
+      const prevBtn = screen.getByRole('button', { name: /Voltar para/i });
       fireEvent.click(prevBtn);
       expect(onNavigatePrev).toHaveBeenCalledOnce();
 

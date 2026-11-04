@@ -14,7 +14,7 @@
 // ProjectInfoModal — nothing here touches SavedProject or residential state.
 
 import { useState } from 'react';
-import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, ShieldAlert, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, ShieldAlert, SlidersHorizontal, Sun } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Client, ProjectInfo } from '@/lib/types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -23,17 +23,19 @@ import { CiConfigurationPanel } from './ci/CiConfigurationPanel';
 import { CiLoadCurvePanel } from './ci/CiLoadCurvePanel';
 import { CiOverviewPanel } from './ci/CiOverviewPanel';
 import { CiResultsPanel } from './ci/CiResultsPanel';
+import { CiSolarPanel } from './ci/CiSolarPanel';
 import { CiStrategyPanel } from './ci/CiStrategyPanel';
 import { CiTariffPanel } from './ci/CiTariffPanel';
 import { ProjectWorkspaceShell, type WorkspaceNavItem } from './ProjectWorkspaceShell';
 import type { AutosaveStatus } from '../hooks/useAutosave';
 import type { InlineProfile } from '../types';
 
-export type CiWorkspaceSection = 'overview' | 'bess' | 'curve' | 'tariff' | 'strategy' | 'backup' | 'results';
+export type CiWorkspaceSection = 'overview' | 'bess' | 'solar' | 'curve' | 'tariff' | 'strategy' | 'backup' | 'results';
 
 const navigation: WorkspaceNavItem[] = [
   { id: 'overview', label: 'Visão geral', icon: ClipboardList },
   { id: 'bess', label: 'Configuração BESS', icon: BatteryCharging },
+  { id: 'solar', label: 'Solar FV', icon: Sun },
   { id: 'curve', label: 'Curva de carga', icon: LineChart },
   { id: 'tariff', label: 'Tarifa', icon: Receipt },
   { id: 'strategy', label: 'Estratégia', icon: SlidersHorizontal },
@@ -147,6 +149,19 @@ export function CommercialIndustrialWorkspace({
               ciOptions={ciOptions}
               onChange={onUpdateCiOptions}
               onNavigatePrev={() => setSectionState('overview')}
+              onNavigateNext={() => setSectionState('solar')}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {effectiveSection === 'solar' && (
+        <Card className="border-0 ring-0">
+          <CardContent className="pt-6">
+            <CiSolarPanel
+              ciOptions={ciOptions}
+              onChange={onUpdateCiOptions}
+              onNavigatePrev={() => setSectionState('bess')}
               onNavigateNext={() => setSectionState('curve')}
             />
           </CardContent>
@@ -159,7 +174,7 @@ export function CommercialIndustrialWorkspace({
             <CiLoadCurvePanel
               ciOptions={ciOptions}
               onChange={onUpdateCiOptions}
-              onNavigatePrev={() => setSectionState('bess')}
+              onNavigatePrev={() => setSectionState('solar')}
               onNavigateNext={() => setSectionState('tariff')}
             />
           </CardContent>
