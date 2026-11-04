@@ -17,9 +17,9 @@
 // increment; this shows the recommended scenario's full detail (already
 // materialized server-side) plus the comparison grid.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, BarChart3, CheckCircle2, ChevronLeft, FileDown, Loader2, Play, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, Loader2, Play, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -115,8 +115,15 @@ export function CiResultsPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
+  const [memorialSuccess, setMemorialSuccess] = useState(false);
   const [memorialError, setMemorialError] = useState<string | null>(null);
   const calculatedOptionsRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!memorialSuccess) return;
+    const timer = setTimeout(() => setMemorialSuccess(false), 2500);
+    return () => clearTimeout(timer);
+  }, [memorialSuccess]);
 
   async function runCalculation() {
     if (!projectId) return;
@@ -175,6 +182,7 @@ export function CiResultsPanel({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      setMemorialSuccess(true);
     } catch {
       setMemorialError('Não foi possível gerar o memorial em PDF. Tente novamente.');
     } finally {
@@ -240,13 +248,21 @@ export function CiResultsPanel({
         </div>
         <div className="flex items-center gap-2">
           {result?.selected && (
-            <Button type="button" variant="outline" onClick={handleGenerateMemorial} disabled={generatingMemorial}>
+            <Button
+              type="button"
+              variant={memorialSuccess ? 'secondary' : 'outline'}
+              onClick={handleGenerateMemorial}
+              disabled={generatingMemorial}
+              className={cn(memorialSuccess && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400')}
+            >
               {generatingMemorial ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : memorialSuccess ? (
+                <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
               ) : (
                 <FileDown className="h-4 w-4" aria-hidden="true" />
               )}
-              {generatingMemorial ? 'Gerando memorial...' : 'Gerar memorial (PDF)'}
+              {generatingMemorial ? 'Gerando memorial...' : memorialSuccess ? 'Memorial baixado!' : 'Gerar memorial (PDF)'}
             </Button>
           )}
           <Button type="button" onClick={runCalculation} disabled={loading}>
@@ -499,38 +515,42 @@ export function CiResultsPanel({
                 </div>
               </div>
 
-              <div className={cn(
-                'grid grid-cols-2 gap-3',
-                totalSolarKwh > 0 || totalGenKwh > 0 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-4'
-              )}>
-                <div className="rounded-md border bg-muted/20 p-2.5">
-                  <p className="text-xs text-muted-foreground">Pico de Carga Original</p>
-                  <p className="mt-1 text-sm font-semibold">{formatKw(maxOriginalDemandKw)}</p>
-                </div>
-                <div className="rounded-md border bg-muted/20 p-2.5">
-                  <p className="text-xs text-muted-foreground">Pico com BESS (Rede)</p>
-                  <p className="mt-1 text-sm font-semibold">{formatKw(maxGridDemandKw)}</p>
-                </div>
-                <div className="rounded-md border bg-muted/20 p-2.5">
-                  <p className="text-xs text-muted-foreground">Redução no Pico</p>
-                  <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                    {formatKw(peakReductionKw)} ({peakReductionPercent.toFixed(1)}%)
-                  </p>
-                </div>
-                <div className="rounded-md border bg-muted/20 p-2.5">
-                  <p className="text-xs text-muted-foreground">Economia em Demanda</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(result.selected.demandSavings)}/ano</p>
-                </div>
-                {totalSolarKwh > 0 && (
-                  <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2.5">
-                    <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Geração Solar FV (Semana)</p>
-                    <p className="mt-1 text-sm font-semibold text-amber-700 dark:text-amber-300">{formatKwh(totalSolarKwh, 1)}</p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-md border bg-muted/20 p-2.5">
+                    <p className="text-xs text-muted-foreground">Pico de Carga Original</p>
+                    <p className="mt-1 text-sm font-semibold">{formatKw(maxOriginalDemandKw)}</p>
                   </div>
-                )}
-                {totalGenKwh > 0 && (
-                  <div className="rounded-md border border-orange-500/20 bg-orange-500/5 p-2.5">
-                    <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Geração GMG (Semana)</p>
-                    <p className="mt-1 text-sm font-semibold text-orange-700 dark:text-orange-300">{formatKwh(totalGenKwh, 1)}</p>
+                  <div className="rounded-md border bg-muted/20 p-2.5">
+                    <p className="text-xs text-muted-foreground">Pico com BESS (Rede)</p>
+                    <p className="mt-1 text-sm font-semibold">{formatKw(maxGridDemandKw)}</p>
+                  </div>
+                  <div className="rounded-md border bg-muted/20 p-2.5">
+                    <p className="text-xs text-muted-foreground">Redução no Pico</p>
+                    <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                      {formatKw(peakReductionKw)} ({peakReductionPercent.toFixed(1)}%)
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-muted/20 p-2.5">
+                    <p className="text-xs text-muted-foreground">Economia em Demanda</p>
+                    <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(result.selected.demandSavings)}/ano</p>
+                  </div>
+                </div>
+
+                {(totalSolarKwh > 0 || totalGenKwh > 0) && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {totalSolarKwh > 0 && (
+                      <div className="flex items-center justify-between rounded-md border border-amber-500/20 bg-amber-500/5 p-2.5">
+                        <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Geração Solar FV (Semana)</span>
+                        <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">{formatKwh(totalSolarKwh, 1)}</span>
+                      </div>
+                    )}
+                    {totalGenKwh > 0 && (
+                      <div className="flex items-center justify-between rounded-md border border-orange-500/20 bg-orange-500/5 p-2.5">
+                        <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Geração GMG (Semana)</span>
+                        <span className="text-sm font-semibold text-orange-700 dark:text-orange-300">{formatKwh(totalGenKwh, 1)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

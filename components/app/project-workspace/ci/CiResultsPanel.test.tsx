@@ -248,6 +248,7 @@ describe('CiResultsPanel', () => {
     expect(dynamicMocks.listProducts).toHaveBeenCalledOnce();
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:memorial');
+    expect(screen.getByRole('button', { name: 'Memorial baixado!' })).toBeInTheDocument();
   });
 
   it('shows an error when memorial generation fails', async () => {
