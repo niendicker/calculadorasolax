@@ -46,6 +46,86 @@ function clampIndex(index: number, length: number): number {
   return Math.min(Math.max(index, 0), Math.max(length - 1, 0));
 }
 
+export interface PointBadgeInfo {
+  index: number;
+  point: LoadCurvePoint;
+  x: number;
+  y: number;
+  labelPrefix?: string;
+}
+
+function formatBadgeText(point: LoadCurvePoint | undefined): string {
+  if (!point) return '';
+  const date = new Date(point.timestamp);
+  const weekdayRaw = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${weekday} ${time} · ${point.powerKw.toFixed(1)} kW`;
+}
+
+function PointBadge({
+  badge,
+  chartWidth,
+}: {
+  badge: PointBadgeInfo;
+  chartWidth: number;
+}) {
+  const isNearTop = badge.y < 35;
+  const clampedX = Math.max(65, Math.min(chartWidth - 65, badge.x));
+  const top = isNearTop ? badge.y + 12 : badge.y - 28;
+
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute z-20 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary shadow-sm ring-2 ring-primary/40"
+        style={{ left: `${badge.x}px`, top: `${badge.y}px` }}
+      />
+      <div
+        data-testid="point-badge"
+        className="pointer-events-none absolute z-30 flex items-center justify-center rounded-md bg-[#1D3443] dark:bg-[#18242C] px-2.5 py-1 text-[10.5px] font-semibold text-white shadow-md tabular-nums whitespace-nowrap border border-white/10"
+        style={{
+          left: `${clampedX}px`,
+          top: `${top}px`,
+          transform: 'translateX(-50%)',
+        }}
+      >
+        {badge.labelPrefix ? `${badge.labelPrefix}: ` : ''}
+        {formatBadgeText(badge.point)}
+      </div>
+    </>
+  );
+}
+
+function getBadgeInfo(
+  chart: uPlot | null,
+  index: number,
+  point: LoadCurvePoint | undefined,
+  isZoomed: boolean,
+  labelPrefix?: string
+): PointBadgeInfo | null {
+  if (!chart || !point) return null;
+  if (isZoomed && chart.scales?.x?.min != null && chart.scales?.x?.max != null) {
+    const min = chart.scales.x.min;
+    const max = chart.scales.x.max;
+    if (index < min - 0.5 || index > max + 0.5) {
+      return null;
+    }
+  }
+  const bboxLeft = Number.isFinite(chart.bbox?.left) ? chart.bbox.left : 0;
+  const bboxTop = Number.isFinite(chart.bbox?.top) ? chart.bbox.top : 0;
+  const px = chart.valToPos(index, 'x');
+  const py = chart.valToPos(point.powerKw, 'y');
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+
+  return {
+    index,
+    point,
+    x: bboxLeft + px,
+    y: bboxTop + py,
+    labelPrefix,
+  };
+}
+
 /** Weekday-only at midnight ("seg"), weekday+time otherwise ("seg 14:00") —
  * used for both axis ticks (mostly midnights, see dayBoundaryIndices) and
  * the live legend/cursor label (any point). */
@@ -129,7 +209,9 @@ function attachPanAndZoom(
   chart: uPlot,
   pointsRef: { current: LoadCurvePoint[] },
   onSelectionChange: (selection: CurveRangeSelection | null) => void,
-  onResetSelections: () => void
+  onResetSelections: () => void,
+  onHoverPoint?: (badge: PointBadgeInfo | null) => void,
+  onRedraw?: () => void
 ): () => void {
   const over = chart.over;
   const ZOOM_FACTOR = 0.75;
@@ -139,13 +221,6 @@ function attachPanAndZoom(
     chart.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
   }
 
-  // A trackpad or a fast mouse wheel can fire dozens of wheel events per
-  // second; each one applying its own setScale() re-triggers uPlot's full
-  // axis/redraw pass (including scanning every point for day boundaries),
-  // which is more synchronous work than the input rate can keep up with and
-  // was observed to lock up the tab for seconds under rapid scrolling.
-  // Coalescing to one committed range per animation frame keeps the visual
-  // result the same while capping how often that redraw actually runs.
   let pendingRange: { min: number; max: number } | null = null;
   let pendingFrame: number | null = null;
 
@@ -154,6 +229,7 @@ function attachPanAndZoom(
     if (pendingRange) {
       chart.setScale('x', pendingRange);
       pendingRange = null;
+      onRedraw?.();
     }
   }
 
@@ -180,8 +256,45 @@ function attachPanAndZoom(
     scheduleRange(min, max);
   }
 
+  function onMouseMove(event: MouseEvent) {
+    if (event.buttons !== 0) {
+      onHoverPoint?.(null);
+      return;
+    }
+    const rect = over.getBoundingClientRect();
+    const left = event.clientX - rect.left;
+    if (left < 0 || left > rect.width) {
+      onHoverPoint?.(null);
+      return;
+    }
+    const xVal = chart.posToVal(left, 'x');
+    const index = clampIndex(Math.round(xVal), pointsRef.current.length);
+    const point = pointsRef.current[index];
+    if (!point) {
+      onHoverPoint?.(null);
+      return;
+    }
+
+    const bboxLeft = Number.isFinite(chart.bbox?.left) ? chart.bbox.left : 0;
+    const bboxTop = Number.isFinite(chart.bbox?.top) ? chart.bbox.top : 0;
+    const px = chart.valToPos(index, 'x');
+    const py = chart.valToPos(point.powerKw, 'y');
+
+    onHoverPoint?.({
+      index,
+      point,
+      x: bboxLeft + px,
+      y: bboxTop + py,
+    });
+  }
+
+  function onMouseLeave() {
+    onHoverPoint?.(null);
+  }
+
   function startRangeSelection(event: MouseEvent) {
     event.preventDefault();
+    onHoverPoint?.(null);
     const rect = over.getBoundingClientRect();
     const clampPx = (px: number) => Math.min(Math.max(px, 0), rect.width);
     const startPx = clampPx(event.clientX - rect.left);
@@ -199,14 +312,10 @@ function attachPanAndZoom(
       if (Math.abs(endPx - startPx) < MIN_SELECTION_DRAG_PX) {
         clearVisualSelect();
         onSelectionChange(null);
+        onRedraw?.();
         return;
       }
 
-      // Ownership of "how to display this range" transfers to the persistent
-      // A/B canvas bands (see buildOptions' draw hook) the moment the drag
-      // completes — this native `.u-select` box was only ever the transient
-      // live-preview while dragging, so it's cleared here rather than left
-      // sitting on top of (and visually doubling up with) band A or B.
       clearVisualSelect();
 
       const leftPx = Math.min(startPx, endPx);
@@ -215,6 +324,7 @@ function attachPanAndZoom(
         startIndex: clampIndex(Math.round(chart.posToVal(leftPx, 'x')), pointsRef.current.length),
         endIndex: clampIndex(Math.round(chart.posToVal(rightPx, 'x')), pointsRef.current.length),
       });
+      onRedraw?.();
     }
 
     document.addEventListener('mousemove', onMove);
@@ -230,12 +340,11 @@ function attachPanAndZoom(
 
     const { min: rangeMin, max: rangeMax } = chart.scales.x;
     if (rangeMin == null || rangeMax == null) return;
-    // Re-bound as definitely-assigned: TS narrowing from the guard above
-    // doesn't carry into the onMove closure defined below.
     const startMin = rangeMin;
     const startMax = rangeMax;
 
     event.preventDefault();
+    onHoverPoint?.(null);
     const startX = event.clientX;
     const unitsPerPx = chart.posToVal(1, 'x') - chart.posToVal(0, 'x');
     over.style.cursor = 'grabbing';
@@ -249,6 +358,7 @@ function attachPanAndZoom(
       over.style.cursor = 'grab';
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      onRedraw?.();
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -259,16 +369,22 @@ function attachPanAndZoom(
     scheduleRange(min, max);
     clearVisualSelect();
     onResetSelections();
+    onHoverPoint?.(null);
+    onRedraw?.();
   }
 
   over.addEventListener('wheel', onWheel, { passive: false });
   over.addEventListener('mousedown', onMouseDown);
   over.addEventListener('dblclick', onDoubleClick);
+  over.addEventListener('mousemove', onMouseMove);
+  over.addEventListener('mouseleave', onMouseLeave);
 
   return () => {
     over.removeEventListener('wheel', onWheel);
     over.removeEventListener('mousedown', onMouseDown);
     over.removeEventListener('dblclick', onDoubleClick);
+    over.removeEventListener('mousemove', onMouseMove);
+    over.removeEventListener('mouseleave', onMouseLeave);
     if (pendingFrame != null) cancelAnimationFrame(pendingFrame);
   };
 }
@@ -282,7 +398,8 @@ function buildOptions(
   pointsRef: { current: LoadCurvePoint[] },
   selectionsRef: { current: SelectionSlots },
   contractedDemandKwRef: { current: number | undefined },
-  onZoomChange: (zoomed: boolean) => void
+  onZoomChange: (zoomed: boolean) => void,
+  onRedraw?: () => void
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const secondary = readCssVar('--chart-2', '#ff9d00');
@@ -398,6 +515,7 @@ function buildOptions(
           const [fullMin, fullMax] = fullXRange(pointsRef);
           const { min, max } = self.scales.x;
           onZoomChange((min ?? fullMin) > fullMin + 0.5 || (max ?? fullMax) < fullMax - 0.5);
+          onRedraw?.();
         },
       ],
       // Pinned A/B comparison periods are painted directly on the canvas
@@ -556,6 +674,8 @@ export function LoadCurveChart({
   const skipNextPointsEffectRef = useRef(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [selections, setSelections] = useState<SelectionSlots>(EMPTY_SELECTIONS);
+  const [redrawSeq, setRedrawSeq] = useState(0);
+  const [hoverBadge, setHoverBadge] = useState<PointBadgeInfo | null>(null);
   // Mirrors `selections` for the canvas draw hook (see buildOptions), which
   // — like the other formatters there — is built once on mount and needs to
   // read current state at draw time, not whatever it closed over back then.
@@ -607,11 +727,25 @@ export function LoadCurveChart({
     const el = containerRef.current;
     if (!el || pointsRef.current.length === 0) return;
 
-    const options = buildOptions(el.clientWidth || 600, pointsRef, selectionsRef, contractedDemandKwRef, setIsZoomed);
+    const options = buildOptions(
+      el.clientWidth || 600,
+      pointsRef,
+      selectionsRef,
+      contractedDemandKwRef,
+      setIsZoomed,
+      () => setRedrawSeq((s) => s + 1)
+    );
     const chart = new uPlot(options, buildData(pointsRef.current), el);
     chartRef.current = chart;
     skipNextPointsEffectRef.current = true;
-    const detachPanAndZoom = attachPanAndZoom(chart, pointsRef, handleSelectionChange, handleResetSelections);
+    const detachPanAndZoom = attachPanAndZoom(
+      chart,
+      pointsRef,
+      handleSelectionChange,
+      handleResetSelections,
+      setHoverBadge,
+      () => setRedrawSeq((s) => s + 1)
+    );
 
     return () => {
       detachPanAndZoom();
@@ -721,12 +855,19 @@ export function LoadCurveChart({
   const summaryA = summaryFor(selections.a);
   const summaryB = summaryFor(selections.b);
 
+  const activeSelection = selections.b ?? selections.a;
+  const isSelectionActive = Boolean(activeSelection && points.length > 0);
+
   const { peakKw, minKw, averageKw, totalEnergyKwh } = useMemo(() => {
-    const total = points.length;
+    const targetPoints = isSelectionActive && activeSelection
+      ? points.slice(activeSelection.startIndex, activeSelection.endIndex + 1)
+      : points;
+
+    const total = targetPoints.length;
     let peak = 0;
-    let min = total > 0 ? points[0].powerKw : 0;
+    let min = total > 0 ? targetPoints[0].powerKw : 0;
     let sum = 0;
-    for (const p of points) {
+    for (const p of targetPoints) {
       if (p.powerKw > peak) peak = p.powerKw;
       if (p.powerKw < min) min = p.powerKw;
       sum += p.powerKw;
@@ -738,7 +879,21 @@ export function LoadCurveChart({
       averageKw: total > 0 ? sum / total : 0,
       totalEnergyKwh: sum * intervalH,
     };
-  }, [points, resolutionMinutes]);
+  }, [points, resolutionMinutes, isSelectionActive, activeSelection]);
+
+  const startBadge = activeSelection
+    ? getBadgeInfo(chartRef.current, activeSelection.startIndex, points[activeSelection.startIndex], isZoomed, 'Início')
+    : null;
+  const endBadge = activeSelection && activeSelection.startIndex !== activeSelection.endIndex
+    ? getBadgeInfo(chartRef.current, activeSelection.endIndex, points[activeSelection.endIndex], isZoomed, 'Fim')
+    : null;
+
+  const isHoverDuplicate =
+    hoverBadge != null &&
+    ((startBadge != null && hoverBadge.index === startBadge.index) ||
+      (endBadge != null && hoverBadge.index === endBadge.index));
+
+  const chartWidth = containerRef.current?.clientWidth || chartRef.current?.width || 600;
 
   const hasContract = Boolean(contractedDemandKw && contractedDemandKw > 0);
   const hasExceedance = Boolean(hasContract && peakKw > (contractedDemandKw ?? 0));
@@ -751,28 +906,48 @@ export function LoadCurveChart({
       {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
       <div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
         <div className="p-3">
-          <p className="text-xs font-medium text-muted-foreground">Demanda máxima</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Demanda máxima</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
           <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
             {peakKw.toFixed(2)}{' '}
             <span className="text-xs font-normal text-muted-foreground">kW</span>
           </p>
         </div>
         <div className="p-3">
-          <p className="text-xs font-medium text-muted-foreground">Demanda mínima</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Demanda mínima</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
           <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
             {minKw.toFixed(2)}{' '}
             <span className="text-xs font-normal text-muted-foreground">kW</span>
           </p>
         </div>
         <div className="p-3">
-          <p className="text-xs font-medium text-muted-foreground">Potência média</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Potência média</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
           <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
             {averageKw.toFixed(2)}{' '}
             <span className="text-xs font-normal text-muted-foreground">kW</span>
           </p>
         </div>
         <div className="p-3">
-          <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
           <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
             {totalEnergyKwh.toFixed(2)}{' '}
             <span className="text-xs font-normal text-muted-foreground">kWh</span>
@@ -788,17 +963,19 @@ export function LoadCurveChart({
             type="button"
             variant="outline"
             size="xs"
-            className="absolute right-0 top-0 bg-card"
+            className="absolute right-0 top-0 bg-card z-10"
             onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(points.length - 1, 0) })}
           >
             <RefreshCw className="h-3 w-3" aria-hidden="true" />
             Redefinir zoom
           </Button>
         )}
+        {startBadge && <PointBadge badge={startBadge} chartWidth={chartWidth} />}
+        {endBadge && <PointBadge badge={endBadge} chartWidth={chartWidth} />}
+        {!isHoverDuplicate && hoverBadge && <PointBadge badge={hoverBadge} chartWidth={chartWidth} />}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Arraste para navegar · role o mouse para zoom · shift+arraste seleciona um período (de novo compara com o
-        primeiro) · duplo clique para redefinir
+        Shift + arraste para selecionar intervalo · Duplo clique para redefinir
       </p>
 
       {/* Exactly one period pinned: the plain single-period readout. */}

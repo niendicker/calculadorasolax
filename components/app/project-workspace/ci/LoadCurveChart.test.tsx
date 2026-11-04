@@ -298,7 +298,9 @@ describe('LoadCurveChart', () => {
     fireEvent.wheel(instance.over, { clientX: 150, deltaY: 100 });
     expect(instance.setScaleCalls).toHaveLength(0);
 
-    flushAnimationFrames();
+    act(() => {
+      flushAnimationFrames();
+    });
     expect(instance.setScaleCalls).toHaveLength(1);
     const range = instance.setScaleCalls[0] as { min: number; max: number };
     expect(range.min).toBeGreaterThanOrEqual(0);
@@ -321,7 +323,9 @@ describe('LoadCurveChart', () => {
     expect(animationFrames.size).toBe(1);
     unmount();
     expect(animationFrames.size).toBe(0);
-    flushAnimationFrames();
+    act(() => {
+      flushAnimationFrames();
+    });
     expect(instance.setScaleCalls).toHaveLength(0);
   });
 
@@ -610,5 +614,71 @@ describe('pan/zoom stability across data updates', () => {
     options.hooks.draw[0](instance.chart);
     const fakeChart = instance.chart as { ctx: { fillText: ReturnType<typeof vi.fn> } };
     expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kW'), expect.any(Number), expect.any(Number));
+  });
+});
+
+describe('interval selection metrics & point badges', () => {
+  const manyPoints: LoadCurvePoint[] = Array.from({ length: 30 }, (_, i) =>
+    point(`2026-01-05T${String(i).padStart(2, '0')}:00:00Z`, i + 1)
+  );
+
+  function mockOverRect(over: HTMLElement) {
+    vi.spyOn(over, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 300,
+      height: 240,
+      right: 300,
+      bottom: 240,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  it('recalculates top indicators exclusively for selected range and displays "intervalo" badges', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const over = instances.at(-1)!.over;
+    mockOverRect(over);
+
+    // Initial indicators show full week metrics (peak 30 kW, min 1 kW)
+    expect(screen.getByText('30.00')).toBeInTheDocument();
+    expect(screen.getByText('1.00')).toBeInTheDocument();
+    expect(screen.queryAllByText('intervalo')).toHaveLength(0);
+
+    // Shift-drag selects indices 10..25 (powers 11..26)
+    fireEvent.mouseDown(over, { button: 0, shiftKey: true, clientX: 100 });
+    fireEvent.mouseMove(document, { clientX: 250 });
+    fireEvent.mouseUp(document, { clientX: 250 });
+
+    // Top indicators now reflect only the selected interval (peak 26 kW, min 11 kW)
+    expect(screen.getByText('26.00')).toBeInTheDocument();
+    expect(screen.getByText('11.00')).toBeInTheDocument();
+    expect(screen.getAllByText('intervalo')).toHaveLength(4);
+
+    // Início and Fim badges are rendered on the chart
+    expect(screen.getByText(/Início:.*11\.0 kW/)).toBeInTheDocument();
+    expect(screen.getByText(/Fim:.*26\.0 kW/)).toBeInTheDocument();
+  });
+
+  it('displays hover badge on mousemove and clears on mouseleave', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const over = instances.at(-1)!.over;
+    mockOverRect(over);
+
+    // Hover over clientX 50 -> index 5 -> power 6 kW
+    fireEvent.mouseMove(over, { clientX: 50, buttons: 0 });
+    expect(screen.getByText(/6\.0 kW/)).toBeInTheDocument();
+
+    // Mouse leave clears hover badge
+    fireEvent.mouseLeave(over);
+    expect(screen.queryByText(/6\.0 kW/)).not.toBeInTheDocument();
+  });
+
+  it('renders summarized guide text below the chart', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    expect(
+      screen.getByText('Shift + arraste para selecionar intervalo · Duplo clique para redefinir')
+    ).toBeInTheDocument();
   });
 });
