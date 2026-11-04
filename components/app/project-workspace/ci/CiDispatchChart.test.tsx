@@ -139,6 +139,8 @@ describe('CiDispatchChart', () => {
       [120, 140, 60],
       [80, 90, 80],
       [40, 50, 0],
+      [0, 0, 0],
+      [0, 0, 0],
     ]);
 
     const options = instance.options as {
@@ -150,6 +152,8 @@ describe('CiDispatchChart', () => {
     expect(options.series[1].label).toBe('Carga Original');
     expect(options.series[2].label).toBe('Demanda da Rede (com BESS)');
     expect(options.series[3].label).toBe('Descarga BESS (Corte)');
+    expect(options.series[4].label).toBe('Geração Solar FV');
+    expect(options.series[5].label).toBe('Gerador (GMG)');
 
     // Range incorporates contractedDemandKw = 15
     const yRange = options.scales.y.range(instance.chart, 0, 140);

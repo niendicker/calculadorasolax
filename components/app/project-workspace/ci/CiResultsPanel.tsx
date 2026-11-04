@@ -160,6 +160,8 @@ export function CiResultsPanel({
         result,
         product,
         rankingCriterion: ciOptions.rankingCriterion,
+        solar: ciOptions.solar,
+        generator: ciOptions.generator,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

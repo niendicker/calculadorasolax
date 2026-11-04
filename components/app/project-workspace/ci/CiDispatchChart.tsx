@@ -61,6 +61,8 @@ function buildDispatchData(dispatch: DispatchPoint[]): uPlot.AlignedData {
     dispatch.map((point) => point.loadKw),
     dispatch.map((point) => point.gridImportKw),
     dispatch.map((point) => point.dischargeKw),
+    dispatch.map((point) => point.solarGenerationKw ?? 0),
+    dispatch.map((point) => point.generatorKw ?? 0),
   ];
 }
 
@@ -245,6 +247,20 @@ function buildOptions(
       {
         label: 'Descarga BESS (Corte)',
         stroke: '#16a34a',
+        width: 1.5,
+        points: { show: false },
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+      },
+      {
+        label: 'Geração Solar FV',
+        stroke: '#eab308',
+        width: 1.5,
+        points: { show: false },
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+      },
+      {
+        label: 'Gerador (GMG)',
+        stroke: '#f97316',
         width: 1.5,
         points: { show: false },
         value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),

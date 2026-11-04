@@ -4,6 +4,8 @@ import { formatAddress, isAddressEmpty } from '@/lib/address';
 import type { CiBessProductRecord } from '@/lib/data/ci-bess-products-repository';
 import type {
   BessStrategyId,
+  CiGeneratorConfig,
+  CiSolarConfig,
   CommercialIndustrialResult,
   DispatchPoint,
   RankingCriterion,
@@ -431,6 +433,8 @@ export interface CiMemorialPdfInput {
   result: CommercialIndustrialResult;
   product: CiBessProductRecord | null;
   rankingCriterion?: RankingCriterion;
+  solar?: CiSolarConfig | null;
+  generator?: CiGeneratorConfig | null;
 }
 
 /** Renders the C&I study as a native PDF Document — see file header comment.
@@ -441,7 +445,7 @@ export interface CiMemorialPdfInput {
  * smallest evaluated module count for reference, and every section below
  * that would otherwise say "recomendado" switches to a neutral "avaliado"
  * framing instead (never silently mislabeling a nonviable result). */
-export function CiMemorialPdfDocument({ projectInfo, client, profile, result, product, rankingCriterion }: CiMemorialPdfInput) {
+export function CiMemorialPdfDocument({ projectInfo, client, profile, result, product, rankingCriterion, solar, generator }: CiMemorialPdfInput) {
   const generatedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
   const selected = result.selected;
   const isRecommended = result.recommendation.scenarioId !== null;
@@ -585,6 +589,45 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               <Text style={{ fontWeight: 700 }}>{strategyInfo.label}. </Text>
               {strategyInfo.description}
             </Text>
+          </View>
+        )}
+
+        {solar?.enabled && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Geração Fotovoltaica Integrada (Solar FV)</Text>
+            <InfoRows
+              rows={[
+                { label: 'Potência instalada DC', value: `${solar.installedPowerKwp} kWp` },
+                { label: 'Potência dos inversores AC', value: formatKw(solar.inverterPowerKw) },
+                { label: 'Geração diária média estimada', value: `${(solar.installedPowerKwp * (solar.dailyYieldKwhPerKwp || 4.5)).toFixed(1)} kWh/dia (${solar.dailyYieldKwhPerKwp || 4.5} kWh/kWp)` },
+                {
+                  label: 'Prioridade de recarga no BESS',
+                  value: solar.prioritizeBessCharging ? 'Habilitada (absorve excedente solar diurno)' : 'Apenas autoconsumo instantâneo',
+                },
+              ]}
+            />
+          </View>
+        )}
+
+        {generator?.enabled && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Grupo Motor Gerador (GMG)</Text>
+            <InfoRows
+              rows={[
+                { label: 'Potência nominal', value: `${generator.ratedPowerKva} kVA (potência ativa: ${(generator.ratedPowerKva * (generator.powerFactor || 0.8)).toFixed(1)} kW)` },
+                { label: 'Tipo de combustível', value: generator.fuelType === 'diesel' ? 'Diesel S10' : generator.fuelType === 'natural_gas' ? 'Gás Natural' : 'Biogás' },
+                {
+                  label: 'Modo de acionamento',
+                  value:
+                    generator.dispatchMode === 'blackout_only'
+                      ? 'Apenas em falta de rede / blackout'
+                      : generator.dispatchMode === 'peak_support'
+                        ? 'Suporte no horário de ponta'
+                        : 'Ponta + Falta de rede',
+                },
+                { label: 'Custo do combustível', value: formatCurrencyBRL(generator.fuelCostBrlPerUnit) },
+              ]}
+            />
           </View>
         )}
 
