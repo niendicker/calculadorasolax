@@ -23,6 +23,7 @@ import {
   Receipt,
   ShieldAlert,
   SlidersHorizontal,
+  Sun,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -52,7 +53,10 @@ function CardIcon({ icon: Icon }: { icon: typeof BatteryCharging }) {
   );
 }
 
-function StateBadge({ configured }: { configured: boolean }) {
+function StateBadge({ configured, inactive }: { configured: boolean; inactive?: boolean }) {
+  if (inactive) {
+    return <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">Opcional · Inativo</span>;
+  }
   return (
     <span className={cn('inline-flex items-center gap-1 text-xs font-medium', configured ? 'text-emerald-600' : 'text-amber-600')}>
       {configured ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -65,12 +69,14 @@ function ConfigCard({
   icon: Icon,
   label,
   configured,
+  inactive,
   summary,
   onOpen,
 }: {
   icon: typeof BatteryCharging;
   label: string;
   configured: boolean;
+  inactive?: boolean;
   summary: string;
   onOpen: () => void;
 }) {
@@ -86,7 +92,7 @@ function ConfigCard({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-foreground">{label}</span>
         <span className="mt-1 block">
-          <StateBadge configured={configured} />
+          <StateBadge configured={configured} inactive={inactive} />
         </span>
         <span className="mt-1 block truncate text-xs text-muted-foreground">{summary}</span>
       </span>
@@ -189,6 +195,12 @@ export function CiOverviewPanel({
     RANKING_LABELS[ciOptions.rankingCriterion] ?? ciOptions.rankingCriterion
   }`;
 
+  const solar = ciOptions.solar;
+  const solarConfigured = Boolean(solar?.enabled && solar.installedPowerKwp > 0);
+  const solarSummary = !solar?.enabled
+    ? 'Desativado'
+    : `${solar.installedPowerKwp} kWp · ${solar.inverterPowerKw || solar.installedPowerKwp} kW inversor`;
+
   const backup = ciOptions.backup;
   const backupConfigured = Boolean(
     backup?.enabled &&
@@ -263,6 +275,14 @@ export function CiOverviewPanel({
             onOpen={() => onNavigateToSection('bess')}
           />
           <ConfigCard
+            icon={Sun}
+            label="Geração Solar FV"
+            configured={solarConfigured}
+            inactive={!solar?.enabled}
+            summary={solarSummary}
+            onOpen={() => onNavigateToSection('solar')}
+          />
+          <ConfigCard
             icon={LineChart}
             label="Curva de carga"
             configured={curveConfigured}
@@ -288,6 +308,7 @@ export function CiOverviewPanel({
               icon={ShieldAlert}
               label="Falta de rede (Backup)"
               configured={backupConfigured}
+              inactive={!backup?.enabled}
               summary={backupSummary}
               onOpen={() => onNavigateToSection('backup')}
             />

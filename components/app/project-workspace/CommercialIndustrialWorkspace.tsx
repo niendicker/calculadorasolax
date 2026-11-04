@@ -230,6 +230,7 @@ export function CommercialIndustrialWorkspace({
               profile={profile}
               ciOptions={ciOptions}
               onFlushSave={onFlushSave}
+              prevSectionLabel={canAccessCiBackup ? 'Falta de rede' : 'Estratégia'}
               onNavigatePrev={() => setSectionState(canAccessCiBackup ? 'backup' : 'strategy')}
             />
           </CardContent>

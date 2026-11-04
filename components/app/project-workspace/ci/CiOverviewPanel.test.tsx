@@ -152,6 +152,9 @@ describe('CiOverviewPanel', () => {
 
     fireEvent.click(screen.getByText('Nenhuma curva importada'));
     expect(onNavigateToSection).toHaveBeenCalledWith('curve');
+
+    fireEvent.click(screen.getByText('Geração Solar FV'));
+    expect(onNavigateToSection).toHaveBeenCalledWith('solar');
   });
 
   it('shows the resolved BESS product name and module count once configured', async () => {

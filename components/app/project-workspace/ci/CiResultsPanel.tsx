@@ -97,6 +97,7 @@ export function CiResultsPanel({
   ciOptions,
   onFlushSave,
   onNavigatePrev,
+  prevSectionLabel,
 }: {
   projectId: string | null;
   projectInfo: ProjectInfo;
@@ -107,6 +108,7 @@ export function CiResultsPanel({
    * see the file header comment for why "Calcular" needs this. */
   onFlushSave: () => Promise<unknown>;
   onNavigatePrev?: () => void;
+  prevSectionLabel?: string;
 }) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
@@ -213,6 +215,15 @@ export function CiResultsPanel({
   const hasCurve = Boolean(ciOptions.loadCurve && (ciOptions.loadCurve.points.length > 0 || (ciOptions.loadCurve as any).representativeDays?.length > 0));
   const hasTariff = Boolean(ciOptions.tariff && (ciOptions.tariff.energyRatePeakBrlPerMwh > 0 || ciOptions.tariff.energyRateOffPeakBrlPerMwh > 0));
   const hasStrategy = Boolean(ciOptions.strategy);
+  const isSolarEnabled = Boolean(ciOptions.solar?.enabled);
+  const hasSolar = Boolean(isSolarEnabled && (ciOptions.solar?.installedPowerKwp ?? 0) > 0);
+  const isBackupEnabled = Boolean(ciOptions.backup?.enabled);
+  const hasBackup = Boolean(
+    isBackupEnabled &&
+      (ciOptions.backup?.inputMode === 'detailed'
+        ? ciOptions.backup.loads.length > 0
+        : (ciOptions.backup?.targetPowerKw ?? 0) > 0)
+  );
 
   return (
     <div className="space-y-6">
@@ -273,7 +284,7 @@ export function CiResultsPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
               <CheckCircle2
                 className={cn('h-5 w-5 shrink-0', hasBessProduct ? 'text-emerald-500' : 'text-muted-foreground/40')}
@@ -282,6 +293,23 @@ export function CiResultsPanel({
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">Produto BESS</p>
                 <p className="truncate text-xs font-medium">{hasBessProduct ? 'Selecionado' : 'Padrão / Não definido'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+              <CheckCircle2
+                className={cn('h-5 w-5 shrink-0', hasSolar ? 'text-emerald-500' : isSolarEnabled ? 'text-amber-500' : 'text-muted-foreground/40')}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Geração Solar FV</p>
+                <p className="truncate text-xs font-medium">
+                  {hasSolar
+                    ? `${ciOptions.solar!.installedPowerKwp} kWp ativo`
+                    : isSolarEnabled
+                      ? 'Requer potência (kWp)'
+                      : 'Desativado (opcional)'}
+                </p>
               </div>
             </div>
 
@@ -315,6 +343,23 @@ export function CiResultsPanel({
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">Estratégia</p>
                 <p className="truncate text-xs font-medium">{ciOptions.strategy || 'HYBRID'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+              <CheckCircle2
+                className={cn('h-5 w-5 shrink-0', hasBackup ? 'text-emerald-500' : isBackupEnabled ? 'text-amber-500' : 'text-muted-foreground/40')}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Falta de Rede (Backup)</p>
+                <p className="truncate text-xs font-medium">
+                  {hasBackup
+                    ? `${ciOptions.generator?.enabled ? 'BESS + GMG' : 'BESS ativo'}`
+                    : isBackupEnabled
+                      ? 'Requer cargas críticas'
+                      : 'Sem reserva (opcional)'}
+                </p>
               </div>
             </div>
           </div>
@@ -574,7 +619,7 @@ export function CiResultsPanel({
         <div className="flex items-center justify-start border-t pt-4">
           <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar para Configurações
+            Voltar para {prevSectionLabel || 'Configurações'}
           </Button>
         </div>
       )}
