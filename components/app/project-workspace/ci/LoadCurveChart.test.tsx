@@ -443,7 +443,7 @@ describe('shift+drag range selection', () => {
     fireEvent.mouseUp(document, { clientX: endX });
   }
 
-  it('a second shift+drag pins a comparison period B and shows a side-by-side table with a delta column', () => {
+  it('a second shift+drag pins a comparison period B and shows a pivoted comparison table with deltas', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     const over = instances.at(-1)!.over;
     mockOverRect(over);
@@ -451,9 +451,19 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
     dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
 
-    expect(screen.getByText(/Período A/)).toBeInTheDocument();
-    expect(screen.getByText(/Período B/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Período A/)).toHaveLength(2);
+    expect(screen.getAllByText(/Período B/)).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /Limpar/ })).toHaveLength(2);
+
+    // Column headers for metrics
+    expect(screen.getByRole('columnheader', { name: 'Intervalo' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Pico' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Mínima' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Média' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Energia' })).toBeInTheDocument();
+
+    // Row header for delta
+    expect(screen.getByRole('rowheader', { name: /Diferença \(B − A\)/ })).toBeInTheDocument();
 
     // Peak: A=26, B=6 -> delta -20.00 kW (-76.9%)
     expect(screen.getByText('26.00 kW')).toBeInTheDocument();
@@ -470,8 +480,8 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
     dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
 
-    expect(screen.getByText(/Período A/)).toBeInTheDocument();
-    expect(screen.getByText(/Período B/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
 
     // Simulate container resize (e.g. scrollbar appearing when comparison table renders)
     const target = instance.target!;
@@ -479,8 +489,8 @@ describe('shift+drag range selection', () => {
     act(() => resizeCallback?.());
 
     // Both periods remain visible and comparison table remains mounted
-    expect(screen.getByText(/Período A/)).toBeInTheDocument();
-    expect(screen.getByText(/Período B/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
     expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
   });
 
@@ -493,7 +503,7 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 10, 50); // B: values 2..6
     dragSelect(over, 0, 20); // replaces B: indices 0..2 -> values 1..3
 
-    expect(screen.getByText(/Período A/)).toHaveTextContent('seg'); // still the original A range
+    expect(screen.getAllByText(/Período A/)[0]).toHaveTextContent('seg'); // still the original A range
     expect(screen.getByText('26.00 kW')).toBeInTheDocument(); // A's peak unchanged
     expect(screen.getByText('3.00 kW')).toBeInTheDocument(); // B's new peak
     expect(screen.queryByText('6.00 kW')).not.toBeInTheDocument(); // B's old peak is gone

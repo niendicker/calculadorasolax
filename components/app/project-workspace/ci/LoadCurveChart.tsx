@@ -1042,32 +1042,60 @@ export function LoadCurveChart({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-muted-foreground">
-                  <th className="py-1 text-left font-medium">
-                    <span className="sr-only">Métrica</span>
-                  </th>
-                  <th className="py-1 text-right font-medium">A</th>
-                  <th className="py-1 text-right font-medium">B</th>
-                  <th className="py-1 text-right font-medium">Diferença (B − A)</th>
+                <tr className="border-b text-muted-foreground">
+                  <th scope="col" className="py-1.5 text-left font-medium">Intervalo</th>
+                  {METRIC_ROWS.map((row) => (
+                    <th key={row.key} scope="col" className="py-1.5 text-right font-medium">
+                      {row.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {METRIC_ROWS.map((row) => (
-                  <tr key={row.key} className="border-t">
-                    <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">
-                      {row.label}
-                    </th>
-                    <td className="py-1.5 text-right font-semibold tabular-nums">
+                <tr className="border-b border-border/60">
+                  <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--chart-1)' }}
+                        aria-hidden="true"
+                      />
+                      Período A
+                    </span>
+                  </th>
+                  {METRIC_ROWS.map((row) => (
+                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
                       {summaryA[row.key].toFixed(2)} {row.unit}
                     </td>
-                    <td className="py-1.5 text-right font-semibold tabular-nums">
+                  ))}
+                </tr>
+                <tr className="border-b border-border/60">
+                  <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--chart-2)' }}
+                        aria-hidden="true"
+                      />
+                      Período B
+                    </span>
+                  </th>
+                  {METRIC_ROWS.map((row) => (
+                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
                       {summaryB[row.key].toFixed(2)} {row.unit}
                     </td>
-                    <td className="py-1.5 text-right font-semibold tabular-nums">
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">
+                    Diferença (B − A)
+                  </th>
+                  {METRIC_ROWS.map((row) => (
+                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums text-foreground">
                       {formatDelta(summaryA[row.key], summaryB[row.key], row.unit)}
                     </td>
-                  </tr>
-                ))}
+                  ))}
+                </tr>
               </tbody>
             </table>
           </div>
