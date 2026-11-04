@@ -832,12 +832,12 @@ export function LoadCurveChart({
       const chart = chartRef.current;
       if (chart && el.clientWidth > 0) {
         chart.setSize({ width: el.clientWidth, height: CHART_HEIGHT });
-        // The comparison bands are repainted by the canvas draw hook on every
-        // redraw (setSize triggers one), so they'd actually survive a resize
-        // on their own — reset anyway for consistency with the live-drag
-        // overlay below, which genuinely is stuck at the old pixel width.
-        setSelections((previous) => (previous.a || previous.b ? EMPTY_SELECTIONS : previous));
+        // Pinned comparison bands survive chart resizing naturally because
+        // the canvas draw hook recomputes valToPos dynamically from the stored indices.
+        // Clearing selections here would unexpectedly discard them whenever rendering
+        // summary tables or layout changes trigger container resize.
         clearChartSelect(chart);
+        setRedrawSeq((s) => s + 1);
       }
     });
     observer.observe(el);

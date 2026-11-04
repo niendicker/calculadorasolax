@@ -329,7 +329,7 @@ describe('LoadCurveChart', () => {
     expect(instance.setScaleCalls).toHaveLength(0);
   });
 
-  it('resizes the chart and clears pinned selections', () => {
+  it('resizes the chart while preserving pinned selections', () => {
     render(<LoadCurveChart points={samplePoints.concat(point('2026-01-05T00:45:00Z', 20))} resolutionMinutes={15} />);
     const instance = instances[0];
     mockChartRect(instance.over);
@@ -345,7 +345,7 @@ describe('LoadCurveChart', () => {
 
     expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 180 });
     expect(instance.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
-    expect(screen.queryByRole('button', { name: /Limpar/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Limpar/ })).toBeInTheDocument();
   });
 });
 
@@ -458,6 +458,29 @@ describe('shift+drag range selection', () => {
     // Peak: A=26, B=6 -> delta -20.00 kW (-76.9%)
     expect(screen.getByText('26.00 kW')).toBeInTheDocument();
     expect(screen.getByText('6.00 kW')).toBeInTheDocument();
+    expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
+  });
+
+  it('preserves both periods A and B and comparison table when container resize occurs', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const instance = instances.at(-1)!;
+    const over = instance.over;
+    mockOverRect(over);
+
+    dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
+    dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
+
+    expect(screen.getByText(/Período A/)).toBeInTheDocument();
+    expect(screen.getByText(/Período B/)).toBeInTheDocument();
+
+    // Simulate container resize (e.g. scrollbar appearing when comparison table renders)
+    const target = instance.target!;
+    Object.defineProperty(target, 'clientWidth', { configurable: true, value: 585 });
+    act(() => resizeCallback?.());
+
+    // Both periods remain visible and comparison table remains mounted
+    expect(screen.getByText(/Período A/)).toBeInTheDocument();
+    expect(screen.getByText(/Período B/)).toBeInTheDocument();
     expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
   });
 
