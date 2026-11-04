@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clock, Plus, Shield, ShieldAlert, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Plus, Shield, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,21 @@ import { computeBackupRequirements } from '@/supabase/functions/_shared/commerci
 const inputModeOptions: { value: CiBackupInputMode; label: string; hint: string }[] = [
   { value: 'simple', label: 'Dimensionamento Direto', hint: 'Informe diretamente a potência crítica e a autonomia desejada.' },
   { value: 'detailed', label: 'Lista de Cargas Críticas', hint: 'Cadastre cargas individuais como servidores, iluminação e refrigeração.' },
+];
+
+interface CriticalLoadPreset {
+  name: string;
+  powerW: number;
+  quantity: number;
+  usageFactor: number;
+}
+
+const CRITICAL_LOAD_PRESETS: CriticalLoadPreset[] = [
+  { name: 'Data Center / Servidores TI', powerW: 5000, quantity: 2, usageFactor: 1.0 },
+  { name: 'Iluminação de Emergência LED', powerW: 1500, quantity: 1, usageFactor: 0.9 },
+  { name: 'Câmaras Frias / Refrigeração', powerW: 12000, quantity: 1, usageFactor: 0.8 },
+  { name: 'Portaria / Controle de Acesso', powerW: 800, quantity: 1, usageFactor: 1.0 },
+  { name: 'Bomba de Incêndio / Pressurização', powerW: 15000, quantity: 1, usageFactor: 0.5 },
 ];
 
 function toNumber(value: string, fallback = 0): number {
@@ -206,6 +221,35 @@ export function CiBackupPanel({
           {/* Detailed Mode Form */}
           {backup.inputMode === 'detailed' && (
             <div className="space-y-4">
+              {/* Presets catalog */}
+              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span>Catálogo rápido de cargas comerciais essenciais:</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {CRITICAL_LOAD_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        const load: CiCriticalLoad = {
+                          id: `load-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                          name: preset.name,
+                          powerW: preset.powerW,
+                          quantity: preset.quantity,
+                          usageFactor: preset.usageFactor,
+                        };
+                        updateBackup({ loads: [...backup.loads, load] });
+                      }}
+                      className="rounded border bg-background/80 px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-primary/10 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    >
+                      + {preset.name} ({(preset.powerW * preset.quantity * preset.usageFactor / 1000).toFixed(1)} kW)
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
                 <p className="text-xs font-semibold">Adicionar carga crítica</p>
                 <div className="grid gap-2 sm:grid-cols-4">

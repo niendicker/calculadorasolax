@@ -96,4 +96,38 @@ describe('CiBackupPanel', () => {
       })
     );
   });
+
+  it('allows quickly adding a critical load from presets catalog', () => {
+    const onChange = vi.fn();
+    const ciOptionsDetailed: CommercialIndustrialOptions = {
+      ...defaultCiOptions,
+      backup: {
+        enabled: true,
+        inputMode: 'detailed',
+        targetPowerKw: 0,
+        autonomyHours: 3,
+        loads: [],
+        safetyMarginPercent: 10,
+      },
+    };
+
+    render(<CiBackupPanel ciOptions={ciOptionsDetailed} onChange={onChange} />);
+
+    expect(screen.getByText('Catálogo rápido de cargas comerciais essenciais:')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Data Center \/ Servidores TI/i }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backup: expect.objectContaining({
+          loads: [
+            expect.objectContaining({
+              name: 'Data Center / Servidores TI',
+              powerW: 5000,
+              quantity: 2,
+            }),
+          ],
+        }),
+      })
+    );
+  });
 });
