@@ -47,7 +47,7 @@ async function importFile(content: string) {
 describe('CiLoadCurvePanel', () => {
   it('defaults to 15 min resolution and America/Sao_Paulo, offering only the two Brazilian timezones', () => {
     render(<ControlledPanel />);
-    expect(screen.getByRole('button', { name: '15 min' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('15 min')).toBeInTheDocument();
     const tzSelect = screen.getByLabelText('Fuso horário') as HTMLSelectElement;
     expect(tzSelect.value).toBe('America/Sao_Paulo');
 
@@ -62,6 +62,13 @@ describe('CiLoadCurvePanel', () => {
     expect(tzSelect.value).toBe('America/Manaus');
   });
 
+  it('renders unified period range selector with start and end inputs and day count', () => {
+    render(<ControlledPanel />);
+    expect(screen.getByLabelText('Início do período')).toBeInTheDocument();
+    expect(screen.getByLabelText('Fim do período')).toBeInTheDocument();
+    expect(screen.getByText(/7 dias/)).toBeInTheDocument();
+  });
+
   it('renders compact breadcrumb steps with BESS completed and Curva de carga active', () => {
     render(<ControlledPanel />);
     expect(screen.getByText('Dimensionamento BESS')).toBeInTheDocument();
@@ -71,15 +78,14 @@ describe('CiLoadCurvePanel', () => {
 
   it('imports a valid CSV and shows the weekly preview with measurements', async () => {
     render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: '60 min' }));
-
     const csv = 'timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
     await importFile(csv);
 
-    expect(await screen.findByText(/Resumo/)).toBeInTheDocument();
+    expect(await screen.findByText(/3 amostras/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '60 min' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/resolução 60 min/)).toBeInTheDocument();
     expect(await screen.findByText(/20\.00/)).toBeInTheDocument(); // pico
-    expect(await screen.findByText(/10\.00/)).toBeInTheDocument(); // mínima
-    expect(screen.getByText(/3 \/ 672 pontos · resolução 60 min/)).toBeInTheDocument();
+    expect(screen.getByText(/10\.00/)).toBeInTheDocument(); // mínima
   });
 
   it('shows errors for an invalid CSV and does not apply the curve', async () => {
@@ -91,9 +97,8 @@ describe('CiLoadCurvePanel', () => {
 
   it('removes an imported curve when requested', async () => {
     render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: '60 min' }));
     await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
-    await screen.findByText(/Resumo/);
+    expect(await screen.findByText(/2 amostras/)).toBeInTheDocument();
 
     const removeBtn = screen.getByRole('button', { name: /Remover curva/i });
     fireEvent.click(removeBtn);

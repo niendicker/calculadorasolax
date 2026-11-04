@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, Calendar, ChevronLeft, ChevronRight, Download, FileUp, Sparkles, X } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -58,6 +58,32 @@ function addDaysIsoDate(isoDate: string, days: number): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function calculateDaysInclusive(startIso: string, endIso: string): number {
+  if (!startIso || !endIso) return 0;
+  const t1 = Date.parse(`${startIso}T00:00:00Z`);
+  const t2 = Date.parse(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(t1) || Number.isNaN(t2) || t2 < t1) return 0;
+  return Math.round((t2 - t1) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+function detectCsvResolution(text: string): LoadCurveResolutionMinutes {
+  const lines = text.split(/\r\n|\r|\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 3) return 15;
+  const delimiter = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(delimiter).map((h) => h.trim().toLowerCase().replace(/[^a-z]/g, ''));
+  const tsIdx = headers.findIndex((h) => ['timestamp', 'data', 'datahora', 'datetime', 'date'].includes(h));
+  if (tsIdx === -1) return 15;
+  const t1 = Date.parse(lines[1].split(delimiter)[tsIdx]?.trim());
+  const t2 = Date.parse(lines[2].split(delimiter)[tsIdx]?.trim());
+  if (Number.isFinite(t1) && Number.isFinite(t2)) {
+    const diffMinutes = Math.round(Math.abs(t2 - t1) / 60000);
+    if (diffMinutes >= 45 && diffMinutes <= 90) return 60;
+    if (diffMinutes >= 20 && diffMinutes <= 40) return 30;
+    if (diffMinutes >= 5 && diffMinutes <= 20) return 15;
+  }
+  return 15;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -183,13 +209,33 @@ export function CiLoadCurvePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceMode, weekdayKw, weekendKw, resolutionMinutes, timezone, periodStart, periodEnd, selectedPresetId, isCurveCleared]);
 
+  function handlePeriodStartChange(newStart: string) {
+    setPeriodStart(newStart);
+    if (newStart && periodEnd) {
+      const t1 = Date.parse(`${newStart}T00:00:00Z`);
+      const t2 = Date.parse(`${periodEnd}T00:00:00Z`);
+      if (t1 > t2) {
+        setPeriodEnd(addDaysIsoDate(newStart, 6));
+      }
+    }
+  }
+
+  function handlePeriodEndChange(newEnd: string) {
+    setPeriodEnd(newEnd);
+  }
+
   function handleFile(file: File | undefined) {
     if (!file) return;
     setFileName(file.name);
     setSourceMode('csv');
     setIsCurveCleared(false);
     const reader = new FileReader();
-    reader.onload = () => setCsvText(typeof reader.result === 'string' ? reader.result : '');
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const detectedRes = detectCsvResolution(text);
+      setResolutionMinutes(detectedRes);
+      setCsvText(text);
+    };
     reader.readAsText(file);
   }
 
@@ -251,6 +297,7 @@ export function CiLoadCurvePanel({
   }
 
   const pointCount = activeCurve ? activeCurve.points.length : (existing ? existing.points.length : 0);
+  const daysCount = calculateDaysInclusive(periodStart, periodEnd);
 
   return (
     <div className="space-y-5">
@@ -341,26 +388,51 @@ export function CiLoadCurvePanel({
 
       {/* Indicador de curva importada ativa */}
       {sourceMode === 'csv' && fileName && (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-2 text-xs text-foreground">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-2.5 text-xs text-foreground">
+          <div className="flex flex-wrap items-center gap-2">
             <FileUp className="h-4 w-4 text-primary shrink-0" />
             <span>
               Curva carregada via CSV: <strong>{fileName}</strong>
             </span>
+            <span className="text-muted-foreground">({pointCount} pontos)</span>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              setSourceMode('manual');
-              setFileName(null);
-              setCsvText(null);
-            }}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            Voltar para perfil manual
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground font-medium">Resolução:</span>
+              <div className="grid grid-cols-3 gap-0.5 rounded-md bg-background p-0.5 border border-border/60">
+                {resolutionOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={resolutionMinutes === option}
+                    onClick={() => setResolutionMinutes(option)}
+                    className={cn(
+                      'flex h-6 items-center justify-center rounded px-2 text-[11px] font-medium transition',
+                      resolutionMinutes === option
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {option} min
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setSourceMode('manual');
+                setFileName(null);
+                setCsvText(null);
+                setResolutionMinutes(15);
+              }}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Voltar para perfil manual
+            </Button>
+          </div>
         </div>
       )}
 
@@ -390,48 +462,39 @@ export function CiLoadCurvePanel({
         </div>
       )}
 
-      {/* 3. Faixa compacta de configuração (início/fim do período, resolução segmentada, fuso horário) */}
+      {/* 3. Faixa compacta de configuração (Período unificado, Fuso horário, Resolução) */}
       <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-none">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-          <label className="flex flex-col gap-1 text-xs font-medium">
-            <span className="text-muted-foreground">Início do período</span>
-            <Input
-              type="date"
-              value={periodStart}
-              onChange={(event) => setPeriodStart(event.target.value)}
-              className="h-8 text-xs bg-background"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium">
-            <span className="text-muted-foreground">Fim do período</span>
-            <Input
-              type="date"
-              value={periodEnd}
-              onChange={(event) => setPeriodEnd(event.target.value)}
-              className="h-8 text-xs bg-background"
-            />
-          </label>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
+          {/* Seletor unificado de intervalo de período */}
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Resolução</span>
-            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-0.5">
-              {resolutionOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={resolutionMinutes === option}
-                  onClick={() => setResolutionMinutes(option)}
-                  className={cn(
-                    'flex h-7 items-center justify-center rounded-md px-2 text-xs font-medium transition',
-                    resolutionMinutes === option
-                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                  )}
-                >
-                  {option} min
-                </button>
-              ))}
+            <div className="flex items-center justify-between text-xs font-medium">
+              <span className="text-muted-foreground">Período</span>
+              <span className="text-[11px] font-semibold text-primary">
+                {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
+              </span>
+            </div>
+            <div className="flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-background px-2.5 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+              <input
+                type="date"
+                aria-label="Início do período"
+                value={periodStart}
+                onChange={(event) => handlePeriodStartChange(event.target.value)}
+                className="w-full bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
+              />
+              <span className="text-xs text-muted-foreground px-1 select-none font-normal">até</span>
+              <input
+                type="date"
+                aria-label="Fim do período"
+                min={periodStart}
+                value={periodEnd}
+                onChange={(event) => handlePeriodEndChange(event.target.value)}
+                className="w-full bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
+              />
             </div>
           </div>
+
+          {/* Fuso horário */}
           <label className="flex flex-col gap-1 text-xs font-medium">
             <span className="text-muted-foreground">Fuso horário</span>
             <Select
@@ -447,6 +510,22 @@ export function CiLoadCurvePanel({
               ))}
             </Select>
           </label>
+
+          {/* Resolução */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between text-xs font-medium">
+              <span className="text-muted-foreground">Resolução temporal</span>
+              <span className="text-[11px] text-muted-foreground">
+                {sourceMode === 'csv' ? 'Arquivo CSV' : 'Padrão C&I'}
+              </span>
+            </div>
+            <div className="flex h-8 items-center justify-between rounded-lg border border-border/80 bg-muted/30 px-3 text-xs">
+              <span className="font-semibold text-foreground">{resolutionMinutes} min</span>
+              <span className="text-[11px] text-muted-foreground">
+                {sourceMode === 'csv' ? 'Do arquivo CSV' : 'Interpolação contínua'}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
