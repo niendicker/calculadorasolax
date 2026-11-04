@@ -191,4 +191,31 @@ describe('CiDispatchChart', () => {
     unmount();
     expect(instances[0].destroyed).toBe(true);
   });
+
+  it('renders daily breakdown filter buttons and switches day view', () => {
+    const multiDayDispatch: DispatchPoint[] = [
+      {
+        timestamp: '2026-01-05T10:00:00Z',
+        tariffPeriod: 'offPeak',
+        loadKw: 100,
+        chargeKw: 0,
+        dischargeKw: 0,
+        gridImportKw: 100,
+        socKwh: 50,
+      },
+      {
+        timestamp: '2026-01-06T10:00:00Z',
+        tariffPeriod: 'offPeak',
+        loadKw: 110,
+        chargeKw: 0,
+        dischargeKw: 0,
+        gridImportKw: 110,
+        socKwh: 50,
+      },
+    ];
+
+    const { getByText } = render(<CiDispatchChart dispatch={multiDayDispatch} />);
+    expect(getByText('Exibição:')).toBeInTheDocument();
+    expect(getByText('Semana Completa')).toBeInTheDocument();
+  });
 });

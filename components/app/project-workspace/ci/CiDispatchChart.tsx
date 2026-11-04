@@ -301,9 +301,39 @@ function buildOptions(
 }
 
 export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChartProps) {
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | 'all'>('all');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
-  const pointsRef = useRef(dispatch);
+
+  // Group points into days (using day boundary or 00:00 marks, or by date string)
+  const dayGroups: { label: string; points: DispatchPoint[] }[] = [];
+  let currentGroup: DispatchPoint[] = [];
+  let currentDayKey = '';
+
+  dispatch.forEach((point) => {
+    const dayKey = point.timestamp ? point.timestamp.slice(0, 10) : '';
+    if (dayKey !== currentDayKey && currentGroup.length > 0) {
+      const date = new Date(currentGroup[0].timestamp);
+      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      dayGroups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
+      currentGroup = [];
+    }
+    currentDayKey = dayKey;
+    currentGroup.push(point);
+  });
+  if (currentGroup.length > 0) {
+    const date = new Date(currentGroup[0].timestamp);
+    const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+    const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    dayGroups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
+  }
+
+  const activePoints = selectedDayIndex === 'all' || !dayGroups[selectedDayIndex]
+    ? dispatch
+    : dayGroups[selectedDayIndex].points;
+
+  const pointsRef = useRef(activePoints);
   const contractedDemandKwRef = useRef(contractedDemandKw);
   const isInitialContractMountRef = useRef(true);
   const skipNextPointsEffectRef = useRef(false);
@@ -338,7 +368,7 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
   }, []);
 
   useEffect(() => {
-    pointsRef.current = dispatch;
+    pointsRef.current = activePoints;
     if (skipNextPointsEffectRef.current) {
       skipNextPointsEffectRef.current = false;
       return;
@@ -346,14 +376,14 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
     const chart = chartRef.current;
     if (!chart) return;
 
-    chart.setData(buildDispatchData(dispatch));
+    chart.setData(buildDispatchData(activePoints));
     if (chart.scales.x?.min == null) {
       const [min, max] = fullXRange(pointsRef);
       chart.setScale('x', { min, max });
     } else {
       chart.redraw(true, true);
     }
-  }, [dispatch]);
+  }, [activePoints]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -370,7 +400,38 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
   if (dispatch.length === 0) return null;
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
+      {dayGroups.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b pb-2">
+          <span className="text-xs font-medium text-muted-foreground mr-1">Exibição:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedDayIndex('all')}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              selectedDayIndex === 'all'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            Semana Completa
+          </button>
+          {dayGroups.map((group, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setSelectedDayIndex(idx)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors capitalize ${
+                selectedDayIndex === idx
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
         {isZoomed && (
@@ -379,7 +440,7 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
             variant="outline"
             size="xs"
             className="absolute right-0 top-0 bg-card"
-            onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(dispatch.length - 1, 0) })}
+            onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(activePoints.length - 1, 0) })}
           >
             <RefreshCw className="h-3 w-3" aria-hidden="true" />
             Redefinir zoom
