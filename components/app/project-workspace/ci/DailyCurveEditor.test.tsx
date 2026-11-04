@@ -80,6 +80,51 @@ describe('DailyCurveEditor', () => {
     expect(lastCall[12]).toBe(50);
   });
 
+  it('doubles the scale when a point is dragged to the top of the scale upon release', async () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
+    const point = getSlider(12);
+
+    vi.spyOn(point.closest('svg')!, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      width: 640,
+      height: 220,
+      right: 640,
+      bottom: 220,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    // Initial scale is 50 kW (from FLAT_24 max 50)
+    expect(point).toHaveAttribute('aria-valuemax', '50');
+    expect(screen.getByText('50 kW')).toBeInTheDocument();
+
+    // Drag to top and release -> scale doubles to 100 kW
+    fireEvent.pointerDown(point, { pointerId: 1, clientY: 0 });
+    fireEvent.pointerMove(point, { pointerId: 1, clientY: -20 });
+    fireEvent.pointerUp(point, { pointerId: 1, clientY: -20 });
+
+    expect(point).toHaveAttribute('aria-valuemax', '100');
+    expect(screen.getByText('100 kW')).toBeInTheDocument();
+
+    // Drag to top of new scale (100 kW) and release -> doubles again to 200 kW
+    fireEvent.pointerDown(point, { pointerId: 2, clientY: 0 });
+    fireEvent.pointerMove(point, { pointerId: 2, clientY: -20 });
+    fireEvent.pointerUp(point, { pointerId: 2, clientY: -20 });
+
+    expect(point).toHaveAttribute('aria-valuemax', '200');
+    expect(screen.getByText('200 kW')).toBeInTheDocument();
+
+    // Dragging down to bottom/middle and releasing does NOT double the scale
+    fireEvent.pointerDown(point, { pointerId: 3, clientY: 100 });
+    fireEvent.pointerMove(point, { pointerId: 3, clientY: 150 });
+    fireEvent.pointerUp(point, { pointerId: 3, clientY: 150 });
+
+    expect(point).toHaveAttribute('aria-valuemax', '200');
+  });
+
   it('ArrowUp/ArrowDown on a focused point nudges its value by 1 kW (5 with Shift)', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);

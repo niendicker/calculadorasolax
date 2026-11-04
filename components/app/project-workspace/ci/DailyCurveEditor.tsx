@@ -115,15 +115,20 @@ export function DailyCurveEditor({
   const [activeHour, setActiveHour] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<EditMode>('normal');
   const [undoKw, setUndoKw] = useState<number[] | null>(null);
+  const [scaleCeilingOverride, setScaleCeilingOverride] = useState<number | null>(null);
 
   const pendingRef = useRef<number[] | null>(null);
   const frameRef = useRef<number | null>(null);
   const smoothInteractionRef = useRef<{ hour: number; startingKw: number[] } | null>(null);
+  const dragScaleMaxRef = useRef<number | null>(null);
+  const hasDraggedRef = useRef(false);
+  const lastPointerKwRef = useRef<number | null>(null);
 
   // Synchronize localKw when active dataset changes externally
   useEffect(() => {
     setLocalKw(activeDataset);
     setUndoKw(null);
+    setScaleCeilingOverride(null);
   }, [activeDataset]);
 
   useEffect(
@@ -178,6 +183,7 @@ export function DailyCurveEditor({
     setUndoKw(localKw.slice());
     const cleared = new Array(HOURS_PER_DAY).fill(0);
     setLocalKw(cleared);
+    setScaleCeilingOverride(null);
     if (isDualPattern && onUpdatePatternKw) {
       onUpdatePatternKw(activePattern, cleared);
     }
@@ -188,6 +194,7 @@ export function DailyCurveEditor({
     if (undoKw) {
       const restored = undoKw.slice();
       setLocalKw(restored);
+      setScaleCeilingOverride(null);
       if (isDualPattern && onUpdatePatternKw) {
         onUpdatePatternKw(activePattern, restored);
       }
@@ -208,8 +215,8 @@ export function DailyCurveEditor({
     }
   }
 
-  const dragScaleMaxRef = useRef<number | null>(null);
-  const currentMaxKw = niceCeiling(Math.max(...localKw, 1));
+  const baseMaxKw = niceCeiling(Math.max(...localKw, 1));
+  const currentMaxKw = Math.max(baseMaxKw, scaleCeilingOverride ?? 0);
   // Keep the scale locked during an active drag gesture so the coordinate mapping doesn't oscillate or jump
   const maxKw = dragScaleMaxRef.current ?? currentMaxKw;
 
@@ -247,21 +254,35 @@ export function DailyCurveEditor({
   function handlePointerDown(hour: number, event: React.PointerEvent<SVGCircleElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
     dragScaleMaxRef.current = currentMaxKw;
+    hasDraggedRef.current = false;
+    const initialKw = pointerPositionToKw(event.clientY);
+    lastPointerKwRef.current = initialKw;
     beginPointerInteraction(hour);
     setActiveHour(hour);
     setSelectedHour(hour);
-    updateHour(hour, pointerPositionToKw(event.clientY));
+    updateHour(hour, initialKw);
   }
 
   function handlePointerMove(hour: number, event: React.PointerEvent<SVGCircleElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    updateHour(hour, pointerPositionToKw(event.clientY));
+    hasDraggedRef.current = true;
+    const newKw = pointerPositionToKw(event.clientY);
+    lastPointerKwRef.current = newKw;
+    updateHour(hour, newKw);
   }
 
   function handlePointerUp(event: React.PointerEvent<SVGCircleElement>) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    const currentDragMax = dragScaleMaxRef.current;
+    const lastKw = lastPointerKwRef.current;
+    // Se o ponto foi arrastado até o valor máximo da escala (ou além do topo), ao soltar dobra a escala
+    if (hasDraggedRef.current && currentDragMax !== null && lastKw !== null && lastKw >= currentDragMax - 0.5) {
+      setScaleCeilingOverride(currentDragMax * 2);
+    }
+    hasDraggedRef.current = false;
+    lastPointerKwRef.current = null;
     dragScaleMaxRef.current = null;
     smoothInteractionRef.current = null;
     setActiveHour(null);
