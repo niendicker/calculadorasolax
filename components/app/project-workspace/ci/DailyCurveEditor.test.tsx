@@ -289,4 +289,76 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
     expect(result[12]).toBe(51);
     expect(result[11]).toBe(50);
   });
+
+  it('moving UP in Suave mode only drags neighbors below, and pulls neighbors above only after passing them', async () => {
+    const onChange = vi.fn();
+    const initial = new Array(24).fill(50);
+    initial[11] = 80; // above hour 12
+    initial[13] = 30; // below hour 12
+    render(<DailyCurveEditor hourlyKw={initial} onChange={onChange} />);
+    fireEvent.click(getSmoothToggle());
+
+    // Nudge hour 12 up to 65 kW (above initial 50, but still below hour 11 at 80)
+    // 50 + 3 * 5 = 65 kW
+    for (let i = 0; i < 3; i++) {
+      fireEvent.keyDown(getSlider(12), { key: 'ArrowUp', shiftKey: true });
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    let result = onChange.mock.calls.at(-1)![0] as number[];
+    expect(result[12]).toBe(65);
+    // Hour 13 (below, was 30) is pulled up: 30 + (65 - 50 - 5) * 0.75 = 37.5
+    expect(result[13]).toBeCloseTo(37.5, 1);
+    // Hour 11 (above, was 80) is NOT pulled up because hour 12 (65) hasn't passed it yet
+    expect(result[11]).toBe(80);
+
+    // Now drag/nudge hour 12 further up to 90 kW (passing hour 11's initial 80 kW)
+    // 65 + 5 * 5 = 90 kW
+    for (let i = 0; i < 5; i++) {
+      fireEvent.keyDown(getSlider(12), { key: 'ArrowUp', shiftKey: true });
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    result = onChange.mock.calls.at(-1)![0] as number[];
+    expect(result[12]).toBe(90);
+    // Now that hour 12 (90) passed hour 11 (80), hour 11 became below and is pulled along:
+    // 80 + (90 - 80) * 0.75 = 87.5
+    expect(result[11]).toBeCloseTo(87.5, 1);
+  });
+
+  it('moving DOWN in Suave mode only drags neighbors above, and pulls neighbors below only after passing them', async () => {
+    const onChange = vi.fn();
+    const initial = new Array(24).fill(50);
+    initial[11] = 80; // above hour 12
+    initial[13] = 30; // below hour 12
+    render(<DailyCurveEditor hourlyKw={initial} onChange={onChange} />);
+    fireEvent.click(getSmoothToggle());
+
+    // Nudge hour 12 down to 40 kW (below initial 50, but still above hour 13 at 30)
+    // 50 - 2 * 5 = 40 kW
+    for (let i = 0; i < 2; i++) {
+      fireEvent.keyDown(getSlider(12), { key: 'ArrowDown', shiftKey: true });
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    let result = onChange.mock.calls.at(-1)![0] as number[];
+    expect(result[12]).toBe(40);
+    // Hour 11 (above, was 80) is pulled down: 80 - (50 - 40 - 5) * 0.75 = 76.25
+    expect(result[11]).toBeCloseTo(76.25, 1);
+    // Hour 13 (below, was 30) is NOT pulled down because hour 12 (40) hasn't dropped below it
+    expect(result[13]).toBe(30);
+
+    // Now nudge hour 12 down to 20 kW (passing hour 13's 30 kW going down)
+    // 40 - 4 * 5 = 20 kW
+    for (let i = 0; i < 4; i++) {
+      fireEvent.keyDown(getSlider(12), { key: 'ArrowDown', shiftKey: true });
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    result = onChange.mock.calls.at(-1)![0] as number[];
+    expect(result[12]).toBe(20);
+    // Now that hour 12 (20) passed below hour 13 (30), hour 13 is pulled down:
+    // 30 - (30 - 20) * 0.75 = 22.5
+    expect(result[13]).toBeCloseTo(22.5, 1);
+  });
 });

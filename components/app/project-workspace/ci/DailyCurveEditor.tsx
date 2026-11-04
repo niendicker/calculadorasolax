@@ -61,14 +61,34 @@ function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mo
     return next;
   }
 
-  const delta = newValue - hourlyKw[hour];
-  const adjacentDelta = Math.sign(delta) * Math.max(0, Math.abs(delta) - SMOOTH_ADJACENT_THRESHOLD_KW);
+  const baseCenterKw = hourlyKw[hour];
+  const delta = newValue - baseCenterKw;
+  if (delta === 0) {
+    return hourlyKw;
+  }
+
   return hourlyKw.map((value, i) => {
     if (i === hour) return newValue;
+
     const distance = circularHourDistance(hour, i);
     if (distance > BRUSH_RADIUS_HOURS) return value;
+
     const weight = (Math.cos((Math.PI * distance) / BRUSH_RADIUS_HOURS) + 1) / 2;
-    return Math.round(Math.max(0, value + adjacentDelta * weight) * 10) / 10;
+
+    if (delta > 0) {
+      // Movimento para cima: só arrasta quem está abaixo;
+      // se passar quem está acima, este se torna abaixo e começa a ser puxado junto.
+      const effectiveDelta = Math.max(0, Math.min(delta - SMOOTH_ADJACENT_THRESHOLD_KW, newValue - value));
+      if (effectiveDelta <= 0) return value;
+      return Math.round((value + effectiveDelta * weight) * 10) / 10;
+    } else {
+      // Movimento para baixo: só arrasta quem está acima;
+      // se passar quem está abaixo, este se torna acima e começa a ser puxado junto.
+      const downwardDelta = -delta;
+      const effectiveDelta = Math.max(0, Math.min(downwardDelta - SMOOTH_ADJACENT_THRESHOLD_KW, value - newValue));
+      if (effectiveDelta <= 0) return value;
+      return Math.round(Math.max(0, value - effectiveDelta * weight) * 10) / 10;
+    }
   });
 }
 
