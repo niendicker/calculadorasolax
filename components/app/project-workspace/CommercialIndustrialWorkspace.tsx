@@ -146,6 +146,7 @@ export function CommercialIndustrialWorkspace({
             <CiConfigurationPanel
               ciOptions={ciOptions}
               onChange={onUpdateCiOptions}
+              onNavigatePrev={() => setSectionState('overview')}
               onNavigateNext={() => setSectionState('curve')}
             />
           </CardContent>
@@ -168,7 +169,12 @@ export function CommercialIndustrialWorkspace({
       {effectiveSection === 'tariff' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
-            <CiTariffPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
+            <CiTariffPanel
+              ciOptions={ciOptions}
+              onChange={onUpdateCiOptions}
+              onNavigatePrev={() => setSectionState('curve')}
+              onNavigateNext={() => setSectionState('strategy')}
+            />
           </CardContent>
         </Card>
       )}
@@ -176,7 +182,12 @@ export function CommercialIndustrialWorkspace({
       {effectiveSection === 'strategy' && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
-            <CiStrategyPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
+            <CiStrategyPanel
+              ciOptions={ciOptions}
+              onChange={onUpdateCiOptions}
+              onNavigatePrev={() => setSectionState('tariff')}
+              onNavigateNext={() => setSectionState(canAccessCiBackup ? 'backup' : 'results')}
+            />
           </CardContent>
         </Card>
       )}
@@ -184,7 +195,12 @@ export function CommercialIndustrialWorkspace({
       {effectiveSection === 'backup' && canAccessCiBackup && (
         <Card className="border-0 ring-0">
           <CardContent className="pt-6">
-            <CiBackupPanel ciOptions={ciOptions} onChange={onUpdateCiOptions} />
+            <CiBackupPanel
+              ciOptions={ciOptions}
+              onChange={onUpdateCiOptions}
+              onNavigatePrev={() => setSectionState('strategy')}
+              onNavigateNext={() => setSectionState('results')}
+            />
           </CardContent>
         </Card>
       )}
@@ -199,6 +215,7 @@ export function CommercialIndustrialWorkspace({
               profile={profile}
               ciOptions={ciOptions}
               onFlushSave={onFlushSave}
+              onNavigatePrev={() => setSectionState(canAccessCiBackup ? 'backup' : 'strategy')}
             />
           </CardContent>
         </Card>

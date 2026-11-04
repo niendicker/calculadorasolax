@@ -19,7 +19,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -68,6 +68,7 @@ export function CiResultsPanel({
   profile,
   ciOptions,
   onFlushSave,
+  onNavigatePrev,
 }: {
   projectId: string | null;
   projectInfo: ProjectInfo;
@@ -77,6 +78,7 @@ export function CiResultsPanel({
   /** Persists the live ciOptions right now, bypassing autosave's debounce —
    * see the file header comment for why "Calcular" needs this. */
   onFlushSave: () => Promise<unknown>;
+  onNavigatePrev?: () => void;
 }) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -403,6 +405,15 @@ export function CiResultsPanel({
             </div>
           )}
         </>
+      )}
+
+      {onNavigatePrev && (
+        <div className="flex items-center justify-start border-t pt-4">
+          <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            Voltar para Configurações
+          </Button>
+        </div>
       )}
     </div>
   );

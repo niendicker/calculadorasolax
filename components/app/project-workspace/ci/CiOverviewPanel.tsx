@@ -364,6 +364,19 @@ export function CiOverviewPanel({
         </CardContent>
       </Card>
 
+      {isSaved && (
+        <div className="flex justify-end pt-1">
+          <Button
+            type="button"
+            onClick={() => onNavigateToSection('bess')}
+            className="gap-1.5 rounded-lg text-xs font-semibold"
+          >
+            {bessConfigured ? 'Continuar: Configuração BESS' : 'Iniciar dimensionamento: BESS'}
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      )}
+
       <ProjectInfoModal
         key={projectInfoEditField ?? 'closed'}
         field={projectInfoEditField}

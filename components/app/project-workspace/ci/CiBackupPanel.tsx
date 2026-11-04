@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Clock, Plus, Shield, ShieldAlert, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Plus, Shield, ShieldAlert, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -26,9 +26,13 @@ function toNumber(value: string, fallback = 0): number {
 export function CiBackupPanel({
   ciOptions,
   onChange,
+  onNavigatePrev,
+  onNavigateNext,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
+  onNavigatePrev?: () => void;
+  onNavigateNext?: () => void;
 }) {
   const backup = ciOptions.backup ?? {
     enabled: false,
@@ -361,6 +365,30 @@ export function CiBackupPanel({
             </div>
           )}
         </>
+      )}
+
+      {(onNavigatePrev || onNavigateNext) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          {onNavigatePrev ? (
+            <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Voltar para Estratégia
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          {onNavigateNext && (
+            <Button
+              type="button"
+              onClick={onNavigateNext}
+              className="gap-1.5 rounded-lg text-xs font-semibold"
+            >
+              Avançar para Resultados
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

@@ -6,7 +6,7 @@
 // same workspace; this only owns bessProductId/sizing.
 
 import { useEffect, useState } from 'react';
-import { Battery, Check, ChevronDown, ChevronUp, ChevronRight, Gauge, ShieldCheck, Sliders, Sparkles, Zap } from 'lucide-react';
+import { Battery, Check, ChevronDown, ChevronLeft, ChevronUp, ChevronRight, Gauge, ShieldCheck, Sliders, Sparkles, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/ci-bess-products-repository';
@@ -22,10 +22,12 @@ const sizingModeOptions: { value: SizingMode; label: string; hint: string }[] = 
 export function CiConfigurationPanel({
   ciOptions,
   onChange,
+  onNavigatePrev,
   onNavigateNext,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
+  onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
 }) {
   const [products, setProducts] = useState<CiBessProductRecord[] | null>(null);
@@ -252,17 +254,28 @@ export function CiConfigurationPanel({
         )}
       </div>
 
-      {onNavigateNext && (
-        <div className="flex justify-end border-t pt-4">
-          <Button
-            type="button"
-            onClick={onNavigateNext}
-            disabled={!selectedProduct}
-            className="gap-1.5"
-          >
-            Avançar para Curva de carga
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
+      {(onNavigatePrev || onNavigateNext) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          {onNavigatePrev ? (
+            <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Voltar para Visão geral
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          {onNavigateNext && (
+            <Button
+              type="button"
+              onClick={onNavigateNext}
+              disabled={!selectedProduct}
+              className="gap-1.5 rounded-lg text-xs font-semibold"
+            >
+              Avançar para Curva de carga
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
         </div>
       )}
     </div>
