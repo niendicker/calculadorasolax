@@ -370,4 +370,24 @@ describe('CiResultsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Voltar ao recomendado' }));
     expect(screen.getByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
   });
+
+  it('displays a warning banner when options are modified after calculation', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeResult()),
+    });
+
+    const { rerender } = render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Executar Dimensionamento' }));
+
+    expect(await screen.findByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+    expect(screen.queryByText(/Os parâmetros do estudo foram alterados/)).not.toBeInTheDocument();
+
+    // Rerender with modified options
+    const modifiedOptions = { ...testCiOptions, strategy: 'PEAK_SHAVING' as const };
+    rerender(<CiResultsPanel {...panelProps('ci-project-1')} ciOptions={modifiedOptions} />);
+
+    expect(screen.getByText(/Os parâmetros do estudo foram alterados nas outras abas/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recalcular agora' })).toBeInTheDocument();
+  });
 });

@@ -25,9 +25,11 @@ describe('CiTariffPanel', () => {
     render(<ControlledPanel />);
     fireEvent.change(screen.getByLabelText('Ponta (R$/MWh)'), { target: { value: '850' } });
     expect(screen.getByLabelText('Ponta (R$/MWh)')).toHaveValue(850);
+    expect(screen.getByText(/Equivalente a R\$ 0,85 \/ kWh/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Fora ponta (R$/MWh)'), { target: { value: '420' } });
     expect(screen.getByLabelText('Fora ponta (R$/MWh)')).toHaveValue(420);
+    expect(screen.getByText(/Equivalente a R\$ 0,42 \/ kWh/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Demanda contratada (kW)'), { target: { value: '300' } });
     expect(screen.getByLabelText('Demanda contratada (kW)')).toHaveValue(300);

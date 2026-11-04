@@ -17,7 +17,7 @@
 // increment; this shows the recommended scenario's full detail (already
 // materialized server-side) plus the comparison grid.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle, BarChart3, CheckCircle2, ChevronLeft, FileDown, Loader2, Play, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -59,7 +59,7 @@ function ScenarioRow({
         active ? 'bg-primary/10 font-medium' : recommended ? 'bg-primary/[0.04]' : undefined
       )}
     >
-      <td className="whitespace-nowrap px-3 py-2 text-sm">
+      <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-2 text-sm shadow-[1px_0_0_0_hsl(var(--border))]">
         <span className="font-semibold">{scenario.moduleCount}</span>
         {recommended && (
           <Badge variant="secondary" className="ml-2">
@@ -116,6 +116,7 @@ export function CiResultsPanel({
   const [error, setError] = useState<string | null>(null);
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
   const [memorialError, setMemorialError] = useState<string | null>(null);
+  const calculatedOptionsRef = useRef<string | null>(null);
 
   async function runCalculation() {
     if (!projectId) return;
@@ -136,6 +137,7 @@ export function CiResultsPanel({
       }
       const calculationResult = data as CommercialIndustrialResult;
       setResult(calculationResult);
+      calculatedOptionsRef.current = JSON.stringify(ciOptions);
       setSelectedScenarioId(calculationResult.recommendation.scenarioId ?? calculationResult.selected?.scenarioId ?? null);
     } catch {
       setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
@@ -225,6 +227,8 @@ export function CiResultsPanel({
         : (ciOptions.backup?.targetPowerKw ?? 0) > 0)
   );
 
+  const isStale = Boolean(result && calculatedOptionsRef.current && calculatedOptionsRef.current !== JSON.stringify(ciOptions));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -251,6 +255,25 @@ export function CiResultsPanel({
           </Button>
         </div>
       </div>
+
+      {isStale && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+            <span>Os parâmetros do estudo foram alterados nas outras abas. Recalcule para atualizar os resultados e o memorial.</span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={runCalculation}
+            disabled={loading}
+            className="shrink-0 h-7 text-xs border-amber-500/40 hover:bg-amber-500/20"
+          >
+            Recalcular agora
+          </Button>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
@@ -578,7 +601,7 @@ export function CiResultsPanel({
               <table className="w-full text-left">
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Módulos</th>
+                    <th className="sticky left-0 z-10 whitespace-nowrap bg-muted px-3 py-2 text-xs font-medium text-muted-foreground shadow-[1px_0_0_0_hsl(var(--border))]">Módulos</th>
                     <th className="px-3 py-2 text-xs font-medium text-muted-foreground">CAPEX</th>
                     <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Economia/ano</th>
                     <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Payback</th>

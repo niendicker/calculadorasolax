@@ -152,26 +152,42 @@ export function CiTariffPanel({
       <div className="space-y-3">
         <p className="text-sm font-semibold">Tarifa de energia</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Ponta (R$/MWh)</span>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="tariff-peak-mwh" className="text-sm font-medium">
+              Ponta (R$/MWh)
+            </label>
             <Input
+              id="tariff-peak-mwh"
               type="number"
               min={0}
               step="0.01"
               value={tariff.energyRatePeakBrlPerMwh}
               onChange={(event) => update({ energyRatePeakBrlPerMwh: Math.max(0, toNumber(event.target.value)) })}
             />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Fora ponta (R$/MWh)</span>
+            {tariff.energyRatePeakBrlPerMwh > 0 && (
+              <span className="text-[11px] font-normal text-muted-foreground">
+                Equivalente a R$ {(tariff.energyRatePeakBrlPerMwh / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / kWh
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="tariff-offpeak-mwh" className="text-sm font-medium">
+              Fora ponta (R$/MWh)
+            </label>
             <Input
+              id="tariff-offpeak-mwh"
               type="number"
               min={0}
               step="0.01"
               value={tariff.energyRateOffPeakBrlPerMwh}
               onChange={(event) => update({ energyRateOffPeakBrlPerMwh: Math.max(0, toNumber(event.target.value)) })}
             />
-          </label>
+            {tariff.energyRateOffPeakBrlPerMwh > 0 && (
+              <span className="text-[11px] font-normal text-muted-foreground">
+                Equivalente a R$ {(tariff.energyRateOffPeakBrlPerMwh / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / kWh
+              </span>
+            )}
+          </div>
         </div>
 
         {isPeakLowerOrEqual && (
