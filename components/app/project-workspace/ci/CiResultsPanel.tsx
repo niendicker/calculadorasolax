@@ -206,7 +206,7 @@ export function CiResultsPanel({
 
   const hasBessProduct = Boolean(ciOptions.bessProductId);
   const hasCurve = Boolean(ciOptions.loadCurve && (ciOptions.loadCurve.points.length > 0 || (ciOptions.loadCurve as any).representativeDays?.length > 0));
-  const hasTariff = Boolean(ciOptions.tariff && (ciOptions.tariff.peakEnergyRateBrlKwh > 0 || ciOptions.tariff.offPeakEnergyRateBrlKwh > 0));
+  const hasTariff = Boolean(ciOptions.tariff && (ciOptions.tariff.energyRatePeakBrlPerMwh > 0 || ciOptions.tariff.energyRateOffPeakBrlPerMwh > 0));
   const hasStrategy = Boolean(ciOptions.strategy);
 
   return (

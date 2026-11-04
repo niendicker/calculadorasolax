@@ -48,9 +48,39 @@ function todayIsoDate(): string {
 }
 
 function addDaysIsoDate(isoDate: string, days: number): string {
-  const date = new Date(`${isoDate}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const CUSTOM_PRESETS_STORAGE_KEY = 'solax_ci_custom_daily_profiles';
+
+interface StoredCustomPreset {
+  id: string;
+  label: string;
+  weekdayKw: number[];
+  weekendKw: number[];
+}
+
+function loadCustomPresetsFromStorage(): StoredCustomPreset[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomPresetToStorage(preset: StoredCustomPreset) {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = loadCustomPresetsFromStorage();
+    const updated = [...current.filter((p) => p.id !== preset.id), preset];
+    localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore storage quota or disabled errors
+  }
 }
 
 function detectCsvResolution(text: string): LoadCurveResolutionMinutes {
@@ -132,6 +162,23 @@ export function CiLoadCurvePanel({
     hasManualConfig ? initialManualConfig!.weekendKw.slice() : DAILY_CURVE_PRESETS[0].weekendKw.slice()
   );
   const [activePattern, setActivePattern] = useState<DailyPattern>('weekday');
+  const [customPresets, setCustomPresets] = useState<StoredCustomPreset[]>([]);
+
+  useEffect(() => {
+    setCustomPresets(loadCustomPresetsFromStorage());
+  }, []);
+
+  function handleSaveAsCustomModel(name: string, newWeekdayKw: number[], newWeekendKw: number[]) {
+    const newPreset: StoredCustomPreset = {
+      id: `custom-${Date.now()}`,
+      label: name,
+      weekdayKw: newWeekdayKw.slice(),
+      weekendKw: newWeekendKw.slice(),
+    };
+    saveCustomPresetToStorage(newPreset);
+    setCustomPresets((prev) => [...prev.filter((p) => p.id !== newPreset.id), newPreset]);
+    setSelectedPresetId(newPreset.id);
+  }
 
   // Derive CSV parsed curve
   const parseResult = useMemo(() => {
@@ -214,14 +261,25 @@ export function CiLoadCurvePanel({
       setSelectedPresetId('custom');
       return;
     }
-    const preset = DAILY_CURVE_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setSelectedPresetId(preset.id);
-    setWeekdayKw(preset.weekdayKw.slice());
-    setWeekendKw(preset.weekendKw.slice());
-    setSourceMode('manual');
-    setFileName(null);
-    setCsvText(null);
+    const standardPreset = DAILY_CURVE_PRESETS.find((p) => p.id === presetId);
+    if (standardPreset) {
+      setSelectedPresetId(standardPreset.id);
+      setWeekdayKw(standardPreset.weekdayKw.slice());
+      setWeekendKw(standardPreset.weekendKw.slice());
+      setSourceMode('manual');
+      setFileName(null);
+      setCsvText(null);
+      return;
+    }
+    const customPreset = customPresets.find((p) => p.id === presetId);
+    if (customPreset) {
+      setSelectedPresetId(customPreset.id);
+      setWeekdayKw(customPreset.weekdayKw.slice());
+      setWeekendKw(customPreset.weekendKw.slice());
+      setSourceMode('manual');
+      setFileName(null);
+      setCsvText(null);
+    }
   }
 
   function handleUpdatePatternKw(pattern: DailyPattern, kw: number[]) {
@@ -466,6 +524,15 @@ export function CiLoadCurvePanel({
                   {preset.label}
                 </option>
               ))}
+              {customPresets.length > 0 && (
+                <optgroup label="Modelos salvos">
+                  {customPresets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      ★ {p.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <option value="custom">Personalizado</option>
             </Select>
           </div>
@@ -477,6 +544,7 @@ export function CiLoadCurvePanel({
           activePattern={activePattern}
           onPatternChange={setActivePattern}
           onUpdatePatternKw={handleUpdatePatternKw}
+          onSaveAsCustomModel={handleSaveAsCustomModel}
         />
       </div>
 

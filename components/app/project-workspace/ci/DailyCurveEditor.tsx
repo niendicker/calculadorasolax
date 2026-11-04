@@ -6,7 +6,7 @@
 // and independent controls for weekdays and weekends.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, Undo2 } from 'lucide-react';
+import { BookmarkPlus, Check, ChevronLeft, ChevronRight, Sparkles, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -103,6 +103,7 @@ export interface DailyCurveEditorProps {
   onUpdatePatternKw?: (pattern: 'weekday' | 'weekend', kw: number[]) => void;
   selectedPresetId?: string | null;
   onSelectPreset?: (presetId: string) => void;
+  onSaveAsCustomModel?: (name: string, weekdayKw: number[], weekendKw: number[]) => void;
 }
 
 export function DailyCurveEditor({
@@ -115,6 +116,7 @@ export function DailyCurveEditor({
   onUpdatePatternKw,
   selectedPresetId,
   onSelectPreset,
+  onSaveAsCustomModel,
 }: DailyCurveEditorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -130,6 +132,9 @@ export function DailyCurveEditor({
   const [editMode, setEditMode] = useState<EditMode>('normal');
   const [undoKw, setUndoKw] = useState<number[] | null>(null);
   const [scaleCeilingOverride, setScaleCeilingOverride] = useState<number | null>(null);
+  const [isSavingModel, setIsSavingModel] = useState(false);
+  const [modelNameInput, setModelNameInput] = useState('');
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const pendingRef = useRef<number[] | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -588,7 +593,71 @@ export function DailyCurveEditor({
 
           {/* Bottom Bar: Instructions and Discrete Clear Action */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
-            <span>Arraste os pontos ou edite o valor ao lado.</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Arraste os pontos ou edite o valor ao lado.</span>
+              {onSaveAsCustomModel && (
+                isSavingModel ? (
+                  <div className="flex items-center gap-1.5 bg-background p-1 rounded-md border border-primary/40">
+                    <Input
+                      type="text"
+                      placeholder="Nome do modelo..."
+                      value={modelNameInput}
+                      onChange={(e) => setModelNameInput(e.target.value)}
+                      className="h-6 w-36 text-xs px-2"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      size="xs"
+                      className="h-6 px-2 text-[11px]"
+                      disabled={!modelNameInput.trim()}
+                      onClick={() => {
+                        const targetWeekday = isDualPattern ? (weekdayKw ?? localKw) : localKw;
+                        const targetWeekend = isDualPattern ? (weekendKw ?? localKw) : localKw;
+                        onSaveAsCustomModel(modelNameInput.trim(), targetWeekday, targetWeekend);
+                        setIsSavingModel(false);
+                        setModelNameInput('');
+                        setSavedSuccess(true);
+                        setTimeout(() => setSavedSuccess(false), 3000);
+                      }}
+                    >
+                      Salvar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      className="h-6 px-1.5 text-[11px]"
+                      onClick={() => {
+                        setIsSavingModel(false);
+                        setModelNameInput('');
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsSavingModel(true)}
+                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs"
+                  >
+                    {savedSuccess ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-600" />
+                        <span className="text-emerald-600">Modelo salvo!</span>
+                      </>
+                    ) : (
+                      <>
+                        <BookmarkPlus className="h-3 w-3" />
+                        <span>Salvar como modelo</span>
+                      </>
+                    )}
+                  </button>
+                )
+              )}
+            </div>
+
             {undoKw ? (
               <div className="flex items-center gap-1.5 text-xs">
                 <span>Curva zerada.</span>

@@ -407,4 +407,20 @@ describe('DailyCurveEditor — modo de ajuste (Normal/Suave)', () => {
     // 30 - (30 - 20) * 0.75 = 22.5
     expect(result[13]).toBeCloseTo(22.5, 1);
   });
+
+  it('triggers onSaveAsCustomModel when user enters name and clicks save', () => {
+    const onSave = vi.fn();
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onSaveAsCustomModel={onSave} />);
+
+    expect(screen.getByText('Salvar como modelo')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Salvar como modelo'));
+
+    const input = screen.getByPlaceholderText('Nome do modelo...');
+    expect(input).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: 'Turno Noturno 100kW' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(onSave).toHaveBeenCalledWith('Turno Noturno 100kW', FLAT_24, FLAT_24);
+  });
 });
