@@ -12,9 +12,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, Calendar, ChevronLeft, ChevronRight, Download, FileUp, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Sparkles, X } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { parseLoadCurveCsv, summarizeLoadCurve } from '@/supabase/functions/_shared/commercial-industrial/load-curve';
@@ -23,14 +22,9 @@ import {
   DAILY_CURVE_PRESETS,
   type DailyCurvePreset,
 } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
-import {
-  LOAD_CURVE_MAX_POINTS,
-  type CommercialIndustrialOptions,
-  type LoadCurve,
-  type LoadCurvePoint,
-  type LoadCurveResolutionMinutes,
-} from '@/supabase/functions/_shared/commercial-industrial/types';
+import { LOAD_CURVE_MAX_POINTS, type CommercialIndustrialOptions, type LoadCurve, type LoadCurvePoint, type LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { DailyCurveEditor } from './DailyCurveEditor';
+import { DateRangePicker } from './DateRangePicker';
 
 export const BRAZIL_TIMEZONES = [
   { value: 'America/Sao_Paulo', label: 'Brasília (UTC-3)' },
@@ -58,14 +52,6 @@ function addDaysIsoDate(isoDate: string, days: number): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
-}
-
-function calculateDaysInclusive(startIso: string, endIso: string): number {
-  if (!startIso || !endIso) return 0;
-  const t1 = Date.parse(`${startIso}T00:00:00Z`);
-  const t2 = Date.parse(`${endIso}T00:00:00Z`);
-  if (Number.isNaN(t1) || Number.isNaN(t2) || t2 < t1) return 0;
-  return Math.round((t2 - t1) / (24 * 60 * 60 * 1000)) + 1;
 }
 
 function detectCsvResolution(text: string): LoadCurveResolutionMinutes {
@@ -209,21 +195,6 @@ export function CiLoadCurvePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceMode, weekdayKw, weekendKw, resolutionMinutes, timezone, periodStart, periodEnd, selectedPresetId, isCurveCleared]);
 
-  function handlePeriodStartChange(newStart: string) {
-    setPeriodStart(newStart);
-    if (newStart && periodEnd) {
-      const t1 = Date.parse(`${newStart}T00:00:00Z`);
-      const t2 = Date.parse(`${periodEnd}T00:00:00Z`);
-      if (t1 > t2) {
-        setPeriodEnd(addDaysIsoDate(newStart, 6));
-      }
-    }
-  }
-
-  function handlePeriodEndChange(newEnd: string) {
-    setPeriodEnd(newEnd);
-  }
-
   function handleFile(file: File | undefined) {
     if (!file) return;
     setFileName(file.name);
@@ -297,8 +268,6 @@ export function CiLoadCurvePanel({
   }
 
   const pointCount = activeCurve ? activeCurve.points.length : (existing ? existing.points.length : 0);
-  const daysCount = calculateDaysInclusive(periodStart, periodEnd);
-
   return (
     <div className="space-y-5">
       {/* 1. Cabeçalho compacto com etapas: Dimensionamento BESS | BESS -> Curva de carga -> Tarifa */}
@@ -465,33 +434,18 @@ export function CiLoadCurvePanel({
       {/* 3. Faixa compacta de configuração (Período unificado, Fuso horário, Resolução) */}
       <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-none">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
-          {/* Seletor unificado de intervalo de período */}
+          {/* Seletor de período com dropdown de calendário personalizado */}
           <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-xs font-medium">
-              <span className="text-muted-foreground">Período</span>
-              <span className="text-[11px] font-semibold text-primary">
-                {daysCount} {daysCount === 1 ? 'dia' : 'dias'}
-              </span>
-            </div>
-            <div className="flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-background px-2.5 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
-              <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-              <input
-                type="date"
-                aria-label="Início do período"
-                value={periodStart}
-                onChange={(event) => handlePeriodStartChange(event.target.value)}
-                className="w-full bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
-              />
-              <span className="text-xs text-muted-foreground px-1 select-none font-normal">até</span>
-              <input
-                type="date"
-                aria-label="Fim do período"
-                min={periodStart}
-                value={periodEnd}
-                onChange={(event) => handlePeriodEndChange(event.target.value)}
-                className="w-full bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
-              />
-            </div>
+            <span className="text-xs font-medium text-muted-foreground">Período</span>
+            <DateRangePicker
+              startDate={periodStart}
+              endDate={periodEnd}
+              onChange={({ startDate, endDate }) => {
+                setPeriodStart(startDate);
+                setPeriodEnd(endDate);
+              }}
+              maxDays={Math.min(7, Math.floor(LOAD_CURVE_MAX_POINTS / ((24 * 60) / resolutionMinutes)))}
+            />
           </div>
 
           {/* Fuso horário */}

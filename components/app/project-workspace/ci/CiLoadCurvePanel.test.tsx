@@ -62,11 +62,18 @@ describe('CiLoadCurvePanel', () => {
     expect(tzSelect.value).toBe('America/Manaus');
   });
 
-  it('renders unified period range selector with start and end inputs and day count', () => {
+  it('renders unified period range selector button and opens custom calendar dropdown', () => {
     render(<ControlledPanel />);
-    expect(screen.getByLabelText('Início do período')).toBeInTheDocument();
-    expect(screen.getByLabelText('Fim do período')).toBeInTheDocument();
-    expect(screen.getByText(/7 dias/)).toBeInTheDocument();
+    const triggerBtn = screen.getByRole('button', { name: /Selecionar período/i });
+    expect(triggerBtn).toBeInTheDocument();
+    expect(triggerBtn).toHaveTextContent(/\d{2}\/\d{2}\/\d{4} – \d{2}\/\d{2}\/\d{4}/);
+    expect(triggerBtn).toHaveTextContent('7 dias');
+
+    // Click trigger to open custom calendar popover
+    fireEvent.click(triggerBtn);
+    expect(screen.getByRole('dialog', { name: /Calendário de seleção de período/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Semana completa \(7 dias\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Aplicar período/i })).toBeInTheDocument();
   });
 
   it('renders compact breadcrumb steps with BESS completed and Curva de carga active', () => {
