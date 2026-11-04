@@ -73,8 +73,8 @@ function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mo
 }
 
 function pxToKw(pxY: number, maxKw: number): number {
-  const fraction = (MARGIN.top + PLOT_HEIGHT - pxY) / PLOT_HEIGHT;
-  return Math.max(0, fraction * maxKw);
+  const fraction = clamp((MARGIN.top + PLOT_HEIGHT - pxY) / PLOT_HEIGHT, 0, 1);
+  return fraction * maxKw;
 }
 
 export interface DailyCurveEditorProps {
@@ -208,7 +208,10 @@ export function DailyCurveEditor({
     }
   }
 
-  const maxKw = niceCeiling(Math.max(...localKw, 1));
+  const dragScaleMaxRef = useRef<number | null>(null);
+  const currentMaxKw = niceCeiling(Math.max(...localKw, 1));
+  // Keep the scale locked during an active drag gesture so the coordinate mapping doesn't oscillate or jump
+  const maxKw = dragScaleMaxRef.current ?? currentMaxKw;
 
   // Cache resolved CSS custom properties to avoid synchronous getComputedStyle flushes on drag
   const colorsRef = useRef<{ primary: string; border: string; mutedForeground: string; foreground: string; card: string } | null>(null);
@@ -243,6 +246,7 @@ export function DailyCurveEditor({
 
   function handlePointerDown(hour: number, event: React.PointerEvent<SVGCircleElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
+    dragScaleMaxRef.current = currentMaxKw;
     beginPointerInteraction(hour);
     setActiveHour(hour);
     setSelectedHour(hour);
@@ -255,7 +259,10 @@ export function DailyCurveEditor({
   }
 
   function handlePointerUp(event: React.PointerEvent<SVGCircleElement>) {
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragScaleMaxRef.current = null;
     smoothInteractionRef.current = null;
     setActiveHour(null);
   }
@@ -429,6 +436,7 @@ export function DailyCurveEditor({
                     onPointerDown={(event) => handlePointerDown(hour, event)}
                     onPointerMove={(event) => handlePointerMove(hour, event)}
                     onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
                     onKeyDown={(event) => handleKeyDown(hour, event)}
                     onClick={() => setSelectedHour(hour)}
                     onFocus={() => {

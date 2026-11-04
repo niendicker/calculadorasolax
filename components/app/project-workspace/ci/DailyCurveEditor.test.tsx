@@ -50,6 +50,36 @@ describe('DailyCurveEditor', () => {
     expect(lastCall[11]).toBe(50); // untouched hours stay put
   });
 
+  it('caps dragged value at maxKw when dragged past the top of the scale without oscillating', async () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
+    const point = getSlider(12);
+
+    vi.spyOn(point.closest('svg')!, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      width: 640,
+      height: 220,
+      right: 640,
+      bottom: 220,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    // Drag way above the top of the chart (negative clientY)
+    fireEvent.pointerDown(point, { pointerId: 1, clientY: -50 });
+    fireEvent.pointerMove(point, { pointerId: 1, clientY: -100 });
+    fireEvent.pointerUp(point, { pointerId: 1, clientY: -100 });
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(onChange).toHaveBeenCalled();
+    const lastCall = onChange.mock.calls.at(-1)![0] as number[];
+    // For FLAT_24 (all 50 kW), maxKw is 50. Capped at 50, never runaway to 100/200/500
+    expect(lastCall[12]).toBe(50);
+  });
+
   it('ArrowUp/ArrowDown on a focused point nudges its value by 1 kW (5 with Shift)', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
