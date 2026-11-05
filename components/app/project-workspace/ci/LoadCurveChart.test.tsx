@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoadCurvePoint } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { LoadCurveChart } from './LoadCurveChart';
@@ -343,7 +343,7 @@ describe('LoadCurveChart', () => {
     Object.defineProperty(target, 'clientWidth', { configurable: true, value: 640 });
     act(() => resizeCallback?.());
 
-    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 180 });
+    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 235 });
     expect(instance.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
     expect(screen.getByRole('button', { name: /Limpar/ })).toBeInTheDocument();
   });
@@ -713,5 +713,55 @@ describe('interval selection metrics & point badges', () => {
     expect(
       screen.getByText('Shift + arraste para selecionar intervalo · Duplo clique para redefinir')
     ).toBeInTheDocument();
+  });
+});
+
+it('plots FV on the consumption timeline, preserves gaps and updates without recreating the chart', () => {
+  const points = [{ timestamp: '2026-11-02T12:00:00-03:00', powerKw: 100 }, { timestamp: '2026-11-02T12:15:00-03:00', powerKw: 120 }];
+  const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={[{ timestamp: points[1].timestamp, powerKw: 80 }]} />);
+  expect(instances[0].data).toEqual([[0, 1], [100, 120], [null, 80]]);
+  expect(chartOptions().series).toHaveLength(3);
+  rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: 90 }))} />);
+  expect(instances).toHaveLength(1);
+  expect(instances[0].setDataCalls.at(-1)).toEqual([[0, 1], [100, 120], [90, 90]]);
+});
+
+
+describe('FV statistics for selected periods', () => {
+  const points = Array.from({ length: 30 }, (_, index) => ({ timestamp: new Date(Date.UTC(2026, 10, 2, 3, index * 15)).toISOString(), powerKw: index + 1 }));
+  function selectRange(over: HTMLElement, start: number, end: number) {
+    mockChartRect(over);
+    fireEvent.mouseDown(over, { button: 0, shiftKey: true, clientX: start });
+    fireEvent.mouseMove(document, { clientX: end });
+    fireEvent.mouseUp(document, { clientX: end });
+  }
+
+  it('shows FV peak, minimum, mean, energy and A/B deltas, updating with edited generation', () => {
+    const generation = points.map(point => ({ ...point, powerKw: point.powerKw * 2 })).reverse();
+    const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={generation} />);
+    selectRange(instances.at(-1)!.over, 100, 250);
+    const single = within(screen.getByRole('region', { name: 'Geração FV no período selecionado' }));
+    expect(single.getByText('52.00 kW')).toBeInTheDocument();
+    expect(single.getByText('22.00 kW')).toBeInTheDocument();
+    expect(single.getByText('37.00 kW')).toBeInTheDocument();
+    expect(single.getByText('148.00 kWh')).toBeInTheDocument();
+    selectRange(instances.at(-1)!.over, 10, 50);
+    const comparison = within(screen.getByRole('rowgroup', { name: 'Geração FV' }));
+    expect(comparison.getByText('148.00 kWh')).toBeInTheDocument();
+    expect(comparison.getByText('10.00 kWh')).toBeInTheDocument();
+    expect(comparison.getByText('-138.00 kWh (-93.2%)')).toBeInTheDocument();
+    rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: point.powerKw * 3 }))} />);
+    expect(comparison.getByText('222.00 kWh')).toBeInTheDocument();
+    expect(comparison.getByText('15.00 kWh')).toBeInTheDocument();
+  });
+
+  it('distinguishes missing FV readings from actual zero generation', () => {
+    const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: 0 }))} />);
+    selectRange(instances.at(-1)!.over, 100, 250);
+    const region = screen.getByRole('region', { name: 'Geração FV no período selecionado' });
+    expect(within(region).getByText('0.00 kWh')).toBeInTheDocument();
+    rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.filter((_, index) => index !== 12).map(point => ({ ...point, powerKw: 0 }))} />);
+    expect(within(region).getByText('Sem dados FV completos para este período.')).toBeInTheDocument();
+    expect(within(region).queryByText('0.00 kWh')).not.toBeInTheDocument();
   });
 });

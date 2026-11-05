@@ -17,9 +17,12 @@
 // increment; this shows the recommended scenario's full detail (already
 // materialized server-side) plus the comparison grid.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, Loader2, Play, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { ciScenarioLabel } from './ci-scenario-label';
+import { getCiConfigurationStatus } from './ci-configuration-status';
+import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -46,21 +49,22 @@ function ScenarioRow({
 }) {
   return (
     <tr
-      tabIndex={0}
       onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
         'cursor-pointer transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         active ? 'bg-primary/10 font-medium' : recommended ? 'bg-primary/[0.04]' : undefined
       )}
     >
-      <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-2 text-sm shadow-[1px_0_0_0_hsl(var(--border))]">
-        <span className="font-semibold">{scenario.moduleCount}</span>
+      <td className={cn("sticky left-0 z-10 bg-background px-3 py-2 text-sm shadow-[1px_0_0_0_hsl(var(--border))]", scenario.composition ? "min-w-44 max-w-60 whitespace-normal" : "whitespace-nowrap")}>
+        <button
+          type="button"
+          aria-label={`Inspecionar cenário de ${ciScenarioLabel(scenario)}`}
+          aria-pressed={active}
+          onClick={(event) => { event.stopPropagation(); onSelect(); }}
+          className="rounded-md px-2 py-1 font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.seriesCount}S × {scenario.composition.parallelStringsPerPcs}P / PCS</span></span> : scenario.moduleCount}
+        </button>
         {recommended && (
           <Badge variant="secondary" className="ml-2">
             Recomendado
@@ -89,6 +93,11 @@ function ScenarioRow({
   );
 }
 
+export interface CiCalculationSnapshot {
+  result: CommercialIndustrialResult;
+  optionsFingerprint: string;
+}
+
 export function CiResultsPanel({
   projectId,
   projectInfo,
@@ -98,6 +107,10 @@ export function CiResultsPanel({
   onFlushSave,
   onNavigatePrev,
   prevSectionLabel,
+  initialSnapshot = null,
+  onCalculated,
+  onNavigateToSection,
+  canAccessCiBackup = true,
 }: {
   projectId: string | null;
   projectInfo: ProjectInfo;
@@ -109,15 +122,19 @@ export function CiResultsPanel({
   onFlushSave: () => Promise<unknown>;
   onNavigatePrev?: () => void;
   prevSectionLabel?: string;
+  initialSnapshot?: CiCalculationSnapshot | null;
+  onCalculated?: (snapshot: CiCalculationSnapshot) => void;
+  onNavigateToSection?: (section: CiWorkspaceSection) => void;
+  canAccessCiBackup?: boolean;
 }) {
-  const [result, setResult] = useState<CommercialIndustrialResult | null>(null);
+  const [result, setResult] = useState<CommercialIndustrialResult | null>(initialSnapshot?.result ?? null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
   const [memorialSuccess, setMemorialSuccess] = useState(false);
   const [memorialError, setMemorialError] = useState<string | null>(null);
-  const calculatedOptionsRef = useRef<string | null>(null);
+  const [calculatedOptionsFingerprint, setCalculatedOptionsFingerprint] = useState<string | null>(initialSnapshot?.optionsFingerprint ?? null);
 
   useEffect(() => {
     if (!memorialSuccess) return;
@@ -144,7 +161,9 @@ export function CiResultsPanel({
       }
       const calculationResult = data as CommercialIndustrialResult;
       setResult(calculationResult);
-      calculatedOptionsRef.current = JSON.stringify(ciOptions);
+      const optionsFingerprint = JSON.stringify(ciOptions);
+      setCalculatedOptionsFingerprint(optionsFingerprint);
+      onCalculated?.({ result: calculationResult, optionsFingerprint });
       setSelectedScenarioId(calculationResult.recommendation.scenarioId ?? calculationResult.selected?.scenarioId ?? null);
     } catch {
       setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
@@ -154,7 +173,7 @@ export function CiResultsPanel({
   }
 
   async function handleGenerateMemorial() {
-    if (!result?.selected) return;
+    if (!result?.selected || loading || calculatedOptionsFingerprint !== JSON.stringify(ciOptions)) return;
     setGeneratingMemorial(true);
     setMemorialError(null);
     try {
@@ -192,14 +211,14 @@ export function CiResultsPanel({
 
   if (!projectId) {
     return (
-      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-        Salve o projeto (aba &quot;Visão geral&quot;) antes de calcular — o cálculo sempre usa a última
-        configuração salva.
+      <div className="space-y-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        <p>Salve o projeto na aba Visão geral antes de calcular.</p>
+        {onNavigateToSection && <Button type="button" variant="outline" onClick={() => onNavigateToSection('overview')}>Ir para Visão geral</Button>}
       </div>
     );
   }
 
-  const sortedScenarios = result ? [...result.scenarios].sort((a, b) => a.moduleCount - b.moduleCount) : [];
+  const sortedScenarios = result ? [...result.scenarios].sort((a, b) => a.composition && b.composition ? a.totalCapacityKwh - b.totalCapacityKwh || a.totalPowerKw - b.totalPowerKw : a.moduleCount - b.moduleCount) : [];
   const currentScenario =
     sortedScenarios.find((s) => s.scenarioId === selectedScenarioId) ??
     (result?.selected?.scenarioId === selectedScenarioId ? result.selected : null) ??
@@ -213,7 +232,7 @@ export function CiResultsPanel({
 
   const dispatch = result?.selected?.dispatch ?? [];
   const hasDispatch = dispatch.length > 0;
-  const resolutionHours = (ciOptions.loadCurve?.resolutionMinutes ?? 15) / 60;
+  const resolutionHours = (result?.assumptions.loadCurve.resolutionMinutes ?? 15) / 60;
   const totalSolarKwh = dispatch.reduce((sum, d) => sum + (d.solarGenerationKw ?? 0) * resolutionHours, 0);
   const totalGenKwh = dispatch.reduce((sum, d) => sum + (d.generatorKw ?? 0) * resolutionHours, 0);
   const maxOriginalDemandKw = hasDispatch ? Math.max(...dispatch.map((d) => d.loadKw)) : 0;
@@ -221,21 +240,18 @@ export function CiResultsPanel({
   const peakReductionKw = Math.max(0, maxOriginalDemandKw - maxGridDemandKw);
   const peakReductionPercent = maxOriginalDemandKw > 0 ? (peakReductionKw / maxOriginalDemandKw) * 100 : 0;
 
-  const hasBessProduct = Boolean(ciOptions.bessProductId);
-  const hasCurve = Boolean(ciOptions.loadCurve && (ciOptions.loadCurve.points.length > 0 || (ciOptions.loadCurve as any).representativeDays?.length > 0));
-  const hasTariff = Boolean(ciOptions.tariff && (ciOptions.tariff.energyRatePeakBrlPerMwh > 0 || ciOptions.tariff.energyRateOffPeakBrlPerMwh > 0));
-  const hasStrategy = Boolean(ciOptions.strategy);
-  const isSolarEnabled = Boolean(ciOptions.solar?.enabled);
-  const hasSolar = Boolean(isSolarEnabled && (ciOptions.solar?.installedPowerKwp ?? 0) > 0);
-  const isBackupEnabled = Boolean(ciOptions.backup?.enabled);
-  const hasBackup = Boolean(
-    isBackupEnabled &&
-      (ciOptions.backup?.inputMode === 'detailed'
-        ? ciOptions.backup.loads.length > 0
-        : (ciOptions.backup?.targetPowerKw ?? 0) > 0)
-  );
+  const configuration = getCiConfigurationStatus(ciOptions);
+  const readiness: { section: CiWorkspaceSection; label: string; configured: boolean; inactive?: boolean }[] = [
+    { section: 'bess', label: 'Configuração BESS', configured: configuration.bess },
+    { section: 'solar', label: 'Solar FV', configured: configuration.solar, inactive: !ciOptions.solar?.enabled },
+    { section: 'curve', label: 'Curva de carga', configured: configuration.curve },
+    { section: 'tariff', label: 'Tarifa', configured: configuration.tariff },
+    { section: 'strategy', label: 'Estratégia', configured: true },
+    ...(canAccessCiBackup ? [{ section: 'backup' as const, label: 'Falta de rede', configured: configuration.backup, inactive: !ciOptions.backup?.enabled }] : []),
+  ];
+  const pendingCount = readiness.filter((item) => !item.configured).length;
 
-  const isStale = Boolean(result && calculatedOptionsRef.current && calculatedOptionsRef.current !== JSON.stringify(ciOptions));
+  const isStale = Boolean(result && calculatedOptionsFingerprint && calculatedOptionsFingerprint !== JSON.stringify(ciOptions));
 
   return (
     <div className="space-y-6">
@@ -243,16 +259,16 @@ export function CiResultsPanel({
         <div>
           <p className="text-sm font-semibold">Simulação de dimensionamento</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Usa a última configuração salva do projeto (BESS, curva, tarifa e estratégia).
+            Salva as alterações atuais antes de calcular os cenários de BESS.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {result?.selected && (
             <Button
               type="button"
               variant={memorialSuccess ? 'secondary' : 'outline'}
               onClick={handleGenerateMemorial}
-              disabled={generatingMemorial}
+              disabled={generatingMemorial || loading || isStale}
               className={cn(memorialSuccess && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400')}
             >
               {generatingMemorial ? (
@@ -292,7 +308,7 @@ export function CiResultsPanel({
       )}
 
       {error && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
           <p className="flex items-center gap-1.5 font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             {error}
@@ -301,13 +317,15 @@ export function CiResultsPanel({
       )}
 
       {memorialError && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
           <p className="flex items-center gap-1.5 font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             {memorialError}
           </p>
         </div>
       )}
+
+      {loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Salvando parâmetros e calculando os cenários. Aguarde…</p>}
 
       {!result && !loading && (
         <div className="rounded-xl border border-muted bg-card/60 p-6 space-y-5">
@@ -316,98 +334,24 @@ export function CiResultsPanel({
               <BarChart3 className="h-6 w-6" aria-hidden="true" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-semibold text-foreground">Pronto para dimensionar a solução BESS</h3>
+              <h3 className="text-base font-semibold text-foreground">{pendingCount > 0 ? 'Revise as pendências do estudo' : 'Pronto para dimensionar a solução BESS'}</h3>
               <p className="text-sm text-muted-foreground">
-                Revise os parâmetros definidos nas abas anteriores antes de executar a otimização econômica e técnica:
+                Confira as configurações abaixo. Abra uma etapa para completar os dados ou use Calcular para executar a simulação.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
-              <CheckCircle2
-                className={cn('h-5 w-5 shrink-0', hasBessProduct ? 'text-emerald-500' : 'text-muted-foreground/40')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Produto BESS</p>
-                <p className="truncate text-xs font-medium">{hasBessProduct ? 'Selecionado' : 'Padrão / Não definido'}</p>
+            {readiness.map(({ section, label, configured, inactive }) => (
+              <div key={section} className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
+                {configured ? <CheckCircle2 className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{label}</p>
+                  <p className="text-xs text-muted-foreground">{inactive ? 'Opcional · Inativo' : configured ? 'Configurado' : 'Requer atenção'}</p>
+                </div>
+                {onNavigateToSection && <Button type="button" size="sm" variant="ghost" aria-label={`Abrir ${label}`} onClick={() => onNavigateToSection(section)}>Abrir</Button>}
               </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
-              <CheckCircle2
-                className={cn('h-5 w-5 shrink-0', hasSolar ? 'text-emerald-500' : isSolarEnabled ? 'text-amber-500' : 'text-muted-foreground/40')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Geração Solar FV</p>
-                <p className="truncate text-xs font-medium">
-                  {hasSolar
-                    ? `${ciOptions.solar!.installedPowerKwp} kWp ativo`
-                    : isSolarEnabled
-                      ? 'Requer potência (kWp)'
-                      : 'Desativado (opcional)'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
-              <CheckCircle2
-                className={cn('h-5 w-5 shrink-0', hasCurve ? 'text-emerald-500' : 'text-muted-foreground/40')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Curva de Carga</p>
-                <p className="truncate text-xs font-medium">{hasCurve ? 'Configurada' : 'Não definida'}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
-              <CheckCircle2
-                className={cn('h-5 w-5 shrink-0', hasTariff ? 'text-emerald-500' : 'text-muted-foreground/40')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Tarifas e Demanda</p>
-                <p className="truncate text-xs font-medium">{hasTariff ? 'Estrutura preenchida' : 'Valores padrão'}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
-              <CheckCircle2
-                className={cn('h-5 w-5 shrink-0', hasStrategy ? 'text-emerald-500' : 'text-muted-foreground/40')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Estratégia</p>
-                <p className="truncate text-xs font-medium">{ciOptions.strategy || 'HYBRID'}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-lg border bg-background/80 p-3">
-              <CheckCircle2
-                className={cn('h-5 w-5 shrink-0', hasBackup ? 'text-emerald-500' : isBackupEnabled ? 'text-amber-500' : 'text-muted-foreground/40')}
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Falta de Rede (Backup)</p>
-                <p className="truncate text-xs font-medium">
-                  {hasBackup
-                    ? `${ciOptions.generator?.enabled ? 'BESS + GMG' : 'BESS ativo'}`
-                    : isBackupEnabled
-                      ? 'Requer cargas críticas'
-                      : 'Sem reserva (opcional)'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end pt-2">
-            <Button type="button" onClick={runCalculation} disabled={loading} className="gap-2">
-              <Play className="h-4 w-4" aria-hidden="true" />
-              Executar Dimensionamento
-            </Button>
+            ))}
           </div>
         </div>
       )}
@@ -441,23 +385,23 @@ export function CiResultsPanel({
           {currentScenario && (
             <div
               className={
-                isRecommendedActive
+                isRecommendedActive && result.recommendation.scenarioId
                   ? 'space-y-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-4'
                   : 'space-y-3 rounded-lg border border-muted-foreground/30 bg-muted/20 p-4'
               }
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  {isRecommendedActive ? (
+                  {isRecommendedActive && result.recommendation.scenarioId ? (
                     <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
                   ) : (
                     <BarChart3 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   )}
                   {isRecommendedActive
                     ? (result.recommendation.scenarioId
-                        ? `Cenário recomendado — ${currentScenario.moduleCount} módulo${currentScenario.moduleCount === 1 ? '' : 's'}`
-                        : `Nenhum cenário economicamente viável — menor configuração avaliada: ${currentScenario.moduleCount} módulo${currentScenario.moduleCount === 1 ? '' : 's'} (não recomendada)`)
-                    : `Cenário inspecionado — ${currentScenario.moduleCount} módulo${currentScenario.moduleCount === 1 ? '' : 's'}`}
+                        ? `Cenário recomendado — ${ciScenarioLabel(currentScenario)}`
+                        : `Nenhum cenário economicamente viável — configuração de referência: ${ciScenarioLabel(currentScenario)} (não recomendada)`)
+                    : `Cenário inspecionado — ${ciScenarioLabel(currentScenario)}`}
                 </p>
                 {!isRecommendedActive && result.recommendation.scenarioId && (
                   <Button
@@ -474,8 +418,22 @@ export function CiResultsPanel({
               <p className="text-xs text-muted-foreground">
                 {isRecommendedActive
                   ? result.recommendation.reason
-                  : `Visualizando métricas financeiras detalhadas para a configuração de ${currentScenario.moduleCount} módulo(s). Clique em outra linha da tabela para comparar.`}
+                  : `Visualizando métricas financeiras detalhadas para a configuração de ${ciScenarioLabel(currentScenario)}. Clique em outra linha da tabela para comparar.`}
               </p>
+              {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
+                <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.seriesCount} unidades em série × {currentScenario.composition.parallelStringsPerPcs} strings por PCS.</p>
+                <p>Carga AC até {formatKw(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatKw(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
+                <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
+                <ul className="space-y-1">{currentScenario.composition.items.map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model} · {formatCurrencyBRL(item.unitPriceBrl)}/un.</span><strong>{formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
+              </div>}
+              {currentScenario.technicalWarnings.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
+                  <p className="font-medium">Avisos deste cenário</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {currentScenario.technicalWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-muted-foreground">CAPEX</p>
@@ -489,8 +447,8 @@ export function CiResultsPanel({
                   <p className="text-xs text-muted-foreground">Payback simples / descontado</p>
                   <p className="mt-1 text-sm font-semibold">
                     {formatYears(currentScenario.paybackYearsSimple)}
-                    {'paybackYearsDiscounted' in currentScenario && (currentScenario as any).paybackYearsDiscounted !== undefined
-                      ? ` / ${formatYears((currentScenario as any).paybackYearsDiscounted)}`
+                    {currentScenario.paybackYearsDiscounted !== undefined
+                      ? ` / ${formatYears(currentScenario.paybackYearsDiscounted)}`
                       : ''}
                   </p>
                 </div>
@@ -508,7 +466,8 @@ export function CiResultsPanel({
             <div className="space-y-4 rounded-lg border bg-card p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold">Operação e Despacho BESS (Peak Shaving)</p>
+                  <p className="text-sm font-semibold">Operação e Despacho BESS</p>
+                  <p className="text-xs text-muted-foreground">Dados da configuração calculada: {ciScenarioLabel(result.selected)}. O gráfico e o memorial permanecem vinculados a essa configuração ao inspecionar outras linhas.</p>
                   <p className="text-xs text-muted-foreground">
                     Comparativo da carga original versus demanda atendida pela rede após o corte de pico com BESS.
                   </p>
@@ -541,13 +500,13 @@ export function CiResultsPanel({
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {totalSolarKwh > 0 && (
                       <div className="flex items-center justify-between rounded-md border border-amber-500/20 bg-amber-500/5 p-2.5">
-                        <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Geração Solar FV (Semana)</span>
+                        <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Geração Solar FV (período simulado)</span>
                         <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">{formatKwh(totalSolarKwh, 1)}</span>
                       </div>
                     )}
                     {totalGenKwh > 0 && (
                       <div className="flex items-center justify-between rounded-md border border-orange-500/20 bg-orange-500/5 p-2.5">
-                        <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Geração GMG (Semana)</span>
+                        <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Geração GMG (período simulado)</span>
                         <span className="text-sm font-semibold text-orange-700 dark:text-orange-300">{formatKwh(totalGenKwh, 1)}</span>
                       </div>
                     )}
@@ -557,14 +516,14 @@ export function CiResultsPanel({
 
               <CiDispatchChart
                 dispatch={dispatch}
-                contractedDemandKw={ciOptions.tariff?.contractedDemandKw}
+                contractedDemandKw={result.assumptions.tariff.contractedDemandKw}
               />
             </div>
           )}
 
           {result.backup && result.backup.status !== 'disabled' && (
             <div className="space-y-3 rounded-lg border border-primary/20 bg-muted/20 p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
                   <p className="text-sm font-semibold">Confiabilidade e Operação em Falta de Rede (Backup)</p>
@@ -602,8 +561,8 @@ export function CiResultsPanel({
                   <p className="mt-1 text-sm font-semibold">{result.backup.recommendedSocReservePercent.toFixed(1)}%</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Módulos Mín. p/ Autonomia</p>
-                  <p className="mt-1 text-sm font-semibold">{result.backup.minModulesForBackup} módulo(s)</p>
+                  <p className="text-xs text-muted-foreground">{result.selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos Mín. p/ Autonomia'}</p>
+                  <p className="mt-1 text-sm font-semibold">{result.backup.minModulesForBackup} {result.selected?.composition ? 'composição(ões)' : 'módulo(s)'}</p>
                 </div>
               </div>
               {result.backup.warningMessage && (
@@ -613,21 +572,22 @@ export function CiResultsPanel({
           )}
 
           <div className="space-y-3 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Comparação por quantidade de módulos</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">{result.scenarios.some((item) => item.composition) ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</p>
               <p className="text-xs text-muted-foreground">Clique em uma linha para inspecionar os detalhes acima</p>
             </div>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-left">
+                <caption className="sr-only">Comparação dos cenários BESS por quantidade de módulos. Use o botão na primeira coluna para inspecionar cada cenário.</caption>
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th className="sticky left-0 z-10 whitespace-nowrap bg-muted px-3 py-2 text-xs font-medium text-muted-foreground shadow-[1px_0_0_0_hsl(var(--border))]">Módulos</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">CAPEX</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Economia/ano</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Payback</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">ROI</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">NPV</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Ganho marginal</th>
+                    <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-muted px-3 py-2 text-xs font-medium text-muted-foreground shadow-[1px_0_0_0_hsl(var(--border))]">{result.scenarios.some((item) => item.composition) ? 'Composição' : 'Módulos'}</th>
+                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">CAPEX</th>
+                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Economia/ano</th>
+                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Payback</th>
+                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">ROI</th>
+                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">NPV</th>
+                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Ganho marginal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -636,7 +596,7 @@ export function CiResultsPanel({
                       key={scenario.scenarioId}
                       scenario={scenario}
                       recommended={scenario.scenarioId === result.recommendation.scenarioId}
-                      active={scenario.scenarioId === (selectedScenarioId ?? result.recommendation.scenarioId)}
+                      active={scenario.scenarioId === currentScenario?.scenarioId}
                       onSelect={() => setSelectedScenarioId(scenario.scenarioId)}
                     />
                   ))}

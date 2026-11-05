@@ -1,26 +1,21 @@
 'use client';
 
-// Lets the user draw a representative day's load shape by dragging 24 hourly
+// Lets the user draw a representative day's load shape by dragging quarter-hour
 // points directly on an SVG chart, synchronized with a lateral numeric editor
-// for the selected hour. Features normal & smooth brush modes, undo support,
+// for the selected hour. Features local smoothing by default, undo support,
 // and independent controls for weekdays and weekends.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookmarkPlus, Check, ChevronLeft, ChevronRight, Sparkles, Undo2 } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { BookmarkPlus, Check, ChevronLeft, ChevronRight, RotateCcw, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn, readCssVar } from '@/lib/utils';
-import { DAILY_CURVE_PRESETS } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
 
-const HOURS_PER_DAY = 24;
+const EMPTY_DAY = new Array(24).fill(0);
 type EditMode = 'normal' | 'smooth';
-const EDIT_MODES: { id: EditMode; label: string }[] = [
-  { id: 'normal', label: 'Normal' },
-  { id: 'smooth', label: 'Suave' },
-];
-
-const BRUSH_RADIUS_HOURS = 3;
+// Cosine falloff reaches zero two samples away; only immediate neighbors move.
+const BRUSH_RADIUS_POINTS = 2;
 const SMOOTH_ADJACENT_THRESHOLD_KW = 5;
 const DEFAULT_VIEW_WIDTH = 640;
 const VIEW_HEIGHT = 235;
@@ -43,9 +38,9 @@ function yToPx(kw: number, maxKw: number): number {
   return MARGIN.top + PLOT_HEIGHT - (kw / maxKw) * PLOT_HEIGHT;
 }
 
-function circularHourDistance(a: number, b: number): number {
-  const diff = Math.abs(a - b) % HOURS_PER_DAY;
-  return Math.min(diff, HOURS_PER_DAY - diff);
+function circularPointDistance(a: number, b: number, pointCount: number): number {
+  const diff = Math.abs(a - b) % pointCount;
+  return Math.min(diff, pointCount - diff);
 }
 
 function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mode: EditMode): number[] {
@@ -64,10 +59,10 @@ function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mo
   return hourlyKw.map((value, i) => {
     if (i === hour) return newValue;
 
-    const distance = circularHourDistance(hour, i);
-    if (distance > BRUSH_RADIUS_HOURS) return value;
+    const distance = circularPointDistance(hour, i, hourlyKw.length);
+    if (distance >= BRUSH_RADIUS_POINTS) return value;
 
-    const weight = (Math.cos((Math.PI * distance) / BRUSH_RADIUS_HOURS) + 1) / 2;
+    const weight = (Math.cos((Math.PI * distance) / BRUSH_RADIUS_POINTS) + 1) / 2;
 
     if (delta > 0) {
       // Movimento para cima: só arrasta quem está abaixo;
@@ -103,7 +98,11 @@ export interface DailyCurveEditorProps {
   onUpdatePatternKw?: (pattern: 'weekday' | 'weekend', kw: number[]) => void;
   selectedPresetId?: string | null;
   onSelectPreset?: (presetId: string) => void;
-  onSaveAsCustomModel?: (name: string, weekdayKw: number[], weekendKw: number[]) => void;
+  onSaveAsCustomModel?: (name: string, weekdayKw: number[], weekendKw: number[]) => boolean | void;
+  saveModelLimitReached?: boolean;
+  solarKw?: (number | null)[];
+  solarDescription?: string;
+  onSolarChange?: (kw: number[]) => void;
 }
 
 export function DailyCurveEditor({
@@ -114,28 +113,47 @@ export function DailyCurveEditor({
   activePattern = 'weekday',
   onPatternChange,
   onUpdatePatternKw,
-  selectedPresetId,
-  onSelectPreset,
   onSaveAsCustomModel,
+  saveModelLimitReached = false,
+  solarKw,
+  solarDescription,
+  onSolarChange,
 }: DailyCurveEditorProps) {
+  const [focusedSeries, setFocusedSeries] = useState<'consumption' | 'solar'>('consumption');
+  const hasSolar = Boolean(solarKw?.length);
+  const solarSelected = hasSolar && focusedSeries === 'solar';
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Determine active dataset: dual-pattern mode if weekday/weekend provided, fallback to hourlyKw
   const isDualPattern = Boolean(weekdayKw && weekendKw);
-  const activeDataset = isDualPattern
+  const consumptionDataset = isDualPattern
     ? (activePattern === 'weekday' ? weekdayKw! : weekendKw!)
-    : (hourlyKw ?? new Array(HOURS_PER_DAY).fill(0));
+    : (hourlyKw ?? EMPTY_DAY);
 
+  const normalizedSolar = useMemo(() => solarKw?.map(value => value ?? 0), [solarKw]);
+  const activeDataset = solarSelected ? normalizedSolar! : consumptionDataset;
+  const editingSeriesRef = useRef<'consumption' | 'solar'>('consumption');
   const [localKw, setLocalKw] = useState(activeDataset);
-  const [selectedHour, setSelectedHour] = useState<number>(12);
+  const consumptionKw = solarSelected ? consumptionDataset : localKw;
+  const generationKw = solarSelected ? localKw : solarKw;
+  const pointCount = activeDataset.length;
+  const [selectedHour, setSelectedHour] = useState<number>(Math.floor(pointCount / 2));
+  const [viewRange, setViewRange] = useState({ start: 0, end: pointCount - 1 });
+  const panRef = useRef<{ clientX: number; start: number; end: number } | null>(null);
+  const formatTime = (index: number) => {
+    const minutes = Math.round(index * 1440 / pointCount);
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  };
   const [activeHour, setActiveHour] = useState<number | null>(null);
-  const [editMode, setEditMode] = useState<EditMode>('normal');
+  const [focusedPoint, setFocusedPoint] = useState<{ series: 'consumption' | 'solar'; hour: number } | null>(null);
   const [undoKw, setUndoKw] = useState<number[] | null>(null);
   const [scaleCeilingOverride, setScaleCeilingOverride] = useState<number | null>(null);
   const [isSavingModel, setIsSavingModel] = useState(false);
   const [modelNameInput, setModelNameInput] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  const latestKwRef = useRef(activeDataset);
+  const lastEmittedRef = useRef<number[] | null>(null);
   const pendingRef = useRef<number[] | null>(null);
   const frameRef = useRef<number | null>(null);
   const smoothInteractionRef = useRef<{ hour: number; startingKw: number[] } | null>(null);
@@ -145,10 +163,14 @@ export function DailyCurveEditor({
 
   // Synchronize localKw when active dataset changes externally
   useEffect(() => {
+    editingSeriesRef.current = solarSelected ? 'solar' : 'consumption';
+    if (activeDataset === lastEmittedRef.current || activeDataset.length === lastEmittedRef.current?.length && activeDataset.every((value, index) => value === lastEmittedRef.current![index])) return;
+    latestKwRef.current = activeDataset;
+    pendingRef.current = null;
     setLocalKw(activeDataset);
     setUndoKw(null);
     setScaleCeilingOverride(null);
-  }, [activeDataset]);
+  }, [activeDataset, solarSelected]);
 
   useEffect(
     () => () => {
@@ -157,87 +179,98 @@ export function DailyCurveEditor({
     []
   );
 
+  function emit(next: number[]) {
+    lastEmittedRef.current = next;
+    if (editingSeriesRef.current === 'solar') { onSolarChange?.(next); return; }
+    if (isDualPattern && onUpdatePatternKw) onUpdatePatternKw(activePattern, next);
+    onChange?.(next);
+  }
+
   function commitPending() {
     frameRef.current = null;
-    if (pendingRef.current) {
-      if (isDualPattern && onUpdatePatternKw) {
-        onUpdatePatternKw(activePattern, pendingRef.current);
-      }
-      onChange?.(pendingRef.current);
-      pendingRef.current = null;
-    }
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (pending) emit(pending);
+  }
+
+  function selectSeries(series: 'consumption' | 'solar') {
+    if (editingSeriesRef.current === series) return;
+    if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+    commitPending();
+    editingSeriesRef.current = series;
+    const values = series === 'solar' ? normalizedSolar! : consumptionDataset;
+    latestKwRef.current = values;
+    lastEmittedRef.current = null;
+    setLocalKw(values);
+    setUndoKw(null);
+    smoothInteractionRef.current = null;
+    setFocusedSeries(series);
   }
 
   function updateHour(hour: number, kw: number) {
     setUndoKw(null);
-    setLocalKw((previous) => {
-      const roundedKw = Math.round(kw * 10) / 10;
-      const smoothStartingKw = smoothInteractionRef.current?.hour === hour ? smoothInteractionRef.current.startingKw : previous;
-      const next = applyPointUpdate(editMode === 'smooth' ? smoothStartingKw : previous, hour, roundedKw, editMode);
-      pendingRef.current = next;
-      if (frameRef.current == null) frameRef.current = requestAnimationFrame(commitPending);
-      return next;
-    });
+    const previous = latestKwRef.current;
+    const roundedKw = Math.round(kw * 10) / 10;
+    const starting = smoothInteractionRef.current?.hour === hour ? smoothInteractionRef.current.startingKw : previous;
+    const next = applyPointUpdate(starting, hour, roundedKw, 'smooth');
+    latestKwRef.current = next;
+    setLocalKw(next);
+    pendingRef.current = next;
+    if (frameRef.current == null) frameRef.current = requestAnimationFrame(commitPending);
+  }
+
+  function cancelPending() {
+    if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    pendingRef.current = null;
   }
 
   function commitHourImmediately(hour: number, kw: number) {
-    if (frameRef.current != null) {
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-    }
-    pendingRef.current = null;
+    cancelPending();
     setUndoKw(null);
-    setLocalKw((previous) => {
-      const roundedKw = Math.round(kw * 10) / 10;
-      const next = applyPointUpdate(previous, hour, roundedKw, 'normal');
-      if (isDualPattern && onUpdatePatternKw) {
-        onUpdatePatternKw(activePattern, next);
-      }
-      onChange?.(next);
-      return next;
-    });
+    const next = applyPointUpdate(latestKwRef.current, hour, Math.round(kw * 10) / 10, 'normal');
+    latestKwRef.current = next;
+    setLocalKw(next);
+    emit(next);
   }
 
   function handleClearCurve() {
+    cancelPending();
     setUndoKw(localKw.slice());
-    const cleared = new Array(HOURS_PER_DAY).fill(0);
+    const cleared = new Array(pointCount).fill(0);
+    latestKwRef.current = cleared;
     setLocalKw(cleared);
     setScaleCeilingOverride(null);
-    if (isDualPattern && onUpdatePatternKw) {
-      onUpdatePatternKw(activePattern, cleared);
-    }
-    onChange?.(cleared);
+    emit(cleared);
   }
 
   function handleUndo() {
     if (undoKw) {
       const restored = undoKw.slice();
+      cancelPending();
+      latestKwRef.current = restored;
       setLocalKw(restored);
       setScaleCeilingOverride(null);
-      if (isDualPattern && onUpdatePatternKw) {
-        onUpdatePatternKw(activePattern, restored);
-      }
-      onChange?.(restored);
+      emit(restored);
       setUndoKw(null);
     }
   }
 
   function beginInteraction(hour: number) {
-    if (editMode === 'smooth' && smoothInteractionRef.current?.hour !== hour) {
-      smoothInteractionRef.current = { hour, startingKw: localKw.slice() };
+    if (smoothInteractionRef.current?.hour !== hour) {
+      smoothInteractionRef.current = { hour, startingKw: latestKwRef.current.slice() };
     }
   }
 
   function beginPointerInteraction(hour: number) {
-    if (editMode === 'smooth') {
-      smoothInteractionRef.current = { hour, startingKw: localKw.slice() };
-    }
+    smoothInteractionRef.current = { hour, startingKw: latestKwRef.current.slice() };
   }
 
-  const baseMaxKw = niceCeiling(Math.max(...localKw, 1));
+  const baseMaxKw = niceCeiling(Math.max(...consumptionKw, ...(generationKw ?? []).filter((value): value is number => value !== null), 1));
   const currentMaxKw = Math.max(baseMaxKw, scaleCeilingOverride ?? 0);
   // Keep the scale locked during an active drag gesture so the coordinate mapping doesn't oscillate or jump
-  const maxKw = dragScaleMaxRef.current ?? currentMaxKw;
+  const [dragMaxKw, setDragMaxKw] = useState<number | null>(null);
+  const maxKw = dragMaxKw ?? currentMaxKw;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_VIEW_WIDTH);
@@ -256,45 +289,67 @@ export function DailyCurveEditor({
     return () => observer.disconnect();
   }, []);
 
-  const viewWidth = Math.max(DEFAULT_VIEW_WIDTH, containerWidth);
+  const viewWidth = Math.max(240, containerWidth);
   const plotWidth = viewWidth - MARGIN.left - MARGIN.right;
 
-  const xToPx = (hour: number) => MARGIN.left + (hour / (HOURS_PER_DAY - 1)) * plotWidth;
+  const visibleSpan = viewRange.end - viewRange.start;
+  const xToPx = (hour: number) => MARGIN.left + ((hour - viewRange.start) / visibleSpan) * plotWidth;
+
+  function moveView(start: number, span = visibleSpan) {
+    const boundedSpan = clamp(span, Math.min(4, pointCount - 1), pointCount - 1);
+    const boundedStart = clamp(start, 0, pointCount - 1 - boundedSpan);
+    setViewRange({ start: boundedStart, end: boundedStart + boundedSpan });
+  }
+
+  function zoom(factor: number, anchor = selectedHour >= viewRange.start && selectedHour <= viewRange.end ? selectedHour : (viewRange.start + viewRange.end) / 2) {
+    const span = clamp(visibleSpan * factor, Math.min(4, pointCount - 1), pointCount - 1);
+    moveView(anchor - (anchor - viewRange.start) * span / visibleSpan, span);
+  }
+
+  function selectPoint(index: number) {
+    setSelectedHour(index);
+    if (index < viewRange.start || index > viewRange.end) moveView(index - visibleSpan / 2);
+  }
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const fraction = clamp(((event.clientX - rect.left) * viewWidth / rect.width - MARGIN.left) / plotWidth, 0, 1);
+      zoom(event.deltaY < 0 ? 0.75 : 1.333333, viewRange.start + fraction * visibleSpan);
+    };
+    svg.addEventListener('wheel', handleWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', handleWheel);
+    // The handler captures the current range and dimensions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewRange, viewWidth, plotWidth, pointCount]);
 
   const xAxisHours = useMemo(() => {
-    if (viewWidth >= 960) {
-      return [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 23];
-    }
-    if (viewWidth >= 740) {
-      return [0, 3, 6, 9, 12, 15, 18, 21, 23];
-    }
-    return [0, 6, 12, 18, 23];
-  }, [viewWidth]);
+    const count = Math.max(3, Math.floor(containerWidth / 80));
+    const step = [1, 2, 4, 8, 12, 24, 48].find((value) => value >= visibleSpan / count) ?? 48;
+    const first = Math.ceil(viewRange.start / step) * step;
+    return Array.from({ length: Math.max(0, Math.floor((viewRange.end - first) / step) + 1) }, (_, index) => first + index * step);
+  }, [viewRange, visibleSpan, containerWidth]);
 
-  // Cache resolved CSS custom properties to avoid synchronous getComputedStyle flushes on drag
-  const colorsRef = useRef<{ primary: string; border: string; mutedForeground: string; foreground: string; card: string } | null>(null);
-  if (!colorsRef.current) {
-    colorsRef.current = {
-      primary: readCssVar('--chart-1', '#24506b'),
-      border: readCssVar('--border', '#d7e0ea'),
-      mutedForeground: readCssVar('--muted-foreground', '#66788a'),
-      foreground: readCssVar('--foreground', '#16324f'),
-      card: readCssVar('--card', '#ffffff'),
-    };
-  }
-  const { primary, border, mutedForeground, foreground, card } = colorsRef.current;
+  const [{ primary, border, mutedForeground, foreground, card }] = useState(() => ({
+    primary: readCssVar('--chart-1', '#24506b'), border: readCssVar('--border', '#d7e0ea'),
+    mutedForeground: readCssVar('--muted-foreground', '#66788a'), foreground: readCssVar('--foreground', '#16324f'), card: readCssVar('--card', '#ffffff'),
+  }));
 
   const linePath = useMemo(
-    () => localKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' '),
+    () => consumptionKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' '),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [localKw, maxKw, plotWidth]
+    [consumptionKw, maxKw, plotWidth, viewRange]
   );
   const areaPath = useMemo(
-    () => `${linePath} L ${xToPx(HOURS_PER_DAY - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`,
+    () => `${linePath} L ${xToPx(pointCount - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [linePath, plotWidth]
   );
-  const gradientId = `daily-curve-editor-area-${activePattern}`;
+  const instanceId = useId();
+  const gradientId = `daily-curve-editor-area-${instanceId}-${activePattern}`;
 
   function pointerPositionToKw(clientY: number): number {
     const svg = svgRef.current;
@@ -304,8 +359,12 @@ export function DailyCurveEditor({
     return pxToKw((clientY - rect.top) * scaleY, maxKw);
   }
 
-  function handlePointerDown(hour: number, event: React.PointerEvent<SVGCircleElement>) {
+  function handlePointerDown(hour: number, event: React.PointerEvent<SVGCircleElement>, series: 'consumption' | 'solar' = 'consumption') {
+    selectSeries(series);
+    event.currentTarget.focus();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    setDragMaxKw(currentMaxKw);
     dragScaleMaxRef.current = currentMaxKw;
     hasDraggedRef.current = false;
     const initialKw = pointerPositionToKw(event.clientY);
@@ -325,6 +384,8 @@ export function DailyCurveEditor({
   }
 
   function handlePointerUp(event: React.PointerEvent<SVGCircleElement>) {
+    if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+    commitPending();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -337,6 +398,7 @@ export function DailyCurveEditor({
     hasDraggedRef.current = false;
     lastPointerKwRef.current = null;
     dragScaleMaxRef.current = null;
+    setDragMaxKw(null);
     smoothInteractionRef.current = null;
     setActiveHour(null);
   }
@@ -346,38 +408,40 @@ export function DailyCurveEditor({
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       beginInteraction(hour);
-      updateHour(hour, Math.max(0, localKw[hour] + step));
+      updateHour(hour, Math.max(0, latestKwRef.current[hour] + step));
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
       beginInteraction(hour);
-      updateHour(hour, Math.max(0, localKw[hour] - step));
+      updateHour(hour, Math.max(0, latestKwRef.current[hour] - step));
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      const prevHour = (hour + HOURS_PER_DAY - 1) % HOURS_PER_DAY;
-      setSelectedHour(prevHour);
-      const prevEl = svgRef.current?.querySelector(`circle[data-hour="${prevHour}"]`) as HTMLElement | null;
+      const prevHour = (hour + pointCount - 1) % pointCount;
+      selectPoint(prevHour);
+      const prevEl = svgRef.current?.querySelector(`circle[${editingSeriesRef.current === 'solar' ? 'data-solar-point' : 'data-hour'}="${prevHour}"]`) as HTMLElement | null;
       prevEl?.focus();
     } else if (event.key === 'ArrowRight') {
       event.preventDefault();
-      const nextHour = (hour + 1) % HOURS_PER_DAY;
-      setSelectedHour(nextHour);
-      const nextEl = svgRef.current?.querySelector(`circle[data-hour="${nextHour}"]`) as HTMLElement | null;
+      const nextHour = (hour + 1) % pointCount;
+      selectPoint(nextHour);
+      const nextEl = svgRef.current?.querySelector(`circle[${editingSeriesRef.current === 'solar' ? 'data-solar-point' : 'data-hour'}="${nextHour}"]`) as HTMLElement | null;
       nextEl?.focus();
     }
   }
 
   const brushRange =
-    editMode === 'smooth' && activeHour !== null
-      ? { from: Math.max(0, activeHour - BRUSH_RADIUS_HOURS), to: Math.min(HOURS_PER_DAY - 1, activeHour + BRUSH_RADIUS_HOURS) }
+    activeHour !== null
+      ? { from: Math.max(0, activeHour - BRUSH_RADIUS_POINTS), to: Math.min(pointCount - 1, activeHour + BRUSH_RADIUS_POINTS) }
       : null;
 
   const currentSelectedKw = localKw[selectedHour] ?? 0;
+  const solarColor = 'var(--chart-2, #ff9d00)';
+  const solarLinePath = generationKw?.map((kw, index) => kw === null ? '' : `${index === 0 || generationKw[index - 1] === null ? 'M' : 'L'} ${xToPx(index)} ${yToPx(kw, maxKw)}`).join(' ') ?? '';
 
   return (
     <div className="space-y-3">
-      {/* Top Controls Header: Pattern Segmented Control */}
-      {isDualPattern && onPatternChange && (
-        <div className="flex items-center justify-between gap-3">
+      {/* Pattern tabs and editing actions share the header. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {isDualPattern && onPatternChange && (
           <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
             <button
               type="button"
@@ -406,6 +470,98 @@ export function DailyCurveEditor({
               Fim de semana
             </button>
           </div>
+        )}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+          {undoKw ? (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span>Curva zerada.</span>
+              <Button type="button" variant="link" size="xs" disabled={solarSelected && !onSolarChange} onClick={handleUndo} className="h-auto p-0 font-semibold text-primary">
+                <Undo2 className="h-3 w-3 mr-1" /> Desfazer
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={solarSelected && !onSolarChange}
+              onClick={handleClearCurve}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Limpar curva
+            </button>
+          )}
+          {onSaveAsCustomModel && (
+            isSavingModel && !saveModelLimitReached ? (
+              <div className="flex items-center gap-1.5 bg-background p-1 rounded-md border border-primary/40">
+                <Input
+                  type="text"
+                  placeholder="Nome do modelo..."
+                  value={modelNameInput}
+                  onChange={(e) => setModelNameInput(e.target.value)}
+                  className="h-6 w-36 text-xs px-2"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  size="xs"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={!modelNameInput.trim() || saveModelLimitReached || solarSelected}
+                  onClick={() => {
+                    const targetWeekday = isDualPattern ? (weekdayKw ?? localKw) : localKw;
+                    const targetWeekend = isDualPattern ? (weekendKw ?? localKw) : localKw;
+                    if (onSaveAsCustomModel(modelNameInput.trim(), targetWeekday, targetWeekend) === false) return;
+                    setIsSavingModel(false);
+                    setModelNameInput('');
+                    setSavedSuccess(true);
+                    setTimeout(() => setSavedSuccess(false), 3000);
+                  }}
+                >
+                  Salvar
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="h-6 px-1.5 text-[11px]"
+                  onClick={() => {
+                    setIsSavingModel(false);
+                    setModelNameInput('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                  disabled={saveModelLimitReached || solarSelected}
+                onClick={() => setIsSavingModel(true)}
+                  className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+              >
+                {savedSuccess ? (
+                  <>
+                    <Check className="h-3 w-3 text-emerald-600" />
+                    <span className="text-emerald-600">Modelo salvo!</span>
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus className="h-3 w-3" />
+                    <span>Salvar como modelo</span>
+                  </>
+                )}
+              </button>
+            )
+          )}
+          {onSaveAsCustomModel && saveModelLimitReached && (
+            <span role="status" className="text-xs text-muted-foreground">Limite de 5 modelos atingido.</span>
+          )}
+        </div>
+      </div>
+
+      {solarKw && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Button type="button" variant="ghost" size="sm" aria-pressed={!solarSelected} className={!solarSelected ? "bg-muted" : undefined} onClick={() => selectSeries('consumption')}><span className="h-2 w-2 rounded-full bg-chart-1" />Consumo</Button>
+          <Button type="button" variant="ghost" size="sm" aria-pressed={solarSelected} className={solarSelected ? "bg-muted" : undefined} disabled={!hasSolar} onClick={() => selectSeries('solar')}><span className="h-2 w-2 rounded-full bg-chart-2" />Geração FV</Button>
+          <span className="text-muted-foreground">{hasSolar ? solarDescription : 'Sem dados FV para os dias selecionados.'}</span>
         </div>
       )}
 
@@ -414,12 +570,34 @@ export function DailyCurveEditor({
         {/* Left Column: Interactive SVG Chart */}
         <div className="flex-1 min-w-0 flex flex-col justify-between space-y-2">
           <div ref={containerRef} data-testid="daily-chart-container" className="relative w-full">
+            <div className="mb-2 flex flex-wrap items-center gap-1">
+              <Button type="button" variant="outline" size="sm" aria-label="Ampliar gráfico diário" disabled={visibleSpan <= 4} onClick={() => zoom(0.5)}><ZoomIn aria-hidden="true" /></Button>
+              <Button type="button" variant="outline" size="sm" aria-label="Reduzir zoom do gráfico diário" disabled={visibleSpan >= pointCount - 1} onClick={() => zoom(2)}><ZoomOut aria-hidden="true" /></Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setViewRange({ start: 0, end: pointCount - 1 })}><RotateCcw aria-hidden="true" />Ver dia inteiro</Button>
+              <span role="status" aria-label="Período visível no gráfico diário" className="text-xs text-muted-foreground">{formatTime(Math.ceil(viewRange.start))}–{formatTime(Math.floor(viewRange.end))} · {1440 / pointCount} min</span>
+            </div>
             <svg
               ref={svgRef}
               viewBox={`0 0 ${viewWidth} ${VIEW_HEIGHT}`}
+              preserveAspectRatio="none"
               className="h-[235px] w-full touch-none select-none rounded-lg bg-card"
-              role="img"
-              aria-label="Editor da curva diária — arraste os pontos para ajustar a potência de cada hora"
+              role="group"
+              aria-label="Editor da curva diária — arraste os pontos para ajustar a potência ou o fundo para navegar"
+              onDoubleClick={() => setViewRange({ start: 0, end: pointCount - 1 })}
+              onPointerDown={(event) => {
+                if (event.button !== 0 || event.target instanceof Element && event.target.closest('[role="slider"], [data-solar-point]')) return;
+                panRef.current = { clientX: event.clientX, ...viewRange };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const pan = panRef.current;
+                if (!pan) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                const delta = (event.clientX - pan.clientX) * viewWidth / rect.width / plotWidth * (pan.end - pan.start);
+                moveView(pan.start - delta, pan.end - pan.start);
+              }}
+              onPointerUp={(event) => { panRef.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+              onPointerCancel={() => { panRef.current = null; }}
             >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -428,6 +606,7 @@ export function DailyCurveEditor({
               </linearGradient>
             </defs>
 
+            <defs><clipPath id={`${gradientId}-clip`}><rect x={MARGIN.left - 8} y={0} width={plotWidth + 16} height={VIEW_HEIGHT - MARGIN.bottom + 8} /></clipPath></defs>
             {brushRange && (
               <rect
                 x={xToPx(brushRange.from)}
@@ -456,7 +635,7 @@ export function DailyCurveEditor({
             {/* X-axis ticks */}
             {xAxisHours.map((hour) => (
               <text key={hour} x={xToPx(hour)} y={VIEW_HEIGHT - 8} textAnchor="middle" fontSize={11} fill={mutedForeground}>
-                {hour}h
+                {formatTime(hour)}
               </text>
             ))}
 
@@ -475,15 +654,35 @@ export function DailyCurveEditor({
             )}
 
             {/* Shaded Area and Curve Line */}
-            <path d={areaPath} fill={`url(#${gradientId})`} />
-            <path d={linePath} fill="none" stroke={primary} strokeWidth={2} />
+            <g clipPath={`url(#${gradientId}-clip)`}>
+            {hasSolar && <g data-testid="daily-solar-series" opacity={solarSelected ? 1 : 0.2} className="transition-opacity">
+              <path d={solarLinePath} fill="none" stroke={solarColor} strokeWidth={2.5} />
+              {generationKw!.map((kw, index) => kw === null || index < viewRange.start || index > viewRange.end ? null : (
+                <circle key={index} data-solar-point={index} cx={xToPx(index)} cy={yToPx(kw, maxKw)} r={selectedHour === index && solarSelected ? 5 : 3} fill={card} stroke={solarColor} strokeWidth={2}
+                  role="slider" tabIndex={selectedHour === index ? 0 : -1} aria-label={`Geração FV às ${formatTime(index)}`} aria-valuemin={0} aria-valuemax={maxKw} aria-valuenow={kw} aria-valuetext={`${kw.toFixed(1)} kW`} aria-readonly={!onSolarChange}
+                  className="cursor-ns-resize focus:outline-none focus:stroke-[4]"
+                  onPointerDown={(event) => { if (onSolarChange) handlePointerDown(index, event, 'solar'); else {event.stopPropagation(); selectSeries('solar'); selectPoint(index);} }}
+                  onPointerMove={(event) => {if (onSolarChange) handlePointerMove(index, event);}} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}
+                  onClick={(event) => {event.currentTarget.focus(); selectSeries('solar'); selectPoint(index);}} onFocus={() => {selectSeries('solar'); selectPoint(index); setFocusedPoint({series: 'solar', hour: index});}} onBlur={() => {setFocusedPoint(null); setActiveHour(null); smoothInteractionRef.current = null;}}
+                  onKeyDown={(event) => {if (onSolarChange) handleKeyDown(index, event);}}
+                />
+              ))}
+              {solarSelected && focusedPoint?.series === 'solar' && focusedPoint.hour === selectedHour && generationKw![selectedHour] !== null && (() => {
+                const x = clamp(xToPx(selectedHour) - 58, MARGIN.left, viewWidth - MARGIN.right - 116);
+                const y = clamp(yToPx(generationKw![selectedHour]!, maxKw) - 28, MARGIN.top, MARGIN.top + PLOT_HEIGHT - 24);
+                return <g className="pointer-events-none"><rect x={x} y={y} width={116} height={22} rx={5} fill={foreground} /><text x={x + 58} y={y + 14} textAnchor="middle" fontSize={10} fill={card}>{formatTime(selectedHour)} · {generationKw![selectedHour]!.toFixed(1)} kW FV</text></g>;
+              })()}
+            </g>}
+            <g data-testid="daily-consumption-series" opacity={solarSelected ? 0.2 : 1} className="transition-opacity">
+            <path pointerEvents="none" d={areaPath} fill={`url(#${gradientId})`} />
+            <path pointerEvents="none" d={linePath} fill="none" stroke={primary} strokeWidth={2} />
 
             {/* Interactive Points (Sliders) */}
-            {localKw.map((kw, hour) => {
+            {consumptionKw.map((kw, hour) => {
+              if (hour < viewRange.start || hour > viewRange.end) return null;
               const cx = xToPx(hour);
               const cy = yToPx(kw, maxKw);
               const isSelected = selectedHour === hour;
-              const isHoveredOrActive = activeHour === hour;
 
               return (
                 <g key={hour}>
@@ -491,40 +690,42 @@ export function DailyCurveEditor({
                     data-hour={hour}
                     cx={cx}
                     cy={cy}
-                    r={editMode === 'smooth' ? 8 : 7}
-                    fill={editMode === 'smooth' ? primary : card}
-                    stroke={editMode === 'smooth' ? card : primary}
+                    r={visibleSpan > 48 ? (selectedHour === hour ? 5 : 3) : 8}
+                    fill={primary}
+                    stroke={card}
                     strokeWidth={isSelected ? 3.5 : 2}
                     className={cn(
                       'cursor-ns-resize focus:outline-none transition-transform',
-                      isSelected && 'drop-shadow-sm',
-                      editMode === 'smooth' ? 'drop-shadow-sm' : 'drop-shadow-none'
+                      'drop-shadow-sm'
                     )}
-                    tabIndex={0}
+                    tabIndex={selectedHour === hour ? 0 : -1}
                     role="slider"
-                    aria-label={`Potência às ${hour}h`}
+                    aria-label={`Potência às ${pointCount === 24 ? `${hour}h` : formatTime(hour)}`}
                     aria-valuemin={0}
                     aria-valuemax={maxKw}
                     aria-valuenow={kw}
                     aria-valuetext={`${kw.toFixed(1)} kW`}
-                    onPointerDown={(event) => handlePointerDown(hour, event)}
+                    onPointerDown={(event) => {handlePointerDown(hour, event);}}
                     onPointerMove={(event) => handlePointerMove(hour, event)}
                     onPointerUp={handlePointerUp}
                     onPointerCancel={handlePointerUp}
                     onKeyDown={(event) => handleKeyDown(hour, event)}
-                    onClick={() => setSelectedHour(hour)}
+                    onClick={(event) => {event.currentTarget.focus(); selectSeries('consumption'); setSelectedHour(hour);}}
                     onFocus={() => {
+                      selectSeries('consumption');
+                      setFocusedPoint({ series: 'consumption', hour });
                       setActiveHour(hour);
                       setSelectedHour(hour);
                     }}
                     onBlur={() => {
+                      setFocusedPoint(null);
                       if (smoothInteractionRef.current?.hour === hour) smoothInteractionRef.current = null;
                       setActiveHour((current) => (current === hour ? null : current));
                     }}
                   />
 
                   {/* Tooltip badge for active/selected point */}
-                  {(isSelected || isHoveredOrActive) && (() => {
+                  {!solarSelected && focusedPoint?.series === 'consumption' && focusedPoint.hour === hour && (() => {
                     const badgeWidth = 108;
                     const badgeHeight = 20;
                     const halfWidth = badgeWidth / 2;
@@ -554,7 +755,7 @@ export function DailyCurveEditor({
                           fill={card}
                           className="select-none tabular-nums"
                         >
-                          {String(hour).padStart(2, '0')}:00 · {kw.toFixed(1)} kW
+                          {formatTime(hour)} · {kw.toFixed(1)} kW
                         </text>
                       </g>
                     );
@@ -562,119 +763,15 @@ export function DailyCurveEditor({
                 </g>
               );
             })}
+            </g>
+            </g>
           </svg>
-
-          {/* Opção Suavizar no corpo do gráfico */}
-          <div className="absolute right-2.5 top-2.5 z-10">
-            <button
-              type="button"
-              aria-pressed={editMode === 'smooth'}
-              onClick={() => {
-                smoothInteractionRef.current = null;
-                setEditMode((prev) => (prev === 'smooth' ? 'normal' : 'smooth'));
-              }}
-              className={cn(
-                'flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition border shadow-xs',
-                editMode === 'smooth'
-                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                  : 'bg-background/90 hover:bg-background text-muted-foreground hover:text-foreground border-border/80 backdrop-blur-xs'
-              )}
-              title={
-                editMode === 'smooth'
-                  ? 'Desativar suavização (ajuste ponto a ponto)'
-                  : 'Ativar suavização (distribui ajuste para vizinhos)'
-              }
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Suavizar</span>
-            </button>
           </div>
-        </div>
 
-          {/* Bottom Bar: Instructions and Discrete Clear Action */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-2">
-              <span>Arraste os pontos ou edite o valor ao lado.</span>
-              {onSaveAsCustomModel && (
-                isSavingModel ? (
-                  <div className="flex items-center gap-1.5 bg-background p-1 rounded-md border border-primary/40">
-                    <Input
-                      type="text"
-                      placeholder="Nome do modelo..."
-                      value={modelNameInput}
-                      onChange={(e) => setModelNameInput(e.target.value)}
-                      className="h-6 w-36 text-xs px-2"
-                      autoFocus
-                    />
-                    <Button
-                      type="button"
-                      size="xs"
-                      className="h-6 px-2 text-[11px]"
-                      disabled={!modelNameInput.trim()}
-                      onClick={() => {
-                        const targetWeekday = isDualPattern ? (weekdayKw ?? localKw) : localKw;
-                        const targetWeekend = isDualPattern ? (weekendKw ?? localKw) : localKw;
-                        onSaveAsCustomModel(modelNameInput.trim(), targetWeekday, targetWeekend);
-                        setIsSavingModel(false);
-                        setModelNameInput('');
-                        setSavedSuccess(true);
-                        setTimeout(() => setSavedSuccess(false), 3000);
-                      }}
-                    >
-                      Salvar
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      className="h-6 px-1.5 text-[11px]"
-                      onClick={() => {
-                        setIsSavingModel(false);
-                        setModelNameInput('');
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsSavingModel(true)}
-                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs"
-                  >
-                    {savedSuccess ? (
-                      <>
-                        <Check className="h-3 w-3 text-emerald-600" />
-                        <span className="text-emerald-600">Modelo salvo!</span>
-                      </>
-                    ) : (
-                      <>
-                        <BookmarkPlus className="h-3 w-3" />
-                        <span>Salvar como modelo</span>
-                      </>
-                    )}
-                  </button>
-                )
-              )}
-            </div>
-
-            {undoKw ? (
-              <div className="flex items-center gap-1.5 text-xs">
-                <span>Curva zerada.</span>
-                <Button type="button" variant="link" size="xs" onClick={handleUndo} className="h-auto p-0 font-semibold text-primary">
-                  <Undo2 className="h-3 w-3 mr-1" /> Desfazer
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleClearCurve}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
-              >
-                Limpar curva
-              </button>
-            )}
-          </div>
+          {/* Chart interaction instructions */}
+          <p className="px-1 text-xs text-muted-foreground">
+            Arraste os pontos para editar; o fundo para navegar. Role para zoom; duplo clique para ver o dia.
+          </p>
         </div>
 
         {/* Right Column: Lateral Numeric Editor Panel */}
@@ -690,21 +787,21 @@ export function DailyCurveEditor({
                 variant="outline"
                 size="icon"
                 className="h-8 w-8 shrink-0 bg-background"
-                onClick={() => setSelectedHour((h) => (h + HOURS_PER_DAY - 1) % HOURS_PER_DAY)}
-                aria-label="Hora anterior"
+                onClick={() => selectPoint((selectedHour + pointCount - 1) % pointCount)}
+                aria-label={pointCount === 24 ? 'Hora anterior' : 'Intervalo anterior'}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
               <Select
                 id="select-hour-dropdown"
                 value={String(selectedHour)}
-                onChange={(e) => setSelectedHour(Number(e.target.value))}
+                onChange={(e) => selectPoint(Number(e.target.value))}
                 aria-label="Horário selecionado"
                 className="h-8 text-xs font-semibold text-foreground bg-background"
               >
-                {Array.from({ length: HOURS_PER_DAY }, (_, i) => (
+                {Array.from({ length: pointCount }, (_, i) => (
                   <option key={i} value={i}>
-                    {`${String(i).padStart(2, '0')}:00`}
+                    {formatTime(i)}
                   </option>
                 ))}
               </Select>
@@ -713,28 +810,31 @@ export function DailyCurveEditor({
                 variant="outline"
                 size="icon"
                 className="h-8 w-8 shrink-0 bg-background"
-                onClick={() => setSelectedHour((h) => (h + 1) % HOURS_PER_DAY)}
-                aria-label="Próxima hora"
+                onClick={() => selectPoint((selectedHour + 1) % pointCount)}
+                aria-label={pointCount === 24 ? 'Próxima hora' : 'Próximo intervalo'}
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
 
+          {solarSelected && <p className="text-xs text-muted-foreground">{onSolarChange ? "Edite a geração arrastando os pontos ou informando a potência." : "Consulte ou ajuste a origem da geração na etapa Solar FV."}</p>}
           {/* Active Power Numeric Input */}
           <div className="space-y-1">
             <label htmlFor="active-power-input" className="text-[11px] font-medium text-muted-foreground">
-              Potência
+              {solarSelected ? 'Geração FV' : 'Potência'}
             </label>
             <div className="relative">
               <Input
                 id="active-power-input"
-                aria-label="Potência ativa"
+                aria-label={solarSelected ? 'Geração FV selecionada' : 'Potência ativa'}
+                readOnly={solarSelected && !onSolarChange}
                 type="number"
                 min={0}
                 step={0.5}
                 value={currentSelectedKw}
                 onChange={(e) => {
+                  if (solarSelected && !onSolarChange) return;
                   const parsed = parseFloat(e.target.value);
                   if (!isNaN(parsed)) {
                     commitHourImmediately(selectedHour, Math.max(0, parsed));

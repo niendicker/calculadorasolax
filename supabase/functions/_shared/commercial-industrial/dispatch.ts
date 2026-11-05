@@ -185,7 +185,7 @@ function decideStrategy(
       // `target - loadKw`, conflating the Peak Shaving target with the
       // contracted-demand charge ceiling — the two are now separate
       // concepts (section 5).
-      if (period === 'offPeak') return { chargeKw: bess.totalPowerKw, dischargeKw: 0 };
+      if (period === 'offPeak') return { chargeKw: bess.maxChargePowerKw ?? bess.totalPowerKw, dischargeKw: 0 };
       return { chargeKw: 0, dischargeKw: 0 };
     }
 
@@ -200,7 +200,7 @@ function decideStrategy(
       // explicit requirement, not an implementation detail hidden behind a
       // later clamp.
       return period === 'offPeak'
-        ? { chargeKw: bess.totalPowerKw, dischargeKw: 0 }
+        ? { chargeKw: bess.maxChargePowerKw ?? bess.totalPowerKw, dischargeKw: 0 }
         : { chargeKw: 0, dischargeKw: Math.min(loadKw, bess.totalPowerKw) };
 
     case 'HYBRID': {
@@ -233,7 +233,7 @@ function decideStrategy(
         }
         return { chargeKw: 0, dischargeKw: 0 };
       }
-      return { chargeKw: bess.totalPowerKw, dischargeKw: 0 };
+      return { chargeKw: bess.maxChargePowerKw ?? bess.totalPowerKw, dischargeKw: 0 };
     }
   }
 }
@@ -271,7 +271,8 @@ interface PeakWindowSpan {
  * 3.1 (310 -> 190 -> 80 -> 0 kWh). */
 export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindow, bess: BessRuntimeParams): number[] {
   const intervalHours = curve.resolutionMinutes / 60;
-  const dischargeEfficiency = Math.sqrt(bess.efficiencyPercent / 100);
+
+  const dischargeEfficiency = (bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100));
   const usefulCapacityKwh = (bess.totalCapacityKwh * (bess.socMaxPercent - bess.socMinPercent)) / 100;
 
   const periods = curve.points.map((point) => classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow));
@@ -338,8 +339,14 @@ export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindo
 export function runDispatch(input: DispatchInput): DispatchPoint[] {
   const { curve, bess, strategy, tariffWindow, peakShavingTargetKw, contractedDemandKw, solar, generator } = input;
   const intervalHours = curve.resolutionMinutes / 60;
-  const chargeEfficiency = Math.sqrt(bess.efficiencyPercent / 100);
-  const dischargeEfficiency = chargeEfficiency;
+  const importedSolar = solar?.enabled && solar.generationCurve
+    ? new Map(solar.generationCurve.points.map((point) => [Date.parse(point.timestamp), point.powerKw]))
+    : null;
+  if (importedSolar && (solar!.generationCurve!.resolutionMinutes !== curve.resolutionMinutes || curve.points.some((point) => !importedSolar.has(Date.parse(point.timestamp))))) {
+    throw new Error('A geração importada deve cobrir os horários do consumo com o mesmo intervalo.');
+  }
+  const chargeEfficiency = bess.chargeEfficiencyPercent !== undefined ? bess.chargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
+  const dischargeEfficiency = bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
 
   // Only Hybrid needs the lookahead reserve — cheap to compute (curve is
   // capped at 672 points) but skipped entirely for the other strategies.
@@ -354,7 +361,7 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
 
     // 1. Solar generation at this interval
     const solarGenerationKw = solar?.enabled
-      ? (solar.generationPoints?.[index] ?? estimateSolarGenerationKw(solar, minuteOfDay, curve.resolutionMinutes))
+      ? (importedSolar ? importedSolar.get(Date.parse(point.timestamp))! : solar.generationPoints?.[index] ?? estimateSolarGenerationKw(solar, minuteOfDay, curve.resolutionMinutes))
       : 0;
 
     // Net load seen by the site before BESS
@@ -369,10 +376,10 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
     let dischargeKw = 0;
 
     // 2. BESS Charging: prioritize solar surplus if enabled, or grid charging
-    if (solarSurplusKw > 0 && solar?.prioritizeBessCharging && bess.totalPowerKw > 0) {
+    if (solarSurplusKw > 0 && solar?.prioritizeBessCharging && (bess.maxChargePowerKw ?? bess.totalPowerKw) > 0) {
       const maxStorableEnergyKwh = ((bess.socMaxPercent - socPercent) / 100) * bess.totalCapacityKwh;
       const socLimitedChargePowerKw = maxStorableEnergyKwh > 0 ? maxStorableEnergyKwh / (intervalHours * chargeEfficiency) : 0;
-      chargeKw = Math.min(solarSurplusKw, bess.totalPowerKw, socLimitedChargePowerKw);
+      chargeKw = Math.min(solarSurplusKw, bess.maxChargePowerKw ?? bess.totalPowerKw, socLimitedChargePowerKw);
     } else if (decision.chargeKw > 0) {
       const maxStorableEnergyKwh = ((bess.socMaxPercent - socPercent) / 100) * bess.totalCapacityKwh;
       const socLimitedChargePowerKw = maxStorableEnergyKwh > 0 ? maxStorableEnergyKwh / (intervalHours * chargeEfficiency) : 0;
@@ -380,7 +387,7 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
         siteLoadKw: netLoadAfterSolarKw,
         requestedChargeKw: decision.chargeKw,
         contractedDemandKw,
-        bessMaxChargePowerKw: bess.totalPowerKw,
+        bessMaxChargePowerKw: bess.maxChargePowerKw ?? bess.totalPowerKw,
         socLimitedChargePowerKw,
       });
     } else if (decision.dischargeKw > 0) {
@@ -501,8 +508,8 @@ export function checkDispatchInvariants(
   const intervalHours = resolutionMinutes / 60;
   const socMinKwh = (bess.socMinPercent / 100) * bess.totalCapacityKwh;
   const socMaxKwh = (bess.socMaxPercent / 100) * bess.totalCapacityKwh;
-  const chargeEfficiency = Math.sqrt(bess.efficiencyPercent / 100);
-  const dischargeEfficiency = chargeEfficiency;
+  const chargeEfficiency = bess.chargeEfficiencyPercent !== undefined ? bess.chargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
+  const dischargeEfficiency = bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
 
   let previousSocKwh: number | null = null;
 
@@ -510,7 +517,7 @@ export function checkDispatchInvariants(
     if (point.socKwh < socMinKwh - epsilon || point.socKwh > socMaxKwh + epsilon) {
       violations.push(`interval ${index}: socKwh=${point.socKwh} outside [${socMinKwh}, ${socMaxKwh}]`);
     }
-    if (point.chargeKw < -epsilon || point.chargeKw > bess.totalPowerKw + epsilon) {
+    if (point.chargeKw < -epsilon || point.chargeKw > (bess.maxChargePowerKw ?? bess.totalPowerKw) + epsilon) {
       violations.push(`interval ${index}: chargeKw=${point.chargeKw} outside [0, ${bess.totalPowerKw}]`);
     }
     if (point.dischargeKw < -epsilon || point.dischargeKw > bess.totalPowerKw + epsilon) {

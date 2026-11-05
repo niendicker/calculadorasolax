@@ -170,4 +170,19 @@ describe('DateRangePicker', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
   });
+  it('keeps keyboard focus inside the calendar and restores it on Escape', () => {
+    render(<DateRangePicker startDate="2026-01-01" endDate="2026-01-07" onChange={vi.fn()} />);
+    const trigger = screen.getByRole('button', { name: /Selecionar período/ });
+    fireEvent.click(trigger);
+    const first = screen.getByRole('button', { name: 'Mês anterior' });
+    const last = screen.getByRole('button', { name: 'Aplicar' });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+    expect(last).toHaveFocus();
+    fireEvent.keyDown(last, { key: 'Tab' });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Escape' });
+    expect(trigger).toHaveFocus();
+  });
+
 });

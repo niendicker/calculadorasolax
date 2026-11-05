@@ -5,24 +5,24 @@
 // 1. Title "Curva de carga", subtitle, and "Importar CSV" action.
 // 3. Compact configuration strip (periodStart, periodEnd, resolution segmented, timezone).
 // 4. Panel "Editor do perfil diário" with base profile select, 2-column layout (chart + lateral editor).
-// 5. Panel "Prévia da semana" with 4 indicators strip, ~180px weekly chart with weekend shading,
+// 5. Panel "Prévia da semana" with 4 indicators strip, 235px weekly chart with weekend shading,
 //    contracted demand line, and bottom status banner.
 // 6. Footer with navigation buttons and measurements count.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp, Sparkles, X } from 'lucide-react';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
-import { parseLoadCurveCsv, summarizeLoadCurve } from '@/supabase/functions/_shared/commercial-industrial/load-curve';
 import {
   buildManualDayCurve,
+  toQuarterHourPattern,
   DAILY_CURVE_PRESETS,
-  type DailyCurvePreset,
 } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
 import { LOAD_CURVE_MAX_POINTS, type CommercialIndustrialOptions, type LoadCurve, type LoadCurvePoint, type LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { CiEnergyImport, curvesAlign } from './CiEnergyImport';
 import { DailyCurveEditor } from './DailyCurveEditor';
+import { buildDailySolarProfile, buildSolarPreviewPoints, updateDailySolarProfile } from './ci-daily-solar-profile';
 import { DateRangePicker } from './DateRangePicker';
 
 export const BRAZIL_TIMEZONES = [
@@ -32,7 +32,6 @@ export const BRAZIL_TIMEZONES = [
 
 export type BrazilTimezone = (typeof BRAZIL_TIMEZONES)[number]['value'];
 
-const resolutionOptions: LoadCurveResolutionMinutes[] = [15, 30, 60];
 type CurveSourceMode = 'csv' | 'manual';
 type DailyPattern = 'weekday' | 'weekend';
 
@@ -40,7 +39,7 @@ type DailyPattern = 'weekday' | 'weekend';
 // that entirely out of the server render.
 const LoadCurveChart = dynamic(() => import('./LoadCurveChart').then((mod) => mod.LoadCurveChart), {
   ssr: false,
-  loading: () => <div className="h-[180px] w-full animate-pulse rounded-lg bg-muted" />,
+  loading: () => <div className="h-[235px] w-full animate-pulse rounded-lg bg-muted" />,
 });
 
 function todayIsoDate(): string {
@@ -54,6 +53,7 @@ function addDaysIsoDate(isoDate: string, days: number): string {
 }
 
 const CUSTOM_PRESETS_STORAGE_KEY = 'solax_ci_custom_daily_profiles';
+const MAX_CUSTOM_PRESETS = 5;
 
 interface StoredCustomPreset {
   id: string;
@@ -66,39 +66,24 @@ function loadCustomPresetsFromStorage(): StoredCustomPreset[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function saveCustomPresetToStorage(preset: StoredCustomPreset) {
-  if (typeof window === 'undefined') return;
+function saveCustomPresetToStorage(preset: StoredCustomPreset): StoredCustomPreset[] | null {
+  if (typeof window === 'undefined') return null;
   try {
     const current = loadCustomPresetsFromStorage();
+    if (current.length >= MAX_CUSTOM_PRESETS) return null;
     const updated = [...current.filter((p) => p.id !== preset.id), preset];
     localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(updated));
+    return updated;
   } catch {
-    // Ignore storage quota or disabled errors
+    return null;
   }
-}
-
-function detectCsvResolution(text: string): LoadCurveResolutionMinutes {
-  const lines = text.split(/\r\n|\r|\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 3) return 15;
-  const delimiter = lines[0].includes(';') ? ';' : ',';
-  const headers = lines[0].split(delimiter).map((h) => h.trim().toLowerCase().replace(/[^a-z]/g, ''));
-  const tsIdx = headers.findIndex((h) => ['timestamp', 'data', 'datahora', 'datetime', 'date'].includes(h));
-  if (tsIdx === -1) return 15;
-  const t1 = Date.parse(lines[1].split(delimiter)[tsIdx]?.trim());
-  const t2 = Date.parse(lines[2].split(delimiter)[tsIdx]?.trim());
-  if (Number.isFinite(t1) && Number.isFinite(t2)) {
-    const diffMinutes = Math.round(Math.abs(t2 - t1) / 60000);
-    if (diffMinutes >= 45 && diffMinutes <= 90) return 60;
-    if (diffMinutes >= 20 && diffMinutes <= 40) return 30;
-    if (diffMinutes >= 5 && diffMinutes <= 20) return 15;
-  }
-  return 15;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -134,9 +119,9 @@ export function CiLoadCurvePanel({
   const hasManualConfig = Boolean(
     initialManualConfig &&
       Array.isArray(initialManualConfig.weekdayKw) &&
-      initialManualConfig.weekdayKw.length === 24 &&
+      [24, 96].includes(initialManualConfig.weekdayKw.length) &&
       Array.isArray(initialManualConfig.weekendKw) &&
-      initialManualConfig.weekendKw.length === 24
+      [24, 96].includes(initialManualConfig.weekendKw.length)
   );
   const initialTimezone =
     existing?.timezone === 'America/Manaus' || existing?.timezone === 'America/Cuiaba'
@@ -147,8 +132,7 @@ export function CiLoadCurvePanel({
   const [timezone, setTimezone] = useState<string>(initialTimezone);
   const [periodStart, setPeriodStart] = useState(existing?.periodStart ?? todayIsoDate());
   const [periodEnd, setPeriodEnd] = useState(existing?.periodEnd ?? addDaysIsoDate(todayIsoDate(), 6));
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [csvText, setCsvText] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(existing?.source === 'csv' ? 'Curva salva' : null);
 
   const [isCurveCleared, setIsCurveCleared] = useState(false);
   const [sourceMode, setSourceMode] = useState<CurveSourceMode>(existing?.source === 'csv' ? 'csv' : 'manual');
@@ -156,42 +140,39 @@ export function CiLoadCurvePanel({
     hasManualConfig ? (initialManualConfig!.presetId ?? 'custom') : 'comercio'
   );
   const [weekdayKw, setWeekdayKw] = useState<number[]>(
-    hasManualConfig ? initialManualConfig!.weekdayKw.slice() : DAILY_CURVE_PRESETS[0].weekdayKw.slice()
+    hasManualConfig ? toQuarterHourPattern(initialManualConfig!.weekdayKw) : toQuarterHourPattern(DAILY_CURVE_PRESETS[0].weekdayKw)
   );
   const [weekendKw, setWeekendKw] = useState<number[]>(
-    hasManualConfig ? initialManualConfig!.weekendKw.slice() : DAILY_CURVE_PRESETS[0].weekendKw.slice()
+    hasManualConfig ? toQuarterHourPattern(initialManualConfig!.weekendKw) : toQuarterHourPattern(DAILY_CURVE_PRESETS[0].weekendKw)
   );
   const [activePattern, setActivePattern] = useState<DailyPattern>('weekday');
   const [customPresets, setCustomPresets] = useState<StoredCustomPreset[]>([]);
+  const [modelSaveError, setModelSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setCustomPresets(loadCustomPresetsFromStorage());
   }, []);
 
   function handleSaveAsCustomModel(name: string, newWeekdayKw: number[], newWeekendKw: number[]) {
+    if (customPresets.length >= MAX_CUSTOM_PRESETS) return false;
     const newPreset: StoredCustomPreset = {
       id: `custom-${Date.now()}`,
       label: name,
       weekdayKw: newWeekdayKw.slice(),
       weekendKw: newWeekendKw.slice(),
     };
-    saveCustomPresetToStorage(newPreset);
-    setCustomPresets((prev) => [...prev.filter((p) => p.id !== newPreset.id), newPreset]);
+    const saved = saveCustomPresetToStorage(newPreset);
+    if (!saved) {
+      const current = loadCustomPresetsFromStorage();
+      setCustomPresets(current);
+      setModelSaveError(current.length >= MAX_CUSTOM_PRESETS ? null : 'Não foi possível salvar o modelo neste navegador.');
+      return false;
+    }
+    setCustomPresets(saved);
+    setModelSaveError(null);
     setSelectedPresetId(newPreset.id);
+    return true;
   }
-
-  // Derive CSV parsed curve
-  const parseResult = useMemo(() => {
-    if (csvText === null) return null;
-    return parseLoadCurveCsv(csvText, {
-      resolutionMinutes,
-      timezone,
-      periodStart,
-      periodEnd,
-      profileBasis: 'representative_period',
-    });
-  }, [csvText, resolutionMinutes, timezone, periodStart, periodEnd]);
-  const parsedCurve = parseResult?.ok ? parseResult.curve : null;
 
   // Derive manual curve
   const manualResult = useMemo(() => {
@@ -210,23 +191,28 @@ export function CiLoadCurvePanel({
     isCurveCleared
       ? null
       : sourceMode === 'csv'
-      ? (parsedCurve ?? (existing?.source === 'csv' ? existing : null))
+      ? (existing?.source === 'csv' ? existing : null)
       : (manualCurve ?? (existing?.source === 'manual' ? existing : null));
 
-  const errors =
-    sourceMode === 'csv'
-      ? (parseResult && !parseResult.ok ? parseResult.errors : [])
-      : (manualResult && !manualResult.ok ? manualResult.errors : []);
-  const warnings = sourceMode === 'csv' && parseResult?.ok ? parseResult.warnings : [];
+  const dailySolarKw = useMemo(() => buildDailySolarProfile(ciOptions.solar, activePattern, timezone, activeCurve), [ciOptions.solar, activePattern, timezone, activeCurve]);
 
-  // Emit CSV curve update
+  const weeklySolarPoints = useMemo(() => activeCurve ? buildSolarPreviewPoints(ciOptions.solar, activeCurve) : undefined, [ciOptions.solar, activeCurve]);
+
+  // Reproject edited PV patterns when the consumption period/resolution changes.
   useEffect(() => {
-    if (sourceMode === 'csv' && parsedCurve && !isCurveCleared) {
-      onChange({ loadCurve: parsedCurve });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [csvText, resolutionMinutes, timezone, periodStart, periodEnd, sourceMode, isCurveCleared]);
+    const solar = ciOptions.solar;
+    if (!activeCurve || !solar?.enabled || solar.generationCurve?.source !== 'manual' || !solar.generationCurve.manualConfig || !weeklySolarPoints) return;
+    const previous = solar.generationCurve;
+    if (previous.resolutionMinutes === activeCurve.resolutionMinutes && previous.timezone === activeCurve.timezone && previous.points.length === weeklySolarPoints.length && previous.points.every((point, index) => point.timestamp === weeklySolarPoints[index].timestamp && point.powerKw === weeklySolarPoints[index].powerKw)) return;
+    onChange({ solar: { ...solar, generationCurve: { ...previous, periodStart: activeCurve.periodStart, periodEnd: activeCurve.periodEnd, timezone: activeCurve.timezone, resolutionMinutes: activeCurve.resolutionMinutes, points: weeklySolarPoints.map(point => ({ ...point, powerKw: point.powerKw ?? 0 })) } } });
+  }, [activeCurve, ciOptions.solar, weeklySolarPoints, onChange]);
 
+  function handleUpdateSolarKw(values: number[]) {
+    if (!ciOptions.solar?.enabled || !activeCurve) return;
+    onChange({ solar: updateDailySolarProfile(ciOptions.solar, activeCurve, activePattern, values) });
+  }
+
+  const errors = manualResult && !manualResult.ok ? manualResult.errors : [];
   // Emit manual curve update
   const isInitialManualMountRef = useRef(true);
   useEffect(() => {
@@ -240,21 +226,6 @@ export function CiLoadCurvePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceMode, weekdayKw, weekendKw, resolutionMinutes, timezone, periodStart, periodEnd, selectedPresetId, isCurveCleared]);
 
-  function handleFile(file: File | undefined) {
-    if (!file) return;
-    setFileName(file.name);
-    setSourceMode('csv');
-    setIsCurveCleared(false);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      const detectedRes = detectCsvResolution(text);
-      setResolutionMinutes(detectedRes);
-      setCsvText(text);
-    };
-    reader.readAsText(file);
-  }
-
   function handleSelectPreset(presetId: string) {
     setIsCurveCleared(false);
     if (presetId === 'custom') {
@@ -264,21 +235,19 @@ export function CiLoadCurvePanel({
     const standardPreset = DAILY_CURVE_PRESETS.find((p) => p.id === presetId);
     if (standardPreset) {
       setSelectedPresetId(standardPreset.id);
-      setWeekdayKw(standardPreset.weekdayKw.slice());
-      setWeekendKw(standardPreset.weekendKw.slice());
+      setWeekdayKw(toQuarterHourPattern(standardPreset.weekdayKw));
+      setWeekendKw(toQuarterHourPattern(standardPreset.weekendKw));
       setSourceMode('manual');
       setFileName(null);
-      setCsvText(null);
       return;
     }
     const customPreset = customPresets.find((p) => p.id === presetId);
     if (customPreset) {
       setSelectedPresetId(customPreset.id);
-      setWeekdayKw(customPreset.weekdayKw.slice());
-      setWeekendKw(customPreset.weekendKw.slice());
+      setWeekdayKw(toQuarterHourPattern(customPreset.weekdayKw));
+      setWeekendKw(toQuarterHourPattern(customPreset.weekendKw));
       setSourceMode('manual');
       setFileName(null);
-      setCsvText(null);
     }
   }
 
@@ -286,6 +255,7 @@ export function CiLoadCurvePanel({
     setIsCurveCleared(false);
     setSelectedPresetId('custom');
     setSourceMode('manual');
+    setResolutionMinutes(15);
     if (pattern === 'weekday') {
       setWeekdayKw(kw);
     } else {
@@ -296,7 +266,6 @@ export function CiLoadCurvePanel({
   function handleClearCurve() {
     setIsCurveCleared(true);
     setFileName(null);
-    setCsvText(null);
     onChange({ loadCurve: null });
   }
 
@@ -329,25 +298,12 @@ export function CiLoadCurvePanel({
       {/* 1. Título Curva de carga, subtítulo e ação secundária Importar CSV */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-[27px]">Curva de carga</h1>
+          <h2 className="text-base font-semibold text-foreground">Curva de carga</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Defina o perfil de consumo e confira a semana representativa.
+            Importe consumo e geração de até 7 dias ou edite o perfil de consumo a cada 15 minutos.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'cursor-pointer gap-1.5 rounded-lg text-xs')}>
-            <FileUp className="h-4 w-4" aria-hidden="true" />
-            <span>{fileName ? 'Trocar arquivo' : 'Importar CSV'}</span>
-            <input
-              className="sr-only"
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => {
-                handleFile(event.target.files?.[0]);
-                event.target.value = '';
-              }}
-            />
-          </label>
           <Button
             type="button"
             variant="ghost"
@@ -373,6 +329,14 @@ export function CiLoadCurvePanel({
         </div>
       </div>
 
+      <CiEnergyImport ciOptions={ciOptions} onChange={onChange} onImported={(result, name) => {
+        if (!result.consumption) return;
+        setSourceMode('csv'); setIsCurveCleared(false); setFileName(name);
+        setResolutionMinutes(result.consumption.resolutionMinutes);
+        setTimezone(result.consumption.timezone);
+        setPeriodStart(result.consumption.periodStart); setPeriodEnd(result.consumption.periodEnd);
+      }} />
+
       {/* Indicador de curva importada ativa */}
       {sourceMode === 'csv' && fileName && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-2.5 text-xs text-foreground">
@@ -384,27 +348,7 @@ export function CiLoadCurvePanel({
             <span className="text-muted-foreground">({pointCount} pontos)</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground font-medium">Resolução:</span>
-              <div className="grid grid-cols-3 gap-0.5 rounded-md bg-background p-0.5 border border-border/60">
-                {resolutionOptions.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={resolutionMinutes === option}
-                    onClick={() => setResolutionMinutes(option)}
-                    className={cn(
-                      'flex h-6 items-center justify-center rounded px-2 text-[11px] font-medium transition',
-                      resolutionMinutes === option
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {option} min
-                  </button>
-                ))}
-              </div>
-            </div>
+            <span>Intervalo: {resolutionMinutes} min · até 7 dias</span>
             <Button
               type="button"
               variant="ghost"
@@ -412,7 +356,6 @@ export function CiLoadCurvePanel({
               onClick={() => {
                 setSourceMode('manual');
                 setFileName(null);
-                setCsvText(null);
                 setResolutionMinutes(15);
               }}
               className="text-muted-foreground hover:text-foreground"
@@ -425,7 +368,7 @@ export function CiLoadCurvePanel({
 
       {/* Mensagens de erro e avisos */}
       {errors.length > 0 && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3.5 text-xs text-destructive">
+        <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-3.5 text-xs text-destructive">
           <p className="flex items-center gap-1.5 font-semibold text-sm">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{sourceMode === 'csv' ? 'Não foi possível importar o arquivo' : 'Não foi possível processar a curva'}</span>
@@ -438,16 +381,7 @@ export function CiLoadCurvePanel({
         </div>
       )}
 
-      {warnings.length > 0 && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3.5 text-xs text-amber-700 dark:text-amber-300">
-          <p className="font-semibold">Curva importada com avisos</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
-            {warnings.map((msg) => (
-              <li key={msg}>{msg}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {ciOptions.solar?.enabled && ciOptions.solar.generationCurve && activeCurve && !curvesAlign(activeCurve, ciOptions.solar.generationCurve) && <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-300">A geração importada não cobre todos os horários deste consumo. Importe consumo e geração com o mesmo período e intervalo antes de calcular.</p>}
 
       {/* 3. Faixa compacta de configuração (Período unificado, Fuso horário, Resolução) */}
       <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-none">
@@ -455,21 +389,22 @@ export function CiLoadCurvePanel({
           {/* Seletor de período com dropdown de calendário personalizado */}
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted-foreground">Período</span>
-            <DateRangePicker
+            {sourceMode === 'csv' ? <p className="flex h-8 items-center text-xs">{periodStart} a {periodEnd} · período do arquivo</p> : <DateRangePicker
               startDate={periodStart}
               endDate={periodEnd}
               onChange={({ startDate, endDate }) => {
                 setPeriodStart(startDate);
                 setPeriodEnd(endDate);
               }}
-              maxDays={Math.min(7, Math.floor(LOAD_CURVE_MAX_POINTS / ((24 * 60) / resolutionMinutes)))}
-            />
+              maxDays={7}
+            />}
           </div>
 
           {/* Fuso horário */}
           <label className="flex flex-col gap-1 text-xs font-medium">
             <span className="text-muted-foreground">Fuso horário</span>
             <Select
+              disabled={sourceMode === 'csv'}
               value={timezone}
               onChange={(event) => setTimezone(event.target.value)}
               aria-label="Fuso horário"
@@ -494,7 +429,7 @@ export function CiLoadCurvePanel({
             <div className="flex h-8 items-center justify-between rounded-lg border border-border/80 bg-muted/30 px-3 text-xs">
               <span className="font-semibold text-foreground">{resolutionMinutes} min</span>
               <span className="text-[11px] text-muted-foreground">
-                {sourceMode === 'csv' ? 'Do arquivo CSV' : 'Interpolação contínua'}
+                {sourceMode === 'csv' ? 'Do arquivo CSV' : 'Pontos de 15 minutos'}
               </span>
             </div>
           </div>
@@ -506,7 +441,7 @@ export function CiLoadCurvePanel({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
           <div>
             <h2 className="text-[15px] font-semibold text-foreground">Editor do perfil diário</h2>
-            <p className="text-xs text-muted-foreground">Ajuste o consumo típico de 24 horas por faixa horária.</p>
+            <p className="text-xs text-muted-foreground">{sourceMode === 'csv' ? 'Editar este perfil substitui o consumo importado por um padrão diário de 15 minutos.' : 'Ajuste o consumo típico de 24 horas em intervalos de 15 minutos.'}</p>
           </div>
           <div className="flex items-center gap-2">
             <label htmlFor="base-profile-select" className="text-xs font-medium text-muted-foreground whitespace-nowrap">
@@ -539,13 +474,18 @@ export function CiLoadCurvePanel({
         </div>
 
         <DailyCurveEditor
+          solarKw={dailySolarKw}
+          onSolarChange={activeCurve ? handleUpdateSolarKw : undefined}
+          solarDescription={ciOptions.solar?.generationCurve?.source === 'manual' ? 'Perfil FV personalizado · edite os pontos' : ciOptions.solar?.generationCurve || ciOptions.solar?.generationPoints ? 'Média por horário dos dias selecionados · dados importados' : 'Geração estimada em Solar FV'}
           weekdayKw={weekdayKw}
           weekendKw={weekendKw}
           activePattern={activePattern}
           onPatternChange={setActivePattern}
           onUpdatePatternKw={handleUpdatePatternKw}
           onSaveAsCustomModel={handleSaveAsCustomModel}
+          saveModelLimitReached={customPresets.length >= MAX_CUSTOM_PRESETS}
         />
+        {modelSaveError && <p role="alert" className="text-xs text-destructive">{modelSaveError}</p>}
       </div>
 
       {/* 5. Painel Prévia da semana */}
@@ -573,6 +513,7 @@ export function CiLoadCurvePanel({
         {activeCurve ? (
           <LoadCurveChart
             points={activeCurve.points}
+            generationPoints={weeklySolarPoints}
             resolutionMinutes={activeCurve.resolutionMinutes}
             contractedDemandKw={ciOptions.tariff?.contractedDemandKw}
           />

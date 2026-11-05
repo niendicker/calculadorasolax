@@ -30,7 +30,7 @@ import type {
 export type BessProductSpec = Pick<
   CiBessProduct,
   'modulePowerKw' | 'moduleCapacityKwh' | 'efficiencyPercent' | 'socMinPercent' | 'socMaxPercent'
->;
+> & { modulePeakPowerKw?: number; moduleChargePowerKw?: number; chargeEfficiencyPercent?: number; dischargeEfficiencyPercent?: number };
 
 /** Resolves a SizingConfig into the explicit list of module counts to
  * evaluate — "fixed" is exactly the one requested count, "auto" is every
@@ -141,6 +141,9 @@ function evaluateModuleCount(
     : product.socMinPercent;
 
   const bess: BessRuntimeParams = {
+    maxChargePowerKw: (product.moduleChargePowerKw ?? product.modulePowerKw) * moduleCount,
+    chargeEfficiencyPercent: product.chargeEfficiencyPercent,
+    dischargeEfficiencyPercent: product.dischargeEfficiencyPercent,
     totalPowerKw: product.modulePowerKw * moduleCount,
     totalCapacityKwh: product.moduleCapacityKwh * moduleCount,
     socMinPercent: effectiveSocMinPercent,

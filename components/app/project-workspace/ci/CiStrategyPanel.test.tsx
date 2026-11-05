@@ -40,8 +40,8 @@ describe('CiStrategyPanel', () => {
 
   it('selects a ranking criterion', () => {
     render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'NPV' }));
-    expect(screen.getByRole('button', { name: 'NPV' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'VPL (NPV)' }));
+    expect(screen.getByRole('button', { name: 'VPL (NPV)' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Payback' })).toHaveAttribute('aria-pressed', 'false');
   });
 

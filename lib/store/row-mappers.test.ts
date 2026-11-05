@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyAddress } from '@/lib/address';
 import {
   clientFromRow,
+  ciProjectFromRow,
   projectFromRow,
   residentialOptionsFromJson,
   userLoadFromRow,
@@ -237,5 +238,18 @@ describe('userServiceFromRow', () => {
       createdAt: undefined,
       updatedAt: undefined,
     });
+  });
+});
+
+
+describe('C&I imported profiles persistence', () => {
+  it('rehydrates timestamped solar and all 96 manual anchors from a saved JSON project', () => {
+    const points = [{ timestamp: '2026-01-01T15:00:00Z', powerKw: 40 }];
+    const loadCurve = { points, resolutionMinutes: 15, timezone: 'America/Sao_Paulo', periodStart: '2026-01-01', periodEnd: '2026-01-01', profileBasis: 'representative_period', source: 'manual', manualConfig: { presetId: 'custom', weekdayKw: new Array(96).fill(40), weekendKw: new Array(96).fill(20) } };
+    const saved = JSON.parse(JSON.stringify({ id: 'ci-1', calculation_options: { loadCurve, solar: { enabled: true, generationCurve: { ...loadCurve, source: 'csv', manualConfig: undefined } } } }));
+    const project = ciProjectFromRow(saved);
+    expect(project.calculationOptions.loadCurve?.manualConfig?.weekdayKw).toHaveLength(96);
+    expect(project.calculationOptions.solar?.generationCurve?.points).toEqual(points);
+    expect(project.calculationOptions.solar?.generationCurve?.resolutionMinutes).toBe(15);
   });
 });

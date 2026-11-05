@@ -1,3 +1,4 @@
+import type { CiModularComposition, CiModularSelection, CiPcsCatalogEntry, CiBatteryCatalogEntry, CiCompatibilityRule, CiModularPrices } from './modular-types.ts';
 // Domain contracts for the C&I (Commercial & Industrial) BESS module — see
 // docs/CI-MODULE-PLAN.md section 4. Pure types only: no React, Zustand,
 // Supabase, or engine logic here (that separation is itself a Fase 1
@@ -189,6 +190,8 @@ export interface CiSolarConfig {
   prioritizeBessCharging: boolean;
   /** Optional custom generation points for representative week, normalized to kW. */
   generationPoints?: number[];
+  /** Imported AC generation, with explicit timestamps to preserve alignment with consumption. */
+  generationCurve?: LoadCurve;
 }
 
 export const DEFAULT_CI_SOLAR_CONFIG: CiSolarConfig = {
@@ -224,6 +227,8 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
 };
 
 export interface CommercialIndustrialOptions {
+  /** Absent means the existing integrated BESS catalog. */
+  bessSystem?: { kind: 'integrated' } | CiModularSelection;
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
   bessProductId: string | null;
@@ -267,6 +272,7 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  composition?: CiModularComposition;
   scenarioId: string;
   moduleCount: number;
   strategy: BessStrategyId;
@@ -330,6 +336,9 @@ export interface BaselineResult {
  * the dispatch engine splits it into charge/discharge legs via its square
  * root, per the plan's documented MVP convention. */
 export interface BessRuntimeParams {
+  maxChargePowerKw?: number;
+  chargeEfficiencyPercent?: number;
+  dischargeEfficiencyPercent?: number;
   totalPowerKw: number;
   totalCapacityKwh: number;
   socMinPercent: number;
@@ -362,6 +371,7 @@ export interface CommercialIndustrialResult {
    * trace for that one candidate only. */
   selected: SelectedScenarioDetail | null;
   assumptions: {
+    equipment?: { pcs: CiPcsCatalogEntry; battery: CiBatteryCatalogEntry; compatibility: CiCompatibilityRule; prices: CiModularPrices };
     tariff: TariffConfig;
     financial: FinancialAssumptions;
     loadCurve: Pick<LoadCurve, 'resolutionMinutes' | 'profileBasis' | 'periodStart' | 'periodEnd' | 'timezone'>;

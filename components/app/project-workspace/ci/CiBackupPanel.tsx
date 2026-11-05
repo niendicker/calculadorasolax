@@ -277,6 +277,7 @@ export function CiBackupPanel({
                 <div className="grid gap-2 sm:grid-cols-4">
                   <div className="sm:col-span-1">
                     <Input
+                      aria-label="Nome da carga"
                       placeholder="Nome da carga (ex: Servidores TI)"
                       value={newLoadName}
                       onChange={(e) => setNewLoadName(e.target.value)}
@@ -285,6 +286,7 @@ export function CiBackupPanel({
                   <div>
                     <Input
                       type="number"
+                      aria-label="Potência unitária (W)"
                       placeholder="Potência unitária (W)"
                       value={newLoadPowerW}
                       onChange={(e) => setNewLoadPowerW(e.target.value)}
@@ -293,6 +295,7 @@ export function CiBackupPanel({
                   <div>
                     <Input
                       type="number"
+                      aria-label="Quantidade"
                       placeholder="Quantidade"
                       value={newLoadQty}
                       onChange={(e) => setNewLoadQty(e.target.value)}
@@ -301,6 +304,7 @@ export function CiBackupPanel({
                   <div className="flex gap-2">
                     <Input
                       type="number"
+                      aria-label="Fator de uso (%)"
                       placeholder="Fator uso (%)"
                       value={newLoadFactor}
                       onChange={(e) => setNewLoadFactor(e.target.value)}
@@ -345,6 +349,7 @@ export function CiBackupPanel({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
+                                aria-label={`Remover carga ${load.name}`}
                                 onClick={() => handleRemoveLoad(load.id)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                               >

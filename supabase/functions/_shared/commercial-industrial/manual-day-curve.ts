@@ -141,10 +141,18 @@ function isWeekendDate(isoDate: string): boolean {
  * anchors, wrapping past midnight (23h → 0h of the same array). */
 function interpolateHourlyKw(hourlyKw: number[], hourFraction: number): number {
   const wrapped = ((hourFraction % HOURS_PER_DAY) + HOURS_PER_DAY) % HOURS_PER_DAY;
-  const hour0 = Math.floor(wrapped) % HOURS_PER_DAY;
-  const hour1 = (hour0 + 1) % HOURS_PER_DAY;
-  const fraction = wrapped - Math.floor(wrapped);
+  const position = wrapped * hourlyKw.length / HOURS_PER_DAY;
+  const hour0 = Math.floor(position) % hourlyKw.length;
+  const hour1 = (hour0 + 1) % hourlyKw.length;
+  const fraction = position - Math.floor(position);
   return hourlyKw[hour0] + (hourlyKw[hour1] - hourlyKw[hour0]) * fraction;
+}
+
+/** Upgrade saved hourly profiles and presets to 96 editable quarter-hour anchors. */
+export function toQuarterHourPattern(values: number[]): number[] {
+  if (values.length === 96) return values.slice();
+  if (values.length !== 24) return new Array(96).fill(0);
+  return Array.from({ length: 96 }, (_, index) => Math.round(interpolateHourlyKw(values, index / 4) * 100) / 100);
 }
 
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
@@ -175,7 +183,7 @@ function getDateTimeFormatter(timezone: string): Intl.DateTimeFormat {
  * on in `timezone`, and corrects by the difference. Two passes cover a
  * guess that happens to land close to a DST transition (Brazilian timezones
  * have had none since 2019, but this field is free text). */
-function zonedTimeToUtcIso(
+export function zonedTimeToUtcIso(
   isoDate: string,
   hour: number,
   minute: number,
@@ -213,8 +221,8 @@ export function buildManualDayCurve(
   presetId?: string | null
 ): BuildManualDayCurveResult {
   const errors: string[] = [];
-  if (weekdayKw.length !== HOURS_PER_DAY) errors.push(`weekdayKw must have exactly ${HOURS_PER_DAY} entries, one per hour of the day`);
-  if (weekendKw.length !== HOURS_PER_DAY) errors.push(`weekendKw must have exactly ${HOURS_PER_DAY} entries, one per hour of the day`);
+  if (![24, 96].includes(weekdayKw.length)) errors.push(`weekdayKw must have exactly ${HOURS_PER_DAY} entries (legacy) or 96 entries at 15-minute intervals`);
+  if (![24, 96].includes(weekendKw.length)) errors.push(`weekendKw must have exactly ${HOURS_PER_DAY} entries (legacy) or 96 entries at 15-minute intervals`);
   if (errors.length > 0) return { ok: false, errors };
 
   const dates = eachIsoDateInclusive(metadata.periodStart, metadata.periodEnd);

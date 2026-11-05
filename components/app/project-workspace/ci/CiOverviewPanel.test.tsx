@@ -229,4 +229,12 @@ describe('CiOverviewPanel', () => {
       expect(onUpdateProjectInfo).toHaveBeenCalledWith({ clientId: otherClient.id });
     });
   });
+  it('counts enabled solar in the study and continues to the first pending step', () => {
+    const onNavigateToSection = vi.fn();
+    renderPanel({ ciOptions: { ...defaultCiOptions, bessProductId: 'p1', solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: false } }, onNavigateToSection });
+    expect(screen.getByText('2 de 5 configurados')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar: Solar FV' }));
+    expect(onNavigateToSection).toHaveBeenCalledWith('solar');
+  });
+
 });

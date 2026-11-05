@@ -4,15 +4,18 @@
 // Permite dimensionar o sistema solar acoplado (ou existente), sua produção média
 // e a prioridade de recarga do BESS com o excedente solar diurno.
 
-import { ChevronLeft, ChevronRight, HelpCircle, Sun, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import dynamic from 'next/dynamic';
+import { CiEnergyImport } from './CiEnergyImport';
 import type {
   CiSolarConfig,
   CommercialIndustrialOptions,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { DEFAULT_CI_SOLAR_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
+
+const LoadCurveChart = dynamic(() => import('./LoadCurveChart').then((module) => module.LoadCurveChart), { ssr: false });
 
 function toNumber(value: string, fallback = 0): number {
   const parsed = Number(value);
@@ -36,6 +39,7 @@ export function CiSolarPanel({
     onChange({ solar: { ...solar, ...partial } });
   }
 
+  const imported = solar.generationCurve;
   const estimatedDailyKwh = solar.enabled
     ? solar.installedPowerKwp * (solar.dailyYieldKwhPerKwp || 4.5)
     : 0;
@@ -75,6 +79,8 @@ export function CiSolarPanel({
         </Button>
       </div>
 
+      <CiEnergyImport defaultSeries="generation" ciOptions={ciOptions} onChange={onChange} />
+
       {!solar.enabled ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-xs text-muted-foreground space-y-2">
           <p className="font-medium text-foreground">A integração solar fotovoltaica está desativada para este projeto.</p>
@@ -82,6 +88,16 @@ export function CiSolarPanel({
         </div>
       ) : (
         <div className="space-y-6">
+          {imported ? (
+            <div className="space-y-4 rounded-xl border bg-muted/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h3 className="text-sm font-semibold">{imported.source === 'manual' ? 'Geração FV personalizada' : 'Geração FV importada'}</h3><p className="mt-1 text-xs text-muted-foreground">{imported.periodStart} a {imported.periodEnd} · {imported.points.length} amostras · {imported.resolutionMinutes} min</p></div>
+                <Button type="button" variant="outline" size="sm" onClick={() => updateSolar({ generationCurve: undefined, generationPoints: undefined })}>Usar geração estimada</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{imported.source === 'manual' ? 'O cálculo usa o perfil FV ajustado no editor diário, com padrões independentes para dias úteis e fins de semana.' : 'O cálculo usa a geração AC de cada horário do arquivo, sem estimar ou reescalar a produção por kWp. Importe consumo e geração com o mesmo intervalo e período.'}</p>
+              <LoadCurveChart kind="generation" points={imported.points} resolutionMinutes={imported.resolutionMinutes} />
+            </div>
+          ) : <>
           {/* Sizing Parameters */}
           <div className="space-y-4">
             <p className="text-sm font-semibold">Parâmetros do Gerador Fotovoltaico</p>
@@ -160,6 +176,8 @@ export function CiSolarPanel({
               </p>
             </div>
           </div>
+
+          </>}
 
           {/* Integration Policy */}
           <div className="space-y-3 border-t pt-4">

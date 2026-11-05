@@ -115,7 +115,7 @@ describe('CiConfigurationPanel', () => {
 
     await screen.findByText('PowerStack 50');
 
-    const nextButton = screen.getByRole('button', { name: /Avançar para Curva de carga/i });
+    const nextButton = screen.getByRole('button', { name: /Avançar para Solar FV/i });
     expect(nextButton).toBeEnabled();
     fireEvent.click(nextButton);
     expect(onNavigateNext).toHaveBeenCalledTimes(1);
@@ -128,6 +128,32 @@ describe('CiConfigurationPanel', () => {
         onNavigateNext={onNavigateNext}
       />
     );
-    expect(screen.getByRole('button', { name: /Avançar para Curva de carga/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Avançar para Solar FV/i })).toBeDisabled();
   });
+  it('retries a failed catalog without leaving the step', async () => {
+    listActiveCiBessProducts.mockRejectedValueOnce(new Error('Sem conexão')).mockResolvedValueOnce([makeProduct({ id: 'p1', model: 'PowerStack 50' })]);
+    render(<ControlledPanel />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sem conexão');
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByText('PowerStack 50')).toBeInTheDocument();
+  });
+
+  it('keeps a valid module range and initializes fixed sizing when switching modes', async () => {
+    listActiveCiBessProducts.mockResolvedValue([]);
+    render(<ControlledPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /Ajustar faixa/ }));
+    fireEvent.change(screen.getByLabelText('Mínimo'), { target: { value: '8' } });
+    expect(screen.getByLabelText('Máximo')).toHaveValue(8);
+    fireEvent.change(screen.getByLabelText('Máximo'), { target: { value: '2' } });
+    expect(screen.getByLabelText('Máximo')).toHaveValue(8);
+    fireEvent.click(screen.getByRole('button', { name: 'Quantidade fixa' }));
+    expect(screen.getByLabelText('Módulos')).toHaveValue(1);
+  });
+
+  it('shows useful capacity within the product SOC limits, matching the calculation engine', async () => {
+    listActiveCiBessProducts.mockResolvedValue([makeProduct({ id: 'p1', model: 'PowerStack 50', soc_max_percent: 95, soc_min_percent: 10 })]);
+    render(<ControlledPanel />);
+    expect(await screen.findByText(/útil 85.00 kWh/)).toBeInTheDocument();
+  });
+
 });

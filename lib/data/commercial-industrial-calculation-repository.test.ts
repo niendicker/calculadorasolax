@@ -272,3 +272,22 @@ describe('commercial-industrial-calculation-repository', () => {
     });
   });
 });
+
+describe('imported solar compatibility with remote calculation', () => {
+  it('recalculates locally if an older Edge Function returns estimated generation instead of the imported values', async () => {
+    const { client, invoke } = makeClient({ data: { id: 'bess-1', model: 'BESS 100', module_power_kw: 50, module_capacity_kwh: 100, efficiency_percent: 90, soc_min_percent: 10, soc_max_percent: 90 }, error: null });
+    const timestamp = '2026-01-01T15:00:00Z';
+    invoke.mockResolvedValue({ data: { engineVersion: 'ci-v1', selected: { dispatch: [{ timestamp, solarGenerationKw: 999 }] } }, error: null });
+    const loadCurve = { points: [{ timestamp, powerKw: 100 }], resolutionMinutes: 15, timezone: 'America/Sao_Paulo', profileBasis: 'representative_period', periodStart: '2026-01-01', periodEnd: '2026-01-01', source: 'csv' };
+    const options = {
+      loadCurve, bessProductId: 'bess-1', strategy: 'HYBRID', sizing: { mode: 'fixed', moduleCount: 1 }, rankingCriterion: 'PAYBACK',
+      tariff: { energyRatePeakBrlPerMwh: 1200, energyRateOffPeakBrlPerMwh: 400, demandRateBrlPerKwMonth: 30, contractedDemandKw: 100, peakStart: '18:00', peakEnd: '21:00', tariffModality: 'verde', market: 'cativo', icmsPercent: 0, pisCofinsPercent: 0 },
+      financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
+      solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: true, generationCurve: { ...loadCurve, points: [{ timestamp, powerKw: 27.5 }] } },
+    };
+    const result = await invokeCommercialIndustrialCalculation(client, { options, unitPriceBrl: 45000 });
+    expect(result.error).toBeNull();
+    expect(result.data?.selected?.dispatch[0].solarGenerationKw).toBe(27.5);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+});

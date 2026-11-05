@@ -13,13 +13,14 @@ import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/c
 import type { CommercialIndustrialOptions, SizingMode } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { cn } from '@/lib/utils';
 import { BatteryCardsSkeleton } from '../../shared-ui';
+import { CiModularConfigurationPanel, emptyModularSelection } from './CiModularConfigurationPanel';
 
 const sizingModeOptions: { value: SizingMode; label: string; hint: string }[] = [
   { value: 'auto', label: 'Faixa automática', hint: 'Compara várias quantidades dentro de um intervalo.' },
   { value: 'fixed', label: 'Quantidade fixa', hint: 'Simula um único número de módulos.' },
 ];
 
-export function CiConfigurationPanel({
+function CiIntegratedConfigurationPanel({
   ciOptions,
   onChange,
   onNavigatePrev,
@@ -31,6 +32,7 @@ export function CiConfigurationPanel({
   onNavigateNext?: () => void;
 }) {
   const [products, setProducts] = useState<CiBessProductRecord[] | null>(null);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const isCustomSizing =
@@ -50,7 +52,7 @@ export function CiConfigurationPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [catalogAttempt]);
 
   const selectedProduct = products?.find((product) => product.id === ciOptions.bessProductId) ?? null;
 
@@ -59,7 +61,7 @@ export function CiConfigurationPanel({
   }
 
   function setSizingMode(mode: SizingMode) {
-    onChange({ sizing: { ...ciOptions.sizing, mode } });
+    onChange({ sizing: { ...ciOptions.sizing, mode, ...(mode === 'fixed' ? { moduleCount: ciOptions.sizing.moduleCount ?? 1 } : { minModules: ciOptions.sizing.minModules ?? 1, maxModules: ciOptions.sizing.maxModules ?? 6 }) } });
   }
 
   function setModuleCount(value: number) {
@@ -67,11 +69,12 @@ export function CiConfigurationPanel({
   }
 
   function setMinModules(value: number) {
-    onChange({ sizing: { ...ciOptions.sizing, minModules: Math.max(1, Math.round(value) || 1) } });
+    const minModules = Math.max(1, Math.round(value) || 1);
+    onChange({ sizing: { ...ciOptions.sizing, minModules, maxModules: Math.max(minModules, ciOptions.sizing.maxModules ?? 6) } });
   }
 
   function setMaxModules(value: number) {
-    onChange({ sizing: { ...ciOptions.sizing, maxModules: Math.max(1, Math.round(value) || 1) } });
+    onChange({ sizing: { ...ciOptions.sizing, maxModules: Math.max(ciOptions.sizing.minModules ?? 1, Math.round(value) || 1) } });
   }
 
   return (
@@ -88,7 +91,10 @@ export function CiConfigurationPanel({
 
         {error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-            {error}
+            <p role="alert">{error}</p>
+            <Button type="button" variant="outline" className="mt-3" onClick={() => { setError(null); setProducts(null); setCatalogAttempt((attempt) => attempt + 1); }}>
+              Tentar novamente
+            </Button>
           </div>
         ) : products === null ? (
           <BatteryCardsSkeleton />
@@ -101,7 +107,7 @@ export function CiConfigurationPanel({
           <div className="grid gap-3 lg:grid-cols-2">
             {products.map((product) => {
               const selected = product.id === ciOptions.bessProductId;
-              const usefulCapacityKwh = product.module_capacity_kwh * (1 - product.soc_min_percent / 100);
+              const usefulCapacityKwh = product.module_capacity_kwh * ((product.soc_max_percent - product.soc_min_percent) / 100);
               return (
                 <div
                   key={product.id}
@@ -170,6 +176,8 @@ export function CiConfigurationPanel({
               </p>
               <button
                 type="button"
+                aria-expanded={showCustomSizing}
+                aria-controls="ci-custom-sizing"
                 onClick={() => setShowCustomSizing(!showCustomSizing)}
                 className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
               >
@@ -187,7 +195,7 @@ export function CiConfigurationPanel({
         </div>
 
         {showCustomSizing && (
-          <div className="space-y-3 border-t pt-3">
+          <div id="ci-custom-sizing" className="space-y-3 border-t pt-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-medium text-muted-foreground">Configuração de módulos para a simulação:</p>
             </div>
@@ -272,7 +280,7 @@ export function CiConfigurationPanel({
               disabled={!selectedProduct}
               className="gap-1.5 rounded-lg text-xs font-semibold"
             >
-              Avançar para Curva de carga
+              Avançar para Solar FV
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
@@ -280,4 +288,16 @@ export function CiConfigurationPanel({
       )}
     </div>
   );
+}
+
+
+export function CiConfigurationPanel(props: Parameters<typeof CiIntegratedConfigurationPanel>[0]) {
+  const modular = props.ciOptions.bessSystem?.kind === 'modular';
+  return <div className="space-y-5">
+    <div className="flex flex-wrap gap-2" aria-label="Tipo de solução BESS">
+      <Button type="button" variant={!modular ? 'default' : 'outline'} aria-pressed={!modular} onClick={() => props.onChange({ bessSystem: { kind: 'integrated' } })}>BESS integrado</Button>
+      <Button type="button" variant={modular ? 'default' : 'outline'} aria-pressed={modular} onClick={() => { if (!modular) props.onChange({ bessSystem: emptyModularSelection, bessProductId: null }); }}>PCS + baterias</Button>
+    </div>
+    {modular ? <CiModularConfigurationPanel {...props} /> : <CiIntegratedConfigurationPanel {...props} />}
+  </div>;
 }

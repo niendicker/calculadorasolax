@@ -1,3 +1,4 @@
+import { ciScenarioLabel } from './ci-scenario-label';
 import { Document, G, Line, Page, Polyline, Rect, StyleSheet, Svg, Text, View, pdf } from '@react-pdf/renderer';
 import type { Client, ProjectInfo } from '@/lib/types';
 import { formatAddress, isAddressEmpty } from '@/lib/address';
@@ -308,7 +309,9 @@ function ModuleComparisonChart({
    * #5) — no bar gets the "*" marker in that case. */
   recommendedScenarioId: string | null;
 }) {
-  const sorted = [...scenarios].sort((a, b) => a.moduleCount - b.moduleCount);
+  const ordered = [...scenarios].sort((a, b) => a.capex - b.capex);
+  const recommended = ordered.find((scenario) => scenario.scenarioId === recommendedScenarioId);
+  const sorted = ordered.length <= 12 ? ordered : [...ordered.slice(0, recommended && !ordered.slice(0, 12).includes(recommended) ? 11 : 12), ...(recommended && !ordered.slice(0, 12).includes(recommended) ? [recommended] : [])];
   if (sorted.length === 0) return null;
   const chartHeight = CHART_HEIGHT - 8;
   const maxValue = Math.max(...sorted.map((scenario) => Math.max(scenario.capex, scenario.annualSavings)), 1);
@@ -341,14 +344,15 @@ function ModuleComparisonChart({
       <View style={{ flexDirection: 'row' }}>
         {sorted.map((scenario) => (
           <Text key={scenario.scenarioId} style={{ flex: 1, fontSize: 6.5, textAlign: 'center', color: COLORS.muted }}>
-            {scenario.moduleCount}
+            {scenario.composition ? `${scenario.composition.pcsCount}PCS/${scenario.composition.batteryCount}bat` : scenario.moduleCount}
             {scenario.scenarioId === recommendedScenarioId ? '*' : ''}
           </Text>
         ))}
       </View>
       <ChartLegend items={[{ color: COLORS.primary, label: 'CAPEX' }, { color: '#2f9e58', label: 'Economia anual' }]} />
       <Text style={styles.chartCaption}>
-        Eixo horizontal: quantidade de módulos avaliada
+        {scenarios.some((scenario) => scenario.composition) ? 'Eixo horizontal: PCS / unidades de bateria.' : 'Eixo horizontal: quantidade de módulos avaliada'}
+        {ordered.length > sorted.length ? ` Exibindo ${sorted.length} de ${ordered.length} composições; consulte a tabela completa.` : ''}
         {recommendedScenarioId ? ' (* = cenário recomendado).' : '. Nenhum cenário foi recomendado — ver Resumo executivo.'}
       </Text>
     </View>
@@ -411,7 +415,7 @@ function ScenarioTableRow({ scenario, recommended, last }: { scenario: ScenarioC
   return (
     <View style={[styles.tableRow, styleIf(last, styles.tableRowLast), styleIf(recommended, styles.tableRowHighlight)]} wrap={false}>
       <Text style={styles.tableCellFirst}>
-        {scenario.moduleCount}
+        {scenario.composition ? ciScenarioLabel(scenario) : scenario.moduleCount}
         {recommended ? ' (recomendado)' : ''}
         {!scenario.technicalValidity ? ' — inválido' : ''}
       </Text>
@@ -480,8 +484,8 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               <MetricRows
                 metrics={[
                   {
-                    label: isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
-                    value: `${selected.moduleCount}`,
+                    label: selected.composition ? 'PCS / unidades de bateria' : isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
+                    value: selected.composition ? `${selected.composition.pcsCount} / ${selected.composition.batteryCount}` : `${selected.moduleCount}`,
                     highlight: isRecommended,
                   },
                   { label: 'CAPEX', value: formatCurrencyBRL(selected.capex) },
@@ -567,9 +571,9 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             <Text style={styles.sectionTitle}>{isRecommended ? 'BESS recomendado' : 'BESS avaliado (menor configuração — não recomendada)'}</Text>
             <InfoRows
               rows={[
-                { label: 'Produto', value: product ? `${product.model} · ${product.manufacturer}` : 'Produto não disponível no catálogo ativo' },
+                { label: 'Produto', value: selected.composition ? `${selected.composition.pcsModel} + ${selected.composition.batteryModel}` : product ? `${product.model} · ${product.manufacturer}` : 'Produto não disponível no catálogo ativo' },
                 ...(product?.description ? [{ label: 'Descrição', value: product.description }] : []),
-                { label: 'Quantidade de módulos', value: `${selected.moduleCount}` },
+                { label: selected.composition ? 'Composição' : 'Quantidade de módulos', value: selected.composition ? ciScenarioLabel(selected) : `${selected.moduleCount}` },
                 { label: 'Potência total', value: formatKw(selected.totalPowerKw) },
                 { label: 'Capacidade total / útil', value: `${formatKwh(selected.totalCapacityKwh)} / ${formatKwh(selected.usefulCapacityKwh)}` },
                 ...(product ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL(product.efficiency_percent) }] : []),
@@ -592,14 +596,37 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           </View>
         )}
 
+        {selected?.composition && <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Composição PCS + baterias</Text>
+          <InfoRows rows={[
+            { label: 'PCS', value: `${selected.composition.pcsCount} × ${selected.composition.pcsModel}` },
+            { label: 'Baterias', value: `${selected.composition.batteryCount} × ${selected.composition.batteryModel}` },
+            { label: 'Arranjo por PCS', value: `${selected.composition.seriesCount} em série × ${selected.composition.parallelStringsPerPcs} strings em paralelo` },
+            { label: 'Potência AC carga / descarga', value: `${formatKw(selected.composition.chargePowerKw)} / ${formatKw(selected.composition.dischargePowerKw)}` },
+            { label: 'Faixa de tensão do banco', value: `${selected.composition.voltageMinV}–${selected.composition.voltageMaxV} V` },
+            { label: 'Compatibilidade / revisão', value: `${selected.composition.compatibilityName} / ${selected.composition.revision}` },
+            { label: 'Referência', value: selected.composition.referenceDocument },
+            { label: 'Comunicação / BMS', value: selected.composition.communicationProfile },
+            { label: 'Firmware PCS / bateria', value: `${selected.composition.pcsFirmware} / ${selected.composition.batteryFirmware}` },
+            ...selected.composition.items.map((item) => ({ label: `${item.quantity} × ${item.model}`, value: `${formatCurrencyBRL(item.unitPriceBrl)} / un. · ${formatCurrencyBRL(item.totalBrl)}` })),
+          ]} />
+        </View>}
+
         {solar?.enabled && (
           <View style={styles.section} wrap={false}>
             <Text style={styles.sectionTitle}>Geração Fotovoltaica Integrada (Solar FV)</Text>
             <InfoRows
               rows={[
+                ...(solar.generationCurve ? [
+                  { label: 'Fonte da geração', value: solar.generationCurve.source === 'manual' ? 'Perfil FV personalizado no editor diário' : 'Curva AC importada (valores por intervalo)' },
+                  { label: 'Período da geração', value: `${solar.generationCurve.periodStart} a ${solar.generationCurve.periodEnd}` },
+                  { label: 'Resolução / amostras', value: `${solar.generationCurve.resolutionMinutes} min / ${solar.generationCurve.points.length}` },
+                  { label: 'Energia FV no período', value: `${solar.generationCurve.points.reduce((sum, point) => sum + point.powerKw * solar.generationCurve!.resolutionMinutes / 60, 0).toFixed(2)} kWh` },
+                ] : [
                 { label: 'Potência instalada DC', value: `${solar.installedPowerKwp} kWp` },
                 { label: 'Potência dos inversores AC', value: formatKw(solar.inverterPowerKw) },
                 { label: 'Geração diária média estimada', value: `${(solar.installedPowerKwp * (solar.dailyYieldKwhPerKwp || 4.5)).toFixed(1)} kWh/dia (${solar.dailyYieldKwhPerKwp || 4.5} kWh/kWp)` },
+                ]),
                 {
                   label: 'Prioridade de recarga no BESS',
                   value: solar.prioritizeBessCharging ? 'Habilitada (absorve excedente solar diurno)' : 'Apenas autoconsumo instantâneo',
@@ -651,7 +678,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                   value: `${result.backup.requiredContinuousPowerKw.toFixed(1)} kW (suportado pelo BESS: ${formatKw(selected?.totalPowerKw ?? 0)})`,
                 },
                 { label: 'Energia requerida para contingência', value: `${result.backup.requiredEnergyKwh.toFixed(1)} kWh` },
-                { label: 'Módulos mínimos p/ autonomia', value: `${result.backup.minModulesForBackup} módulo(s)` },
+                { label: selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos mínimos p/ autonomia', value: `${result.backup.minModulesForBackup}` },
                 {
                   label: 'Reserva operacional de SOC mantida',
                   value: `${result.backup.recommendedSocReservePercent.toFixed(1)}% (não consumida no despacho on-grid)`,
@@ -680,18 +707,18 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             <SocChart
               dispatch={selected.dispatch}
               totalCapacityKwh={selected.totalCapacityKwh}
-              socMinPercent={product?.soc_min_percent ?? null}
-              socMaxPercent={product?.soc_max_percent ?? null}
+              socMinPercent={product?.soc_min_percent ?? result.assumptions.equipment?.battery.socMinPercent ?? null}
+              socMaxPercent={product?.soc_max_percent ?? result.assumptions.equipment?.battery.soc_max_percent ?? null}
             />
           </View>
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Comparação por quantidade de módulos</Text>
+          <Text style={styles.sectionTitle}>{selected?.composition ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</Text>
           <ModuleComparisonChart scenarios={result.scenarios} recommendedScenarioId={result.recommendation.scenarioId} />
           <View style={[styles.table, { marginTop: 10 }]}>
             <View style={styles.tableHeaderRow} fixed>
-              <Text style={[styles.tableCellFirst, styles.tableHeaderText]}>Módulos</Text>
+              <Text style={[styles.tableCellFirst, styles.tableHeaderText]}>{selected?.composition ? 'Composição' : 'Módulos'}</Text>
               <Text style={[styles.tableCell, styles.tableHeaderText]}>CAPEX</Text>
               <Text style={[styles.tableCell, styles.tableHeaderText]}>Economia/ano</Text>
               <Text style={[styles.tableCell, styles.tableHeaderText]}>Payback simples</Text>
@@ -765,9 +792,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               • {result.recommendation.reason}
               {'\n'}• A economia de energia resulta da diferença entre o custo com e sem BESS na semana representativa; a
               economia de demanda, da diferença entre as demandas cobradas antes e depois do despacho simulado.
-              {'\n'}• O ganho marginal de cada cenário é a diferença em relação ao cenário com uma quantidade de módulos
-              imediatamente menor dentro da mesma faixa avaliada — cenários com ganho marginal nulo ou negativo indicam que
-              módulos adicionais deixaram de trazer benefício financeiro proporcional.
+              {selected?.composition ? '\n• Composições variam PCS e baterias independentemente; ganho marginal entre composições não é calculado.' : '\n• O ganho marginal compara cenários com quantidades consecutivas de módulos. Ganhos nulos ou negativos indicam ausência de benefício financeiro adicional.'}
               {rankingCriterion ? `\n• A recomendação usa o critério de ranking configurado no projeto: ${RANKING_CRITERION_LABELS[rankingCriterion]}.` : ''}
             </Text>
           </View>
@@ -787,7 +812,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           <View style={styles.noteBox}>
             <Text style={styles.noteText}>
               Este estudo considera uma semana representativa (até 672 pontos), sem exportação de energia para a rede, uma
-              única eficiência de ciclo convertida em cargas/descargas equivalentes, e não modela geração solar ou gerador.
+              única eficiência de ciclo convertida em cargas/descargas equivalentes. A geração solar e o gerador são considerados quando habilitados.
               Considera crescimento tarifário uniforme conforme a inflação energética configurada, sem modelar
               individualmente reajustes tarifários, bandeiras ou alterações regulatórias, nem sazonalidade, degradação
               eletroquímica detalhada ou calendário regulatório completo. Os valores financeiros são estimativas a partir

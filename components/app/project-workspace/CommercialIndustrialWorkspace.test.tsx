@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
+import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions, defaultProjectInfo } from '@/lib/store/defaults';
-import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import type { InlineProfile } from '../types';
 import { CommercialIndustrialWorkspace } from './CommercialIndustrialWorkspace';
 
@@ -144,4 +145,38 @@ describe('CommercialIndustrialWorkspace', () => {
     fireEvent.click(backupTab);
     expect(screen.getByText('Proteção para Falta de Rede (Backup C&I)')).toBeInTheDocument();
   });
+  it('retains a calculation across tabs and warns after editing the strategy', async () => {
+    const result = {
+      baseline: { annualCostBrl: 1000, maxDemandPeakKw: 10, maxDemandOffPeakKw: 10, energyImportedPeakKwh: 10, energyImportedOffPeakKwh: 10 },
+      scenarios: [], selected: null, recommendation: { scenarioId: null, reason: '' },
+      assumptions: { loadCurve: { resolutionMinutes: 60 } }, warnings: [],
+    } as unknown as CommercialIndustrialResult;
+    const fetchCalculation = vi.fn().mockResolvedValue({ ok: true, json: async () => result });
+    vi.stubGlobal('fetch', fetchCalculation);
+    function Session() {
+      const [options, setOptions] = useState(defaultCiOptions);
+      return <CommercialIndustrialWorkspace
+        projectInfo={defaultProjectInfo} clients={[]} profile={null}
+        onUpdateProjectInfo={vi.fn()} onSaveProject={vi.fn()} onBackToProjects={vi.fn()}
+        ciOptions={options} onUpdateCiOptions={(partial) => setOptions((current) => ({ ...current, ...partial }))}
+        currentCiProjectId="ci-project-1" calculationResult={null} onFlushSave={async () => undefined}
+        autosaveStatus="idle" autosaveLastSavedAt={null}
+      />;
+    }
+    try {
+      render(<Session />);
+      fireEvent.click(screen.getByRole('button', { name: 'Resultados' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+      await screen.findByText('Linha de base (sem BESS)');
+      fireEvent.click(screen.getByRole('button', { name: 'Estratégia' }));
+      fireEvent.click(screen.getByRole('button', { name: /^Peak Shaving/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Resultados' }));
+      expect(screen.getByText('Linha de base (sem BESS)')).toBeInTheDocument();
+      expect(screen.getByText(/Os parâmetros do estudo foram alterados/)).toBeInTheDocument();
+      expect(fetchCalculation).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
 });

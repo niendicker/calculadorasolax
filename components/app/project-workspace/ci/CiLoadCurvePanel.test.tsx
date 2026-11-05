@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiLoadCurvePanel } from './CiLoadCurvePanel';
@@ -78,16 +78,17 @@ describe('CiLoadCurvePanel', () => {
   it('renders Curva de carga heading without redundant Dimensionamento BESS header line', () => {
     render(<ControlledPanel />);
     expect(screen.queryByText('Dimensionamento BESS')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'Curva de carga' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Curva de carga' })).toBeInTheDocument();
   });
 
   it('imports a valid CSV and shows the weekly preview with measurements', async () => {
     render(<ControlledPanel />);
     const csv = 'timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
     await importFile(csv);
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }));
 
-    expect(await screen.findByText(/3 amostras/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '60 min' })).toHaveAttribute('aria-pressed', 'true');
+    expect((await screen.findAllByText(/3 amostras/)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Intervalo: 60 min/)).toBeInTheDocument();
     expect(screen.getByText(/resolução 60 min/)).toBeInTheDocument();
     expect(await screen.findByText(/20\.00/)).toBeInTheDocument(); // pico
     expect(screen.getByText(/10\.00/)).toBeInTheDocument(); // mínima
@@ -103,7 +104,8 @@ describe('CiLoadCurvePanel', () => {
   it('removes an imported curve when requested', async () => {
     render(<ControlledPanel />);
     await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
-    expect(await screen.findByText(/2 amostras/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }));
+    expect((await screen.findAllByText(/2 amostras/)).length).toBeGreaterThan(0);
 
     const removeBtn = screen.getByRole('button', { name: /Remover curva/i });
     fireEvent.click(removeBtn);
@@ -117,12 +119,12 @@ describe('CiLoadCurvePanel', () => {
   });
 
   describe('manual curve editing', () => {
-    it('defaults to "Comércio e serviços" preset with 24 hourly sliders and preview', async () => {
+    it('defaults to "Comércio e serviços" preset with 96 quarter-hour sliders and preview', async () => {
       render(<ControlledPanel />);
       const baseSelect = screen.getByLabelText('Perfil base');
       expect(baseSelect).toHaveValue('comercio');
 
-      expect(screen.getAllByRole('slider')).toHaveLength(24);
+      expect(screen.getAllByRole('slider')).toHaveLength(96);
       expect(await screen.findByText(/Resumo/)).toBeInTheDocument();
       expect(screen.getByText(/672 \/ 672 pontos · resolução 15 min/)).toBeInTheDocument();
     });
@@ -135,7 +137,7 @@ describe('CiLoadCurvePanel', () => {
       expect(baseSelect).toHaveValue('industria-1-turno');
 
       // 10h in industria-1-turno is 100 kW
-      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
+      expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '100');
     });
 
     it('toggles between weekday and weekend patterns', async () => {
@@ -143,13 +145,13 @@ describe('CiLoadCurvePanel', () => {
       const baseSelect = screen.getByLabelText('Perfil base');
       fireEvent.change(baseSelect, { target: { value: 'industria-1-turno' } });
 
-      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
+      expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '100');
 
       fireEvent.click(screen.getByRole('button', { name: 'Fim de semana' }));
-      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '10');
+      expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '10');
 
       fireEvent.click(screen.getByRole('button', { name: 'Dias úteis' }));
-      expect(screen.getByRole('slider', { name: 'Potência às 10h' })).toHaveAttribute('aria-valuenow', '100');
+      expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '100');
     });
 
     it('editing numeric input marks preset as "Personalizado"', async () => {
@@ -161,7 +163,7 @@ describe('CiLoadCurvePanel', () => {
       fireEvent.change(numericInput, { target: { value: '150' } });
 
       expect(baseSelect).toHaveValue('custom');
-      expect(screen.getByRole('slider', { name: 'Potência às 12h' })).toHaveAttribute('aria-valuenow', '150');
+      expect(screen.getByRole('slider', { name: 'Potência às 12:00' })).toHaveAttribute('aria-valuenow', '150');
     });
 
     it('restores manual curve editor with saved presets and hours when reopening the panel', async () => {
@@ -184,7 +186,7 @@ describe('CiLoadCurvePanel', () => {
 
       const baseSelect = screen.getByLabelText('Perfil base');
       expect(baseSelect).toHaveValue('industria-1-turno');
-      expect(screen.getAllByRole('slider')).toHaveLength(24);
+      expect(screen.getAllByRole('slider')).toHaveLength(96);
       expect(screen.getByRole('button', { name: 'Fim de semana' })).toBeInTheDocument();
     });
   });
@@ -243,5 +245,46 @@ describe('CiLoadCurvePanel', () => {
       const nextBtn = screen.getByRole('button', { name: /Avançar para Tarifa/i });
       expect(nextBtn).toBeDisabled();
     });
+  });
+});
+
+describe('saved daily profile limit', () => {
+  const storageKey = 'solax_ci_custom_daily_profiles';
+  const presets = (count: number) => Array.from({ length: count }, (_, index) => ({
+    id: `saved-${index}`, label: `Modelo ${index + 1}`, weekdayKw: Array(96).fill(50), weekendKw: Array(96).fill(20),
+  }));
+
+  afterEach(() => localStorage.removeItem(storageKey));
+
+  it('saves the fifth model and then disables creating another', () => {
+    localStorage.setItem(storageKey, JSON.stringify(presets(4)));
+    render(<ControlledPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar como modelo' }));
+    fireEvent.change(screen.getByPlaceholderText('Nome do modelo...'), { target: { value: 'Quinto modelo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toHaveLength(5);
+    expect(screen.getByText('Limite de 5 modelos atingido.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Modelo salvo/ })).toBeDisabled();
+  });
+
+  it('preserves existing models above the limit while blocking new saves', () => {
+    const existing = JSON.stringify(presets(6));
+    localStorage.setItem(storageKey, existing);
+    render(<ControlledPanel />);
+    expect(screen.getByRole('button', { name: 'Salvar como modelo' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: /Modelo 6/ })).toBeInTheDocument();
+    expect(localStorage.getItem(storageKey)).toBe(existing);
+  });
+
+  it('rechecks storage before saving when another tab has filled the last slot', () => {
+    localStorage.setItem(storageKey, JSON.stringify(presets(4)));
+    render(<ControlledPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar como modelo' }));
+    fireEvent.change(screen.getByPlaceholderText('Nome do modelo...'), { target: { value: 'Sexto modelo' } });
+    localStorage.setItem(storageKey, JSON.stringify(presets(5)));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toHaveLength(5);
+    expect(screen.getByRole('button', { name: 'Salvar como modelo' })).toBeDisabled();
+    expect(screen.queryByText('Modelo salvo!')).not.toBeInTheDocument();
   });
 });

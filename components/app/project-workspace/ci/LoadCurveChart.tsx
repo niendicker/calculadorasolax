@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
 import type { LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 
-const CHART_HEIGHT = 180;
+const CHART_HEIGHT = 235;
 const MIN_SELECTION_DRAG_PX = 4;
 
 export interface CurveRangeSelection {
@@ -176,8 +176,13 @@ function areaFill(primary: string) {
   };
 }
 
-function buildData(points: LoadCurvePoint[]): uPlot.AlignedData {
-  return [points.map((_, index) => index), points.map((point) => point.powerKw)];
+function buildData(points: LoadCurvePoint[], generation?: { timestamp: string; powerKw: number | null }[]): uPlot.AlignedData {
+  const data: uPlot.AlignedData = [points.map((_, index) => index), points.map((point) => point.powerKw)];
+  if (generation) {
+    const byTimestamp = new Map(generation.map(point => [Date.parse(point.timestamp), point.powerKw]));
+    data.push(points.map(point => byTimestamp.get(Date.parse(point.timestamp)) ?? null));
+  }
+  return data;
 }
 
 function fullXRange(pointsRef: { current: LoadCurvePoint[] }): [number, number] {
@@ -211,7 +216,8 @@ function attachPanAndZoom(
   onSelectionChange: (selection: CurveRangeSelection | null) => void,
   onResetSelections: () => void,
   onHoverPoint?: (badge: PointBadgeInfo | null) => void,
-  onRedraw?: () => void
+  onRedraw?: () => void,
+  seriesLabel = 'Potência'
 ): () => void {
   const over = chart.over;
   const ZOOM_FACTOR = 0.75;
@@ -399,7 +405,9 @@ function buildOptions(
   selectionsRef: { current: SelectionSlots },
   contractedDemandKwRef: { current: number | undefined },
   onZoomChange: (zoomed: boolean) => void,
-  onRedraw?: () => void
+  onRedraw?: () => void,
+  seriesLabel = 'Potência',
+  includeGeneration = false
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const secondary = readCssVar('--chart-2', '#ff9d00');
@@ -465,13 +473,14 @@ function buildOptions(
         value: (_self, rawValue) => formatPointLabel(pointsRef.current[Math.round(rawValue ?? 0)]),
       },
       {
-        label: 'Potência',
+        label: seriesLabel,
         stroke: primary,
         width: 2,
         fill: areaFill(primary),
         points: { show: false },
         value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(2)} kW`),
       },
+      ...(includeGeneration ? [{ label: 'Geração FV', stroke: secondary, width: 2, points: { show: false }, value: (_self: uPlot, rawValue: number | null) => rawValue == null ? '—' : `${Number(rawValue).toFixed(2)} kW` }] : []),
     ],
     hooks: {
       drawClear: [
@@ -617,6 +626,17 @@ function summarizeSelection(points: LoadCurvePoint[], resolutionMinutes: LoadCur
   return { peakKw, minKw, averageKw: sumKw / points.length, totalEnergyKwh: sumKw * intervalHours, pointCount: points.length };
 }
 
+function SolarSelectionSummary({ summary }: { summary: SelectionSummary | null }) {
+  return (
+    <section aria-label="Geração FV no período selecionado" className="space-y-2 border-t border-border/60 pt-2">
+      <h4 className="text-xs font-semibold">Geração FV</h4>
+      {summary ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {METRIC_ROWS.map(row => <div key={row.key}><p className="text-[11px] text-muted-foreground">{row.label}</p><p className="text-sm font-semibold">{summary[row.key].toFixed(2)} {row.unit}</p></div>)}
+      </div> : <p className="text-xs text-muted-foreground">Sem dados FV completos para este período.</p>}
+    </section>
+  );
+}
+
 /** "B relative to A": positive means B is higher. `aValue` is the
  * denominator for the percentage since A is the fixed baseline the user
  * picked first — a null percentage (aValue === 0) still shows the absolute
@@ -660,14 +680,20 @@ export function LoadCurveChart({
   points,
   resolutionMinutes,
   contractedDemandKw,
+  kind = 'load',
+  generationPoints,
 }: {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
   contractedDemandKw?: number;
+  kind?: 'load' | 'generation';
+  generationPoints?: { timestamp: string; powerKw: number | null }[];
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
   const pointsRef = useRef(points);
+  const generationRef = useRef(generationPoints);
+  const includeGeneration = generationPoints !== undefined;
   const contractedDemandKwRef = useRef(contractedDemandKw);
   // Set right after (re)creating the chart below, consumed by the very next
   // run of the points-sync effect — see that effect for why this is needed.
@@ -727,15 +753,19 @@ export function LoadCurveChart({
     const el = containerRef.current;
     if (!el || pointsRef.current.length === 0) return;
 
+    pointsRef.current = points;
+    generationRef.current = generationPoints;
     const options = buildOptions(
       el.clientWidth || 600,
       pointsRef,
       selectionsRef,
       contractedDemandKwRef,
       setIsZoomed,
-      () => setRedrawSeq((s) => s + 1)
+      () => setRedrawSeq((s) => s + 1),
+      kind === 'generation' ? 'Geração FV' : includeGeneration ? 'Consumo' : 'Potência',
+      includeGeneration
     );
-    const chart = new uPlot(options, buildData(pointsRef.current), el);
+    const chart = new uPlot(options, buildData(pointsRef.current, generationRef.current), el);
     chartRef.current = chart;
     skipNextPointsEffectRef.current = true;
     const detachPanAndZoom = attachPanAndZoom(
@@ -752,7 +782,7 @@ export function LoadCurveChart({
       chart.destroy();
       chartRef.current = null;
     };
-  }, []);
+  }, [includeGeneration, kind]);
 
   const isInitialContractMountRef = useRef(true);
   useEffect(() => {
@@ -796,6 +826,7 @@ export function LoadCurveChart({
     if (skipNextPointsEffectRef.current) {
       skipNextPointsEffectRef.current = false;
       pointsRef.current = points;
+      generationRef.current = generationPoints;
       return;
     }
 
@@ -815,7 +846,8 @@ export function LoadCurveChart({
     // A different point count (new CSV, new preset, a changed resolution or
     // period) really is a different curve, so that case still jumps back to
     // the full view and drops any selection tied to the old range.
-    chart.setData(buildData(points), false);
+    generationRef.current = generationPoints;
+    chart.setData(buildData(points, generationPoints), false);
     if (lengthChanged || chart.scales.x?.min == null) {
       const [min, max] = fullXRange(pointsRef);
       chart.setScale('x', { min, max });
@@ -823,7 +855,7 @@ export function LoadCurveChart({
     } else {
       chart.redraw(true, true);
     }
-  }, [points]);
+  }, [points, generationPoints]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -851,6 +883,21 @@ export function LoadCurveChart({
     const slice = points.slice(range.startIndex, range.endIndex + 1);
     return slice.length > 0 ? summarizeSelection(slice, resolutionMinutes) : null;
   }
+
+  const generationByTimestamp = new Map(generationPoints?.map(point => [Date.parse(point.timestamp), point.powerKw]));
+  function solarSummaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
+    if (!range || !generationPoints) return null;
+    const selected = points.slice(range.startIndex, range.endIndex + 1);
+    const solarPoints: LoadCurvePoint[] = [];
+    for (const point of selected) {
+      const powerKw = generationByTimestamp.get(Date.parse(point.timestamp));
+      if (powerKw == null || !Number.isFinite(powerKw) || powerKw < 0) return null;
+      solarPoints.push({ timestamp: point.timestamp, powerKw });
+    }
+    return solarPoints.length ? summarizeSelection(solarPoints, resolutionMinutes) : null;
+  }
+  const solarSummaryA = solarSummaryFor(selections.a);
+  const solarSummaryB = solarSummaryFor(selections.b);
 
   const summaryA = summaryFor(selections.a);
   const summaryB = summaryFor(selections.b);
@@ -907,7 +954,7 @@ export function LoadCurveChart({
       <div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
         <div className="p-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Demanda máxima</p>
+            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração máxima' : 'Demanda máxima'}</p>
             {isSelectionActive && (
               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
             )}
@@ -919,7 +966,7 @@ export function LoadCurveChart({
         </div>
         <div className="p-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Demanda mínima</p>
+            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração mínima' : 'Demanda mínima'}</p>
             {isSelectionActive && (
               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
             )}
@@ -955,7 +1002,7 @@ export function LoadCurveChart({
         </div>
       </div>
 
-      {/* Gráfico semanal (~180px) com uPlot e fundo de fins de semana */}
+      {/* Gráfico semanal (235px, como o editor diário) com uPlot e fundo de fins de semana */}
       <div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
         {isZoomed && (
@@ -988,6 +1035,7 @@ export function LoadCurveChart({
             points={points}
             onClear={() => setSelections(EMPTY_SELECTIONS)}
           />
+          {includeGeneration && <h4 className="text-xs font-semibold">Consumo</h4>}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {METRIC_ROWS.map((row) => (
               <div key={row.key}>
@@ -998,6 +1046,7 @@ export function LoadCurveChart({
               </div>
             ))}
           </div>
+          {includeGeneration && <SolarSelectionSummary summary={solarSummaryA} />}
         </div>
       )}
       {summaryB && !summaryA && selections.b && (
@@ -1009,6 +1058,7 @@ export function LoadCurveChart({
             points={points}
             onClear={() => setSelections(EMPTY_SELECTIONS)}
           />
+          {includeGeneration && <h4 className="text-xs font-semibold">Consumo</h4>}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {METRIC_ROWS.map((row) => (
               <div key={row.key}>
@@ -1019,6 +1069,7 @@ export function LoadCurveChart({
               </div>
             ))}
           </div>
+          {includeGeneration && <SolarSelectionSummary summary={solarSummaryB} />}
         </div>
       )}
 
@@ -1040,7 +1091,7 @@ export function LoadCurveChart({
             onClear={() => setSelections((previous) => ({ ...previous, b: null }))}
           />
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className={cn("w-full text-xs", includeGeneration && "min-w-[560px]")}>
               <thead>
                 <tr className="border-b text-muted-foreground">
                   <th scope="col" className="py-1.5 text-left font-medium">Intervalo</th>
@@ -1051,7 +1102,8 @@ export function LoadCurveChart({
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody aria-label={includeGeneration ? "Consumo" : undefined}>
+                {includeGeneration && <tr><th colSpan={5} className="pt-2 text-left font-semibold">Consumo</th></tr>}
                 <tr className="border-b border-border/60">
                   <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
                     <span className="inline-flex items-center gap-1.5">
@@ -1097,13 +1149,27 @@ export function LoadCurveChart({
                   ))}
                 </tr>
               </tbody>
+              {includeGeneration && <tbody aria-label="Geração FV">
+                <tr><th colSpan={5} className="border-t border-border/60 pt-3 text-left font-semibold">Geração FV</th></tr>
+                {([{ label: 'Período A · FV', summary: solarSummaryA }, { label: 'Período B · FV', summary: solarSummaryB }]).map(({ label, summary }) => (
+                  <tr key={label} className="border-b border-border/60">
+                    <th scope="row" className="py-1.5 text-left font-semibold">{label}</th>
+                    {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{summary ? `${summary[row.key].toFixed(2)} ${row.unit}` : '—'}</td>)}
+                  </tr>
+                ))}
+                <tr>
+                  <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">Diferença FV (B − A)</th>
+                  {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{solarSummaryA && solarSummaryB ? formatDelta(solarSummaryA[row.key], solarSummaryB[row.key], row.unit) : '—'}</td>)}
+                </tr>
+              </tbody>}
             </table>
           </div>
+          {includeGeneration && (!solarSummaryA || !solarSummaryB) && <p className="text-xs text-muted-foreground">Sem dados FV completos para um dos períodos. Valores indisponíveis aparecem como —.</p>}
         </div>
       )}
 
       {/* Base do painel: Status da demanda contratada */}
-      {hasContract ? (
+      {kind === 'generation' ? null : hasContract ? (
         <div
           className={cn(
             'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs',

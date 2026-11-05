@@ -301,3 +301,24 @@ describe('validateCommercialIndustrialOptions', () => {
     });
   });
 });
+
+describe('imported solar and period validation', () => {
+  it('accepts aligned timestamped solar without guessing installed DC capacity', () => {
+    const curve = makeLoadCurve() as NonNullable<CommercialIndustrialOptions['loadCurve']>;
+    const errors = validateCommercialIndustrialOptions(makeOptions({ solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: true, generationCurve: curve } }));
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects shifted imported generation and invalid solar values at the API boundary', () => {
+    const curve = makeLoadCurve() as NonNullable<CommercialIndustrialOptions['loadCurve']>;
+    const generationCurve = { ...curve, points: [{ timestamp: '2026-01-01T00:00:00Z', powerKw: -1 }] };
+    const errors = validateCommercialIndustrialOptions(makeOptions({ solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: true, generationCurve } }));
+    expect(errors.some((error) => error.includes('solar.generationCurve.points[0].powerKw'))).toBe(true);
+    expect(errors.some((error) => error.includes('geração importada'))).toBe(true);
+  });
+
+  it('rejects an eight-day span even with only two points', () => {
+    const curve = makeLoadCurve({ points: [{ timestamp: '2026-01-01T00:00:00Z', powerKw: 1 }, { timestamp: '2026-01-09T00:00:00Z', powerKw: 1 }] });
+    expect(validateCommercialIndustrialOptions(makeOptions({ loadCurve: curve as NonNullable<CommercialIndustrialOptions['loadCurve']> })).some((error) => error.includes('7 dias'))).toBe(true);
+  });
+});

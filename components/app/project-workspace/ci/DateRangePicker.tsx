@@ -75,6 +75,8 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Parse start date to initialize month view
@@ -121,9 +123,24 @@ export function DateRangePicker({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+      if (event.key === 'Tab') {
+        const buttons = dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+        if (!buttons?.length) return;
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     }
     if (isOpen) {
+      dialogRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
@@ -178,6 +195,7 @@ export function DateRangePicker({
     if (draftStart && draftEnd) {
       onChange({ startDate: draftStart, endDate: draftEnd });
       setIsOpen(false);
+      triggerRef.current?.focus();
     }
   }
 
@@ -199,6 +217,7 @@ export function DateRangePicker({
       {/* Trigger Button */}
       <button
         type="button"
+        ref={triggerRef}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={`Selecionar período: de ${formatDisplayDate(startDate)} a ${formatDisplayDate(endDate)}`}
@@ -225,6 +244,7 @@ export function DateRangePicker({
       {/* Popover / Custom Dropdown Menu */}
       {isOpen && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Calendário de seleção de período"
@@ -342,7 +362,7 @@ export function DateRangePicker({
                 type="button"
                 variant="ghost"
                 size="xs"
-                onClick={() => setIsOpen(false)}
+                onClick={() => { setIsOpen(false); triggerRef.current?.focus(); }}
                 className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
               >
                 Cancelar
