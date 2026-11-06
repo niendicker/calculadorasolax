@@ -47,7 +47,7 @@ function makeOptions(overrides: Record<string, unknown> = {}) {
   return {
     loadCurve: {
       points: [
-        { timestamp: '2026-08-24T00:00:00.000Z', powerKw: 60 },
+        { timestamp: '2026-08-24T20:00:00.000Z', powerKw: 60 },
         { timestamp: '2026-08-24T21:00:00.000Z', powerKw: 180 },
       ],
       resolutionMinutes: 60,

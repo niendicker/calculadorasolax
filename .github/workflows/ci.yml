@@ -58,6 +58,16 @@ jobs:
       - name: Test and coverage
         run: npm run test:coverage
 
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check and test C&I Edge Function
+        working-directory: supabase/functions
+        run: |
+          deno check calculate-commercial-industrial/index.ts
+          deno test --allow-env calculate-commercial-industrial/index.test.ts
+
       - name: Upload coverage report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
