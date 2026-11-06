@@ -86,7 +86,7 @@ export function isScenarioViable(scenario: ScenarioCandidate, horizonYears: numb
  * substitutes for viability: an empty result here means no scenario should
  * ever be recommended, regardless of criterion. */
 export function rankViableScenarios(scenarios: ScenarioCandidate[], criterion: RankingCriterion, horizonYears: number): ScenarioCandidate[] {
-  const viable = scenarios.filter((scenario) => isScenarioViable(scenario, horizonYears));
+  const viable = scenarios.filter((scenario) => scenario.technicalValidity && isScenarioViable(scenario, horizonYears));
   const hasBackupCompliant = viable.some((s) => s.backupResult && s.backupResult.status === 'fully_covered');
   if (hasBackupCompliant) {
     const compliant = viable.filter((s) => s.backupResult?.status === 'fully_covered');
@@ -153,6 +153,7 @@ export function recommendScenario(scenarios: ScenarioCandidate[], criterion: Ran
   const best = viableRanked[0];
 
   if (!best) {
+    if (scenarios.every(s => !s.technicalValidity)) return {scenarioId: null, reason: 'Nenhum cenário tecnicamente válido. Revise os requisitos de backup, a STS e as compatibilidades antes de comparar o retorno financeiro.'};
     const reason = `Nenhum cenário economicamente viável dentro do horizonte analisado (${scenarios.length} cenário${
       scenarios.length === 1 ? '' : 's'
     } avaliado${scenarios.length === 1 ? '' : 's'}).`;

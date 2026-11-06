@@ -1,3 +1,5 @@
+import { evaluateSts } from './sts.ts';
+import type { CiStsContext } from './sts-types.ts';
 // Scenario grid — Fase 5 of docs/CI-MODULE-PLAN.md section 5.1. Runs the
 // dispatch + tariff + financial engines (Fases 3-4) once per module count in
 // the requested sizing range, plus one baseline (no BESS) run shared by all
@@ -49,6 +51,7 @@ export function buildModuleCountRange(sizing: SizingConfig): number[] {
 }
 
 export interface ScenarioGridInput {
+  stsContext?: CiStsContext;
   curve: LoadCurve;
   product: BessProductSpec;
   strategy: BessStrategyId;
@@ -166,10 +169,17 @@ function evaluateModuleCount(
   const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);
   const savings = computeAnnualSavings(baselineCost, cost);
 
-  const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl);
+  const sts = evaluateSts(backup, trace, input.stsContext, moduleCount);
+  if (sts && backupResult) {
+    backupResult.meetsTransfer = sts.status === 'selected';
+    if (sts.status !== 'selected') { backupResult.status = 'insufficient_transfer'; backupResult.warningMessage = sts.message; }
+  }
+  const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl) + (sts?.selected?.totalBrl ?? 0);
   const cashFlow = buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
 
   const technicalWarnings: string[] = [];
+  if (sts) technicalWarnings.push(sts.message);
+  else if (backup?.enabled) technicalWarnings.push('Transferência não avaliada: nenhuma STS externa configurada. O backup avalia potência e energia do BESS.');
   if (peakShavingTargetKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
     const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
     if (achievedMaxDemandKw > peakShavingTargetKw + 1e-6) {
@@ -191,7 +201,8 @@ function evaluateModuleCount(
     // impossible, so there is no scenario a physical rule invalidates
     // outright. technicalWarnings still surfaces when the result falls
     // short of what the strategy was asked to achieve (undersized BESS).
-    technicalValidity: backupResult ? backupResult.status === 'fully_covered' : true,
+    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected'),
+    sts,
     technicalWarnings,
     totalPowerKw: bess.totalPowerKw,
     totalCapacityKwh: bess.totalCapacityKwh,

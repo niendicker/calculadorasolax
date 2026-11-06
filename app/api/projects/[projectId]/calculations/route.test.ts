@@ -1,3 +1,4 @@
+import { stsFixture, stsBackup } from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
 import { modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -260,7 +261,7 @@ describe('modular PCS + batteries API', () => {
   it('accepts a modular configuration without an integrated product and records its equipment/pricing snapshot', async () => {
     const equipment = { compatibility: { id: 'approved-id', revision: 'r1' }, prices: { pcsUnitBrl: 40000, batteryUnitBrl: 30000 } };
     findOwnCiProjectMock.mockResolvedValue({ ...ciProject, calculation_options: modularOptions() });
-    invokeMock.mockResolvedValue({ data: { ...calculationResult, engineVersion: 'ci-modular-v1', assumptions: { equipment } }, error: null });
+    invokeMock.mockResolvedValue({ data: { ...calculationResult, engineVersion: 'ci-modular-v2', assumptions: { equipment } }, error: null });
     const { POST } = await import('./route');
     const response = await POST(makeRequest(), makeParams());
     expect(response.status).toBe(200);
@@ -268,4 +269,16 @@ describe('modular PCS + batteries API', () => {
     expect(findUserBessUnitPriceMock).not.toHaveBeenCalled();
     expect(recordCalculationRunMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ input_snapshot: { options: modularOptions(), equipment } }));
   });
+});
+
+
+it('records STS specifications, approved PCS limit and own prices with the calculation snapshot',async()=>{
+  const options={...modularOptions(),backup:stsBackup()};const stsContext=stsFixture();
+  const equipment={compatibility:{id:'approved',revision:'1'},prices:{pcsUnitBrl:40000,batteryUnitBrl:30000}};
+  checkUserCiBackupAccessMock.mockResolvedValue(true);
+  findOwnCiProjectMock.mockResolvedValue({...ciProject,calculation_options:options});
+  invokeMock.mockResolvedValue({data:{...calculationResult,engineVersion:'ci-modular-v2',assumptions:{equipment},stsContext},error:null});
+  const {POST}=await import('./route');const response=await POST(makeRequest(),makeParams());
+  expect(response.status).toBe(200);
+  expect(recordCalculationRunMock).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({input_snapshot:{options,equipment,stsContext}}));
 });

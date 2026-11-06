@@ -1,6 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { getCalculationErrorMessage, getNetworkErrorMessage, resolveCalculationErrorMessage } from './calculation-error-messages';
+import { resolveCommercialIndustrialCalculationErrorMessage, getCalculationErrorMessage, getNetworkErrorMessage, resolveCalculationErrorMessage } from './calculation-error-messages';
 
 describe('getCalculationErrorMessage', () => {
   it('returns a distinct message per known error code', () => {
@@ -144,4 +144,8 @@ describe('resolveCalculationErrorMessage', () => {
     expect(await resolveCalculationErrorMessage(undefined)).toBe(getCalculationErrorMessage(undefined));
     expect(await resolveCalculationErrorMessage(new Error('unrelated'))).toBe(getCalculationErrorMessage(undefined));
   });
+});
+
+it('preserves actionable STS pricing errors returned by the C&I calculator',async()=>{
+  await expect(resolveCommercialIndustrialCalculationErrorMessage({code:'ci_sts',message:'Defina o preço da STS no seu Portfólio.'})).resolves.toBe('Defina o preço da STS no seu Portfólio.');
 });

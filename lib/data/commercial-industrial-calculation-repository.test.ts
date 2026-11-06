@@ -36,7 +36,7 @@ function makeClient(result: QueryResult = { data: null, error: null }) {
 }
 
 const options = { tariffId: 'tariff-1', bessProductId: 'bess-1' };
-const calculationResult = { engineVersion: 'ci-v1', recommendation: { scenarioId: 'scenario-1' } };
+const calculationResult = { engineVersion: 'ci-v3', recommendation: { scenarioId: 'scenario-1' } };
 const run = {
   id: 'run-1',
   engine_version: 'ci-v1',

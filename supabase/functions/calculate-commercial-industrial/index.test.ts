@@ -141,7 +141,7 @@ Deno.test('happy path: returns a full result with a recommendation and a materia
   const res = await handleCalculateCommercialIndustrial(req, makeFakeSupabase({ data: VALID_PRODUCT_ROW, error: null }));
   assertEquals(res.status, 200);
   const body = await res.json();
-  assertEquals(body.engineVersion, 'ci-v2');
+  assertEquals(body.engineVersion, 'ci-v3');
   assertEquals(body.scenarios.length, 1);
   // Whether the single scenario is viable under PAYBACK depends on the
   // dispatch numbers, but `selected` must always be materialized from it

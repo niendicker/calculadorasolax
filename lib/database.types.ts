@@ -9,6 +9,91 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ci_sts_specs: {
+        Row: {
+          accessory_id: string
+          active: boolean
+          rated_current_380v_a: number
+          rated_current_400v_a: number
+          frequency_hz: number[]
+          ems_included: boolean
+          reference_document: string
+          revision: string
+        }
+        Insert: {
+          accessory_id: string
+          active?: boolean
+          rated_current_380v_a: number
+          rated_current_400v_a: number
+          frequency_hz?: number[]
+          ems_included?: boolean
+          reference_document: string
+          revision: string
+        }
+        Update: {
+          accessory_id?: string
+          active?: boolean
+          rated_current_380v_a?: number
+          rated_current_400v_a?: number
+          frequency_hz?: number[]
+          ems_included?: boolean
+          reference_document?: string
+          revision?: string
+        }
+        Relationships: [{ foreignKeyName: "ci_sts_specs_accessory_id_fkey"; columns: ["accessory_id"]; isOneToOne: true; referencedRelation: "accessories"; referencedColumns: ["id"] }]
+      }
+      ci_sts_compatibility_rules: {
+        Row: {
+          id: string
+          accessory_id: string
+          pcs_id: string | null
+          bess_product_id: string | null
+          line_voltage_v: number
+          frequency_hz: number
+          max_pcs: number
+          active: boolean
+          approval_status: string
+          reference_document: string
+          revision: string
+          communication_profile: string
+          firmware: string
+        }
+        Insert: {
+          id?: string
+          accessory_id: string
+          pcs_id?: string | null
+          bess_product_id?: string | null
+          line_voltage_v: number
+          frequency_hz: number
+          max_pcs: number
+          active?: boolean
+          approval_status?: string
+          reference_document?: string
+          revision?: string
+          communication_profile?: string
+          firmware?: string
+        }
+        Update: {
+          id?: string
+          accessory_id?: string
+          pcs_id?: string | null
+          bess_product_id?: string | null
+          line_voltage_v?: number
+          frequency_hz?: number
+          max_pcs?: number
+          active?: boolean
+          approval_status?: string
+          reference_document?: string
+          revision?: string
+          communication_profile?: string
+          firmware?: string
+        }
+        Relationships: [
+          { foreignKeyName: "ci_sts_compatibility_rules_accessory_id_fkey"; columns: ["accessory_id"]; isOneToOne: false; referencedRelation: "ci_sts_specs"; referencedColumns: ["accessory_id"] },
+          { foreignKeyName: "ci_sts_compatibility_rules_pcs_id_fkey"; columns: ["pcs_id"]; isOneToOne: false; referencedRelation: "ci_pcs_specs"; referencedColumns: ["inverter_id"] },
+          { foreignKeyName: "ci_sts_compatibility_rules_bess_product_id_fkey"; columns: ["bess_product_id"]; isOneToOne: false; referencedRelation: "ci_bess_products"; referencedColumns: ["id"] },
+        ]
+      }
       ci_pcs_specs: {
         Row: {
           inverter_id: string

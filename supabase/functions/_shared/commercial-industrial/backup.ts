@@ -82,7 +82,8 @@ export function evaluateCandidateBackup(
   const usefulCapacityKwh = (bessCapacityKwh * (product.socMaxPercent - product.socMinPercent)) / 100;
   const deliverableEnergyKwh = usefulCapacityKwh * roundTripEfficiency;
 
-  const peakLimitKw = product.modulePeakPowerKw === undefined ? Infinity : product.modulePeakPowerKw * (product.modulePowerKw > 0 ? bessPowerKw / product.modulePowerKw : 0);
+  // Backup never assumes transient overload, including integrated BESS.
+  const peakLimitKw = bessPowerKw;
   const meetsPower = bessPowerKw >= requirements.requiredContinuousPowerKw - 1e-6 && peakLimitKw >= requirements.requiredPeakPowerKw - 1e-6;
   const meetsEnergy = deliverableEnergyKwh >= requirements.requiredEnergyKwh - 1e-6;
 
@@ -109,8 +110,8 @@ export function evaluateCandidateBackup(
 
   if (!meetsPower) {
     status = 'insufficient_power';
-    warningMessage = peakLimitKw < requirements.requiredPeakPowerKw - 1e-6
-      ? `Potência disponível para partida (${peakLimitKw.toFixed(1)} kW) insuficiente para o pico crítico (${requirements.requiredPeakPowerKw.toFixed(1)} kW). A composição modular utiliza o limite contínuo, sem presumir sobrecarga transitória.`
+    warningMessage = bessPowerKw >= requirements.requiredContinuousPowerKw - 1e-6
+      ? `Potência disponível para partida (${peakLimitKw.toFixed(1)} kW) insuficiente para o pico crítico (${requirements.requiredPeakPowerKw.toFixed(1)} kW). O cálculo utiliza o limite contínuo, sem presumir sobrecarga transitória.`
       : `Potência do BESS (${bessPowerKw.toFixed(1)} kW) insuficiente para as cargas críticas (${requirements.requiredContinuousPowerKw.toFixed(1)} kW).`;
   } else if (!meetsEnergy) {
     status = 'partially_covered';

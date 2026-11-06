@@ -368,6 +368,8 @@ export type AdminLogEntity =
   | 'ci_pcs'
   | 'ci_battery'
   | 'ci_compatibility'
+  | 'ci_sts'
+  | 'ci_sts_compatibility'
   | 'solution'
   | 'rule'
   | 'load_catalog_item'

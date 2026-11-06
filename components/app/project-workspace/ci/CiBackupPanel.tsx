@@ -15,6 +15,7 @@ import type {
   CommercialIndustrialOptions,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { DEFAULT_CI_GENERATOR_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { CiStsBackupPanel } from './CiStsBackupPanel';
 import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
 
 const inputModeOptions: { value: CiBackupInputMode; label: string; hint: string }[] = [
@@ -435,6 +436,8 @@ export function CiBackupPanel({
               </p>
             </div>
           )}
+
+          <CiStsBackupPanel options={ciOptions} backup={backup} onChange={updateBackup} />
 
           {/* Generator (GMG) Section */}
           <div className="space-y-4 border-t pt-5">
