@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadCiAccessoryContext } from './ci-accessories-repository';
+import { resolveCommercialIndustrialCalculationErrorMessage } from '@/lib/calculation-error-messages';
+import { modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import {
   cacheProjectCalculationResult,
   checkUserCiAccess,
@@ -47,6 +50,33 @@ const run = {
 };
 
 describe('commercial-industrial-calculation-repository', () => {
+  it('identifies an unpriced required accessory in an integrated study without backup', async () => {
+    const { client } = makeClient({ data: {
+      id: 'bess-1', model: 'BESS 100', module_power_kw: 100, module_capacity_kwh: 200,
+      efficiency_percent: 95, soc_min_percent: 10, soc_max_percent: 95,
+    }, error: null });
+    vi.mocked(loadCiAccessoryContext).mockResolvedValueOnce({
+      products: [{ id: 'ems', model: 'EMS integrado', active: true }],
+      prices: {}, selectedIds: [], stsIds: [],
+      rules: [{
+        id: 'rule', name: 'EMS obrigatório', accessory_id: 'ems', active: true,
+        pcs_id: null, battery_id: null, bess_product_id: 'bess-1', compatibility_id: null,
+        backup: null, generator: null, line_voltage_v: null, inclusion: 'required', metric: 'system',
+        min_count: 1, max_count: null, quantity: 1, divisor: 1,
+        requires_ids: [], excludes_ids: [], reference_document: 'Ficha técnica',
+      }],
+    });
+    const result = await invokeCommercialIndustrialCalculation(client, {
+      options: { ...modularOptions(), bessSystem: { kind: 'integrated' }, bessProductId: 'bess-1' },
+      unitPriceBrl: 45000,
+    });
+
+    expect(result.data).toBeNull();
+    await expect(resolveCommercialIndustrialCalculationErrorMessage(result.error)).resolves.toBe(
+      'Defina o preço de EMS integrado em Acessórios C&I no Portfólio.'
+    );
+  });
+
   it('uses the authoritative server path and does not trust an old edge result', async () => {
     const {client,invoke}=makeClient();
     const result=await invokeCommercialIndustrialCalculation(client,{options:{},unitPriceBrl:45000});

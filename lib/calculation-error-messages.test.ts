@@ -149,3 +149,8 @@ describe('resolveCalculationErrorMessage', () => {
 it('preserves actionable STS pricing errors returned by the C&I calculator',async()=>{
   await expect(resolveCommercialIndustrialCalculationErrorMessage({code:'ci_sts',message:'Defina o preço da STS no seu Portfólio.'})).resolves.toBe('Defina o preço da STS no seu Portfólio.');
 });
+
+it('keeps unexpected C&I errors generic instead of exposing internal details', async () => {
+  await expect(resolveCommercialIndustrialCalculationErrorMessage(new Error('database internal detail')))
+    .resolves.toBe('Não foi possível calcular o estudo C&I.');
+});

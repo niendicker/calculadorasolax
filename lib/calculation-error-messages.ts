@@ -210,7 +210,7 @@ export function getCommercialIndustrialCalculationErrorMessage(code: string | nu
 }
 
 export async function resolveCommercialIndustrialCalculationErrorMessage(functionError: unknown): Promise<string> {
-  if (functionError && typeof functionError === 'object' && 'code' in functionError && (functionError.code === 'ci_modular' || functionError.code === 'ci_sts') && 'message' in functionError && typeof functionError.message === 'string') return functionError.message;
+  if (functionError && typeof functionError === 'object' && 'code' in functionError && (functionError.code === 'ci_modular' || functionError.code === 'ci_sts' || functionError.code === 'ci_accessory_price') && 'message' in functionError && typeof functionError.message === 'string') return functionError.message;
   if (functionError instanceof FunctionsHttpError) {
     try {
       const body = await functionError.context.json();

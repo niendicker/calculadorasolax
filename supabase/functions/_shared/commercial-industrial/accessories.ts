@@ -22,6 +22,17 @@ export interface CiAccessoryItem {
   bundled: boolean; reasons: string[]; ruleIds: string[];
 }
 export interface CiAccessoryEvaluation { items: CiAccessoryItem[]; additionalCostBrl: number; valid: boolean; warnings: string[] }
+
+/** User-actionable pricing failure, safe to display through the project API. */
+export class CiAccessoryPriceError extends Error {
+  readonly code = 'ci_accessory_price';
+
+  constructor(model: string) {
+    super(`Defina o preço de ${model} em Acessórios C&I no Portfólio.`);
+    this.name = 'CiAccessoryPriceError';
+  }
+}
+
 export function ciAccessoryRuleMatches(rule: CiAccessoryRule, target: CiAccessoryTarget): boolean {
   const count = rule.metric === 'system' ? 1 : target[rule.metric];
   return rule.active && (!rule.pcs_id || rule.pcs_id === target.pcsId) && (!rule.battery_id || rule.battery_id === target.batteryId)
@@ -65,7 +76,7 @@ export function evaluateCiAccessories(context: CiAccessoryContext | undefined, t
   const result = [...items.values()].map(item => {
     if (item.bundled) return {...item,unitPriceBrl:0,totalBrl:0};
     const unitPriceBrl = context.stsIds.includes(item.productId) ? item.unitPriceBrl : context.prices[item.productId];
-    if (typeof unitPriceBrl !== 'number' || !Number.isFinite(unitPriceBrl) || unitPriceBrl < 0) throw new Error(`Defina o preço de ${item.model} em Acessórios C&I no Portfólio.`);
+    if (typeof unitPriceBrl !== 'number' || !Number.isFinite(unitPriceBrl) || unitPriceBrl < 0) throw new CiAccessoryPriceError(item.model);
     return {...item,unitPriceBrl,totalBrl:item.quantity*unitPriceBrl};
   });
   const additionalCostBrl = result.reduce((sum,item)=>sum+item.totalBrl,0)-existing.reduce((sum,item)=>sum+item.totalBrl,0);
