@@ -128,7 +128,7 @@ describe('commercial-industrial-calculation-repository', () => {
       unitPriceBrl: 45000,
     };
 
-    const res = await invokeCommercialIndustrialCalculation(client, body as any);
+    const res = await invokeCommercialIndustrialCalculation(client, body);
     expect(res.data).toBeDefined();
     expect(res.data?.selected?.dispatch?.[0]?.solarGenerationKw).toBeGreaterThan(0);
   });

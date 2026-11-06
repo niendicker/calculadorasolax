@@ -216,8 +216,7 @@ function attachPanAndZoom(
   onSelectionChange: (selection: CurveRangeSelection | null) => void,
   onResetSelections: () => void,
   onHoverPoint?: (badge: PointBadgeInfo | null) => void,
-  onRedraw?: () => void,
-  seriesLabel = 'Potência'
+  onRedraw?: () => void
 ): () => void {
   const over = chart.over;
   const ZOOM_FACTOR = 0.75;
@@ -694,6 +693,7 @@ export function LoadCurveChart({
   const pointsRef = useRef(points);
   const generationRef = useRef(generationPoints);
   const includeGeneration = generationPoints !== undefined;
+  const hasPoints = points.length > 0;
   const contractedDemandKwRef = useRef(contractedDemandKw);
   // Set right after (re)creating the chart below, consumed by the very next
   // run of the points-sync effect — see that effect for why this is needed.
@@ -702,6 +702,7 @@ export function LoadCurveChart({
   const [selections, setSelections] = useState<SelectionSlots>(EMPTY_SELECTIONS);
   const [redrawSeq, setRedrawSeq] = useState(0);
   const [hoverBadge, setHoverBadge] = useState<PointBadgeInfo | null>(null);
+  const [badgeLayout, setBadgeLayout] = useState<{ start: PointBadgeInfo | null; end: PointBadgeInfo | null; width: number }>({ start: null, end: null, width: 600 });
   // Mirrors `selections` for the canvas draw hook (see buildOptions), which
   // — like the other formatters there — is built once on mount and needs to
   // read current state at draw time, not whatever it closed over back then.
@@ -751,7 +752,7 @@ export function LoadCurveChart({
   // the plotted data in step whenever `points` changes.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || pointsRef.current.length === 0) return;
+    if (!el || !hasPoints) return;
 
     pointsRef.current = points;
     generationRef.current = generationPoints;
@@ -782,7 +783,9 @@ export function LoadCurveChart({
       chart.destroy();
       chartRef.current = null;
     };
-  }, [includeGeneration, kind]);
+    // Values synchronize in the data effect; edits must preserve the chart and zoom.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeGeneration, kind, hasPoints]);
 
   const isInitialContractMountRef = useRef(true);
   useEffect(() => {
@@ -876,8 +879,6 @@ export function LoadCurveChart({
     return () => observer.disconnect();
   }, []);
 
-  if (points.length === 0) return null;
-
   function summaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
     if (!range) return null;
     const slice = points.slice(range.startIndex, range.endIndex + 1);
@@ -928,19 +929,28 @@ export function LoadCurveChart({
     };
   }, [points, resolutionMinutes, isSelectionActive, activeSelection]);
 
-  const startBadge = activeSelection
-    ? getBadgeInfo(chartRef.current, activeSelection.startIndex, points[activeSelection.startIndex], isZoomed, 'Início')
-    : null;
-  const endBadge = activeSelection && activeSelection.startIndex !== activeSelection.endIndex
-    ? getBadgeInfo(chartRef.current, activeSelection.endIndex, points[activeSelection.endIndex], isZoomed, 'Fim')
-    : null;
+  // uPlot owns the geometry; copy it into React state after drawing.
+  useEffect(() => {
+    const chart = chartRef.current;
+    setBadgeLayout({
+      start: activeSelection
+        ? getBadgeInfo(chart, activeSelection.startIndex, points[activeSelection.startIndex], isZoomed, 'Início')
+        : null,
+      end: activeSelection && activeSelection.startIndex !== activeSelection.endIndex
+        ? getBadgeInfo(chart, activeSelection.endIndex, points[activeSelection.endIndex], isZoomed, 'Fim')
+        : null,
+      width: containerRef.current?.clientWidth || chart?.width || 600,
+    });
+  }, [activeSelection, points, isZoomed, redrawSeq]);
+  const { start: startBadge, end: endBadge, width: chartWidth } = badgeLayout;
 
   const isHoverDuplicate =
     hoverBadge != null &&
     ((startBadge != null && hoverBadge.index === startBadge.index) ||
       (endBadge != null && hoverBadge.index === endBadge.index));
 
-  const chartWidth = containerRef.current?.clientWidth || chartRef.current?.width || 600;
+
+  if (points.length === 0) return null;
 
   const hasContract = Boolean(contractedDemandKw && contractedDemandKw > 0);
   const hasExceedance = Boolean(hasContract && peakKw > (contractedDemandKw ?? 0));

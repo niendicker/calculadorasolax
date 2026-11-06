@@ -765,3 +765,14 @@ describe('FV statistics for selected periods', () => {
     expect(within(region).queryByText('0.00 kWh')).not.toBeInTheDocument();
   });
 });
+
+
+it('handles an empty curve becoming populated without changing hook order', () => {
+  const { rerender } = render(<LoadCurveChart points={[]} resolutionMinutes={15} />);
+  const populated = [point('2026-01-05T00:00:00Z', 20), point('2026-01-05T00:15:00Z', 40)];
+  rerender(<LoadCurveChart points={populated} resolutionMinutes={15} />);
+  expect(screen.getByText('40.00')).toBeInTheDocument();
+  expect(instances.at(-1)?.data).toEqual([[0, 1], [20, 40]]);
+  rerender(<LoadCurveChart points={[]} resolutionMinutes={15} />);
+  expect(instances.at(-1)?.destroyed).toBe(true);
+});
