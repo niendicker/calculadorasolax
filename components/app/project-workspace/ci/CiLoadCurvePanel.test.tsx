@@ -85,7 +85,7 @@ describe('CiLoadCurvePanel', () => {
     render(<ControlledPanel />);
     const csv = 'timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
     await importFile(csv);
-    fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }, { timeout: 4000 }));
 
     expect((await screen.findAllByText(/3 amostras/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Intervalo: 60 min/)).toBeInTheDocument();

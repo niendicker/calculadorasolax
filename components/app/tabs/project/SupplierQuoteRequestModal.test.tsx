@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupplierQuoteRequestRow } from '@/lib/data/supplier-quote-repository';
 import type { InlineProfile } from '../../types';
@@ -215,7 +215,9 @@ describe('SupplierQuoteRequestModal', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Solicitar orçamento ao fornecedor' });
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitações' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitações' }));
+    });
     expect(await screen.findByRole('alert')).toHaveTextContent(/Falha de conexão/);
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
