@@ -15,7 +15,7 @@
 // uPlot's canvas/DOM code never runs during SSR and its ~50kb only ships
 // once a curve is actually imported.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
 import type { LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 
-const CHART_HEIGHT = 240;
+const CHART_HEIGHT = 235;
 const MIN_SELECTION_DRAG_PX = 4;
 
 export interface CurveRangeSelection {
@@ -44,6 +44,86 @@ const EMPTY_SELECTIONS: SelectionSlots = { a: null, b: null };
 
 function clampIndex(index: number, length: number): number {
   return Math.min(Math.max(index, 0), Math.max(length - 1, 0));
+}
+
+export interface PointBadgeInfo {
+  index: number;
+  point: LoadCurvePoint;
+  x: number;
+  y: number;
+  labelPrefix?: string;
+}
+
+function formatBadgeText(point: LoadCurvePoint | undefined): string {
+  if (!point) return '';
+  const date = new Date(point.timestamp);
+  const weekdayRaw = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${weekday} ${time} · ${point.powerKw.toFixed(1)} kW`;
+}
+
+function PointBadge({
+  badge,
+  chartWidth,
+}: {
+  badge: PointBadgeInfo;
+  chartWidth: number;
+}) {
+  const isNearTop = badge.y < 35;
+  const clampedX = Math.max(65, Math.min(chartWidth - 65, badge.x));
+  const top = isNearTop ? badge.y + 12 : badge.y - 28;
+
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute z-20 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary shadow-sm ring-2 ring-primary/40"
+        style={{ left: `${badge.x}px`, top: `${badge.y}px` }}
+      />
+      <div
+        data-testid="point-badge"
+        className="pointer-events-none absolute z-30 flex items-center justify-center rounded-md bg-[#1D3443] dark:bg-[#18242C] px-2.5 py-1 text-[10.5px] font-semibold text-white shadow-md tabular-nums whitespace-nowrap border border-white/10"
+        style={{
+          left: `${clampedX}px`,
+          top: `${top}px`,
+          transform: 'translateX(-50%)',
+        }}
+      >
+        {badge.labelPrefix ? `${badge.labelPrefix}: ` : ''}
+        {formatBadgeText(badge.point)}
+      </div>
+    </>
+  );
+}
+
+function getBadgeInfo(
+  chart: uPlot | null,
+  index: number,
+  point: LoadCurvePoint | undefined,
+  isZoomed: boolean,
+  labelPrefix?: string
+): PointBadgeInfo | null {
+  if (!chart || !point) return null;
+  if (isZoomed && chart.scales?.x?.min != null && chart.scales?.x?.max != null) {
+    const min = chart.scales.x.min;
+    const max = chart.scales.x.max;
+    if (index < min - 0.5 || index > max + 0.5) {
+      return null;
+    }
+  }
+  const bboxLeft = Number.isFinite(chart.bbox?.left) ? chart.bbox.left : 0;
+  const bboxTop = Number.isFinite(chart.bbox?.top) ? chart.bbox.top : 0;
+  const px = chart.valToPos(index, 'x');
+  const py = chart.valToPos(point.powerKw, 'y');
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+
+  return {
+    index,
+    point,
+    x: bboxLeft + px,
+    y: bboxTop + py,
+    labelPrefix,
+  };
 }
 
 /** Weekday-only at midnight ("seg"), weekday+time otherwise ("seg 14:00") —
@@ -96,8 +176,13 @@ function areaFill(primary: string) {
   };
 }
 
-function buildData(points: LoadCurvePoint[]): uPlot.AlignedData {
-  return [points.map((_, index) => index), points.map((point) => point.powerKw)];
+function buildData(points: LoadCurvePoint[], generation?: { timestamp: string; powerKw: number | null }[]): uPlot.AlignedData {
+  const data: uPlot.AlignedData = [points.map((_, index) => index), points.map((point) => point.powerKw)];
+  if (generation) {
+    const byTimestamp = new Map(generation.map(point => [Date.parse(point.timestamp), point.powerKw]));
+    data.push(points.map(point => byTimestamp.get(Date.parse(point.timestamp)) ?? null));
+  }
+  return data;
 }
 
 function fullXRange(pointsRef: { current: LoadCurvePoint[] }): [number, number] {
@@ -129,7 +214,9 @@ function attachPanAndZoom(
   chart: uPlot,
   pointsRef: { current: LoadCurvePoint[] },
   onSelectionChange: (selection: CurveRangeSelection | null) => void,
-  onResetSelections: () => void
+  onResetSelections: () => void,
+  onHoverPoint?: (badge: PointBadgeInfo | null) => void,
+  onRedraw?: () => void
 ): () => void {
   const over = chart.over;
   const ZOOM_FACTOR = 0.75;
@@ -139,13 +226,6 @@ function attachPanAndZoom(
     chart.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
   }
 
-  // A trackpad or a fast mouse wheel can fire dozens of wheel events per
-  // second; each one applying its own setScale() re-triggers uPlot's full
-  // axis/redraw pass (including scanning every point for day boundaries),
-  // which is more synchronous work than the input rate can keep up with and
-  // was observed to lock up the tab for seconds under rapid scrolling.
-  // Coalescing to one committed range per animation frame keeps the visual
-  // result the same while capping how often that redraw actually runs.
   let pendingRange: { min: number; max: number } | null = null;
   let pendingFrame: number | null = null;
 
@@ -154,6 +234,7 @@ function attachPanAndZoom(
     if (pendingRange) {
       chart.setScale('x', pendingRange);
       pendingRange = null;
+      onRedraw?.();
     }
   }
 
@@ -180,8 +261,45 @@ function attachPanAndZoom(
     scheduleRange(min, max);
   }
 
+  function onMouseMove(event: MouseEvent) {
+    if (event.buttons !== 0) {
+      onHoverPoint?.(null);
+      return;
+    }
+    const rect = over.getBoundingClientRect();
+    const left = event.clientX - rect.left;
+    if (left < 0 || left > rect.width) {
+      onHoverPoint?.(null);
+      return;
+    }
+    const xVal = chart.posToVal(left, 'x');
+    const index = clampIndex(Math.round(xVal), pointsRef.current.length);
+    const point = pointsRef.current[index];
+    if (!point) {
+      onHoverPoint?.(null);
+      return;
+    }
+
+    const bboxLeft = Number.isFinite(chart.bbox?.left) ? chart.bbox.left : 0;
+    const bboxTop = Number.isFinite(chart.bbox?.top) ? chart.bbox.top : 0;
+    const px = chart.valToPos(index, 'x');
+    const py = chart.valToPos(point.powerKw, 'y');
+
+    onHoverPoint?.({
+      index,
+      point,
+      x: bboxLeft + px,
+      y: bboxTop + py,
+    });
+  }
+
+  function onMouseLeave() {
+    onHoverPoint?.(null);
+  }
+
   function startRangeSelection(event: MouseEvent) {
     event.preventDefault();
+    onHoverPoint?.(null);
     const rect = over.getBoundingClientRect();
     const clampPx = (px: number) => Math.min(Math.max(px, 0), rect.width);
     const startPx = clampPx(event.clientX - rect.left);
@@ -199,14 +317,10 @@ function attachPanAndZoom(
       if (Math.abs(endPx - startPx) < MIN_SELECTION_DRAG_PX) {
         clearVisualSelect();
         onSelectionChange(null);
+        onRedraw?.();
         return;
       }
 
-      // Ownership of "how to display this range" transfers to the persistent
-      // A/B canvas bands (see buildOptions' draw hook) the moment the drag
-      // completes — this native `.u-select` box was only ever the transient
-      // live-preview while dragging, so it's cleared here rather than left
-      // sitting on top of (and visually doubling up with) band A or B.
       clearVisualSelect();
 
       const leftPx = Math.min(startPx, endPx);
@@ -215,6 +329,7 @@ function attachPanAndZoom(
         startIndex: clampIndex(Math.round(chart.posToVal(leftPx, 'x')), pointsRef.current.length),
         endIndex: clampIndex(Math.round(chart.posToVal(rightPx, 'x')), pointsRef.current.length),
       });
+      onRedraw?.();
     }
 
     document.addEventListener('mousemove', onMove);
@@ -230,12 +345,11 @@ function attachPanAndZoom(
 
     const { min: rangeMin, max: rangeMax } = chart.scales.x;
     if (rangeMin == null || rangeMax == null) return;
-    // Re-bound as definitely-assigned: TS narrowing from the guard above
-    // doesn't carry into the onMove closure defined below.
     const startMin = rangeMin;
     const startMax = rangeMax;
 
     event.preventDefault();
+    onHoverPoint?.(null);
     const startX = event.clientX;
     const unitsPerPx = chart.posToVal(1, 'x') - chart.posToVal(0, 'x');
     over.style.cursor = 'grabbing';
@@ -249,6 +363,7 @@ function attachPanAndZoom(
       over.style.cursor = 'grab';
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      onRedraw?.();
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -259,16 +374,22 @@ function attachPanAndZoom(
     scheduleRange(min, max);
     clearVisualSelect();
     onResetSelections();
+    onHoverPoint?.(null);
+    onRedraw?.();
   }
 
   over.addEventListener('wheel', onWheel, { passive: false });
   over.addEventListener('mousedown', onMouseDown);
   over.addEventListener('dblclick', onDoubleClick);
+  over.addEventListener('mousemove', onMouseMove);
+  over.addEventListener('mouseleave', onMouseLeave);
 
   return () => {
     over.removeEventListener('wheel', onWheel);
     over.removeEventListener('mousedown', onMouseDown);
     over.removeEventListener('dblclick', onDoubleClick);
+    over.removeEventListener('mousemove', onMouseMove);
+    over.removeEventListener('mouseleave', onMouseLeave);
     if (pendingFrame != null) cancelAnimationFrame(pendingFrame);
   };
 }
@@ -282,7 +403,10 @@ function buildOptions(
   pointsRef: { current: LoadCurvePoint[] },
   selectionsRef: { current: SelectionSlots },
   contractedDemandKwRef: { current: number | undefined },
-  onZoomChange: (zoomed: boolean) => void
+  onZoomChange: (zoomed: boolean) => void,
+  onRedraw?: () => void,
+  seriesLabel = 'Potência',
+  includeGeneration = false
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const secondary = readCssVar('--chart-2', '#ff9d00');
@@ -300,7 +424,13 @@ function buildOptions(
     },
     legend: { show: true, live: true },
     scales: {
-      x: { time: false },
+      x: {
+        time: false,
+        range: (_self, min, max) => {
+          const fullMax = Math.max(pointsRef.current.length - 1, 0);
+          return [min ?? 0, max ?? fullMax];
+        },
+      },
       y: {
         range: (_self, dataMin, dataMax) => {
           const contracted = contractedDemandKwRef.current;
@@ -342,21 +472,58 @@ function buildOptions(
         value: (_self, rawValue) => formatPointLabel(pointsRef.current[Math.round(rawValue ?? 0)]),
       },
       {
-        label: 'Potência',
+        label: seriesLabel,
         stroke: primary,
         width: 2,
         fill: areaFill(primary),
         points: { show: false },
         value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(2)} kW`),
       },
+      ...(includeGeneration ? [{ label: 'Geração FV', stroke: secondary, width: 2, points: { show: false }, value: (_self: uPlot, rawValue: number | null) => rawValue == null ? '—' : `${Number(rawValue).toFixed(2)} kW` }] : []),
     ],
     hooks: {
+      drawClear: [
+        (self) => {
+          const points = pointsRef.current;
+          if (!points || points.length === 0) return;
+          const top = Number.isFinite(self.bbox.top) ? self.bbox.top : 0;
+          const height = Number.isFinite(self.bbox.height) ? self.bbox.height : CHART_HEIGHT;
+
+          self.ctx.save();
+          self.ctx.fillStyle = 'rgba(100, 116, 139, 0.08)';
+
+          let rangeStart: number | null = null;
+          for (let i = 0; i < points.length; i++) {
+            const d = new Date(points[i].timestamp);
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            if (isWeekend) {
+              if (rangeStart === null) rangeStart = i;
+            } else if (rangeStart !== null) {
+              const left = self.valToPos(rangeStart, 'x', true);
+              const right = self.valToPos(i, 'x', true);
+              if (Number.isFinite(left) && Number.isFinite(right)) {
+                self.ctx.fillRect(Math.min(left, right), top, Math.abs(right - left), height);
+              }
+              rangeStart = null;
+            }
+          }
+          if (rangeStart !== null) {
+            const left = self.valToPos(rangeStart, 'x', true);
+            const right = self.valToPos(points.length - 1, 'x', true);
+            if (Number.isFinite(left) && Number.isFinite(right)) {
+              self.ctx.fillRect(Math.min(left, right), top, Math.abs(right - left), height);
+            }
+          }
+          self.ctx.restore();
+        },
+      ],
       setScale: [
         (self, key) => {
           if (key !== 'x') return;
           const [fullMin, fullMax] = fullXRange(pointsRef);
           const { min, max } = self.scales.x;
           onZoomChange((min ?? fullMin) > fullMin + 0.5 || (max ?? fullMax) < fullMax - 0.5);
+          onRedraw?.();
         },
       ],
       // Pinned A/B comparison periods are painted directly on the canvas
@@ -458,6 +625,17 @@ function summarizeSelection(points: LoadCurvePoint[], resolutionMinutes: LoadCur
   return { peakKw, minKw, averageKw: sumKw / points.length, totalEnergyKwh: sumKw * intervalHours, pointCount: points.length };
 }
 
+function SolarSelectionSummary({ summary }: { summary: SelectionSummary | null }) {
+  return (
+    <section aria-label="Geração FV no período selecionado" className="space-y-2 border-t border-border/60 pt-2">
+      <h4 className="text-xs font-semibold">Geração FV</h4>
+      {summary ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {METRIC_ROWS.map(row => <div key={row.key}><p className="text-[11px] text-muted-foreground">{row.label}</p><p className="text-sm font-semibold">{summary[row.key].toFixed(2)} {row.unit}</p></div>)}
+      </div> : <p className="text-xs text-muted-foreground">Sem dados FV completos para este período.</p>}
+    </section>
+  );
+}
+
 /** "B relative to A": positive means B is higher. `aValue` is the
  * denominator for the percentage since A is the fixed baseline the user
  * picked first — a null percentage (aValue === 0) still shows the absolute
@@ -501,20 +679,30 @@ export function LoadCurveChart({
   points,
   resolutionMinutes,
   contractedDemandKw,
+  kind = 'load',
+  generationPoints,
 }: {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
   contractedDemandKw?: number;
+  kind?: 'load' | 'generation';
+  generationPoints?: { timestamp: string; powerKw: number | null }[];
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
   const pointsRef = useRef(points);
+  const generationRef = useRef(generationPoints);
+  const includeGeneration = generationPoints !== undefined;
+  const hasPoints = points.length > 0;
   const contractedDemandKwRef = useRef(contractedDemandKw);
   // Set right after (re)creating the chart below, consumed by the very next
   // run of the points-sync effect — see that effect for why this is needed.
   const skipNextPointsEffectRef = useRef(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [selections, setSelections] = useState<SelectionSlots>(EMPTY_SELECTIONS);
+  const [redrawSeq, setRedrawSeq] = useState(0);
+  const [hoverBadge, setHoverBadge] = useState<PointBadgeInfo | null>(null);
+  const [badgeLayout, setBadgeLayout] = useState<{ start: PointBadgeInfo | null; end: PointBadgeInfo | null; width: number }>({ start: null, end: null, width: 600 });
   // Mirrors `selections` for the canvas draw hook (see buildOptions), which
   // — like the other formatters there — is built once on mount and needs to
   // read current state at draw time, not whatever it closed over back then.
@@ -564,20 +752,40 @@ export function LoadCurveChart({
   // the plotted data in step whenever `points` changes.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || pointsRef.current.length === 0) return;
+    if (!el || !hasPoints) return;
 
-    const options = buildOptions(el.clientWidth || 600, pointsRef, selectionsRef, contractedDemandKwRef, setIsZoomed);
-    const chart = new uPlot(options, buildData(pointsRef.current), el);
+    pointsRef.current = points;
+    generationRef.current = generationPoints;
+    const options = buildOptions(
+      el.clientWidth || 600,
+      pointsRef,
+      selectionsRef,
+      contractedDemandKwRef,
+      setIsZoomed,
+      () => setRedrawSeq((s) => s + 1),
+      kind === 'generation' ? 'Geração FV' : includeGeneration ? 'Consumo' : 'Potência',
+      includeGeneration
+    );
+    const chart = new uPlot(options, buildData(pointsRef.current, generationRef.current), el);
     chartRef.current = chart;
     skipNextPointsEffectRef.current = true;
-    const detachPanAndZoom = attachPanAndZoom(chart, pointsRef, handleSelectionChange, handleResetSelections);
+    const detachPanAndZoom = attachPanAndZoom(
+      chart,
+      pointsRef,
+      handleSelectionChange,
+      handleResetSelections,
+      setHoverBadge,
+      () => setRedrawSeq((s) => s + 1)
+    );
 
     return () => {
       detachPanAndZoom();
       chart.destroy();
       chartRef.current = null;
     };
-  }, []);
+    // Values synchronize in the data effect; edits must preserve the chart and zoom.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeGeneration, kind, hasPoints]);
 
   const isInitialContractMountRef = useRef(true);
   useEffect(() => {
@@ -586,16 +794,25 @@ export function LoadCurveChart({
       isInitialContractMountRef.current = false;
       return;
     }
-    chartRef.current?.redraw();
+    const chart = chartRef.current;
+    if (!chart || chart.scales.x?.min == null) return;
+    chart.redraw(false, true);
   }, [contractedDemandKw]);
 
+  const isInitialSelectionMountRef = useRef(true);
   useEffect(() => {
     selectionsRef.current = selections;
+    if (isInitialSelectionMountRef.current) {
+      isInitialSelectionMountRef.current = false;
+      return;
+    }
+    const chart = chartRef.current;
+    if (!chart || chart.scales.x?.min == null) return;
     // Nothing about the data or scale changed — this just needs the `draw`
     // hook (which reads selectionsRef) to run again so the bands reflect the
     // new state; redraw(false, ...) calls commit() directly instead of
     // re-ranging the x-scale like redraw(true, ...) would.
-    chartRef.current?.redraw(false, false);
+    chart.redraw(false, false);
   }, [selections]);
 
   useEffect(() => {
@@ -612,6 +829,7 @@ export function LoadCurveChart({
     if (skipNextPointsEffectRef.current) {
       skipNextPointsEffectRef.current = false;
       pointsRef.current = points;
+      generationRef.current = generationPoints;
       return;
     }
 
@@ -631,35 +849,35 @@ export function LoadCurveChart({
     // A different point count (new CSV, new preset, a changed resolution or
     // period) really is a different curve, so that case still jumps back to
     // the full view and drops any selection tied to the old range.
-    chart.setData(buildData(points), false);
-    if (lengthChanged) {
+    generationRef.current = generationPoints;
+    chart.setData(buildData(points, generationPoints), false);
+    if (lengthChanged || chart.scales.x?.min == null) {
       const [min, max] = fullXRange(pointsRef);
       chart.setScale('x', { min, max });
       clearChartSelect(chart);
     } else {
       chart.redraw(true, true);
     }
-  }, [points]);
+  }, [points, generationPoints]);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const observer = new ResizeObserver(() => {
-      if (chartRef.current && el.clientWidth > 0) {
-        chartRef.current.setSize({ width: el.clientWidth, height: CHART_HEIGHT });
-        // The comparison bands are repainted by the canvas draw hook on every
-        // redraw (setSize triggers one), so they'd actually survive a resize
-        // on their own — reset anyway for consistency with the live-drag
-        // overlay below, which genuinely is stuck at the old pixel width.
-        setSelections(EMPTY_SELECTIONS);
-        clearChartSelect(chartRef.current);
+      const chart = chartRef.current;
+      if (chart && el.clientWidth > 0) {
+        chart.setSize({ width: el.clientWidth, height: CHART_HEIGHT });
+        // Pinned comparison bands survive chart resizing naturally because
+        // the canvas draw hook recomputes valToPos dynamically from the stored indices.
+        // Clearing selections here would unexpectedly discard them whenever rendering
+        // summary tables or layout changes trigger container resize.
+        clearChartSelect(chart);
+        setRedrawSeq((s) => s + 1);
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-
-  if (points.length === 0) return null;
 
   function summaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
     if (!range) return null;
@@ -667,10 +885,73 @@ export function LoadCurveChart({
     return slice.length > 0 ? summarizeSelection(slice, resolutionMinutes) : null;
   }
 
+  const generationByTimestamp = new Map(generationPoints?.map(point => [Date.parse(point.timestamp), point.powerKw]));
+  function solarSummaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
+    if (!range || !generationPoints) return null;
+    const selected = points.slice(range.startIndex, range.endIndex + 1);
+    const solarPoints: LoadCurvePoint[] = [];
+    for (const point of selected) {
+      const powerKw = generationByTimestamp.get(Date.parse(point.timestamp));
+      if (powerKw == null || !Number.isFinite(powerKw) || powerKw < 0) return null;
+      solarPoints.push({ timestamp: point.timestamp, powerKw });
+    }
+    return solarPoints.length ? summarizeSelection(solarPoints, resolutionMinutes) : null;
+  }
+  const solarSummaryA = solarSummaryFor(selections.a);
+  const solarSummaryB = solarSummaryFor(selections.b);
+
   const summaryA = summaryFor(selections.a);
   const summaryB = summaryFor(selections.b);
 
-  const peakKw = points.reduce((max, p) => (p.powerKw > max ? p.powerKw : max), 0);
+  const activeSelection = selections.b ?? selections.a;
+  const isSelectionActive = Boolean(activeSelection && points.length > 0);
+
+  const { peakKw, minKw, averageKw, totalEnergyKwh } = useMemo(() => {
+    const targetPoints = isSelectionActive && activeSelection
+      ? points.slice(activeSelection.startIndex, activeSelection.endIndex + 1)
+      : points;
+
+    const total = targetPoints.length;
+    let peak = 0;
+    let min = total > 0 ? targetPoints[0].powerKw : 0;
+    let sum = 0;
+    for (const p of targetPoints) {
+      if (p.powerKw > peak) peak = p.powerKw;
+      if (p.powerKw < min) min = p.powerKw;
+      sum += p.powerKw;
+    }
+    const intervalH = resolutionMinutes / 60;
+    return {
+      peakKw: peak,
+      minKw: min,
+      averageKw: total > 0 ? sum / total : 0,
+      totalEnergyKwh: sum * intervalH,
+    };
+  }, [points, resolutionMinutes, isSelectionActive, activeSelection]);
+
+  // uPlot owns the geometry; copy it into React state after drawing.
+  useEffect(() => {
+    const chart = chartRef.current;
+    setBadgeLayout({
+      start: activeSelection
+        ? getBadgeInfo(chart, activeSelection.startIndex, points[activeSelection.startIndex], isZoomed, 'Início')
+        : null,
+      end: activeSelection && activeSelection.startIndex !== activeSelection.endIndex
+        ? getBadgeInfo(chart, activeSelection.endIndex, points[activeSelection.endIndex], isZoomed, 'Fim')
+        : null,
+      width: containerRef.current?.clientWidth || chart?.width || 600,
+    });
+  }, [activeSelection, points, isZoomed, redrawSeq]);
+  const { start: startBadge, end: endBadge, width: chartWidth } = badgeLayout;
+
+  const isHoverDuplicate =
+    hoverBadge != null &&
+    ((startBadge != null && hoverBadge.index === startBadge.index) ||
+      (endBadge != null && hoverBadge.index === endBadge.index));
+
+
+  if (points.length === 0) return null;
+
   const hasContract = Boolean(contractedDemandKw && contractedDemandKw > 0);
   const hasExceedance = Boolean(hasContract && peakKw > (contractedDemandKw ?? 0));
   const exceedanceKw = hasExceedance ? peakKw - (contractedDemandKw ?? 0) : 0;
@@ -678,41 +959,60 @@ export function LoadCurveChart({
   const marginKw = hasContract && !hasExceedance && contractedDemandKw ? contractedDemandKw - peakKw : 0;
 
   return (
-    <div className="space-y-2">
-      {hasContract && (
-        <div
-          className={cn(
-            'flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs',
-            hasExceedance
-              ? 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200'
-              : 'border-border bg-muted/30 text-muted-foreground'
-          )}
-        >
-          <div className="flex items-center gap-1.5 font-medium">
-            {hasExceedance ? (
-              <>
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                <span>
-                  Ultrapassagem detectada: pico de {peakKw.toFixed(2)} kW excede o contrato ({contractedDemandKw} kW) em{' '}
-                  <strong className="font-semibold text-foreground">
-                    +{exceedanceKw.toFixed(2)} kW (+{exceedancePercent.toFixed(1)}%)
-                  </strong>
-                  .
-                </span>
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                <span>
-                  Demanda contratada ({contractedDemandKw} kW): pico de {peakKw.toFixed(2)} kW dentro do contrato (margem livre de{' '}
-                  <strong className="font-semibold text-foreground">{marginKw.toFixed(2)} kW</strong>).
-                </span>
-              </>
+    <div className="space-y-3">
+      {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
+      <div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
+        <div className="p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração máxima' : 'Demanda máxima'}</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
             )}
           </div>
-          <span className="text-[11px] font-normal text-muted-foreground">Linha tracejada vermelha no gráfico</span>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {peakKw.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kW</span>
+          </p>
         </div>
-      )}
+        <div className="p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração mínima' : 'Demanda mínima'}</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {minKw.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kW</span>
+          </p>
+        </div>
+        <div className="p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Potência média</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {averageKw.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kW</span>
+          </p>
+        </div>
+        <div className="p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
+            {isSelectionActive && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
+            )}
+          </div>
+          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
+            {totalEnergyKwh.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kWh</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Gráfico semanal (235px, como o editor diário) com uPlot e fundo de fins de semana */}
       <div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
         {isZoomed && (
@@ -720,17 +1020,19 @@ export function LoadCurveChart({
             type="button"
             variant="outline"
             size="xs"
-            className="absolute right-0 top-0 bg-card"
+            className="absolute right-0 top-0 bg-card z-10"
             onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(points.length - 1, 0) })}
           >
             <RefreshCw className="h-3 w-3" aria-hidden="true" />
             Redefinir zoom
           </Button>
         )}
+        {startBadge && <PointBadge badge={startBadge} chartWidth={chartWidth} />}
+        {endBadge && <PointBadge badge={endBadge} chartWidth={chartWidth} />}
+        {!isHoverDuplicate && hoverBadge && <PointBadge badge={hoverBadge} chartWidth={chartWidth} />}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Arraste para navegar · role o mouse para zoom · shift+arraste seleciona um período (de novo compara com o
-        primeiro) · duplo clique para redefinir
+        Shift + arraste para selecionar intervalo · Duplo clique para redefinir
       </p>
 
       {/* Exactly one period pinned: the plain single-period readout. */}
@@ -743,6 +1045,7 @@ export function LoadCurveChart({
             points={points}
             onClear={() => setSelections(EMPTY_SELECTIONS)}
           />
+          {includeGeneration && <h4 className="text-xs font-semibold">Consumo</h4>}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {METRIC_ROWS.map((row) => (
               <div key={row.key}>
@@ -753,6 +1056,7 @@ export function LoadCurveChart({
               </div>
             ))}
           </div>
+          {includeGeneration && <SolarSelectionSummary summary={solarSummaryA} />}
         </div>
       )}
       {summaryB && !summaryA && selections.b && (
@@ -764,6 +1068,7 @@ export function LoadCurveChart({
             points={points}
             onClear={() => setSelections(EMPTY_SELECTIONS)}
           />
+          {includeGeneration && <h4 className="text-xs font-semibold">Consumo</h4>}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {METRIC_ROWS.map((row) => (
               <div key={row.key}>
@@ -774,6 +1079,7 @@ export function LoadCurveChart({
               </div>
             ))}
           </div>
+          {includeGeneration && <SolarSelectionSummary summary={solarSummaryB} />}
         </div>
       )}
 
@@ -795,37 +1101,120 @@ export function LoadCurveChart({
             onClear={() => setSelections((previous) => ({ ...previous, b: null }))}
           />
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className={cn("w-full text-xs", includeGeneration && "min-w-[560px]")}>
               <thead>
-                <tr className="text-muted-foreground">
-                  <th className="py-1 text-left font-medium">
-                    <span className="sr-only">Métrica</span>
-                  </th>
-                  <th className="py-1 text-right font-medium">A</th>
-                  <th className="py-1 text-right font-medium">B</th>
-                  <th className="py-1 text-right font-medium">Diferença (B − A)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {METRIC_ROWS.map((row) => (
-                  <tr key={row.key} className="border-t">
-                    <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">
+                <tr className="border-b text-muted-foreground">
+                  <th scope="col" className="py-1.5 text-left font-medium">Intervalo</th>
+                  {METRIC_ROWS.map((row) => (
+                    <th key={row.key} scope="col" className="py-1.5 text-right font-medium">
                       {row.label}
                     </th>
-                    <td className="py-1.5 text-right font-semibold tabular-nums">
+                  ))}
+                </tr>
+              </thead>
+              <tbody aria-label={includeGeneration ? "Consumo" : undefined}>
+                {includeGeneration && <tr><th colSpan={5} className="pt-2 text-left font-semibold">Consumo</th></tr>}
+                <tr className="border-b border-border/60">
+                  <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--chart-1)' }}
+                        aria-hidden="true"
+                      />
+                      Período A
+                    </span>
+                  </th>
+                  {METRIC_ROWS.map((row) => (
+                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
                       {summaryA[row.key].toFixed(2)} {row.unit}
                     </td>
-                    <td className="py-1.5 text-right font-semibold tabular-nums">
+                  ))}
+                </tr>
+                <tr className="border-b border-border/60">
+                  <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--chart-2)' }}
+                        aria-hidden="true"
+                      />
+                      Período B
+                    </span>
+                  </th>
+                  {METRIC_ROWS.map((row) => (
+                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
                       {summaryB[row.key].toFixed(2)} {row.unit}
                     </td>
-                    <td className="py-1.5 text-right font-semibold tabular-nums">
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">
+                    Diferença (B − A)
+                  </th>
+                  {METRIC_ROWS.map((row) => (
+                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums text-foreground">
                       {formatDelta(summaryA[row.key], summaryB[row.key], row.unit)}
                     </td>
+                  ))}
+                </tr>
+              </tbody>
+              {includeGeneration && <tbody aria-label="Geração FV">
+                <tr><th colSpan={5} className="border-t border-border/60 pt-3 text-left font-semibold">Geração FV</th></tr>
+                {([{ label: 'Período A · FV', summary: solarSummaryA }, { label: 'Período B · FV', summary: solarSummaryB }]).map(({ label, summary }) => (
+                  <tr key={label} className="border-b border-border/60">
+                    <th scope="row" className="py-1.5 text-left font-semibold">{label}</th>
+                    {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{summary ? `${summary[row.key].toFixed(2)} ${row.unit}` : '—'}</td>)}
                   </tr>
                 ))}
-              </tbody>
+                <tr>
+                  <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">Diferença FV (B − A)</th>
+                  {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{solarSummaryA && solarSummaryB ? formatDelta(solarSummaryA[row.key], solarSummaryB[row.key], row.unit) : '—'}</td>)}
+                </tr>
+              </tbody>}
             </table>
           </div>
+          {includeGeneration && (!solarSummaryA || !solarSummaryB) && <p className="text-xs text-muted-foreground">Sem dados FV completos para um dos períodos. Valores indisponíveis aparecem como —.</p>}
+        </div>
+      )}
+
+      {/* Base do painel: Status da demanda contratada */}
+      {kind === 'generation' ? null : hasContract ? (
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs',
+            hasExceedance
+              ? 'border-destructive/40 bg-destructive/10 text-destructive dark:text-red-300'
+              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+          )}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            {hasExceedance ? (
+              <>
+                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive dark:text-red-400" aria-hidden="true" />
+                <span>
+                  <strong>Demanda contratada excedida</strong> (Ultrapassagem detectada): pico de {peakKw.toFixed(2)} kW excede o contrato ({contractedDemandKw} kW) em{' '}
+                  <strong className="font-semibold text-foreground">
+                    +{exceedanceKw.toFixed(2)} kW (+{exceedancePercent.toFixed(1)}%)
+                  </strong>
+                  .
+                </span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <span>
+                  <strong>Dentro da demanda contratada</strong>: pico de {peakKw.toFixed(2)} kW dentro do contrato ({contractedDemandKw} kW), com margem livre de{' '}
+                  <strong className="font-semibold text-foreground">{marginKw.toFixed(2)} kW</strong>.
+                </span>
+              </>
+            )}
+          </div>
+          <span className="text-[11px] font-normal text-muted-foreground">Linha tracejada vermelha no gráfico</span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2 text-xs text-muted-foreground">
+          <span>Demanda contratada: não definida (configure na etapa Tarifa para acompanhar limites).</span>
         </div>
       )}
     </div>

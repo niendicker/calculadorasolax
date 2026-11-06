@@ -150,14 +150,14 @@ describe('parseLoadCurveCsv', () => {
     expect(result.warnings.some((w) => w.includes('gap detected'))).toBe(true);
   });
 
-  it('warns when points are closer together than the declared resolution', () => {
+  it('rejects points spaced less than the 15-minute minimum', () => {
     const csv = ['timestamp,powerKw', '2026-08-24T00:00:00Z,100', '2026-08-24T00:01:00Z,110'].join('\n');
 
     const result = parseLoadCurveCsv(csv, makeMetadata({ resolutionMinutes: 60 }));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.warnings.some((w) => w.includes('closer together'))).toBe(true);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.some((error) => error.includes('mínimo'))).toBe(true);
   });
 });
 

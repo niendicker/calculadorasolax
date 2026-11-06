@@ -139,6 +139,8 @@ describe('CiDispatchChart', () => {
       [120, 140, 60],
       [80, 90, 80],
       [40, 50, 0],
+      [0, 0, 0],
+      [0, 0, 0],
     ]);
 
     const options = instance.options as {
@@ -150,6 +152,8 @@ describe('CiDispatchChart', () => {
     expect(options.series[1].label).toBe('Carga Original');
     expect(options.series[2].label).toBe('Demanda da Rede (com BESS)');
     expect(options.series[3].label).toBe('Descarga BESS (Corte)');
+    expect(options.series[4].label).toBe('Geração Solar FV');
+    expect(options.series[5].label).toBe('Gerador (GMG)');
 
     // Range incorporates contractedDemandKw = 15
     const yRange = options.scales.y.range(instance.chart, 0, 140);
@@ -190,5 +194,32 @@ describe('CiDispatchChart', () => {
 
     unmount();
     expect(instances[0].destroyed).toBe(true);
+  });
+
+  it('renders daily breakdown filter buttons and switches day view', () => {
+    const multiDayDispatch: DispatchPoint[] = [
+      {
+        timestamp: '2026-01-05T10:00:00Z',
+        tariffPeriod: 'offPeak',
+        loadKw: 100,
+        chargeKw: 0,
+        dischargeKw: 0,
+        gridImportKw: 100,
+        socKwh: 50,
+      },
+      {
+        timestamp: '2026-01-06T10:00:00Z',
+        tariffPeriod: 'offPeak',
+        loadKw: 110,
+        chargeKw: 0,
+        dischargeKw: 0,
+        gridImportKw: 110,
+        socKwh: 50,
+      },
+    ];
+
+    const { getByText } = render(<CiDispatchChart dispatch={multiDayDispatch} />);
+    expect(getByText('Exibição:')).toBeInTheDocument();
+    expect(getByText('Semana Completa')).toBeInTheDocument();
   });
 });

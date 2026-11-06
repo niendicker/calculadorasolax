@@ -4,7 +4,15 @@
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
 import { addressFromJson } from '@/lib/address';
-import { defaultCiBackupConfig, defaultCiOptions, defaultResidential, sanitizeDesiredFeatures, sanitizeMicrogridConfig } from './defaults';
+import {
+  defaultCiBackupConfig,
+  defaultCiGeneratorConfig,
+  defaultCiOptions,
+  defaultCiSolarConfig,
+  defaultResidential,
+  sanitizeDesiredFeatures,
+  sanitizeMicrogridConfig,
+} from './defaults';
 import type {
   Client,
   ProjectEvent,
@@ -135,7 +143,13 @@ export function commercialIndustrialOptionsFromJson(value: unknown): CommercialI
   const backup = isRecord(rawRecord.backup)
     ? ({ ...defaultCiBackupConfig, ...rawRecord.backup } as typeof defaultCiBackupConfig)
     : defaultCiBackupConfig;
-  return { ...defaultCiOptions, ...rawRecord, backup } as CommercialIndustrialOptions;
+  const solar = isRecord(rawRecord.solar)
+    ? ({ ...defaultCiSolarConfig, ...rawRecord.solar } as typeof defaultCiSolarConfig)
+    : defaultCiSolarConfig;
+  const generator = isRecord(rawRecord.generator)
+    ? ({ ...defaultCiGeneratorConfig, ...rawRecord.generator } as typeof defaultCiGeneratorConfig)
+    : defaultCiGeneratorConfig;
+  return { ...defaultCiOptions, ...rawRecord, backup, solar, generator } as CommercialIndustrialOptions;
 }
 
 export function ciProjectFromRow(row: Record<string, unknown>): SavedCiProject {

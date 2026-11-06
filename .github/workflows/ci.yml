@@ -7,7 +7,35 @@ on:
     branches: [main]
 
 jobs:
+  configuration:
+    name: Detect optional integration configuration
+    runs-on: ubuntu-latest
+    outputs:
+      visual: ${{ steps.detect.outputs.visual }}
+      database: ${{ steps.detect.outputs.database }}
+      database-private: ${{ steps.detect.outputs.database-private }}
+    steps:
+      - name: Detect configured integrations
+        id: detect
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SSH_PRIVATE_KEY: ${{ secrets.SUPABASE_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -n "$TEST_USER_EMAIL" ] && [ -n "$TEST_USER_PASSWORD" ] && [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo 'visual=true' >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$DATABASE_URL" ]; then
+            echo 'database=true' >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$SSH_PRIVATE_KEY" ]; then
+            echo 'database-private=true' >> "$GITHUB_OUTPUT"
+          fi
   test:
+    needs: configuration
     name: Lint, typecheck, test and coverage
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +58,16 @@ jobs:
       - name: Test and coverage
         run: npm run test:coverage
 
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check and test C&I Edge Function
+        working-directory: supabase/functions
+        run: |
+          deno check calculate-commercial-industrial/index.ts
+          deno test --allow-env calculate-commercial-industrial/index.test.ts
+
       - name: Upload coverage report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -40,18 +78,18 @@ jobs:
           retention-days: 14
 
       - name: Install Playwright browser
-        if: ${{ secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        if: ${{ needs.configuration.outputs.visual == 'true' }}
         run: npx playwright install --with-deps chromium
 
-      - name: Build application for visual tests
-        if: ${{ secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+      # Build even without integration credentials; these placeholders are only used in CI.
+      - name: Build application
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://ci-build.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ci-build-placeholder' }}
 
       - name: Visual Tests
-        if: ${{ secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        if: ${{ needs.configuration.outputs.visual == 'true' }}
         run: npm run test:visual
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
@@ -60,7 +98,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Upload visual test artifacts
-        if: ${{ failure() && secrets.TEST_USER_EMAIL != '' && secrets.TEST_USER_PASSWORD != '' && secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+        if: ${{ failure() && needs.configuration.outputs.visual == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: visual-test-artifacts
@@ -75,7 +113,8 @@ jobs:
     # Secrets are unavailable to pull requests from forks. The application
     # checks above remain required there; this job runs whenever the repository
     # has a configured database URL secret.
-    if: ${{ secrets.SUPABASE_DB_URL != '' }}
+    needs: configuration
+    if: ${{ needs.configuration.outputs.database == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +138,8 @@ jobs:
     # Use this job when Postgres is reachable only through the application
     # host's private network. It is intentionally separate from the public URL
     # job so either deployment model can be enabled independently.
-    if: ${{ secrets.SUPABASE_SSH_PRIVATE_KEY != '' }}
+    needs: configuration
+    if: ${{ needs.configuration.outputs.database-private == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

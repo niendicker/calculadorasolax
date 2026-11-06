@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoadCurvePoint } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { LoadCurveChart } from './LoadCurveChart';
@@ -298,7 +298,9 @@ describe('LoadCurveChart', () => {
     fireEvent.wheel(instance.over, { clientX: 150, deltaY: 100 });
     expect(instance.setScaleCalls).toHaveLength(0);
 
-    flushAnimationFrames();
+    act(() => {
+      flushAnimationFrames();
+    });
     expect(instance.setScaleCalls).toHaveLength(1);
     const range = instance.setScaleCalls[0] as { min: number; max: number };
     expect(range.min).toBeGreaterThanOrEqual(0);
@@ -321,11 +323,13 @@ describe('LoadCurveChart', () => {
     expect(animationFrames.size).toBe(1);
     unmount();
     expect(animationFrames.size).toBe(0);
-    flushAnimationFrames();
+    act(() => {
+      flushAnimationFrames();
+    });
     expect(instance.setScaleCalls).toHaveLength(0);
   });
 
-  it('resizes the chart and clears pinned selections', () => {
+  it('resizes the chart while preserving pinned selections', () => {
     render(<LoadCurveChart points={samplePoints.concat(point('2026-01-05T00:45:00Z', 20))} resolutionMinutes={15} />);
     const instance = instances[0];
     mockChartRect(instance.over);
@@ -339,9 +343,9 @@ describe('LoadCurveChart', () => {
     Object.defineProperty(target, 'clientWidth', { configurable: true, value: 640 });
     act(() => resizeCallback?.());
 
-    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 240 });
+    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 235 });
     expect(instance.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
-    expect(screen.queryByRole('button', { name: /Limpar/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Limpar/ })).toBeInTheDocument();
   });
 });
 
@@ -439,7 +443,7 @@ describe('shift+drag range selection', () => {
     fireEvent.mouseUp(document, { clientX: endX });
   }
 
-  it('a second shift+drag pins a comparison period B and shows a side-by-side table with a delta column', () => {
+  it('a second shift+drag pins a comparison period B and shows a pivoted comparison table with deltas', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     const over = instances.at(-1)!.over;
     mockOverRect(over);
@@ -447,13 +451,46 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
     dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
 
-    expect(screen.getByText(/Período A/)).toBeInTheDocument();
-    expect(screen.getByText(/Período B/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Período A/)).toHaveLength(2);
+    expect(screen.getAllByText(/Período B/)).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /Limpar/ })).toHaveLength(2);
+
+    // Column headers for metrics
+    expect(screen.getByRole('columnheader', { name: 'Intervalo' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Pico' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Mínima' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Média' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Energia' })).toBeInTheDocument();
+
+    // Row header for delta
+    expect(screen.getByRole('rowheader', { name: /Diferença \(B − A\)/ })).toBeInTheDocument();
 
     // Peak: A=26, B=6 -> delta -20.00 kW (-76.9%)
     expect(screen.getByText('26.00 kW')).toBeInTheDocument();
     expect(screen.getByText('6.00 kW')).toBeInTheDocument();
+    expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
+  });
+
+  it('preserves both periods A and B and comparison table when container resize occurs', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const instance = instances.at(-1)!;
+    const over = instance.over;
+    mockOverRect(over);
+
+    dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
+    dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
+
+    expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
+
+    // Simulate container resize (e.g. scrollbar appearing when comparison table renders)
+    const target = instance.target!;
+    Object.defineProperty(target, 'clientWidth', { configurable: true, value: 585 });
+    act(() => resizeCallback?.());
+
+    // Both periods remain visible and comparison table remains mounted
+    expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
     expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
   });
 
@@ -466,7 +503,7 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 10, 50); // B: values 2..6
     dragSelect(over, 0, 20); // replaces B: indices 0..2 -> values 1..3
 
-    expect(screen.getByText(/Período A/)).toHaveTextContent('seg'); // still the original A range
+    expect(screen.getAllByText(/Período A/)[0]).toHaveTextContent('seg'); // still the original A range
     expect(screen.getByText('26.00 kW')).toBeInTheDocument(); // A's peak unchanged
     expect(screen.getByText('3.00 kW')).toBeInTheDocument(); // B's new peak
     expect(screen.queryByText('6.00 kW')).not.toBeInTheDocument(); // B's old peak is gone
@@ -520,8 +557,36 @@ describe('pan/zoom stability across data updates', () => {
     const instance = instances.at(-1)!;
 
     expect(instance.setDataCalls).toHaveLength(0);
-    expect(instance.redrawCalls).toEqual([[false, false]]);
+    expect(instance.redrawCalls).toHaveLength(0);
     expect(instance.setScaleCalls).toHaveLength(0);
+  });
+
+  it('configures scale x with a defensive range function that prevents null/null corruption', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const instance = instances.at(-1)!;
+    const options = instance.options as {
+      scales: { x: { range: (self: unknown, min: number | null, max: number | null) => [number, number] } };
+    };
+
+    expect(typeof options.scales.x.range).toBe('function');
+    // When min/max are null (e.g. before uPlot commits its scale), it falls back to full range
+    expect(options.scales.x.range(instance.chart, null, null)).toEqual([0, 29]);
+    // When min/max are defined (e.g. user zoomed), it preserves the values
+    expect(options.scales.x.range(instance.chart, 5, 15)).toEqual([5, 15]);
+  });
+
+  it('safely uses setScale if points update occurs while scale is not yet committed', () => {
+    const { rerender } = render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const instance = instances.at(-1)!;
+    const chart = chartObject(instance);
+    // Simulate uncommitted scale (scales.x.min is null)
+    chart.scales.x = { min: null, max: null };
+
+    const tweaked = manyPoints.map((pt, i) => (i === 5 ? { ...pt, powerKw: 999 } : pt));
+    rerender(<LoadCurveChart points={tweaked} resolutionMinutes={60} />);
+
+    // Must NOT call redraw(true, true) which would corrupt uPlot's scale; calls setScale instead
+    expect(instance.setScaleCalls.at(-1)).toEqual({ min: 0, max: 29 });
   });
 
   it('does not touch the x-scale when a same-length points update happens (e.g. live drag-editing a manual curve)', () => {
@@ -583,4 +648,131 @@ describe('pan/zoom stability across data updates', () => {
     const fakeChart = instance.chart as { ctx: { fillText: ReturnType<typeof vi.fn> } };
     expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kW'), expect.any(Number), expect.any(Number));
   });
+});
+
+describe('interval selection metrics & point badges', () => {
+  const manyPoints: LoadCurvePoint[] = Array.from({ length: 30 }, (_, i) =>
+    point(`2026-01-05T${String(i).padStart(2, '0')}:00:00Z`, i + 1)
+  );
+
+  function mockOverRect(over: HTMLElement) {
+    vi.spyOn(over, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 300,
+      height: 240,
+      right: 300,
+      bottom: 240,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  it('recalculates top indicators exclusively for selected range and displays "intervalo" badges', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const over = instances.at(-1)!.over;
+    mockOverRect(over);
+
+    // Initial indicators show full week metrics (peak 30 kW, min 1 kW)
+    expect(screen.getByText('30.00')).toBeInTheDocument();
+    expect(screen.getByText('1.00')).toBeInTheDocument();
+    expect(screen.queryAllByText('intervalo')).toHaveLength(0);
+
+    // Shift-drag selects indices 10..25 (powers 11..26)
+    fireEvent.mouseDown(over, { button: 0, shiftKey: true, clientX: 100 });
+    fireEvent.mouseMove(document, { clientX: 250 });
+    fireEvent.mouseUp(document, { clientX: 250 });
+
+    // Top indicators now reflect only the selected interval (peak 26 kW, min 11 kW)
+    expect(screen.getByText('26.00')).toBeInTheDocument();
+    expect(screen.getByText('11.00')).toBeInTheDocument();
+    expect(screen.getAllByText('intervalo')).toHaveLength(4);
+
+    // Início and Fim badges are rendered on the chart
+    expect(screen.getByText(/Início:.*11\.0 kW/)).toBeInTheDocument();
+    expect(screen.getByText(/Fim:.*26\.0 kW/)).toBeInTheDocument();
+  });
+
+  it('displays hover badge on mousemove and clears on mouseleave', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const over = instances.at(-1)!.over;
+    mockOverRect(over);
+
+    // Hover over clientX 50 -> index 5 -> power 6 kW
+    fireEvent.mouseMove(over, { clientX: 50, buttons: 0 });
+    expect(screen.getByText(/6\.0 kW/)).toBeInTheDocument();
+
+    // Mouse leave clears hover badge
+    fireEvent.mouseLeave(over);
+    expect(screen.queryByText(/6\.0 kW/)).not.toBeInTheDocument();
+  });
+
+  it('renders summarized guide text below the chart', () => {
+    render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    expect(
+      screen.getByText('Shift + arraste para selecionar intervalo · Duplo clique para redefinir')
+    ).toBeInTheDocument();
+  });
+});
+
+it('plots FV on the consumption timeline, preserves gaps and updates without recreating the chart', () => {
+  const points = [{ timestamp: '2026-11-02T12:00:00-03:00', powerKw: 100 }, { timestamp: '2026-11-02T12:15:00-03:00', powerKw: 120 }];
+  const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={[{ timestamp: points[1].timestamp, powerKw: 80 }]} />);
+  expect(instances[0].data).toEqual([[0, 1], [100, 120], [null, 80]]);
+  expect(chartOptions().series).toHaveLength(3);
+  rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: 90 }))} />);
+  expect(instances).toHaveLength(1);
+  expect(instances[0].setDataCalls.at(-1)).toEqual([[0, 1], [100, 120], [90, 90]]);
+});
+
+
+describe('FV statistics for selected periods', () => {
+  const points = Array.from({ length: 30 }, (_, index) => ({ timestamp: new Date(Date.UTC(2026, 10, 2, 3, index * 15)).toISOString(), powerKw: index + 1 }));
+  function selectRange(over: HTMLElement, start: number, end: number) {
+    mockChartRect(over);
+    fireEvent.mouseDown(over, { button: 0, shiftKey: true, clientX: start });
+    fireEvent.mouseMove(document, { clientX: end });
+    fireEvent.mouseUp(document, { clientX: end });
+  }
+
+  it('shows FV peak, minimum, mean, energy and A/B deltas, updating with edited generation', () => {
+    const generation = points.map(point => ({ ...point, powerKw: point.powerKw * 2 })).reverse();
+    const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={generation} />);
+    selectRange(instances.at(-1)!.over, 100, 250);
+    const single = within(screen.getByRole('region', { name: 'Geração FV no período selecionado' }));
+    expect(single.getByText('52.00 kW')).toBeInTheDocument();
+    expect(single.getByText('22.00 kW')).toBeInTheDocument();
+    expect(single.getByText('37.00 kW')).toBeInTheDocument();
+    expect(single.getByText('148.00 kWh')).toBeInTheDocument();
+    selectRange(instances.at(-1)!.over, 10, 50);
+    const comparison = within(screen.getByRole('rowgroup', { name: 'Geração FV' }));
+    expect(comparison.getByText('148.00 kWh')).toBeInTheDocument();
+    expect(comparison.getByText('10.00 kWh')).toBeInTheDocument();
+    expect(comparison.getByText('-138.00 kWh (-93.2%)')).toBeInTheDocument();
+    rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: point.powerKw * 3 }))} />);
+    expect(comparison.getByText('222.00 kWh')).toBeInTheDocument();
+    expect(comparison.getByText('15.00 kWh')).toBeInTheDocument();
+  });
+
+  it('distinguishes missing FV readings from actual zero generation', () => {
+    const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: 0 }))} />);
+    selectRange(instances.at(-1)!.over, 100, 250);
+    const region = screen.getByRole('region', { name: 'Geração FV no período selecionado' });
+    expect(within(region).getByText('0.00 kWh')).toBeInTheDocument();
+    rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.filter((_, index) => index !== 12).map(point => ({ ...point, powerKw: 0 }))} />);
+    expect(within(region).getByText('Sem dados FV completos para este período.')).toBeInTheDocument();
+    expect(within(region).queryByText('0.00 kWh')).not.toBeInTheDocument();
+  });
+});
+
+
+it('handles an empty curve becoming populated without changing hook order', () => {
+  const { rerender } = render(<LoadCurveChart points={[]} resolutionMinutes={15} />);
+  const populated = [point('2026-01-05T00:00:00Z', 20), point('2026-01-05T00:15:00Z', 40)];
+  rerender(<LoadCurveChart points={populated} resolutionMinutes={15} />);
+  expect(screen.getByText('40.00')).toBeInTheDocument();
+  expect(instances.at(-1)?.data).toEqual([[0, 1], [20, 40]]);
+  rerender(<LoadCurveChart points={[]} resolutionMinutes={15} />);
+  expect(instances.at(-1)?.destroyed).toBe(true);
 });

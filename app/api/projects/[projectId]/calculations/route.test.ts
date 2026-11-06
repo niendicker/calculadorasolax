@@ -1,3 +1,4 @@
+import { modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -236,5 +237,35 @@ describe('GET /api/projects/[projectId]/calculations', () => {
     const response = await GET(new Request('http://localhost'), makeParams());
 
     expect(response.status).toBe(404);
+  });
+});
+
+
+describe('imported profile API limits', () => {
+  it('rejects a period longer than seven days locally before invoking a remote calculator', async () => {
+    findOwnCiProjectMock.mockResolvedValue({ ...ciProject, calculation_options: {
+      ...ciProject.calculation_options,
+      loadCurve: { points: [{ timestamp: '2026-01-01T00:00:00Z', powerKw: 10 }, { timestamp: '2026-01-09T00:00:00Z', powerKw: 10 }], resolutionMinutes: 60, timezone: 'America/Sao_Paulo', profileBasis: 'representative_period', periodStart: '2026-01-01', periodEnd: '2026-01-09', source: 'csv' },
+    } });
+    const { POST } = await import('./route');
+    const response = await POST(makeRequest(), makeParams());
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toContain('7 dias');
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('modular PCS + batteries API', () => {
+  it('accepts a modular configuration without an integrated product and records its equipment/pricing snapshot', async () => {
+    const equipment = { compatibility: { id: 'approved-id', revision: 'r1' }, prices: { pcsUnitBrl: 40000, batteryUnitBrl: 30000 } };
+    findOwnCiProjectMock.mockResolvedValue({ ...ciProject, calculation_options: modularOptions() });
+    invokeMock.mockResolvedValue({ data: { ...calculationResult, engineVersion: 'ci-modular-v1', assumptions: { equipment } }, error: null });
+    const { POST } = await import('./route');
+    const response = await POST(makeRequest(), makeParams());
+    expect(response.status).toBe(200);
+    expect(findBessProductModelMock).not.toHaveBeenCalled();
+    expect(findUserBessUnitPriceMock).not.toHaveBeenCalled();
+    expect(recordCalculationRunMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ input_snapshot: { options: modularOptions(), equipment } }));
   });
 });

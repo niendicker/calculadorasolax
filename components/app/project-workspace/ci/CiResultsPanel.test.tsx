@@ -119,6 +119,7 @@ function makeResult(overrides: Partial<CommercialIndustrialResult> = {}): Commer
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.stubGlobal('fetch', vi.fn());
   dynamicMocks.buildMemorialPdf.mockResolvedValue(new Blob(['pdf']));
   dynamicMocks.listProducts.mockResolvedValue([]);
@@ -223,6 +224,8 @@ describe('CiResultsPanel', () => {
 
     expect(await screen.findByText(/Nenhum cenário economicamente viável/)).toBeInTheDocument();
     expect(screen.getByText('Inválido')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspecionar cenário de 1 módulo' }));
+    expect(screen.getByText('Subdimensionado.')).toBeInTheDocument();
     expect(screen.getByText('Avisos técnicos')).toBeInTheDocument();
     expect(screen.getByText('A curva possui lacunas.')).toBeInTheDocument();
   });
@@ -248,6 +251,7 @@ describe('CiResultsPanel', () => {
     expect(dynamicMocks.listProducts).toHaveBeenCalledOnce();
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:memorial');
+    expect(screen.getByRole('button', { name: 'Memorial baixado!' })).toBeInTheDocument();
   });
 
   it('shows an error when memorial generation fails', async () => {
@@ -299,7 +303,7 @@ describe('CiResultsPanel', () => {
     render(<CiResultsPanel {...panelProps('ci-project-1')} />);
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
-    expect(await screen.findByText('Operação e Despacho BESS (Peak Shaving)')).toBeInTheDocument();
+    expect(await screen.findByText('Operação e Despacho BESS')).toBeInTheDocument();
     expect(screen.getByText('Pico de Carga Original')).toBeInTheDocument();
     expect(screen.getAllByText('350,0 kW')).toHaveLength(2); // baseline + peak shaving
     expect(screen.getByText('Pico com BESS (Rede)')).toBeInTheDocument();
@@ -308,4 +312,119 @@ describe('CiResultsPanel', () => {
     expect(screen.getByText(/100,0 kW/)).toBeInTheDocument();
     expect(screen.getByText('Economia em Demanda')).toBeInTheDocument();
   });
+
+  it('renders solar PV generation metric card when solarGenerationKw is present in dispatch', async () => {
+    const base = makeResult();
+    const resultWithSolar = makeResult({
+      selected: {
+        ...base.selected!,
+        demandSavings: 45000,
+        dispatch: [
+          {
+            timestamp: '2026-01-01T12:00:00Z',
+            tariffPeriod: 'offPeak',
+            loadKw: 150,
+            chargeKw: 0,
+            dischargeKw: 0,
+            gridImportKw: 100,
+            socKwh: 100,
+            solarGenerationKw: 50,
+          },
+        ],
+      },
+    });
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(resultWithSolar),
+    });
+
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    expect(await screen.findByText('Geração Solar FV (período simulado)')).toBeInTheDocument();
+  });
+
+  it('renders readiness checklist empty state before calculation and allows selecting scenarios', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeResult()),
+    });
+
+    render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+
+    // Readiness empty state
+    expect(screen.getByText('Revise as pendências do estudo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Calcular' })).toBeInTheDocument();
+
+    // Trigger calculation
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    expect(await screen.findByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+
+    // Click on 1 module scenario row to inspect
+    const rows = screen.getAllByRole('row');
+    // Row 0 is header, Row 1 is 1 module, Row 2 is 2 modules
+    fireEvent.click(rows[1]);
+
+    expect(screen.getByText('Cenário inspecionado — 1 módulo')).toBeInTheDocument();
+    expect(screen.getByText('Voltar ao recomendado')).toBeInTheDocument();
+
+    // Return to recommended
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar ao recomendado' }));
+    expect(screen.getByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+  });
+
+  it('displays a warning banner when options are modified after calculation', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeResult()),
+    });
+
+    const { rerender } = render(<CiResultsPanel {...panelProps('ci-project-1')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
+
+    expect(await screen.findByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+    expect(screen.queryByText(/Os parâmetros do estudo foram alterados/)).not.toBeInTheDocument();
+
+    // Rerender with modified options
+    const modifiedOptions = { ...testCiOptions, strategy: 'PEAK_SHAVING' as const };
+    rerender(<CiResultsPanel {...panelProps('ci-project-1')} ciOptions={modifiedOptions} />);
+
+    expect(screen.getByText(/Os parâmetros do estudo foram alterados nas outras abas/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recalcular agora' })).toBeInTheDocument();
+  });
+  it('blocks PDF export for changed parameters and during recalculation', async () => {
+    const snapshot = { result: makeResult(), optionsFingerprint: JSON.stringify(testCiOptions) };
+    const { rerender } = render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={snapshot} />);
+    expect(screen.getByRole('button', { name: 'Gerar memorial (PDF)' })).toBeEnabled();
+    rerender(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={snapshot} ciOptions={{ ...testCiOptions, strategy: 'PEAK_SHAVING' }} />);
+    expect(screen.getByRole('button', { name: 'Gerar memorial (PDF)' })).toBeDisabled();
+    expect(dynamicMocks.buildMemorialPdf).not.toHaveBeenCalled();
+    (global.fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    fireEvent.click(screen.getByRole('button', { name: 'Recalcular' }));
+    expect(screen.getByRole('button', { name: 'Gerar memorial (PDF)' })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Salvando parâmetros');
+  });
+
+  it('opens a pending step directly and returns to identification for an unsaved project', () => {
+    const onNavigateToSection = vi.fn();
+    const { rerender } = render(<CiResultsPanel {...panelProps('ci-project-1')} onNavigateToSection={onNavigateToSection} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Curva de carga' }));
+    expect(onNavigateToSection).toHaveBeenCalledWith('curve');
+    expect(screen.getAllByRole('button', { name: 'Calcular' })).toHaveLength(1);
+    rerender(<CiResultsPanel {...panelProps(null)} onNavigateToSection={onNavigateToSection} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ir para Visão geral' }));
+    expect(onNavigateToSection).toHaveBeenCalledWith('overview');
+  });
+
+  it('offers keyboard accessible scenario selection with an announced pressed state', async () => {
+    render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{ result: makeResult(), optionsFingerprint: JSON.stringify(testCiOptions) }} />);
+    const inspect = screen.getByRole('button', { name: 'Inspecionar cenário de 1 módulo' });
+    expect(inspect).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(inspect);
+    expect(inspect).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Cenário inspecionado — 1 módulo')).toBeInTheDocument();
+  });
+
 });

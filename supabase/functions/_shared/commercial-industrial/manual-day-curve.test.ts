@@ -110,3 +110,18 @@ describe('DAILY_CURVE_PRESETS', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+
+describe('quarter-hour manual profiles', () => {
+  it('persists all 96 anchors and uses the exact independently edited quarter-hour', () => {
+    const values = new Array(96).fill(50);
+    values[41] = 83;
+    const result = buildManualDayCurve(values, values, makeMetadata());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.curve.points[41].powerKw).toBe(83);
+    expect(result.curve.points[40].powerKw).toBe(50);
+    expect(result.curve.manualConfig?.weekdayKw).toHaveLength(96);
+    expect(result.curve.points).toHaveLength(672);
+  });
+});

@@ -23,7 +23,10 @@ import {
   Receipt,
   ShieldAlert,
   SlidersHorizontal,
+  Sun,
 } from 'lucide-react';
+import { ciScenarioLabel } from './ci-scenario-label';
+import { getCiConfigurationStatus } from './ci-configuration-status';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { formatAddress } from '@/lib/address';
@@ -52,7 +55,10 @@ function CardIcon({ icon: Icon }: { icon: typeof BatteryCharging }) {
   );
 }
 
-function StateBadge({ configured }: { configured: boolean }) {
+function StateBadge({ configured, inactive }: { configured: boolean; inactive?: boolean }) {
+  if (inactive) {
+    return <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">Opcional · Inativo</span>;
+  }
   return (
     <span className={cn('inline-flex items-center gap-1 text-xs font-medium', configured ? 'text-emerald-600' : 'text-amber-600')}>
       {configured ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -65,12 +71,14 @@ function ConfigCard({
   icon: Icon,
   label,
   configured,
+  inactive,
   summary,
   onOpen,
 }: {
   icon: typeof BatteryCharging;
   label: string;
   configured: boolean;
+  inactive?: boolean;
   summary: string;
   onOpen: () => void;
 }) {
@@ -86,9 +94,9 @@ function ConfigCard({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-foreground">{label}</span>
         <span className="mt-1 block">
-          <StateBadge configured={configured} />
+          <StateBadge configured={configured} inactive={inactive} />
         </span>
-        <span className="mt-1 block truncate text-xs text-muted-foreground">{summary}</span>
+        <span className="mt-1 block break-words text-xs text-muted-foreground">{summary}</span>
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>
@@ -122,6 +130,7 @@ export function CiOverviewPanel({
   isSaved,
   ciOptions,
   calculationResult,
+  isResultStale = false,
   canAccessCiBackup = false,
   onNavigateToSection,
 }: {
@@ -139,6 +148,7 @@ export function CiOverviewPanel({
   isSaved: boolean;
   ciOptions: CommercialIndustrialOptions;
   calculationResult: CommercialIndustrialResult | null;
+  isResultStale?: boolean;
   canAccessCiBackup?: boolean;
   onNavigateToSection: (section: CiWorkspaceSection) => void;
 }) {
@@ -161,12 +171,11 @@ export function CiOverviewPanel({
 
   const bessProduct = bessProducts.find((product) => product.id === ciOptions.bessProductId) ?? null;
 
-  const bessConfigured =
-    ciOptions.bessProductId !== null &&
-    (ciOptions.sizing.mode === 'fixed'
-      ? ciOptions.sizing.moduleCount !== null
-      : ciOptions.sizing.minModules !== null && ciOptions.sizing.maxModules !== null);
-  const bessSummary = !ciOptions.bessProductId
+  const status = getCiConfigurationStatus(ciOptions);
+  const { bess: bessConfigured, curve: curveConfigured, tariff: tariffConfigured } = status;
+  const bessSummary = ciOptions.bessSystem?.kind === 'modular'
+    ? `PCS + baterias · ${ciOptions.bessSystem.compatibilityId ? 'Compatibilidade selecionada' : 'Selecione uma compatibilidade'} · ${ciOptions.bessSystem.mode === 'auto' ? 'Comparação automática' : 'Composição fixa'}`
+    : !ciOptions.bessProductId
     ? 'Nenhum produto selecionado'
     : `${bessProduct ? `${bessProduct.model} · ${bessProduct.manufacturer}` : 'Produto selecionado'} · ${
         ciOptions.sizing.mode === 'fixed'
@@ -175,12 +184,10 @@ export function CiOverviewPanel({
       }`;
 
   const loadCurve = ciOptions.loadCurve;
-  const curveConfigured = loadCurve !== null && loadCurve.points.length > 0;
   const curveSummary =
     loadCurve && curveConfigured ? `${loadCurve.points.length} pontos · resolução ${loadCurve.resolutionMinutes} min` : 'Nenhuma curva importada';
 
   const tariff = ciOptions.tariff;
-  const tariffConfigured = tariff !== null;
   const tariffSummary = tariff
     ? `Modalidade ${tariff.tariffModality === 'verde' ? 'Verde' : 'Azul'} · Demanda contratada ${formatKw(tariff.contractedDemandKw)}`
     : 'Tarifa não configurada';
@@ -188,6 +195,13 @@ export function CiOverviewPanel({
   const strategySummary = `${STRATEGY_LABELS[ciOptions.strategy] ?? ciOptions.strategy} · Ranking ${
     RANKING_LABELS[ciOptions.rankingCriterion] ?? ciOptions.rankingCriterion
   }`;
+
+  const solar = ciOptions.solar;
+  const solarConfigured = Boolean(solar?.enabled && status.solar);
+  const solarSummary = !solar?.enabled
+    ? 'Desativado'
+    : solar.generationCurve ? `${solar.generationCurve.source === 'manual' ? 'Perfil personalizado' : 'Curva importada'} · ${solar.generationCurve.points.length} pontos · ${solar.generationCurve.resolutionMinutes} min`
+    : `${solar.installedPowerKwp} kWp · ${solar.inverterPowerKw || solar.installedPowerKwp} kW inversor`;
 
   const backup = ciOptions.backup;
   const backupConfigured = Boolean(
@@ -200,14 +214,14 @@ export function CiOverviewPanel({
       ? `${backup.loads.length} carga${backup.loads.length === 1 ? '' : 's'} · ${backup.autonomyHours}h autonomia`
       : `${backup.targetPowerKw} kW · ${backup.autonomyHours}h autonomia`;
 
-  const configuredCount = [
-    bessConfigured,
-    curveConfigured,
-    tariffConfigured,
-    true,
-    canAccessCiBackup ? (backup?.enabled ? backupConfigured : true) : null,
-  ].filter((v) => v === true).length;
-  const totalConfigCount = canAccessCiBackup ? 5 : 4;
+  const applicableSections = [
+    'bess', ...(solar?.enabled ? ['solar'] : []), 'curve', 'tariff', 'strategy',
+    ...(canAccessCiBackup && backup?.enabled ? ['backup'] : []),
+  ] as (keyof typeof status)[];
+  const configuredCount = applicableSections.filter((key) => status[key]).length;
+  const totalConfigCount = applicableSections.length;
+  const nextSection = applicableSections.find((key) => !status[key]) ?? 'results';
+  const nextLabel = { bess: 'Configuração BESS', solar: 'Solar FV', curve: 'Curva de carga', tariff: 'Tarifa', strategy: 'Estratégia', backup: 'Falta de rede', results: 'Resultados' }[nextSection];
   const selected = calculationResult?.selected ?? null;
   // A `selected` scenario is still materialized (for reference) even when
   // nothing was actually viable to recommend — Fase 6 audit, Problem #5.
@@ -263,6 +277,14 @@ export function CiOverviewPanel({
             onOpen={() => onNavigateToSection('bess')}
           />
           <ConfigCard
+            icon={Sun}
+            label="Geração Solar FV"
+            configured={solarConfigured}
+            inactive={!solar?.enabled}
+            summary={solarSummary}
+            onOpen={() => onNavigateToSection('solar')}
+          />
+          <ConfigCard
             icon={LineChart}
             label="Curva de carga"
             configured={curveConfigured}
@@ -288,6 +310,7 @@ export function CiOverviewPanel({
               icon={ShieldAlert}
               label="Falta de rede (Backup)"
               configured={backupConfigured}
+              inactive={!backup?.enabled}
               summary={backupSummary}
               onOpen={() => onNavigateToSection('backup')}
             />
@@ -302,7 +325,9 @@ export function CiOverviewPanel({
             <h2 className="text-base font-semibold">Resultado atual</h2>
           </div>
           {selected &&
-            (isRecommendationViable ? (
+            (isResultStale ? (
+              <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Recalcular · parâmetros alterados</span>
+            ) : isRecommendationViable ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                 Calculado
@@ -324,8 +349,8 @@ export function CiOverviewPanel({
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Módulos</p>
-                  <p className="mt-1 text-sm font-semibold">{selected.moduleCount}</p>
+                  <p className="text-xs text-muted-foreground">{selected.composition ? 'Composição' : 'Módulos'}</p>
+                  <p className="mt-1 text-sm font-semibold">{selected.composition ? ciScenarioLabel(selected) : selected.moduleCount}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">CAPEX</p>
@@ -363,6 +388,19 @@ export function CiOverviewPanel({
           )}
         </CardContent>
       </Card>
+
+      {isSaved && (
+        <div className="flex justify-end pt-1">
+          <Button
+            type="button"
+            onClick={() => onNavigateToSection(nextSection)}
+            className="gap-1.5 rounded-lg text-xs font-semibold"
+          >
+            {nextSection === 'results' ? 'Ver resultados e calcular' : `Continuar: ${nextLabel}`}
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      )}
 
       <ProjectInfoModal
         key={projectInfoEditField ?? 'closed'}

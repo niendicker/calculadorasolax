@@ -16,6 +16,8 @@ import type {
   CashFlowYear,
   CiBackupConfig,
   CiBessProduct,
+  CiGeneratorConfig,
+  CiSolarConfig,
   DispatchPoint,
   FinancialAssumptions,
   LoadCurve,
@@ -28,7 +30,7 @@ import type {
 export type BessProductSpec = Pick<
   CiBessProduct,
   'modulePowerKw' | 'moduleCapacityKwh' | 'efficiencyPercent' | 'socMinPercent' | 'socMaxPercent'
->;
+> & { modulePeakPowerKw?: number; moduleChargePowerKw?: number; chargeEfficiencyPercent?: number; dischargeEfficiencyPercent?: number };
 
 /** Resolves a SizingConfig into the explicit list of module counts to
  * evaluate — "fixed" is exactly the one requested count, "auto" is every
@@ -67,6 +69,8 @@ export interface ScenarioGridInput {
   monthsPerYear: number;
   financialAssumptions: FinancialAssumptions;
   backup?: CiBackupConfig | null;
+  solar?: CiSolarConfig | null;
+  generator?: CiGeneratorConfig | null;
 }
 
 export interface ScenarioGridResult {
@@ -76,7 +80,9 @@ export interface ScenarioGridResult {
 
 const ZERO_BESS: BessRuntimeParams = { totalPowerKw: 0, totalCapacityKwh: 0, socMinPercent: 0, socMaxPercent: 0, efficiencyPercent: 100 };
 
-function computeBaseline(input: Pick<ScenarioGridInput, 'curve' | 'tariffWindow' | 'tariff' | 'monthsPerYear'>) {
+function computeBaseline(
+  input: Pick<ScenarioGridInput, 'curve' | 'tariffWindow' | 'tariff' | 'monthsPerYear' | 'solar' | 'generator'>
+) {
   // BASE ignores bess params entirely (dispatch.ts) — ZERO_BESS makes the
   // "no battery" intent explicit rather than relying on that implicitly.
   const trace = runDispatch({
@@ -86,6 +92,8 @@ function computeBaseline(input: Pick<ScenarioGridInput, 'curve' | 'tariffWindow'
     tariffWindow: input.tariffWindow,
     peakShavingTargetKw: null,
     contractedDemandKw: input.tariff.contractedDemandKw,
+    solar: input.solar,
+    generator: input.generator,
   });
   const weekly = summarizeDispatch(trace, input.curve.resolutionMinutes);
   const annualized = annualizeWeeklyDispatch(weekly);
@@ -133,6 +141,9 @@ function evaluateModuleCount(
     : product.socMinPercent;
 
   const bess: BessRuntimeParams = {
+    maxChargePowerKw: (product.moduleChargePowerKw ?? product.modulePowerKw) * moduleCount,
+    chargeEfficiencyPercent: product.chargeEfficiencyPercent,
+    dischargeEfficiencyPercent: product.dischargeEfficiencyPercent,
     totalPowerKw: product.modulePowerKw * moduleCount,
     totalCapacityKwh: product.moduleCapacityKwh * moduleCount,
     socMinPercent: effectiveSocMinPercent,
@@ -140,7 +151,16 @@ function evaluateModuleCount(
     efficiencyPercent: product.efficiencyPercent,
   };
 
-  const trace = runDispatch({ curve, bess, strategy, tariffWindow, peakShavingTargetKw, contractedDemandKw: tariff.contractedDemandKw });
+  const trace = runDispatch({
+    curve,
+    bess,
+    strategy,
+    tariffWindow,
+    peakShavingTargetKw,
+    contractedDemandKw: tariff.contractedDemandKw,
+    solar: input.solar,
+    generator: input.generator,
+  });
   const summary = summarizeDispatch(trace, curve.resolutionMinutes);
   const annualized = annualizeWeeklyDispatch(summary);
   const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);

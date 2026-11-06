@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiTariffPanel } from './CiTariffPanel';
@@ -25,9 +25,11 @@ describe('CiTariffPanel', () => {
     render(<ControlledPanel />);
     fireEvent.change(screen.getByLabelText('Ponta (R$/MWh)'), { target: { value: '850' } });
     expect(screen.getByLabelText('Ponta (R$/MWh)')).toHaveValue(850);
+    expect(screen.getByText(/Equivalente a R\$ 0,85 \/ kWh/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Fora ponta (R$/MWh)'), { target: { value: '420' } });
     expect(screen.getByLabelText('Fora ponta (R$/MWh)')).toHaveValue(420);
+    expect(screen.getByText(/Equivalente a R\$ 0,42 \/ kWh/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Demanda contratada (kW)'), { target: { value: '300' } });
     expect(screen.getByLabelText('Demanda contratada (kW)')).toHaveValue(300);
@@ -53,11 +55,34 @@ describe('CiTariffPanel', () => {
     expect(screen.getByLabelText('PIS/COFINS (%)')).toHaveValue(0);
   });
 
-  it('preserves other fields when editing the peak window', () => {
+  it('calls onNavigatePrev and onNavigateNext when clicked', () => {
+    const onNavigatePrev = vi.fn();
+    const onNavigateNext = vi.fn();
+    render(
+      <CiTariffPanel
+        ciOptions={defaultCiOptions}
+        onChange={vi.fn()}
+        onNavigatePrev={onNavigatePrev}
+        onNavigateNext={onNavigateNext}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Voltar para Curva de carga/i }));
+    expect(onNavigatePrev).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: /Avançar para Estratégia/i }));
+    expect(onNavigateNext).toHaveBeenCalledOnce();
+  });
+
+  it('applies tariff presets and peak window presets', () => {
     render(<ControlledPanel />);
-    fireEvent.change(screen.getByLabelText('Ponta (R$/MWh)'), { target: { value: '850' } });
-    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '17:30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'CPFL Paulista (A4 Verde)' }));
+    expect(screen.getByLabelText('Ponta (R$/MWh)')).toHaveValue(1420);
+    expect(screen.getByLabelText('Fora ponta (R$/MWh)')).toHaveValue(510);
+    expect(screen.getByLabelText('Tarifa de demanda (R$/kW-mês)')).toHaveValue(46.8);
+
+    fireEvent.click(screen.getByRole('button', { name: '17:30–20:30' }));
     expect(screen.getByLabelText('Início')).toHaveValue('17:30');
-    expect(screen.getByLabelText('Ponta (R$/MWh)')).toHaveValue(850);
+    expect(screen.getByLabelText('Fim')).toHaveValue('20:30');
   });
 });

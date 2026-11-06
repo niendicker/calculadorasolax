@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import type { CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { validateCommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/validation';
 import { createClient } from '@/lib/supabase/server';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
 import { getNetworkErrorMessage, resolveCommercialIndustrialCalculationErrorMessage } from '@/lib/calculation-error-messages';
@@ -61,12 +63,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: 'Este endpoint é exclusivo para projetos C&I.' }, { status: 400 });
   }
 
-  const options = project.calculation_options as { bessProductId?: string | null; backup?: { enabled?: boolean } | null } | null;
-  if (!options || Object.keys(options).length === 0 || !options.bessProductId) {
+  const options = project.calculation_options as { bessProductId?: string | null; bessSystem?: { kind?: string; compatibilityId?: string | null }; backup?: { enabled?: boolean } | null } | null;
+  const isModular = options?.bessSystem?.kind === 'modular';
+  if (!options || Object.keys(options).length === 0 || (isModular ? !options.bessSystem?.compatibilityId : !options.bessProductId)) {
     return NextResponse.json(
       { error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' },
       { status: 422 }
     );
+  }
+
+  // Validate locally as well: a deployed Edge Function may predate imported generation support.
+  if (project.calculation_options.loadCurve) {
+    const validationErrors = validateCommercialIndustrialOptions(project.calculation_options);
+    if (validationErrors.length) return NextResponse.json({ error: validationErrors.join(' ') }, { status: 422 });
   }
 
   if (options.backup?.enabled) {
@@ -84,20 +93,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     }
   }
 
-  let unitPriceBrl: number | null;
-  try {
-    const model = await findBessProductModel(supabase, options.bessProductId);
-    if (!model) return NextResponse.json({ error: 'O produto BESS selecionado não foi encontrado ou não está mais ativo no catálogo.' }, { status: 422 });
-    unitPriceBrl = await findUserBessUnitPrice(supabase, user.id, model);
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: getNetworkErrorMessage() }, { status: 502 });
-  }
-  if (unitPriceBrl === null) {
-    return NextResponse.json(
-      { error: 'Defina o preço deste produto BESS no seu Portfólio antes de calcular.' },
-      { status: 422 }
-    );
+  let unitPriceBrl: number | null = 0;
+  if (!isModular) {
+    try {
+      const model = await findBessProductModel(supabase, options.bessProductId!);
+      if (!model) return NextResponse.json({ error: 'O produto BESS selecionado não foi encontrado ou não está mais ativo no catálogo.' }, { status: 422 });
+      unitPriceBrl = await findUserBessUnitPrice(supabase, user.id, model);
+    } catch (error) {
+      console.error(error);
+      return NextResponse.json({ error: getNetworkErrorMessage() }, { status: 502 });
+    }
+    if (unitPriceBrl === null) {
+      return NextResponse.json(
+        { error: 'Defina o preço deste produto BESS no seu Portfólio antes de calcular.' },
+        { status: 422 }
+      );
+    }
+
   }
 
   try {
@@ -117,7 +129,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       installation_type: 'commercial_industrial',
       engine_version: result.engineVersion,
       input_fingerprint: result.inputFingerprint,
-      input_snapshot: { options, unitPriceBrl },
+      input_snapshot: isModular ? { options, equipment: (data as CommercialIndustrialResult).assumptions?.equipment } : { options, unitPriceBrl },
       result_snapshot: result,
       selected_scenario_id: result.recommendation.scenarioId,
     });

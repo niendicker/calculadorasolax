@@ -161,7 +161,7 @@ export function recommendScenario(scenarios: ScenarioCandidate[], criterion: Ran
 
   const reason = `Selecionado por ter ${describeCriterion(best, criterion)} entre ${
     scenarios.length === 1 ? 'o 1 cenário avaliado' : `os ${scenarios.length} cenários avaliados`
-  } (${best.moduleCount} módulo${best.moduleCount === 1 ? '' : 's'}), com economia anual de ${formatBrl(best.annualSavings)} sobre um CAPEX de ${formatBrl(best.capex)}. Payback descontado: ${formatNumberBrl(best.paybackYearsDiscounted as number, 1)} anos; VPL: ${formatBrl(best.npv)}.`;
+  } (${best.composition ? `${best.composition.pcsCount} PCS e ${best.composition.batteryCount} unidades de bateria` : `${best.moduleCount} módulo${best.moduleCount === 1 ? '' : 's'}`}), com economia anual de ${formatBrl(best.annualSavings)} sobre um CAPEX de ${formatBrl(best.capex)}. Payback descontado: ${formatNumberBrl(best.paybackYearsDiscounted as number, 1)} anos; VPL: ${formatBrl(best.npv)}.`;
 
   return { scenarioId: best.scenarioId, reason };
 }

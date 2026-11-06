@@ -1,3 +1,4 @@
+import type { CiModularComposition, CiModularSelection, CiPcsCatalogEntry, CiBatteryCatalogEntry, CiCompatibilityRule, CiModularPrices } from './modular-types.ts';
 // Domain contracts for the C&I (Commercial & Industrial) BESS module — see
 // docs/CI-MODULE-PLAN.md section 4. Pure types only: no React, Zustand,
 // Supabase, or engine logic here (that separation is itself a Fase 1
@@ -23,6 +24,12 @@ export interface LoadCurvePoint {
   powerKw: number;
 }
 
+export interface LoadCurveManualConfig {
+  presetId: string | null;
+  weekdayKw: number[];
+  weekendKw: number[];
+}
+
 export interface LoadCurve {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
@@ -32,6 +39,7 @@ export interface LoadCurve {
   periodStart: string;
   periodEnd: string;
   source: LoadCurveSource;
+  manualConfig?: LoadCurveManualConfig;
 }
 
 /** Everything about a LoadCurve that the user declares up front — as opposed
@@ -170,7 +178,57 @@ export interface CiBackupResult {
   warningMessage?: string;
 }
 
+// ─── Solar PV & Generator Contracts ────────────────────────────────────
+
+export interface CiSolarConfig {
+  enabled: boolean;
+  installedPowerKwp: number;
+  inverterPowerKw: number;
+  /** Average daily yield in kWh/kWp (typical Brazil: 4.0 - 5.5). Defaults to 4.5. */
+  dailyYieldKwhPerKwp: number;
+  /** Whether excess solar should be stored in BESS before exporting (default true). */
+  prioritizeBessCharging: boolean;
+  /** Optional custom generation points for representative week, normalized to kW. */
+  generationPoints?: number[];
+  /** Imported AC generation, with explicit timestamps to preserve alignment with consumption. */
+  generationCurve?: LoadCurve;
+}
+
+export const DEFAULT_CI_SOLAR_CONFIG: CiSolarConfig = {
+  enabled: false,
+  installedPowerKwp: 50,
+  inverterPowerKw: 50,
+  dailyYieldKwhPerKwp: 4.5,
+  prioritizeBessCharging: true,
+};
+
+export type CiGeneratorFuelType = 'diesel' | 'natural_gas' | 'biogas';
+export type CiGeneratorDispatchMode = 'blackout_only' | 'peak_and_blackout' | 'peak_support';
+
+export interface CiGeneratorConfig {
+  enabled: boolean;
+  ratedPowerKva: number;
+  powerFactor: number;
+  fuelType: CiGeneratorFuelType;
+  fuelCostBrlPerUnit: number;
+  /** Specific fuel consumption (e.g. liters/kWh or m³/kWh). Defaults to 0.28 L/kWh for diesel. */
+  specificConsumption: number;
+  dispatchMode: CiGeneratorDispatchMode;
+}
+
+export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
+  enabled: false,
+  ratedPowerKva: 0,
+  powerFactor: 0.8,
+  fuelType: 'diesel',
+  fuelCostBrlPerUnit: 6.2,
+  specificConsumption: 0.28,
+  dispatchMode: 'blackout_only',
+};
+
 export interface CommercialIndustrialOptions {
+  /** Absent means the existing integrated BESS catalog. */
+  bessSystem?: { kind: 'integrated' } | CiModularSelection;
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
   bessProductId: string | null;
@@ -179,6 +237,8 @@ export interface CommercialIndustrialOptions {
   financialAssumptions: FinancialAssumptions;
   rankingCriterion: RankingCriterion;
   backup?: CiBackupConfig;
+  solar?: CiSolarConfig;
+  generator?: CiGeneratorConfig;
 }
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
@@ -198,6 +258,8 @@ export interface DispatchPoint {
   dischargeKw: number;
   gridImportKw: number;
   socKwh: number;
+  solarGenerationKw?: number;
+  generatorKw?: number;
 }
 
 export interface CashFlowYear {
@@ -210,6 +272,7 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  composition?: CiModularComposition;
   scenarioId: string;
   moduleCount: number;
   strategy: BessStrategyId;
@@ -273,6 +336,9 @@ export interface BaselineResult {
  * the dispatch engine splits it into charge/discharge legs via its square
  * root, per the plan's documented MVP convention. */
 export interface BessRuntimeParams {
+  maxChargePowerKw?: number;
+  chargeEfficiencyPercent?: number;
+  dischargeEfficiencyPercent?: number;
   totalPowerKw: number;
   totalCapacityKwh: number;
   socMinPercent: number;
@@ -305,6 +371,7 @@ export interface CommercialIndustrialResult {
    * trace for that one candidate only. */
   selected: SelectedScenarioDetail | null;
   assumptions: {
+    equipment?: { pcs: CiPcsCatalogEntry; battery: CiBatteryCatalogEntry; compatibility: CiCompatibilityRule; prices: CiModularPrices };
     tariff: TariffConfig;
     financial: FinancialAssumptions;
     loadCurve: Pick<LoadCurve, 'resolutionMinutes' | 'profileBasis' | 'periodStart' | 'periodEnd' | 'timezone'>;

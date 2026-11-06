@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiStrategyPanel } from './CiStrategyPanel';
@@ -40,8 +40,8 @@ describe('CiStrategyPanel', () => {
 
   it('selects a ranking criterion', () => {
     render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'NPV' }));
-    expect(screen.getByRole('button', { name: 'NPV' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'VPL (NPV)' }));
+    expect(screen.getByRole('button', { name: 'VPL (NPV)' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Payback' })).toHaveAttribute('aria-pressed', 'false');
   });
 
@@ -61,5 +61,24 @@ describe('CiStrategyPanel', () => {
 
     fireEvent.change(screen.getByLabelText('Inflação energética anual (%)'), { target: { value: '-2.5' } });
     expect(screen.getByLabelText('Inflação energética anual (%)')).toHaveValue(-2.5);
+  });
+
+  it('calls onNavigatePrev and onNavigateNext when clicked', () => {
+    const onNavigatePrev = vi.fn();
+    const onNavigateNext = vi.fn();
+    render(
+      <CiStrategyPanel
+        ciOptions={defaultCiOptions}
+        onChange={vi.fn()}
+        onNavigatePrev={onNavigatePrev}
+        onNavigateNext={onNavigateNext}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Voltar para Tarifa/i }));
+    expect(onNavigatePrev).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: /Avançar para Resultados/i }));
+    expect(onNavigateNext).toHaveBeenCalledOnce();
   });
 });

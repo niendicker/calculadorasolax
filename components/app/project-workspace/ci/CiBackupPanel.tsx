@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Clock, Plus, Shield, ShieldAlert, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Fuel, Gauge, Plus, Shield, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -9,13 +9,44 @@ import type {
   CiBackupConfig,
   CiBackupInputMode,
   CiCriticalLoad,
+  CiGeneratorConfig,
+  CiGeneratorDispatchMode,
+  CiGeneratorFuelType,
   CommercialIndustrialOptions,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { DEFAULT_CI_GENERATOR_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
 
 const inputModeOptions: { value: CiBackupInputMode; label: string; hint: string }[] = [
   { value: 'simple', label: 'Dimensionamento Direto', hint: 'Informe diretamente a potência crítica e a autonomia desejada.' },
   { value: 'detailed', label: 'Lista de Cargas Críticas', hint: 'Cadastre cargas individuais como servidores, iluminação e refrigeração.' },
+];
+
+const generatorModeOptions: { value: CiGeneratorDispatchMode; label: string; hint: string }[] = [
+  { value: 'blackout_only', label: 'Emergência (Falta de Rede)', hint: 'Acionado apenas durante queda da concessionária quando a bateria descarregar.' },
+  { value: 'peak_support', label: 'Suporte de Ponta / Arbitragem', hint: 'Opera na ponta quando a tarifa da rede for mais cara que o custo do combustível.' },
+  { value: 'peak_and_blackout', label: 'Ponta + Emergência', hint: 'Atua tanto em interrupções quanto para alívio de demanda crítica no horário de ponta.' },
+];
+
+const fuelTypeOptions: { value: CiGeneratorFuelType; label: string; unit: string; defaultCost: number }[] = [
+  { value: 'diesel', label: 'Diesel S10', unit: 'R$/litro', defaultCost: 6.2 },
+  { value: 'natural_gas', label: 'Gás Natural', unit: 'R$/m³', defaultCost: 4.5 },
+  { value: 'biogas', label: 'Biogás', unit: 'R$/m³', defaultCost: 2.8 },
+];
+
+interface CriticalLoadPreset {
+  name: string;
+  powerW: number;
+  quantity: number;
+  usageFactor: number;
+}
+
+const CRITICAL_LOAD_PRESETS: CriticalLoadPreset[] = [
+  { name: 'Data Center / Servidores TI', powerW: 5000, quantity: 2, usageFactor: 1.0 },
+  { name: 'Iluminação de Emergência LED', powerW: 1500, quantity: 1, usageFactor: 0.9 },
+  { name: 'Câmaras Frias / Refrigeração', powerW: 12000, quantity: 1, usageFactor: 0.8 },
+  { name: 'Portaria / Controle de Acesso', powerW: 800, quantity: 1, usageFactor: 1.0 },
+  { name: 'Bomba de Incêndio / Pressurização', powerW: 15000, quantity: 1, usageFactor: 0.5 },
 ];
 
 function toNumber(value: string, fallback = 0): number {
@@ -26,9 +57,13 @@ function toNumber(value: string, fallback = 0): number {
 export function CiBackupPanel({
   ciOptions,
   onChange,
+  onNavigatePrev,
+  onNavigateNext,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
+  onNavigatePrev?: () => void;
+  onNavigateNext?: () => void;
 }) {
   const backup = ciOptions.backup ?? {
     enabled: false,
@@ -39,6 +74,12 @@ export function CiBackupPanel({
     loads: [],
     safetyMarginPercent: 10,
   };
+
+  const generator = ciOptions.generator ?? DEFAULT_CI_GENERATOR_CONFIG;
+
+  function updateGenerator(partial: Partial<CiGeneratorConfig>) {
+    onChange({ generator: { ...generator, ...partial } });
+  }
 
   // State for new load entry in detailed mode
   const [newLoadName, setNewLoadName] = useState('');
@@ -202,11 +243,41 @@ export function CiBackupPanel({
           {/* Detailed Mode Form */}
           {backup.inputMode === 'detailed' && (
             <div className="space-y-4">
+              {/* Presets catalog */}
+              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span>Catálogo rápido de cargas comerciais essenciais:</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {CRITICAL_LOAD_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        const load: CiCriticalLoad = {
+                          id: `load-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                          name: preset.name,
+                          powerW: preset.powerW,
+                          quantity: preset.quantity,
+                          usageFactor: preset.usageFactor,
+                        };
+                        updateBackup({ loads: [...backup.loads, load] });
+                      }}
+                      className="rounded border bg-background/80 px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-primary/10 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    >
+                      + {preset.name} ({(preset.powerW * preset.quantity * preset.usageFactor / 1000).toFixed(1)} kW)
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
                 <p className="text-xs font-semibold">Adicionar carga crítica</p>
                 <div className="grid gap-2 sm:grid-cols-4">
                   <div className="sm:col-span-1">
                     <Input
+                      aria-label="Nome da carga"
                       placeholder="Nome da carga (ex: Servidores TI)"
                       value={newLoadName}
                       onChange={(e) => setNewLoadName(e.target.value)}
@@ -215,6 +286,7 @@ export function CiBackupPanel({
                   <div>
                     <Input
                       type="number"
+                      aria-label="Potência unitária (W)"
                       placeholder="Potência unitária (W)"
                       value={newLoadPowerW}
                       onChange={(e) => setNewLoadPowerW(e.target.value)}
@@ -223,6 +295,7 @@ export function CiBackupPanel({
                   <div>
                     <Input
                       type="number"
+                      aria-label="Quantidade"
                       placeholder="Quantidade"
                       value={newLoadQty}
                       onChange={(e) => setNewLoadQty(e.target.value)}
@@ -231,6 +304,7 @@ export function CiBackupPanel({
                   <div className="flex gap-2">
                     <Input
                       type="number"
+                      aria-label="Fator de uso (%)"
                       placeholder="Fator uso (%)"
                       value={newLoadFactor}
                       onChange={(e) => setNewLoadFactor(e.target.value)}
@@ -275,6 +349,7 @@ export function CiBackupPanel({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
+                                aria-label={`Remover carga ${load.name}`}
                                 onClick={() => handleRemoveLoad(load.id)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                               >
@@ -360,7 +435,145 @@ export function CiBackupPanel({
               </p>
             </div>
           )}
+
+          {/* Generator (GMG) Section */}
+          <div className="space-y-4 border-t pt-5">
+            <div className="flex flex-col gap-3 rounded-xl border bg-muted/15 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Fuel className="h-5 w-5 text-amber-600" aria-hidden="true" />
+                  <h3 className="text-sm font-semibold">Grupo Motor Gerador (GMG)</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Integração com gerador a combustão para extensão de autonomia em apagões longos ou suporte em horário de ponta.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={generator.enabled ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => updateGenerator({ enabled: !generator.enabled })}
+                className="shrink-0 font-medium"
+              >
+                {generator.enabled ? 'Gerador Habilitado' : 'Integrar Gerador'}
+              </Button>
+            </div>
+
+            {generator.enabled && (
+              <div className="space-y-4 rounded-xl border bg-muted/5 p-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="gen-power-kva" className="text-xs font-medium text-foreground">
+                      Potência Nominal (kVA)
+                    </label>
+                    <Input
+                      id="gen-power-kva"
+                      type="number"
+                      min="0"
+                      step="5"
+                      value={generator.ratedPowerKva || ''}
+                      onChange={(e) => updateGenerator({ ratedPowerKva: Math.max(0, toNumber(e.target.value)) })}
+                      placeholder="Ex: 150"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Potência ativa: {((generator.ratedPowerKva || 0) * (generator.powerFactor || 0.8)).toFixed(1)} kW (FP {generator.powerFactor})
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="gen-fuel-type" className="text-xs font-medium text-foreground">
+                      Combustível
+                    </label>
+                    <select
+                      id="gen-fuel-type"
+                      value={generator.fuelType}
+                      onChange={(e) => {
+                        const ft = e.target.value as CiGeneratorFuelType;
+                        const opt = fuelTypeOptions.find((o) => o.value === ft);
+                        updateGenerator({ fuelType: ft, fuelCostBrlPerUnit: opt?.defaultCost ?? 6.2 });
+                      }}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs focus:ring-1 focus:ring-ring"
+                    >
+                      {fuelTypeOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label} ({o.unit})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-muted-foreground">Fonte de energia primária do motor.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="gen-fuel-cost" className="text-xs font-medium text-foreground">
+                      Preço do Combustível (R$)
+                    </label>
+                    <Input
+                      id="gen-fuel-cost"
+                      type="number"
+                      min="0"
+                      step="0.05"
+                      value={generator.fuelCostBrlPerUnit || ''}
+                      onChange={(e) => updateGenerator({ fuelCostBrlPerUnit: Math.max(0, toNumber(e.target.value)) })}
+                      placeholder="Ex: 6.20"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Custo estimado por kWh gerado: ~R$ {((generator.fuelCostBrlPerUnit || 6.2) * (generator.specificConsumption || 0.28)).toFixed(2)}/kWh
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t">
+                  <span className="text-xs font-medium text-foreground">Modo de Operação e Despacho do Gerador</span>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {generatorModeOptions.map((mode) => {
+                      const isSelected = generator.dispatchMode === mode.value;
+                      return (
+                        <button
+                          key={mode.value}
+                          type="button"
+                          onClick={() => updateGenerator({ dispatchMode: mode.value })}
+                          className={cn(
+                            'flex flex-col text-left p-3 rounded-lg border text-xs transition-colors',
+                            isSelected
+                              ? 'border-primary bg-primary/5 font-medium shadow-xs'
+                              : 'border-border/80 bg-background/80 hover:bg-muted/40 text-muted-foreground'
+                          )}
+                        >
+                          <span className={cn('font-semibold', isSelected && 'text-primary')}>{mode.label}</span>
+                          <span className="text-[11px] text-muted-foreground mt-1">{mode.hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </>
+      )}
+
+      {(onNavigatePrev || onNavigateNext) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          {onNavigatePrev ? (
+            <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Voltar para Estratégia
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          {onNavigateNext && (
+            <Button
+              type="button"
+              onClick={onNavigateNext}
+              className="gap-1.5 rounded-lg text-xs font-semibold"
+            >
+              Avançar para Resultados
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

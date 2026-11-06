@@ -141,10 +141,37 @@ function isWeekendDate(isoDate: string): boolean {
  * anchors, wrapping past midnight (23h → 0h of the same array). */
 function interpolateHourlyKw(hourlyKw: number[], hourFraction: number): number {
   const wrapped = ((hourFraction % HOURS_PER_DAY) + HOURS_PER_DAY) % HOURS_PER_DAY;
-  const hour0 = Math.floor(wrapped) % HOURS_PER_DAY;
-  const hour1 = (hour0 + 1) % HOURS_PER_DAY;
-  const fraction = wrapped - Math.floor(wrapped);
+  const position = wrapped * hourlyKw.length / HOURS_PER_DAY;
+  const hour0 = Math.floor(position) % hourlyKw.length;
+  const hour1 = (hour0 + 1) % hourlyKw.length;
+  const fraction = position - Math.floor(position);
   return hourlyKw[hour0] + (hourlyKw[hour1] - hourlyKw[hour0]) * fraction;
+}
+
+/** Upgrade saved hourly profiles and presets to 96 editable quarter-hour anchors. */
+export function toQuarterHourPattern(values: number[]): number[] {
+  if (values.length === 96) return values.slice();
+  if (values.length !== 24) return new Array(96).fill(0);
+  return Array.from({ length: 96 }, (_, index) => Math.round(interpolateHourlyKw(values, index / 4) * 100) / 100);
+}
+
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function getDateTimeFormatter(timezone: string): Intl.DateTimeFormat {
+  let formatter = formatterCache.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    formatterCache.set(timezone, formatter);
+  }
+  return formatter;
 }
 
 /** Converts a local wall-clock date+time in an IANA timezone to a UTC ISO
@@ -156,23 +183,21 @@ function interpolateHourlyKw(hourlyKw: number[], hourFraction: number): number {
  * on in `timezone`, and corrects by the difference. Two passes cover a
  * guess that happens to land close to a DST transition (Brazilian timezones
  * have had none since 2019, but this field is free text). */
-function zonedTimeToUtcIso(isoDate: string, hour: number, minute: number, timezone: string): string {
+export function zonedTimeToUtcIso(
+  isoDate: string,
+  hour: number,
+  minute: number,
+  timezone: string,
+  formatter?: Intl.DateTimeFormat
+): string {
   const [year, month, day] = parseIsoDateParts(isoDate);
   const desired = Date.UTC(year, month - 1, day, hour, minute, 0);
   let guess = desired;
 
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
+  const fmt = formatter ?? getDateTimeFormatter(timezone);
 
   for (let pass = 0; pass < 2; pass++) {
-    const parts = formatter.formatToParts(new Date(guess));
+    const parts = fmt.formatToParts(new Date(guess));
     const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? '0');
     const observed = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), 0);
     const diff = desired - observed;
@@ -189,10 +214,15 @@ function zonedTimeToUtcIso(isoDate: string, hour: number, minute: number, timezo
  * matches each date's real day of week. Errors out (never silently
  * truncates) if the period/resolution combination would exceed
  * `LOAD_CURVE_MAX_POINTS`, same discipline as parseLoadCurveCsv. */
-export function buildManualDayCurve(weekdayKw: number[], weekendKw: number[], metadata: ManualDayCurveMetadata): BuildManualDayCurveResult {
+export function buildManualDayCurve(
+  weekdayKw: number[],
+  weekendKw: number[],
+  metadata: ManualDayCurveMetadata,
+  presetId?: string | null
+): BuildManualDayCurveResult {
   const errors: string[] = [];
-  if (weekdayKw.length !== HOURS_PER_DAY) errors.push(`weekdayKw must have exactly ${HOURS_PER_DAY} entries, one per hour of the day`);
-  if (weekendKw.length !== HOURS_PER_DAY) errors.push(`weekendKw must have exactly ${HOURS_PER_DAY} entries, one per hour of the day`);
+  if (![24, 96].includes(weekdayKw.length)) errors.push(`weekdayKw must have exactly ${HOURS_PER_DAY} entries (legacy) or 96 entries at 15-minute intervals`);
+  if (![24, 96].includes(weekendKw.length)) errors.push(`weekendKw must have exactly ${HOURS_PER_DAY} entries (legacy) or 96 entries at 15-minute intervals`);
   if (errors.length > 0) return { ok: false, errors };
 
   const dates = eachIsoDateInclusive(metadata.periodStart, metadata.periodEnd);
@@ -207,6 +237,7 @@ export function buildManualDayCurve(weekdayKw: number[], weekendKw: number[], me
   }
 
   const points: LoadCurvePoint[] = [];
+  const formatter = getDateTimeFormatter(metadata.timezone);
   for (const isoDate of dates) {
     const pattern = isWeekendDate(isoDate) ? weekendKw : weekdayKw;
     for (let step = 0; step < stepsPerDay; step++) {
@@ -214,7 +245,7 @@ export function buildManualDayCurve(weekdayKw: number[], weekendKw: number[], me
       const hour = Math.floor(minuteOfDay / 60);
       const minute = minuteOfDay % 60;
       const powerKw = Math.max(0, Math.round(interpolateHourlyKw(pattern, hour + minute / 60) * 100) / 100);
-      points.push({ timestamp: zonedTimeToUtcIso(isoDate, hour, minute, metadata.timezone), powerKw });
+      points.push({ timestamp: zonedTimeToUtcIso(isoDate, hour, minute, metadata.timezone, formatter), powerKw });
     }
   }
 
@@ -228,6 +259,11 @@ export function buildManualDayCurve(weekdayKw: number[], weekendKw: number[], me
       periodStart: metadata.periodStart,
       periodEnd: metadata.periodEnd,
       source: 'manual',
+      manualConfig: {
+        presetId: presetId ?? null,
+        weekdayKw: weekdayKw.slice(),
+        weekendKw: weekendKw.slice(),
+      },
     },
   };
 }

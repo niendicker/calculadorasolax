@@ -13,6 +13,7 @@ import { AdminNav } from './AdminNav';
 import { ActivityLogsPanel, MetricsPanel, UsersPanel } from './DashboardPanels';
 import { AccessoriesEditor } from './editors/AccessoriesEditor';
 import { BatteriesEditor } from './editors/BatteriesEditor';
+import { CiModularCatalogEditor } from './editors/CiModularCatalogEditor';
 import { CiBessProductsEditor } from './editors/CiBessProductsEditor';
 import { InvertersEditor } from './editors/InvertersEditor';
 import { LoadCatalogEditor } from './editors/LoadCatalogEditor';
@@ -854,7 +855,7 @@ export function AdminPanel() {
                 )}
 
                 {activeTab === 'ciBessProducts' && (
-                  <CiBessProductsEditor
+                  <CiModularCatalogEditor onOpenCatalog={setActiveTab} onActivity={async (activity) => { await recordActivityLog({ ...activity, summary: `${activity.action === 'create' ? 'Criou' : 'Atualizou'} ${activity.targetLabel} no catálogo modular C&I.` }); }} integrated={<CiBessProductsEditor
                     rows={ciBessProducts}
                     form={ciBessProductForm}
                     setForm={setCiBessProductForm}
@@ -863,7 +864,7 @@ export function AdminPanel() {
                     removingIds={removingIds}
                     uploadAsset={uploadProductAsset}
                     saving={saving}
-                  />
+                  />} />
                 )}
 
                 {activeTab === 'rules' && (

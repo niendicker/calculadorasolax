@@ -56,6 +56,7 @@ export interface ProjectWorkspaceShellProps {
    * shell instance passes its own. */
   actions?: ReactNode;
   navigation: WorkspaceNavItem[];
+  wrapNavigationLabels?: boolean;
   activeSection: string;
   onSectionChange: (id: string) => void;
   children: ReactNode;
@@ -69,6 +70,7 @@ export function ProjectWorkspaceShell({
   subtitle,
   actions,
   navigation,
+  wrapNavigationLabels = false,
   activeSection,
   onSectionChange,
   children,
@@ -131,18 +133,19 @@ export function ProjectWorkspaceShell({
                   onClick={() => onSectionChange(id)}
                   className={cn(
                     'relative flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    wrapNavigationLabels && 'flex-col gap-y-1',
                     activeSection === id ? 'text-primary after:bg-primary' : 'text-muted-foreground'
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{label}</span>
+                  <span className={wrapNavigationLabels ? "whitespace-normal text-center leading-snug" : "truncate"}>{label}</span>
                   {notification && (
                     <span
                       id={notificationId}
                       role="status"
                       aria-label={notification.ariaLabel ?? notification.label}
                       title={notification.ariaLabel ?? notification.label}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-800"
+                      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-800", wrapNavigationLabels && "self-center")}
                     >
                       {NotificationIcon && <NotificationIcon className="h-3 w-3" aria-hidden="true" />}
                       <span aria-hidden="true">{notification.label}</span>

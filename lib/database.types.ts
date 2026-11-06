@@ -9,6 +9,161 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ci_pcs_specs: {
+        Row: {
+          inverter_id: string
+          charge_power_kw: number
+          discharge_power_kw: number
+          charge_current_a: number
+          discharge_current_a: number
+          max_parallel_units: number
+          supports_backup: boolean
+          active: boolean
+          updated_at: string
+        }
+        Insert: {
+          inverter_id: string
+          charge_power_kw: number
+          discharge_power_kw: number
+          charge_current_a: number
+          discharge_current_a: number
+          max_parallel_units: number
+          supports_backup?: boolean
+          active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          inverter_id?: string
+          charge_power_kw?: number
+          discharge_power_kw?: number
+          charge_current_a?: number
+          discharge_current_a?: number
+          max_parallel_units?: number
+          supports_backup?: boolean
+          active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "ci_pcs_specs_inverter_id_fkey"; columns: ["inverter_id"]; isOneToOne: true; referencedRelation: "inverters"; referencedColumns: ["id"] },
+        ]
+      }
+      ci_battery_specs: {
+        Row: {
+          battery_id: string
+          unit_kind: string
+          charge_power_kw: number
+          discharge_power_kw: number
+          charge_current_a: number
+          discharge_current_a: number
+          soc_max_percent: number
+          active: boolean
+          updated_at: string
+        }
+        Insert: {
+          battery_id: string
+          unit_kind: string
+          charge_power_kw: number
+          discharge_power_kw: number
+          charge_current_a: number
+          discharge_current_a: number
+          soc_max_percent: number
+          active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          battery_id?: string
+          unit_kind?: string
+          charge_power_kw?: number
+          discharge_power_kw?: number
+          charge_current_a?: number
+          discharge_current_a?: number
+          soc_max_percent?: number
+          active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "ci_battery_specs_battery_id_fkey"; columns: ["battery_id"]; isOneToOne: true; referencedRelation: "batteries"; referencedColumns: ["id"] },
+        ]
+      }
+      ci_compatibility_rules: {
+        Row: {
+          id: string
+          name: string
+          pcs_id: string
+          battery_id: string
+          approval_status: string
+          min_series: number
+          max_series: number
+          min_parallel_strings: number
+          max_parallel_strings: number
+          min_pcs: number
+          max_pcs: number
+          supports_backup: boolean
+          communication_profile: string
+          pcs_firmware: string
+          battery_firmware: string
+          reference_document: string
+          revision: string
+          controller_accessory_id: string | null
+          controller_quantity_per_pcs: number
+          notes: string
+          active: boolean
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          pcs_id: string
+          battery_id: string
+          approval_status?: string
+          min_series: number
+          max_series: number
+          min_parallel_strings: number
+          max_parallel_strings: number
+          min_pcs: number
+          max_pcs: number
+          supports_backup?: boolean
+          communication_profile?: string
+          pcs_firmware?: string
+          battery_firmware?: string
+          reference_document?: string
+          revision?: string
+          controller_accessory_id?: string | null
+          controller_quantity_per_pcs?: number
+          notes?: string
+          active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          pcs_id?: string
+          battery_id?: string
+          approval_status?: string
+          min_series?: number
+          max_series?: number
+          min_parallel_strings?: number
+          max_parallel_strings?: number
+          min_pcs?: number
+          max_pcs?: number
+          supports_backup?: boolean
+          communication_profile?: string
+          pcs_firmware?: string
+          battery_firmware?: string
+          reference_document?: string
+          revision?: string
+          controller_accessory_id?: string | null
+          controller_quantity_per_pcs?: number
+          notes?: string
+          active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "ci_compatibility_rules_pcs_id_fkey"; columns: ["pcs_id"]; isOneToOne: false; referencedRelation: "ci_pcs_specs"; referencedColumns: ["inverter_id"] },
+          { foreignKeyName: "ci_compatibility_rules_battery_id_fkey"; columns: ["battery_id"]; isOneToOne: false; referencedRelation: "ci_battery_specs"; referencedColumns: ["battery_id"] },
+          { foreignKeyName: "ci_compatibility_rules_controller_accessory_id_fkey"; columns: ["controller_accessory_id"]; isOneToOne: false; referencedRelation: "accessories"; referencedColumns: ["id"] },
+        ]
+      }
       accessories: {
         Row: {
           active: boolean

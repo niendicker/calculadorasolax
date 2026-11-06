@@ -1,3 +1,5 @@
+import { calculateModularStudy } from '@/supabase/functions/_shared/commercial-industrial/modular';
+import { modularFixture, modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import { describe, expect, it } from 'vitest';
 import { emptyAddress } from '@/lib/address';
 import type { Client, ProjectInfo } from '@/lib/types';
@@ -223,4 +225,11 @@ describe('buildCiMemorialPdfBlob', () => {
     expect(blob.size).toBeGreaterThan(100);
     expect(await pdfMagicBytes(blob)).toBe('%PDF-');
   });
+  it('renders a modular memorial with PCS, batteries, documented compatibility and component prices', async () => {
+    const result = calculateModularStudy(modularOptions(), modularFixture(), { pcsUnitBrl: 40000, batteryUnitBrl: 30000 });
+    const blob = await buildCiMemorialPdfBlob(baseInput({ result, product: null }));
+    expect(blob.size).toBeGreaterThan(1000);
+    expect(await pdfMagicBytes(blob)).toBe('%PDF-');
+  }, 15000);
+
 });

@@ -768,6 +768,7 @@ function entityLabel(entityType: AdminLogEntity) {
     battery: 'Bateria',
     accessory: 'Acessório',
     ci_bess_product: 'Produto C&I',
+    ci_pcs: 'PCS C&I', ci_battery: 'Bateria C&I', ci_compatibility: 'Compatibilidade C&I',
     solution: 'Combinação',
     rule: 'Regra',
     load_catalog_item: 'Carga',

@@ -137,6 +137,11 @@ export function parseLoadCurveCsv(csvText: string, metadata: LoadCurveMetadata):
   }
 
   const expectedIntervalMs = metadata.resolutionMinutes * 60 * 1000;
+  if (![15, 30, 60].includes(metadata.resolutionMinutes)) errors.push('Use intervalos de 15, 30 ou 60 minutos (mínimo de 15 minutos).');
+  if (Date.parse(points[points.length - 1].timestamp) - Date.parse(points[0].timestamp) + expectedIntervalMs > 7 * 86400000) errors.push('Importe no máximo 7 dias de dados.');
+  if (points.some((point, index) => index > 0 && Date.parse(point.timestamp) - Date.parse(points[index - 1].timestamp) < 15 * 60000)) errors.push('O intervalo mínimo entre medições é de 15 minutos.');
+  if (errors.length) return { ok: false, errors };
+
   for (let i = 1; i < points.length; i++) {
     const actualIntervalMs = Date.parse(points[i].timestamp) - Date.parse(points[i - 1].timestamp);
     if (actualIntervalMs > expectedIntervalMs * 1.5) {

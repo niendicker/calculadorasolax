@@ -96,4 +96,64 @@ describe('CiBackupPanel', () => {
       })
     );
   });
+
+  it('allows quickly adding a critical load from presets catalog', () => {
+    const onChange = vi.fn();
+    const ciOptionsDetailed: CommercialIndustrialOptions = {
+      ...defaultCiOptions,
+      backup: {
+        enabled: true,
+        inputMode: 'detailed',
+        targetPowerKw: 0,
+        autonomyHours: 3,
+        loads: [],
+        safetyMarginPercent: 10,
+      },
+    };
+
+    render(<CiBackupPanel ciOptions={ciOptionsDetailed} onChange={onChange} />);
+
+    expect(screen.getByText('Catálogo rápido de cargas comerciais essenciais:')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Data Center \/ Servidores TI/i }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backup: expect.objectContaining({
+          loads: [
+            expect.objectContaining({
+              name: 'Data Center / Servidores TI',
+              powerW: 5000,
+              quantity: 2,
+            }),
+          ],
+        }),
+      })
+    );
+  });
+
+  it('enables generator and updates generator parameters', () => {
+    const onChange = vi.fn();
+    const ciOptionsBackupEnabled = {
+      ...defaultCiOptions,
+      backup: {
+        enabled: true,
+        inputMode: 'simple' as const,
+        targetPowerKw: 50,
+        autonomyHours: 4,
+        loads: [],
+        safetyMarginPercent: 10,
+      },
+    };
+
+    render(<CiBackupPanel ciOptions={ciOptionsBackupEnabled} onChange={onChange} />);
+
+    expect(screen.getByText('Grupo Motor Gerador (GMG)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Integrar Gerador' }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generator: expect.objectContaining({ enabled: true }),
+      })
+    );
+  });
 });

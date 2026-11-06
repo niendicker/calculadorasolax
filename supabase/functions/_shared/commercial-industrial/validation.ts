@@ -1,3 +1,4 @@
+import { validateModularSelection } from './modular.ts';
 // Structural validation for CommercialIndustrialOptions — mirrors the style
 // of supabase/functions/calculate-residential/logic.ts's
 // validateResidentialOptions: works on untrusted `unknown` input (the API
@@ -52,6 +53,11 @@ function validateLoadCurve(raw: unknown, errors: string[]): void {
     if (curve.points.length > LOAD_CURVE_MAX_POINTS) {
       errors.push(`loadCurve.points must not exceed ${LOAD_CURVE_MAX_POINTS} points`);
     }
+
+    const times = curve.points.map((point) => point && typeof point === 'object' ? Date.parse(String((point as Record<string, unknown>).timestamp)) : NaN).filter(Number.isFinite).sort((a, b) => a - b);
+    if (times.length && times[times.length - 1] - times[0] + Number(curve.resolutionMinutes) * 60000 > 7 * 86400000) errors.push('loadCurve: importe no máximo 7 dias de dados.');
+    if (times.some((time, index) => index > 0 && time - times[index - 1] < 15 * 60000)) errors.push('loadCurve: o intervalo mínimo entre medições é de 15 minutos.');
+    if (VALID_RESOLUTIONS.includes(curve.resolutionMinutes as LoadCurveResolutionMinutes) && times.some((time, index) => index > 0 && time - times[index - 1] !== Number(curve.resolutionMinutes) * 60000)) errors.push('loadCurve: as medições devem ser contínuas e respeitar o intervalo declarado.');
 
     let previousTimestamp: string | null = null;
     const seenTimestamps = new Set<string>();
@@ -269,6 +275,49 @@ function validateBackup(raw: unknown, errors: string[]): void {
   }
 }
 
+function validateSolar(raw: unknown, errors: string[]): void {
+  if (raw === undefined || raw === null) return;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('solar must be an object');
+    return;
+  }
+  const solar = raw as Record<string, unknown>;
+  if (typeof solar.enabled !== 'boolean') {
+    errors.push('solar.enabled must be a boolean');
+  }
+  if (solar.generationCurve !== undefined && solar.generationCurve !== null) {
+    const curveErrors: string[] = [];
+    validateLoadCurve(solar.generationCurve, curveErrors);
+    errors.push(...curveErrors.map((error) => error.replace(/loadCurve/g, 'solar.generationCurve')));
+  }
+  if (solar.generationPoints !== undefined && (!Array.isArray(solar.generationPoints) || solar.generationPoints.some((value) => !isNonNegativeFiniteNumber(value)))) errors.push('solar.generationPoints must contain non-negative finite numbers');
+  if (solar.enabled) {
+    if (!isNonNegativeFiniteNumber(solar.installedPowerKwp)) {
+      errors.push('solar.installedPowerKwp must be a non-negative number');
+    }
+    if (!isNonNegativeFiniteNumber(solar.inverterPowerKw)) {
+      errors.push('solar.inverterPowerKw must be a non-negative number');
+    }
+  }
+}
+
+function validateGenerator(raw: unknown, errors: string[]): void {
+  if (raw === undefined || raw === null) return;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('generator must be an object');
+    return;
+  }
+  const generator = raw as Record<string, unknown>;
+  if (typeof generator.enabled !== 'boolean') {
+    errors.push('generator.enabled must be a boolean');
+  }
+  if (generator.enabled) {
+    if (!isNonNegativeFiniteNumber(generator.ratedPowerKva)) {
+      errors.push('generator.ratedPowerKva must be a non-negative number');
+    }
+  }
+}
+
 /** Validates a raw (untrusted) payload against the CommercialIndustrialOptions
  * contract. Returns an empty array when valid. Mirrors
  * validateResidentialOptions's calling convention so the API route layer can
@@ -293,9 +342,23 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
     errors.push('strategy must be one of: ' + VALID_STRATEGIES.join(', '));
   }
 
-  validateSizing(options.sizing, errors);
+  if (options.bessSystem !== undefined) {
+    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha BESS integrado ou PCS + baterias.');
+    else if ((options.bessSystem as { kind: string }).kind === 'modular') errors.push(...validateModularSelection(options.bessSystem));
+  }
+  if (!(options.bessSystem && typeof options.bessSystem === 'object' && (options.bessSystem as { kind: string }).kind === 'modular')) validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
   validateBackup(options.backup, errors);
+  validateSolar(options.solar, errors);
+  const solar = options.solar as Record<string, unknown> | undefined;
+  const load = options.loadCurve as Record<string, unknown> | null;
+  const generation = solar?.generationCurve as Record<string, unknown> | undefined;
+  if (solar?.enabled && load && generation && Array.isArray(load.points) && Array.isArray(generation.points)) {
+    const timestamps = new Set(generation.points.map((point) => point && typeof point === 'object' ? Date.parse(String((point as Record<string, unknown>).timestamp)) : NaN));
+    if (load.resolutionMinutes !== generation.resolutionMinutes || load.points.some((point) => !point || typeof point !== 'object' || !timestamps.has(Date.parse(String((point as Record<string, unknown>).timestamp))))) errors.push('A geração importada deve cobrir os horários do consumo com o mesmo intervalo.');
+  }
+
+  validateGenerator(options.generator, errors);
 
   if (!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));
