@@ -39,7 +39,6 @@ const SMOOTH_ADJACENT_THRESHOLD_KW = 5;
 const DEFAULT_VIEW_WIDTH = 640;
 const VIEW_HEIGHT = 235;
 const MARGIN = { top: 26, right: 14, bottom: 26, left: 54 };
-const PLOT_HEIGHT = VIEW_HEIGHT - MARGIN.top - MARGIN.bottom;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -53,8 +52,8 @@ function niceCeiling(value: number): number {
   return niceNormalized * magnitude;
 }
 
-function yToPx(kw: number, maxKw: number): number {
-  return MARGIN.top + PLOT_HEIGHT - (kw / maxKw) * PLOT_HEIGHT;
+function yToPx(kw: number, maxKw: number, plotHeight: number): number {
+  return MARGIN.top + plotHeight - (kw / maxKw) * plotHeight;
 }
 
 function circularPointDistance(a: number, b: number, pointCount: number): number {
@@ -100,8 +99,8 @@ function applyPointUpdate(hourlyKw: number[], hour: number, newValue: number, mo
   });
 }
 
-function pxToKw(pxY: number, maxKw: number): number {
-  const fraction = clamp((MARGIN.top + PLOT_HEIGHT - pxY) / PLOT_HEIGHT, 0, 1);
+function pxToKw(pxY: number, maxKw: number, plotHeight: number): number {
+  const fraction = clamp((MARGIN.top + plotHeight - pxY) / plotHeight, 0, 1);
   return fraction * maxKw;
 }
 
@@ -409,18 +408,23 @@ export function DailyCurveEditor({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_VIEW_WIDTH);
+  const [viewHeight, setViewHeight] = useState(VIEW_HEIGHT);
+  const plotHeight = viewHeight - MARGIN.top - MARGIN.bottom;
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const updateWidth = () => {
+    const updateSize = () => {
       if (el.clientWidth > 0) {
         setContainerWidth(el.clientWidth);
       }
+      const svg = svgRef.current;
+      if (svg && svg.clientHeight > 0) setViewHeight(svg.clientHeight);
     };
-    updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
     observer.observe(el);
+    if (svgRef.current) observer.observe(svgRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -484,14 +488,14 @@ export function DailyCurveEditor({
   }));
 
   const linePath = useMemo(
-    () => consumptionKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw)}`).join(' '),
+    () => consumptionKw.map((kw, hour) => `${hour === 0 ? 'M' : 'L'} ${xToPx(hour)} ${yToPx(kw, maxKw, plotHeight)}`).join(' '),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [consumptionKw, maxKw, plotWidth, viewRange]
+    [consumptionKw, maxKw, plotWidth, viewRange, plotHeight]
   );
   const areaPath = useMemo(
-    () => `${linePath} L ${xToPx(pointCount - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`,
+    () => `${linePath} L ${xToPx(pointCount - 1)} ${MARGIN.top + plotHeight} L ${xToPx(0)} ${MARGIN.top + plotHeight} Z`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [linePath, plotWidth]
+    [linePath, plotWidth, plotHeight]
   );
   const instanceId = useId();
   const gradientId = `daily-curve-editor-area-${instanceId}-${activePattern}`;
@@ -501,8 +505,8 @@ export function DailyCurveEditor({
     const svg = svgRef.current;
     if (!svg) return 0;
     const rect = svg.getBoundingClientRect();
-    const scaleY = VIEW_HEIGHT / rect.height;
-    return pxToKw((clientY - rect.top) * scaleY, maxKw);
+    const scaleY = viewHeight / rect.height;
+    return pxToKw((clientY - rect.top) * scaleY, maxKw, plotHeight);
   }
 
   function handlePointerDown(
@@ -594,15 +598,15 @@ export function DailyCurveEditor({
   const solarLinePath =
     generationKw
       ?.map((kw, index) =>
-        kw === null ? '' : `${index === 0 || generationKw[index - 1] === null ? 'M' : 'L'} ${xToPx(index)} ${yToPx(kw, maxKw)}`
+        kw === null ? '' : `${index === 0 || generationKw[index - 1] === null ? 'M' : 'L'} ${xToPx(index)} ${yToPx(kw, maxKw, plotHeight)}`
       )
       .join(' ') ?? '';
 
   const solarAreaPath = useMemo(() => {
     if (!solarLinePath) return '';
-    return `${solarLinePath} L ${xToPx(pointCount - 1)} ${MARGIN.top + PLOT_HEIGHT} L ${xToPx(0)} ${MARGIN.top + PLOT_HEIGHT} Z`;
+    return `${solarLinePath} L ${xToPx(pointCount - 1)} ${MARGIN.top + plotHeight} L ${xToPx(0)} ${MARGIN.top + plotHeight} Z`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solarLinePath, pointCount, plotWidth]);
+  }, [solarLinePath, pointCount, plotWidth, plotHeight]);
 
   // Energetic KPIs calculation
   const metrics = useMemo(
@@ -1047,7 +1051,7 @@ export function DailyCurveEditor({
       {/* 4. Main 2-Column Area: SVG Chart (Left) + Inspector & Batch Editor (Right) */}
       <div className="flex flex-col lg:flex-row gap-4 items-stretch">
         {/* Left Column: Interactive SVG Chart */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between space-y-2">
+        <div className="flex-1 min-w-0 flex flex-col gap-2">
           {/* Contextual Floating Info Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs shadow-xs">
             <div className="flex items-center gap-2">
@@ -1096,7 +1100,7 @@ export function DailyCurveEditor({
             </div>
           </div>
 
-          <div ref={containerRef} data-testid="daily-chart-container" className="relative w-full">
+          <div ref={containerRef} data-testid="daily-chart-container" className="relative flex w-full flex-1 flex-col">
             {/* Viewport Zoom & Reset Controls */}
             <div className="mb-2 flex flex-wrap items-center justify-between gap-1 text-xs">
               <div className="flex items-center gap-1">
@@ -1146,9 +1150,9 @@ export function DailyCurveEditor({
 
             <svg
               ref={svgRef}
-              viewBox={`0 0 ${viewWidth} ${VIEW_HEIGHT}`}
+              viewBox={`0 0 ${viewWidth} ${viewHeight}`}
               preserveAspectRatio="none"
-              className="h-[235px] w-full touch-none select-none rounded-xl border border-border/70 bg-card shadow-xs"
+              className="h-[235px] min-h-[235px] flex-1 w-full touch-none select-none rounded-xl border border-border/70 bg-card shadow-xs"
               role="group"
               aria-label="Editor da curva diária — arraste os pontos para ajustar a potência ou o fundo para navegar"
               onDoubleClick={() => setViewRange({ start: 0, end: pointCount - 1 })}
@@ -1194,7 +1198,7 @@ export function DailyCurveEditor({
                     x={MARGIN.left - 8}
                     y={0}
                     width={plotWidth + 16}
-                    height={VIEW_HEIGHT - MARGIN.bottom + 8}
+                    height={viewHeight - MARGIN.bottom + 8}
                   />
                 </clipPath>
               </defs>
@@ -1209,7 +1213,7 @@ export function DailyCurveEditor({
                       viewWidth - MARGIN.right,
                       xToPx(peakBandEnd) - Math.max(MARGIN.left, xToPx(peakBandStart))
                     )}
-                    height={PLOT_HEIGHT}
+                    height={plotHeight}
                     fill="#f43f5e"
                     fillOpacity={0.08}
                   />
@@ -1217,7 +1221,7 @@ export function DailyCurveEditor({
                     x1={xToPx(peakBandStart)}
                     y1={MARGIN.top}
                     x2={xToPx(peakBandStart)}
-                    y2={MARGIN.top + PLOT_HEIGHT}
+                    y2={MARGIN.top + plotHeight}
                     stroke="#f43f5e"
                     strokeWidth={1}
                     strokeDasharray="2 2"
@@ -1227,7 +1231,7 @@ export function DailyCurveEditor({
                     x1={xToPx(peakBandEnd)}
                     y1={MARGIN.top}
                     x2={xToPx(peakBandEnd)}
-                    y2={MARGIN.top + PLOT_HEIGHT}
+                    y2={MARGIN.top + plotHeight}
                     stroke="#f43f5e"
                     strokeWidth={1}
                     strokeDasharray="2 2"
@@ -1251,7 +1255,7 @@ export function DailyCurveEditor({
                   x={xToPx(brushRange.from)}
                   y={MARGIN.top}
                   width={xToPx(brushRange.to) - xToPx(brushRange.from)}
-                  height={PLOT_HEIGHT}
+                  height={plotHeight}
                   fill={primary}
                   opacity={0.08}
                 />
@@ -1260,7 +1264,7 @@ export function DailyCurveEditor({
               {/* Gridlines & Y-axis labels */}
               {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
                 const kw = maxKw * fraction;
-                const y = yToPx(kw, maxKw);
+                const y = yToPx(kw, maxKw, plotHeight);
                 return (
                   <g key={fraction}>
                     <line
@@ -1291,7 +1295,7 @@ export function DailyCurveEditor({
                 <text
                   key={hour}
                   x={xToPx(hour)}
-                  y={VIEW_HEIGHT - 8}
+                  y={viewHeight - 8}
                   textAnchor="middle"
                   fontSize={11}
                   fill={mutedForeground}
@@ -1306,7 +1310,7 @@ export function DailyCurveEditor({
                   x1={xToPx(selectedHour)}
                   y1={MARGIN.top}
                   x2={xToPx(selectedHour)}
-                  y2={MARGIN.top + PLOT_HEIGHT}
+                  y2={MARGIN.top + plotHeight}
                   stroke={solarSelected ? '#f59e0b' : primary}
                   strokeDasharray="3 3"
                   strokeWidth={1.5}
@@ -1332,7 +1336,7 @@ export function DailyCurveEditor({
                           key={index}
                           data-solar-point={index}
                           cx={xToPx(index)}
-                          cy={yToPx(kw, maxKw)}
+                          cy={yToPx(kw, maxKw, plotHeight)}
                           r={selectedHour === index && solarSelected ? 5 : 3}
                           fill={card}
                           stroke={solarColor}
@@ -1387,9 +1391,9 @@ export function DailyCurveEditor({
                       (() => {
                         const x = clamp(xToPx(selectedHour) - 58, MARGIN.left, viewWidth - MARGIN.right - 116);
                         const y = clamp(
-                          yToPx(generationKw![selectedHour]!, maxKw) - 28,
+                          yToPx(generationKw![selectedHour]!, maxKw, plotHeight) - 28,
                           MARGIN.top,
-                          MARGIN.top + PLOT_HEIGHT - 24
+                          MARGIN.top + plotHeight - 24
                         );
                         return (
                           <g className="pointer-events-none">
@@ -1424,7 +1428,7 @@ export function DailyCurveEditor({
                     {consumptionKw.map((kw, hour) => {
                       if (hour < viewRange.start || hour > viewRange.end) return null;
                       const cx = xToPx(hour);
-                      const cy = yToPx(kw, maxKw);
+                      const cy = yToPx(kw, maxKw, plotHeight);
                       const isSelected = selectedHour === hour;
 
                       return (
