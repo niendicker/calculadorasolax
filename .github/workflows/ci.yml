@@ -71,12 +71,12 @@ jobs:
         if: ${{ needs.configuration.outputs.visual == 'true' }}
         run: npx playwright install --with-deps chromium
 
-      - name: Build application for visual tests
-        if: ${{ needs.configuration.outputs.visual == 'true' }}
+      # Build even without integration credentials; these placeholders are only used in CI.
+      - name: Build application
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://ci-build.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ci-build-placeholder' }}
 
       - name: Visual Tests
         if: ${{ needs.configuration.outputs.visual == 'true' }}
