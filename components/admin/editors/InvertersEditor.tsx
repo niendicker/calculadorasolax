@@ -42,12 +42,13 @@ export function InvertersEditor(props: {
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
   ) => Promise<string>;
   saving: boolean;
+  error?: string | null;
   essRows: EssCompatibilityRuleRow[];
   onViewEssRules: (inverterModel: string) => void;
 }) {

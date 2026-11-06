@@ -1,3 +1,4 @@
+import { evaluateCiAccessories, type CiAccessoryContext, type CiAccessoryItem, type CiAccessoryTarget } from './accessories.ts';
 import { evaluateSts } from './sts.ts';
 import type { CiStsContext } from './sts-types.ts';
 // Scenario grid — Fase 5 of docs/CI-MODULE-PLAN.md section 5.1. Runs the
@@ -51,6 +52,9 @@ export function buildModuleCountRange(sizing: SizingConfig): number[] {
 }
 
 export interface ScenarioGridInput {
+  accessoryContext?: CiAccessoryContext;
+  accessoryTarget?: CiAccessoryTarget;
+  baseAccessories?: CiAccessoryItem[];
   stsContext?: CiStsContext;
   curve: LoadCurve;
   product: BessProductSpec;
@@ -174,12 +178,15 @@ function evaluateModuleCount(
     backupResult.meetsTransfer = sts.status === 'selected';
     if (sts.status !== 'selected') { backupResult.status = 'insufficient_transfer'; backupResult.warningMessage = sts.message; }
   }
-  const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl) + (sts?.selected?.totalBrl ?? 0);
+  const existing = [...(input.baseAccessories ?? []), ...(sts?.selected ? [{productId:sts.selected.spec.accessory_id,model:sts.selected.spec.model,quantity:1,unitPriceBrl:sts.selected.unitPriceBrl,totalBrl:sts.selected.totalBrl,bundled:false,reasons:['STS selecionada pelo dimensionamento elétrico'],ruleIds:[]}] : [])];
+  const accessories = evaluateCiAccessories(input.accessoryContext, (input.accessoryTarget ? {...input.accessoryTarget,bess:input.accessoryTarget.bess * moduleCount,pcs:input.accessoryTarget.pcs * moduleCount,battery:input.accessoryTarget.battery * moduleCount,string:input.accessoryTarget.string * moduleCount} : {bess:moduleCount,pcs:0,battery:0,string:0,backup:Boolean(backup?.enabled),generator:Boolean(input.generator?.enabled),lineVoltageV:backup?.sts?.lineVoltageV}), existing);
+  const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl) + (sts?.selected?.totalBrl ?? 0) + accessories.additionalCostBrl;
   const cashFlow = buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
 
   const technicalWarnings: string[] = [];
   if (sts) technicalWarnings.push(sts.message);
   else if (backup?.enabled) technicalWarnings.push('Transferência não avaliada: nenhuma STS externa configurada. O backup avalia potência e energia do BESS.');
+  technicalWarnings.push(...accessories.warnings);
   if (peakShavingTargetKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
     const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
     if (achievedMaxDemandKw > peakShavingTargetKw + 1e-6) {
@@ -201,8 +208,9 @@ function evaluateModuleCount(
     // impossible, so there is no scenario a physical rule invalidates
     // outright. technicalWarnings still surfaces when the result falls
     // short of what the strategy was asked to achieve (undersized BESS).
-    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected'),
+    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected') && accessories.valid,
     sts,
+    accessories: accessories.items,
     technicalWarnings,
     totalPowerKw: bess.totalPowerKw,
     totalCapacityKwh: bess.totalCapacityKwh,

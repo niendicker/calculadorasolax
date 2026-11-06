@@ -29,12 +29,13 @@ export function BatteriesEditor(props: {
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
   ) => Promise<string>;
   saving: boolean;
+  error?: string | null;
 }) {
   const { form, setForm } = props;
   const { formOpen, activeFormTab, setActiveFormTab, openNew, openEdit, close } = useCatalogEditorForm<BatteryRow>(

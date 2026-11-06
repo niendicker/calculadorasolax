@@ -205,14 +205,14 @@ export function ProductMediaFields({
   setDocuments,
   uploadAsset,
 }: {
-  table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products';
+  table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories';
   model: string | undefined;
   imageUrl: string | null | undefined;
   documents: ProductDocument[] | undefined;
   setImageUrl: (url: string) => void;
   setDocuments: (documents: ProductDocument[]) => void;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File

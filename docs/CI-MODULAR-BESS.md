@@ -6,9 +6,9 @@ integrado permanece disponível; projetos existentes não precisam ser convertid
 ## Cadastro e uso
 
 1. Em Administração → BESS C&I, cadastre as especificações adicionais nas abas
-   Inversores / PCS e Baterias C&I. Selecione modelos do catálogo compartilhado
-   com o residencial. Os IDs, nomes, tensões e eficiências continuam vinculados
-   às fichas originais.
+   Inversores / PCS e Baterias C&I. Use Cadastro de produtos para as fichas
+   próprias C&I e Limites contínuos C&I para os dados adicionais. Os catálogos
+   são independentes do residencial; veja [a decisão de catálogos e acessórios](CI-CATALOG-ACCESSORIES.md).
 2. Na aba Compatibilidades, associe PCS e bateria, defina as faixas aprovadas de
    unidades em série, strings em paralelo por PCS e quantidade de PCS. Informe
    suporte a backup e controlador obrigatório, quando aplicável.
@@ -37,7 +37,7 @@ considera a eficiência correspondente do PCS; a eficiência de ciclo da bateria
 é dividida igualmente entre as duas etapas. Capacidade e faixa de SOC vêm das
 fichas dos equipamentos.
 
-O cálculo também verifica os limites nominais conhecidos da ficha compartilhada.
+O cálculo também verifica os limites nominais conhecidos da ficha C&I.
 Para backup, não presume capacidade transitória de sobrecarga: a potência contínua
 disponível deve atender ao pico de partida informado. A rede AC da instalação,
 proteções, cabeamento, coordenação e ensaios de hardware não são dimensionados
@@ -93,7 +93,7 @@ o cenário é inválido; sem preço do modelo escolhido, o estudo é interrompid
 
 A migração aditiva `0098_ci_backup_sts.sql` é necessária antes de usar esse
 cadastro. Ela não cria acessórios nem aprova combinações reais. As versões
-`ci-v3` e `ci-modular-v2` identificam o cálculo com limites contínuos e rejeição
+`ci-v4` e `ci-modular-v3` identificam o cálculo com limites contínuos e rejeição
 de candidatos tecnicamente inválidos. Cálculos de backup integrados rodam no
 servidor da aplicação; respostas antigas da Edge Function são recalculadas
 localmente, evitando reintroduzir capacidade de sobrecarga presumida.

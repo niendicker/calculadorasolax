@@ -1,7 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
   buildScenarioGrid,
-  CI_ENGINE_VERSION,
   materializeScenarioDetail,
   recommendScenario,
   validateCommercialIndustrialOptions,
@@ -91,6 +90,8 @@ export async function handleCalculateCommercialIndustrial(
       return jsonResponse({ error: 'invalid_payload', details: validationErrors }, { status: 400 });
     }
     const options = body.options as CommercialIndustrialOptions;
+
+    if (options.bessSystem?.kind === 'modular' || options.selectedAccessoryIds?.length) return jsonResponse({error:'invalid_payload',details:['Composições e acessórios C&I devem ser calculados pela rota do projeto.']},{status:400});
 
     if ((body.options as CommercialIndustrialOptions).backup?.enabled && (body.options as CommercialIndustrialOptions).backup?.sts) return jsonResponse({ error: 'invalid_payload', details: ['STS deve ser calculada pela rota do projeto, com catálogo e preços resolvidos no servidor.'] }, { status: 400 });
 
@@ -182,7 +183,8 @@ export async function handleCalculateCommercialIndustrial(
     const selected = materializeScenarioDetail(gridInput, detailCandidate.moduleCount, detailCandidate.marginalGain);
 
     const result: CommercialIndustrialResult = {
-      engineVersion: CI_ENGINE_VERSION,
+      // Legacy endpoint excludes server-resolved C&I accessory rules. The project API owns ci-v4.
+      engineVersion: 'ci-v3',
       inputFingerprint: await computeInputFingerprint(body),
       baseline,
       scenarios,

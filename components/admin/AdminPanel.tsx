@@ -228,7 +228,7 @@ export function AdminPanel() {
   }
 
   async function uploadProductAsset(
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
@@ -855,7 +855,7 @@ export function AdminPanel() {
                 )}
 
                 {activeTab === 'ciBessProducts' && (
-                  <CiModularCatalogEditor onOpenCatalog={setActiveTab} onActivity={async (activity) => { await recordActivityLog({ ...activity, summary: `${activity.action === 'create' ? 'Criou' : 'Atualizou'} ${activity.targetLabel} no catálogo modular C&I.` }); }} integrated={<CiBessProductsEditor
+                  <CiModularCatalogEditor uploadAsset={uploadProductAsset} onOpenCatalog={setActiveTab} onActivity={async (activity) => { await recordActivityLog({ ...activity, summary: `${activity.action === 'create' ? 'Criou' : 'Atualizou'} ${activity.targetLabel} no catálogo modular C&I.` }); }} integrated={<CiBessProductsEditor
                     rows={ciBessProducts}
                     form={ciBessProductForm}
                     setForm={setCiBessProductForm}

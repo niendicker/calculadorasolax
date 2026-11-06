@@ -608,9 +608,14 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             { label: 'Referência', value: selected.composition.referenceDocument },
             { label: 'Comunicação / BMS', value: selected.composition.communicationProfile },
             { label: 'Firmware PCS / bateria', value: `${selected.composition.pcsFirmware} / ${selected.composition.batteryFirmware}` },
-            ...selected.composition.items.map((item) => ({ label: `${item.quantity} × ${item.model}`, value: `${formatCurrencyBRL(item.unitPriceBrl)} / un. · ${formatCurrencyBRL(item.totalBrl)}` })),
+            ...selected.composition.items.filter(item=>!selected?.accessories?.length || item.productType!=='accessory').map((item) => ({ label: `${item.quantity} × ${item.model}`, value: `${formatCurrencyBRL(item.unitPriceBrl)} / un. · ${formatCurrencyBRL(item.totalBrl)}` })),
           ]} />
         </View>}
+
+        {Boolean(selected?.accessories?.length) && <View style={styles.section}><Text style={styles.sectionTitle}>Acessórios C&I</Text><InfoRows rows={selected!.accessories!.flatMap(item=>[
+          {label:`${item.quantity} × ${item.model}${item.bundled ? ' · Incluso':''}`,value:`${formatCurrencyBRL(item.unitPriceBrl)} / un. · ${formatCurrencyBRL(item.totalBrl)}`},
+          {label:'Justificativa',value:item.reasons.join('; ')},
+        ])}/></View>}
 
         {solar?.enabled && (
           <View style={styles.section} wrap={false}>

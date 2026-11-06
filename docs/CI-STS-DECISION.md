@@ -56,7 +56,9 @@ Sem STS externa configurada, o resultado de backup cobre potência e energia do
 BESS; transferência permanece não avaliada. Projetos legados conservam essa
 condição. Desabilitar backup ignora seleção de STS e não acrescenta custo.
 
-O cadastro compartilha o ID do acessório, mas fichas e compatibilidades são C&I.
+O cadastro usa o ID do acessório do catálogo próprio `ci_accessories`; fichas e
+compatibilidades são C&I. A migração 0099 preserva os IDs anteriores e separa os
+catálogos, conforme [decisão de catálogos e acessórios](CI-CATALOG-ACCESSORIES.md).
 Não cria registros em `approved_solutions` nem regras residenciais. Nenhum vínculo
 real de fabricante será aprovado ou terá quantidade máxima inventada na migração.
 

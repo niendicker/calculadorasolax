@@ -35,8 +35,9 @@ function makeClient(result: QueryResult = { data: null, error: null }) {
   return { client, from, invoke, query };
 }
 
+const calculationResult={engineVersion:'ci-v4',recommendation:{scenarioId:'scenario-1'}};
 const options = { tariffId: 'tariff-1', bessProductId: 'bess-1' };
-const calculationResult = { engineVersion: 'ci-v3', recommendation: { scenarioId: 'scenario-1' } };
+vi.mock('./ci-accessories-repository',()=>({loadCiAccessoryContext:vi.fn().mockResolvedValue({products:[],rules:[],prices:{},selectedIds:[],stsIds:[]})}));
 const run = {
   id: 'run-1',
   engine_version: 'ci-v1',
@@ -46,14 +47,11 @@ const run = {
 };
 
 describe('commercial-industrial-calculation-repository', () => {
-  it('invoca a Edge Function C&I com opções e preços', async () => {
-    const { client, invoke } = makeClient();
-    const body = { options, unitPriceBrl: 45000, additionalCostsBrl: 1200 };
-    const result = { data: calculationResult, error: null };
-    invoke.mockResolvedValue(result);
-
-    await expect(invokeCommercialIndustrialCalculation(client, body)).resolves.toEqual(result);
-    expect(invoke).toHaveBeenCalledWith('calculate-commercial-industrial', { body });
+  it('uses the authoritative server path and does not trust an old edge result', async () => {
+    const {client,invoke}=makeClient();
+    const result=await invokeCommercialIndustrialCalculation(client,{options:{},unitPriceBrl:45000});
+    expect(result.data).toBeNull();expect(result.error).toMatchObject({message:'incomplete_configuration'});
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('cai para cálculo direto local quando a Edge Function remota falha', async () => {
@@ -288,6 +286,6 @@ describe('imported solar compatibility with remote calculation', () => {
     const result = await invokeCommercialIndustrialCalculation(client, { options, unitPriceBrl: 45000 });
     expect(result.error).toBeNull();
     expect(result.data?.selected?.dispatch[0].solarGenerationKw).toBe(27.5);
-    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

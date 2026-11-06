@@ -9,6 +9,7 @@ import { CiConfigurationPanel } from './CiConfigurationPanel';
 
 const mocks = vi.hoisted(() => ({ load: vi.fn(), integrated: vi.fn() }));
 vi.mock('@/lib/data/ci-modular-catalog-repository', () => ({ loadCiModularCatalog: mocks.load }));
+vi.mock('@/lib/data/ci-accessories-repository',()=>({loadCiAccessoryCatalog:vi.fn().mockResolvedValue({products:[],rules:[],stsIds:[]})}));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts: mocks.integrated }));
 function Controlled() {
   const [options, setOptions] = useState<CommercialIndustrialOptions>(defaultCiOptions);

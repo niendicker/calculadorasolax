@@ -420,11 +420,12 @@ export function CiResultsPanel({
                   ? result.recommendation.reason
                   : `Visualizando métricas financeiras detalhadas para a configuração de ${ciScenarioLabel(currentScenario)}. Clique em outra linha da tabela para comparar.`}
               </p>
+              {Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
               {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
                 <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.seriesCount} unidades em série × {currentScenario.composition.parallelStringsPerPcs} strings por PCS.</p>
                 <p>Carga AC até {formatKw(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatKw(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
                 <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
-                <ul className="space-y-1">{currentScenario.composition.items.map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model} · {formatCurrencyBRL(item.unitPriceBrl)}/un.</span><strong>{formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
+                <ul className="space-y-1">{currentScenario.composition.items.filter(item=>!currentScenario.accessories?.length || item.productType!=='accessory').map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model} · {formatCurrencyBRL(item.unitPriceBrl)}/un.</span><strong>{formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
               </div>}
               {currentScenario.technicalWarnings.length > 0 && (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">

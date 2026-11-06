@@ -129,7 +129,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       installation_type: 'commercial_industrial',
       engine_version: result.engineVersion,
       input_fingerprint: result.inputFingerprint,
-      input_snapshot: { ...(isModular ? {options, equipment: (data as CommercialIndustrialResult).assumptions?.equipment} : {options, unitPriceBrl}), ...((data as CommercialIndustrialResult).stsContext ? {stsContext: (data as CommercialIndustrialResult).stsContext} : {}) },
+      input_snapshot: { ...((data as CommercialIndustrialResult).accessoryContext ? {accessoryContext:(data as CommercialIndustrialResult).accessoryContext} : {}), ...(isModular ? {options, equipment: (data as CommercialIndustrialResult).assumptions?.equipment} : {options, unitPriceBrl}), ...((data as CommercialIndustrialResult).stsContext ? {stsContext: (data as CommercialIndustrialResult).stsContext} : {}) },
       result_snapshot: result,
       selected_scenario_id: result.recommendation.scenarioId,
     });

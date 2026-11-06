@@ -1,3 +1,4 @@
+import type { CiAccessoryContext } from './accessories.ts';
 import type { CiStsContext } from './sts-types.ts';
 import type { CiBatteryCatalogEntry, CiCompatibilityRule, CiModularCatalog, CiModularComposition, CiModularPrices, CiModularSelection, CiPcsCatalogEntry } from './modular-types.ts';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from './types.ts';
@@ -106,25 +107,28 @@ export function buildModularConfigurations(catalog: CiModularCatalog, selection:
 }
 
 /** Each configuration is evaluated as one complete assembly, with independent PCS and battery quantities. */
-export function calculateModularStudy(options: CommercialIndustrialOptions, catalog: CiModularCatalog, prices: CiModularPrices, stsContext?: CiStsContext): CommercialIndustrialResult {
+export function calculateModularStudy(options: CommercialIndustrialOptions, catalog: CiModularCatalog, prices: CiModularPrices, stsContext?: CiStsContext, accessoryContext?: CiAccessoryContext): CommercialIndustrialResult {
   const selection = options.bessSystem;
   if (selection?.kind !== 'modular' || !options.loadCurve || !options.tariff) throw new Error('Configure a composição, curva de carga e tarifa.');
   const { rule, pcs, battery } = resolveModularCatalog(catalog, selection);
   if (options.backup?.enabled && (!rule.supports_backup || !pcs.supports_backup)) throw new Error('Esta composição não está aprovada para backup.');
   const configurations = buildModularConfigurations(catalog, selection, prices);
   const gridInput = (configuration: typeof configurations[number]): ScenarioGridInput => ({
+    accessoryContext,
+    accessoryTarget: {pcsId:pcs.inverter_id,batteryId:battery.battery_id,compatibilityId:rule.id,pcs:configuration.composition.pcsCount,battery:configuration.composition.batteryCount,string:configuration.composition.pcsCount*configuration.composition.parallelStringsPerPcs,bess:0,backup:Boolean(options.backup?.enabled),generator:Boolean(options.generator?.enabled),lineVoltageV:options.backup?.sts?.lineVoltageV},
+    baseAccessories: configuration.composition.items.filter(item=>item.productType==='accessory').map(item=>({...item,bundled:false,reasons:['Controlador exigido pela compatibilidade PCS + bateria'],ruleIds:[]})),
     stsContext: stsContext ? {...stsContext, target: {...stsContext.target, unitsPerModule: configuration.composition.pcsCount}} : undefined,
     curve: options.loadCurve!, product: configuration.product, strategy: options.strategy, sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null }, tariffWindow: { peakStart: options.tariff!.peakStart, peakEnd: options.tariff!.peakEnd }, tariff: options.tariff!, peakShavingTargetKw: options.tariff!.contractedDemandKw, unitPriceBrl: configuration.capex, monthsPerYear: options.financialAssumptions.monthsPerYear, financialAssumptions: options.financialAssumptions, backup: options.backup, solar: options.solar, generator: options.generator,
   });
-  const decorate = (candidate: ScenarioCandidate, configuration: typeof configurations[number]) => ({ ...candidate, scenarioId: configuration.id, moduleCount: configuration.composition.batteryCount, composition: {...configuration.composition, items: [...configuration.composition.items, ...(candidate.sts?.selected ? [{productId: candidate.sts.selected.spec.accessory_id, productType: 'accessory' as const, model: candidate.sts.selected.spec.model, quantity: 1, unitPriceBrl: candidate.sts.selected.unitPriceBrl, totalBrl: candidate.sts.selected.totalBrl}] : [])]}, marginalGain: null });
+  const decorate = (candidate: ScenarioCandidate, configuration: typeof configurations[number]) => ({ ...candidate, scenarioId: configuration.id, moduleCount: configuration.composition.batteryCount, composition: {...configuration.composition, items: [...configuration.composition.items.filter(item=>item.productType!=='accessory'), ...(candidate.accessories ?? []).map(item=>({...item,productType:'accessory' as const}))]}, marginalGain: null });
   const grids = configurations.map((configuration) => ({ configuration, grid: buildScenarioGrid(gridInput(configuration)) }));
   const scenarios = grids.map(({ configuration, grid }) => decorate(grid.scenarios[0], configuration));
   const recommendation = recommendScenario(scenarios, options.rankingCriterion, options.financialAssumptions.analysisHorizonYears)!;
   const selectedConfiguration = configurations.find((configuration) => configuration.id === recommendation.scenarioId) ?? configurations[0];
   const detail = materializeScenarioDetail(gridInput(selectedConfiguration), 1, null);
   return {
-    stsContext,
-    engineVersion: 'ci-modular-v2', inputFingerprint: '', baseline: grids[0].grid.baseline, scenarios, recommendation,
+    stsContext, accessoryContext,
+    engineVersion: 'ci-modular-v3', inputFingerprint: '', baseline: grids[0].grid.baseline, scenarios, recommendation,
     selected: { ...decorate(detail, selectedConfiguration), dispatch: detail.dispatch, cashFlow: detail.cashFlow },
     assumptions: { equipment: { pcs, battery, compatibility: rule, prices }, tariff: options.tariff, financial: options.financialAssumptions, loadCurve: { resolutionMinutes: options.loadCurve.resolutionMinutes, profileBasis: options.loadCurve.profileBasis, periodStart: options.loadCurve.periodStart, periodEnd: options.loadCurve.periodEnd, timezone: options.loadCurve.timezone } },
     warnings: [...new Set(scenarios.flatMap((scenario) => scenario.technicalWarnings))], backup: detail.backupResult,

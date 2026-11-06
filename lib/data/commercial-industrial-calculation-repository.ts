@@ -1,3 +1,4 @@
+import { loadCiAccessoryContext } from './ci-accessories-repository';
 import { loadCiStsContext } from './ci-sts-repository';
 // Server-side data access for the C&I calculation flow — mirrors
 // lib/data/calculation-repository.ts's role for residential: the one place
@@ -27,17 +28,19 @@ async function calculateModular(supabase: SupabaseClient, options: CommercialInd
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth.user) throw new Error('Sua sessão expirou. Entre novamente para calcular.');
     const userId = auth.user.id;
-    const price = async (type: 'inverter' | 'battery' | 'accessory', model: string) => {
+    const price = async (type: 'ci_pcs' | 'ci_battery' | 'ci_accessory', model: string, allowMissing = false) => {
       const { data, error } = await supabase.from('user_stock_items').select('unit_value').eq('user_id', userId).eq('product_type', type).eq('product_model', model).maybeSingle();
       if (error) throw new Error(error.message);
+      if (!data && allowMissing) return 0;
       if (!data || data.unit_value === null || !Number.isFinite(Number(data.unit_value)) || Number(data.unit_value) < 0) throw new Error(`Defina o preço de ${model} no seu Portfólio antes de calcular.`);
       return Number(data.unit_value);
     };
-    const [pcsUnitBrl, batteryUnitBrl, controllerUnitBrl] = await Promise.all([price('inverter', equipment.pcs.model), price('battery', equipment.battery.model), equipment.controller ? price('accessory', equipment.controller.model) : Promise.resolve(undefined)]);
+    const [pcsUnitBrl, batteryUnitBrl, controllerUnitBrl] = await Promise.all([price('ci_pcs', equipment.pcs.model), price('ci_battery', equipment.battery.model), equipment.controller ? price('ci_accessory', equipment.controller.model, true) : Promise.resolve(undefined)]);
     const prices = { pcsUnitBrl, batteryUnitBrl, controllerUnitBrl };
     const stsContext = options.backup?.enabled && options.backup.sts ? await loadCiStsContext(supabase, {pcsId: equipment.pcs.inverter_id, unitsPerModule: 1}, equipment.rule.controller_accessory_id) : undefined;
-    const result = calculateModularStudy(options, catalog, prices, stsContext);
-    result.inputFingerprint = await computeInputFingerprint({ options, equipment, prices, stsContext });
+    const accessoryContext = await loadCiAccessoryContext(supabase, options.selectedAccessoryIds);
+    const result = calculateModularStudy(options, catalog, prices, stsContext, accessoryContext);
+    result.inputFingerprint = await computeInputFingerprint({ options, equipment, prices, stsContext, accessoryContext });
     result.assumptions.equipment = { pcs: equipment.pcs, battery: equipment.battery, compatibility: equipment.rule, prices };
     return { data: result, error: null };
   } catch (cause) { return { data: null, error: { code: 'ci_modular', message: cause instanceof Error ? cause.message : 'Não foi possível dimensionar a composição modular.' } }; }
@@ -94,11 +97,14 @@ export async function calculateCommercialIndustrialDirect(
     }
 
     const stsContext = options.backup?.enabled && options.backup.sts ? await loadCiStsContext(supabase, {bessProductId: options.bessProductId, unitsPerModule: 1}) : undefined;
+    const accessoryContext = await loadCiAccessoryContext(supabase, options.selectedAccessoryIds);
     const product = toBessProductSpec(productRow as CiBessProductRow);
     const tariffWindow = { peakStart: options.tariff.peakStart, peakEnd: options.tariff.peakEnd };
     const peakShavingTargetKw = options.tariff.contractedDemandKw;
 
     const gridInput = {
+      accessoryContext,
+      accessoryTarget: {bessProductId:options.bessProductId,bess:1,pcs:0,battery:0,string:0,backup:Boolean(options.backup?.enabled),generator:Boolean(options.generator?.enabled),lineVoltageV:options.backup?.sts?.lineVoltageV},
       stsContext,
       curve: options.loadCurve,
       product,
@@ -136,9 +142,9 @@ export async function calculateCommercialIndustrialDirect(
     const selected = materializeScenarioDetail(gridInput, detailCandidate.moduleCount, detailCandidate.marginalGain);
 
     const result: CommercialIndustrialResult = {
-      stsContext,
+      stsContext, accessoryContext,
       engineVersion: CI_ENGINE_VERSION,
-      inputFingerprint: await computeInputFingerprint({ ...body, stsContext }),
+      inputFingerprint: await computeInputFingerprint({ ...body, stsContext, accessoryContext }),
       baseline,
       scenarios,
       recommendation,
@@ -169,44 +175,6 @@ export async function invokeCommercialIndustrialCalculation(
   supabase: SupabaseClient,
   body: { options: Record<string, unknown>; unitPriceBrl: number; additionalCostsBrl?: number }
 ) {
-  const options = body.options as unknown as CommercialIndustrialOptions;
-  if (options?.bessSystem?.kind === 'modular') return calculateModular(supabase, options);
-  if (options?.backup?.enabled) return calculateCommercialIndustrialDirect(supabase, body);
-  try {
-    const res = await supabase.functions.invoke('calculate-commercial-industrial', { body });
-    if (!res.error && res.data) {
-      const data = res.data as CommercialIndustrialResult;
-      if (data.engineVersion !== CI_ENGINE_VERSION) return calculateCommercialIndustrialDirect(supabase, body);
-      const options = body.options as unknown as CommercialIndustrialOptions;
-      const importedGeneration = options?.solar?.enabled ? options.solar.generationCurve : undefined;
-      const expectedByTimestamp = importedGeneration ? new Map(importedGeneration.points.map((point) => [Date.parse(point.timestamp), point.powerKw])) : null;
-      const importedGenerationMatches = !expectedByTimestamp || Boolean(
-        data.selected?.dispatch?.length === options.loadCurve?.points.length &&
-        data.selected?.dispatch?.every((point, index) => {
-          const expected = expectedByTimestamp.get(Date.parse(point.timestamp));
-          return expected !== undefined && Date.parse(point.timestamp) === Date.parse(options.loadCurve!.points[index].timestamp) && Math.abs((point.solarGenerationKw ?? 0) - expected) <= 1e-8 * Math.max(1, expected);
-        })
-      );
-      const solarExpected = Boolean(options?.solar?.enabled && (importedGeneration
-        ? importedGeneration.points.some((point) => point.powerKw > 0)
-        : (options.solar.installedPowerKwp ?? 0) > 0));
-      const hasSolar = Boolean(data?.selected?.dispatch?.some((p) => (p.solarGenerationKw ?? 0) > 0));
-
-      const genExpected = Boolean(
-        options?.generator?.enabled &&
-        (options.generator.ratedPowerKva ?? 0) > 0 &&
-        (options.generator.dispatchMode === 'peak_support' || options.generator.dispatchMode === 'peak_and_blackout')
-      );
-      const hasGen = Boolean(data?.selected?.dispatch?.some((p) => (p.generatorKw ?? 0) > 0));
-
-      if (importedGenerationMatches && (!solarExpected || hasSolar) && (!genExpected || hasGen)) {
-        return res;
-      }
-    }
-  } catch {
-    // remote invocation failed, fall back below
-  }
-
   return calculateCommercialIndustrialDirect(supabase, body);
 }
 

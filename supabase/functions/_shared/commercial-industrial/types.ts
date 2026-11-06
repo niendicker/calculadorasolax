@@ -1,3 +1,4 @@
+import type { CiAccessoryContext, CiAccessoryItem } from './accessories.ts';
 import type { CiStsSelection, CiStsResult, CiStsContext } from './sts-types.ts';
 import type { CiModularComposition, CiModularSelection, CiPcsCatalogEntry, CiBatteryCatalogEntry, CiCompatibilityRule, CiModularPrices } from './modular-types.ts';
 // Domain contracts for the C&I (Commercial & Industrial) BESS module — see
@@ -230,6 +231,7 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
 };
 
 export interface CommercialIndustrialOptions {
+  selectedAccessoryIds?: string[];
   /** Absent means the existing integrated BESS catalog. */
   bessSystem?: { kind: 'integrated' } | CiModularSelection;
   loadCurve: LoadCurve | null;
@@ -246,7 +248,7 @@ export interface CommercialIndustrialOptions {
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
 
-export const CI_ENGINE_VERSION = 'ci-v3';
+export const CI_ENGINE_VERSION = 'ci-v4';
 
 export type TariffPeriod = 'peak' | 'offPeak';
 
@@ -275,6 +277,7 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  accessories?: CiAccessoryItem[];
   sts?: CiStsResult;
   composition?: CiModularComposition;
   scenarioId: string;
@@ -356,6 +359,7 @@ export interface BessRuntimeParams {
 
 export interface CommercialIndustrialResult {
   stsContext?: CiStsContext;
+  accessoryContext?: CiAccessoryContext;
   engineVersion: string;
   /** Stable hash of the input options this result was computed from — lets
    * the UI detect a stale result without deep-comparing objects. */

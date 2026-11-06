@@ -366,5 +366,7 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));
   }
 
+  const accessoryIds = (raw as Record<string, unknown>)?.selectedAccessoryIds;
+  if (accessoryIds !== undefined && (!Array.isArray(accessoryIds) || accessoryIds.length > 100 || accessoryIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) || new Set(accessoryIds).size !== accessoryIds.length)) errors.push('Seleção de acessórios C&I inválida.');
   return errors;
 }
