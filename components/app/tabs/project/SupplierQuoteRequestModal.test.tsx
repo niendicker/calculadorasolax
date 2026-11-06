@@ -179,7 +179,8 @@ describe('SupplierQuoteRequestModal', () => {
     await waitFor(() => expect(onSent).toHaveBeenCalledOnce());
     expect(fetchMock).toHaveBeenCalledWith('/api/projects/project-1/request-supplier-quote', expect.objectContaining({ method: 'POST' }));
     expect(screen.getByText('Resultado das solicitações')).toBeInTheDocument();
-    expect(screen.getByText('Solicitação enviada em 12/09/2026, 09:00')).toBeInTheDocument();
+    const sentAt = new Date('2026-09-12T12:00:00.000Z').toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    expect(screen.getByText(`Solicitação enviada em ${sentAt}`)).toBeInTheDocument();
   });
 
   it('shows API errors and partial results without calling onSent', async () => {
