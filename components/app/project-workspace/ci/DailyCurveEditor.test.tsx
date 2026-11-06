@@ -513,3 +513,133 @@ it('hides the FV tooltip when its point loses focus, including when using the la
   expect(screen.queryByText('12:00 · 75.0 kW FV')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Geração FV selecionada')).toHaveValue(75);
 });
+
+describe('DailyCurveEditor — editing tools', () => {
+  it('displays real-time energetic KPIs and jumps to peak demand', () => {
+    const values = new Array(96).fill(40);
+    values[53] = 120; // 13:15 peak demand
+    render(<DailyCurveEditor hourlyKw={values} onChange={vi.fn()} />);
+
+    expect(screen.getByText('Consumo Diário Total')).toBeInTheDocument();
+    expect(screen.getByText('Demanda de Pico (Consumo)')).toBeInTheDocument();
+    expect(screen.getByText('120,0')).toBeInTheDocument();
+
+    const jumpBtn = screen.getByRole('button', { name: /às 13:15/ });
+    expect(jumpBtn).toBeInTheDocument();
+
+    fireEvent.click(jumpBtn);
+    expect(screen.getByLabelText('Horário selecionado')).toHaveValue('53');
+    expect(screen.getByLabelText('Potência ativa')).toHaveValue(120);
+  });
+
+  it('provides quick stepper buttons (-5, -1, +1, +5 kW) in the inspector', () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '+5 kW' }));
+    expect(screen.getByLabelText('Potência ativa')).toHaveValue(55);
+    expect(onChange.mock.calls.at(-1)![0][48]).toBe(55);
+
+    fireEvent.click(screen.getByRole('button', { name: '-1 kW' }));
+    expect(screen.getByLabelText('Potência ativa')).toHaveValue(54);
+    expect(onChange.mock.calls.at(-1)![0][48]).toBe(54);
+  });
+
+  it('performs batch editing across a time range', () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
+
+    // Configure batch to fix value 80 kW
+    fireEvent.change(screen.getByLabelText('Operação'), { target: { value: 'set' } });
+    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '80' } });
+    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '32' } }); // 08:00
+    fireEvent.change(screen.getByLabelText('Fim'), { target: { value: '40' } }); // 10:00
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar à faixa selecionada' }));
+
+    const updated = onChange.mock.calls.at(-1)![0];
+    for (let i = 32; i <= 40; i++) {
+      expect(updated[i]).toBe(80);
+    }
+    expect(updated[31]).toBe(50);
+    expect(updated[41]).toBe(50);
+  });
+
+  it('supports undo and redo stack across edits', () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
+
+    const undoBtn = screen.getByRole('button', { name: /Desfazer/ });
+    const redoBtn = screen.getByRole('button', { name: /Refazer/ });
+
+    expect(undoBtn).toBeDisabled();
+    expect(redoBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '+5 kW' }));
+    expect(screen.getByLabelText('Potência ativa')).toHaveValue(55);
+    expect(undoBtn).not.toBeDisabled();
+
+    fireEvent.click(undoBtn);
+    expect(screen.getByLabelText('Potência ativa')).toHaveValue(50);
+    expect(redoBtn).not.toBeDisabled();
+
+    fireEvent.click(redoBtn);
+    expect(screen.getByLabelText('Potência ativa')).toHaveValue(55);
+  });
+
+  it('renders peak tariff band (18h-21h) and quick zoom presets', () => {
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={vi.fn()} />);
+
+    expect(screen.getByText('Ponta (18h–21h)')).toBeInTheDocument();
+
+    const solarZoomBtn = screen.getByRole('button', { name: 'Solar (6h–18h)' });
+    fireEvent.click(solarZoomBtn);
+    const range = screen.getByRole('status', { name: 'Período visível no gráfico diário' });
+    expect(range.textContent).toContain('06:00');
+
+    const fullZoomBtn = screen.getByRole('button', { name: '24h' });
+    fireEvent.click(fullZoomBtn);
+    expect(screen.getByRole('status', { name: 'Período visível no gráfico diário' }).textContent).toContain('00:00');
+  });
+
+  it('harmonizes isolated peaks with moving average smoothing button', () => {
+    const onChange = vi.fn();
+    const noisy = new Array(96).fill(50);
+    noisy[48] = 100; // spike at 12:00
+    render(<DailyCurveEditor hourlyKw={noisy} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Harmonizar picos' }));
+    const smoothed = onChange.mock.calls.at(-1)![0];
+    expect(smoothed[48]).toBeLessThan(100);
+    expect(smoothed[48]).toBeGreaterThan(50);
+  });
+});
+
+it('restores and redoes clearing the curve through the same history', () => {
+  render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Limpar curva' }));
+  expect(screen.getByLabelText('Potência ativa')).toHaveValue(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }));
+  expect(screen.getByLabelText('Potência ativa')).toHaveValue(50);
+  expect(screen.getByRole('button', { name: 'Desfazer' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Refazer' }));
+  expect(screen.getByLabelText('Potência ativa')).toHaveValue(0);
+});
+
+it('keeps all editing tools disabled for read-only solar generation', () => {
+  const onChange = vi.fn();
+  render(<DailyCurveEditor hourlyKw={FLAT_24} solarKw={FLAT_24} onChange={onChange} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
+  for (const name of ['Harmonizar picos', 'Limpar curva', '+5 kW', 'Aplicar à faixa selecionada']) {
+    expect(screen.getByRole('button', { name })).toBeDisabled();
+  }
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it('does not cap batch edits at an arbitrary power limit', () => {
+  const onChange = vi.fn();
+  render(<DailyCurveEditor hourlyKw={new Array(24).fill(1500)} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '10' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Aplicar à faixa selecionada' }));
+  expect(onChange.mock.calls.at(-1)![0][8]).toBe(1650);
+});
