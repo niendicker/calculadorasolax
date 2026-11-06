@@ -12,31 +12,38 @@ import type { CiBackupConfig, CommercialIndustrialOptions } from '@/supabase/fun
 export function CiStsBackupPanel({options,backup,onChange}: {options: CommercialIndustrialOptions; backup: CiBackupConfig; onChange: (partial: Partial<CiBackupConfig>)=>void}) {
   const sts=backup.sts;
   const requested=Boolean(sts);
-  const [catalog,setCatalog]=useState<CiStsCatalog|null>(null);
-  const [error,setError]=useState('');
+  const [loaded,setLoaded]=useState<{key:string;catalog:CiStsCatalog;pcsId:string|null}|null>(null);
+  const [failure,setFailure]=useState<{key:string;message:string}|null>(null);
   const [attempt,setAttempt]=useState(0);
+  const modular=options.bessSystem?.kind==='modular';
+  const compatibilityId=options.bessSystem?.kind==='modular'?options.bessSystem.compatibilityId:null;
+  const targetKey=JSON.stringify([modular,compatibilityId,options.bessProductId,attempt]);
   useEffect(()=>{
     if(!requested)return;
     let alive=true;
-    loadCiStsCatalog().then(data=>{if(alive){setCatalog(data);setError('');}}).catch(e=>{if(alive)setError(e instanceof Error?e.message:'Não foi possível carregar STS.');});
+    const pcsLookup=modular
+      ? import('@/lib/data/ci-modular-catalog-repository').then(m=>m.loadCiModularCatalog()).then(data=>data.rules.find(r=>r.id===compatibilityId)?.pcs_id??null)
+      : Promise.resolve(null);
+    // Publish both lookups together: a later STS response must never hide a PCS error.
+    Promise.all([loadCiStsCatalog(),pcsLookup]).then(([catalog,pcsId])=>{
+      if(alive){setLoaded({key:targetKey,catalog,pcsId});setFailure(null);}
+    }).catch(e=>{
+      if(alive)setFailure({key:targetKey,message:e instanceof Error?e.message:'Não foi possível carregar STS e composição.'});
+    });
     return()=>{alive=false;};
-  },[requested,attempt]);
+  },[requested,modular,compatibilityId,targetKey]);
+  const catalog=loaded?.key===targetKey?loaded.catalog:null;
+  const equipmentPcs=loaded?.key===targetKey?loaded.pcsId:null;
+  const error=failure?.key===targetKey?failure.message:'';
   const update=(partial:Partial<CiStsSelection>)=>{if(sts)onChange({sts:{...sts,...partial}});};
-  const [equipmentPcs,setEquipmentPcs]=useState<string|null>(null);
-  const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && r.frequency_hz===sts?.frequencyHz && (options.bessSystem?.kind==='modular' ? r.pcs_id===equipmentPcs : r.bess_product_id===options.bessProductId))??[];
-  useEffect(()=>{
-    if(!requested || options.bessSystem?.kind!=='modular')return;
-    let alive=true;
-    import('@/lib/data/ci-modular-catalog-repository').then(m=>m.loadCiModularCatalog()).then(data=>{if(alive)setEquipmentPcs(data.rules.find(r=>r.id===(options.bessSystem?.kind==='modular'?options.bessSystem.compatibilityId:null))?.pcs_id??null);}).catch(e=>{if(alive)setError(e instanceof Error?e.message:'Não foi possível carregar a composição.');});
-    return()=>{alive=false;};
-  },[requested,options.bessSystem,attempt]);
+  const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && r.frequency_hz===sts?.frequencyHz && (modular ? r.pcs_id===equipmentPcs : r.bess_product_id===options.bessProductId))??[];
   const specs=catalog?.specs.filter(s=>s.active&&s.accessoryActive&&rules.some(r=>r.accessory_id===s.accessory_id))??[];
   const errors=sts?validateStsSelection(sts):[];
   return <section aria-label="Transferência / STS" className="space-y-4 rounded-xl border bg-muted/10 p-4">
     <div><h3 className="text-sm font-semibold">Transferência / STS</h3><p className="mt-1 text-xs text-muted-foreground">Uma STS por barramento trifásico com neutro e PE. Seleção por corrente nominal contínua e compatibilidade aprovada, sem sobrecarga.</p></div>
     <label className="block space-y-1.5 text-xs font-medium">Seleção de STS<Select aria-label="Seleção de STS" value={sts?.mode??'none'} onChange={e=>{if(e.target.value==='none')onChange({sts:undefined});else onChange({sts:{gridBusScope:'installation',accessoryId:null,lineVoltageV:380,frequencyHz:60,powerFactor:0,maxGridPassageKw:0,...sts,mode:e.target.value as CiStsSelection['mode']}});}}><option value="none">Sem STS externa — transferência não avaliada</option><option value="auto">Selecionar automaticamente</option><option value="manual">Selecionar manualmente</option></Select></label>
     {sts&&<>
-      {error?<div role="alert" className="space-y-2 text-sm text-destructive"><p>{error}</p><Button type="button" variant="outline" onClick={()=>{setError('');setCatalog(null);setAttempt(a=>a+1);}}>Tentar novamente</Button></div>:!catalog?<p role="status" className="text-xs text-muted-foreground">Carregando STS…</p>:<>
+      {error?<div role="alert" className="space-y-2 text-sm text-destructive"><p>{error}</p><Button type="button" variant="outline" onClick={()=>setAttempt(a=>a+1)}>Tentar novamente</Button></div>:!catalog?<p role="status" className="text-xs text-muted-foreground">Carregando STS…</p>:<>
         {specs.length===0&&<p role="status" className="text-xs text-muted-foreground">Nenhuma STS com compatibilidade aprovada para este equipamento. Cadastre em Administração → BESS C&I → STS / Transferência.</p>}
         {sts.mode==='manual'&&<label className="block space-y-1.5 text-xs font-medium">Modelo STS<Select aria-label="Modelo STS" value={sts.accessoryId??''} onChange={e=>update({accessoryId:e.target.value||null})}><option value="">Selecione uma STS</option>{specs.map(s=><option key={s.accessory_id} value={s.accessory_id}>{s.model} · até {rules.find(r=>r.accessory_id===s.accessory_id)?.max_pcs} PCS/unidades</option>)}</Select></label>}
         {sts.mode==='manual'&&sts.accessoryId&&!specs.some(s=>s.accessory_id===sts.accessoryId)&&<p role="alert" className="text-xs text-destructive">A STS salva está indisponível ou sem compatibilidade aprovada. Selecione outra para recalcular.</p>}

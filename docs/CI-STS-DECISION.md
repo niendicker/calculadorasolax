@@ -118,3 +118,15 @@ exceder a espera de um teste residencial; os 56 testes desse arquivo também
 passaram isoladamente. Nenhuma asserção residencial foi alterada nesta entrega.
 Build verificado com `npm run build -- --webpack`; Deno e validação de migração
 conforme os comandos acima. Não houve aplicação de migração ou publicação remota.
+
+## Revisão pré-merge da PR 14
+
+A revisão de `ee9e4a3c..1c46ab33` reproduziu uma condição de corrida no seletor:
+se a busca da composição PCS falhava antes da resposta STS, a resposta posterior
+apagava o erro e mostrava ausência de compatibilidades, sem botão para repetir.
+As consultas agora publicam catálogo e PCS juntos e vinculam o estado ao alvo
+atual; trocar equipamento ou repetir a consulta não reutiliza a lista anterior.
+O teste de regressão falhou no código anterior e passou após a correção, cobrindo
+também a nova tentativa. Os dez testes dos painéis STS/Backup, lint dos arquivos
+alterados e TypeScript passaram após esse ajuste. O CI valida novamente o commit
+final antes do merge. Nenhuma mudança adicional na migração foi necessária.

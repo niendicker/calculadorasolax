@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
 import {useState} from 'react';
-import {fireEvent,render,screen} from '@testing-library/react';
+import {act,fireEvent,render,screen} from '@testing-library/react';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {CiStsBackupPanel} from './CiStsBackupPanel';
 import {stsFixture,stsBackup} from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
-import {modularOptions} from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
+import {modularFixture,modularOptions} from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import type {CiBackupConfig} from '@/supabase/functions/_shared/commercial-industrial/types';
-const mocks=vi.hoisted(()=>({load:vi.fn()}));
+const mocks=vi.hoisted(()=>({load:vi.fn(),equipment:vi.fn()}));
+vi.mock('@/lib/data/ci-modular-catalog-repository',()=>({loadCiModularCatalog:mocks.equipment}));
 vi.mock('@/lib/data/ci-sts-repository',()=>({loadCiStsCatalog:mocks.load}));
-beforeEach(()=>{vi.clearAllMocks();const c=stsFixture().catalog;c.rules.forEach(r=>{r.pcs_id=null;r.bess_product_id='integrated';});mocks.load.mockResolvedValue(c);});
-function Harness({initial=stsBackup()}: {initial?:CiBackupConfig}){
+beforeEach(()=>{vi.clearAllMocks();const c=stsFixture().catalog;c.rules.forEach(r=>{r.pcs_id=null;r.bess_product_id='integrated';});mocks.load.mockResolvedValue(c);mocks.equipment.mockResolvedValue(modularFixture());});
+function Harness({initial=stsBackup(),modular=false}: {initial?:CiBackupConfig;modular?:boolean}){
  const [backup,setBackup]=useState(initial);
- return <CiStsBackupPanel options={{...modularOptions(),bessSystem:{kind:'integrated'},bessProductId:'integrated'}} backup={backup} onChange={p=>setBackup({...backup,...p})}/>;
+ return <CiStsBackupPanel options={modular?modularOptions():{...modularOptions(),bessSystem:{kind:'integrated'},bessProductId:'integrated'}} backup={backup} onChange={p=>setBackup({...backup,...p})}/>;
 }
 describe('backup STS selector',()=>{
  it('preserves legacy projects without loading the external catalog and requires explicit FP when enabled',async()=>{
@@ -43,4 +44,21 @@ describe('backup STS selector',()=>{
   fireEvent.click(screen.getByRole('button',{name:'Tentar novamente'}));
   expect(await screen.findByText(/A STS salva está indisponível/)).toBeInTheDocument();
  });
+});
+
+
+it('keeps a PCS lookup failure visible when the STS request finishes later, and retries both',async()=>{
+  const catalog=stsFixture().catalog;
+  let resolveCatalog!: (value:typeof catalog)=>void;
+  mocks.load.mockImplementationOnce(()=>new Promise(resolve=>{resolveCatalog=resolve;}));
+  mocks.equipment.mockRejectedValueOnce(new Error('Falha ao carregar a composição PCS'));
+  render(<Harness modular/>);
+  expect(await screen.findByText('Falha ao carregar a composição PCS')).toBeInTheDocument();
+  await act(async()=>{resolveCatalog(catalog);});
+  expect(screen.getByText('Falha ao carregar a composição PCS')).toBeInTheDocument();
+  mocks.load.mockResolvedValue(catalog);
+  fireEvent.click(screen.getByRole('button',{name:'Tentar novamente'}));
+  fireEvent.change(screen.getByLabelText('Seleção de STS'),{target:{value:'manual'}});
+  expect(await screen.findByRole('option',{name:/ZERO-125 teste/})).toBeInTheDocument();
+  expect(screen.queryByText('Falha ao carregar a composição PCS')).not.toBeInTheDocument();
 });
