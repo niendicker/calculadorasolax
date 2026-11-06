@@ -1,3 +1,4 @@
+import type { CiStsSelection, CiStsResult, CiStsContext } from './sts-types.ts';
 import type { CiModularComposition, CiModularSelection, CiPcsCatalogEntry, CiBatteryCatalogEntry, CiCompatibilityRule, CiModularPrices } from './modular-types.ts';
 // Domain contracts for the C&I (Commercial & Industrial) BESS module — see
 // docs/CI-MODULE-PLAN.md section 4. Pure types only: no React, Zustand,
@@ -145,6 +146,7 @@ export interface CiCriticalLoad {
 export type CiBackupInputMode = 'simple' | 'detailed';
 
 export interface CiBackupConfig {
+  sts?: CiStsSelection;
   enabled: boolean;
   inputMode: CiBackupInputMode;
   targetPowerKw: number;
@@ -174,7 +176,8 @@ export interface CiBackupResult {
   effectiveAutonomyHours: number;
   minModulesForBackup: number;
   recommendedSocReservePercent: number;
-  status: 'fully_covered' | 'partially_covered' | 'insufficient_power' | 'disabled';
+  status: 'fully_covered' | 'partially_covered' | 'insufficient_power' | 'insufficient_transfer' | 'disabled';
+  meetsTransfer?: boolean;
   warningMessage?: string;
 }
 
@@ -243,7 +246,7 @@ export interface CommercialIndustrialOptions {
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
 
-export const CI_ENGINE_VERSION = 'ci-v2';
+export const CI_ENGINE_VERSION = 'ci-v3';
 
 export type TariffPeriod = 'peak' | 'offPeak';
 
@@ -272,6 +275,7 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  sts?: CiStsResult;
   composition?: CiModularComposition;
   scenarioId: string;
   moduleCount: number;
@@ -351,6 +355,7 @@ export interface BessRuntimeParams {
 }
 
 export interface CommercialIndustrialResult {
+  stsContext?: CiStsContext;
   engineVersion: string;
   /** Stable hash of the input options this result was computed from — lets
    * the UI detect a stale result without deep-comparing objects. */

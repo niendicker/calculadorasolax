@@ -92,6 +92,8 @@ export async function handleCalculateCommercialIndustrial(
     }
     const options = body.options as CommercialIndustrialOptions;
 
+    if ((body.options as CommercialIndustrialOptions).backup?.enabled && (body.options as CommercialIndustrialOptions).backup?.sts) return jsonResponse({ error: 'invalid_payload', details: ['STS deve ser calculada pela rota do projeto, com catálogo e preços resolvidos no servidor.'] }, { status: 400 });
+
     if (typeof body.unitPriceBrl !== 'number' || !Number.isFinite(body.unitPriceBrl) || body.unitPriceBrl < 0) {
       return jsonResponse({ error: 'invalid_payload', details: ['unitPriceBrl must be a non-negative number'] }, { status: 400 });
     }

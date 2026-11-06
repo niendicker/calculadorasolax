@@ -1,3 +1,4 @@
+import { validateStsSelection } from './sts.ts';
 import { validateModularSelection } from './modular.ts';
 // Structural validation for CommercialIndustrialOptions — mirrors the style
 // of supabase/functions/calculate-residential/logic.ts's
@@ -219,6 +220,7 @@ function validateBackup(raw: unknown, errors: string[]): void {
     return;
   }
   if (!backup.enabled) return;
+  if (backup.sts !== undefined) errors.push(...validateStsSelection(backup.sts));
 
   if (backup.inputMode !== 'simple' && backup.inputMode !== 'detailed') {
     errors.push('backup.inputMode must be "simple" or "detailed"');

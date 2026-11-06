@@ -1,3 +1,4 @@
+import { validateStsSelection } from '@/supabase/functions/_shared/commercial-industrial/sts';
 import { validateModularSelection } from '@/supabase/functions/_shared/commercial-industrial/modular';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 
@@ -15,6 +16,6 @@ export function getCiConfigurationStatus(options: CommercialIndustrialOptions) {
     strategy: true,
     backup: !options.backup?.enabled || (options.backup.inputMode === 'detailed'
       ? options.backup.loads.length > 0
-      : options.backup.targetPowerKw > 0),
+      : options.backup.targetPowerKw > 0) && (!options.backup.sts || validateStsSelection(options.backup.sts).length === 0),
   };
 }

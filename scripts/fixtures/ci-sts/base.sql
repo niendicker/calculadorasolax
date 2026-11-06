@@ -1,0 +1,10 @@
+create role authenticated;
+create role service_role;
+create function public.is_admin() returns boolean language sql stable as $$select coalesce(current_setting('test.admin',true),'false')='true'$$;
+create table public.accessories(id uuid primary key, model text, active boolean);
+create table public.inverters(id uuid primary key,power_kw numeric,battery_voltage_min_v numeric,battery_voltage_max_v numeric,battery_charge_efficiency_percent numeric,battery_discharge_efficiency_percent numeric);
+create table public.batteries(id uuid primary key,max_current_a numeric,voltage_min_v numeric,voltage_max_v numeric,capacity_kwh numeric,min_soc_percent numeric,round_trip_efficiency_percent numeric);
+create table public.ci_bess_products(id uuid primary key,active boolean);
+create table public.admin_activity_logs(entity_type text constraint admin_activity_logs_entity_type_check check(true));
+grant usage on schema public to authenticated;
+grant select on public.accessories,public.inverters,public.batteries,public.ci_bess_products to authenticated;

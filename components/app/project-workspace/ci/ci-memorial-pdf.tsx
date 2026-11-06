@@ -658,6 +658,21 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           </View>
         )}
 
+        {selected?.sts && <View wrap={false} style={styles.section}>
+          <Text style={styles.sectionTitle}>Transferência / STS</Text>
+          <InfoRows rows={[
+            {label: 'Modelo', value: selected.sts.selected?.spec.model ?? 'Nenhuma STS compatível'},
+            {label: 'Barramento', value: selected.sts.gridBusScope==='installation'?'Instalação (curva geral)':'Backup (passagem declarada)'},
+            {label: 'Corrente exigida', value: `${selected.sts.requiredCurrentA.toFixed(1)} A`},
+            {label: 'Tensão / FP', value: `${selected.sts.lineVoltageV} V / ${selected.sts.powerFactor}`},
+            {label: 'PCS / unidades', value: String(selected.sts.pcsCount)},
+            {label: 'Limite aprovado', value: String(selected.sts.selected?.compatibility.max_pcs ?? 'Não atendido')},
+            {label: 'Referência', value: selected.sts.selected ? `${selected.sts.selected.compatibility.reference_document} · ${selected.sts.selected.compatibility.revision}` : 'Sem compatibilidade'},
+            {label: 'Custo incluído no CAPEX', value: selected.sts.selected ? formatCurrencyBRL(selected.sts.selected.totalBrl) : 'Não dimensionado'},
+            {label: 'Condição', value: selected.sts.message},
+          ]} />
+        </View>}
+
         {result.backup && result.backup.status !== 'disabled' && (
           <View style={styles.section} wrap={false}>
             <Text style={styles.sectionTitle}>Dimensionamento para Falta de Rede e Contingência (Backup)</Text>
@@ -666,7 +681,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                 {
                   label: 'Status de atendimento',
                   value:
-                    result.backup.status === 'fully_covered'
+                    result.backup.status === 'insufficient_transfer' ? 'Transferência não atendida' : result.backup.status === 'fully_covered'
                       ? 'Totalmente atendido (100%)'
                       : result.backup.status === 'partially_covered'
                         ? 'Atendimento parcial de autonomia'

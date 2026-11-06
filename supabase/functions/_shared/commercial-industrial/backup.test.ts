@@ -127,3 +127,11 @@ describe('evaluateCandidateBackup', () => {
     expect(res.warningMessage).toBeUndefined();
   });
 });
+
+
+it('never uses transient BESS overload to approve backup starting power',()=>{
+  const result=evaluateCandidateBackup(100,200,{...mockProductSpec,modulePeakPowerKw:200},{requiredContinuousPowerKw:80,requiredPeakPowerKw:150,requiredEnergyKwh:80,autonomyHours:1});
+  expect(result.status).toBe('insufficient_power');
+  expect(result.meetsPower).toBe(false);
+  expect(result.warningMessage).toContain('sem presumir sobrecarga');
+});

@@ -76,3 +76,24 @@ também foi executada em PostgreSQL com verificações de permissões e aprovaç
 O fluxo visual foi exercitado em 390, 1366, 1440 e 1920 pixels, usando catálogo e
 autenticação simulados e o motor real de cálculo. Nenhuma compatibilidade real
 de fabricante foi certificada ou presumida por esses testes.
+
+## STS no backup
+
+A decisão de seleção e os limites de escopo estão em [CI-STS-DECISION.md](CI-STS-DECISION.md).
+Em Administração → BESS C&I → STS / Transferência, vincule o acessório à ficha
+STS e aprove as associações com PCS ou BESS integrado, tensão, frequência e
+quantidade máxima por gabinete. O preenchimento a partir do datasheet Nexus
+apenas preenche a ficha: não aprova associações nem inventa quantidade de PCS.
+
+Na etapa Backup, escolha seleção automática ou manual, informe o FP e a máxima
+passagem e declare se o gabinete atende à instalação ou ao barramento dedicado.
+O motor verifica os limites sem sobrecarga, adiciona uma STS ao investimento e
+preserva a ficha/regra/preço no resultado e no histórico. Sem modelo elegível,
+o cenário é inválido; sem preço do modelo escolhido, o estudo é interrompido.
+
+A migração aditiva `0098_ci_backup_sts.sql` é necessária antes de usar esse
+cadastro. Ela não cria acessórios nem aprova combinações reais. As versões
+`ci-v3` e `ci-modular-v2` identificam o cálculo com limites contínuos e rejeição
+de candidatos tecnicamente inválidos. Cálculos de backup integrados rodam no
+servidor da aplicação; respostas antigas da Edge Function são recalculadas
+localmente, evitando reintroduzir capacidade de sobrecarga presumida.

@@ -1,5 +1,7 @@
 'use client';
 
+import { CiStsCatalogEditor } from './CiStsCatalogEditor';
+
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,21 +11,21 @@ import type { CiBatterySpec, CiCompatibilityRule, CiPcsSpec } from '@/supabase/f
 import { validateCiCompatibility } from '@/supabase/functions/_shared/commercial-industrial/modular';
 import { CatalogLayout, Field, InlineOptionTabs } from '../shared-ui';
 
-export interface CiModularActivity { entityType: 'ci_pcs' | 'ci_battery' | 'ci_compatibility'; action: 'create' | 'update'; targetId: string; targetLabel: string; beforeData: unknown; afterData: unknown }
+export interface CiModularActivity { entityType: 'ci_pcs' | 'ci_battery' | 'ci_compatibility' | 'ci_sts' | 'ci_sts_compatibility'; action: 'create' | 'update'; targetId: string; targetLabel: string; beforeData: unknown; afterData: unknown }
 const emptyPcs: CiPcsSpec = { inverter_id: '', active: true, charge_power_kw: 0, discharge_power_kw: 0, charge_current_a: 0, discharge_current_a: 0, max_parallel_units: 1, supports_backup: false };
 const emptyBattery: CiBatterySpec = { battery_id: '', active: true, unit_kind: 'rack', charge_power_kw: 0, discharge_power_kw: 0, charge_current_a: 0, discharge_current_a: 0, soc_max_percent: 100 };
 const emptyRule: Omit<CiCompatibilityRule, 'id'> = { name: '', pcs_id: '', battery_id: '', active: true, approval_status: 'draft', min_series: 1, max_series: 1, min_parallel_strings: 1, max_parallel_strings: 1, min_pcs: 1, max_pcs: 1, supports_backup: false, communication_profile: '', pcs_firmware: '', battery_firmware: '', reference_document: '', revision: '', controller_accessory_id: null, controller_quantity_per_pcs: 1, notes: '' };
-type Section = 'integrated' | 'pcs' | 'batteries' | 'compatibility';
+type Section = 'integrated' | 'pcs' | 'batteries' | 'compatibility' | 'sts';
 
 export function CiModularCatalogEditor({ integrated, onActivity, onOpenCatalog }: { integrated: ReactNode; onActivity?: (activity: CiModularActivity) => Promise<void>; onOpenCatalog?: (tab: 'inverters' | 'batteries') => void }) {
   const [section, setSection] = useState<Section>('integrated');
   return <div className="space-y-4">
-    <div className="overflow-x-auto"><div className="min-w-[32rem]"><InlineOptionTabs value={section} onChange={setSection} options={[{ value: 'integrated', label: 'BESS integrados' }, { value: 'pcs', label: 'Inversores / PCS' }, { value: 'batteries', label: 'Baterias C&I' }, { value: 'compatibility', label: 'Compatibilidades' }]} /></div></div>
-    {section === 'integrated' ? integrated : <ModularRecords key={section} section={section} onActivity={onActivity} onOpenCatalog={onOpenCatalog} />}
+    <div className="overflow-x-auto"><div className="min-w-[32rem]"><InlineOptionTabs value={section} onChange={setSection} options={[{ value: 'integrated', label: 'BESS integrados' }, { value: 'pcs', label: 'Inversores / PCS' }, { value: 'batteries', label: 'Baterias C&I' }, { value: 'compatibility', label: 'Compatibilidades' }, {value:'sts',label:'STS / Transferência'}]} /></div></div>
+    {section === 'integrated' ? integrated : section === 'sts' ? <CiStsCatalogEditor onActivity={onActivity} /> : <ModularRecords key={section} section={section} onActivity={onActivity} onOpenCatalog={onOpenCatalog} />}
   </div>;
 }
 
-function ModularRecords({ section, onActivity, onOpenCatalog }: { section: Exclude<Section, 'integrated'>; onActivity?: (activity: CiModularActivity) => Promise<void>; onOpenCatalog?: (tab: 'inverters' | 'batteries') => void }) {
+function ModularRecords({ section, onActivity, onOpenCatalog }: { section: Exclude<Section, 'integrated' | 'sts'>; onActivity?: (activity: CiModularActivity) => Promise<void>; onOpenCatalog?: (tab: 'inverters' | 'batteries') => void }) {
   const [catalog, setCatalog] = useState<CiEquipmentCatalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);

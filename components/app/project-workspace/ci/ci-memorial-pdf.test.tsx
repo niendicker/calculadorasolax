@@ -1,3 +1,4 @@
+import { stsFixture, stsBackup } from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
 import { calculateModularStudy } from '@/supabase/functions/_shared/commercial-industrial/modular';
 import { modularFixture, modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import { describe, expect, it } from 'vitest';
@@ -232,4 +233,14 @@ describe('buildCiMemorialPdfBlob', () => {
     expect(await pdfMagicBytes(blob)).toBe('%PDF-');
   }, 15000);
 
+});
+
+
+it('renders the STS specification, approval and included cost in a real PDF', async () => {
+  const options=modularOptions();options.backup={...stsBackup(),targetPowerKw:20,targetPeakPowerKw:20,autonomyHours:0.1};
+  const result=calculateModularStudy(options,modularFixture(),{pcsUnitBrl:40000,batteryUnitBrl:30000},stsFixture());
+  const blob=await buildCiMemorialPdfBlob(baseInput({result,product:null}));
+  expect(blob.type).toBe('application/pdf');
+  expect(blob.size).toBeGreaterThan(5000);
+  expect(result.selected?.sts?.selected?.compatibility.reference_document).toBe('Compatibilidade teste');
 });

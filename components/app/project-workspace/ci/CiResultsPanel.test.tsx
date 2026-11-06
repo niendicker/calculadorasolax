@@ -1,3 +1,5 @@
+import { evaluateSts } from '@/supabase/functions/_shared/commercial-industrial/sts';
+import { stsFixture, stsBackup } from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -427,4 +429,12 @@ describe('CiResultsPanel', () => {
     expect(screen.getByText('Cenário inspecionado — 1 módulo')).toBeInTheDocument();
   });
 
+});
+
+it('shows the chosen STS, its cost and configurable PCS limit in results',()=>{
+  const result=makeResult();const sts=evaluateSts(stsBackup(),[],stsFixture(),1)!;
+  result.scenarios=result.scenarios.map(s=>({...s,sts}));result.selected={...result.selected!,sts};
+  render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{result,optionsFingerprint:JSON.stringify(testCiOptions)}}/>);
+  const panel=screen.getByRole('region',{name:'STS selecionada'});
+  expect(panel).toHaveTextContent('ZERO-125 teste');expect(panel).toHaveTextContent('incluído no CAPEX');expect(panel).toHaveTextContent('Limite aprovado: 2');
 });

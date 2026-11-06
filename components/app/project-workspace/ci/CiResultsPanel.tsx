@@ -521,6 +521,14 @@ export function CiResultsPanel({
             </div>
           )}
 
+          {currentScenario?.sts && <section aria-label="STS selecionada" className="space-y-2 rounded-xl border p-4 text-sm">
+            <h3 className="font-semibold">Transferência / STS</h3>
+            <p>{currentScenario.sts.selected ? `1 × ${currentScenario.sts.selected.spec.model} · ${formatCurrencyBRL(currentScenario.sts.selected.totalBrl)} (incluído no CAPEX)` : 'Nenhuma STS compatível para este cenário'}</p>
+            <p className="text-xs text-muted-foreground">{currentScenario.sts.gridBusScope==='installation'?'Barramento da instalação':'Barramento de backup (passagem declarada)'} · Corrente exigida: {currentScenario.sts.requiredCurrentA.toFixed(1)} A · {currentScenario.sts.lineVoltageV} V · FP {currentScenario.sts.powerFactor} · {currentScenario.sts.pcsCount} PCS/unidades.</p>
+            {currentScenario.sts.selected && <p className="text-xs text-muted-foreground">Limite aprovado: {currentScenario.sts.selected.compatibility.max_pcs} PCS/unidades · revisão {currentScenario.sts.selected.compatibility.revision}. Corrente nominal: {currentScenario.sts.lineVoltageV===380?currentScenario.sts.selected.spec.rated_current_380v_a:currentScenario.sts.selected.spec.rated_current_400v_a} A.</p>}
+            <p className="text-xs text-muted-foreground">{currentScenario.sts.message}</p>
+          </section>}
+
           {result.backup && result.backup.status !== 'disabled' && (
             <div className="space-y-3 rounded-lg border border-primary/20 bg-muted/20 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -538,7 +546,7 @@ export function CiResultsPanel({
                         : 'bg-destructive/10 text-destructive'
                   )}
                 >
-                  {result.backup.status === 'fully_covered'
+                  {result.backup.status === 'insufficient_transfer' ? 'Transferência não atendida' : result.backup.status === 'fully_covered'
                     ? '100% Atendido'
                     : result.backup.status === 'partially_covered'
                       ? 'Autonomia Parcial'

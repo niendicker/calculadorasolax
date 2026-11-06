@@ -1,3 +1,4 @@
+import { loadCiStsContext } from './ci-sts-repository';
 // Server-side data access for the C&I calculation flow — mirrors
 // lib/data/calculation-repository.ts's role for residential: the one place
 // that invokes the Edge Function and writes the resulting analytics/history
@@ -34,8 +35,9 @@ async function calculateModular(supabase: SupabaseClient, options: CommercialInd
     };
     const [pcsUnitBrl, batteryUnitBrl, controllerUnitBrl] = await Promise.all([price('inverter', equipment.pcs.model), price('battery', equipment.battery.model), equipment.controller ? price('accessory', equipment.controller.model) : Promise.resolve(undefined)]);
     const prices = { pcsUnitBrl, batteryUnitBrl, controllerUnitBrl };
-    const result = calculateModularStudy(options, catalog, prices);
-    result.inputFingerprint = await computeInputFingerprint({ options, equipment, prices });
+    const stsContext = options.backup?.enabled && options.backup.sts ? await loadCiStsContext(supabase, {pcsId: equipment.pcs.inverter_id, unitsPerModule: 1}, equipment.rule.controller_accessory_id) : undefined;
+    const result = calculateModularStudy(options, catalog, prices, stsContext);
+    result.inputFingerprint = await computeInputFingerprint({ options, equipment, prices, stsContext });
     result.assumptions.equipment = { pcs: equipment.pcs, battery: equipment.battery, compatibility: equipment.rule, prices };
     return { data: result, error: null };
   } catch (cause) { return { data: null, error: { code: 'ci_modular', message: cause instanceof Error ? cause.message : 'Não foi possível dimensionar a composição modular.' } }; }
@@ -91,11 +93,13 @@ export async function calculateCommercialIndustrialDirect(
       return { data: null, error: productError || { message: 'bess_product_not_found' } };
     }
 
+    const stsContext = options.backup?.enabled && options.backup.sts ? await loadCiStsContext(supabase, {bessProductId: options.bessProductId, unitsPerModule: 1}) : undefined;
     const product = toBessProductSpec(productRow as CiBessProductRow);
     const tariffWindow = { peakStart: options.tariff.peakStart, peakEnd: options.tariff.peakEnd };
     const peakShavingTargetKw = options.tariff.contractedDemandKw;
 
     const gridInput = {
+      stsContext,
       curve: options.loadCurve,
       product,
       strategy: options.strategy,
@@ -132,8 +136,9 @@ export async function calculateCommercialIndustrialDirect(
     const selected = materializeScenarioDetail(gridInput, detailCandidate.moduleCount, detailCandidate.marginalGain);
 
     const result: CommercialIndustrialResult = {
+      stsContext,
       engineVersion: CI_ENGINE_VERSION,
-      inputFingerprint: await computeInputFingerprint(body),
+      inputFingerprint: await computeInputFingerprint({ ...body, stsContext }),
       baseline,
       scenarios,
       recommendation,
@@ -155,7 +160,8 @@ export async function calculateCommercialIndustrialDirect(
 
     return { data: result, error: null };
   } catch (err) {
-    return { data: null, error: err };
+    const options = body.options as unknown as CommercialIndustrialOptions;
+    return { data: null, error: options?.backup?.enabled && options.backup.sts ? {code: 'ci_sts', message: err instanceof Error ? err.message : 'Não foi possível dimensionar a STS.'} : err };
   }
 }
 
@@ -165,10 +171,12 @@ export async function invokeCommercialIndustrialCalculation(
 ) {
   const options = body.options as unknown as CommercialIndustrialOptions;
   if (options?.bessSystem?.kind === 'modular') return calculateModular(supabase, options);
+  if (options?.backup?.enabled) return calculateCommercialIndustrialDirect(supabase, body);
   try {
     const res = await supabase.functions.invoke('calculate-commercial-industrial', { body });
     if (!res.error && res.data) {
       const data = res.data as CommercialIndustrialResult;
+      if (data.engineVersion !== CI_ENGINE_VERSION) return calculateCommercialIndustrialDirect(supabase, body);
       const options = body.options as unknown as CommercialIndustrialOptions;
       const importedGeneration = options?.solar?.enabled ? options.solar.generationCurve : undefined;
       const expectedByTimestamp = importedGeneration ? new Map(importedGeneration.points.map((point) => [Date.parse(point.timestamp), point.powerKw])) : null;
