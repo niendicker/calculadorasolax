@@ -7,7 +7,7 @@ vi.mock('@/lib/supabase/client',()=>({createClient:mocks.createClient}));
 beforeEach(()=>vi.clearAllMocks());
 function db(price:number|null=5000, failure:string|null=null) {
  const fixture=stsFixture();const lookups:Record<string,unknown>[]=[];
- const tables:Record<string,unknown>={ci_sts_specs:fixture.catalog.specs,ci_sts_compatibility_rules:fixture.catalog.rules,accessories:fixture.catalog.specs.map(s=>({id:s.accessory_id,model:s.model,active:true}))};
+ const tables:Record<string,unknown>={ci_sts_specs:fixture.catalog.specs,ci_sts_compatibility_rules:fixture.catalog.rules,ci_accessories:fixture.catalog.specs.map(s=>({id:s.accessory_id,model:s.model,active:true}))};
  const client={auth:{getUser:vi.fn().mockResolvedValue({data:{user:{id:'owner'}},error:null})},from:(table:string)=>{
   const where:Record<string,unknown>={table};if(table==='user_stock_items')lookups.push(where);
   const result={data:tables[table],error:failure?{message:failure}:null};
@@ -16,13 +16,13 @@ function db(price:number|null=5000, failure:string|null=null) {
  return{client,lookups};
 }
 describe('C&I STS catalog and user pricing',()=>{
- it('resolves shared accessory IDs and queries prices scoped to the authenticated owner',async()=>{
+ it('resolves independent C&I accessory IDs and queries prices scoped to the authenticated owner',async()=>{
   const {client,lookups}=db();
   const context=await loadCiStsContext(client,stsFixture().target);
   expect(context.catalog.specs[0].model).toBe('ZERO-125 teste');
   expect(context.prices.small).toBe(5000);
   expect(lookups).toHaveLength(2);
-  expect(lookups.every(q=>q.user_id==='owner'&&q.product_type==='accessory')).toBe(true);
+  expect(lookups.every(q=>q.user_id==='owner'&&q.product_type==='ci_accessory')).toBe(true);
  });
  it('keeps missing price distinct from explicitly registered zero',async()=>{
   expect((await loadCiStsContext(db(null).client,stsFixture().target)).prices.small).toBeUndefined();

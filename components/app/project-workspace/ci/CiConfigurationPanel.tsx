@@ -13,6 +13,7 @@ import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/c
 import type { CommercialIndustrialOptions, SizingMode } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { cn } from '@/lib/utils';
 import { BatteryCardsSkeleton } from '../../shared-ui';
+import { CiAccessoriesPanel } from './CiAccessoriesPanel';
 import { CiModularConfigurationPanel, emptyModularSelection } from './CiModularConfigurationPanel';
 
 const sizingModeOptions: { value: SizingMode; label: string; hint: string }[] = [
@@ -299,5 +300,6 @@ export function CiConfigurationPanel(props: Parameters<typeof CiIntegratedConfig
       <Button type="button" variant={modular ? 'default' : 'outline'} aria-pressed={modular} onClick={() => { if (!modular) props.onChange({ bessSystem: emptyModularSelection, bessProductId: null }); }}>PCS + baterias</Button>
     </div>
     {modular ? <CiModularConfigurationPanel {...props} /> : <CiIntegratedConfigurationPanel {...props} />}
+    <CiAccessoriesPanel {...props}/>
   </div>;
 }

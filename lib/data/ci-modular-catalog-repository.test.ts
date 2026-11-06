@@ -6,12 +6,12 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: mocks.createClient }));
 beforeEach(() => vi.clearAllMocks());
 
 describe('modular catalog persistence', () => {
-  it('resolves electrical ratings and names from shared IDs rather than duplicating models', async () => {
+  it('resolves electrical ratings exclusively from independent C&I catalogs', async () => {
     const fixture = modularFixture();
     const tables: Record<string, unknown[]> = {
       ci_pcs_specs: fixture.pcs, ci_battery_specs: fixture.batteries, ci_compatibility_rules: fixture.rules,
-      inverters: [{ id: fixture.pcs[0].inverter_id, model: 'Modelo renomeado', battery_voltage_min_v: 600, battery_voltage_max_v: 1000, battery_charge_efficiency_percent: 96, battery_discharge_efficiency_percent: 95 }],
-      batteries: [{ id: fixture.batteries[0].battery_id, model: 'Rack atualizado', capacity_kwh: 100, voltage_min_v: 400, voltage_max_v: 480, min_soc_percent: 10, round_trip_efficiency_percent: 98 }], accessories: [],
+      ci_inverters: [{ id: fixture.pcs[0].inverter_id, model: 'Modelo renomeado', battery_voltage_min_v: 600, battery_voltage_max_v: 1000, battery_charge_efficiency_percent: 96, battery_discharge_efficiency_percent: 95 }],
+      ci_batteries: [{ id: fixture.batteries[0].battery_id, model: 'Rack atualizado', capacity_kwh: 100, voltage_min_v: 400, voltage_max_v: 480, min_soc_percent: 10, round_trip_efficiency_percent: 98 }], ci_accessories: [],
     };
     mocks.createClient.mockReturnValue({ from: (table: string) => { const result = { data: tables[table], error: null }; return { select: () => ({ ...result, order: () => result }) }; } });
     const result = await loadCiModularCatalog();

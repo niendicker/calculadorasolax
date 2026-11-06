@@ -34,6 +34,9 @@ interface CatalogEntry {
   imageUrl: string | null;
   nickname?: string | null;
   groupKey?: string;
+  documents?: ProductDocument[];
+  description?: string | null;
+  specs?: [string,string][];
 }
 
 interface GroupTab {
@@ -51,6 +54,9 @@ const batteryTopologyTabs: GroupTab[] = [
   { value: 'HV', label: 'HV' },
   { value: 'LV', label: 'LV' },
 ];
+
+const isCiProduct = (type: StockProductType) => type.startsWith('ci_');
+const isMarginable = (type: StockProductType): type is MarginableProductType => !isCiProduct(type);
 
 const sectionDefinitions: {
   type: StockProductType;
@@ -90,6 +96,7 @@ const sectionDefinitions: {
     fallbackIcon: <BatteryCharging className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <BatteryCharging className="h-4 w-4 text-muted-foreground" />,
   },
+  ...([{type:'ci_pcs',label:'PCS C&I',icon:Zap},{type:'ci_battery',label:'Baterias C&I',icon:Battery},{type:'ci_accessory',label:'Acessórios C&I',icon:Boxes}] as const).map(({type,label,icon:Icon})=>({type,label,icon:Icon,fallbackIcon:<Icon className="h-8 w-8 text-muted-foreground"/>,smallIcon:<Icon className="h-4 w-4 text-muted-foreground"/>})),
 ];
 
 export function MyStockTab({
@@ -137,6 +144,20 @@ export function MyStockTab({
   const [summaryAddOpen, setSummaryAddOpen] = useState(false);
   const [productQuery, setProductQuery] = useState('');
   const [supplierCosts, setSupplierCosts] = useState<SupplierCostMap>({});
+  const [ciCatalogs, setCiCatalogs] = useState<Record<'ci_pcs'|'ci_battery'|'ci_accessory',CatalogEntry[]>>({ci_pcs:[],ci_battery:[],ci_accessory:[]});
+  const [ciCatalogError,setCiCatalogError] = useState<string | null>(null);
+  useEffect(()=>{
+    if(!canAccessCi) return;
+    let alive=true;
+    const db=createClient();
+    Promise.all([db.from('ci_inverters').select('*').order('model'),db.from('ci_batteries').select('*').order('model'),db.from('ci_accessories').select('*').eq('active',true).order('model')]).then(results=>{
+      if(!alive) return;
+      for(const result of results) if(result.error) throw new Error(result.error.message);
+      const map=(index:number)=>(results[index].data ?? []).map(row=>({id:row.id,model:row.model,imageUrl:row.image_url,nickname:row.nickname,documents:row.documents as unknown as ProductDocument[],description:'description' in row ? row.description as string | null : null,specs:[...('power_kw' in row ? [['Potência nominal',`${row.power_kw} kW`]]:'capacity_kwh' in row ? [['Capacidade',`${row.capacity_kwh} kWh`]]:[]),['Garantia',`${row.warranty_years} anos`]] as [string,string][]}));
+      setCiCatalogs({ci_pcs:map(0),ci_battery:map(1),ci_accessory:map(2)});
+    }).catch(cause=>{if(alive)setCiCatalogError(cause instanceof Error ? cause.message:'Não foi possível carregar os catálogos C&I.');});
+    return ()=>{alive=false;};
+  },[canAccessCi]);
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
@@ -191,6 +212,7 @@ export function MyStockTab({
   const hasUnpricedService = userServices.some((service) => service.unitValue === 0);
 
   const catalogByType: Record<StockProductType, CatalogEntry[]> = {
+    ...ciCatalogs,
     inverter: inverterCatalog.map((inverter) => ({
       id: inverter.id,
       model: inverter.model,
@@ -226,15 +248,16 @@ export function MyStockTab({
   const configuredMarginCount = Object.values(marginSettings).filter((value) => value > 0).length;
 
   const visibleSectionDefinitions = useMemo(
-    () => (canAccessCi ? sectionDefinitions : sectionDefinitions.filter((s) => s.type !== 'ci_bess')),
+    () => (canAccessCi ? sectionDefinitions : sectionDefinitions.filter((s) => !isCiProduct(s.type))),
     [canAccessCi]
   );
 
-  const effectiveActiveSection = !canAccessCi && activeSection === 'ci_bess' ? 'inverter' : activeSection;
+  const effectiveActiveSection = !canAccessCi && isCiProduct(activeSection) ? 'inverter' : activeSection;
   const activeSectionDefinition = visibleSectionDefinitions.find((section) => section.type === effectiveActiveSection) ?? visibleSectionDefinitions[0];
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 py-4">
+      {ciCatalogError && <p role="alert" className="text-sm text-destructive">{ciCatalogError}</p>}
       <PageHeader>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Portfólio</h1>
@@ -332,7 +355,7 @@ export function MyStockTab({
                       className="!pl-11"
                     />
                   </label>
-                  {effectiveActiveSection !== 'ci_bess' && (
+                  {isMarginable(effectiveActiveSection) && (
                     <CategoryMarginInline
                       productType={effectiveActiveSection}
                       productLabel={activeSectionDefinition.label}
@@ -352,7 +375,7 @@ export function MyStockTab({
                 const catalogProduct = catalogByType[section.type].find((product) => product.model === item.productModel);
                 return !normalizedQuery || `${item.productModel} ${catalogProduct?.nickname ?? ''}`.toLowerCase().includes(normalizedQuery);
               });
-              const marginPercent = section.type === 'ci_bess' ? null : marginSettings[marginFieldByProductType[section.type]];
+              const marginPercent = isMarginable(section.type) ? marginSettings[marginFieldByProductType[section.type]] : null;
               return (
                 <div key={section.type} className="space-y-3">
                   {items.length === 0 ? (
@@ -371,6 +394,7 @@ export function MyStockTab({
                       <StockProductCard
                         key={item.id}
                         item={item}
+                        ciProduct={isCiProduct(item.productType) && item.productType!=='ci_bess' ? catalogByType[item.productType].find(product=>product.model===item.productModel):undefined}
                         fallbackIcon={section.fallbackIcon}
                         inverterCatalog={inverterCatalog}
                         batteryCatalog={batteryCatalog}
@@ -1447,6 +1471,7 @@ function AddProductCard({
 }
 
 function StockProductCard({
+  ciProduct,
   item,
   fallbackIcon,
   inverterCatalog,
@@ -1460,6 +1485,7 @@ function StockProductCard({
   marginPercent,
   supplierCost,
 }: {
+  ciProduct?: CatalogEntry;
   item: UserStockItem;
   fallbackIcon: React.ReactNode;
   inverterCatalog: InverterCatalogOption[];
@@ -1526,7 +1552,7 @@ function StockProductCard({
       description = accessory.description;
       specs = [['Garantia', `${accessory.warrantyYears ?? 2} anos`]];
     }
-  } else {
+  } else if (item.productType==='ci_bess') {
     const ciBess = ciBessCatalog.find((option) => option.model === item.productModel);
     if (ciBess) {
       imageUrl = ciBess.imageUrl;
@@ -1541,6 +1567,8 @@ function StockProductCard({
       ];
     }
   }
+
+  if(ciProduct) {imageUrl=ciProduct.imageUrl;documents=ciProduct.documents ?? [];description=ciProduct.description;nickname=ciProduct.nickname;specs=ciProduct.specs;badges=['C&I'];}
 
   const costFieldLabel = item.productType === 'ci_bess' ? 'Preço por módulo' : 'Meu custo';
 

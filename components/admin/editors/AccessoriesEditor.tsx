@@ -33,13 +33,14 @@ export function AccessoriesEditor(props: {
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
   ) => Promise<string>;
   rules: AccessoryRuleRow[];
   saving: boolean;
+  error?: string | null;
   onViewRules: (accessoryId: string, accessoryModel: string) => void;
 }) {
   const { form, setForm } = props;

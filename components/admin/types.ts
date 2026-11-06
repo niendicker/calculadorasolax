@@ -370,6 +370,8 @@ export type AdminLogEntity =
   | 'ci_compatibility'
   | 'ci_sts'
   | 'ci_sts_compatibility'
+  | 'ci_accessory'
+  | 'ci_accessory_rule'
   | 'solution'
   | 'rule'
   | 'load_catalog_item'

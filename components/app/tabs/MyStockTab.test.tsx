@@ -17,7 +17,8 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));
 // as if the visitor were signed out (getUser resolves to no user, so the
 // fetch bails before touching `from`).
 beforeEach(() => {
-  createClientMock.mockReturnValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
+  const query={select:()=>query,eq:()=>query,order:()=>Promise.resolve({data:[],error:null})};
+  createClientMock.mockReturnValue({ from:vi.fn(()=>query),auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
 });
 
 const inverter: InverterCatalogOption = {
@@ -150,8 +151,8 @@ describe('MyStockTab: listing', () => {
     setup({ userStockItems: [stockItem, secondItem] });
 
     expect(screen.getByRole('tab', { name: /Inversores/ })).toHaveTextContent('1 item');
-    expect(screen.getByRole('tab', { name: /Baterias/ })).toHaveTextContent('1 item');
-    expect(screen.getByRole('tab', { name: /Acessórios/ })).toHaveTextContent('0 itens');
+    expect(screen.getByRole('tab', { name: /Baterias(?! C&I)/ })).toHaveTextContent('1 item');
+    expect(screen.getByRole('tab', { name: /Acessórios(?! C&I)/ })).toHaveTextContent('0 itens');
   });
 
   it('flags a section tab (and the Produtos tab) when one of its items has no price set yet', () => {
@@ -159,7 +160,7 @@ describe('MyStockTab: listing', () => {
 
     expect(within(screen.getByRole('tab', { name: /Inversores/ })).getByLabelText('Item sem preço definido')).toBeInTheDocument();
     expect(within(screen.getByRole('tab', { name: /^Produtos/ })).getByLabelText('Item sem preço definido')).toBeInTheDocument();
-    expect(within(screen.getByRole('tab', { name: /Baterias/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('tab', { name: /Baterias(?! C&I)/ })).queryByLabelText('Item sem preço definido')).not.toBeInTheDocument();
   });
 
   it('makes the active portfolio context explicit and labels the summary counts', () => {
@@ -325,7 +326,8 @@ describe('MyStockTab: sale price and supplier cost reference', () => {
   });
 
   it('does not show a cost reference for a signed-out visitor', () => {
-    createClientMock.mockReturnValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
+    const query={select:()=>query,eq:()=>query,order:()=>Promise.resolve({data:[],error:null})};
+  createClientMock.mockReturnValue({ from:vi.fn(()=>query),auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } });
     setup({ userStockItems: [stockItem] });
 
     expect(screen.queryByText('Fornecedor')).not.toBeInTheDocument();
@@ -430,7 +432,7 @@ describe('MyStockTab: adding from the catalog', () => {
     const onAddToStock = vi.fn().mockRejectedValue(new Error('Limite de 14 itens no catálogo atingido.'));
     setup({ onAddToStock, userStockItems: [stockItem] });
 
-    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios(?! C&I)/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar produto' }));
     const dialog = await screen.findByRole('dialog', { name: 'Adicionar produto' });
     fireEvent.click(within(dialog).getByText('Smart Meter'));
@@ -605,7 +607,7 @@ describe('MyStockTab: accessory stock card', () => {
     };
     setup({ userStockItems: [accessoryStockItem], accessoryCatalog: [accessoryWithMedia] });
 
-    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios(?! C&I)/ }));
 
     expect(screen.getByText('Medidor inteligente')).toBeInTheDocument();
     expect(screen.getByAltText('Smart Meter')).toBeInTheDocument();
@@ -837,10 +839,10 @@ describe('MyStockTab: sell margins', () => {
     // "Inversores" is the default tab.
     expect(screen.getByLabelText('Markup de venda')).toHaveValue(10);
 
-    fireEvent.click(screen.getByRole('tab', { name: /Baterias/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Baterias(?! C&I)/ }));
     expect(screen.getByLabelText('Markup de venda')).toHaveValue(20);
 
-    fireEvent.click(screen.getByRole('tab', { name: /Acessórios/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Acessórios(?! C&I)/ }));
     expect(screen.getByLabelText('Markup de venda')).toHaveValue(5);
   });
 
@@ -873,4 +875,19 @@ describe('MyStockTab: sell margins', () => {
 
     await waitFor(() => expect(screen.getByText('Não foi possível salvar')).toBeInTheDocument());
   });
+});
+
+
+describe('MyStockTab: independent C&I catalogs',()=>{
+ it('loads C&I-only categories and adds an accessory with its own price identity',async()=>{
+  const q={select:()=>q,eq:()=>q,order:()=>Promise.resolve({data:[{id:'ci-ems',model:'Controle exclusivo C&I',image_url:null,nickname:null,documents:[],warranty_years:2}],error:null})};
+  const from=vi.fn((_table:string)=>q);
+  createClientMock.mockReturnValue({from,auth:{getUser:async()=>({data:{user:null}})}});
+  setup();
+  fireEvent.click(screen.getByRole('button',{name:'Adicionar produto'}));
+  const dialog=screen.getByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('tab',{name:/Acessórios C&I/}));
+  await within(dialog).findByText('Controle exclusivo C&I');
+  expect(from.mock.calls.map(call=>call[0])).toEqual(expect.arrayContaining(['ci_inverters','ci_batteries','ci_accessories']));
+ });
 });

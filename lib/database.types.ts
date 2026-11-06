@@ -9,6 +9,263 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ci_accessory_rules: {
+        Row: {
+          id: string
+          name: string
+          accessory_id: string
+          active: boolean
+          pcs_id: string | null
+          battery_id: string | null
+          bess_product_id: string | null
+          compatibility_id: string | null
+          backup: boolean | null
+          generator: boolean | null
+          line_voltage_v: number | null
+          inclusion: string
+          metric: string
+          min_count: number
+          max_count: number | null
+          quantity: number
+          divisor: number
+          requires_ids: string[]
+          excludes_ids: string[]
+          reference_document: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          accessory_id: string
+          active?: boolean
+          pcs_id?: string | null
+          battery_id?: string | null
+          bess_product_id?: string | null
+          compatibility_id?: string | null
+          backup?: boolean | null
+          generator?: boolean | null
+          line_voltage_v?: number | null
+          inclusion: string
+          metric: string
+          min_count?: number
+          max_count?: number | null
+          quantity?: number
+          divisor?: number
+          requires_ids?: string[]
+          excludes_ids?: string[]
+          reference_document: string
+        }
+        Update: Partial<Database['public']['Tables']['ci_accessory_rules']['Insert']>
+        Relationships: []
+      }
+
+      ci_inverters: {
+        Row: {
+          battery_charge_efficiency_percent: number
+          battery_current_max_a: number | null
+          battery_discharge_efficiency_percent: number
+          battery_ports: number
+          battery_voltage_max_v: number | null
+          battery_voltage_min_v: number | null
+          created_at: string | null
+          documents: Json
+          flags: string[]
+          grid_types: string[]
+          id: string
+          image_url: string | null
+          max_battery_charge_power_w: number | null
+          max_battery_discharge_power_w: number | null
+          max_battery_qty: number
+          max_power_per_phase_w: number | null
+          model: string
+          nickname: string | null
+          peak_power_kva: number | null
+          phases: number
+          power_kw: number
+          pv_oversizing_percent: number
+          standard_power_kva: number | null
+          standby_consumption_w: number
+          topology: string
+          warranty_years: number
+        }
+        Insert: {
+          battery_charge_efficiency_percent?: number
+          battery_current_max_a?: number | null
+          battery_discharge_efficiency_percent?: number
+          battery_ports?: number
+          battery_voltage_max_v?: number | null
+          battery_voltage_min_v?: number | null
+          created_at?: string | null
+          documents?: Json
+          flags?: string[]
+          grid_types?: string[]
+          id?: string
+          image_url?: string | null
+          max_battery_charge_power_w?: number | null
+          max_battery_discharge_power_w?: number | null
+          max_battery_qty?: number
+          max_power_per_phase_w?: number | null
+          model: string
+          nickname?: string | null
+          peak_power_kva?: number | null
+          phases: number
+          power_kw: number
+          pv_oversizing_percent?: number
+          standard_power_kva?: number | null
+          standby_consumption_w?: number
+          topology: string
+          warranty_years?: number
+        }
+        Update: {
+          battery_charge_efficiency_percent?: number
+          battery_current_max_a?: number | null
+          battery_discharge_efficiency_percent?: number
+          battery_ports?: number
+          battery_voltage_max_v?: number | null
+          battery_voltage_min_v?: number | null
+          created_at?: string | null
+          documents?: Json
+          flags?: string[]
+          grid_types?: string[]
+          id?: string
+          image_url?: string | null
+          max_battery_charge_power_w?: number | null
+          max_battery_discharge_power_w?: number | null
+          max_battery_qty?: number
+          max_power_per_phase_w?: number | null
+          model?: string
+          nickname?: string | null
+          peak_power_kva?: number | null
+          phases?: number
+          power_kw?: number
+          pv_oversizing_percent?: number
+          standard_power_kva?: number | null
+          standby_consumption_w?: number
+          topology?: string
+          warranty_years?: number
+        }
+        Relationships: []
+      }
+      ci_batteries: {
+        Row: {
+          annual_soh_loss_percent: number
+          capacity_kwh: number
+          created_at: string | null
+          documents: Json
+          expansion_model: string | null
+          flags: string[]
+          id: string
+          image_url: string | null
+          initial_soh_percent: number
+          max_association_qty: number
+          max_current_a: number | null
+          min_soc_percent: number
+          model: string
+          nickname: string | null
+          nominal_voltage_v: number | null
+          peak_power_kw: number | null
+          recommended_current_a: number | null
+          round_trip_efficiency_percent: number
+          standard_power_kw: number | null
+          topology: string
+          voltage_max_v: number | null
+          voltage_min_v: number | null
+          warranty_cycles: number
+          warranty_end_soh_percent: number | null
+          warranty_years: number
+        }
+        Insert: {
+          annual_soh_loss_percent?: number
+          capacity_kwh: number
+          created_at?: string | null
+          documents?: Json
+          expansion_model?: string | null
+          flags?: string[]
+          id?: string
+          image_url?: string | null
+          initial_soh_percent?: number
+          max_association_qty?: number
+          max_current_a?: number | null
+          min_soc_percent?: number
+          model: string
+          nickname?: string | null
+          nominal_voltage_v?: number | null
+          peak_power_kw?: number | null
+          recommended_current_a?: number | null
+          round_trip_efficiency_percent?: number
+          standard_power_kw?: number | null
+          topology: string
+          voltage_max_v?: number | null
+          voltage_min_v?: number | null
+          warranty_cycles?: number
+          warranty_end_soh_percent?: number | null
+          warranty_years?: number
+        }
+        Update: {
+          annual_soh_loss_percent?: number
+          capacity_kwh?: number
+          created_at?: string | null
+          documents?: Json
+          expansion_model?: string | null
+          flags?: string[]
+          id?: string
+          image_url?: string | null
+          initial_soh_percent?: number
+          max_association_qty?: number
+          max_current_a?: number | null
+          min_soc_percent?: number
+          model?: string
+          nickname?: string | null
+          nominal_voltage_v?: number | null
+          peak_power_kw?: number | null
+          recommended_current_a?: number | null
+          round_trip_efficiency_percent?: number
+          standard_power_kw?: number | null
+          topology?: string
+          voltage_max_v?: number | null
+          voltage_min_v?: number | null
+          warranty_cycles?: number
+          warranty_end_soh_percent?: number | null
+          warranty_years?: number
+        }
+        Relationships: []
+      }
+      ci_accessories: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          documents: Json
+          id: string
+          image_url: string | null
+          model: string
+          nickname: string | null
+          warranty_years: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          documents?: Json
+          id?: string
+          image_url?: string | null
+          model: string
+          nickname?: string | null
+          warranty_years?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          documents?: Json
+          id?: string
+          image_url?: string | null
+          model?: string
+          nickname?: string | null
+          warranty_years?: number
+        }
+        Relationships: []
+      }
+
       ci_sts_specs: {
         Row: {
           accessory_id: string
@@ -40,7 +297,7 @@ export type Database = {
           reference_document?: string
           revision?: string
         }
-        Relationships: [{ foreignKeyName: "ci_sts_specs_accessory_id_fkey"; columns: ["accessory_id"]; isOneToOne: true; referencedRelation: "accessories"; referencedColumns: ["id"] }]
+        Relationships: [{ foreignKeyName: "ci_sts_specs_accessory_id_fkey"; columns: ["accessory_id"]; isOneToOne: true; referencedRelation: "ci_accessories"; referencedColumns: ["id"] }]
       }
       ci_sts_compatibility_rules: {
         Row: {
@@ -129,7 +386,7 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          { foreignKeyName: "ci_pcs_specs_inverter_id_fkey"; columns: ["inverter_id"]; isOneToOne: true; referencedRelation: "inverters"; referencedColumns: ["id"] },
+          { foreignKeyName: "ci_pcs_specs_inverter_id_fkey"; columns: ["inverter_id"]; isOneToOne: true; referencedRelation: "ci_inverters"; referencedColumns: ["id"] },
         ]
       }
       ci_battery_specs: {
@@ -167,7 +424,7 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          { foreignKeyName: "ci_battery_specs_battery_id_fkey"; columns: ["battery_id"]; isOneToOne: true; referencedRelation: "batteries"; referencedColumns: ["id"] },
+          { foreignKeyName: "ci_battery_specs_battery_id_fkey"; columns: ["battery_id"]; isOneToOne: true; referencedRelation: "ci_batteries"; referencedColumns: ["id"] },
         ]
       }
       ci_compatibility_rules: {
@@ -246,7 +503,7 @@ export type Database = {
         Relationships: [
           { foreignKeyName: "ci_compatibility_rules_pcs_id_fkey"; columns: ["pcs_id"]; isOneToOne: false; referencedRelation: "ci_pcs_specs"; referencedColumns: ["inverter_id"] },
           { foreignKeyName: "ci_compatibility_rules_battery_id_fkey"; columns: ["battery_id"]; isOneToOne: false; referencedRelation: "ci_battery_specs"; referencedColumns: ["battery_id"] },
-          { foreignKeyName: "ci_compatibility_rules_controller_accessory_id_fkey"; columns: ["controller_accessory_id"]; isOneToOne: false; referencedRelation: "accessories"; referencedColumns: ["id"] },
+          { foreignKeyName: "ci_compatibility_rules_controller_accessory_id_fkey"; columns: ["controller_accessory_id"]; isOneToOne: false; referencedRelation: "ci_accessories"; referencedColumns: ["id"] },
         ]
       }
       accessories: {

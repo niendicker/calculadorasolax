@@ -12,9 +12,9 @@ export async function loadCiModularCatalog(client?: SupabaseClient): Promise<CiE
   const db = client ?? createClient();
   const [pcs, batteries, rules, inverters, batteryModels, accessories] = await Promise.all([
     db.from('ci_pcs_specs').select('*'), db.from('ci_battery_specs').select('*'), db.from('ci_compatibility_rules').select('*').order('name'),
-    db.from('inverters').select('id,model,power_kw,battery_voltage_min_v,battery_voltage_max_v,battery_charge_efficiency_percent,battery_discharge_efficiency_percent').order('model'),
-    db.from('batteries').select('id,model,max_current_a,capacity_kwh,voltage_min_v,voltage_max_v,min_soc_percent,round_trip_efficiency_percent').order('model'),
-    db.from('accessories').select('id,model,active').order('model'),
+    db.from('ci_inverters').select('id,model,power_kw,battery_voltage_min_v,battery_voltage_max_v,battery_charge_efficiency_percent,battery_discharge_efficiency_percent').order('model'),
+    db.from('ci_batteries').select('id,model,max_current_a,capacity_kwh,voltage_min_v,voltage_max_v,min_soc_percent,round_trip_efficiency_percent').order('model'),
+    db.from('ci_accessories').select('id,model,active').order('model'),
   ]);
   for (const result of [pcs, batteries, rules, inverters, batteryModels, accessories]) if (result.error) throw new Error(result.error.message);
   const inverterOptions = (inverters.data ?? []) as CiInverterBase[];

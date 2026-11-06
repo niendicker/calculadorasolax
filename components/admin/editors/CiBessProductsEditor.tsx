@@ -25,7 +25,7 @@ export function CiBessProductsEditor(props: {
   onDeactivate: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File

@@ -2,8 +2,10 @@ import { stsFixture, stsBackup } from '@/supabase/functions/_shared/commercial-i
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { modularFixture, modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
+import { loadCiAccessoryContext } from './ci-accessories-repository';
 import { invokeCommercialIndustrialCalculation } from './commercial-industrial-calculation-repository';
 const mocks = vi.hoisted(() => ({ catalog: vi.fn(), sts: vi.fn() }));
+vi.mock('./ci-accessories-repository',()=>({loadCiAccessoryContext:vi.fn().mockResolvedValue(undefined)}));
 vi.mock('./ci-sts-repository', () => ({ loadCiStsContext: mocks.sts }));
 vi.mock('./ci-modular-catalog-repository', () => ({ loadCiModularCatalog: mocks.catalog }));
 beforeEach(() => { vi.clearAllMocks(); mocks.catalog.mockResolvedValue(modularFixture()); mocks.sts.mockResolvedValue(stsFixture()); });
@@ -26,11 +28,13 @@ describe('modular calculation server path', () => {
     const db = client({ 'PCS teste 100': 40000, 'Rack teste 100': 30000, 'Controle teste': 1500 });
     const result = await invokeCommercialIndustrialCalculation(db.db, { options: { ...modularOptions() }, unitPriceBrl: 0 });
     expect(result.error).toBeNull();
-    expect(result.data?.engineVersion).toBe('ci-modular-v2');
+    expect(result.data?.engineVersion).toBe('ci-modular-v3');
     expect(result.data?.inputFingerprint).toHaveLength(64);
     expect(result.data?.scenarios[0].capex).toBe(101500);
     expect(result.data?.assumptions.equipment?.compatibility.revision).toBe('Teste 1');
     expect(result.data?.assumptions.equipment?.prices.controllerUnitBrl).toBe(1500);
+    expect(loadCiAccessoryContext).toHaveBeenCalledWith(db.db, undefined);
+    expect(db.lookups.map(item=>item.product_type)).toEqual(['ci_pcs','ci_battery','ci_accessory']);
     expect(db.lookups).toHaveLength(3);
     expect(db.lookups.every((where) => where.user_id === 'owner-1')).toBe(true);
     expect(db.invoke).not.toHaveBeenCalled();
@@ -65,7 +69,7 @@ it('calculates integrated BESS with STS locally and includes the accessory once'
   const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:product,error:null})};
   const db={from:()=>q,functions:{invoke}} as unknown as SupabaseClient;
   const res=await invokeCommercialIndustrialCalculation(db,{options,unitPriceBrl:100000});
-  expect(res.error).toBeNull();expect(res.data?.engineVersion).toBe('ci-v3');
+  expect(res.error).toBeNull();expect(res.data?.engineVersion).toBe('ci-v4');
   const selected=res.data!.selected!;
   expect(selected.capex).toBe(100000+selected.sts!.selected!.totalBrl);
   expect(selected.sts?.selected?.quantity).toBe(1);

@@ -9,6 +9,7 @@ import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/c
 import { CiConfigurationPanel } from './CiConfigurationPanel';
 
 const { listActiveCiBessProducts } = vi.hoisted(() => ({ listActiveCiBessProducts: vi.fn() }));
+vi.mock('@/lib/data/ci-accessories-repository',()=>({loadCiAccessoryCatalog:vi.fn().mockResolvedValue({products:[],rules:[],stsIds:[]})}));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts }));
 
 function makeProduct(partial: Partial<CiBessProductRecord> & Pick<CiBessProductRecord, 'id' | 'model'>): CiBessProductRecord {

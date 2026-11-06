@@ -5,6 +5,7 @@ import { modularFixture } from '@/supabase/functions/_shared/commercial-industri
 import { CiModularCatalogEditor } from './CiModularCatalogEditor';
 
 const mocks = vi.hoisted(() => ({ load: vi.fn(), savePcs: vi.fn(), saveBattery: vi.fn(), saveRule: vi.fn() }));
+vi.mock('./CiProductCatalogEditor', () => ({CiProductCatalogEditor: () => <p>Produtos próprios C&I</p>}));
 vi.mock('@/lib/data/ci-modular-catalog-repository', () => ({ loadCiModularCatalog: mocks.load, saveCiPcsSpec: mocks.savePcs, saveCiBatterySpec: mocks.saveBattery, saveCiCompatibilityRule: mocks.saveRule }));
 function fixture() {
   const data = modularFixture();
@@ -13,12 +14,13 @@ function fixture() {
 beforeEach(() => { vi.clearAllMocks(); mocks.load.mockResolvedValue(fixture()); mocks.savePcs.mockResolvedValue(undefined); mocks.saveRule.mockResolvedValue('new-rule'); });
 
 describe('C&I modular administrative catalog', () => {
-  it('preserves integrated products and edits PCS ratings by the shared catalog ID', async () => {
+  it('preserves integrated products and edits PCS ratings by the C&I catalog ID', async () => {
     const onActivity = vi.fn();
-    render(<CiModularCatalogEditor integrated={<p>Catálogo integrado existente</p>} onActivity={onActivity} />);
+    render(<CiModularCatalogEditor uploadAsset={vi.fn()} integrated={<p>Catálogo integrado existente</p>} onActivity={onActivity} />);
     expect(screen.getByText('Catálogo integrado existente')).toBeInTheDocument();
     expect(mocks.load).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Inversores / PCS' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limites contínuos C&I' }));
     await screen.findByText('PCS teste 100');
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     const dialog = screen.getByRole('dialog');
@@ -31,7 +33,7 @@ describe('C&I modular administrative catalog', () => {
   });
 
   it('blocks an approved rule whose series voltage exceeds the inherited PCS range', async () => {
-    render(<CiModularCatalogEditor integrated={null} />);
+    render(<CiModularCatalogEditor uploadAsset={vi.fn()} integrated={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Compatibilidades' }));
     await screen.findByText('Composição de teste');
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
