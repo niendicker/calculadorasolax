@@ -1,5 +1,5 @@
 import { computeBackupRequirements } from './backup.ts';
-import { runDispatch } from './dispatch.ts';
+import { minimumBessDischargeKw, runDispatch } from './dispatch.ts';
 import type { CommercialIndustrialOptions, DispatchPoint } from './types.ts';
 import type { CiApplication } from './grouped-solutions.ts';
 
@@ -12,10 +12,11 @@ export function deriveCiTechnicalRequirements(options:CommercialIndustrialOption
   let power=0,energy=0,windowEnergy=0;
   const intervalHours=options.loadCurve.resolutionMinutes/60;
   const limits=trace.map(point=>{
+    const netLoadKw=Math.max(0,point.loadKw-(point.solarGenerationKw??0));
     let target:number|null=null;
     if(options.strategy==='PEAK_SHAVING'||options.strategy==='HYBRID')target=options.tariff!.contractedDemandKw;
-    if((options.strategy==='LOAD_SHIFTING'||options.strategy==='HYBRID')&&point.tariffPeriod==='peak')target=Math.min(target??Infinity,point.gridImportKw*(1-coverage/100));
-    const deficit=target===null?0:Math.max(0,point.gridImportKw-target);
+    if((options.strategy==='LOAD_SHIFTING'||options.strategy==='HYBRID')&&point.tariffPeriod==='peak')target=Math.min(target??Infinity,netLoadKw*(1-coverage/100));
+    const deficit=target===null?0:minimumBessDischargeKw(netLoadKw,target,point.tariffPeriod,options.tariff!.contractedDemandKw,options.generator);
     power=Math.max(power,deficit);windowEnergy+=deficit*intervalHours;energy=Math.max(energy,windowEnergy);
     // A possible charging opportunity ends a lower-bound energy window. Its actual
     // duration, power and losses remain constraints of the candidate simulation.

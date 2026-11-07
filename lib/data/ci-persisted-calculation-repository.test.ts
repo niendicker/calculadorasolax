@@ -53,3 +53,28 @@ it('preserves imported solar values through the common simulator',async()=>{
  const catalog=modularFixture();catalog.rules[0].supports_solar=true;mocks.query.mockResolvedValue({generation:{id:'g',source_revision:'r'},solutions:generateCiGroupedSolutions(catalog,[]).solutions});
  const result=await calculatePersistedCi(client().db,{...opts,solar:{enabled:true,installedPowerKwp:0,inverterPowerKw:0,dailyYieldKwhPerKwp:4.5,prioritizeBessCharging:true,generationCurve}});expect(result.selected!.dispatch.every(p=>p.solarGenerationKw===27.5)).toBe(true);
 });
+
+it('keeps a smaller approved BESS eligible when generator peak support meets the remaining demand',async()=>{
+ const {DEFAULT_CI_GENERATOR_CONFIG}=await import('@/supabase/functions/_shared/commercial-industrial/types');
+ const product={...cabinetFixture(),module_power_kw:50,max_parallel_units:1,supports_generator:true};
+ const grouped=generateCiGroupedSolutions({...modularFixture(),rules:[]},[product]).solutions;
+ mocks.query.mockResolvedValue({generation:{id:'g',source_revision:'r'},solutions:grouped});
+ const opts=options();opts.strategy='PEAK_SHAVING';opts.tariff!.contractedDemandKw=100;
+ opts.loadCurve={...opts.loadCurve!,timezone:'UTC',periodEnd:'2026-01-01',points:Array.from({length:96},(_,i)=>({timestamp:new Date(Date.UTC(2026,0,1,0,i*15)).toISOString(),powerKw:i>=72&&i<84?200:100}))};
+ const result=await calculatePersistedCi(client().db,{...opts,generator:{...DEFAULT_CI_GENERATOR_CONFIG,enabled:true,ratedPowerKva:100,dispatchMode:'peak_support'}});
+ expect(mocks.query).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({minPowerKw:20,minEnergyKwh:60}));
+ expect(result.selected?.technicalValidity).toBe(true);expect(result.selected?.dispatch.every(p=>p.gridImportKw<=100+1e-6)).toBe(true);
+ expect(result.selected?.dispatch.find(p=>p.tariffPeriod==='peak')?.generatorKw).toBe(50);
+});
+
+it('keeps a physically sufficient hybrid solution when PV reduces the future peak requirement',async()=>{
+ const product={...cabinetFixture(),max_parallel_units:1,module_capacity_kwh:40,efficiency_percent:100,ac_charge_efficiency_percent:100,ac_discharge_efficiency_percent:100,soc_min_percent:0,soc_max_percent:100,supports_solar:true};
+ const grouped=generateCiGroupedSolutions({...modularFixture(),rules:[]},[product]).solutions;
+ mocks.query.mockResolvedValue({generation:{id:'g',source_revision:'r'},solutions:grouped});
+ const opts=options();opts.strategy='HYBRID';opts.tariff!.contractedDemandKw=50;
+ const curve={...opts.loadCurve!,timezone:'UTC',periodEnd:'2026-01-01',points:Array.from({length:96},(_,i)=>({timestamp:new Date(Date.UTC(2026,0,1,0,i*15)).toISOString(),powerKw:i===71?80:i===72||i===73?100:0}))};
+ const generationCurve={...curve,points:curve.points.map((p,i)=>({...p,powerKw:i===72||i===73?80:0}))};
+ const result=await calculatePersistedCi(client().db,{...opts,loadCurve:curve,solar:{enabled:true,installedPowerKwp:100,inverterPowerKw:100,dailyYieldKwhPerKwp:4.5,prioritizeBessCharging:true,generationCurve}});
+ expect(result.selected?.technicalValidity).toBe(true);expect(result.selected?.dispatch[71].gridImportKw).toBe(50);
+ expect(result.selected?.dispatch.filter(p=>p.tariffPeriod==='peak').every(p=>p.gridImportKw===0)).toBe(true);
+});

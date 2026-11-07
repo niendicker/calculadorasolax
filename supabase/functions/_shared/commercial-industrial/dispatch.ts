@@ -340,6 +340,23 @@ export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindo
   return reserve;
 }
 
+/** Lower bound on BESS discharge after support that the generator policy can
+ * actually supply. Peak support never lowers grid import below contracted demand. */
+export function minimumBessDischargeKw(
+  netLoadKw: number,
+  gridTargetKw: number,
+  period: TariffPeriod,
+  contractedDemandKw: number,
+  generator?: CiGeneratorConfig | null,
+): number {
+  const deficit = Math.max(0, netLoadKw - gridTargetKw);
+  const supportsTarget = generator?.enabled && generator.ratedPowerKva > 0 &&
+    period === 'peak' && gridTargetKw >= contractedDemandKw &&
+    (generator.dispatchMode === 'peak_support' || generator.dispatchMode === 'peak_and_blackout');
+  const generatorPowerKw = supportsTarget ? generator.ratedPowerKva * (generator.powerFactor || 0.8) : 0;
+  return Math.max(0, deficit - generatorPowerKw);
+}
+
 /** Runs the full interval-by-interval simulation. Every physical constraint
  * (plan section 5.2, steps 3-7, plus the Fase 7 audit's contracted-demand
  * charge ceiling) is enforced here, uniformly across strategies:
@@ -362,21 +379,26 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
   const chargeEfficiency = bess.chargeEfficiencyPercent !== undefined ? bess.chargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
   const dischargeEfficiency = bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
 
-  // Only Hybrid needs the lookahead reserve — cheap to compute (curve is
-  // capped at 672 points) but skipped entirely for the other strategies.
-  const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess, input.gridImportLimitsKw?.map((target,index)=>target===null?curve.points[index].powerKw:Math.max(0,curve.points[index].powerKw-target))) : null;
+  const solarGenerationAt = (index: number): number => solar?.enabled
+    ? (importedSolar ? importedSolar.get(Date.parse(curve.points[index].timestamp))! : solar.generationPoints?.[index] ?? estimateSolarGenerationKw(solar, minutesOfDay(curve.points[index].timestamp, curve.timezone), curve.resolutionMinutes))
+    : 0;
+  // A project profile reserves the residual peak requirement, with the same
+  // solar source and generator policy used by the interval simulation.
+  const peakNeeds = strategy === 'HYBRID' ? input.gridImportLimitsKw?.map((target, index) => {
+    const point = curve.points[index];
+    const netLoadKw = Math.max(0, point.powerKw - solarGenerationAt(index));
+    return target === null ? netLoadKw : minimumBessDischargeKw(netLoadKw, target, classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow), contractedDemandKw, generator);
+  }) : undefined;
+  const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess, peakNeeds) : null;
 
   let socPercent = bess.initialSocPercent ?? bess.socMaxPercent;
   const trace: DispatchPoint[] = [];
 
   curve.points.forEach((point, index) => {
     const period = classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow);
-    const minuteOfDay = minutesOfDay(point.timestamp, curve.timezone);
 
     // 1. Solar generation at this interval
-    const solarGenerationKw = solar?.enabled
-      ? (importedSolar ? importedSolar.get(Date.parse(point.timestamp))! : solar.generationPoints?.[index] ?? estimateSolarGenerationKw(solar, minuteOfDay, curve.resolutionMinutes))
-      : 0;
+    const solarGenerationKw = solarGenerationAt(index);
 
     // Net load seen by the site before BESS
     const netLoadAfterSolarKw = Math.max(0, point.powerKw - solarGenerationKw);

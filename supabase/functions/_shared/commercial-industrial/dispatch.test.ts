@@ -1039,3 +1039,9 @@ it('reuses local time conversion without sharing tariff classification across ti
   expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
   expect(classifyTariffPeriod(timestamp,'America/Sao_Paulo',DEFAULT_WINDOW)).toBe('offPeak');
 });
+
+it('reserves only residual peak energy when a project profile includes imported PV',()=>{
+  const curve=makeCurve([{hour:17,minute:45,powerKw:80},{hour:18,powerKw:100},{hour:18,minute:15,powerKw:100}]);
+  const trace=runDispatch({curve,bess:makeBess({totalPowerKw:100,totalCapacityKwh:40,socMinPercent:0,efficiencyPercent:100}),strategy:'HYBRID',tariffWindow:DEFAULT_WINDOW,peakShavingTargetKw:50,contractedDemandKw:50,gridImportLimitsKw:[50,0,0],solar:{...DEFAULT_CI_SOLAR_CONFIG,enabled:true,installedPowerKwp:100,inverterPowerKw:100,generationCurve:{...curve,points:curve.points.map((p,i)=>({...p,powerKw:i===0?0:80}))}}});
+  expect(trace.map(p=>p.gridImportKw)).toEqual([50,0,0]);
+});

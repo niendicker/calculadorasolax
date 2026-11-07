@@ -199,3 +199,14 @@ da ficha, com diagnóstico.
 - Prévia isolada com dados sintéticos: seleção fixa, geração administrativa e
   ausência de overflow em 390×844, 1366×768, 1440×900 e 1920×1080. Não substitui
   o teste autenticado após aplicar a migration no ambiente de destino.
+
+### Revisão antes do merge
+
+A reserva híbrida com metas por intervalo usa a carga residual após o FV, com
+a mesma curva de geração usada no despacho. Assim, o consumo bruto futuro não
+retém energia desnecessária e não impede um atendimento viável antes da ponta.
+Os mínimos de potência e energia também descontam o apoio que a política do
+gerador efetivamente permite: somente na ponta, nos modos habilitados e sem
+atribuir ao gerador redução de importação abaixo da demanda contratada.
+Regressões exercitam os dois casos pelo motor completo, além de verificar que
+gerador exclusivo de falta de rede ou fora da ponta não reduz os requisitos.
