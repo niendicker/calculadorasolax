@@ -40,7 +40,7 @@ describe('CommercialIndustrialWorkspace', () => {
     renderWorkspace();
 
     expect(screen.getByRole('status', { name: 'Faltam valores na aba Configuração BESS' })).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Faltam valores na aba Curva de carga' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Faltam valores na aba Curvas e aplicações' })).toBeInTheDocument();
     expect(screen.getByRole('status', { name: 'Faltam valores na aba Tarifa' })).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Faltam valores na aba Estratégia' })).not.toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Faltam valores na aba Resultados' })).not.toBeInTheDocument();
@@ -122,9 +122,13 @@ describe('CommercialIndustrialWorkspace', () => {
   it('hides the Falta de rede tab for users without ci_backup flag', () => {
     renderWorkspace({ profile: null });
     expect(screen.queryByRole('button', { name: 'Falta de rede' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Curvas e aplicações'}));
+    expect(screen.getByRole('button',{name:'Configurar FV'})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Configurar backup'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Configurar gerador'})).not.toBeInTheDocument();
   });
 
-  it('shows the Falta de rede tab for users with ci_backup flag and navigates to it', () => {
+  it('opens backup adjustments from the unified curve page for authorized users', () => {
     const profileWithBackup: InlineProfile = {
       id: 'u1',
       email: 'user@test.com',
@@ -139,10 +143,11 @@ describe('CommercialIndustrialWorkspace', () => {
     };
 
     renderWorkspace({ profile: profileWithBackup });
-    const backupTab = screen.getByRole('button', { name: 'Falta de rede' });
-    expect(backupTab).toBeInTheDocument();
-
-    fireEvent.click(backupTab);
+    expect(screen.queryByRole('button',{name:'Falta de rede'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Solar FV'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Curvas e aplicações'}));
+    fireEvent.click(screen.getByRole('button',{name:'Configurar backup'}));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Proteção para Falta de Rede (Backup C&I)')).toBeInTheDocument();
   });
   it('retains a calculation across tabs and warns after editing the strategy', async () => {

@@ -116,7 +116,7 @@ describe('CiConfigurationPanel', () => {
 
     await screen.findByText('PowerStack 50');
 
-    const nextButton = screen.getByRole('button', { name: /Avançar para Solar FV/i });
+    const nextButton = screen.getByRole('button', { name: /Avançar para Curvas e aplicações/i });
     expect(nextButton).toBeEnabled();
     fireEvent.click(nextButton);
     expect(onNavigateNext).toHaveBeenCalledTimes(1);
@@ -129,7 +129,7 @@ describe('CiConfigurationPanel', () => {
         onNavigateNext={onNavigateNext}
       />
     );
-    expect(screen.getByRole('button', { name: /Avançar para Solar FV/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Avançar para Curvas e aplicações/i })).toBeDisabled();
   });
   it('retries a failed catalog without leaving the step', async () => {
     listActiveCiBessProducts.mockRejectedValueOnce(new Error('Sem conexão')).mockResolvedValueOnce([makeProduct({ id: 'p1', model: 'PowerStack 50' })]);

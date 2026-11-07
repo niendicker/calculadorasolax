@@ -40,6 +40,10 @@ export function validateCiCompatibility(rule: CiCompatibilityRule, pcs: CiPcsCat
     if (!integer(min) || !integer(max) || min > max) errors.push(`Faixa de ${label} inválida na compatibilidade.`);
   }
   if (!integer(pcs.max_parallel_units) || rule.max_pcs > pcs.max_parallel_units) errors.push('Paralelismo de PCS excede o limite cadastrado.');
+  const unitsPerPcs = rule.max_series * rule.max_parallel_strings;
+  if (positive(pcs.maxBatteryQty) && unitsPerPcs > pcs.maxBatteryQty) errors.push('A quantidade de baterias por PCS excede o limite da ficha do inversor.');
+  if (positive(battery.maxAssociationQty) && unitsPerPcs > battery.maxAssociationQty) errors.push('A associação de baterias por PCS excede o limite da ficha da bateria.');
+  if (positive(pcs.maxCurrentPerPortA) && positive(pcs.batteryPorts) && Math.max(pcs.charge_current_a, pcs.discharge_current_a) > pcs.maxCurrentPerPortA * pcs.batteryPorts) errors.push('A corrente DC total C&I excede a soma dos limites das portas do inversor.');
   if (![pcs.voltageMinV, pcs.voltageMaxV, battery.voltageMinV, battery.voltageMaxV].every(positive)) errors.push('Complete as tensões DC mínima e máxima nas fichas do inversor e da bateria.');
   else if (pcs.voltageMaxV! < pcs.voltageMinV! || battery.voltageMaxV! < battery.voltageMinV! || battery.voltageMinV! * rule.min_series < pcs.voltageMinV! || battery.voltageMaxV! * rule.max_series > pcs.voltageMaxV!) errors.push('As tensões mínima e máxima do banco não cabem na janela DC do PCS.');
   if (![pcs.charge_power_kw, pcs.discharge_power_kw, pcs.charge_current_a, pcs.discharge_current_a, battery.capacityKwh, battery.charge_power_kw, battery.discharge_power_kw, battery.charge_current_a, battery.discharge_current_a].every(positive)) errors.push('Complete as potências, correntes contínuas e capacidade dos equipamentos.');
@@ -124,11 +128,13 @@ export function calculateModularStudy(options: CommercialIndustrialOptions, cata
   const grids = configurations.map((configuration) => ({ configuration, grid: buildScenarioGrid(gridInput(configuration)) }));
   const scenarios = grids.map(({ configuration, grid }) => decorate(grid.scenarios[0], configuration));
   const recommendation = recommendScenario(scenarios, options.rankingCriterion, options.financialAssumptions.analysisHorizonYears)!;
-  const selectedConfiguration = configurations.find((configuration) => configuration.id === recommendation.scenarioId) ?? configurations[0];
+  const technicalReference = scenarios.find(scenario => scenario.scenarioId === recommendation.scenarioId) ?? scenarios.find(scenario => scenario.technicalValidity);
+  const selectedConfiguration = configurations.find((configuration) => configuration.id === (recommendation.scenarioId ?? technicalReference?.scenarioId)) ?? configurations[0];
   const detail = materializeScenarioDetail(gridInput(selectedConfiguration), 1, null);
   return {
     stsContext, accessoryContext,
-    engineVersion: 'ci-modular-v3', inputFingerprint: '', baseline: grids[0].grid.baseline, scenarios, recommendation,
+    technicalSelection: { scenarioId: technicalReference?.scenarioId ?? null, reason: technicalReference ? 'Composição que atende aos requisitos técnicos, independentemente do retorno financeiro.' : 'Nenhuma composição atende aos requisitos técnicos informados.' },
+    engineVersion: 'ci-modular-v4', inputFingerprint: '', baseline: grids[0].grid.baseline, scenarios, recommendation,
     selected: { ...decorate(detail, selectedConfiguration), dispatch: detail.dispatch, cashFlow: detail.cashFlow },
     assumptions: { equipment: { pcs, battery, compatibility: rule, prices }, tariff: options.tariff, financial: options.financialAssumptions, loadCurve: { resolutionMinutes: options.loadCurve.resolutionMinutes, profileBasis: options.loadCurve.profileBasis, periodStart: options.loadCurve.periodStart, periodEnd: options.loadCurve.periodEnd, timezone: options.loadCurve.timezone } },
     warnings: [...new Set(scenarios.flatMap((scenario) => scenario.technicalWarnings))], backup: detail.backupResult,

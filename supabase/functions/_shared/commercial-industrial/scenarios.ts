@@ -132,7 +132,7 @@ function evaluateModuleCount(
 ): { candidate: ScenarioCandidate; trace: DispatchPoint[]; cashFlow: CashFlowYear[] } {
   const { curve, product, strategy, tariffWindow, tariff, peakShavingTargetKw, unitPriceBrl, additionalCostsBrl, monthsPerYear, financialAssumptions, backup } = input;
 
-  const backupRequirements = backup?.enabled ? computeBackupRequirements(backup) : null;
+  const backupRequirements = backup?.enabled ? computeBackupRequirements(backup, curve) : null;
   const backupResult = backupRequirements
     ? evaluateCandidateBackup(
         product.modulePowerKw * moduleCount,
@@ -173,7 +173,7 @@ function evaluateModuleCount(
   const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);
   const savings = computeAnnualSavings(baselineCost, cost);
 
-  const sts = evaluateSts(backup, trace, input.stsContext, moduleCount);
+  const sts = evaluateSts(backup, trace, input.stsContext, moduleCount, backupRequirements ?? undefined);
   if (sts && backupResult) {
     backupResult.meetsTransfer = sts.status === 'selected';
     if (sts.status !== 'selected') { backupResult.status = 'insufficient_transfer'; backupResult.warningMessage = sts.message; }
@@ -187,9 +187,11 @@ function evaluateModuleCount(
   if (sts) technicalWarnings.push(sts.message);
   else if (backup?.enabled) technicalWarnings.push('Transferência não avaliada: nenhuma STS externa configurada. O backup avalia potência e energia do BESS.');
   technicalWarnings.push(...accessories.warnings);
+  let meetsDemandTarget = true;
   if (peakShavingTargetKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
     const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
     if (achievedMaxDemandKw > peakShavingTargetKw + 1e-6) {
+      meetsDemandTarget = false;
       technicalWarnings.push(
         `BESS insuficiente para atingir o alvo de demanda de ${peakShavingTargetKw} kW — demanda residual de ${achievedMaxDemandKw.toFixed(1)} kW`
       );
@@ -203,12 +205,8 @@ function evaluateModuleCount(
     scenarioId: `modules-${moduleCount}`,
     moduleCount,
     strategy,
-    // Every candidate is technically valid by construction — dispatch.ts
-    // clamps every physical limit rather than ever requesting the
-    // impossible, so there is no scenario a physical rule invalidates
-    // outright. technicalWarnings still surfaces when the result falls
-    // short of what the strategy was asked to achieve (undersized BESS).
-    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected') && accessories.valid,
+    // Dispatch feasibility alone is insufficient: configured demand, backup and accessory requirements must also be met.
+    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected') && accessories.valid && meetsDemandTarget,
     sts,
     accessories: accessories.items,
     technicalWarnings,

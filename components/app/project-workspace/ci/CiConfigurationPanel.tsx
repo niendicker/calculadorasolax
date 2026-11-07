@@ -58,7 +58,8 @@ function CiIntegratedConfigurationPanel({
   const selectedProduct = products?.find((product) => product.id === ciOptions.bessProductId) ?? null;
 
   function selectProduct(product: CiBessProductRecord) {
-    onChange({ bessProductId: product.id === ciOptions.bessProductId ? null : product.id });
+    const limit=product.max_parallel_units ?? 1;
+    onChange({ bessProductId: product.id === ciOptions.bessProductId ? null : product.id, sizing:{...ciOptions.sizing,moduleCount:Math.min(ciOptions.sizing.moduleCount??1,limit),minModules:Math.min(ciOptions.sizing.minModules??1,limit),maxModules:Math.min(ciOptions.sizing.maxModules??limit,limit)} });
   }
 
   function setSizingMode(mode: SizingMode) {
@@ -140,7 +141,7 @@ function CiIntegratedConfigurationPanel({
                     <div className="grid gap-1 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                        Potência: {product.module_power_kw} kW/módulo
+                        Potência: {product.module_power_kw} kW/módulo · até {product.max_parallel_units ?? 1} unidade(s) em paralelo
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <Battery className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -281,7 +282,7 @@ function CiIntegratedConfigurationPanel({
               disabled={!selectedProduct}
               className="gap-1.5 rounded-lg text-xs font-semibold"
             >
-              Avançar para Solar FV
+              Avançar para Curvas e aplicações
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
@@ -294,12 +295,20 @@ function CiIntegratedConfigurationPanel({
 
 export function CiConfigurationPanel(props: Parameters<typeof CiIntegratedConfigurationPanel>[0]) {
   const modular = props.ciOptions.bessSystem?.kind === 'modular';
+  const automatic = props.ciOptions.bessSystem?.kind === 'automatic' ? props.ciOptions.bessSystem : null;
   return <div className="space-y-5">
     <div className="flex flex-wrap gap-2" aria-label="Tipo de solução BESS">
-      <Button type="button" variant={!modular ? 'default' : 'outline'} aria-pressed={!modular} onClick={() => props.onChange({ bessSystem: { kind: 'integrated' } })}>BESS integrado</Button>
+      <Button type="button" variant={automatic ? 'default' : 'outline'} aria-pressed={Boolean(automatic)} onClick={() => { if (!automatic) props.onChange({bessSystem:{kind:'automatic',minPowerKw:0,minEnergyKwh:0},bessProductId:null}); }}>Busca automática</Button>
+      <Button type="button" variant={!modular && !automatic ? 'default' : 'outline'} aria-pressed={!modular && !automatic} onClick={() => props.onChange({ bessSystem: { kind: 'integrated' } })}>BESS integrado</Button>
       <Button type="button" variant={modular ? 'default' : 'outline'} aria-pressed={modular} onClick={() => { if (!modular) props.onChange({ bessSystem: emptyModularSelection, bessProductId: null }); }}>PCS + baterias</Button>
     </div>
-    {modular ? <CiModularConfigurationPanel {...props} /> : <CiIntegratedConfigurationPanel {...props} />}
+    {automatic ? <section className="space-y-4 rounded-xl border p-4">
+      <h2 className="text-sm font-semibold">Requisitos mínimos da solução</h2>
+      <p className="text-xs text-muted-foreground">Compara todos os BESS integrados ativos e as compatibilidades PCS + baterias aprovadas, incluindo as quantidades em paralelo permitidas. A solução precisa atender aos mínimos, ao backup e ao alvo de demanda configurados; o retorno financeiro é apresentado separadamente.</p>
+      <div className="grid gap-4 sm:grid-cols-2">{([['minPowerKw','Potência mínima de descarga AC (kW)'],['minEnergyKwh','Energia útil mínima (kWh)']] as const).map(([key,label])=><label key={key} className="space-y-1 text-sm">{label}<Input type="number" min={0} step="any" aria-label={label} value={automatic[key]} onChange={event=>props.onChange({bessSystem:{...automatic,[key]:Number(event.target.value)}})}/></label>)}</div>
+      <p className="text-xs text-muted-foreground">Zero não acrescenta um mínimo nesse campo. As metas das outras etapas continuam sendo verificadas. Preços ausentes ficam pendentes para a análise financeira.</p>
+      {props.onNavigateNext && <Button disabled={![automatic.minPowerKw,automatic.minEnergyKwh].every(value=>Number.isFinite(value)&&value>=0)} onClick={props.onNavigateNext}>Avançar para Curvas e aplicações<ChevronRight aria-hidden="true"/></Button>}
+    </section> : modular ? <CiModularConfigurationPanel {...props} /> : <CiIntegratedConfigurationPanel {...props} />}
     <CiAccessoriesPanel {...props}/>
   </div>;
 }

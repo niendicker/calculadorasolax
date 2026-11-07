@@ -24,6 +24,10 @@ import { CiEnergyImport, curvesAlign } from './CiEnergyImport';
 import { DailyCurveEditor } from './DailyCurveEditor';
 import { buildDailySolarProfile, buildSolarPreviewPoints, updateDailySolarProfile } from './ci-daily-solar-profile';
 import { DateRangePicker } from './DateRangePicker';
+import { CiApplicationModal, type CiApplication } from './CiApplicationModal';
+import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
+import { resolveBackupCurve } from '@/supabase/functions/_shared/commercial-industrial/backup-curve';
+import { DEFAULT_CI_BACKUP_CONFIG, type CiBackupCurveSelection } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export const BRAZIL_TIMEZONES = [
   { value: 'America/Sao_Paulo', label: 'Brasília (UTC-3)' },
@@ -108,12 +112,20 @@ export function CiLoadCurvePanel({
   onChange,
   onNavigateNext,
   onNavigatePrev,
+  canAccessCiBackup = false,
+  initialApplication = null,
+  onApplicationClose,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
   onNavigateNext?: () => void;
   onNavigatePrev?: () => void;
+  canAccessCiBackup?: boolean;
+  initialApplication?: CiApplication | null;
+  onApplicationClose?: () => void;
 }) {
+  const [application,setApplication]=useState<CiApplication|null>(initialApplication);
+  const closeApplication=()=>{setApplication(null);onApplicationClose?.();};
   const existing = ciOptions.loadCurve;
   const initialManualConfig = existing?.manualConfig ?? null;
   const hasManualConfig = Boolean(
@@ -293,12 +305,23 @@ export function CiLoadCurvePanel({
   }
 
   const pointCount = activeCurve ? activeCurve.points.length : (existing ? existing.points.length : 0);
+  let backupSummary:ReturnType<typeof computeBackupRequirements>=null;
+  let backupError:string|null=null;
+  if(canAccessCiBackup&&ciOptions.backup?.enabled){
+    try{backupSummary=computeBackupRequirements(ciOptions.backup,activeCurve);}
+    catch(cause){backupError=cause instanceof Error?cause.message:'Revise a seleção de backup.';}
+  }
+  const applyBackupSelection=(selection:CiBackupCurveSelection)=>{
+    if(!canAccessCiBackup||!activeCurve)return;
+    const preview=resolveBackupCurve(selection,activeCurve);
+    onChange({loadCurve:activeCurve,backup:{...DEFAULT_CI_BACKUP_CONFIG,...ciOptions.backup,enabled:true,inputMode:'simple',curveSelection:selection,targetPowerKw:preview.continuousPowerKw,autonomyHours:preview.durationHours}});
+  };
   return (
     <div className="space-y-5">
       {/* 1. Título Curva de carga, subtítulo e ação secundária Importar CSV */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Curva de carga</h2>
+          <h2 className="text-base font-semibold text-foreground">Curvas e aplicações</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Importe consumo e geração de até 7 dias ou edite o perfil de consumo a cada 15 minutos.
           </p>
@@ -328,6 +351,13 @@ export function CiLoadCurvePanel({
           )}
         </div>
       </div>
+
+      <section aria-label="Aplicações do projeto" className="space-y-3 rounded-xl border p-3">
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={()=>setApplication('solar')}>Configurar FV</Button>{canAccessCiBackup&&<><Button variant="outline" size="sm" onClick={()=>setApplication('generator')}>Configurar gerador</Button><Button variant="outline" size="sm" onClick={()=>setApplication('backup')}>Configurar backup</Button></>}</div>
+        <p className="text-xs text-muted-foreground">FV {ciOptions.solar?.enabled?'ativo':'desativado'}{canAccessCiBackup?` · Gerador ${ciOptions.generator?.enabled?'ativo':'desativado'} · Backup ${ciOptions.backup?.enabled?'ativo':'desativado'}`:''}.{canAccessCiBackup?' Selecione um intervalo no gráfico de consumo para usá-lo no backup.':''}</p>
+        {backupSummary&&<p role="status" className="text-xs">Backup: {backupSummary.requiredContinuousPowerKw.toFixed(2)} kW contínuos · pico {backupSummary.requiredPeakPowerKw.toFixed(2)} kW · {backupSummary.autonomyHours.toFixed(2)} h · {backupSummary.requiredEnergyKwh.toFixed(2)} kWh com margem, antes das perdas.</p>}
+        {backupError&&<p role="alert" className="text-xs text-destructive">{backupError}</p>}
+      </section>
 
       <CiEnergyImport ciOptions={ciOptions} onChange={onChange} onImported={(result, name) => {
         if (!result.consumption) return;
@@ -516,6 +546,8 @@ export function CiLoadCurvePanel({
             generationPoints={weeklySolarPoints}
             resolutionMinutes={activeCurve.resolutionMinutes}
             contractedDemandKw={ciOptions.tariff?.contractedDemandKw}
+            backupCurve={canAccessCiBackup?activeCurve:undefined}
+            onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}
           />
         ) : (
           <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
@@ -529,7 +561,7 @@ export function CiLoadCurvePanel({
         {onNavigatePrev ? (
           <Button type="button" variant="outline" onClick={onNavigatePrev} className="gap-1.5 rounded-lg text-xs">
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar para Solar FV
+            Voltar para Configuração BESS
           </Button>
         ) : (
           <div />
@@ -553,6 +585,7 @@ export function CiLoadCurvePanel({
           <div />
         )}
       </div>
+      {application&&(application==='solar'||canAccessCiBackup)&&<CiApplicationModal key={application} application={application} ciOptions={ciOptions} onSave={onChange} onClose={closeApplication}/>}
     </div>
   );
 }

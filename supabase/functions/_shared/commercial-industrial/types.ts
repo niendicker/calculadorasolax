@@ -146,7 +146,15 @@ export interface CiCriticalLoad {
 
 export type CiBackupInputMode = 'simple' | 'detailed';
 
+export interface CiBackupCurveSelection {
+  method: 'profile' | 'average' | 'maximum' | 'manual';
+  startTimestamp: string;
+  endTimestampExclusive: string;
+  manualPowerKw?: number;
+}
+
 export interface CiBackupConfig {
+  curveSelection?: CiBackupCurveSelection;
   sts?: CiStsSelection;
   enabled: boolean;
   inputMode: CiBackupInputMode;
@@ -233,7 +241,7 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
 export interface CommercialIndustrialOptions {
   selectedAccessoryIds?: string[];
   /** Absent means the existing integrated BESS catalog. */
-  bessSystem?: { kind: 'integrated' } | CiModularSelection;
+  bessSystem?: { kind: 'integrated' } | CiModularSelection | { kind: 'automatic'; minPowerKw: number; minEnergyKwh: number };
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
   bessProductId: string | null;
@@ -248,7 +256,7 @@ export interface CommercialIndustrialOptions {
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
 
-export const CI_ENGINE_VERSION = 'ci-v4';
+export const CI_ENGINE_VERSION = 'ci-v5';
 
 export type TariffPeriod = 'peak' | 'offPeak';
 
@@ -277,6 +285,10 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  /** False when automatic technical search found equipment with pending personal prices. */
+  pricingComplete?: boolean;
+  missingPrices?: string[];
+  equipmentLabel?: string;
   accessories?: CiAccessoryItem[];
   sts?: CiStsResult;
   composition?: CiModularComposition;
@@ -358,6 +370,8 @@ export interface BessRuntimeParams {
 }
 
 export interface CommercialIndustrialResult {
+  technicalSelection?: { scenarioId: string | null; reason: string };
+  searchDiagnostics?: string[];
   stsContext?: CiStsContext;
   accessoryContext?: CiAccessoryContext;
   engineVersion: string;

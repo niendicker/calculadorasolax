@@ -132,6 +132,18 @@ afterEach(() => {
 });
 
 describe('CiResultsPanel', () => {
+  it('shows technical suitability and pending prices without presenting placeholder finances',()=>{
+    const result=makeResult();
+    result.scenarios=result.scenarios.map(s=>({...s,pricingComplete:false,missingPrices:['PCS sem preço']}));
+    result.selected={...result.selected!,pricingComplete:false,missingPrices:['PCS sem preço']};
+    result.technicalSelection={scenarioId:result.selected.scenarioId,reason:'Atende tecnicamente, financeiro pendente.'};
+    result.recommendation={scenarioId:null,reason:'Preços pendentes.'};
+    render(<CiResultsPanel {...panelProps('project')} initialSnapshot={{result,optionsFingerprint:JSON.stringify(testCiOptions)}}/>);
+    expect(screen.getByText(/Solução que atende tecnicamente/)).toBeInTheDocument();
+    expect(screen.getByText(/Preencha os preços no Portfólio/)).toHaveTextContent('PCS sem preço');
+    expect(screen.getByRole('button',{name:'Gerar memorial (PDF)'})).toBeDisabled();
+    expect(screen.queryByText('R$ 500.000,00')).not.toBeInTheDocument();
+  });
   it('prompts to save the project first when there is no saved project yet', () => {
     render(<CiResultsPanel {...panelProps(null)} />);
     expect(screen.getByText(/Salve o projeto/)).toBeInTheDocument();
@@ -412,7 +424,7 @@ describe('CiResultsPanel', () => {
   it('opens a pending step directly and returns to identification for an unsaved project', () => {
     const onNavigateToSection = vi.fn();
     const { rerender } = render(<CiResultsPanel {...panelProps('ci-project-1')} onNavigateToSection={onNavigateToSection} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir Curva de carga' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Curvas e aplicações' }));
     expect(onNavigateToSection).toHaveBeenCalledWith('curve');
     expect(screen.getAllByRole('button', { name: 'Calcular' })).toHaveLength(1);
     rerender(<CiResultsPanel {...panelProps(null)} onNavigateToSection={onNavigateToSection} />);

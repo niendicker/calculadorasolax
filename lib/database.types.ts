@@ -907,6 +907,7 @@ export type Database = {
           manufacturer: string
           model: string
           module_capacity_kwh: number
+          max_parallel_units: number
           module_power_kw: number
           soc_max_percent: number
           soc_min_percent: number
@@ -924,6 +925,7 @@ export type Database = {
           manufacturer: string
           model: string
           module_capacity_kwh: number
+          max_parallel_units?: number
           module_power_kw: number
           soc_max_percent: number
           soc_min_percent: number
@@ -941,6 +943,7 @@ export type Database = {
           manufacturer?: string
           model?: string
           module_capacity_kwh?: number
+          max_parallel_units?: number
           module_power_kw?: number
           soc_max_percent?: number
           soc_min_percent?: number

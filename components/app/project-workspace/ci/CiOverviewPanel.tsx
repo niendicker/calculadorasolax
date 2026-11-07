@@ -1,4 +1,5 @@
 'use client';
+import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
 
 // C&I workspace, "Visão geral" — dashboard-style summary mirroring
 // ProjectWorkspace.tsx's own `section === 'overview'` branch (Instalação /
@@ -173,7 +174,7 @@ export function CiOverviewPanel({
 
   const status = getCiConfigurationStatus(ciOptions);
   const { bess: bessConfigured, curve: curveConfigured, tariff: tariffConfigured } = status;
-  const bessSummary = ciOptions.bessSystem?.kind === 'modular'
+  const bessSummary = ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${ciOptions.bessSystem.minPowerKw} kW / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
     ? `PCS + baterias · ${ciOptions.bessSystem.compatibilityId ? 'Compatibilidade selecionada' : 'Selecione uma compatibilidade'} · ${ciOptions.bessSystem.mode === 'auto' ? 'Comparação automática' : 'Composição fixa'}`
     : !ciOptions.bessProductId
     ? 'Nenhum produto selecionado'
@@ -204,15 +205,12 @@ export function CiOverviewPanel({
     : `${solar.installedPowerKwp} kWp · ${solar.inverterPowerKw || solar.installedPowerKwp} kW inversor`;
 
   const backup = ciOptions.backup;
-  const backupConfigured = Boolean(
-    backup?.enabled &&
-      (backup.inputMode === 'detailed' ? backup.loads.length > 0 : backup.targetPowerKw > 0)
-  );
-  const backupSummary = !backup?.enabled
-    ? 'Desativado'
-    : backup.inputMode === 'detailed'
-      ? `${backup.loads.length} carga${backup.loads.length === 1 ? '' : 's'} · ${backup.autonomyHours}h autonomia`
-      : `${backup.targetPowerKw} kW · ${backup.autonomyHours}h autonomia`;
+  const backupConfigured = Boolean(backup?.enabled && status.backup);
+  let backupSummary = backup?.enabled ? 'Revise os requisitos de backup' : 'Desativado';
+  if(backup?.enabled){
+    try{const requirements=computeBackupRequirements(backup,ciOptions.loadCurve);if(requirements)backupSummary=`${requirements.requiredContinuousPowerKw.toFixed(1)} kW · ${requirements.autonomyHours.toFixed(2)}h · ${requirements.requiredEnergyKwh.toFixed(1)} kWh`;}
+    catch{backupSummary='Intervalo indisponível na curva atual';}
+  }
 
   const applicableSections = [
     'bess', ...(solar?.enabled ? ['solar'] : []), 'curve', 'tariff', 'strategy',
@@ -221,7 +219,7 @@ export function CiOverviewPanel({
   const configuredCount = applicableSections.filter((key) => status[key]).length;
   const totalConfigCount = applicableSections.length;
   const nextSection = applicableSections.find((key) => !status[key]) ?? 'results';
-  const nextLabel = { bess: 'Configuração BESS', solar: 'Solar FV', curve: 'Curva de carga', tariff: 'Tarifa', strategy: 'Estratégia', backup: 'Falta de rede', results: 'Resultados' }[nextSection];
+  const nextLabel = { bess: 'Configuração BESS', solar: 'Solar FV', curve: 'Curvas e aplicações', tariff: 'Tarifa', strategy: 'Estratégia', backup: 'Falta de rede', results: 'Resultados' }[nextSection];
   const selected = calculationResult?.selected ?? null;
   // A `selected` scenario is still materialized (for reference) even when
   // nothing was actually viable to recommend — Fase 6 audit, Problem #5.
@@ -335,7 +333,7 @@ export function CiOverviewPanel({
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
                 <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                Sem cenário viável
+                {selected?.technicalValidity ? 'Atende tecnicamente' : 'Sem solução técnica'}
               </span>
             ))}
         </CardHeader>
@@ -344,7 +342,7 @@ export function CiOverviewPanel({
             <div className="rounded-xl border bg-background/70 p-3">
               {!isRecommendationViable && (
                 <p className="mb-2 text-xs text-amber-700">
-                  Nenhum cenário atingiu o critério de viabilidade configurado — exibindo a menor configuração avaliada, não uma recomendação.
+                  {selected.technicalValidity ? 'Há solução que atende tecnicamente. O retorno financeiro deve ser avaliado separadamente.' : 'Nenhuma solução atende aos requisitos técnicos; revise as metas e os limites cadastrados.'}
                 </p>
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -354,15 +352,15 @@ export function CiOverviewPanel({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">CAPEX</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(selected.capex)}</p>
+                  <p className="mt-1 text-sm font-semibold">{selected.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(selected.capex)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Economia anual</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(selected.annualSavings)}</p>
+                  <p className="mt-1 text-sm font-semibold">{selected.pricingComplete === false ? '—' : formatCurrencyBRL(selected.annualSavings)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Payback simples</p>
-                  <p className="mt-1 text-sm font-semibold">{formatYears(selected.paybackYearsSimple)}</p>
+                  <p className="mt-1 text-sm font-semibold">{selected.pricingComplete === false ? '—' : formatYears(selected.paybackYearsSimple)}</p>
                 </div>
               </div>
               <div className="mt-2 text-right">

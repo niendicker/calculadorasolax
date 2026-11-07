@@ -21,7 +21,8 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
-import type { LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CiBackupCurveSelection, LoadCurve, LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { CiBackupSelectionAction } from './CiBackupSelectionAction';
 
 const CHART_HEIGHT = 235;
 const MIN_SELECTION_DRAG_PX = 4;
@@ -681,12 +682,16 @@ export function LoadCurveChart({
   contractedDemandKw,
   kind = 'load',
   generationPoints,
+  backupCurve,
+  onApplyBackupSelection,
 }: {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
   contractedDemandKw?: number;
   kind?: 'load' | 'generation';
   generationPoints?: { timestamp: string; powerKw: number | null }[];
+  backupCurve?: LoadCurve;
+  onApplyBackupSelection?: (selection:CiBackupCurveSelection)=>void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
@@ -1177,6 +1182,8 @@ export function LoadCurveChart({
           {includeGeneration && (!solarSummaryA || !solarSummaryB) && <p className="text-xs text-muted-foreground">Sem dados FV completos para um dos períodos. Valores indisponíveis aparecem como —.</p>}
         </div>
       )}
+
+      {kind==='load'&&backupCurve&&onApplyBackupSelection&&<div className="space-y-3">{([{range:selections.a,label:'período A'},{range:selections.b,label:'período B'}]).map(({range,label})=>range&&<CiBackupSelectionAction key={`${label}:${points[range.startIndex]?.timestamp}:${points[range.endIndex]?.timestamp}`} curve={backupCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={onApplyBackupSelection}/>)}</div>}
 
       {/* Base do painel: Status da demanda contratada */}
       {kind === 'generation' ? null : hasContract ? (

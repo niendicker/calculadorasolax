@@ -471,6 +471,7 @@ export const emptyAccessory: Partial<AccessoryRow> = {
 };
 
 export const emptyCiBessProduct: Partial<CiBessProductRow> = {
+  max_parallel_units: 1,
   model: '',
   manufacturer: '',
   description: '',

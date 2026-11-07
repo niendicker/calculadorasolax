@@ -6,10 +6,13 @@
 import type {
   CiBackupConfig,
   CiBackupResult,
+  LoadCurve,
 } from './types.ts';
+import { resolveBackupCurve } from './backup-curve.ts';
 import type { BessProductSpec } from './scenarios.ts';
 
 export interface BackupRequirements {
+  powerProfile?: {powerKw:number;durationHours:number}[];
   requiredContinuousPowerKw: number;
   requiredPeakPowerKw: number;
   requiredEnergyKwh: number;
@@ -18,10 +21,20 @@ export interface BackupRequirements {
 
 /** Computes the continuous power, peak power, and energy required for backup
  * from a declared CiBackupConfig. */
-export function computeBackupRequirements(config: CiBackupConfig | null | undefined): BackupRequirements | null {
+export function computeBackupRequirements(config: CiBackupConfig | null | undefined, curve?: LoadCurve | null): BackupRequirements | null {
   if (!config || !config.enabled) return null;
 
   const safetyFactor = 1 + (Number.isFinite(config.safetyMarginPercent) ? Math.max(0, config.safetyMarginPercent) : 10) / 100;
+  if (config.curveSelection) {
+    const profile = resolveBackupCurve(config.curveSelection, curve);
+    return {
+      requiredContinuousPowerKw: profile.continuousPowerKw * safetyFactor,
+      requiredPeakPowerKw: Math.max(profile.requiredPeakKw, config.targetPeakPowerKw ?? 0) * safetyFactor,
+      requiredEnergyKwh: profile.energyKwh * safetyFactor,
+      autonomyHours: profile.durationHours,
+      ...(config.curveSelection.method==='profile'?{powerProfile:profile.powerProfileKw.map(powerKw=>({powerKw:powerKw*safetyFactor,durationHours:curve!.resolutionMinutes/60}))}:{}),
+    };
+  }
   const autonomyHours = Number.isFinite(config.autonomyHours) && config.autonomyHours > 0 ? config.autonomyHours : 4;
 
   let baseContinuousKw = 0;
@@ -88,8 +101,16 @@ export function evaluateCandidateBackup(
   const meetsEnergy = deliverableEnergyKwh >= requirements.requiredEnergyKwh - 1e-6;
 
   let effectiveAutonomyHours = 0;
-  if (requirements.requiredContinuousPowerKw > 0) {
-    effectiveAutonomyHours = deliverableEnergyKwh / requirements.requiredContinuousPowerKw;
+  if (requirements.powerProfile) {
+    let remaining=deliverableEnergyKwh;
+    for(const interval of requirements.powerProfile){
+      const supported=interval.powerKw>0?Math.min(interval.durationHours,Math.max(0,remaining)/interval.powerKw):interval.durationHours;
+      effectiveAutonomyHours+=supported;
+      remaining-=supported*interval.powerKw;
+      if(supported<interval.durationHours-1e-9)break;
+    }
+  } else if (requirements.requiredEnergyKwh > 0) {
+    effectiveAutonomyHours = requirements.autonomyHours * deliverableEnergyKwh / requirements.requiredEnergyKwh;
   }
 
   // Calculate minimum modules required

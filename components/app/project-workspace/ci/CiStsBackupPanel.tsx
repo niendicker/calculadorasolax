@@ -16,6 +16,7 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
   const [failure,setFailure]=useState<{key:string;message:string}|null>(null);
   const [attempt,setAttempt]=useState(0);
   const modular=options.bessSystem?.kind==='modular';
+  const automatic=options.bessSystem?.kind==='automatic';
   const compatibilityId=options.bessSystem?.kind==='modular'?options.bessSystem.compatibilityId:null;
   const targetKey=JSON.stringify([modular,compatibilityId,options.bessProductId,attempt]);
   useEffect(()=>{
@@ -36,7 +37,7 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
   const equipmentPcs=loaded?.key===targetKey?loaded.pcsId:null;
   const error=failure?.key===targetKey?failure.message:'';
   const update=(partial:Partial<CiStsSelection>)=>{if(sts)onChange({sts:{...sts,...partial}});};
-  const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && r.frequency_hz===sts?.frequencyHz && (modular ? r.pcs_id===equipmentPcs : r.bess_product_id===options.bessProductId))??[];
+  const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && r.frequency_hz===sts?.frequencyHz && (automatic || (modular ? r.pcs_id===equipmentPcs : r.bess_product_id===options.bessProductId)))??[];
   const specs=catalog?.specs.filter(s=>s.active&&s.accessoryActive&&rules.some(r=>r.accessory_id===s.accessory_id))??[];
   const errors=sts?validateStsSelection(sts):[];
   return <section aria-label="Transferência / STS" className="space-y-4 rounded-xl border bg-muted/10 p-4">

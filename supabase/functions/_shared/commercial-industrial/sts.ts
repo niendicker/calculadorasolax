@@ -1,6 +1,6 @@
 import type { CiBackupConfig, DispatchPoint } from './types.ts';
 import type { CiStsContext, CiStsResult, CiStsRule, CiStsSelection } from './sts-types.ts';
-import { computeBackupRequirements } from './backup.ts';
+import { computeBackupRequirements, type BackupRequirements } from './backup.ts';
 
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 export function validateStsSelection(raw: unknown): string[] {
@@ -22,13 +22,13 @@ export function isApprovedStsRule(rule: CiStsRule): boolean {
     [rule.reference_document, rule.revision, rule.communication_profile, rule.firmware].every(v => typeof v === 'string' && v.trim().length > 0) &&
     Boolean(rule.pcs_id) !== Boolean(rule.bess_product_id);
 }
-export function evaluateSts(backup: CiBackupConfig | null | undefined, trace: DispatchPoint[], context: CiStsContext | undefined, moduleCount: number): CiStsResult | undefined {
+export function evaluateSts(backup: CiBackupConfig | null | undefined, trace: DispatchPoint[], context: CiStsContext | undefined, moduleCount: number, resolvedRequirements?: BackupRequirements): CiStsResult | undefined {
   if (!backup?.enabled || !backup.sts) return undefined;
   const selection: CiStsSelection = backup.sts;
   const errors = validateStsSelection(selection);
   if (errors.length) throw new Error(errors.join(' '));
   if (!context) throw new Error('O catálogo e as compatibilidades STS precisam ser resolvidos no servidor.');
-  const requirements = computeBackupRequirements(backup)!;
+  const requirements = resolvedRequirements ?? computeBackupRequirements(backup)!;
   const margin = 1 + backup.safetyMarginPercent / 100;
   const nominalLoadsKw = backup.inputMode === 'detailed'
     ? backup.loads.reduce((sum, load) => sum + load.powerW * load.quantity / 1000, 0) * margin : 0;

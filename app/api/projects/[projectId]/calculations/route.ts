@@ -63,9 +63,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: 'Este endpoint é exclusivo para projetos C&I.' }, { status: 400 });
   }
 
-  const options = project.calculation_options as { bessProductId?: string | null; bessSystem?: { kind?: string; compatibilityId?: string | null }; backup?: { enabled?: boolean } | null } | null;
+  const options = project.calculation_options as { bessProductId?: string | null; bessSystem?: { kind?: string; compatibilityId?: string | null }; backup?: { enabled?: boolean } | null; generator?: { enabled?:boolean } } | null;
   const isModular = options?.bessSystem?.kind === 'modular';
-  if (!options || Object.keys(options).length === 0 || (isModular ? !options.bessSystem?.compatibilityId : !options.bessProductId)) {
+  const isAutomatic = options?.bessSystem?.kind === 'automatic';
+  if (!options || Object.keys(options).length === 0 || (!isAutomatic && (isModular ? !options.bessSystem?.compatibilityId : !options.bessProductId))) {
     return NextResponse.json(
       { error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' },
       { status: 422 }
@@ -78,7 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     if (validationErrors.length) return NextResponse.json({ error: validationErrors.join(' ') }, { status: 422 });
   }
 
-  if (options.backup?.enabled) {
+  if (options.backup?.enabled || options.generator?.enabled) {
     try {
       const hasBackupAccess = await checkUserCiBackupAccess(supabase, user.id);
       if (!hasBackupAccess) {
@@ -94,7 +95,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   }
 
   let unitPriceBrl: number | null = 0;
-  if (!isModular) {
+  if (!isModular && !isAutomatic) {
     try {
       const model = await findBessProductModel(supabase, options.bessProductId!);
       if (!model) return NextResponse.json({ error: 'O produto BESS selecionado não foi encontrado ou não está mais ativo no catálogo.' }, { status: 422 });

@@ -27,11 +27,13 @@ export function CiSolarPanel({
   onChange,
   onNavigatePrev,
   onNavigateNext,
+  embedded = false,
 }: {
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
+  embedded?: boolean;
 }) {
   const solar = ciOptions.solar ?? DEFAULT_CI_SOLAR_CONFIG;
 
@@ -79,7 +81,7 @@ export function CiSolarPanel({
         </Button>
       </div>
 
-      <CiEnergyImport defaultSeries="generation" ciOptions={ciOptions} onChange={onChange} />
+      {!embedded&&<CiEnergyImport defaultSeries="generation" ciOptions={ciOptions} onChange={onChange} />}
 
       {!solar.enabled ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-xs text-muted-foreground space-y-2">
@@ -95,7 +97,7 @@ export function CiSolarPanel({
                 <Button type="button" variant="outline" size="sm" onClick={() => updateSolar({ generationCurve: undefined, generationPoints: undefined })}>Usar geração estimada</Button>
               </div>
               <p className="text-xs text-muted-foreground">{imported.source === 'manual' ? 'O cálculo usa o perfil FV ajustado no editor diário, com padrões independentes para dias úteis e fins de semana.' : 'O cálculo usa a geração AC de cada horário do arquivo, sem estimar ou reescalar a produção por kWp. Importe consumo e geração com o mesmo intervalo e período.'}</p>
-              <LoadCurveChart kind="generation" points={imported.points} resolutionMinutes={imported.resolutionMinutes} />
+              {!embedded&&<LoadCurveChart kind="generation" points={imported.points} resolutionMinutes={imported.resolutionMinutes} />}
             </div>
           ) : <>
           {/* Sizing Parameters */}

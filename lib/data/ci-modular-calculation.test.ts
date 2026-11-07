@@ -28,7 +28,7 @@ describe('modular calculation server path', () => {
     const db = client({ 'PCS teste 100': 40000, 'Rack teste 100': 30000, 'Controle teste': 1500 });
     const result = await invokeCommercialIndustrialCalculation(db.db, { options: { ...modularOptions() }, unitPriceBrl: 0 });
     expect(result.error).toBeNull();
-    expect(result.data?.engineVersion).toBe('ci-modular-v3');
+    expect(result.data?.engineVersion).toBe('ci-modular-v4');
     expect(result.data?.inputFingerprint).toHaveLength(64);
     expect(result.data?.scenarios[0].capex).toBe(101500);
     expect(result.data?.assumptions.equipment?.compatibility.revision).toBe('Teste 1');
@@ -69,7 +69,7 @@ it('calculates integrated BESS with STS locally and includes the accessory once'
   const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:product,error:null})};
   const db={from:()=>q,functions:{invoke}} as unknown as SupabaseClient;
   const res=await invokeCommercialIndustrialCalculation(db,{options,unitPriceBrl:100000});
-  expect(res.error).toBeNull();expect(res.data?.engineVersion).toBe('ci-v4');
+  expect(res.error).toBeNull();expect(res.data?.engineVersion).toBe('ci-v5');
   const selected=res.data!.selected!;
   expect(selected.capex).toBe(100000+selected.sts!.selected!.totalBrl);
   expect(selected.sts?.selected?.quantity).toBe(1);

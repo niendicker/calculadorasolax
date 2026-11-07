@@ -1,4 +1,5 @@
 import { loadCiAccessoryContext } from './ci-accessories-repository';
+import { calculateAutomaticCi } from './ci-automatic-calculation-repository';
 import { loadCiStsContext } from './ci-sts-repository';
 // Server-side data access for the C&I calculation flow — mirrors
 // lib/data/calculation-repository.ts's role for residential: the one place
@@ -47,6 +48,7 @@ async function calculateModular(supabase: SupabaseClient, options: CommercialInd
 }
 
 interface CiBessProductRow {
+  max_parallel_units?: number;
   id: string;
   model: string;
   module_power_kw: number;
@@ -80,6 +82,10 @@ export async function calculateCommercialIndustrialDirect(
 ): Promise<{ data: CommercialIndustrialResult | null; error: unknown }> {
   try {
     const options = body.options as unknown as CommercialIndustrialOptions;
+    if (options?.bessSystem?.kind === 'automatic') {
+      try { return { data: await calculateAutomaticCi(supabase, options), error: null }; }
+      catch (cause) { return {data:null,error:{code:'ci_modular',message:cause instanceof Error?cause.message:'Não foi possível buscar soluções C&I.'}}; }
+    }
     if (options?.bessSystem?.kind === 'modular') return calculateModular(supabase, options);
     if (!options?.loadCurve || !options?.tariff || !options?.bessProductId) {
       return { data: null, error: { message: 'incomplete_configuration' } };
@@ -87,13 +93,17 @@ export async function calculateCommercialIndustrialDirect(
 
     const { data: productRow, error: productError } = await supabase
       .from('ci_bess_products')
-      .select('id, model, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent')
+      .select('id, model, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent, max_parallel_units')
       .eq('id', options.bessProductId)
       .eq('active', true)
       .maybeSingle();
 
     if (productError || !productRow) {
       return { data: null, error: productError || { message: 'bess_product_not_found' } };
+    }
+    const maximumModules = (productRow as CiBessProductRow).max_parallel_units ?? 1;
+    if ((options.sizing.mode === 'fixed' ? options.sizing.moduleCount ?? 0 : options.sizing.maxModules ?? 0) > maximumModules) {
+      return {data:null,error:{code:'ci_modular',message:`O produto BESS permite no máximo ${maximumModules} unidade(s) em paralelo. Revise o cadastro e a quantidade solicitada.`}};
     }
 
     const stsContext = options.backup?.enabled && options.backup.sts ? await loadCiStsContext(supabase, {bessProductId: options.bessProductId, unitsPerModule: 1}) : undefined;
@@ -138,11 +148,12 @@ export async function calculateCommercialIndustrialDirect(
 
     const detailCandidate = recommendation.scenarioId
       ? scenarios.find((s) => s.scenarioId === recommendation.scenarioId)!
-      : scenarios[0];
+      : scenarios.find(scenario=>scenario.technicalValidity) ?? scenarios[0];
     const selected = materializeScenarioDetail(gridInput, detailCandidate.moduleCount, detailCandidate.marginalGain);
 
     const result: CommercialIndustrialResult = {
       stsContext, accessoryContext,
+      technicalSelection: {scenarioId:detailCandidate.technicalValidity?detailCandidate.scenarioId:null,reason:'Atendimento técnico avaliado separadamente do retorno financeiro.'},
       engineVersion: CI_ENGINE_VERSION,
       inputFingerprint: await computeInputFingerprint({ ...body, stsContext, accessoryContext }),
       baseline,
