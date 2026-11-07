@@ -16,6 +16,7 @@ export interface CiBessProductRecord {
   manufacturer: string;
   description: string | null;
   active: boolean;
+  max_parallel_units?: number;
   module_power_kw: number;
   module_capacity_kwh: number;
   efficiency_percent: number;
@@ -35,7 +36,7 @@ export interface CiBessProductRecord {
 export type CiBessProductInput = Omit<CiBessProductRecord, 'id' | 'created_at' | 'updated_at'>;
 
 const COLUMNS =
-  'id, model, manufacturer, description, active, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent, warranty_years, image_url, documents, created_at, updated_at';
+  'id, model, manufacturer, description, active, max_parallel_units, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent, warranty_years, image_url, documents, created_at, updated_at';
 
 /** Admins see every row (active or not) through their own RLS policy;
  * everyone else only sees active ones — same query, RLS decides what comes

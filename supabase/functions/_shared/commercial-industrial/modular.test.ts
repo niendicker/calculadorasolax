@@ -6,6 +6,15 @@ import { validateCommercialIndustrialOptions } from './validation';
 
 const prices = { pcsUnitBrl: 40000, batteryUnitBrl: 30000 };
 describe('modular PCS and battery sizing', () => {
+  it('rejects rules that exceed catalog battery association, PCS battery count or physical port current limits', () => {
+    for (const field of ['association','count','current']) {
+      const catalog=modularFixture();
+      if (field==='association') catalog.batteries[0].maxAssociationQty=2;
+      if (field==='count') catalog.pcs[0].maxBatteryQty=2;
+      if (field==='current') {catalog.pcs[0].maxCurrentPerPortA=50;catalog.pcs[0].batteryPorts=1;}
+      expect(()=>buildModularConfigurations(catalog,modularSelection(),prices)).toThrow(/limite|corrente/i);
+    }
+  });
   it('sizes energy independently of PCS power', () => {
     const configurations = buildModularConfigurations(modularFixture(), modularSelection(), prices);
     expect(configurations).toHaveLength(4);

@@ -63,7 +63,7 @@ function ScenarioRow({
           onClick={(event) => { event.stopPropagation(); onSelect(); }}
           className="rounded-md px-2 py-1 font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.seriesCount}S × {scenario.composition.parallelStringsPerPcs}P / PCS</span></span> : scenario.moduleCount}
+          {scenario.equipmentLabel && <span className="block text-xs">{scenario.equipmentLabel}</span>}{scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.seriesCount}S × {scenario.composition.parallelStringsPerPcs}P / PCS</span></span> : scenario.moduleCount}
         </button>
         {recommended && (
           <Badge variant="secondary" className="ml-2">
@@ -81,11 +81,11 @@ function ScenarioRow({
           </Badge>
         )}
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{formatCurrencyBRL(scenario.capex)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{formatCurrencyBRL(scenario.annualSavings)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{formatYears(scenario.paybackYearsSimple)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{formatPercentBRL(scenario.roiPercent)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{formatCurrencyBRL(scenario.npv)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(scenario.capex)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatCurrencyBRL(scenario.annualSavings)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatYears(scenario.paybackYearsSimple)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatPercentBRL(scenario.roiPercent)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatCurrencyBRL(scenario.npv)}</td>
       <td className="whitespace-nowrap px-3 py-2 text-sm text-muted-foreground">
         {scenario.marginalGain === null ? '—' : formatCurrencyBRL(scenario.marginalGain)}
       </td>
@@ -164,7 +164,7 @@ export function CiResultsPanel({
       const optionsFingerprint = JSON.stringify(ciOptions);
       setCalculatedOptionsFingerprint(optionsFingerprint);
       onCalculated?.({ result: calculationResult, optionsFingerprint });
-      setSelectedScenarioId(calculationResult.recommendation.scenarioId ?? calculationResult.selected?.scenarioId ?? null);
+      setSelectedScenarioId(calculationResult.technicalSelection?.scenarioId ?? calculationResult.recommendation.scenarioId ?? calculationResult.selected?.scenarioId ?? null);
     } catch {
       setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
     } finally {
@@ -173,7 +173,7 @@ export function CiResultsPanel({
   }
 
   async function handleGenerateMemorial() {
-    if (!result?.selected || loading || calculatedOptionsFingerprint !== JSON.stringify(ciOptions)) return;
+    if (!result?.selected || result.selected.pricingComplete === false || loading || calculatedOptionsFingerprint !== JSON.stringify(ciOptions)) return;
     setGeneratingMemorial(true);
     setMemorialError(null);
     try {
@@ -222,6 +222,7 @@ export function CiResultsPanel({
   const currentScenario =
     sortedScenarios.find((s) => s.scenarioId === selectedScenarioId) ??
     (result?.selected?.scenarioId === selectedScenarioId ? result.selected : null) ??
+    sortedScenarios.find((s) => s.scenarioId === result?.technicalSelection?.scenarioId) ??
     sortedScenarios.find((s) => s.scenarioId === result?.recommendation.scenarioId) ??
     result?.selected ??
     null;
@@ -244,7 +245,7 @@ export function CiResultsPanel({
   const readiness: { section: CiWorkspaceSection; label: string; configured: boolean; inactive?: boolean }[] = [
     { section: 'bess', label: 'Configuração BESS', configured: configuration.bess },
     { section: 'solar', label: 'Solar FV', configured: configuration.solar, inactive: !ciOptions.solar?.enabled },
-    { section: 'curve', label: 'Curva de carga', configured: configuration.curve },
+    { section: 'curve', label: 'Curvas e aplicações', configured: configuration.curve },
     { section: 'tariff', label: 'Tarifa', configured: configuration.tariff },
     { section: 'strategy', label: 'Estratégia', configured: true },
     ...(canAccessCiBackup ? [{ section: 'backup' as const, label: 'Falta de rede', configured: configuration.backup, inactive: !ciOptions.backup?.enabled }] : []),
@@ -268,7 +269,7 @@ export function CiResultsPanel({
               type="button"
               variant={memorialSuccess ? 'secondary' : 'outline'}
               onClick={handleGenerateMemorial}
-              disabled={generatingMemorial || loading || isStale}
+              disabled={generatingMemorial || loading || isStale || result.selected?.pricingComplete === false}
               className={cn(memorialSuccess && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400')}
             >
               {generatingMemorial ? (
@@ -397,10 +398,10 @@ export function CiResultsPanel({
                   ) : (
                     <BarChart3 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   )}
-                  {isRecommendedActive
+                  {currentScenario.scenarioId === result.technicalSelection?.scenarioId ? `Solução que atende tecnicamente — ${ciScenarioLabel(currentScenario)}` : isRecommendedActive
                     ? (result.recommendation.scenarioId
                         ? `Cenário recomendado — ${ciScenarioLabel(currentScenario)}`
-                        : `Nenhum cenário economicamente viável — configuração de referência: ${ciScenarioLabel(currentScenario)} (não recomendada)`)
+                        : result.technicalSelection ? `Nenhuma solução atende tecnicamente — referência: ${ciScenarioLabel(currentScenario)}` : `Nenhum cenário economicamente viável — configuração de referência: ${ciScenarioLabel(currentScenario)} (não recomendada)`)
                     : `Cenário inspecionado — ${ciScenarioLabel(currentScenario)}`}
                 </p>
                 {!isRecommendedActive && result.recommendation.scenarioId && (
@@ -416,16 +417,17 @@ export function CiResultsPanel({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                {isRecommendedActive
+                {currentScenario.scenarioId === result.technicalSelection?.scenarioId ? result.technicalSelection.reason : isRecommendedActive
                   ? result.recommendation.reason
                   : `Visualizando métricas financeiras detalhadas para a configuração de ${ciScenarioLabel(currentScenario)}. Clique em outra linha da tabela para comparar.`}
               </p>
-              {Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
+              {currentScenario.scenarioId === result.technicalSelection?.scenarioId && <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>}
+              {Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
               {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
                 <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.seriesCount} unidades em série × {currentScenario.composition.parallelStringsPerPcs} strings por PCS.</p>
                 <p>Carga AC até {formatKw(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatKw(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
                 <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
-                <ul className="space-y-1">{currentScenario.composition.items.filter(item=>!currentScenario.accessories?.length || item.productType!=='accessory').map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model} · {formatCurrencyBRL(item.unitPriceBrl)}/un.</span><strong>{formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
+                <ul className="space-y-1">{currentScenario.composition.items.filter(item=>!currentScenario.accessories?.length || item.productType!=='accessory').map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{currentScenario.pricingComplete === false ? '' : ` · ${formatCurrencyBRL(item.unitPriceBrl)}/un.`}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
               </div>}
               {currentScenario.technicalWarnings.length > 0 && (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
@@ -435,7 +437,7 @@ export function CiResultsPanel({
                   </ul>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {currentScenario.pricingComplete === false ? <p role="status" className="text-sm">Preencha os preços no Portfólio para avaliar o financeiro: {currentScenario.missingPrices?.join(', ')}.</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-muted-foreground">CAPEX</p>
                   <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.capex)}</p>
@@ -459,7 +461,7 @@ export function CiResultsPanel({
                     {formatPercentBRL(currentScenario.roiPercent)} / {formatCurrencyBRL(currentScenario.npv)}
                   </p>
                 </div>
-              </div>
+              </div>}
             </div>
           )}
 
@@ -524,7 +526,7 @@ export function CiResultsPanel({
 
           {currentScenario?.sts && <section aria-label="STS selecionada" className="space-y-2 rounded-xl border p-4 text-sm">
             <h3 className="font-semibold">Transferência / STS</h3>
-            <p>{currentScenario.sts.selected ? `1 × ${currentScenario.sts.selected.spec.model} · ${formatCurrencyBRL(currentScenario.sts.selected.totalBrl)} (incluído no CAPEX)` : 'Nenhuma STS compatível para este cenário'}</p>
+            <p>{currentScenario.sts.selected ? `1 × ${currentScenario.sts.selected.spec.model} · ${currentScenario.pricingComplete === false ? 'Preço pendente' : `${formatCurrencyBRL(currentScenario.sts.selected.totalBrl)} (incluído no CAPEX)`}` : 'Nenhuma STS compatível para este cenário'}</p>
             <p className="text-xs text-muted-foreground">{currentScenario.sts.gridBusScope==='installation'?'Barramento da instalação':'Barramento de backup (passagem declarada)'} · Corrente exigida: {currentScenario.sts.requiredCurrentA.toFixed(1)} A · {currentScenario.sts.lineVoltageV} V · FP {currentScenario.sts.powerFactor} · {currentScenario.sts.pcsCount} PCS/unidades.</p>
             {currentScenario.sts.selected && <p className="text-xs text-muted-foreground">Limite aprovado: {currentScenario.sts.selected.compatibility.max_pcs} PCS/unidades · revisão {currentScenario.sts.selected.compatibility.revision}. Corrente nominal: {currentScenario.sts.lineVoltageV===380?currentScenario.sts.selected.spec.rated_current_380v_a:currentScenario.sts.selected.spec.rated_current_400v_a} A.</p>}
             <p className="text-xs text-muted-foreground">{currentScenario.sts.message}</p>

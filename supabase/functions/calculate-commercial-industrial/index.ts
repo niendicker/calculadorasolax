@@ -91,7 +91,7 @@ export async function handleCalculateCommercialIndustrial(
     }
     const options = body.options as CommercialIndustrialOptions;
 
-    if (options.bessSystem?.kind === 'modular' || options.selectedAccessoryIds?.length) return jsonResponse({error:'invalid_payload',details:['Composições e acessórios C&I devem ser calculados pela rota do projeto.']},{status:400});
+    if (options.bessSystem?.kind === 'modular' || options.bessSystem?.kind === 'automatic' || options.selectedAccessoryIds?.length) return jsonResponse({error:'invalid_payload',details:['Composições e acessórios C&I devem ser calculados pela rota do projeto.']},{status:400});
 
     if ((body.options as CommercialIndustrialOptions).backup?.enabled && (body.options as CommercialIndustrialOptions).backup?.sts) return jsonResponse({ error: 'invalid_payload', details: ['STS deve ser calculada pela rota do projeto, com catálogo e preços resolvidos no servidor.'] }, { status: 400 });
 

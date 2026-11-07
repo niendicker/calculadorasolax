@@ -7,6 +7,14 @@ import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 describe('CiBackupPanel', () => {
+  it('preserves the observed peak when converting an average-based curve selection to direct values',()=>{
+    const loadCurve={points:[10,30].map((powerKw,index)=>({timestamp:`2026-01-01T0${index}:00:00Z`,powerKw})),resolutionMinutes:60 as const,timezone:'America/Sao_Paulo',source:'csv' as const,periodStart:'2025-12-31',periodEnd:'2025-12-31',profileBasis:'representative_period' as const};
+    const backup={...defaultCiOptions.backup!,enabled:true,targetPowerKw:20,autonomyHours:2,safetyMarginPercent:0,curveSelection:{method:'average' as const,startTimestamp:loadCurve.points[0].timestamp,endTimestampExclusive:'2026-01-01T02:00:00Z'}};
+    const change=vi.fn();
+    render(<CiBackupPanel section="backup" ciOptions={{...defaultCiOptions,loadCurve,backup}} onChange={change}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Usar valores diretos'}));
+    expect(change).toHaveBeenCalledWith({backup:expect.objectContaining({curveSelection:undefined,targetPowerKw:20,targetPeakPowerKw:30,autonomyHours:2})});
+  });
   it('renders disabled state by default with toggle button', () => {
     const onChange = vi.fn();
     render(<CiBackupPanel ciOptions={defaultCiOptions} onChange={onChange} />);

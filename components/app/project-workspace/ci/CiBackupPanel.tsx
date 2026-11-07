@@ -60,7 +60,9 @@ export function CiBackupPanel({
   onChange,
   onNavigatePrev,
   onNavigateNext,
+  section = 'all',
 }: {
+  section?: 'backup' | 'generator' | 'all';
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
   onNavigatePrev?: () => void;
@@ -122,10 +124,15 @@ export function CiBackupPanel({
     });
   }
 
-  const requirements = backup.enabled ? computeBackupRequirements(backup) : null;
+  let requirements: ReturnType<typeof computeBackupRequirements> = null;
+  let selectionError: string | null = null;
+  try { requirements = backup.enabled ? computeBackupRequirements(backup, ciOptions.loadCurve) : null; }
+  catch(cause) { selectionError=cause instanceof Error?cause.message:'Intervalo de backup inválido.'; }
+  const directValues=requirements?{targetPowerKw:requirements.requiredContinuousPowerKw/(1+backup.safetyMarginPercent/100),targetPeakPowerKw:requirements.requiredPeakPowerKw/(1+backup.safetyMarginPercent/100),autonomyHours:requirements.autonomyHours}:{};
 
   return (
     <div className="space-y-6">
+      {section !== 'generator' && <>
       {/* Enable / Disable Card */}
       <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
@@ -173,7 +180,7 @@ export function CiBackupPanel({
                     key={option.value}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => updateBackup({ inputMode: option.value })}
+                    onClick={() => updateBackup({ inputMode: option.value, curveSelection: undefined,...(option.value==='simple'&&backup.curveSelection?directValues:{}) })}
                     title={option.hint}
                     className={cn(
                       'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition',
@@ -188,8 +195,9 @@ export function CiBackupPanel({
             </div>
           </div>
 
+          {backup.curveSelection && <div className="space-y-2 rounded-lg border p-3 text-sm"><p>Backup vinculado ao intervalo da curva de consumo. Potência, energia e duração são recalculadas quando o perfil muda.</p>{selectionError && <p role="alert" className="text-destructive">{selectionError}</p>}<Button variant="outline" onClick={()=>updateBackup({curveSelection:undefined,...directValues})}>Usar valores diretos</Button></div>}
           {/* Simple Mode Form */}
-          {backup.inputMode === 'simple' && (
+          {backup.inputMode === 'simple' && !backup.curveSelection && (
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <label htmlFor="target-power-kw" className="text-xs font-medium text-foreground">
@@ -382,6 +390,7 @@ export function CiBackupPanel({
             </div>
           )}
 
+          {backup.curveSelection && <label className="block max-w-xs space-y-1 text-xs">Potência total na partida (kW)<Input aria-label="Potência total na partida (kW)" type="number" min={0} step="any" value={backup.targetPeakPowerKw ?? 0} onChange={event=>updateBackup({targetPeakPowerKw:Math.max(0,toNumber(event.target.value))})}/></label>}
           {/* Operational Settings (Safety Margin) */}
           <div className="space-y-3 border-t pt-4">
             <p className="text-xs font-semibold">Parâmetros Operacionais</p>
@@ -439,6 +448,12 @@ export function CiBackupPanel({
 
           <CiStsBackupPanel options={ciOptions} backup={backup} onChange={updateBackup} />
 
+
+        </>
+      )}
+
+      </>}
+      {section !== 'backup' && <>
           {/* Generator (GMG) Section */}
           <div className="space-y-4 border-t pt-5">
             <div className="flex flex-col gap-3 rounded-xl border bg-muted/15 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -552,8 +567,7 @@ export function CiBackupPanel({
               </div>
             )}
           </div>
-        </>
-      )}
+      </>}
 
       {(onNavigatePrev || onNavigateNext) && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">

@@ -1,7 +1,56 @@
 # PCS + baterias no C&I
 
+As decisões posteriores sobre geração persistida, agrupamentos e a página de
+curvas estão em [Decisões de arquitetura e fluxo C&I](CI-TECHNICAL-ARCHITECTURE-DECISIONS.md).
+A busca em memória descrita abaixo é uma implementação transitória.
+
 O C&I permite escolher entre BESS integrado e uma composição modular. O caminho
 integrado permanece disponível; projetos existentes não precisam ser convertidos.
+
+## Busca técnica em todos os aprovados
+
+Em Configuração BESS → **Busca automática**, informe potência mínima de descarga AC
+e energia útil mínima (capacidade nominal descontada da faixa de SOC, antes das
+perdas de conversão). Zero não acrescenta um mínimo naquele campo. As metas de
+backup, partida, autonomia, transferência configurada e demanda continuam valendo.
+
+A busca compara todos os BESS integrados ativos e todas as compatibilidades
+modulares ativas, aprovadas e com fichas consistentes. Enumera PCS, série e strings
+em paralelo dentro das faixas documentadas. Um resultado que não atinge o alvo de
+demanda de Peak Shaving/Híbrido é tecnicamente inválido. Configurações manuais
+permanecem disponíveis para fixar um produto ou uma combinação.
+
+O resultado `ci-auto-v1` separa `technicalSelection` de `recommendation`: a primeira
+identifica a solução técnica com menor potência e, no desempate, menor capacidade
+nominal; a segunda contém a classificação financeira entre cenários tecnicamente
+válidos e com preços completos. VPL negativo ou ausência de payback não elimina a
+solução técnica. Sem atendimento técnico, nenhuma composição é apresentada como
+solução, embora uma referência inválida permaneça disponível para diagnóstico.
+
+Na busca automática, preço ausente é diferente de zero cadastrado. O candidato
+recebe `pricingComplete: false` e `missingPrices`; os números financeiros internos
+desse candidato não são indicadores utilizáveis. A interface oculta esses valores,
+o ranking financeiro o exclui e o memorial financeiro fica indisponível para a
+composição selecionada até completar os preços. A seleção manual continua exigindo
+os preços antes do cálculo. O memorial de uma solução com preços completos exclui
+as outras linhas que ainda têm preços pendentes.
+
+A busca tem limite explícito de 4.096 candidatos no catálogo; não recomenda uma
+amostra truncada quando as faixas ultrapassam esse limite. As composições recusadas
+por inconsistência nas fichas são identificadas no diagnóstico. O limite de 256
+combinações por estudo manual continua valendo.
+
+Aplicar `0101_ci_integrated_parallel_limit.sql` antes desta versão. O cadastro de
+BESS integrado passa a ter máximo de unidades em paralelo, de 1 a 256, com padrão
+conservador de uma unidade nos registros existentes. Informe um valor maior somente
+com respaldo documental. A busca e o cálculo manual respeitam esse máximo.
+
+As regras modulares também são conferidas contra `max_battery_qty` do PCS,
+`max_association_qty` da bateria e a soma dos limites de corrente por porta do PCS.
+Como o modelo usa barramento DC agregado, essa conferência de corrente é uma
+condição necessária e não valida a distribuição entre portas independentes.
+Uma ficha conflitante impede o uso da regra até sua correção; os limites não são
+ampliados silenciosamente pelo motor.
 
 ## Cadastro e uso
 
@@ -93,7 +142,7 @@ o cenário é inválido; sem preço do modelo escolhido, o estudo é interrompid
 
 A migração aditiva `0098_ci_backup_sts.sql` é necessária antes de usar esse
 cadastro. Ela não cria acessórios nem aprova combinações reais. As versões
-`ci-v4` e `ci-modular-v3` identificam o cálculo com limites contínuos e rejeição
+`ci-v5` e `ci-modular-v4` identificam o cálculo com limites contínuos e rejeição
 de candidatos tecnicamente inválidos. Cálculos de backup integrados rodam no
 servidor da aplicação; respostas antigas da Edge Function são recalculadas
 localmente, evitando reintroduzir capacidade de sobrecarga presumida.

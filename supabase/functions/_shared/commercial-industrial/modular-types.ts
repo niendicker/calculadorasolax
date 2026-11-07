@@ -51,6 +51,9 @@ export interface CiModularSelection {
   parallel: { min: number; max: number };
 }
 export interface CiPcsCatalogEntry extends CiPcsSpec {
+  maxBatteryQty?: number | null;
+  batteryPorts?: number | null;
+  maxCurrentPerPortA?: number | null;
   ratedPowerKw?: number | null;
   model: string;
   voltageMinV: number | null;
@@ -59,6 +62,7 @@ export interface CiPcsCatalogEntry extends CiPcsSpec {
   dischargeEfficiencyPercent: number | null;
 }
 export interface CiBatteryCatalogEntry extends CiBatterySpec {
+  maxAssociationQty?: number | null;
   maxCurrentA?: number | null;
   model: string;
   capacityKwh: number;

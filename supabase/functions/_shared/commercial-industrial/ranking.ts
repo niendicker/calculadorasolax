@@ -71,6 +71,7 @@ export function rankScenarios(scenarios: ScenarioCandidate[], criterion: Ranking
  * ±Infinity must never accidentally read as viable). */
 export function isScenarioViable(scenario: ScenarioCandidate, horizonYears: number): boolean {
   return (
+    scenario.pricingComplete !== false &&
     Number.isFinite(scenario.npv) &&
     scenario.npv > 0 &&
     scenario.paybackYearsDiscounted !== null &&

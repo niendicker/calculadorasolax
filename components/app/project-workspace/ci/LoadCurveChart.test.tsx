@@ -350,6 +350,17 @@ describe('LoadCurveChart', () => {
 });
 
 describe('shift+drag range selection', () => {
+  it('reuses the selected consumption interval for backup without changing selection gestures',()=>{
+    const points=Array.from({length:30},(_,i)=>({timestamp:new Date(Date.UTC(2026,0,5,i)).toISOString(),powerKw:i+1}));
+    const backupCurve={source:'csv' as const,points,resolutionMinutes:60 as const,timezone:'America/Sao_Paulo',profileBasis:'representative_period' as const,periodStart:'2026-01-05',periodEnd:'2026-01-06'};
+    const onApply=vi.fn();
+    render(<LoadCurveChart points={points} resolutionMinutes={60} backupCurve={backupCurve} onApplyBackupSelection={onApply}/>);
+    const over=instances.at(-1)!.over;mockOverRect(over);
+    fireEvent.mouseDown(over,{button:0,shiftKey:true,clientX:100});
+    fireEvent.mouseMove(document,{clientX:150});fireEvent.mouseUp(document,{clientX:150});
+    fireEvent.click(screen.getByRole('button',{name:'Usar período A para backup'}));
+    expect(onApply).toHaveBeenCalledWith({method:'profile',startTimestamp:points[10].timestamp,endTimestampExclusive:points[16].timestamp});
+  });
   // powerKw = index + 1, so a slice's min/max/energy are easy to predict.
   const manyPoints: LoadCurvePoint[] = Array.from({ length: 30 }, (_, i) => point(`2026-01-05T${String(i).padStart(2, '0')}:00:00Z`, i + 1));
 

@@ -126,6 +126,7 @@ export function CiBessProductsEditor(props: {
                   projeto.
                 </p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Field label="Máximo de unidades em paralelo"><Input type="number" min={1} max={256} step={1} value={form.max_parallel_units ?? 1} onChange={event=>setForm({...form,max_parallel_units:Number(event.target.value)})}/></Field>
                   <NumberWithUnitField
                     label="Potência"
                     tip="Potência nominal de um módulo do produto."

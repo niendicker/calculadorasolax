@@ -65,6 +65,6 @@ export function CiModularConfigurationPanel({ ciOptions, onChange, onNavigatePre
         {ciOptions.backup?.enabled && !rule.supports_backup && <p role="alert" className="text-sm text-amber-700">Esta composição não está aprovada para backup. Desative Falta de rede ou escolha outra compatibilidade antes de calcular.</p>}
       </>}
     </>}
-    {(onNavigatePrev || onNavigateNext) && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">{onNavigatePrev && <Button type="button" variant="outline" onClick={onNavigatePrev}><ChevronLeft aria-hidden="true" />Voltar para Visão geral</Button>}{onNavigateNext && <Button type="button" onClick={onNavigateNext} disabled={!rule || errors.length > 0 || Boolean(preview.error)} className="ml-auto">Avançar para Solar FV<ChevronRight aria-hidden="true" /></Button>}</div>}
+    {(onNavigatePrev || onNavigateNext) && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">{onNavigatePrev && <Button type="button" variant="outline" onClick={onNavigatePrev}><ChevronLeft aria-hidden="true" />Voltar para Visão geral</Button>}{onNavigateNext && <Button type="button" onClick={onNavigateNext} disabled={!rule || errors.length > 0 || Boolean(preview.error)} className="ml-auto">Avançar para Curvas e aplicações<ChevronRight aria-hidden="true" /></Button>}</div>}
   </div>;
 }

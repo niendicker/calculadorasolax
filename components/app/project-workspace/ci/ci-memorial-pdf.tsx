@@ -480,11 +480,12 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           <Text style={styles.sectionTitle}>Resumo executivo</Text>
           {selected ? (
             <>
-              <Text style={styles.sectionIntro}>{result.recommendation.reason}</Text>
+              <Text style={styles.sectionIntro}>{result.technicalSelection?.reason ?? result.recommendation.reason}</Text>
+              {result.technicalSelection && <Text style={styles.sectionIntro}>{result.recommendation.reason}</Text>}
               <MetricRows
                 metrics={[
                   {
-                    label: selected.composition ? 'PCS / unidades de bateria' : isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
+                    label: selected.composition ? 'PCS / unidades de bateria' : result.technicalSelection?.scenarioId === selected.scenarioId ? 'Módulos que atendem tecnicamente' : isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
                     value: selected.composition ? `${selected.composition.pcsCount} / ${selected.composition.batteryCount}` : `${selected.moduleCount}`,
                     highlight: isRecommended,
                   },
@@ -867,5 +868,9 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
 /** Builds the memorial as a downloadable PDF Blob — runs entirely
  * client-side, fed by an already-calculated result (never recomputes). */
 export async function buildCiMemorialPdfBlob(input: CiMemorialPdfInput): Promise<Blob> {
-  return pdf(<CiMemorialPdfDocument {...input} />).toBlob();
+  if (input.result.selected?.pricingComplete === false) throw new Error('Preencha os preços pendentes no Portfólio antes de gerar o memorial financeiro.');
+  const scenarios=input.result.scenarios.filter(scenario=>scenario.pricingComplete !== false);
+  const omitted=input.result.scenarios.length-scenarios.length;
+  const result = {...input.result,scenarios,warnings:[...input.result.warnings,...(omitted ? [`${omitted} cenários com preços pendentes foram omitidos das comparações financeiras.`] : [])]};
+  return pdf(<CiMemorialPdfDocument {...input} result={result} />).toBlob();
 }

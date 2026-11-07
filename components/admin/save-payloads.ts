@@ -107,6 +107,7 @@ export function buildAccessoryPayload(form: Partial<AccessoryRow>) {
 
 export function buildCiBessProductPayload(form: Partial<CiBessProductRow>) {
   return {
+    max_parallel_units: Math.min(256, Math.max(1, Math.floor(toNumber(form.max_parallel_units, 1)))),
     model: form.model?.trim() ?? '',
     manufacturer: form.manufacturer?.trim() ?? '',
     description: form.description?.trim() || null,

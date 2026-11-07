@@ -15,16 +15,15 @@
 
 import { useState } from 'react';
 import { getCiConfigurationStatus } from './ci/ci-configuration-status';
-import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, ShieldAlert, SlidersHorizontal, Sun } from 'lucide-react';
+import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Client, ProjectInfo } from '@/lib/types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
-import { CiBackupPanel } from './ci/CiBackupPanel';
+import type { CiApplication } from './ci/CiApplicationModal';
 import { CiConfigurationPanel } from './ci/CiConfigurationPanel';
 import { CiLoadCurvePanel } from './ci/CiLoadCurvePanel';
 import { CiOverviewPanel } from './ci/CiOverviewPanel';
 import { CiResultsPanel, type CiCalculationSnapshot } from './ci/CiResultsPanel';
-import { CiSolarPanel } from './ci/CiSolarPanel';
 import { CiStrategyPanel } from './ci/CiStrategyPanel';
 import { CiTariffPanel } from './ci/CiTariffPanel';
 import { ProjectWorkspaceShell, type WorkspaceNavItem } from './ProjectWorkspaceShell';
@@ -36,20 +35,19 @@ export type CiWorkspaceSection = 'overview' | 'bess' | 'solar' | 'curve' | 'tari
 const navigation: WorkspaceNavItem[] = [
   { id: 'overview', label: 'Visão geral', icon: ClipboardList },
   { id: 'bess', label: 'Configuração BESS', icon: BatteryCharging },
-  { id: 'solar', label: 'Solar FV', icon: Sun },
-  { id: 'curve', label: 'Curva de carga', icon: LineChart },
+  { id: 'curve', label: 'Curvas e aplicações', icon: LineChart },
   { id: 'tariff', label: 'Tarifa', icon: Receipt },
   { id: 'strategy', label: 'Estratégia', icon: SlidersHorizontal },
-  { id: 'backup', label: 'Falta de rede', icon: ShieldAlert },
   { id: 'results', label: 'Resultados', icon: BarChart3 },
 ];
 
 function getNavigationWithStatus(ciOptions: CommercialIndustrialOptions, canAccessCiBackup: boolean): WorkspaceNavItem[] {
-  const filteredNav = canAccessCiBackup ? navigation : navigation.filter((item) => item.id !== 'backup');
+  const filteredNav = navigation;
   const configuredBySection: Record<string, boolean> = getCiConfigurationStatus(ciOptions);
 
   return filteredNav.map((item) => {
-    if (configuredBySection[item.id] !== false) return item;
+    const configured=item.id==='curve'?configuredBySection.curve&&configuredBySection.solar&&(!canAccessCiBackup||configuredBySection.backup):configuredBySection[item.id];
+    if (configured !== false) return item;
 
     return {
       ...item,
@@ -93,12 +91,17 @@ export function CommercialIndustrialWorkspace({
   autosaveStatus: AutosaveStatus;
   autosaveLastSavedAt: Date | null;
 }) {
+  const [curveApplication,setCurveApplication]=useState<CiApplication|null>(null);
   const [section, setSectionState] = useState<CiWorkspaceSection>('overview');
   const [calculation, setCalculation] = useState<{ projectId: string | null; snapshot: CiCalculationSnapshot } | null>(null);
   const snapshot = calculation?.projectId === currentCiProjectId ? calculation.snapshot : null;
   const client = clients.find((item) => item.id === projectInfo.clientId) ?? null;
   const canAccessCiBackup = profile?.role === 'admin' || Boolean(profile?.featureFlags?.includes('ci_backup'));
   const effectiveSection = !canAccessCiBackup && section === 'backup' ? 'overview' : section;
+  const navigate=(next:CiWorkspaceSection)=>{
+    if(next==='solar'||next==='backup'){setCurveApplication(next==='solar'||canAccessCiBackup?next:null);setSectionState('curve');}
+    else {setCurveApplication(null);setSectionState(next);}
+  };
   const workspaceNavigation = getNavigationWithStatus(ciOptions, canAccessCiBackup);
 
   return (
@@ -109,7 +112,7 @@ export function CommercialIndustrialWorkspace({
       navigation={workspaceNavigation}
       wrapNavigationLabels
       activeSection={effectiveSection}
-      onSectionChange={(id) => setSectionState(id as CiWorkspaceSection)}
+      onSectionChange={(id) => navigate(id as CiWorkspaceSection)}
       subtitle={<p className="text-sm text-muted-foreground">Projeto Comercial &amp; Industrial (BESS)</p>}
     >
       {effectiveSection === 'overview' && (
@@ -125,7 +128,7 @@ export function CommercialIndustrialWorkspace({
           calculationResult={snapshot?.result ?? calculationResult}
           isResultStale={Boolean(snapshot && snapshot.optionsFingerprint !== JSON.stringify(ciOptions))}
           canAccessCiBackup={canAccessCiBackup}
-          onNavigateToSection={setSectionState}
+          onNavigateToSection={navigate}
         />
       )}
 
@@ -136,20 +139,7 @@ export function CommercialIndustrialWorkspace({
               ciOptions={ciOptions}
               onChange={onUpdateCiOptions}
               onNavigatePrev={() => setSectionState('overview')}
-              onNavigateNext={() => setSectionState('solar')}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {effectiveSection === 'solar' && (
-        <Card className="border-0 ring-0">
-          <CardContent className="pt-6">
-            <CiSolarPanel
-              ciOptions={ciOptions}
-              onChange={onUpdateCiOptions}
-              onNavigatePrev={() => setSectionState('bess')}
-              onNavigateNext={() => setSectionState('curve')}
+              onNavigateNext={() => navigate('curve')}
             />
           </CardContent>
         </Card>
@@ -161,7 +151,10 @@ export function CommercialIndustrialWorkspace({
             <CiLoadCurvePanel
               ciOptions={ciOptions}
               onChange={onUpdateCiOptions}
-              onNavigatePrev={() => setSectionState('solar')}
+              canAccessCiBackup={canAccessCiBackup}
+              initialApplication={curveApplication}
+              onApplicationClose={()=>setCurveApplication(null)}
+              onNavigatePrev={() => navigate('bess')}
               onNavigateNext={() => setSectionState('tariff')}
             />
           </CardContent>
@@ -188,21 +181,8 @@ export function CommercialIndustrialWorkspace({
               ciOptions={ciOptions}
               onChange={onUpdateCiOptions}
               onNavigatePrev={() => setSectionState('tariff')}
-              nextSectionLabel={canAccessCiBackup ? 'Falta de rede' : 'Resultados'}
-              onNavigateNext={() => setSectionState(canAccessCiBackup ? 'backup' : 'results')}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {effectiveSection === 'backup' && canAccessCiBackup && (
-        <Card className="border-0 ring-0">
-          <CardContent className="pt-6">
-            <CiBackupPanel
-              ciOptions={ciOptions}
-              onChange={onUpdateCiOptions}
-              onNavigatePrev={() => setSectionState('strategy')}
-              onNavigateNext={() => setSectionState('results')}
+              nextSectionLabel="Resultados"
+              onNavigateNext={() => navigate('results')}
             />
           </CardContent>
         </Card>
@@ -216,15 +196,15 @@ export function CommercialIndustrialWorkspace({
               projectId={currentCiProjectId}
               initialSnapshot={snapshot}
               onCalculated={(newSnapshot) => setCalculation({ projectId: currentCiProjectId, snapshot: newSnapshot })}
-              onNavigateToSection={setSectionState}
+              onNavigateToSection={navigate}
               canAccessCiBackup={canAccessCiBackup}
               projectInfo={projectInfo}
               client={client}
               profile={profile}
               ciOptions={ciOptions}
               onFlushSave={onFlushSave}
-              prevSectionLabel={canAccessCiBackup ? 'Falta de rede' : 'Estratégia'}
-              onNavigatePrev={() => setSectionState(canAccessCiBackup ? 'backup' : 'strategy')}
+              prevSectionLabel="Estratégia"
+              onNavigatePrev={() => navigate('strategy')}
             />
           </CardContent>
         </Card>

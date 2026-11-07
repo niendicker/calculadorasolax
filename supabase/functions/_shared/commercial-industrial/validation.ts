@@ -1,5 +1,7 @@
 import { validateStsSelection } from './sts.ts';
 import { validateModularSelection } from './modular.ts';
+import { resolveBackupCurve } from './backup-curve.ts';
+import type { CiBackupCurveSelection, LoadCurve } from './types.ts';
 // Structural validation for CommercialIndustrialOptions — mirrors the style
 // of supabase/functions/calculate-residential/logic.ts's
 // validateResidentialOptions: works on untrusted `unknown` input (the API
@@ -345,10 +347,16 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
   }
 
   if (options.bessSystem !== undefined) {
-    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha BESS integrado ou PCS + baterias.');
+    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular', 'automatic'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha busca automática, BESS integrado ou PCS + baterias.');
     else if ((options.bessSystem as { kind: string }).kind === 'modular') errors.push(...validateModularSelection(options.bessSystem));
+    else if ((options.bessSystem as { kind: string }).kind === 'automatic') {
+      for (const key of ['minPowerKw','minEnergyKwh']) {
+        const value=(options.bessSystem as Record<string, unknown>)[key];
+        if (!isFiniteNumber(value) || (value as number)<0) errors.push(`Informe ${key==='minPowerKw'?'potência':'energia útil'} mínima válida para a busca C&I.`);
+      }
+    }
   }
-  if (!(options.bessSystem && typeof options.bessSystem === 'object' && (options.bessSystem as { kind: string }).kind === 'modular')) validateSizing(options.sizing, errors);
+  if (!(options.bessSystem && typeof options.bessSystem === 'object' && ['modular','automatic'].includes((options.bessSystem as { kind: string }).kind))) validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
   validateBackup(options.backup, errors);
   validateSolar(options.solar, errors);
@@ -368,5 +376,10 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
 
   const accessoryIds = (raw as Record<string, unknown>)?.selectedAccessoryIds;
   if (accessoryIds !== undefined && (!Array.isArray(accessoryIds) || accessoryIds.length > 100 || accessoryIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) || new Set(accessoryIds).size !== accessoryIds.length)) errors.push('Seleção de acessórios C&I inválida.');
+  const backup = options.backup as Record<string, unknown> | undefined;
+  if (backup?.enabled && backup.curveSelection !== undefined) {
+    try { resolveBackupCurve(backup.curveSelection as CiBackupCurveSelection, options.loadCurve as LoadCurve); }
+    catch (cause) { errors.push(cause instanceof Error ? cause.message : 'Intervalo de backup inválido.'); }
+  }
   return errors;
 }

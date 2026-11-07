@@ -45,6 +45,16 @@ const ciProject = {
   calculation_options: { bessProductId: 'product-1' },
 };
 
+it('accepts automatic technical search without a manually selected model or its price', async () => {
+  const { POST } = await import('./route');
+  findOwnCiProjectMock.mockResolvedValue({...ciProject,calculation_options:{bessProductId:null,bessSystem:{kind:'automatic',minPowerKw:150,minEnergyKwh:300}}});
+  const response=await POST(makeRequest(),makeParams());
+  expect(response.status).toBe(200);
+  expect(findBessProductModelMock).not.toHaveBeenCalled();
+  expect(findUserBessUnitPriceMock).not.toHaveBeenCalled();
+  expect(invokeMock).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({options:expect.objectContaining({bessSystem:{kind:'automatic',minPowerKw:150,minEnergyKwh:300}})}));
+});
+
 const calculationResult = {
   engineVersion: 'ci-v1',
   inputFingerprint: 'abc123',
@@ -134,6 +144,14 @@ describe('POST /api/projects/[projectId]/calculations', () => {
     expect(await response.json()).toEqual({
       error: 'Acesso à funcionalidade de Backup C&I não liberado para este usuário. Solicite autorização ao administrador.',
     });
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('also requires backup authorization for generator support without backup',async()=>{
+    checkUserCiBackupAccessMock.mockResolvedValue(false);
+    findOwnCiProjectMock.mockResolvedValue({...ciProject,calculation_options:{bessProductId:'product-1',backup:{enabled:false},generator:{enabled:true}}});
+    const {POST}=await import('./route');
+    expect((await POST(makeRequest(),makeParams())).status).toBe(403);
     expect(invokeMock).not.toHaveBeenCalled();
   });
 

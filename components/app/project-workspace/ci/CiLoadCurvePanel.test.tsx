@@ -78,7 +78,7 @@ describe('CiLoadCurvePanel', () => {
   it('renders Curva de carga heading without redundant Dimensionamento BESS header line', () => {
     render(<ControlledPanel />);
     expect(screen.queryByText('Dimensionamento BESS')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Curva de carga' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Curvas e aplicações' })).toBeInTheDocument();
   });
 
   it('imports a valid CSV and shows the weekly preview with measurements', async () => {
