@@ -2,6 +2,7 @@
 
 import { CiAccessoryRulesEditor } from './CiAccessoryRulesEditor';
 import { CiProductCatalogEditor } from './CiProductCatalogEditor';
+import { CiGeneratedSolutionsEditor } from './CiGeneratedSolutionsEditor';
 import { CiStsCatalogEditor } from './CiStsCatalogEditor';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -17,15 +18,15 @@ export interface CiModularActivity { entityType: 'ci_pcs' | 'ci_battery' | 'ci_c
 const emptyPcs: CiPcsSpec = { inverter_id: '', active: true, charge_power_kw: 0, discharge_power_kw: 0, charge_current_a: 0, discharge_current_a: 0, max_parallel_units: 1, supports_backup: false };
 const emptyBattery: CiBatterySpec = { battery_id: '', active: true, unit_kind: 'rack', charge_power_kw: 0, discharge_power_kw: 0, charge_current_a: 0, discharge_current_a: 0, soc_max_percent: 100 };
 const emptyRule: Omit<CiCompatibilityRule, 'id'> = { name: '', pcs_id: '', battery_id: '', active: true, approval_status: 'draft', min_series: 1, max_series: 1, min_parallel_strings: 1, max_parallel_strings: 1, min_pcs: 1, max_pcs: 1, supports_backup: false, communication_profile: '', pcs_firmware: '', battery_firmware: '', reference_document: '', revision: '', controller_accessory_id: null, controller_quantity_per_pcs: 1, notes: '' };
-type Section = 'integrated' | 'pcs' | 'batteries' | 'compatibility' | 'sts' | 'accessories' | 'accessoryRules';
+type Section = 'integrated' | 'pcs' | 'batteries' | 'compatibility' | 'sts' | 'accessories' | 'accessoryRules' | 'solutions';
 
 export function CiModularCatalogEditor({ integrated, onActivity, onOpenCatalog, uploadAsset }: { uploadAsset: Parameters<typeof CiProductCatalogEditor>[0]['uploadAsset']; integrated: ReactNode; onActivity?: (activity: CiModularActivity) => Promise<void>; onOpenCatalog?: (tab: 'inverters' | 'batteries') => void }) {
   const [products, setProducts] = useState(true);
   const [section, setSection] = useState<Section>('integrated');
   return <div className="space-y-4">
-    <div className="overflow-x-auto"><div className="min-w-[32rem]"><InlineOptionTabs value={section} onChange={setSection} options={[{ value: 'integrated', label: 'BESS integrados' }, { value: 'pcs', label: 'Inversores / PCS' }, { value: 'batteries', label: 'Baterias C&I' }, { value: 'compatibility', label: 'Compatibilidades' }, {value:'sts',label:'STS / Transferência'}, {value:'accessories',label:'Acessórios'}, {value:'accessoryRules',label:'Regras de acessórios'}]} /></div></div>
+    <div className="overflow-x-auto"><div className="min-w-[32rem]"><InlineOptionTabs value={section} onChange={setSection} options={[{ value: 'integrated', label: 'BESS integrados' }, { value: 'pcs', label: 'Inversores / PCS' }, { value: 'batteries', label: 'Baterias C&I' }, { value: 'compatibility', label: 'Compatibilidades' }, {value:'solutions',label:'Soluções geradas'}, {value:'sts',label:'STS / Transferência'}, {value:'accessories',label:'Acessórios'}, {value:'accessoryRules',label:'Regras de acessórios'}]} /></div></div>
     {(section === 'pcs' || section === 'batteries') && <InlineOptionTabs value={products ? 'products' : 'specs'} onChange={value => setProducts(value === 'products')} options={[{value:'products',label:'Cadastro de produtos'},{value:'specs',label:'Limites contínuos C&I'}]}/>}
-    {section === 'integrated' ? integrated : section === 'accessoryRules' ? <CiAccessoryRulesEditor onActivity={onActivity}/> : section === 'sts' ? <CiStsCatalogEditor onActivity={onActivity} /> : section === 'accessories' || ((section === 'pcs' || section === 'batteries') && products) ? <CiProductCatalogEditor key={section} kind={section as 'pcs'|'batteries'|'accessories'} uploadAsset={uploadAsset} onActivity={onActivity} onViewRules={() => setSection(section === 'accessories' ? 'accessoryRules' : 'compatibility')}/> : <ModularRecords key={section} section={section as 'pcs'|'batteries'|'compatibility'} onActivity={onActivity} onOpenCatalog={onOpenCatalog} />}
+    {section === 'solutions' ? <CiGeneratedSolutionsEditor/> : section === 'integrated' ? integrated : section === 'accessoryRules' ? <CiAccessoryRulesEditor onActivity={onActivity}/> : section === 'sts' ? <CiStsCatalogEditor onActivity={onActivity} /> : section === 'accessories' || ((section === 'pcs' || section === 'batteries') && products) ? <CiProductCatalogEditor key={section} kind={section as 'pcs'|'batteries'|'accessories'} uploadAsset={uploadAsset} onActivity={onActivity} onViewRules={() => setSection(section === 'accessories' ? 'accessoryRules' : 'compatibility')}/> : <ModularRecords key={section} section={section as 'pcs'|'batteries'|'compatibility'} onActivity={onActivity} onOpenCatalog={onOpenCatalog} />}
   </div>;
 }
 
@@ -118,6 +119,7 @@ function ModularRecords({ section, onActivity }: { section: 'pcs' | 'batteries' 
           {rule.controller_accessory_id && num('Controladores por PCS', rule.controller_quantity_per_pcs, (value) => setRule({ ...rule, controller_quantity_per_pcs: value }), true)}
           <Field label="Situação da compatibilidade"><Select aria-label="Situação da compatibilidade" value={rule.approval_status} onChange={(event) => setRule({ ...rule, approval_status: event.target.value as CiCompatibilityRule['approval_status'] })}><option value="draft">Rascunho</option><option value="approved">Aprovada conforme documento</option><option value="revoked">Revogada</option></Select></Field>
           <div className="grid gap-3 sm:grid-cols-2">{([['communication_profile', 'Perfil de comunicação / BMS'], ['pcs_firmware', 'Firmware aprovado do PCS'], ['battery_firmware', 'Firmware aprovado da bateria / BMS'], ['reference_document', 'Documento de referência (link ou identificação)'], ['revision', 'Revisão / data do documento'], ['notes', 'Observações']] as const).map(([key, label]) => <Field key={key} label={label}><Input required={rule.approval_status === 'approved' && key !== 'notes'} value={rule[key]} onChange={(event) => setRule({ ...rule, [key]: event.target.value })} /></Field>)}</div>
+          {checkbox('Integração FV aprovada conforme documento', rule.supports_solar ?? false, (value) => setRule({...rule,supports_solar:value}))}{checkbox('Integração com gerador aprovada conforme documento', rule.supports_generator ?? false, (value) => setRule({...rule,supports_generator:value}))}
           {checkbox('Composição aprovada para backup', rule.supports_backup, (value) => setRule({ ...rule, supports_backup: value }))}{checkbox('Ativa', rule.active, (value) => setRule({ ...rule, active: value }))}
         </>}
         <div className="flex gap-2 border-t pt-3"><Button type="submit" disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button><Button type="button" variant="ghost" disabled={saving} onClick={() => setOpen(false)}>Fechar</Button></div>

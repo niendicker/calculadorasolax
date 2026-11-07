@@ -244,3 +244,10 @@ it('renders the STS specification, approval and included cost in a real PDF', as
   expect(blob.size).toBeGreaterThan(5000);
   expect(result.selected?.sts?.selected?.compatibility.reference_document).toBe('Compatibilidade teste');
 });
+it('renders a grouped contract and its historical generation without requiring a live product',async()=>{
+ const {generateCiGroupedSolutions}=await import('@/supabase/functions/_shared/commercial-industrial/grouped-solutions');
+ const group=generateCiGroupedSolutions(modularFixture(),[]).solutions[0];const result=makeResult();
+ result.selected={...result.selected!,group,billOfMaterials:group.components.map(item=>({...item,unitPriceBrl:1000,totalBrl:1000*item.quantity}))};
+ result.scenarios=[result.selected];result.solutionGeneration={id:'historical-generation',sourceRevision:'revision',contractVersion:'ci-grouped-v1'};
+ const blob=await buildCiMemorialPdfBlob(baseInput({result,product:null}));expect(await pdfMagicBytes(blob)).toBe('%PDF-');expect(blob.size).toBeGreaterThan(1000);
+},15000);

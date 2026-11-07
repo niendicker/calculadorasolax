@@ -112,6 +112,7 @@ export function CiStrategyPanel({
       </div>
 
       <div className="space-y-3 border-t pt-4">
+        {(ciOptions.strategy==='LOAD_SHIFTING'||ciOptions.strategy==='HYBRID')&&<label className="mb-4 block max-w-sm space-y-1 text-sm">Cobertura do consumo na ponta (%)<Input type="number" min={0} max={100} step="any" value={ciOptions.loadShiftingCoveragePercent??100} onChange={event=>onChange({loadShiftingCoveragePercent:Number(event.target.value)})}/><span className="block text-xs text-muted-foreground">Meta técnica após considerar FV e gerador configurados. O padrão é atender 100% da carga residual na ponta.</span></label>}
         <p className="text-sm font-semibold">Critério de ranking</p>
         <p className="text-xs text-muted-foreground">Métrica usada para recomendar a melhor quantidade de módulos.</p>
         <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:w-fit">

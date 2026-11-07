@@ -1026,3 +1026,22 @@ describe('timestamped imported solar generation', () => {
     expect(() => runDispatch({ curve, bess: makeBess(), strategy: 'BASE', tariffWindow: DEFAULT_WINDOW, peakShavingTargetKw: null, contractedDemandKw: UNLIMITED_DEMAND, solar: { ...DEFAULT_CI_SOLAR_CONFIG, enabled: true, generationCurve } })).toThrow(/geração importada/);
   });
 });
+
+it('reuses local time conversion without sharing tariff classification across timezones or windows',()=>{
+  const timestamp='2026-01-01T20:00:00Z';
+  expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod(timestamp,'America/Sao_Paulo',DEFAULT_WINDOW)).toBe('offPeak');
+  expect(classifyTariffPeriod(timestamp,'UTC',{peakStart:'15:00',peakEnd:'18:00'})).toBe('offPeak');
+  expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod('2026-07-01T22:00:00Z','America/New_York',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod('2026-01-01T22:00:00Z','America/New_York',DEFAULT_WINDOW)).toBe('offPeak');
+  for(let index=0;index<3000;index++)classifyTariffPeriod(new Date(Date.UTC(2026,0,1,0,index)).toISOString(),'UTC',DEFAULT_WINDOW);
+  expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod(timestamp,'America/Sao_Paulo',DEFAULT_WINDOW)).toBe('offPeak');
+});
+
+it('reserves only residual peak energy when a project profile includes imported PV',()=>{
+  const curve=makeCurve([{hour:17,minute:45,powerKw:80},{hour:18,powerKw:100},{hour:18,minute:15,powerKw:100}]);
+  const trace=runDispatch({curve,bess:makeBess({totalPowerKw:100,totalCapacityKwh:40,socMinPercent:0,efficiencyPercent:100}),strategy:'HYBRID',tariffWindow:DEFAULT_WINDOW,peakShavingTargetKw:50,contractedDemandKw:50,gridImportLimitsKw:[50,0,0],solar:{...DEFAULT_CI_SOLAR_CONFIG,enabled:true,installedPowerKwp:100,inverterPowerKw:100,generationCurve:{...curve,points:curve.points.map((p,i)=>({...p,powerKw:i===0?0:80}))}}});
+  expect(trace.map(p=>p.gridImportKw)).toEqual([50,0,0]);
+});

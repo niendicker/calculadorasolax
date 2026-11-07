@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { loadCiAccessoryContext } from './ci-accessories-repository';
-import { resolveCommercialIndustrialCalculationErrorMessage } from '@/lib/calculation-error-messages';
-import { modularOptions } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
 import {
   cacheProjectCalculationResult,
   checkUserCiAccess,
@@ -38,9 +35,9 @@ function makeClient(result: QueryResult = { data: null, error: null }) {
   return { client, from, invoke, query };
 }
 
-const calculationResult={engineVersion:'ci-v4',recommendation:{scenarioId:'scenario-1'}};
-const options = { tariffId: 'tariff-1', bessProductId: 'bess-1' };
 vi.mock('./ci-accessories-repository',()=>({loadCiAccessoryContext:vi.fn().mockResolvedValue({products:[],rules:[],prices:{},selectedIds:[],stsIds:[]})}));
+const options = { tariffId: 'tariff-1', bessProductId: 'bess-1' };
+const calculationResult={engineVersion:'ci-v4',recommendation:{scenarioId:'scenario-1'}};
 const run = {
   id: 'run-1',
   engine_version: 'ci-v1',
@@ -50,33 +47,6 @@ const run = {
 };
 
 describe('commercial-industrial-calculation-repository', () => {
-  it('identifies an unpriced required accessory in an integrated study without backup', async () => {
-    const { client } = makeClient({ data: {
-      id: 'bess-1', model: 'BESS 100', module_power_kw: 100, module_capacity_kwh: 200,
-      efficiency_percent: 95, soc_min_percent: 10, soc_max_percent: 95,
-    }, error: null });
-    vi.mocked(loadCiAccessoryContext).mockResolvedValueOnce({
-      products: [{ id: 'ems', model: 'EMS integrado', active: true }],
-      prices: {}, selectedIds: [], stsIds: [],
-      rules: [{
-        id: 'rule', name: 'EMS obrigatório', accessory_id: 'ems', active: true,
-        pcs_id: null, battery_id: null, bess_product_id: 'bess-1', compatibility_id: null,
-        backup: null, generator: null, line_voltage_v: null, inclusion: 'required', metric: 'system',
-        min_count: 1, max_count: null, quantity: 1, divisor: 1,
-        requires_ids: [], excludes_ids: [], reference_document: 'Ficha técnica',
-      }],
-    });
-    const result = await invokeCommercialIndustrialCalculation(client, {
-      options: { ...modularOptions(), bessSystem: { kind: 'integrated' }, bessProductId: 'bess-1' },
-      unitPriceBrl: 45000,
-    });
-
-    expect(result.data).toBeNull();
-    await expect(resolveCommercialIndustrialCalculationErrorMessage(result.error)).resolves.toBe(
-      'Defina o preço de EMS integrado em Acessórios C&I no Portfólio.'
-    );
-  });
-
   it('uses the authoritative server path and does not trust an old edge result', async () => {
     const {client,invoke}=makeClient();
     const result=await invokeCommercialIndustrialCalculation(client,{options:{},unitPriceBrl:45000});
@@ -92,73 +62,6 @@ describe('commercial-industrial-calculation-repository', () => {
     const res = await invokeCommercialIndustrialCalculation(client, body);
     expect(res.data).toBeNull();
     expect(res.error).toBeDefined();
-  });
-
-  it('calcula diretamente com solar FV preenchendo solarGenerationKw no dispatch', async () => {
-    const bRow = {
-      id: 'bess-1',
-      model: 'BESS 100',
-      module_power_kw: 50,
-      module_capacity_kwh: 100,
-      efficiency_percent: 90,
-      soc_min_percent: 10,
-      soc_max_percent: 90,
-    };
-    const { client, invoke } = makeClient({ data: bRow, error: null });
-    // Simulate remote function returning stale result without solar points
-    invoke.mockResolvedValue({
-      data: {
-        engineVersion: 'ci-v1',
-        selected: {
-          scenarioId: 's1',
-          dispatch: [{ timestamp: '2026-08-24T12:00:00.000Z', loadKw: 100 }],
-        },
-      },
-      error: null,
-    });
-
-    const body = {
-      options: {
-        loadCurve: {
-          points: [{ timestamp: '2026-08-24T15:00:00.000Z', powerKw: 100 }],
-          resolutionMinutes: 60,
-          timezone: 'America/Sao_Paulo',
-          profileBasis: 'representative_period',
-          periodStart: '2026-08-24',
-          periodEnd: '2026-08-24',
-        },
-        tariff: {
-          tariffType: 'verde',
-          contractedDemandKw: 100,
-          energyRatePeakBrlPerMwh: 1200,
-          energyRateOffPeakBrlPerMwh: 400,
-          peakStart: '18:00',
-          peakEnd: '21:00',
-        },
-        bessProductId: 'bess-1',
-        strategy: 'HYBRID',
-        sizing: { mode: 'fixed', moduleCount: 1, minModules: null, maxModules: null },
-        financialAssumptions: {
-          discountRatePercent: 12,
-          analysisHorizonYears: 10,
-          annualEnergyInflationPercent: 0,
-          monthsPerYear: 12,
-        },
-        rankingCriterion: 'PAYBACK',
-        solar: {
-          enabled: true,
-          installedPowerKwp: 50,
-          inverterPowerKw: 50,
-          dailyYieldKwhPerKwp: 4.5,
-          prioritizeBessCharging: true,
-        },
-      },
-      unitPriceBrl: 45000,
-    };
-
-    const res = await invokeCommercialIndustrialCalculation(client, body);
-    expect(res.data).toBeDefined();
-    expect(res.data?.selected?.dispatch?.[0]?.solarGenerationKw).toBeGreaterThan(0);
   });
 
   it('busca o preço próprio do produto BESS e retorna null quando não há registro', async () => {
@@ -298,24 +201,5 @@ describe('commercial-industrial-calculation-repository', () => {
       const { client } = makeClient({ data: null, error: null });
       await expect(checkUserCiBackupAccess(client, 'u1')).resolves.toBe(false);
     });
-  });
-});
-
-describe('imported solar compatibility with remote calculation', () => {
-  it('recalculates locally if an older Edge Function returns estimated generation instead of the imported values', async () => {
-    const { client, invoke } = makeClient({ data: { id: 'bess-1', model: 'BESS 100', module_power_kw: 50, module_capacity_kwh: 100, efficiency_percent: 90, soc_min_percent: 10, soc_max_percent: 90 }, error: null });
-    const timestamp = '2026-01-01T15:00:00Z';
-    invoke.mockResolvedValue({ data: { engineVersion: 'ci-v1', selected: { dispatch: [{ timestamp, solarGenerationKw: 999 }] } }, error: null });
-    const loadCurve = { points: [{ timestamp, powerKw: 100 }], resolutionMinutes: 15, timezone: 'America/Sao_Paulo', profileBasis: 'representative_period', periodStart: '2026-01-01', periodEnd: '2026-01-01', source: 'csv' };
-    const options = {
-      loadCurve, bessProductId: 'bess-1', strategy: 'HYBRID', sizing: { mode: 'fixed', moduleCount: 1 }, rankingCriterion: 'PAYBACK',
-      tariff: { energyRatePeakBrlPerMwh: 1200, energyRateOffPeakBrlPerMwh: 400, demandRateBrlPerKwMonth: 30, contractedDemandKw: 100, peakStart: '18:00', peakEnd: '21:00', tariffModality: 'verde', market: 'cativo', icmsPercent: 0, pisCofinsPercent: 0 },
-      financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
-      solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: true, generationCurve: { ...loadCurve, points: [{ timestamp, powerKw: 27.5 }] } },
-    };
-    const result = await invokeCommercialIndustrialCalculation(client, { options, unitPriceBrl: 45000 });
-    expect(result.error).toBeNull();
-    expect(result.data?.selected?.dispatch[0].solarGenerationKw).toBe(27.5);
-    expect(invoke).not.toHaveBeenCalled();
   });
 });

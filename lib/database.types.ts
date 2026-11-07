@@ -9,6 +9,18 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ci_solution_generations: {
+        Row: { id:string;source_revision:string;expected_count:number;status:string;is_current:boolean;created_by:string;created_at:string;published_at:string|null;invalidated_at:string|null;invalidation_reason:string|null;diagnostics:Json }
+        Insert: { id?:string;source_revision:string;expected_count:number;status?:string;is_current?:boolean;created_by:string;created_at?:string;published_at?:string|null;invalidated_at?:string|null;invalidation_reason?:string|null;diagnostics?:Json }
+        Update: { is_current?:boolean;status?:string;published_at?:string|null;invalidated_at?:string|null;invalidation_reason?:string|null;diagnostics?:Json }
+        Relationships: []
+      }
+      ci_generated_solutions: {
+        Row: {generation_id:string;solution_key:string;source_kind:string;source_id:string;unit_count:number;series_count:number;parallel_count:number;discharge_power_kw:number;charge_power_kw:number;usable_energy_kwh:number;nominal_energy_kwh:number;applications:string[];solution:Json}
+        Insert: {generation_id:string;solution_key:string;source_kind:string;source_id:string;unit_count:number;series_count:number;parallel_count:number;discharge_power_kw:number;charge_power_kw:number;usable_energy_kwh:number;nominal_energy_kwh:number;applications:string[];solution:Json}
+        Update: {solution?:Json}
+        Relationships: [{foreignKeyName:'ci_generated_solutions_generation_id_fkey';columns:['generation_id'];isOneToOne:false;referencedRelation:'ci_solution_generations';referencedColumns:['id']}]
+      }
       ci_accessory_rules: {
         Row: {
           id: string
@@ -429,6 +441,8 @@ export type Database = {
       }
       ci_compatibility_rules: {
         Row: {
+          supports_solar: boolean
+          supports_generator: boolean
           id: string
           name: string
           pcs_id: string
@@ -453,6 +467,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          supports_solar?: boolean
+          supports_generator?: boolean
           id?: string
           name: string
           pcs_id: string
@@ -477,6 +493,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          supports_solar?: boolean
+          supports_generator?: boolean
           id?: string
           name?: string
           pcs_id?: string
@@ -897,6 +915,19 @@ export type Database = {
       }
       ci_bess_products: {
         Row: {
+          ac_charge_efficiency_percent: number | null
+          ac_discharge_efficiency_percent: number | null
+          charge_power_kw: number | null
+          dc_voltage_min_v: number | null
+          dc_voltage_max_v: number | null
+          dc_charge_current_a: number | null
+          dc_discharge_current_a: number | null
+          dc_charge_power_kw: number | null
+          dc_discharge_power_kw: number | null
+          electrical_reference: string
+          supports_backup: boolean
+          supports_solar: boolean
+          supports_generator: boolean
           active: boolean
           created_at: string
           description: string | null
@@ -915,6 +946,19 @@ export type Database = {
           warranty_years: number
         }
         Insert: {
+          ac_charge_efficiency_percent?: number | null
+          ac_discharge_efficiency_percent?: number | null
+          charge_power_kw?: number | null
+          dc_voltage_min_v?: number | null
+          dc_voltage_max_v?: number | null
+          dc_charge_current_a?: number | null
+          dc_discharge_current_a?: number | null
+          dc_charge_power_kw?: number | null
+          dc_discharge_power_kw?: number | null
+          electrical_reference?: string
+          supports_backup?: boolean
+          supports_solar?: boolean
+          supports_generator?: boolean
           active?: boolean
           created_at?: string
           description?: string | null
@@ -933,6 +977,19 @@ export type Database = {
           warranty_years: number
         }
         Update: {
+          ac_charge_efficiency_percent?: number | null
+          ac_discharge_efficiency_percent?: number | null
+          charge_power_kw?: number | null
+          dc_voltage_min_v?: number | null
+          dc_voltage_max_v?: number | null
+          dc_charge_current_a?: number | null
+          dc_discharge_current_a?: number | null
+          dc_charge_power_kw?: number | null
+          dc_discharge_power_kw?: number | null
+          electrical_reference?: string
+          supports_backup?: boolean
+          supports_solar?: boolean
+          supports_generator?: boolean
           active?: boolean
           created_at?: string
           description?: string | null
@@ -2116,6 +2173,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ci_solution_source: {Args: Record<PropertyKey, never>;Returns:Json}
+      ci_begin_solution_generation: {Args:{p_source_revision:string;p_expected_count:number};Returns:string}
+      ci_append_solution_generation: {Args:{p_generation_id:string;p_solutions:Json};Returns:undefined}
+      ci_publish_solution_generation: {Args:{p_generation_id:string;p_diagnostics?:Json};Returns:string}
+      ci_cancel_solution_generation: {Args:{p_generation_id:string};Returns:undefined}
       admin_transition_purchase_order: {
         Args: {
           p_external_order_id?: string

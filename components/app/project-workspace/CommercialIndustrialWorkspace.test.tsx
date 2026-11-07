@@ -9,6 +9,7 @@ import type { InlineProfile } from '../types';
 import { CommercialIndustrialWorkspace } from './CommercialIndustrialWorkspace';
 
 const { listActiveCiBessProducts } = vi.hoisted(() => ({ listActiveCiBessProducts: vi.fn() }));
+vi.mock('@/lib/data/ci-generated-solutions-repository',()=>({getCiSolutionGeneration:vi.fn().mockResolvedValue({expected_count:4})}));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts }));
 
 function renderWorkspace(overrides: { currentCiProjectId?: string | null; ciOptions?: CommercialIndustrialOptions; profile?: InlineProfile | null } = {}) {
@@ -87,7 +88,7 @@ describe('CommercialIndustrialWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Configuração BESS' }));
 
-    expect(await screen.findByText('Produto BESS')).toBeInTheDocument();
+    expect(await screen.findByText('Soluções agrupadas C&I')).toBeInTheDocument();
     expect(screen.queryByLabelText('Nome do projeto')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Visão geral' }));

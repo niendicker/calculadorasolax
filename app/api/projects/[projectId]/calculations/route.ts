@@ -8,9 +8,7 @@ import {
   cacheProjectCalculationResult,
   checkUserCiAccess,
   checkUserCiBackupAccess,
-  findBessProductModel,
   findOwnCiProject,
-  findUserBessUnitPrice,
   invokeCommercialIndustrialCalculation,
   listCalculationRuns,
   recordCalculationRun,
@@ -65,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
   const options = project.calculation_options as { bessProductId?: string | null; bessSystem?: { kind?: string; compatibilityId?: string | null }; backup?: { enabled?: boolean } | null; generator?: { enabled?:boolean } } | null;
   const isModular = options?.bessSystem?.kind === 'modular';
-  const isAutomatic = options?.bessSystem?.kind === 'automatic';
+  const isAutomatic = options?.bessSystem?.kind === 'automatic' || options?.bessSystem?.kind === 'solution';
   if (!options || Object.keys(options).length === 0 || (!isAutomatic && (isModular ? !options.bessSystem?.compatibilityId : !options.bessProductId))) {
     return NextResponse.json(
       { error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' },
@@ -94,24 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     }
   }
 
-  let unitPriceBrl: number | null = 0;
-  if (!isModular && !isAutomatic) {
-    try {
-      const model = await findBessProductModel(supabase, options.bessProductId!);
-      if (!model) return NextResponse.json({ error: 'O produto BESS selecionado não foi encontrado ou não está mais ativo no catálogo.' }, { status: 422 });
-      unitPriceBrl = await findUserBessUnitPrice(supabase, user.id, model);
-    } catch (error) {
-      console.error(error);
-      return NextResponse.json({ error: getNetworkErrorMessage() }, { status: 502 });
-    }
-    if (unitPriceBrl === null) {
-      return NextResponse.json(
-        { error: 'Defina o preço deste produto BESS no seu Portfólio antes de calcular.' },
-        { status: 422 }
-      );
-    }
-
-  }
+  const unitPriceBrl = 0; // Personal prices are resolved by the common catalog calculation.
 
   try {
     const { data, error: functionError } = await invokeCommercialIndustrialCalculation(supabase, { options, unitPriceBrl });
@@ -130,7 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       installation_type: 'commercial_industrial',
       engine_version: result.engineVersion,
       input_fingerprint: result.inputFingerprint,
-      input_snapshot: { ...((data as CommercialIndustrialResult).accessoryContext ? {accessoryContext:(data as CommercialIndustrialResult).accessoryContext} : {}), ...(isModular ? {options, equipment: (data as CommercialIndustrialResult).assumptions?.equipment} : {options, unitPriceBrl}), ...((data as CommercialIndustrialResult).stsContext ? {stsContext: (data as CommercialIndustrialResult).stsContext} : {}) },
+      input_snapshot: { ...((data as CommercialIndustrialResult).solutionGeneration ? {solutionGeneration:(data as CommercialIndustrialResult).solutionGeneration} : {}), ...((data as CommercialIndustrialResult).accessoryContext ? {accessoryContext:(data as CommercialIndustrialResult).accessoryContext} : {}), ...(isModular ? {options, equipment: (data as CommercialIndustrialResult).assumptions?.equipment} : {options, unitPriceBrl}), ...((data as CommercialIndustrialResult).stsContext ? {stsContext: (data as CommercialIndustrialResult).stsContext} : {}) },
       result_snapshot: result,
       selected_scenario_id: result.recommendation.scenarioId,
     });

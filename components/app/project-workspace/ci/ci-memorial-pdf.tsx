@@ -344,14 +344,14 @@ function ModuleComparisonChart({
       <View style={{ flexDirection: 'row' }}>
         {sorted.map((scenario) => (
           <Text key={scenario.scenarioId} style={{ flex: 1, fontSize: 6.5, textAlign: 'center', color: COLORS.muted }}>
-            {scenario.composition ? `${scenario.composition.pcsCount}PCS/${scenario.composition.batteryCount}bat` : scenario.moduleCount}
+            {scenario.group ? `${scenario.totalPowerKw.toFixed(0)}kW/${scenario.usefulCapacityKwh.toFixed(0)}kWh` : scenario.composition ? `${scenario.composition.pcsCount}PCS/${scenario.composition.batteryCount}bat` : scenario.moduleCount}
             {scenario.scenarioId === recommendedScenarioId ? '*' : ''}
           </Text>
         ))}
       </View>
       <ChartLegend items={[{ color: COLORS.primary, label: 'CAPEX' }, { color: '#2f9e58', label: 'Economia anual' }]} />
       <Text style={styles.chartCaption}>
-        {scenarios.some((scenario) => scenario.composition) ? 'Eixo horizontal: PCS / unidades de bateria.' : 'Eixo horizontal: quantidade de módulos avaliada'}
+        {scenarios.some((scenario) => scenario.group) ? 'Eixo horizontal: potência CA / energia útil do agrupamento.' : scenarios.some((scenario) => scenario.composition) ? 'Eixo horizontal: PCS / unidades de bateria.' : 'Eixo horizontal: quantidade de módulos avaliada'}
         {ordered.length > sorted.length ? ` Exibindo ${sorted.length} de ${ordered.length} composições; consulte a tabela completa.` : ''}
         {recommendedScenarioId ? ' (* = cenário recomendado).' : '. Nenhum cenário foi recomendado — ver Resumo executivo.'}
       </Text>
@@ -415,7 +415,7 @@ function ScenarioTableRow({ scenario, recommended, last }: { scenario: ScenarioC
   return (
     <View style={[styles.tableRow, styleIf(last, styles.tableRowLast), styleIf(recommended, styles.tableRowHighlight)]} wrap={false}>
       <Text style={styles.tableCellFirst}>
-        {scenario.composition ? ciScenarioLabel(scenario) : scenario.moduleCount}
+        {scenario.group || scenario.composition ? ciScenarioLabel(scenario) : scenario.moduleCount}
         {recommended ? ' (recomendado)' : ''}
         {!scenario.technicalValidity ? ' — inválido' : ''}
       </Text>
@@ -485,7 +485,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               <MetricRows
                 metrics={[
                   {
-                    label: selected.composition ? 'PCS / unidades de bateria' : result.technicalSelection?.scenarioId === selected.scenarioId ? 'Módulos que atendem tecnicamente' : isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
+                    label: selected.group ? 'Unidades do agrupamento' : selected.composition ? 'PCS / unidades de bateria' : result.technicalSelection?.scenarioId === selected.scenarioId ? 'Módulos que atendem tecnicamente' : isRecommended ? 'Módulos recomendados' : 'Módulos (menor configuração avaliada)',
                     value: selected.composition ? `${selected.composition.pcsCount} / ${selected.composition.batteryCount}` : `${selected.moduleCount}`,
                     highlight: isRecommended,
                   },
@@ -572,9 +572,9 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             <Text style={styles.sectionTitle}>{isRecommended ? 'BESS recomendado' : 'BESS avaliado (menor configuração — não recomendada)'}</Text>
             <InfoRows
               rows={[
-                { label: 'Produto', value: selected.composition ? `${selected.composition.pcsModel} + ${selected.composition.batteryModel}` : product ? `${product.model} · ${product.manufacturer}` : 'Produto não disponível no catálogo ativo' },
+                { label: 'Produto', value: selected.group ? selected.group.label : selected.composition ? `${selected.composition.pcsModel} + ${selected.composition.batteryModel}` : product ? `${product.model} · ${product.manufacturer}` : 'Produto não disponível no catálogo ativo' },
                 ...(product?.description ? [{ label: 'Descrição', value: product.description }] : []),
-                { label: selected.composition ? 'Composição' : 'Quantidade de módulos', value: selected.composition ? ciScenarioLabel(selected) : `${selected.moduleCount}` },
+                { label: selected.group ? 'Solução' : selected.composition ? 'Composição' : 'Quantidade de módulos', value: selected.group || selected.composition ? ciScenarioLabel(selected) : `${selected.moduleCount}` },
                 { label: 'Potência total', value: formatKw(selected.totalPowerKw) },
                 { label: 'Capacidade total / útil', value: `${formatKwh(selected.totalCapacityKwh)} / ${formatKwh(selected.usefulCapacityKwh)}` },
                 ...(product ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL(product.efficiency_percent) }] : []),
@@ -597,6 +597,18 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           </View>
         )}
 
+        {selected?.group && <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Solução agrupada — limites CC/CA</Text>
+          <InfoRows rows={[
+            { label: 'Solução', value: selected.group.label },
+            { label: 'Carga / descarga CA', value: `${formatKw(selected.group.ac.chargePowerKw)} / ${formatKw(selected.group.ac.dischargePowerKw)}` },
+            { label: 'Barramentos / tensão CC', value: `${selected.group.dc.buses} / ${selected.group.dc.voltageMinV}–${selected.group.dc.voltageMaxV} V` },
+            { label: 'Energia nominal / útil', value: `${selected.group.storage.nominalEnergyKwh.toFixed(1)} / ${selected.group.storage.usableEnergyKwh.toFixed(1)} kWh` },
+            { label: 'Referência / revisão', value: `${selected.group.source.reference} / ${selected.group.source.revision}` },
+            { label: 'Geração do catálogo', value: result.solutionGeneration?.id ?? '—' },
+            ...(selected.billOfMaterials ?? []).map(item=>({label:`${item.quantity} × ${item.model}`,value:formatCurrencyBRL(item.totalBrl)})),
+          ]}/>
+        </View>}
         {selected?.composition && <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Composição PCS + baterias</Text>
           <InfoRows rows={[
@@ -735,11 +747,11 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{selected?.composition ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</Text>
+          <Text style={styles.sectionTitle}>{selected?.group ? 'Comparação de soluções agrupadas' : selected?.composition ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</Text>
           <ModuleComparisonChart scenarios={result.scenarios} recommendedScenarioId={result.recommendation.scenarioId} />
           <View style={[styles.table, { marginTop: 10 }]}>
             <View style={styles.tableHeaderRow} fixed>
-              <Text style={[styles.tableCellFirst, styles.tableHeaderText]}>{selected?.composition ? 'Composição' : 'Módulos'}</Text>
+              <Text style={[styles.tableCellFirst, styles.tableHeaderText]}>{selected?.group ? 'Solução' : selected?.composition ? 'Composição' : 'Módulos'}</Text>
               <Text style={[styles.tableCell, styles.tableHeaderText]}>CAPEX</Text>
               <Text style={[styles.tableCell, styles.tableHeaderText]}>Economia/ano</Text>
               <Text style={[styles.tableCell, styles.tableHeaderText]}>Payback simples</Text>

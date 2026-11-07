@@ -20,6 +20,8 @@ export interface CiBatterySpec {
   soc_max_percent: number;
 }
 export interface CiCompatibilityRule {
+  supports_solar?:boolean;
+  supports_generator?:boolean;
   id: string;
   name: string;
   pcs_id: string;

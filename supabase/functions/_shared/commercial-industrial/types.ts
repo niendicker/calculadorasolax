@@ -239,9 +239,10 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
 };
 
 export interface CommercialIndustrialOptions {
+  loadShiftingCoveragePercent?:number;
   selectedAccessoryIds?: string[];
   /** Absent means the existing integrated BESS catalog. */
-  bessSystem?: { kind: 'integrated' } | CiModularSelection | { kind: 'automatic'; minPowerKw: number; minEnergyKwh: number };
+  bessSystem?: { kind: 'integrated' } | CiModularSelection | { kind: 'automatic'; minPowerKw: number; minEnergyKwh: number } | {kind:'solution';solutionKey:string};
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
   bessProductId: string | null;
@@ -285,6 +286,8 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  group?: import('./grouped-solutions.ts').CiGroupedSolution;
+  billOfMaterials?: {productId:string;model:string;quantity:number;unitPriceBrl:number;totalBrl:number;bundled?:boolean}[];
   /** False when automatic technical search found equipment with pending personal prices. */
   pricingComplete?: boolean;
   missingPrices?: string[];
@@ -370,6 +373,8 @@ export interface BessRuntimeParams {
 }
 
 export interface CommercialIndustrialResult {
+  solutionGeneration?: {id:string;sourceRevision:string;contractVersion:'ci-grouped-v1'};
+  technicalRequirements?: {minPowerKw:number;minEnergyKwh:number;operatingEnergyAcKwh:number;backupEnergyAcKwh:number;coveragePercent:number};
   technicalSelection?: { scenarioId: string | null; reason: string };
   searchDiagnostics?: string[];
   stsContext?: CiStsContext;

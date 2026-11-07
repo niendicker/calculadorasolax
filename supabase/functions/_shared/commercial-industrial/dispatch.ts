@@ -36,6 +36,8 @@ export interface TariffWindow {
 }
 
 export interface DispatchInput {
+  /** Per-interval project targets; null retains the strategy default. */
+  gridImportLimitsKw?: (number | null)[];
   curve: LoadCurve;
   bess: BessRuntimeParams;
   strategy: BessStrategyId;
@@ -86,17 +88,29 @@ function parseHHMM(value: string): number {
 /** Minutes since local midnight, in `timezone`, for an ISO timestamp —
  * without a date library: Intl.DateTimeFormat already knows every IANA
  * timezone's offset (including DST) for a given instant. */
+// All candidates in a project share timestamps. Keep these pure conversions
+// bounded across projects instead of constructing ICU formatters per interval.
+const timeFormatters = new Map<string, Intl.DateTimeFormat>();
+const localMinutes = new Map<string, number>();
 function minutesOfDay(timestamp: string, timezone: string): number {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
+  const key = `${timezone}\0${timestamp}`;
+  const cached = localMinutes.get(key);
+  if (cached !== undefined) return cached;
+  let formatter = timeFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    });
+    if (timeFormatters.size >= 32) timeFormatters.delete(timeFormatters.keys().next().value!);
+    timeFormatters.set(timezone, formatter);
+  }
   const parts = formatter.formatToParts(new Date(timestamp));
   const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
   const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
-  return hour * 60 + minute;
+  const value = hour * 60 + minute;
+  if (localMinutes.size >= 2048) localMinutes.delete(localMinutes.keys().next().value!);
+  localMinutes.set(key, value);
+  return value;
 }
 
 /** Handles a window that wraps past midnight (e.g. 22:00-06:00) as well as
@@ -269,7 +283,7 @@ interface PeakWindowSpan {
  * decreases point-by-point through the window itself as that idealized
  * discharge is "spent" — see the worked example in the audit's section
  * 3.1 (310 -> 190 -> 80 -> 0 kWh). */
-export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindow, bess: BessRuntimeParams): number[] {
+export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindow, bess: BessRuntimeParams, dischargeNeedsKw?: number[]): number[] {
   const intervalHours = curve.resolutionMinutes / 60;
 
   const dischargeEfficiency = (bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100));
@@ -292,7 +306,7 @@ export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindo
   const windowRequiredKwh = windows.map(({ start, end }) => {
     let idealDischargeEnergyKwh = 0;
     for (let idx = start; idx < end; idx++) {
-      idealDischargeEnergyKwh += Math.min(curve.points[idx].powerKw, bess.totalPowerKw) * intervalHours;
+      idealDischargeEnergyKwh += Math.min(dischargeNeedsKw?.[idx] ?? curve.points[idx].powerKw, bess.totalPowerKw) * intervalHours;
     }
     const storedEnergyNeededKwh = idealDischargeEnergyKwh / dischargeEfficiency;
     return Math.min(storedEnergyNeededKwh, usefulCapacityKwh);
@@ -318,12 +332,29 @@ export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindo
       reserve[idx] = windowRequiredKwh[windowIndex];
     } else {
       reserve[idx] = Math.max(0, windowRequiredKwh[windowIndex] - spentInWindowKwh);
-      const idealDischargeKwh = Math.min(curve.points[idx].powerKw, bess.totalPowerKw) * intervalHours;
+      const idealDischargeKwh = Math.min(dischargeNeedsKw?.[idx] ?? curve.points[idx].powerKw, bess.totalPowerKw) * intervalHours;
       spentInWindowKwh += idealDischargeKwh / dischargeEfficiency;
     }
   }
 
   return reserve;
+}
+
+/** Lower bound on BESS discharge after support that the generator policy can
+ * actually supply. Peak support never lowers grid import below contracted demand. */
+export function minimumBessDischargeKw(
+  netLoadKw: number,
+  gridTargetKw: number,
+  period: TariffPeriod,
+  contractedDemandKw: number,
+  generator?: CiGeneratorConfig | null,
+): number {
+  const deficit = Math.max(0, netLoadKw - gridTargetKw);
+  const supportsTarget = generator?.enabled && generator.ratedPowerKva > 0 &&
+    period === 'peak' && gridTargetKw >= contractedDemandKw &&
+    (generator.dispatchMode === 'peak_support' || generator.dispatchMode === 'peak_and_blackout');
+  const generatorPowerKw = supportsTarget ? generator.ratedPowerKva * (generator.powerFactor || 0.8) : 0;
+  return Math.max(0, deficit - generatorPowerKw);
 }
 
 /** Runs the full interval-by-interval simulation. Every physical constraint
@@ -348,21 +379,26 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
   const chargeEfficiency = bess.chargeEfficiencyPercent !== undefined ? bess.chargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
   const dischargeEfficiency = bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100);
 
-  // Only Hybrid needs the lookahead reserve — cheap to compute (curve is
-  // capped at 672 points) but skipped entirely for the other strategies.
-  const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess) : null;
+  const solarGenerationAt = (index: number): number => solar?.enabled
+    ? (importedSolar ? importedSolar.get(Date.parse(curve.points[index].timestamp))! : solar.generationPoints?.[index] ?? estimateSolarGenerationKw(solar, minutesOfDay(curve.points[index].timestamp, curve.timezone), curve.resolutionMinutes))
+    : 0;
+  // A project profile reserves the residual peak requirement, with the same
+  // solar source and generator policy used by the interval simulation.
+  const peakNeeds = strategy === 'HYBRID' ? input.gridImportLimitsKw?.map((target, index) => {
+    const point = curve.points[index];
+    const netLoadKw = Math.max(0, point.powerKw - solarGenerationAt(index));
+    return target === null ? netLoadKw : minimumBessDischargeKw(netLoadKw, target, classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow), contractedDemandKw, generator);
+  }) : undefined;
+  const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess, peakNeeds) : null;
 
   let socPercent = bess.initialSocPercent ?? bess.socMaxPercent;
   const trace: DispatchPoint[] = [];
 
   curve.points.forEach((point, index) => {
     const period = classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow);
-    const minuteOfDay = minutesOfDay(point.timestamp, curve.timezone);
 
     // 1. Solar generation at this interval
-    const solarGenerationKw = solar?.enabled
-      ? (importedSolar ? importedSolar.get(Date.parse(point.timestamp))! : solar.generationPoints?.[index] ?? estimateSolarGenerationKw(solar, minuteOfDay, curve.resolutionMinutes))
-      : 0;
+    const solarGenerationKw = solarGenerationAt(index);
 
     // Net load seen by the site before BESS
     const netLoadAfterSolarKw = Math.max(0, point.powerKw - solarGenerationKw);
@@ -372,6 +408,10 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
     const availableForPeakShavingKwh = reserve ? Math.max(0, storedEnergyKwh - reserve[index]) : 0;
     const decision = decideStrategy(strategy, netLoadAfterSolarKw, period, peakShavingTargetKw, bess, availableForPeakShavingKwh);
 
+    const profileTarget=input.gridImportLimitsKw?.[index];
+    if (period==='peak' && profileTarget!==null && profileTarget!==undefined && (strategy==='LOAD_SHIFTING'||strategy==='HYBRID')) {
+      decision.dischargeKw=Math.max(0,netLoadAfterSolarKw-profileTarget);
+    }
     let chargeKw = 0;
     let dischargeKw = 0;
 

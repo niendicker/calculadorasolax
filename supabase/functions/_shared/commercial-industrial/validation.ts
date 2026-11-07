@@ -347,8 +347,9 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
   }
 
   if (options.bessSystem !== undefined) {
-    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular', 'automatic'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha busca automática, BESS integrado ou PCS + baterias.');
+    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular', 'automatic', 'solution'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha busca automática, BESS integrado ou PCS + baterias.');
     else if ((options.bessSystem as { kind: string }).kind === 'modular') errors.push(...validateModularSelection(options.bessSystem));
+    else if ((options.bessSystem as {kind:string}).kind==='solution') {if(typeof (options.bessSystem as Record<string,unknown>).solutionKey!=='string'||!String((options.bessSystem as Record<string,unknown>).solutionKey).trim())errors.push('Selecione uma solução gerada.');}
     else if ((options.bessSystem as { kind: string }).kind === 'automatic') {
       for (const key of ['minPowerKw','minEnergyKwh']) {
         const value=(options.bessSystem as Record<string, unknown>)[key];
@@ -356,7 +357,7 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
       }
     }
   }
-  if (!(options.bessSystem && typeof options.bessSystem === 'object' && ['modular','automatic'].includes((options.bessSystem as { kind: string }).kind))) validateSizing(options.sizing, errors);
+  if (!(options.bessSystem && typeof options.bessSystem === 'object' && ['modular','automatic','solution'].includes((options.bessSystem as { kind: string }).kind))) validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
   validateBackup(options.backup, errors);
   validateSolar(options.solar, errors);
@@ -374,6 +375,7 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));
   }
 
+  if(options.loadShiftingCoveragePercent!==undefined&&(!isFiniteNumber(options.loadShiftingCoveragePercent)||(options.loadShiftingCoveragePercent as number)<0||(options.loadShiftingCoveragePercent as number)>100))errors.push('A cobertura de consumo na ponta deve estar entre 0 e 100%.');
   const accessoryIds = (raw as Record<string, unknown>)?.selectedAccessoryIds;
   if (accessoryIds !== undefined && (!Array.isArray(accessoryIds) || accessoryIds.length > 100 || accessoryIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) || new Set(accessoryIds).size !== accessoryIds.length)) errors.push('Seleção de acessórios C&I inválida.');
   const backup = options.backup as Record<string, unknown> | undefined;
