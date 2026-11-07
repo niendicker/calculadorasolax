@@ -1026,3 +1026,16 @@ describe('timestamped imported solar generation', () => {
     expect(() => runDispatch({ curve, bess: makeBess(), strategy: 'BASE', tariffWindow: DEFAULT_WINDOW, peakShavingTargetKw: null, contractedDemandKw: UNLIMITED_DEMAND, solar: { ...DEFAULT_CI_SOLAR_CONFIG, enabled: true, generationCurve } })).toThrow(/geração importada/);
   });
 });
+
+it('reuses local time conversion without sharing tariff classification across timezones or windows',()=>{
+  const timestamp='2026-01-01T20:00:00Z';
+  expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod(timestamp,'America/Sao_Paulo',DEFAULT_WINDOW)).toBe('offPeak');
+  expect(classifyTariffPeriod(timestamp,'UTC',{peakStart:'15:00',peakEnd:'18:00'})).toBe('offPeak');
+  expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod('2026-07-01T22:00:00Z','America/New_York',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod('2026-01-01T22:00:00Z','America/New_York',DEFAULT_WINDOW)).toBe('offPeak');
+  for(let index=0;index<3000;index++)classifyTariffPeriod(new Date(Date.UTC(2026,0,1,0,index)).toISOString(),'UTC',DEFAULT_WINDOW);
+  expect(classifyTariffPeriod(timestamp,'UTC',DEFAULT_WINDOW)).toBe('peak');
+  expect(classifyTariffPeriod(timestamp,'America/Sao_Paulo',DEFAULT_WINDOW)).toBe('offPeak');
+});

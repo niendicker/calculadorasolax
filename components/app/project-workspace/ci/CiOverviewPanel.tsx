@@ -174,7 +174,7 @@ export function CiOverviewPanel({
 
   const status = getCiConfigurationStatus(ciOptions);
   const { bess: bessConfigured, curve: curveConfigured, tariff: tariffConfigured } = status;
-  const bessSummary = ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${ciOptions.bessSystem.minPowerKw} kW / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
+  const bessSummary = ciOptions.bessSystem?.kind === 'solution' ? 'Solução agrupada fixada no catálogo gerado' : ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${ciOptions.bessSystem.minPowerKw} kW / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
     ? `PCS + baterias · ${ciOptions.bessSystem.compatibilityId ? 'Compatibilidade selecionada' : 'Selecione uma compatibilidade'} · ${ciOptions.bessSystem.mode === 'auto' ? 'Comparação automática' : 'Composição fixa'}`
     : !ciOptions.bessProductId
     ? 'Nenhum produto selecionado'

@@ -52,6 +52,8 @@ export function buildModuleCountRange(sizing: SizingConfig): number[] {
 }
 
 export interface ScenarioGridInput {
+  preparedBaseline?: ReturnType<typeof prepareScenarioBaseline>;
+  gridImportLimitsKw?: (number|null)[];
   accessoryContext?: CiAccessoryContext;
   accessoryTarget?: CiAccessoryTarget;
   baseAccessories?: CiAccessoryItem[];
@@ -87,7 +89,7 @@ export interface ScenarioGridResult {
 
 const ZERO_BESS: BessRuntimeParams = { totalPowerKw: 0, totalCapacityKwh: 0, socMinPercent: 0, socMaxPercent: 0, efficiencyPercent: 100 };
 
-function computeBaseline(
+export function prepareScenarioBaseline(
   input: Pick<ScenarioGridInput, 'curve' | 'tariffWindow' | 'tariff' | 'monthsPerYear' | 'solar' | 'generator'>
 ) {
   // BASE ignores bess params entirely (dispatch.ts) — ZERO_BESS makes the
@@ -117,7 +119,7 @@ function computeBaseline(
     weeklyEnergyImportedPeakKwh: weekly.energyImportedPeakKwh,
     weeklyEnergyImportedOffPeakKwh: weekly.energyImportedOffPeakKwh,
   };
-  return { result, cost };
+  return { result, cost, trace };
 }
 
 /** The dispatch->tariff->financial pipeline for one module count, shared by
@@ -159,6 +161,7 @@ function evaluateModuleCount(
   };
 
   const trace = runDispatch({
+    gridImportLimitsKw: input.gridImportLimitsKw,
     curve,
     bess,
     strategy,
@@ -187,6 +190,8 @@ function evaluateModuleCount(
   if (sts) technicalWarnings.push(sts.message);
   else if (backup?.enabled) technicalWarnings.push('Transferência não avaliada: nenhuma STS externa configurada. O backup avalia potência e energia do BESS.');
   technicalWarnings.push(...accessories.warnings);
+  const meetsProfile=!input.gridImportLimitsKw||input.gridImportLimitsKw.length===trace.length&&trace.every((point,index)=>input.gridImportLimitsKw![index]===null||point.gridImportKw<=input.gridImportLimitsKw![index]!+1e-6);
+  if(!meetsProfile)technicalWarnings.push('A composição não sustenta a cobertura de consumo e o alvo de demanda definidos pela curva e pela estratégia.');
   let meetsDemandTarget = true;
   if (peakShavingTargetKw !== null && (strategy === 'PEAK_SHAVING' || strategy === 'HYBRID')) {
     const achievedMaxDemandKw = Math.max(annualized.maxDemandPeakKw, annualized.maxDemandOffPeakKw);
@@ -206,7 +211,7 @@ function evaluateModuleCount(
     moduleCount,
     strategy,
     // Dispatch feasibility alone is insufficient: configured demand, backup and accessory requirements must also be met.
-    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected') && accessories.valid && meetsDemandTarget,
+    technicalValidity: (backupResult ? backupResult.status === 'fully_covered' : true) && (!sts || sts.status === 'selected') && accessories.valid && meetsDemandTarget && meetsProfile,
     sts,
     accessories: accessories.items,
     technicalWarnings,
@@ -235,7 +240,7 @@ function evaluateModuleCount(
  * section 4.5) — use materializeScenarioDetail for the one the user
  * actually selects. */
 export function buildScenarioGrid(input: ScenarioGridInput): ScenarioGridResult {
-  const { result: baseline, cost: baselineCost } = computeBaseline(input);
+  const { result: baseline, cost: baselineCost } = input.preparedBaseline??prepareScenarioBaseline(input);
 
   const moduleCounts = buildModuleCountRange(input.sizing);
   const scenarios: ScenarioCandidate[] = [];
@@ -255,11 +260,10 @@ export function buildScenarioGrid(input: ScenarioGridInput): ScenarioGridResult 
  * trace and cash flow attached — plan section 4.5's materialization rule.
  * Used both to give the recommended scenario full detail right after the
  * first calculation, and later when the user selects a different candidate
- * from the grid. Recomputes its own baseline rather than accepting one, so
- * it never silently drifts from what buildScenarioGrid would produce for
- * the same input. */
+ * from the grid. Reuses a prepared baseline when supplied by the common
+ * catalog pipeline, otherwise computes it with the same input as the grid. */
 export function materializeScenarioDetail(input: ScenarioGridInput, moduleCount: number, marginalGain: number | null): SelectedScenarioDetail {
-  const { cost: baselineCost } = computeBaseline(input);
+  const { cost: baselineCost } = input.preparedBaseline??prepareScenarioBaseline(input);
   const { candidate, trace, cashFlow } = evaluateModuleCount(input, moduleCount, baselineCost);
   return { ...candidate, marginalGain, dispatch: trace, cashFlow };
 }

@@ -107,6 +107,19 @@ export function buildAccessoryPayload(form: Partial<AccessoryRow>) {
 
 export function buildCiBessProductPayload(form: Partial<CiBessProductRow>) {
   return {
+    ac_charge_efficiency_percent: toNullableNumber(form.ac_charge_efficiency_percent),
+    ac_discharge_efficiency_percent: toNullableNumber(form.ac_discharge_efficiency_percent),
+    charge_power_kw: toNullableNumber(form.charge_power_kw),
+    dc_voltage_min_v: toNullableNumber(form.dc_voltage_min_v),
+    dc_voltage_max_v: toNullableNumber(form.dc_voltage_max_v),
+    dc_charge_current_a: toNullableNumber(form.dc_charge_current_a),
+    dc_discharge_current_a: toNullableNumber(form.dc_discharge_current_a),
+    dc_charge_power_kw: toNullableNumber(form.dc_charge_power_kw),
+    dc_discharge_power_kw: toNullableNumber(form.dc_discharge_power_kw),
+    electrical_reference: form.electrical_reference?.trim() ?? '',
+    supports_backup: form.supports_backup ?? false,
+    supports_solar: form.supports_solar ?? false,
+    supports_generator: form.supports_generator ?? false,
     max_parallel_units: Math.min(256, Math.max(1, Math.floor(toNumber(form.max_parallel_units, 1)))),
     model: form.model?.trim() ?? '',
     manufacturer: form.manufacturer?.trim() ?? '',

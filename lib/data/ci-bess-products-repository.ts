@@ -16,6 +16,18 @@ export interface CiBessProductRecord {
   manufacturer: string;
   description: string | null;
   active: boolean;
+  ac_charge_efficiency_percent?:number|null;ac_discharge_efficiency_percent?:number|null;
+  charge_power_kw?: number | null;
+  dc_voltage_min_v?: number | null;
+  dc_voltage_max_v?: number | null;
+  dc_charge_current_a?: number | null;
+  dc_discharge_current_a?: number | null;
+  dc_charge_power_kw?: number | null;
+  dc_discharge_power_kw?: number | null;
+  electrical_reference?: string;
+  supports_backup?: boolean;
+  supports_solar?: boolean;
+  supports_generator?: boolean;
   max_parallel_units?: number;
   module_power_kw: number;
   module_capacity_kwh: number;
@@ -36,7 +48,7 @@ export interface CiBessProductRecord {
 export type CiBessProductInput = Omit<CiBessProductRecord, 'id' | 'created_at' | 'updated_at'>;
 
 const COLUMNS =
-  'id, model, manufacturer, description, active, max_parallel_units, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent, warranty_years, image_url, documents, created_at, updated_at';
+  'id, model, manufacturer, description, active, ac_charge_efficiency_percent, ac_discharge_efficiency_percent, charge_power_kw, dc_voltage_min_v, dc_voltage_max_v, dc_charge_current_a, dc_discharge_current_a, dc_charge_power_kw, dc_discharge_power_kw, electrical_reference, supports_backup, supports_solar, supports_generator, max_parallel_units, module_power_kw, module_capacity_kwh, efficiency_percent, soc_min_percent, soc_max_percent, warranty_years, image_url, documents, created_at, updated_at';
 
 /** Admins see every row (active or not) through their own RLS policy;
  * everyone else only sees active ones — same query, RLS decides what comes

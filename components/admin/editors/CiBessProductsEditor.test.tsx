@@ -127,7 +127,7 @@ describe('CiBessProductsEditor: form', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ativo' }));
 
-    const powerInput = screen.getByLabelText(/^Potência/, { selector: 'input' });
+    const powerInput = screen.getByLabelText(/^Potência(?! máxima)/, { selector: 'input' });
     fireEvent.change(powerInput, { target: { value: '50' } });
     expect(powerInput).toHaveValue(50);
 

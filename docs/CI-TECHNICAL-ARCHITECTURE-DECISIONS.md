@@ -30,9 +30,9 @@ Publicação de uma geração deve ser consistente: uma consulta não pode mistu
 parte de uma geração antiga com parte de uma nova. Consulta paginada, sem
 truncamento silencioso de alternativas.
 
-Estado: a busca automática local em `ci-automatic-calculation-repository.ts`
-ainda enumera em memória. Essa implementação é transitória e não representa a
-persistência de soluções geradas aqui definida.
+Estado: implementado em `ci-generated-solutions-repository.ts` e na migration
+0102. A geração administrativa persiste o catálogo; projetos consultam a geração
+atual e simulam os candidatos com `ci-persisted-calculation-repository.ts`.
 
 ## 3. Um modelo de solução para gabinetes e PCS + baterias
 
@@ -46,8 +46,8 @@ regras de expansão. Um gabinete é uma unidade comercial com agrupamento intern
 fixo; uma montagem é um agrupamento gerado das associações permitidas. Não
 inventar limites internos desconhecidos nem inferir compatibilidade por nome.
 
-Estado: a unificação do contrato e a geração persistida são trabalhos de
-arquitetura pendentes; os adaptadores integrado/modular existentes ainda existem.
+Estado: implementado com o contrato `ci-grouped-v1`. Configurações antigas
+continuam legíveis e são traduzidas em filtros sobre o mesmo catálogo.
 
 ## 4. Curvas e aplicações na mesma página
 
@@ -108,16 +108,43 @@ oferece ações para definir a carga de backup.
 
 ## Implementação e verificação
 
+### Geração persistida e contrato agrupado — implementação local
+
+- Um snapshot consistente das fontes aprovadas identifica a revisão do catálogo.
+  A geração é preparada em lotes privados e somente publicada quando completa,
+  com a mesma revisão de origem. Troca atômica da geração atual; histórico não
+  é apagado. Alterações de catálogo invalidam a geração para novas consultas.
+- O contrato `ci-grouped-v1` descreve componentes e quantidades, barramentos CC,
+  limites de corrente/tensão/potência por barramento, limites CA agregados,
+  armazenamento/SOC/eficiências, aplicações e referência documental. Gabinete
+  e montagem diferem apenas na construção desse contrato.
+- Gabinetes precisam de limites CC e de carga CA documentados. Integração com
+  FV, gerador e backup deve ser explicitamente declarada; capacidades ausentes
+  não são presumidas. O diagnóstico informa quais fichas impedem a geração.
+- Projeto consulta a geração publicada com paginação estável. Os filtros usam
+  requisitos derivados da curva/estratégia e das aplicações; depois o mesmo
+  simulador confirma atendimento para todos os agrupamentos. Nenhum cálculo
+  de projeto regenera o catálogo ou aceita um resultado parcial de paginação.
+- A necessidade de energia considera janelas sem oportunidade de recarga e a
+  reserva de backup. A pré-seleção usa limites inferiores seguros; perdas e
+  recarga efetiva são verificadas na simulação. Load shifting verifica a
+  cobertura da carga na ponta; híbrido combina essa meta com o alvo de demanda.
+- Resultados guardam geração, revisão e contrato selecionado. Preços seguem
+  próprios do usuário e não integram o catálogo gerado. Configurações antigas
+  específicas são traduzidas em filtros da mesma consulta, sem um segundo
+  caminho físico de cálculo.
+
 1. Documentar estas decisões antes de implementar a página unificada.
 2. Integrar seleção de intervalos e métodos ao contrato e cálculo de backup.
 3. Mover ajustes FV/gerador/backup para modais na página de curvas e ajustar
    navegação, atalhos, permissões, cancelamento, teclado e foco.
 4. Verificar integração, sincronização ao editar a curva, métodos de energia,
    lacunas, compatibilidade com projetos antigos e quatro larguras de tela.
-5. Em seguida, substituir a enumeração transitória por geração persistida e
-   consolidar o contrato único de soluções agrupadas dos itens 2 e 3.
+5. Substituir a enumeração transitória por geração persistida e consolidar o
+   contrato único dos itens 2 e 3 — implementado nesta etapa.
 
-Não confundir conclusão da integração de curvas com conclusão dos itens 2 e 3.
+A ativação da geração persistida exige a migration e a publicação administrativa
+abaixo, independentemente da integração das curvas já disponível.
 
 Verificação da integração: testes de métodos, energia e autonomia, atualização
 da curva, lacunas e duplicatas; teste do gesto Shift + arraste com aplicação ao
@@ -125,3 +152,50 @@ backup; autorização de gerador sem backup; cancelamento, Escape, contenção e
 restauração de foco no modal. Prévia isolada com dados sintéticos revisada em
 390×844, 1366×768, 1440×900 e 1920×1080, incluindo modais e seleção real no
 gráfico. Essa prévia não substitui teste autenticado em produção.
+
+
+### Ativação da geração persistida
+
+1. Aplicar a migration 0102 após a 0101, antes de publicar a aplicação nova.
+   As alterações são aditivas; o histórico de estudos não é reescrito.
+2. Em Administração → BESS C&I, completar as fichas de gabinete com carga CA,
+   limites CC, eficiências direcionais do conversor e referência; revisar as aprovações de backup, FV e gerador.
+   Campos desconhecidos continuam vazios. Não há aprovação automática por nome.
+3. Em Catálogo modular → Soluções geradas, acionar **Gerar soluções**. Revisar
+   os diagnósticos das fichas excluídas e confirmar a contagem publicada.
+4. Consultar e calcular um projeto automático e um projeto com solução fixada.
+   Verificar potência/energia, aplicações, composição e preços próprios.
+5. Editar uma ficha: novos cálculos devem exigir nova geração. Os resultados
+   salvos continuam disponíveis com seu contrato e geração de origem.
+
+Uma falha em qualquer lote ou mudança nas fontes impede a publicação. O limite
+de geração é explícito (20.000); excedê-lo causa erro, sem publicar truncamentos.
+Repetir a geração após corrigir as fichas é o caminho de recuperação. O retorno
+à versão anterior da aplicação pode manter as tabelas e colunas aditivas, sem
+apagar gerações ou resultados históricos. A migration não foi aplicada em
+produção por esta implementação.
+
+O gabinete separa a eficiência de conversão CA/CC da eficiência total de ciclo.
+A geração exige os dois sentidos do conversor documentados; não infere esses
+limites a partir da eficiência total. As perdas residuais de armazenamento do
+ciclo são distribuídas simetricamente, como nas montagens, e as eficiências
+resultantes são guardadas no contrato. Dados inconsistentes impedem a geração
+da ficha, com diagnóstico.
+
+### Evidências locais desta etapa
+
+- `npm run test:coverage -- --maxWorkers=4 --testTimeout=15000`: 2.729 testes
+  em 157 arquivos; cobertura 86,65% de statements, 80,50% de branches, 86,18%
+  de funções e 89,63% de linhas.
+- `npm run typecheck`, lint e build com `npm run build -- --webpack` passaram.
+  O build padrão com Turbopack foi bloqueado pela restrição de abertura de porta
+  deste ambiente; não foi tratado como falha de compilação do código.
+- `bash scripts/check-ci-catalog-migration.sh`: PostgreSQL descartável verificou
+  publicação completa, RLS, bloqueio de escrita direta, invalidação, revisão
+  obsoleta, preservação histórica e rejeição de contrato sem versão.
+- Consulta de 1.001 soluções paginadas, publicação em múltiplos lotes, rejeição
+  de mudança de geração, cobertura parcial da ponta, preços pendentes e limites
+  direcionais do conversor têm regressão automatizada.
+- Prévia isolada com dados sintéticos: seleção fixa, geração administrativa e
+  ausência de overflow em 390×844, 1366×768, 1440×900 e 1920×1080. Não substitui
+  o teste autenticado após aplicar a migration no ambiente de destino.

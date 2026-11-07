@@ -93,7 +93,7 @@ describe('POST /api/projects/[projectId]/calculations', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(calculationResult);
-    expect(invokeMock).toHaveBeenCalledWith(expect.anything(), { options: ciProject.calculation_options, unitPriceBrl: 45000 });
+    expect(invokeMock).toHaveBeenCalledWith(expect.anything(), { options: ciProject.calculation_options, unitPriceBrl: 0 });
     expect(recordCalculationRunMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -183,24 +183,24 @@ describe('POST /api/projects/[projectId]/calculations', () => {
     expect(findBessProductModelMock).not.toHaveBeenCalled();
   });
 
-  it('returns 422 when the BESS product no longer resolves to an active model', async () => {
+  it('delegates persisted availability to the common calculator without a legacy product lookup', async () => {
     findBessProductModelMock.mockResolvedValue(null);
     const { POST } = await import('./route');
 
     const response = await POST(makeRequest(), makeParams());
 
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(200);
     expect(findUserBessUnitPriceMock).not.toHaveBeenCalled();
   });
 
-  it('returns 422 when the user has not priced this product yet', async () => {
+  it('allows technical calculation when the legacy product has no price', async () => {
     findUserBessUnitPriceMock.mockResolvedValue(null);
     const { POST } = await import('./route');
 
     const response = await POST(makeRequest(), makeParams());
 
-    expect(response.status).toBe(422);
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(invokeMock).toHaveBeenCalled();
   });
 
   it('returns a calculation error without recording a run', async () => {

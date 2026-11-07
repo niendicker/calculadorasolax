@@ -17,21 +17,29 @@ export async function loadCiModularCatalog(client?: SupabaseClient): Promise<CiE
     db.from('ci_accessories').select('id,model,active').order('model'),
   ]);
   for (const result of [pcs, batteries, rules, inverters, batteryModels, accessories]) if (result.error) throw new Error(result.error.message);
-  const inverterOptions = (inverters.data ?? []) as CiInverterBase[];
-  const batteryOptions = (batteryModels.data ?? []) as CiBatteryBase[];
+  return assembleCiEquipmentCatalog({inverters:(inverters.data??[]) as CiInverterBase[],batteries:(batteryModels.data??[]) as CiBatteryBase[],pcs:(pcs.data??[]) as CiPcsSpec[],batterySpecs:(batteries.data??[]) as CiBatterySpec[],rules:(rules.data??[]) as CiCompatibilityRule[],accessories:accessories.data??[]});
+}
+
+export interface CiCatalogRows {
+  inverters:CiInverterBase[];batteries:CiBatteryBase[];pcs:CiPcsSpec[];batterySpecs:CiBatterySpec[];rules:CiCompatibilityRule[];
+  accessories:CiModularCatalog['accessories'];
+}
+export function assembleCiEquipmentCatalog(rows:CiCatalogRows):CiEquipmentCatalog {
+  const inverterOptions = rows.inverters;
+  const batteryOptions = rows.batteries;
   const baseInverters = new Map(inverterOptions.map((item) => [item.id, item]));
   const baseBatteries = new Map(batteryOptions.map((item) => [item.id, item]));
   return {
     inverterOptions, batteryOptions,
-    pcs: ((pcs.data ?? []) as CiPcsSpec[]).map((item): CiPcsCatalogEntry => {
+    pcs: rows.pcs.map((item): CiPcsCatalogEntry => {
       const base = baseInverters.get(item.inverter_id);
-      return { ...item, ratedPowerKw: base?.power_kw ?? null, maxBatteryQty: base?.max_battery_qty ?? null, batteryPorts: base?.battery_ports ?? null, maxCurrentPerPortA: base?.battery_current_max_a ?? null, model: base?.model ?? 'Inversor indisponível', voltageMinV: base?.battery_voltage_min_v ?? null, voltageMaxV: base?.battery_voltage_max_v ?? null, chargeEfficiencyPercent: base?.battery_charge_efficiency_percent ?? null, dischargeEfficiencyPercent: base?.battery_discharge_efficiency_percent ?? null };
+      return { ...item, active:item.active && Boolean(base), ratedPowerKw: base?.power_kw ?? null, maxBatteryQty: base?.max_battery_qty ?? null, batteryPorts: base?.battery_ports ?? null, maxCurrentPerPortA: base?.battery_current_max_a ?? null, model: base?.model ?? 'Inversor indisponível', voltageMinV: base?.battery_voltage_min_v ?? null, voltageMaxV: base?.battery_voltage_max_v ?? null, chargeEfficiencyPercent: base?.battery_charge_efficiency_percent ?? null, dischargeEfficiencyPercent: base?.battery_discharge_efficiency_percent ?? null };
     }),
-    batteries: ((batteries.data ?? []) as CiBatterySpec[]).map((item): CiBatteryCatalogEntry => {
+    batteries: rows.batterySpecs.map((item): CiBatteryCatalogEntry => {
       const base = baseBatteries.get(item.battery_id);
-      return { ...item, maxCurrentA: base?.max_current_a ?? null, maxAssociationQty: base?.max_association_qty ?? null, model: base?.model ?? 'Bateria indisponível', capacityKwh: base?.capacity_kwh ?? 0, voltageMinV: base?.voltage_min_v ?? null, voltageMaxV: base?.voltage_max_v ?? null, socMinPercent: base?.min_soc_percent ?? NaN, roundTripEfficiencyPercent: base?.round_trip_efficiency_percent ?? null };
+      return { ...item, active:item.active && Boolean(base), maxCurrentA: base?.max_current_a ?? null, maxAssociationQty: base?.max_association_qty ?? null, model: base?.model ?? 'Bateria indisponível', capacityKwh: base?.capacity_kwh ?? 0, voltageMinV: base?.voltage_min_v ?? null, voltageMaxV: base?.voltage_max_v ?? null, socMinPercent: base?.min_soc_percent ?? NaN, roundTripEfficiencyPercent: base?.round_trip_efficiency_percent ?? null };
     }),
-    rules: (rules.data ?? []) as CiCompatibilityRule[], accessories: accessories.data ?? [],
+    rules: rows.rules, accessories: rows.accessories,
   };
 }
 

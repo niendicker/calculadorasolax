@@ -1,5 +1,6 @@
 import type { ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
-export function ciScenarioLabel(scenario: Pick<ScenarioCandidate, 'moduleCount' | 'composition' | 'equipmentLabel'>) {
+export function ciScenarioLabel(scenario: Pick<ScenarioCandidate, 'moduleCount' | 'composition' | 'equipmentLabel' | 'group'>) {
+  if (scenario.group) return scenario.group.label;
   const composition = scenario.composition;
   if (!composition) return `${scenario.equipmentLabel ? `${scenario.equipmentLabel} · ` : ''}${scenario.moduleCount} módulo${scenario.moduleCount === 1 ? '' : 's'}`;
   const one = composition.batteryCount === 1;

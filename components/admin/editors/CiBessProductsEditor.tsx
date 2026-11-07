@@ -120,6 +120,13 @@ export function CiBessProductsEditor(props: {
                 Ativo
               </label>
               <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">Limites elétricos documentados do agrupamento</p>
+                <p className="text-xs text-muted-foreground">Complete estes limites para gerar soluções do gabinete. Dados desconhecidos permanecem vazios e impedem a geração; não são presumidos pelo motor.</p>
+                <div className="grid gap-3 sm:grid-cols-2">{([
+                  ['ac_charge_efficiency_percent','Eficiência do conversor CA→CC (%)'],['ac_discharge_efficiency_percent','Eficiência do conversor CC→CA (%)'],['charge_power_kw','Carga máxima CA (kW)'],['dc_voltage_min_v','Tensão mínima CC (V)'],['dc_voltage_max_v','Tensão máxima CC (V)'],['dc_charge_current_a','Corrente máxima de carga CC (A)'],['dc_discharge_current_a','Corrente máxima de descarga CC (A)'],['dc_charge_power_kw','Potência máxima de carga CC (kW)'],['dc_discharge_power_kw','Potência máxima de descarga CC (kW)'],
+                ] as const).map(([key,label])=><Field key={key} label={label}><Input type="number" min={0} step="any" value={form[key]??''} onChange={event=>setForm({...form,[key]:event.target.value?Number(event.target.value):null})}/></Field>)}</div>
+                <Field label="Referência documental dos limites e aplicações"><Input value={form.electrical_reference??''} onChange={event=>setForm({...form,electrical_reference:event.target.value})}/></Field>
+                <div className="flex flex-wrap gap-3">{([['supports_backup','Backup aprovado'],['supports_solar','Integração FV aprovada'],['supports_generator','Integração com gerador aprovada']] as const).map(([key,label])=><label className="flex items-center gap-2 text-xs" key={key}><input type="checkbox" checked={form[key]??false} onChange={event=>setForm({...form,[key]:event.target.checked})}/>{label}</label>)}</div>
                 <p className="text-sm font-semibold">Especificação por módulo</p>
                 <p className="text-xs text-muted-foreground">
                   Potência e capacidade de um único módulo — o motor multiplica pela quantidade escolhida no

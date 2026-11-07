@@ -55,7 +55,7 @@ function ScenarioRow({
         active ? 'bg-primary/10 font-medium' : recommended ? 'bg-primary/[0.04]' : undefined
       )}
     >
-      <td className={cn("sticky left-0 z-10 bg-background px-3 py-2 text-sm shadow-[1px_0_0_0_hsl(var(--border))]", scenario.composition ? "min-w-44 max-w-60 whitespace-normal" : "whitespace-nowrap")}>
+      <td className={cn("sticky left-0 z-10 bg-background px-3 py-2 text-sm shadow-[1px_0_0_0_hsl(var(--border))]", scenario.group || scenario.composition ? "min-w-44 max-w-60 whitespace-normal" : "whitespace-nowrap")}>
         <button
           type="button"
           aria-label={`Inspecionar cenário de ${ciScenarioLabel(scenario)}`}
@@ -63,7 +63,7 @@ function ScenarioRow({
           onClick={(event) => { event.stopPropagation(); onSelect(); }}
           className="rounded-md px-2 py-1 font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {scenario.equipmentLabel && <span className="block text-xs">{scenario.equipmentLabel}</span>}{scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.seriesCount}S × {scenario.composition.parallelStringsPerPcs}P / PCS</span></span> : scenario.moduleCount}
+          {!scenario.group && scenario.equipmentLabel && <span className="block text-xs">{scenario.equipmentLabel}</span>}{scenario.group ? <span className="block whitespace-normal">{scenario.group.label}</span> : scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.seriesCount}S × {scenario.composition.parallelStringsPerPcs}P / PCS</span></span> : scenario.moduleCount}
         </button>
         {recommended && (
           <Badge variant="secondary" className="ml-2">
@@ -218,7 +218,7 @@ export function CiResultsPanel({
     );
   }
 
-  const sortedScenarios = result ? [...result.scenarios].sort((a, b) => a.composition && b.composition ? a.totalCapacityKwh - b.totalCapacityKwh || a.totalPowerKw - b.totalPowerKw : a.moduleCount - b.moduleCount) : [];
+  const sortedScenarios = result ? [...result.scenarios].sort((a, b) => (a.group && b.group) || (a.composition && b.composition) ? a.totalCapacityKwh - b.totalCapacityKwh || a.totalPowerKw - b.totalPowerKw : a.moduleCount - b.moduleCount) : [];
   const currentScenario =
     sortedScenarios.find((s) => s.scenarioId === selectedScenarioId) ??
     (result?.selected?.scenarioId === selectedScenarioId ? result.selected : null) ??
@@ -422,7 +422,15 @@ export function CiResultsPanel({
                   : `Visualizando métricas financeiras detalhadas para a configuração de ${ciScenarioLabel(currentScenario)}. Clique em outra linha da tabela para comparar.`}
               </p>
               {currentScenario.scenarioId === result.technicalSelection?.scenarioId && <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>}
-              {Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
+              {!currentScenario.group && Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
+              {currentScenario.group && <div className="space-y-2 border-t pt-3 text-xs">
+                <p>Carga CA até {formatKw(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatKw(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
+                <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V · Carga/descarga até {currentScenario.group.dc.chargeCurrentPerBusA}/{currentScenario.group.dc.dischargeCurrentPerBusA} A por barramento.</p>
+                <p>Referência: {currentScenario.group.source.reference} · Revisão {currentScenario.group.source.revision}.</p>
+                {result.technicalRequirements && <p>Requisitos do projeto: {formatKw(result.technicalRequirements.minPowerKw)} · {result.technicalRequirements.minEnergyKwh.toFixed(1)} kWh úteis mínimos, incluindo reserva de backup.</p>}
+                <p className="font-semibold">Composição da solução</p>
+                <ul className="space-y-1">{currentScenario.billOfMaterials?.map(item=><li key={item.productId} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
+              </div>}
               {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
                 <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.seriesCount} unidades em série × {currentScenario.composition.parallelStringsPerPcs} strings por PCS.</p>
                 <p>Carga AC até {formatKw(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatKw(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
@@ -584,15 +592,15 @@ export function CiResultsPanel({
 
           <div className="space-y-3 border-t pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{result.scenarios.some((item) => item.composition) ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</p>
+              <p className="text-sm font-semibold">{result.solutionGeneration ? 'Comparação de soluções agrupadas' : result.scenarios.some((item) => item.composition) ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</p>
               <p className="text-xs text-muted-foreground">Clique em uma linha para inspecionar os detalhes acima</p>
             </div>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-left">
-                <caption className="sr-only">Comparação dos cenários BESS por quantidade de módulos. Use o botão na primeira coluna para inspecionar cada cenário.</caption>
+                <caption className="sr-only">Comparação dos cenários BESS por solução. Use o botão na primeira coluna para inspecionar cada cenário.</caption>
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-muted px-3 py-2 text-xs font-medium text-muted-foreground shadow-[1px_0_0_0_hsl(var(--border))]">{result.scenarios.some((item) => item.composition) ? 'Composição' : 'Módulos'}</th>
+                    <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-muted px-3 py-2 text-xs font-medium text-muted-foreground shadow-[1px_0_0_0_hsl(var(--border))]">{result.solutionGeneration ? 'Solução' : result.scenarios.some((item) => item.composition) ? 'Composição' : 'Módulos'}</th>
                     <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">CAPEX</th>
                     <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Economia/ano</th>
                     <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Payback</th>
