@@ -1,3 +1,5 @@
+import { withAutomaticBackupSts } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
+import { validateStsSelection } from '@/supabase/functions/_shared/commercial-industrial/sts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { queryCiGeneratedSolutions, assertCiGenerationCurrent, type CiSolutionQuery } from './ci-generated-solutions-repository';
 import { loadCiAccessoryContext } from './ci-accessories-repository';
@@ -10,6 +12,11 @@ import { normalizeCiModularSelection, validateModularSelection } from '@/supabas
 import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export async function calculatePersistedCi(db:SupabaseClient,options:CommercialIndustrialOptions):Promise<CommercialIndustrialResult>{
+  options = { ...options, backup: withAutomaticBackupSts(options.backup) };
+  if(options.backup?.enabled){
+    const errors=validateStsSelection(options.backup.sts);
+    if(errors.length)throw new Error(errors.join(' '));
+  }
   if(!options.loadCurve||!options.tariff)throw new Error('Configure a curva de carga e a tarifa.');
   const {data:auth,error:authError}=await db.auth.getUser();
   if(authError||!auth.user)throw new Error('Sua sessão expirou. Entre novamente para calcular.');

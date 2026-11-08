@@ -4,6 +4,7 @@
 // the two are easy to reason about side by side, but touches none of its
 // code — residential's behavior is provably unchanged by this file existing.
 
+import { withAutomaticBackupSts } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
 import type { StateCreator } from 'zustand';
 import { ACCOUNT_LIMITS, limitReachedMessage } from '@/lib/limits';
 import { isAddressEmpty } from '@/lib/address';
@@ -55,7 +56,7 @@ export const createCommercialIndustrialSlice: StateCreator<WizardStore, [], [], 
 
   setCiOptions: (partial) =>
     set((s) => ({
-      ciOptions: { ...s.ciOptions, ...partial },
+      ciOptions: { ...s.ciOptions, ...partial, backup: withAutomaticBackupSts(partial.backup ?? s.ciOptions.backup) },
     })),
 
   newCiProjectDraft: () =>
