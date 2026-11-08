@@ -62,3 +62,21 @@ it('keeps a PCS lookup failure visible when the STS request finishes later, and 
   expect(await screen.findByRole('option',{name:/ZERO-125 teste/})).toBeInTheDocument();
   expect(screen.queryByText('Falha ao carregar a composição PCS')).not.toBeInTheDocument();
 });
+
+it.each(['cabinet','assembly'] as const)('resolves STS for selected %s models and refreshes when equipment or voltage changes',async(sourceKind)=>{
+ const catalog=stsFixture().catalog;
+ const pcsId=modularFixture().pcs[0].inverter_id;
+ catalog.rules.forEach(r=>{r.pcs_id=sourceKind==='assembly'?pcsId:null;r.bess_product_id=sourceKind==='cabinet'?'integrated':null;});
+ mocks.load.mockResolvedValue(catalog);
+ const backup=stsBackup();backup.sts!.mode='manual';
+ const options={...modularOptions(),bessProductId:null,lineVoltageV:380 as const,bessSystem:sourceKind==='cabinet'?{kind:'model' as const,sourceKind,productId:'integrated'}:{kind:'model' as const,sourceKind,pcsId,batteryId:'battery'}};
+ const {rerender}=render(<CiStsBackupPanel options={options} backup={backup} onChange={vi.fn()}/>);
+ expect(await screen.findByRole('option',{name:/ZERO-125 teste/})).toBeInTheDocument();
+ rerender(<CiStsBackupPanel options={{...options,lineVoltageV:220}} backup={backup} onChange={vi.fn()}/>);
+ await screen.findByText(/Nenhuma STS com compatibilidade aprovada/);
+ expect(screen.queryByRole('option',{name:/ZERO-125 teste/})).not.toBeInTheDocument();
+ const other=sourceKind==='cabinet'?{kind:'model' as const,sourceKind,productId:'other'}:{kind:'model' as const,sourceKind,pcsId:'other',batteryId:'battery'};
+ rerender(<CiStsBackupPanel options={{...options,bessSystem:other}} backup={backup} onChange={vi.fn()}/>);
+ await screen.findByText(/Nenhuma STS com compatibilidade aprovada/);
+ expect(screen.queryByRole('option',{name:/ZERO-125 teste/})).not.toBeInTheDocument();
+});

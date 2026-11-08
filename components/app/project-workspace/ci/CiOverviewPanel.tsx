@@ -46,7 +46,6 @@ const STRATEGY_LABELS: Record<string, string> = {
   HYBRID: 'Híbrido',
 };
 
-const RANKING_LABELS: Record<string, string> = { PAYBACK: 'Payback', ROI: 'ROI', NPV: 'NPV' };
 
 function CardIcon({ icon: Icon }: { icon: typeof BatteryCharging }) {
   return (
@@ -174,10 +173,10 @@ export function CiOverviewPanel({
 
   const status = getCiConfigurationStatus(ciOptions);
   const { bess: bessConfigured, curve: curveConfigured, tariff: tariffConfigured } = status;
-  const bessSummary = ciOptions.bessSystem?.kind === 'solution' ? 'Solução agrupada fixada no catálogo gerado' : ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${ciOptions.bessSystem.minPowerKw} kW / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
+  const bessSummary = ciOptions.bessSystem?.kind === 'model' ? (!status.bess?'Selecione a tensão e os modelos BESS':`${ciOptions.bessSystem.sourceKind==='cabinet'?'BESS integrado':'PCS/Inversor + bateria'} · ${ciOptions.lineVoltageV} V · Quantidades automáticas`) : ciOptions.bessSystem?.kind === 'solution' ? 'Solução agrupada fixada no catálogo gerado' : ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${ciOptions.bessSystem.minPowerKw} kW / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
     ? `PCS + baterias · ${ciOptions.bessSystem.compatibilityId ? 'Compatibilidade selecionada' : 'Selecione uma compatibilidade'} · ${ciOptions.bessSystem.mode === 'auto' ? 'Comparação automática' : 'Composição fixa'}`
     : !ciOptions.bessProductId
-    ? 'Nenhum produto selecionado'
+    ? 'Selecione a tensão e os modelos BESS'
     : `${bessProduct ? `${bessProduct.model} · ${bessProduct.manufacturer}` : 'Produto selecionado'} · ${
         ciOptions.sizing.mode === 'fixed'
           ? `${ciOptions.sizing.moduleCount ?? 1} módulo(s)`
@@ -193,9 +192,7 @@ export function CiOverviewPanel({
     ? `Modalidade ${tariff.tariffModality === 'verde' ? 'Verde' : 'Azul'} · Demanda contratada ${formatKw(tariff.contractedDemandKw)}`
     : 'Tarifa não configurada';
 
-  const strategySummary = `${STRATEGY_LABELS[ciOptions.strategy] ?? ciOptions.strategy} · Ranking ${
-    RANKING_LABELS[ciOptions.rankingCriterion] ?? ciOptions.rankingCriterion
-  }`;
+  const strategySummary = `${STRATEGY_LABELS[ciOptions.strategy] ?? ciOptions.strategy} · Seleção técnica`;
 
   const solar = ciOptions.solar;
   const solarConfigured = Boolean(solar?.enabled && status.solar);
@@ -220,7 +217,7 @@ export function CiOverviewPanel({
   const totalConfigCount = applicableSections.length;
   const nextSection = applicableSections.find((key) => !status[key]) ?? 'results';
   const nextLabel = { bess: 'Configuração BESS', solar: 'Solar FV', curve: 'Curvas e aplicações', tariff: 'Tarifa', strategy: 'Estratégia', backup: 'Falta de rede', results: 'Resultados' }[nextSection];
-  const selected = calculationResult?.selected ?? null;
+  const selected = calculationResult?.selected?.technicalValidity&&calculationResult.technicalSelection?.scenarioId!==null?calculationResult.selected:null;
   // A `selected` scenario is still materialized (for reference) even when
   // nothing was actually viable to recommend — Fase 6 audit, Problem #5.
   const isRecommendationViable = calculationResult?.recommendation.scenarioId !== null;
@@ -376,8 +373,8 @@ export function CiOverviewPanel({
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4">
               <div>
-                <p className="font-medium">Resultado ainda não calculado</p>
-                <p className="mt-1 text-sm text-muted-foreground">Configure o BESS, a curva de carga e a tarifa para calcular.</p>
+                <p className="font-medium">{calculationResult?'Nenhuma solução atende aos requisitos técnicos':'Resultado ainda não calculado'}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{calculationResult?calculationResult.technicalIssues?.[0]?.message??'Consulte os resultados para revisar os requisitos não atendidos.':'Configure o BESS, a curva de carga e a tarifa para calcular.'}</p>
               </div>
               <Button type="button" variant="outline" onClick={() => onNavigateToSection('results')}>
                 Ir para Resultados

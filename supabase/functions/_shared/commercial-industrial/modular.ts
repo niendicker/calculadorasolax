@@ -176,7 +176,7 @@ export function calculateModularStudy(options: CommercialIndustrialOptions, cata
   const decorate = (candidate: ScenarioCandidate, configuration: typeof configurations[number]) => ({ ...candidate, scenarioId: configuration.id, moduleCount: configuration.composition.batteryCount, composition: {...configuration.composition, items: [...configuration.composition.items.filter(item=>item.productType!=='accessory'), ...(candidate.accessories ?? []).map(item=>({...item,productType:'accessory' as const}))]}, marginalGain: null });
   const grids = configurations.map((configuration) => ({ configuration, grid: buildScenarioGrid(gridInput(configuration)) }));
   const scenarios = grids.map(({ configuration, grid }) => decorate(grid.scenarios[0], configuration));
-  const recommendation = recommendScenario(scenarios, options.rankingCriterion, options.financialAssumptions.analysisHorizonYears)!;
+  const recommendation = recommendScenario(scenarios, options.rankingCriterion??'PAYBACK', options.financialAssumptions.analysisHorizonYears)!;
   const technicalReference = scenarios.find(scenario => scenario.scenarioId === recommendation.scenarioId) ?? scenarios.find(scenario => scenario.technicalValidity);
   const selectedConfiguration = configurations.find((configuration) => configuration.id === (recommendation.scenarioId ?? technicalReference?.scenarioId)) ?? configurations[0];
   const detail = materializeScenarioDetail(gridInput(selectedConfiguration), 1, null);

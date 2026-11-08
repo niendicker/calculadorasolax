@@ -40,7 +40,6 @@ export const defaultCiOptions: CommercialIndustrialOptions = {
   strategy: 'HYBRID',
   sizing: { mode: 'auto', moduleCount: null, minModules: 1, maxModules: 6 },
   financialAssumptions: { discountRatePercent: 12, analysisHorizonYears: 10, annualEnergyInflationPercent: 0, monthsPerYear: 12 },
-  rankingCriterion: 'PAYBACK',
   backup: defaultCiBackupConfig,
   solar: defaultCiSolarConfig,
   generator: defaultCiGeneratorConfig,

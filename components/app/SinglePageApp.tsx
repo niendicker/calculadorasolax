@@ -611,7 +611,7 @@ export function SinglePageApp() {
     enabled:
       Boolean(profile) &&
       activeTab === 'ciWorkspace' &&
-      Boolean(currentCiProjectId || ciOptions.bessProductId || ciOptions.loadCurve || ciOptions.tariff),
+      Boolean(currentCiProjectId || ciOptions.bessProductId || ciOptions.bessSystem?.kind === 'model' || ciOptions.loadCurve || ciOptions.tariff),
     data: ciAutosaveData,
     saveCurrentProject: saveCiProject,
   });

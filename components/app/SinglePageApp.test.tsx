@@ -250,6 +250,21 @@ beforeEach(() => {
 });
 
 describe('SinglePageApp: initial load and navigation', () => {
+  it('autosaves a new model selection before any curve, tariff or legacy BESS ID exists',async()=>{
+    setupSupabase({}, {loggedIn:true,role:'admin'});
+    renderApp();
+    await screen.findByRole('link',{name:/Administração/});
+    fireEvent.click(screen.getByRole('button',{name:'Novo projeto C&I'}));
+    const originalSave=useWizardStore.getState().saveCiProject;
+    const save=vi.fn().mockResolvedValue(makeSavedCiProject({id:'autosaved-model'}));
+    try{
+      act(()=>useWizardStore.setState({currentCiProjectId:null,saveCiProject:save,ciOptions:{...defaultCiOptions,lineVoltageV:380,bessSystem:{kind:'model',sourceKind:'cabinet',productId:null}}}));
+      act(()=>useWizardStore.getState().setCiOptions({bessSystem:{kind:'model',sourceKind:'cabinet',productId:'selected-cabinet'}}));
+      await waitFor(()=>expect(save).toHaveBeenCalledOnce(),{timeout:5000});
+      expect(useWizardStore.getState().ciOptions).toMatchObject({bessProductId:null,loadCurve:null,tariff:null,bessSystem:{kind:'model',sourceKind:'cabinet',productId:'selected-cabinet'}});
+    }finally{act(()=>useWizardStore.setState({saveCiProject:originalSave}));}
+  },15000);
+
   it('restores a workspace URL only once after its project becomes available', async () => {
     setupSupabase();
     window.history.replaceState({}, '', '/pt?workspaceId=p1&workspace=overview');

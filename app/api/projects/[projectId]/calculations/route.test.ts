@@ -55,6 +55,16 @@ it('accepts automatic technical search without a manually selected model or its 
   expect(invokeMock).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({options:expect.objectContaining({bessSystem:{kind:'automatic',minPowerKw:150,minEnergyKwh:300}})}));
 });
 
+it('accepts model selection and voltage without a financial ranking or manual quantities',async()=>{
+  const {POST}=await import('./route');
+  const options={...modularOptions(),bessProductId:null,lineVoltageV:380,bessSystem:{kind:'model',sourceKind:'assembly',pcsId:'pcs',batteryId:'battery'},rankingCriterion:undefined,sizing:{mode:'auto',moduleCount:null,minModules:null,maxModules:null}};
+  findOwnCiProjectMock.mockResolvedValue({...ciProject,calculation_options:options});
+  expect((await POST(makeRequest(),makeParams())).status).toBe(200);
+  expect(invokeMock).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({options}));
+  findOwnCiProjectMock.mockResolvedValue({...ciProject,calculation_options:{...options,lineVoltageV:400}});
+  expect((await POST(makeRequest(),makeParams())).status).toBe(422);
+});
+
 const calculationResult = {
   engineVersion: 'ci-v1',
   inputFingerprint: 'abc123',

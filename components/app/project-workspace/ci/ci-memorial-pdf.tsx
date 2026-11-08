@@ -163,7 +163,6 @@ const PROFILE_BASIS_LABELS: Record<string, string> = {
   representative_period: 'Período representativo (semana)',
   annual_series: 'Série anual',
 };
-const RANKING_CRITERION_LABELS: Record<RankingCriterion, string> = { PAYBACK: 'Payback', ROI: 'ROI', NPV: 'NPV' };
 
 function MetricRows({
   metrics,
@@ -449,7 +448,7 @@ export interface CiMemorialPdfInput {
  * smallest evaluated module count for reference, and every section below
  * that would otherwise say "recomendado" switches to a neutral "avaliado"
  * framing instead (never silently mislabeling a nonviable result). */
-export function CiMemorialPdfDocument({ projectInfo, client, profile, result, product, rankingCriterion, solar, generator }: CiMemorialPdfInput) {
+export function CiMemorialPdfDocument({ projectInfo, client, profile, result, product, solar, generator }: CiMemorialPdfInput) {
   const generatedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
   const selected = result.selected;
   const isRecommended = result.recommendation.scenarioId !== null;
@@ -538,7 +537,6 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                 label: 'Inflação energética anual (reajuste uniforme aplicado ao fluxo de caixa)',
                 value: formatPercentBRL(result.assumptions.financial.annualEnergyInflationPercent),
               },
-              ...(rankingCriterion ? [{ label: 'Critério de ranking', value: RANKING_CRITERION_LABELS[rankingCriterion] }] : []),
             ]}
           />
         </View>
@@ -747,7 +745,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           </View>
         )}
 
-        <View style={styles.section}>
+        {result.engineVersion!=='ci-technical-v1'&&<View style={styles.section}>
           <Text style={styles.sectionTitle}>{selected?.group ? 'Comparação de soluções agrupadas' : selected?.composition ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</Text>
           <ModuleComparisonChart scenarios={result.scenarios} recommendedScenarioId={result.recommendation.scenarioId} />
           <View style={[styles.table, { marginTop: 10 }]}>
@@ -770,7 +768,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               />
             ))}
           </View>
-        </View>
+        </View>}
 
         {selected && (
           <View style={styles.section} wrap={false}>
@@ -780,6 +778,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             <MetricRows
               perRow={3}
               metrics={[
+                ...(result.assumptions.lineVoltageV?[{label:'Tensão CA entre fases',value:`${result.assumptions.lineVoltageV} V`}]:[]),
                 { label: 'CAPEX', value: formatCurrencyBRL(selected.capex) },
                 { label: 'Economia de energia/ano', value: formatCurrencyBRL(selected.energySavings) },
                 { label: 'Economia de demanda/ano', value: formatCurrencyBRL(selected.demandSavings) },
@@ -827,7 +826,6 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               {'\n'}• A economia de energia resulta da diferença entre o custo com e sem BESS na semana representativa; a
               economia de demanda, da diferença entre as demandas cobradas antes e depois do despacho simulado.
               {selected?.composition ? '\n• Composições variam PCS e baterias independentemente; ganho marginal entre composições não é calculado.' : '\n• O ganho marginal compara cenários com quantidades consecutivas de módulos. Ganhos nulos ou negativos indicam ausência de benefício financeiro adicional.'}
-              {rankingCriterion ? `\n• A recomendação usa o critério de ranking configurado no projeto: ${RANKING_CRITERION_LABELS[rankingCriterion]}.` : ''}
             </Text>
           </View>
         </View>
@@ -881,6 +879,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
 /** Builds the memorial as a downloadable PDF Blob — runs entirely
  * client-side, fed by an already-calculated result (never recomputes). */
 export async function buildCiMemorialPdfBlob(input: CiMemorialPdfInput): Promise<Blob> {
+  if(!input.result.selected?.technicalValidity||input.result.technicalSelection?.scenarioId===null)throw new Error('Nenhuma solução atende aos requisitos técnicos. Calcule uma solução válida antes de gerar o memorial.');
   if (input.result.selected?.pricingComplete === false) throw new Error('Preencha os preços pendentes no Portfólio antes de gerar o memorial financeiro.');
   const scenarios=input.result.scenarios.filter(scenario=>scenario.pricingComplete !== false);
   const omitted=input.result.scenarios.length-scenarios.length;

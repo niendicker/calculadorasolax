@@ -63,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
   const options = project.calculation_options as { bessProductId?: string | null; bessSystem?: { kind?: string; compatibilityId?: string | null }; backup?: { enabled?: boolean } | null; generator?: { enabled?:boolean } } | null;
   const isModular = options?.bessSystem?.kind === 'modular';
-  const isAutomatic = options?.bessSystem?.kind === 'automatic' || options?.bessSystem?.kind === 'solution';
+  const isAutomatic = options?.bessSystem?.kind === 'automatic' || options?.bessSystem?.kind === 'solution' || options?.bessSystem?.kind === 'model';
   if (!options || Object.keys(options).length === 0 || (!isAutomatic && (isModular ? !options.bessSystem?.compatibilityId : !options.bessProductId))) {
     return NextResponse.json(
       { error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' },

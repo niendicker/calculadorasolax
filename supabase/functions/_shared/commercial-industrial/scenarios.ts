@@ -54,6 +54,8 @@ export function buildModuleCountRange(sizing: SizingConfig): number[] {
 }
 
 export interface ScenarioGridInput {
+  /** Internal feasibility pass: no CAPEX, cash flow or return calculations. */
+  technicalOnly?: boolean;
   preparedBaseline?: ReturnType<typeof prepareScenarioBaseline>;
   gridImportLimitsKw?: (number|null)[];
   accessoryContext?: CiAccessoryContext;
@@ -177,18 +179,19 @@ function evaluateModuleCount(
   });
   const summary = summarizeDispatch(trace, curve.resolutionMinutes);
   const annualized = annualizeWeeklyDispatch(summary);
-  const cost = computeAnnualEnergyCost(annualized, tariff, monthsPerYear);
-  const savings = computeAnnualSavings(baselineCost, cost);
+  const savings = input.technicalOnly ? {annualSavingsBrl:0,energySavingsBrl:0,demandSavingsBrl:0}
+    : computeAnnualSavings(baselineCost,computeAnnualEnergyCost(annualized,tariff,monthsPerYear));
 
   const sts = evaluateSts(backup, trace, input.stsContext, moduleCount, backupRequirements ?? undefined);
+  const meetsBackup = !backupResult || backupResult.status === 'fully_covered';
   if (sts && backupResult) {
     backupResult.meetsTransfer = sts.status === 'selected';
     if (sts.status !== 'selected') { backupResult.status = 'insufficient_transfer'; backupResult.warningMessage = sts.message; }
   }
   const existing = [...(input.baseAccessories ?? []), ...(sts?.selected ? [{productId:sts.selected.spec.accessory_id,model:sts.selected.spec.model,quantity:1,unitPriceBrl:sts.selected.unitPriceBrl,totalBrl:sts.selected.totalBrl,bundled:false,reasons:['STS selecionada pelo dimensionamento elétrico'],ruleIds:[]}] : [])];
   const accessories = evaluateCiAccessories(input.accessoryContext, (input.accessoryTarget ? {...input.accessoryTarget,bess:input.accessoryTarget.bess * moduleCount,pcs:input.accessoryTarget.pcs * moduleCount,battery:input.accessoryTarget.battery * moduleCount,string:input.accessoryTarget.string * moduleCount} : {bess:moduleCount,pcs:0,battery:0,string:0,backup:Boolean(backup?.enabled),generator:Boolean(input.generator?.enabled),lineVoltageV:backup?.sts?.lineVoltageV}), existing);
-  const capex = computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl) + (sts?.selected?.totalBrl ?? 0) + accessories.additionalCostBrl;
-  const cashFlow = buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
+  const capex = input.technicalOnly ? 0 : computeCapex(moduleCount, unitPriceBrl, additionalCostsBrl) + (sts?.selected?.totalBrl ?? 0) + accessories.additionalCostBrl;
+  const cashFlow = input.technicalOnly ? [] : buildCashFlow(capex, savings.annualSavingsBrl, financialAssumptions);
 
   const technicalWarnings: string[] = [];
   if (sts) technicalWarnings.push(sts.message);
@@ -211,6 +214,7 @@ function evaluateModuleCount(
   }
 
   const candidate: ScenarioCandidate = {
+    technicalChecks:{backup:meetsBackup,transfer:!sts||sts.status==='selected',accessories:accessories.valid,dispatch:meetsProfile,demand:meetsDemandTarget},
     scenarioId: `modules-${moduleCount}`,
     moduleCount,
     strategy,
@@ -226,10 +230,10 @@ function evaluateModuleCount(
     annualSavings: savings.annualSavingsBrl,
     energySavings: savings.energySavingsBrl,
     demandSavings: savings.demandSavingsBrl,
-    paybackYearsSimple: computeSimplePaybackYears(cashFlow),
-    paybackYearsDiscounted: computeDiscountedPaybackYears(cashFlow),
-    roiPercent: computeAnnualRoiPercent(capex, savings.annualSavingsBrl),
-    npv: computeNpv(cashFlow),
+    paybackYearsSimple: input.technicalOnly ? null : computeSimplePaybackYears(cashFlow),
+    paybackYearsDiscounted: input.technicalOnly ? null : computeDiscountedPaybackYears(cashFlow),
+    roiPercent: input.technicalOnly ? 0 : computeAnnualRoiPercent(capex, savings.annualSavingsBrl),
+    npv: input.technicalOnly ? 0 : computeNpv(cashFlow),
     marginalGain: null,
     backupResult,
   };
@@ -270,4 +274,10 @@ export function materializeScenarioDetail(input: ScenarioGridInput, moduleCount:
   const { cost: baselineCost } = input.preparedBaseline??prepareScenarioBaseline(input);
   const { candidate, trace, cashFlow } = evaluateModuleCount(input, moduleCount, baselineCost);
   return { ...candidate, marginalGain, dispatch: trace, cashFlow };
+}
+
+/** Uses the same physical checks as final materialization, without finances. */
+export function evaluateScenarioTechnical(input:ScenarioGridInput):ScenarioCandidate {
+  const {cost}=input.preparedBaseline??prepareScenarioBaseline(input);
+  return evaluateModuleCount({...input,technicalOnly:true},1,cost).candidate;
 }

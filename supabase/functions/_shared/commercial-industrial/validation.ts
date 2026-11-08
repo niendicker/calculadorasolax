@@ -347,7 +347,14 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
   }
 
   if (options.bessSystem !== undefined) {
-    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular', 'automatic', 'solution'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha busca automática, BESS integrado ou PCS + baterias.');
+    if (!options.bessSystem || typeof options.bessSystem !== 'object' || !['integrated', 'modular', 'automatic', 'solution','model'].includes((options.bessSystem as { kind: string }).kind)) errors.push('Escolha BESS integrado ou PCS + baterias.');
+    else if ((options.bessSystem as {kind:string}).kind==='model') {
+      const model=options.bessSystem as Record<string,unknown>;
+      if(![220,380].includes(options.lineVoltageV as number))errors.push('Selecione a tensão CA entre fases: 220 V ou 380 V.');
+      if(!['cabinet','assembly'].includes(model.sourceKind as string))errors.push('Selecione BESS integrado ou PCS/Inversor + bateria.');
+      const keys=model.sourceKind==='cabinet'?['productId']:['pcsId','batteryId'];
+      if(keys.some(key=>typeof model[key]!=='string'||!String(model[key]).trim()))errors.push('Selecione os modelos de produto BESS.');
+    }
     else if ((options.bessSystem as { kind: string }).kind === 'modular') errors.push(...validateModularSelection(options.bessSystem));
     else if ((options.bessSystem as {kind:string}).kind==='solution') {if(typeof (options.bessSystem as Record<string,unknown>).solutionKey!=='string'||!String((options.bessSystem as Record<string,unknown>).solutionKey).trim())errors.push('Selecione uma solução gerada.');}
     else if ((options.bessSystem as { kind: string }).kind === 'automatic') {
@@ -357,7 +364,7 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
       }
     }
   }
-  if (!(options.bessSystem && typeof options.bessSystem === 'object' && ['modular','automatic','solution'].includes((options.bessSystem as { kind: string }).kind))) validateSizing(options.sizing, errors);
+  if (!(options.bessSystem && typeof options.bessSystem === 'object' && ['modular','automatic','solution','model'].includes((options.bessSystem as { kind: string }).kind))) validateSizing(options.sizing, errors);
   validateFinancialAssumptions(options.financialAssumptions, errors);
   validateBackup(options.backup, errors);
   validateSolar(options.solar, errors);
@@ -371,7 +378,7 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
 
   validateGenerator(options.generator, errors);
 
-  if (!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
+  if (options.rankingCriterion!==undefined&&!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));
   }
 

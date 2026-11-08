@@ -195,10 +195,9 @@ describe('buildCiMemorialPdfBlob', () => {
     expect(await pdfMagicBytes(blob)).toBe('%PDF-');
   });
 
-  it('renders when no scenario has been selected/materialized yet', async () => {
-    const result = makeResult({ selected: null });
-    const blob = await buildCiMemorialPdfBlob(baseInput({ result }));
-    expect(await pdfMagicBytes(blob)).toBe('%PDF-');
+  it('refuses financial memorials when no technical solution is selected', async () => {
+    const result = makeResult({selected:null});
+    await expect(buildCiMemorialPdfBlob(baseInput({result}))).rejects.toThrow('Nenhuma solução atende aos requisitos técnicos');
   });
 
   it('renders when the selected scenario has no dispatch or cash-flow points', async () => {

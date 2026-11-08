@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { Database } from '@/lib/database.types';
 import type { CiBatteryCatalogEntry, CiBatterySpec, CiCompatibilityRule, CiModularCatalog, CiPcsCatalogEntry, CiPcsSpec } from '@/supabase/functions/_shared/commercial-industrial/modular-types';
 
-export type CiInverterBase = Pick<Database['public']['Tables']['inverters']['Row'], 'id' | 'model' | 'power_kw' | 'max_battery_qty' | 'battery_ports' | 'battery_current_max_a' | 'battery_voltage_min_v' | 'battery_voltage_max_v' | 'battery_charge_efficiency_percent' | 'battery_discharge_efficiency_percent'>;
+export type CiInverterBase = Pick<Database['public']['Tables']['inverters']['Row'], 'id' | 'model' | 'power_kw' | 'max_battery_qty' | 'battery_ports' | 'battery_current_max_a' | 'battery_voltage_min_v' | 'battery_voltage_max_v' | 'battery_charge_efficiency_percent' | 'battery_discharge_efficiency_percent'> & {grid_types?:string[]};
 export type CiBatteryBase = Pick<Database['public']['Tables']['batteries']['Row'], 'id' | 'model' | 'max_current_a' | 'max_association_qty' | 'capacity_kwh' | 'voltage_min_v' | 'voltage_max_v' | 'min_soc_percent' | 'round_trip_efficiency_percent'>;
 export interface CiEquipmentCatalog extends CiModularCatalog { inverterOptions: CiInverterBase[]; batteryOptions: CiBatteryBase[] }
 
@@ -12,7 +12,7 @@ export async function loadCiModularCatalog(client?: SupabaseClient): Promise<CiE
   const db = client ?? createClient();
   const [pcs, batteries, rules, inverters, batteryModels, accessories] = await Promise.all([
     db.from('ci_pcs_specs').select('*'), db.from('ci_battery_specs').select('*'), db.from('ci_compatibility_rules').select('*').order('name'),
-    db.from('ci_inverters').select('id,model,power_kw,max_battery_qty,battery_ports,battery_current_max_a,battery_voltage_min_v,battery_voltage_max_v,battery_charge_efficiency_percent,battery_discharge_efficiency_percent').order('model'),
+    db.from('ci_inverters').select('id,model,grid_types,power_kw,max_battery_qty,battery_ports,battery_current_max_a,battery_voltage_min_v,battery_voltage_max_v,battery_charge_efficiency_percent,battery_discharge_efficiency_percent').order('model'),
     db.from('ci_batteries').select('id,model,max_current_a,max_association_qty,capacity_kwh,voltage_min_v,voltage_max_v,min_soc_percent,round_trip_efficiency_percent').order('model'),
     db.from('ci_accessories').select('id,model,active').order('model'),
   ]);
@@ -33,7 +33,7 @@ export function assembleCiEquipmentCatalog(rows:CiCatalogRows):CiEquipmentCatalo
     inverterOptions, batteryOptions,
     pcs: rows.pcs.map((item): CiPcsCatalogEntry => {
       const base = baseInverters.get(item.inverter_id);
-      return { ...item, active:item.active && Boolean(base), ratedPowerKw: base?.power_kw ?? null, maxBatteryQty: base?.max_battery_qty ?? null, batteryPorts: base?.battery_ports ?? null, maxCurrentPerPortA: base?.battery_current_max_a ?? null, model: base?.model ?? 'Inversor indisponível', voltageMinV: base?.battery_voltage_min_v ?? null, voltageMaxV: base?.battery_voltage_max_v ?? null, chargeEfficiencyPercent: base?.battery_charge_efficiency_percent ?? null, dischargeEfficiencyPercent: base?.battery_discharge_efficiency_percent ?? null };
+      return { ...item, gridTypes:base?.grid_types??[], active:item.active && Boolean(base), ratedPowerKw: base?.power_kw ?? null, maxBatteryQty: base?.max_battery_qty ?? null, batteryPorts: base?.battery_ports ?? null, maxCurrentPerPortA: base?.battery_current_max_a ?? null, model: base?.model ?? 'Inversor indisponível', voltageMinV: base?.battery_voltage_min_v ?? null, voltageMaxV: base?.battery_voltage_max_v ?? null, chargeEfficiencyPercent: base?.battery_charge_efficiency_percent ?? null, dischargeEfficiencyPercent: base?.battery_discharge_efficiency_percent ?? null };
     }),
     batteries: rows.batterySpecs.map((item): CiBatteryCatalogEntry => {
       const base = baseBatteries.get(item.battery_id);

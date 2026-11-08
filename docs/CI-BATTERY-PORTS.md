@@ -102,3 +102,25 @@ está entre as portas de cada unidade. O mínimo de agrupamentos para backup
 As alterações e a migration estão locais; o cadastro de produção não foi
 alterado. Para ativar: migration 0103 após 0102, revisão dos perfis por porta,
 reaprovação explícita das compatibilidades e nova geração administrativa.
+
+## Salvamentos sem alterações no catálogo
+
+Uma geração publicada pode continuar com suas soluções armazenadas e estar
+indisponível para novos cálculos quando um cadastro é alterado. O estado
+`is_current`, além da quantidade gerada, determina sua disponibilidade.
+
+A migration `0104_ci_catalog_noop_invalidation.sql` corrige a invalidação ao
+salvar a mesma ficha sem alterar seus dados: `updated_at` deixa de participar
+da revisão da fonte e da comparação entre a linha antiga e a nova. Todos os
+demais campos continuam invalidando a geração quando mudam; inserções e
+exclusões também. O mesmo critério vale durante a publicação dos lotes.
+
+Aplicar 0104 não reativa gerações já invalidadas, pois pode ter havido uma
+alteração real. Após a migração, gerar as soluções novamente em Administração
+→ C&I → Soluções geradas. Confirmar “Geração publicada e atual”, salvar uma
+ficha sem mudanças e conferir que a geração segue disponível no projeto.
+Alterar um limite de fato deve invalidá-la e exigir nova geração.
+
+Regressão: `bash scripts/check-ci-catalog-migration.sh` verifica revisão
+estável, publicação durante salvamento sem mudanças, leitura pelo usuário,
+invalidação por mudanças reais, inserções/exclusões e preservação do histórico.

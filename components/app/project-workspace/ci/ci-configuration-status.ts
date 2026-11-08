@@ -13,7 +13,7 @@ export function getCiConfigurationStatus(options: CommercialIndustrialOptions) {
     catch{backupConfigured=false;}
   }
   return {
-    bess: options.bessSystem?.kind === 'solution' ? Boolean(options.bessSystem.solutionKey?.trim()) : options.bessSystem?.kind === 'automatic' ? [options.bessSystem.minPowerKw,options.bessSystem.minEnergyKwh].every(value=>Number.isFinite(value)&&value>=0) : options.bessSystem?.kind === 'modular' ? validateModularSelection(options.bessSystem).length === 0 : Boolean(options.bessProductId) && (sizing.mode === 'fixed'
+    bess: options.bessSystem?.kind === 'model' ? [220,380].includes(options.lineVoltageV!) && (options.bessSystem.sourceKind==='cabinet' ? Boolean(options.bessSystem.productId) : Boolean(options.bessSystem.pcsId&&options.bessSystem.batteryId)) : options.bessSystem?.kind === 'solution' ? Boolean(options.bessSystem.solutionKey?.trim()) : options.bessSystem?.kind === 'automatic' ? [options.bessSystem.minPowerKw,options.bessSystem.minEnergyKwh].every(value=>Number.isFinite(value)&&value>=0) : options.bessSystem?.kind === 'modular' ? validateModularSelection(options.bessSystem).length === 0 : Boolean(options.bessProductId) && (sizing.mode === 'fixed'
       ? positiveInteger(sizing.moduleCount)
       : positiveInteger(sizing.minModules) && positiveInteger(sizing.maxModules) && sizing.minModules <= sizing.maxModules),
     solar: !options.solar?.enabled || Boolean(options.solar.generationCurve?.points.length) || options.solar.installedPowerKwp > 0,

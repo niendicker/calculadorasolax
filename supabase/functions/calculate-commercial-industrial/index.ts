@@ -91,7 +91,7 @@ export async function handleCalculateCommercialIndustrial(
     }
     const options = body.options as CommercialIndustrialOptions;
 
-    if (options.bessSystem?.kind === 'modular' || options.bessSystem?.kind === 'automatic' || options.bessSystem?.kind === 'solution' || options.selectedAccessoryIds?.length) return jsonResponse({error:'invalid_payload',details:['Composições e acessórios C&I devem ser calculados pela rota do projeto.']},{status:400});
+    if (options.bessSystem?.kind === 'modular' || options.bessSystem?.kind === 'automatic' || options.bessSystem?.kind === 'solution' || options.bessSystem?.kind === 'model' || options.selectedAccessoryIds?.length) return jsonResponse({error:'invalid_payload',details:['Composições e acessórios C&I devem ser calculados pela rota do projeto.']},{status:400});
 
     if ((body.options as CommercialIndustrialOptions).backup?.enabled && (body.options as CommercialIndustrialOptions).backup?.sts) return jsonResponse({ error: 'invalid_payload', details: ['STS deve ser calculada pela rota do projeto, com catálogo e preços resolvidos no servidor.'] }, { status: 400 });
 
@@ -165,7 +165,7 @@ export async function handleCalculateCommercialIndustrial(
       return jsonResponse({ error: 'no_scenarios_evaluated' }, { status: 422 });
     }
 
-    const recommendation = recommendScenario(scenarios, options.rankingCriterion, options.financialAssumptions.analysisHorizonYears);
+    const recommendation = recommendScenario(scenarios, options.rankingCriterion ?? 'PAYBACK', options.financialAssumptions.analysisHorizonYears);
     if (!recommendation) {
       return jsonResponse({ error: 'no_scenarios_evaluated' }, { status: 422 });
     }

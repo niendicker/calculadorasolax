@@ -939,6 +939,7 @@ export type Database = {
       }
       ci_bess_products: {
         Row: {
+          ac_voltages_v: number[]
           ac_charge_efficiency_percent: number | null
           ac_discharge_efficiency_percent: number | null
           charge_power_kw: number | null
@@ -970,6 +971,7 @@ export type Database = {
           warranty_years: number
         }
         Insert: {
+          ac_voltages_v?: number[]
           ac_charge_efficiency_percent?: number | null
           ac_discharge_efficiency_percent?: number | null
           charge_power_kw?: number | null
@@ -1001,6 +1003,7 @@ export type Database = {
           warranty_years: number
         }
         Update: {
+          ac_voltages_v?: number[]
           ac_charge_efficiency_percent?: number | null
           ac_discharge_efficiency_percent?: number | null
           charge_power_kw?: number | null
