@@ -1,5 +1,7 @@
 'use client';
 
+import { FieldHelpLabel, FieldHelpProvider } from '../field-help';
+import { CI_FIELD_HELP } from './ci-field-help';
 import { useMemo, useState } from 'react';
 import { Battery, Gauge, Search, ShieldCheck, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -58,7 +60,7 @@ export function CiBessProductsEditor(props: {
   }, [props.rows, selectedStatus, query]);
 
   return (
-    <CatalogLayout
+    <FieldHelpProvider tips={CI_FIELD_HELP}><CatalogLayout
       title="Produtos C&I (BESS)"
       count={visibleRows.length}
       formOpen={formOpen}
@@ -114,20 +116,21 @@ export function CiBessProductsEditor(props: {
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  aria-label="Ativo"
                   checked={form.active ?? true}
                   onChange={(event) => setForm({ ...form, active: event.target.checked })}
                 />
-                Ativo
+                <FieldHelpLabel label="Ativo" />
               </label>
               <div className="space-y-3 rounded-lg border bg-background p-3">
                 <p className="text-sm font-semibold">Limites elétricos documentados do agrupamento</p>
-                <fieldset className="space-y-2"><legend className="text-sm">Tensões CA entre fases documentadas</legend><div className="flex gap-4">{([220,380] as const).map(voltage=><label key={voltage} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.ac_voltages_v?.includes(voltage)??false} onChange={event=>setForm({...form,ac_voltages_v:event.target.checked?[...(form.ac_voltages_v??[]),voltage]:(form.ac_voltages_v??[]).filter(value=>value!==voltage)})}/>{voltage} V</label>)}</div></fieldset>
+                <fieldset className="space-y-2"><legend className="text-sm"><FieldHelpLabel label="Tensões CA entre fases documentadas" /></legend><div className="flex gap-4">{([220,380] as const).map(voltage=><label key={voltage} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.ac_voltages_v?.includes(voltage)??false} onChange={event=>setForm({...form,ac_voltages_v:event.target.checked?[...(form.ac_voltages_v??[]),voltage]:(form.ac_voltages_v??[]).filter(value=>value!==voltage)})}/>{voltage} V</label>)}</div></fieldset>
                 <p className="text-xs text-muted-foreground">Complete estes limites para gerar soluções do gabinete. Dados desconhecidos permanecem vazios e impedem a geração; não são presumidos pelo motor.</p>
                 <div className="grid gap-3 sm:grid-cols-2">{([
                   ['ac_charge_efficiency_percent','Eficiência do conversor CA→CC (%)'],['ac_discharge_efficiency_percent','Eficiência do conversor CC→CA (%)'],['charge_power_kw','Carga máxima CA (kW)'],['dc_voltage_min_v','Tensão mínima CC (V)'],['dc_voltage_max_v','Tensão máxima CC (V)'],['dc_charge_current_a','Corrente máxima de carga CC (A)'],['dc_discharge_current_a','Corrente máxima de descarga CC (A)'],['dc_charge_power_kw','Potência máxima de carga CC (kW)'],['dc_discharge_power_kw','Potência máxima de descarga CC (kW)'],
                 ] as const).map(([key,label])=><Field key={key} label={label}><Input type="number" min={0} step="any" value={form[key]??''} onChange={event=>setForm({...form,[key]:event.target.value?Number(event.target.value):null})}/></Field>)}</div>
                 <Field label="Referência documental dos limites e aplicações"><Input value={form.electrical_reference??''} onChange={event=>setForm({...form,electrical_reference:event.target.value})}/></Field>
-                <div className="flex flex-wrap gap-3">{([['supports_backup','Backup aprovado'],['supports_solar','Integração FV aprovada'],['supports_generator','Integração com gerador aprovada']] as const).map(([key,label])=><label className="flex items-center gap-2 text-xs" key={key}><input type="checkbox" checked={form[key]??false} onChange={event=>setForm({...form,[key]:event.target.checked})}/>{label}</label>)}</div>
+                <div className="flex flex-wrap gap-3">{([['supports_backup','Backup aprovado'],['supports_solar','Integração FV aprovada'],['supports_generator','Integração com gerador aprovada']] as const).map(([key,label])=><label className="flex items-center gap-2 text-xs" key={key}><input type="checkbox" checked={form[key]??false} onChange={event=>setForm({...form,[key]:event.target.checked})}/><FieldHelpLabel label={label} /></label>)}</div>
                 <p className="text-sm font-semibold">Especificação por módulo</p>
                 <p className="text-xs text-muted-foreground">
                   Potência e capacidade de um único módulo — o motor multiplica pela quantidade escolhida no
@@ -137,7 +140,7 @@ export function CiBessProductsEditor(props: {
                   <Field label="Máximo de unidades em paralelo"><Input type="number" min={1} max={256} step={1} value={form.max_parallel_units ?? 1} onChange={event=>setForm({...form,max_parallel_units:Number(event.target.value)})}/></Field>
                   <NumberWithUnitField
                     label="Potência"
-                    tip="Potência nominal de um módulo do produto."
+                    tip="Potência ativa nominal CA de descarga de um gabinete completo, tratado como um módulo na geração. O motor também respeita os limites CC e as perdas do conversor."
                     icon={<Zap className="h-4 w-4" />}
                     unit="kW"
                     value={form.module_power_kw ?? 0}
@@ -153,7 +156,7 @@ export function CiBessProductsEditor(props: {
                   />
                   <NumberWithUnitField
                     label="Eficiência"
-                    tip="Eficiência de ciclo (round-trip). O motor deriva eficiência de carga/descarga pela raiz quadrada desse valor."
+                    tip="Eficiência do ciclo completo de carga e descarga do gabinete. Inclui conversão e armazenamento; informe as eficiências CA→CC e CC→CA separadamente. Não deve superar o produto dessas duas eficiências."
                     icon={<Gauge className="h-4 w-4" />}
                     unit="%"
                     value={form.efficiency_percent ?? 95}
@@ -217,6 +220,6 @@ export function CiBessProductsEditor(props: {
         onDeactivate: row.active ? () => props.onDeactivate(row.id) : undefined,
         deactivateDescription: `O produto ${row.model} fica inativo e para de aparecer para os usuários — nenhum projeto que já o referencia é afetado.`,
       }))}
-    />
+    /></FieldHelpProvider>
   );
 }

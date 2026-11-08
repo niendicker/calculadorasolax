@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Activity, Battery, Search, ShieldCheck, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -22,6 +22,8 @@ import {
 import { batteryFlagOptions, emptyBattery, productEditorTabOptions, type BatteryRow } from '../types';
 
 export function BatteriesEditor(props: {
+  additionalFields?: ReactNode;
+  additionalBadges?: (row: BatteryRow) => string[];
   rows: BatteryRow[];
   form: Partial<BatteryRow>;
   setForm: (value: Partial<BatteryRow>) => void;
@@ -309,13 +311,15 @@ export function BatteriesEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
+          {activeFormTab === 'general' && props.additionalFields}
+          {props.error && <p role="alert" className="text-sm text-destructive">{props.error}</p>}
           <Actions onSave={() => props.onSave(close)} saving={props.saving} />
         </>
       }
       items={visibleRows.map((row) => ({
         id: row.id,
         title: row.model,
-        badges: [row.topology],
+        badges: [row.topology, ...(props.additionalBadges?.(row) ?? [])],
         details: [
           ['Capacidade / Útil', `${row.capacity_kwh} / ${(Number(row.capacity_kwh || 0) * (1 - Number(row.min_soc_percent ?? 10) / 100)).toFixed(2)} kWh`],
           ['Potência', `${row.standard_power_kw ?? '-'} / ${row.peak_power_kw ?? '-'} kW`],

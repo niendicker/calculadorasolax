@@ -1,5 +1,7 @@
 'use client';
 
+import { FieldHelpLabel } from '../field-help';
+
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +40,7 @@ export function CiStsCatalogEditor({onActivity}: {onActivity?: (activity: CiModu
   }, [open,error]);
   const text = (label:string,value:string,change:(v:string)=>void,required=true)=><Field label={label}><Input aria-label={label} required={required} value={value} onChange={e=>change(e.target.value)} /></Field>;
   const number = (label:string,value:number,change:(v:number)=>void,integer=false)=><Field label={label}><Input aria-label={label} type="number" required min={integer?1:0.000001} step={integer?1:'any'} value={value||''} onChange={e=>change(Number(e.target.value))} /></Field>;
-  const check = (label:string,value:boolean,change:(v:boolean)=>void)=><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value} onChange={e=>change(e.target.checked)} />{label}</label>;
+  const check = (label:string,value:boolean,change:(v:boolean)=>void)=><label className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label={label} checked={value} onChange={e=>change(e.target.checked)} /><FieldHelpLabel label={label} /></label>;
   async function save() {
     if(!data || !formRef.current?.reportValidity())return;
     setSaving(true);setError(null);

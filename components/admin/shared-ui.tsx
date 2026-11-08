@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InfoLabel } from '@/components/ui/tooltip';
+import { FieldHelpLabel } from './field-help';
 import type { ProductDocument } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -31,14 +32,14 @@ export function Field({
   if (asDiv) {
     return (
       <div className={className}>
-        <span>{label}</span>
+        <span><FieldHelpLabel label={label} /></span>
         {children}
       </div>
     );
   }
   return (
     <label className={className}>
-      <span>{label}</span>
+      <span><FieldHelpLabel label={label} /></span>
       {children}
     </label>
   );
@@ -350,7 +351,7 @@ export function ProductMediaFields({
           <div>
             <div className="flex items-center gap-2 text-sm font-medium">
               <FileText className="h-4 w-4" />
-              Documentos para clientes
+              <FieldHelpLabel label="Documentos para clientes" />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Datasheets, manuais, certificados ou guias rápidos.
@@ -398,15 +399,18 @@ export function ProductMediaFields({
           )}
           {currentDocuments.map((document, index) => (
             <div key={index} className="grid gap-2 rounded-lg border bg-background p-2">
-              <Input
-                value={document.name}
-                onChange={(event) => {
-                  const next = [...currentDocuments];
-                  next[index] = { ...document, name: event.target.value };
-                  setDocuments(next);
-                }}
-                placeholder="Nome do documento"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  value={document.name}
+                  onChange={(event) => {
+                    const next = [...currentDocuments];
+                    next[index] = { ...document, name: event.target.value };
+                    setDocuments(next);
+                  }}
+                  placeholder="Nome do documento"
+                />
+                <FieldHelpLabel label="Nome do documento" iconOnly />
+              </div>
               <div className="flex gap-2">
                 <Input
                   value={document.url}
@@ -417,6 +421,7 @@ export function ProductMediaFields({
                   }}
                   placeholder="URL do documento"
                 />
+                <FieldHelpLabel label="URL do documento" iconOnly />
                 <ConfirmDeleteButton
                   ariaLabel={`Remover documento ${document.name}`}
                   title="Remover documento?"
