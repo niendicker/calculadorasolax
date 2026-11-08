@@ -28,6 +28,7 @@ export function CiGroupedConfigurationPanel({ciOptions,onChange,onNavigatePrev,o
   const batteries=model.sourceKind==='assembly'?catalog.assemblies.filter(item=>item.pcsId===model.pcsId):[];
   const selectedVoltages=model.sourceKind==='cabinet'?catalog.cabinets.find(item=>item.productId===model.productId)?.voltages:batteries.find(item=>item.batteryId===model.batteryId)?.voltages;
   const ready=Boolean(voltage&&selectedVoltages?.includes(voltage)&&!loading&&!error);
+  const accessoryTargets=saved?.kind==='model'?solutions.filter(solution=>voltage&&solution.ac.lineVoltagesV?.includes(voltage)&&solution.source.kind===model.sourceKind&&(model.sourceKind==='cabinet'?solution.source.id===model.productId:solution.accessoryTarget.pcsId===model.pcsId&&solution.accessoryTarget.batteryId===model.batteryId)).map(solution=>({...solution.accessoryTarget,backup:Boolean(ciOptions.backup?.enabled),generator:Boolean(ciOptions.generator?.enabled),lineVoltageV:voltage})):undefined;
   function select(next:CiModelSelection,extra:Partial<CommercialIndustrialOptions>={}){onChange({bessSystem:next,bessProductId:null,...extra});}
   function changeVoltage(next:220|380){
     const compatible=selectedVoltages?.includes(next);
@@ -44,7 +45,7 @@ export function CiGroupedConfigurationPanel({ciOptions,onChange,onNavigatePrev,o
     {!loading&&voltage&&selectedVoltages&&!selectedVoltages.includes(voltage)&&<p role="alert" className="text-sm text-destructive">Os modelos selecionados não possuem operação aprovada em {voltage} V. Escolha modelos compatíveis.</p>}
     {saved&&saved.kind!=='model'&&<p className="text-xs text-muted-foreground">Este projeto tem uma configuração anterior. Selecione os modelos para dimensionar automaticamente suas quantidades.</p>}
     <p className="text-xs text-muted-foreground">Somente combinações da geração aprovada são listadas. Modelos incompatíveis com a tensão ficam desabilitados. O resultado apresenta uma solução que atende integralmente ao projeto; depois calcula seus indicadores financeiros.</p>
-    <CiAccessoriesPanel ciOptions={ciOptions} onChange={onChange}/>
+    <CiAccessoriesPanel ciOptions={ciOptions} onChange={onChange} targets={accessoryTargets}/>
     <div className="flex flex-wrap justify-between gap-2 border-t pt-3">{onNavigatePrev&&<Button variant="outline" onClick={onNavigatePrev}>Voltar para Visão geral</Button>}{onNavigateNext&&<Button disabled={!ready} onClick={onNavigateNext}>Avançar para Curvas e aplicações</Button>}</div>
   </div>;
 }

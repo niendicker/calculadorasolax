@@ -19,8 +19,10 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
   const automatic=options.bessSystem?.kind==='automatic';
   const compatibilityId=options.bessSystem?.kind==='modular'?options.bessSystem.compatibilityId:null;
   const solutionKey=options.bessSystem?.kind==='solution'?options.bessSystem.solutionKey:null;
-  const bessId=options.bessProductId;
-  const targetKey=JSON.stringify([modular,automatic,compatibilityId,bessId,solutionKey,attempt]);
+  const model=options.bessSystem?.kind==='model'?options.bessSystem:null;
+  const modelPcsId=model?.sourceKind==='assembly'?model.pcsId:null;
+  const bessId=model?.sourceKind==='cabinet'?model.productId:options.bessProductId;
+  const targetKey=JSON.stringify([modular,automatic,compatibilityId,bessId,modelPcsId,options.lineVoltageV,solutionKey,attempt]);
   useEffect(()=>{
     if(!requested)return;
     let alive=true;
@@ -28,7 +30,7 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
       ? Promise.all([import('@/lib/data/ci-generated-solutions-repository'),import('@/lib/supabase/client')]).then(([repo,client])=>repo.queryCiGeneratedSolutions(client.createClient(),{solutionKey,minPowerKw:0,minEnergyKwh:0,applications:[]})).then(data=>({pcsId:data.solutions[0]?.transferTarget.pcsId??null,bessId:data.solutions[0]?.transferTarget.bessProductId??null}))
       : modular
       ? import('@/lib/data/ci-modular-catalog-repository').then(m=>m.loadCiModularCatalog()).then(data=>data.rules.find(r=>r.id===compatibilityId)?.pcs_id??null).then(pcsId=>({pcsId,bessId:null}))
-      : Promise.resolve({pcsId:null,bessId:bessId??null});
+      : Promise.resolve({pcsId:modelPcsId,bessId:bessId??null});
     // Publish both lookups together: a later STS response must never hide a PCS error.
     Promise.all([loadCiStsCatalog(),pcsLookup]).then(([catalog,target])=>{
       if(alive){setLoaded({key:targetKey,catalog,...target});setFailure(null);}
@@ -36,12 +38,12 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
       if(alive)setFailure({key:targetKey,message:e instanceof Error?e.message:'Não foi possível carregar STS e composição.'});
     });
     return()=>{alive=false;};
-  },[requested,modular,compatibilityId,targetKey,solutionKey,bessId]);
+  },[requested,modular,compatibilityId,targetKey,solutionKey,bessId,modelPcsId]);
   const catalog=loaded?.key===targetKey?loaded.catalog:null;
   const equipmentPcs=loaded?.key===targetKey?loaded.pcsId:null;
   const error=failure?.key===targetKey?failure.message:'';
   const update=(partial:Partial<CiStsSelection>)=>{if(sts)onChange({sts:{...sts,...partial}});};
-  const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && r.frequency_hz===sts?.frequencyHz && (automatic || (equipmentPcs ? r.pcs_id===equipmentPcs : Boolean(loaded?.bessId) && r.bess_product_id===loaded?.bessId)))??[];
+  const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && (!options.lineVoltageV||r.line_voltage_v===options.lineVoltageV) && r.frequency_hz===sts?.frequencyHz && (automatic || (equipmentPcs ? r.pcs_id===equipmentPcs : Boolean(loaded?.bessId) && r.bess_product_id===loaded?.bessId)))??[];
   const specs=catalog?.specs.filter(s=>s.active&&s.accessoryActive&&rules.some(r=>r.accessory_id===s.accessory_id))??[];
   const errors=sts?validateStsSelection(sts):[];
   return <section aria-label="Transferência / STS" className="space-y-4 rounded-xl border bg-muted/10 p-4">
