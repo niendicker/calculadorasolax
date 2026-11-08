@@ -416,10 +416,59 @@ describe('DailyCurveEditor — 15-minute profile and viewport navigation', () =>
     fireEvent.pointerUp(svg, { pointerId: 9 });
     expect(range.textContent).not.toBe(initialRange);
     expect(onChange).not.toHaveBeenCalled();
-    fireEvent.wheel(svg, { deltaY: -100, clientX: 300 });
+    fireEvent.wheel(svg, { ctrlKey: true, deltaY: -100, clientX: 300 });
     expect(screen.getAllByRole('slider').length).toBeLessThan(48);
     fireEvent.click(screen.getByRole('button', { name: 'Ver dia inteiro' }));
     expect(screen.getAllByRole('slider')).toHaveLength(96);
+  });
+
+  it('preserves normal page scrolling and zooms only with Ctrl without editing consumption',()=>{
+    const onChange=vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange}/>);
+    const svg=screen.getByRole('group',{name:/Editor da curva diária/});mockSvgRect(svg);
+    const normal=new WheelEvent('wheel',{deltaY:-100,clientX:300,bubbles:true,cancelable:true});
+    fireEvent(svg,normal);
+    expect(normal.defaultPrevented).toBe(false);
+    expect(screen.getAllByRole('slider')).toHaveLength(96);
+    const modified=new WheelEvent('wheel',{deltaY:-100,clientX:300,ctrlKey:true,bubbles:true,cancelable:true});
+    fireEvent(svg,modified);
+    expect(modified.defaultPrevented).toBe(true);
+    expect(screen.getAllByRole('slider').length).toBeLessThan(96);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('selects an interval over an editable point with Shift without modifying either series',()=>{
+    const change=vi.fn(),solar=vi.fn(),select=vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} solarKw={new Array(96).fill(10)} onChange={change} onSolarChange={solar} onSelectRange={select}/>);
+    const svg=screen.getByRole('group',{name:/Editor da curva diária/});mockSvgRect(svg);
+    const point=screen.getByRole('slider',{name:'Potência às 10:00'});
+    fireEvent.pointerDown(point,{button:0,pointerId:3,clientX:180,clientY:100,shiftKey:true});
+    fireEvent.pointerMove(svg,{pointerId:3,clientX:340,clientY:120});
+    expect(screen.getByTestId('daily-interval-band')).toBeInTheDocument();
+    fireEvent.pointerUp(svg,{pointerId:3,clientX:340,clientY:120});
+    expect(select).toHaveBeenCalledWith(expect.objectContaining({startIndex:expect.any(Number),endIndex:expect.any(Number)}));
+    expect(select.mock.calls[0][0].endIndex).toBeGreaterThan(select.mock.calls[0][0].startIndex);
+    expect(change).not.toHaveBeenCalled();expect(solar).not.toHaveBeenCalled();
+  });
+
+  it('offers interval inputs without requiring a keyboard modifier or editing data',()=>{
+    const select=vi.fn(),change=vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={change} onSelectRange={select}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Selecionar intervalo'}));
+    fireEvent.change(screen.getByLabelText('Início do intervalo diário'),{target:{value:'32'}});
+    fireEvent.change(screen.getByLabelText('Fim do intervalo diário'),{target:{value:'39'}});
+    fireEvent.click(screen.getByRole('button',{name:'Marcar intervalo'}));
+    expect(select).toHaveBeenCalledWith({startIndex:32,endIndex:39});expect(change).not.toHaveBeenCalled();
+  });
+
+  it('edits a PV-only pattern without changing imported consumption or showing invented consumption metrics',()=>{
+    const solar=vi.fn(),consumption=vi.fn();
+    render(<DailyCurveEditor solarOnly hourlyKw={new Array(96).fill(0)} solarKw={new Array(96).fill(10)} onChange={consumption} onSolarChange={solar}/>);
+    expect(screen.getByRole('button',{name:'Consumo'})).toBeDisabled();
+    expect(screen.queryByRole('region',{name:'Resumo energético do dia'})).not.toBeInTheDocument();
+    expect(screen.queryByTestId('daily-consumption-series')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Limpar curva'}));
+    expect(solar).toHaveBeenCalled();expect(consumption).not.toHaveBeenCalled();
   });
 
   it('preserves undo when the parent echoes a changed 96-point pattern', () => {

@@ -106,6 +106,7 @@ function attachPanAndZoom(
   }
 
   function onWheel(event: WheelEvent) {
+    if (!event.ctrlKey || event.deltaY === 0) return;
     event.preventDefault();
     const rect = over.getBoundingClientRect();
     const left = event.clientX - rect.left;
@@ -464,7 +465,7 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
         )}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Arraste para navegar · role o mouse para zoom · duplo clique para redefinir
+        Arraste para navegar · Ctrl + scroll para zoom · duplo clique para redefinir
       </p>
     </div>
   );
