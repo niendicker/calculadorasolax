@@ -44,7 +44,7 @@ export function assembleCiEquipmentCatalog(rows:CiCatalogRows):CiEquipmentCatalo
 }
 
 export async function saveCiPcsSpec(input: CiPcsSpec) {
-  const { error } = await createClient().from('ci_pcs_specs').upsert({ ...input, updated_at: new Date().toISOString() });
+  const { error } = await createClient().from('ci_pcs_specs').upsert({ ...input, charge_current_a:input.port_charge_current_a??input.charge_current_a,discharge_current_a:input.port_discharge_current_a??input.discharge_current_a, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
 }
 export async function saveCiBatterySpec(input: CiBatterySpec) {

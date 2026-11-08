@@ -1,5 +1,11 @@
 /** Catalog references are immutable IDs. Electrical values must be documented by the administrator. */
 export interface CiPcsSpec {
+  /** Identical independent battery ports; AC ratings below remain PCS totals. */
+  port_charge_current_a?: number | null;
+  port_discharge_current_a?: number | null;
+  port_charge_power_kw?: number | null;
+  port_discharge_power_kw?: number | null;
+  max_strings_per_port?: number;
   inverter_id: string;
   active: boolean;
   charge_power_kw: number;
@@ -20,6 +26,8 @@ export interface CiBatterySpec {
   soc_max_percent: number;
 }
 export interface CiCompatibilityRule {
+  min_ports_per_pcs?: number;
+  max_ports_per_pcs?: number;
   supports_solar?:boolean;
   supports_generator?:boolean;
   id: string;
@@ -44,7 +52,15 @@ export interface CiCompatibilityRule {
   controller_quantity_per_pcs: number;
   notes: string;
 }
+export interface CiPortArrangement { series:number; parallelStrings:number }
+export interface CiModularPortBank extends CiPortArrangement {
+  batteryCount:number;nominalEnergyKwh:number;voltageMinV:number;voltageMaxV:number;
+  chargeCurrentA:number;dischargeCurrentA:number;chargePowerKw:number;dischargePowerKw:number;
+}
 export interface CiModularSelection {
+  portBanks?: CiPortArrangement[];
+  connectionModel?: 'independent_ports';
+  ports?: { min:number; max:number };
   kind: 'modular';
   compatibilityId: string | null;
   mode: 'fixed' | 'auto';
@@ -80,6 +96,7 @@ export interface CiModularCatalog {
   accessories: { id: string; model: string; active: boolean }[];
 }
 export interface CiModularComposition {
+  portBanks?:CiModularPortBank[];
   compatibilityId: string;
   compatibilityName: string;
   revision: string;
@@ -95,6 +112,12 @@ export interface CiModularComposition {
   unitKind: CiBatterySpec['unit_kind'];
   seriesCount: number;
   parallelStringsPerPcs: number;
+  portsPerPcs?: number;
+  parallelStringsPerPort?: number;
+  portChargeCurrentA?: number;
+  portDischargeCurrentA?: number;
+  portChargePowerKw?: number;
+  portDischargePowerKw?: number;
   batteryCount: number;
   chargePowerKw: number;
   dischargePowerKw: number;

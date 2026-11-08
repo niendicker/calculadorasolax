@@ -63,7 +63,7 @@ function ScenarioRow({
           onClick={(event) => { event.stopPropagation(); onSelect(); }}
           className="rounded-md px-2 py-1 font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {!scenario.group && scenario.equipmentLabel && <span className="block text-xs">{scenario.equipmentLabel}</span>}{scenario.group ? <span className="block whitespace-normal">{scenario.group.label}</span> : scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.seriesCount}S × {scenario.composition.parallelStringsPerPcs}P / PCS</span></span> : scenario.moduleCount}
+          {!scenario.group && scenario.equipmentLabel && <span className="block text-xs">{scenario.equipmentLabel}</span>}{scenario.group ? <span className="block whitespace-normal">{scenario.group.label}</span> : scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.portBanks ? scenario.composition.portBanks.map((bank,i)=>`Porta ${i+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${scenario.composition.seriesCount}S × ${scenario.composition.parallelStringsPerPcs}P / PCS`}</span></span> : scenario.moduleCount}
         </button>
         {recommended && (
           <Badge variant="secondary" className="ml-2">
@@ -425,14 +425,14 @@ export function CiResultsPanel({
               {!currentScenario.group && Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
               {currentScenario.group && <div className="space-y-2 border-t pt-3 text-xs">
                 <p>Carga CA até {formatKw(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatKw(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
-                <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V · Carga/descarga até {currentScenario.group.dc.chargeCurrentPerBusA}/{currentScenario.group.dc.dischargeCurrentPerBusA} A por barramento.</p>
+                {currentScenario.group.dc.ports ? <ul className="space-y-1">{currentScenario.group.dc.ports.map(port=><li key={`${port.unit}:${port.port}`}>Unidade {port.unit} · banco CC {port.port}: {port.series}S × {port.parallelStrings}P · {port.voltageMinV}–{port.voltageMaxV} V · carga/descarga CC até {port.chargePowerKw.toFixed(1)}/{port.dischargePowerKw.toFixed(1)} kW · {port.chargeCurrentA}/{port.dischargeCurrentA} A.</li>)}</ul> : <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V.</p>}
                 <p>Referência: {currentScenario.group.source.reference} · Revisão {currentScenario.group.source.revision}.</p>
                 {result.technicalRequirements && <p>Requisitos do projeto: {formatKw(result.technicalRequirements.minPowerKw)} · {result.technicalRequirements.minEnergyKwh.toFixed(1)} kWh úteis mínimos, incluindo reserva de backup.</p>}
                 <p className="font-semibold">Composição da solução</p>
                 <ul className="space-y-1">{currentScenario.billOfMaterials?.map(item=><li key={item.productId} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
               </div>}
               {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
-                <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.seriesCount} unidades em série × {currentScenario.composition.parallelStringsPerPcs} strings por PCS.</p>
+                <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.portBanks ? currentScenario.composition.portBanks.map((bank,i)=>`Porta ${i+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${currentScenario.composition.seriesCount} unidades em série × ${currentScenario.composition.parallelStringsPerPcs} strings por PCS.`}</p>
                 <p>Carga AC até {formatKw(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatKw(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
                 <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
                 <ul className="space-y-1">{currentScenario.composition.items.filter(item=>!currentScenario.accessories?.length || item.productType!=='accessory').map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{currentScenario.pricingComplete === false ? '' : ` · ${formatCurrencyBRL(item.unitPriceBrl)}/un.`}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
@@ -580,8 +580,8 @@ export function CiResultsPanel({
                   <p className="mt-1 text-sm font-semibold">{result.backup.recommendedSocReservePercent.toFixed(1)}%</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">{result.selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos Mín. p/ Autonomia'}</p>
-                  <p className="mt-1 text-sm font-semibold">{result.backup.minModulesForBackup} {result.selected?.composition ? 'composição(ões)' : 'módulo(s)'}</p>
+                  <p className="text-xs text-muted-foreground">{result.selected?.group ? 'Múltiplos teóricos do agrupamento p/ autonomia' : result.selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos Mín. p/ Autonomia'}</p>
+                  <p className="mt-1 text-sm font-semibold">{result.backup.minModulesForBackup} {result.selected?.group ? 'agrupamento(s)' : result.selected?.composition ? 'composição(ões)' : 'módulo(s)'}</p>
                 </div>
               </div>
               {result.backup.warningMessage && (

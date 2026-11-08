@@ -605,6 +605,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             { label: 'Barramentos / tensão CC', value: `${selected.group.dc.buses} / ${selected.group.dc.voltageMinV}–${selected.group.dc.voltageMaxV} V` },
             { label: 'Energia nominal / útil', value: `${selected.group.storage.nominalEnergyKwh.toFixed(1)} / ${selected.group.storage.usableEnergyKwh.toFixed(1)} kWh` },
             { label: 'Referência / revisão', value: `${selected.group.source.reference} / ${selected.group.source.revision}` },
+            ...(selected.group.dc.ports??[]).map(port=>({label:`Unidade ${port.unit} / banco CC ${port.port}`,value:`${port.series}S × ${port.parallelStrings}P · ${port.voltageMinV}–${port.voltageMaxV} V · CC carga/descarga ${port.chargePowerKw.toFixed(1)}/${port.dischargePowerKw.toFixed(1)} kW · ${port.chargeCurrentA}/${port.dischargeCurrentA} A`})),
             { label: 'Geração do catálogo', value: result.solutionGeneration?.id ?? '—' },
             ...(selected.billOfMaterials ?? []).map(item=>({label:`${item.quantity} × ${item.model}`,value:formatCurrencyBRL(item.totalBrl)})),
           ]}/>
@@ -614,7 +615,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           <InfoRows rows={[
             { label: 'PCS', value: `${selected.composition.pcsCount} × ${selected.composition.pcsModel}` },
             { label: 'Baterias', value: `${selected.composition.batteryCount} × ${selected.composition.batteryModel}` },
-            { label: 'Arranjo por PCS', value: `${selected.composition.seriesCount} em série × ${selected.composition.parallelStringsPerPcs} strings em paralelo` },
+            { label: 'Arranjo por PCS', value: selected.composition.portBanks ? selected.composition.portBanks.map((bank,index)=>`Porta ${index+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${selected.composition.seriesCount} em série × ${selected.composition.parallelStringsPerPcs} strings em paralelo` },
             { label: 'Potência AC carga / descarga', value: `${formatKw(selected.composition.chargePowerKw)} / ${formatKw(selected.composition.dischargePowerKw)}` },
             { label: 'Faixa de tensão do banco', value: `${selected.composition.voltageMinV}–${selected.composition.voltageMaxV} V` },
             { label: 'Compatibilidade / revisão', value: `${selected.composition.compatibilityName} / ${selected.composition.revision}` },
@@ -711,7 +712,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                   value: `${result.backup.requiredContinuousPowerKw.toFixed(1)} kW (suportado pelo BESS: ${formatKw(selected?.totalPowerKw ?? 0)})`,
                 },
                 { label: 'Energia requerida para contingência', value: `${result.backup.requiredEnergyKwh.toFixed(1)} kWh` },
-                { label: selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos mínimos p/ autonomia', value: `${result.backup.minModulesForBackup}` },
+                { label: selected?.group ? 'Múltiplos teóricos do agrupamento p/ autonomia' : selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos mínimos p/ autonomia', value: `${result.backup.minModulesForBackup}` },
                 {
                   label: 'Reserva operacional de SOC mantida',
                   value: `${result.backup.recommendedSocReservePercent.toFixed(1)}% (não consumida no despacho on-grid)`,

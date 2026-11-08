@@ -16,8 +16,8 @@ export type Database = {
         Relationships: []
       }
       ci_generated_solutions: {
-        Row: {generation_id:string;solution_key:string;source_kind:string;source_id:string;unit_count:number;series_count:number;parallel_count:number;discharge_power_kw:number;charge_power_kw:number;usable_energy_kwh:number;nominal_energy_kwh:number;applications:string[];solution:Json}
-        Insert: {generation_id:string;solution_key:string;source_kind:string;source_id:string;unit_count:number;series_count:number;parallel_count:number;discharge_power_kw:number;charge_power_kw:number;usable_energy_kwh:number;nominal_energy_kwh:number;applications:string[];solution:Json}
+        Row: {port_count:number;series_max_count:number;parallel_max_count:number;generation_id:string;solution_key:string;source_kind:string;source_id:string;unit_count:number;series_count:number;parallel_count:number;discharge_power_kw:number;charge_power_kw:number;usable_energy_kwh:number;nominal_energy_kwh:number;applications:string[];solution:Json}
+        Insert: {port_count?:number;series_max_count:number;parallel_max_count:number;generation_id:string;solution_key:string;source_kind:string;source_id:string;unit_count:number;series_count:number;parallel_count:number;discharge_power_kw:number;charge_power_kw:number;usable_energy_kwh:number;nominal_energy_kwh:number;applications:string[];solution:Json}
         Update: {solution?:Json}
         Relationships: [{foreignKeyName:'ci_generated_solutions_generation_id_fkey';columns:['generation_id'];isOneToOne:false;referencedRelation:'ci_solution_generations';referencedColumns:['id']}]
       }
@@ -365,6 +365,11 @@ export type Database = {
       }
       ci_pcs_specs: {
         Row: {
+          port_charge_current_a: number | null
+          port_discharge_current_a: number | null
+          port_charge_power_kw: number | null
+          port_discharge_power_kw: number | null
+          max_strings_per_port: number
           inverter_id: string
           charge_power_kw: number
           discharge_power_kw: number
@@ -376,6 +381,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          port_charge_current_a?: number | null
+          port_discharge_current_a?: number | null
+          port_charge_power_kw?: number | null
+          port_discharge_power_kw?: number | null
+          max_strings_per_port?: number
           inverter_id: string
           charge_power_kw: number
           discharge_power_kw: number
@@ -387,6 +397,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          port_charge_current_a?: number | null
+          port_discharge_current_a?: number | null
+          port_charge_power_kw?: number | null
+          port_discharge_power_kw?: number | null
+          max_strings_per_port?: number
           inverter_id?: string
           charge_power_kw?: number
           discharge_power_kw?: number
@@ -441,6 +456,9 @@ export type Database = {
       }
       ci_compatibility_rules: {
         Row: {
+          min_ports_per_pcs:number
+          max_ports_per_pcs:number
+          legacy_connection_config:Json | null
           supports_solar: boolean
           supports_generator: boolean
           id: string
@@ -467,6 +485,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          min_ports_per_pcs?:number
+          max_ports_per_pcs?:number
+          legacy_connection_config?:Json | null
           supports_solar?: boolean
           supports_generator?: boolean
           id?: string
@@ -493,6 +514,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          min_ports_per_pcs?:number
+          max_ports_per_pcs?:number
+          legacy_connection_config?:Json | null
           supports_solar?: boolean
           supports_generator?: boolean
           id?: string

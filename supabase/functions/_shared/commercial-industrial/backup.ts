@@ -1,3 +1,4 @@
+import { portBackupDuration, repeatRuntimePorts } from './battery-ports.ts';
 // Backup and grid-outage calculation engine — see docs/CI-BACKUP-PLAN.md.
 // Pure module: evaluates critical load requirements, power/energy compliance,
 // effective autonomy hours and the operational SOC reserve floor needed during
@@ -98,7 +99,7 @@ export function evaluateCandidateBackup(
   // Backup never assumes transient overload, including integrated BESS.
   const peakLimitKw = bessPowerKw;
   const meetsPower = bessPowerKw >= requirements.requiredContinuousPowerKw - 1e-6 && peakLimitKw >= requirements.requiredPeakPowerKw - 1e-6;
-  const meetsEnergy = deliverableEnergyKwh >= requirements.requiredEnergyKwh - 1e-6;
+  let meetsEnergy = deliverableEnergyKwh >= requirements.requiredEnergyKwh - 1e-6;
 
   let effectiveAutonomyHours = 0;
   if (requirements.powerProfile) {
@@ -116,7 +117,7 @@ export function evaluateCandidateBackup(
   // Calculate minimum modules required
   const singleModuleUsefulDeliverableKwh =
     product.moduleCapacityKwh * ((product.socMaxPercent - product.socMinPercent) / 100) * roundTripEfficiency;
-  const minModulesForBackup =
+  let minModulesForBackup =
     singleModuleUsefulDeliverableKwh > 0 ? Math.ceil(requirements.requiredEnergyKwh / singleModuleUsefulDeliverableKwh) : 0;
 
   // Calculate recommended SOC reserve floor for on-grid dispatch
@@ -124,6 +125,34 @@ export function evaluateCandidateBackup(
   if (bessCapacityKwh > 0 && requirements.requiredEnergyKwh > 0) {
     const rawReservePercent = (requirements.requiredEnergyKwh / (bessCapacityKwh * roundTripEfficiency)) * 100;
     recommendedSocReservePercent = Math.min(product.socMaxPercent, product.socMinPercent + rawReservePercent);
+  }
+
+  if(product.ports?.length){
+    const ports=repeatRuntimePorts(product.ports,Math.max(1,Math.round(bessCapacityKwh/product.moduleCapacityKwh)));
+    const profile=requirements.powerProfile??[{powerKw:requirements.requiredContinuousPowerKw,durationHours:requirements.autonomyHours}];
+    const full=portBackupDuration(ports,product.socMaxPercent,product.socMinPercent,product.socMaxPercent,roundTripEfficiency,bessPowerKw,profile);
+    meetsEnergy=meetsEnergy&&full.complete;
+    effectiveAutonomyHours=full.hours;
+    if(!requirements.powerProfile&&requirements.requiredContinuousPowerKw>0){
+      const upper=deliverableEnergyKwh/requirements.requiredContinuousPowerKw;
+      effectiveAutonomyHours=portBackupDuration(ports,product.socMaxPercent,product.socMinPercent,product.socMaxPercent,roundTripEfficiency,bessPowerKw,[{powerKw:requirements.requiredContinuousPowerKw,durationHours:upper}]).hours;
+    }
+    // Identical copies can be tested without expanding the topology: each
+    // copy receives a proportional share of the critical load profile.
+    const supportsCopies=(count:number)=>portBackupDuration(product.ports!,product.socMaxPercent,product.socMinPercent,product.socMaxPercent,roundTripEfficiency,product.modulePowerKw,profile.map(block=>({...block,powerKw:block.powerKw/count}))).complete;
+    let lower=Math.max(1,minModulesForBackup,Math.ceil(requirements.requiredPeakPowerKw/product.modulePowerKw));
+    let upper=lower;
+    while(!supportsCopies(upper)&&upper<Number.MAX_SAFE_INTEGER)upper=Math.min(Number.MAX_SAFE_INTEGER,upper*2);
+    while(lower<upper){const middle=Math.floor((lower+upper)/2);if(supportsCopies(middle))upper=middle;else lower=middle+1;}
+    minModulesForBackup=upper;
+    if(meetsEnergy){
+      let low=product.socMinPercent,high=product.socMaxPercent;
+      for(let i=0;i<26;i++){
+        const mid=(low+high)/2;
+        if(portBackupDuration(ports,mid,product.socMinPercent,product.socMaxPercent,roundTripEfficiency,bessPowerKw,profile).complete)high=mid;else low=mid;
+      }
+      recommendedSocReservePercent=Math.max(recommendedSocReservePercent,high);
+    }else recommendedSocReservePercent=product.socMaxPercent;
   }
 
   let status: CiBackupResult['status'] = 'fully_covered';
@@ -136,7 +165,7 @@ export function evaluateCandidateBackup(
       : `Potência do BESS (${bessPowerKw.toFixed(1)} kW) insuficiente para as cargas críticas (${requirements.requiredContinuousPowerKw.toFixed(1)} kW).`;
   } else if (!meetsEnergy) {
     status = 'partially_covered';
-    warningMessage = `Autonomia de ${effectiveAutonomyHours.toFixed(1)}h abaixo da meta de ${requirements.autonomyHours}h solicitada (${deliverableEnergyKwh.toFixed(1)}/${requirements.requiredEnergyKwh.toFixed(1)} kWh).`;
+    warningMessage = `${product.ports?.length?'Limites individuais das portas CC: ':''}Autonomia de ${effectiveAutonomyHours.toFixed(1)}h abaixo da meta de ${requirements.autonomyHours}h solicitada (${deliverableEnergyKwh.toFixed(1)}/${requirements.requiredEnergyKwh.toFixed(1)} kWh).`;
   }
 
   return {

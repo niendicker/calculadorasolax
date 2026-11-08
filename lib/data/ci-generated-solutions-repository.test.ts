@@ -33,3 +33,16 @@ it('publishes more than one batch without exposing an incomplete generation',asy
  const batches:number[]=[];const rpc=vi.fn(async(name:string,args?:{p_solutions?:unknown[]})=>{if(name==='ci_append_solution_generation')batches.push(args!.p_solutions!.length);return {data:name==='ci_solution_source'?{revision:'r1',sources:{products:[product]}}:'gen',error:null};});
  const result=await publishCiGeneratedSolutions({rpc} as unknown as SupabaseClient);expect(result.count).toBe(105);expect(batches).toEqual([100,5]);expect(rpc.mock.calls.at(-1)?.[0]).toBe('ci_publish_solution_generation');
 });
+it('requires regenerated topology instead of silently using a v1 current row',async()=>{
+ const {db}=queryDb(1);const from=db.from as unknown as ReturnType<typeof vi.fn>;const original=from.getMockImplementation()! as (table:string)=>{range:(...args:unknown[])=>Promise<unknown>};
+ from.mockImplementation((table:string)=>{const q=original(table);if(table==='ci_generated_solutions')q.range=async()=>({data:[{solution:{...generateCiGroupedSolutions(modularFixture(),[]).solutions[0],contractVersion:'ci-grouped-v1',dc:{...generateCiGroupedSolutions(modularFixture(),[]).solutions[0].dc,ports:undefined}}}],error:null});return q;});
+ await expect(queryCiGeneratedSolutions(db,{minPowerKw:0,minEnergyKwh:0,applications:[]})).rejects.toThrow('Gere novamente');
+});
+it('filters every bank, including the largest series count, and matches a fixed asymmetric pattern',async()=>{
+ const {aelioPortFixture}=await import('@/supabase/functions/_shared/commercial-industrial/battery-ports.test-fixtures');
+ const rows=generateCiGroupedSolutions(aelioPortFixture(),[]).solutions;
+ const lte=vi.fn(),eq=vi.fn();
+ const from=(table:string)=>{const q={select:()=>q,eq:(...args:unknown[])=>{eq(...args);return q;},gte:()=>q,lte:(...args:unknown[])=>{lte(...args);return q;},order:()=>q,limit:()=>q,maybeSingle:async()=>({data:{id:'gen'},error:null}),range:async()=>({data:table==='ci_generated_solutions'?rows.map(solution=>({solution})):[],error:null})};return q;};
+ const result=await queryCiGeneratedSolutions({from} as unknown as SupabaseClient,{minPowerKw:0,minEnergyKwh:0,applications:[],series:{min:7,max:14},parallel:{min:1,max:1},ports:{min:2,max:2},bankPattern:[{series:7,parallelStrings:1},{series:14,parallelStrings:1}]});
+ expect(result.solutions).toHaveLength(1);expect(result.solutions[0].counts.batteries).toBe(21);expect(lte).toHaveBeenCalledWith('series_max_count',14);expect(lte).toHaveBeenCalledWith('parallel_max_count',1);
+});

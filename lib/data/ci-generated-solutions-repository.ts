@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { assembleCiEquipmentCatalog, type CiCatalogRows } from './ci-modular-catalog-repository';
-import { assertCiGroupedSolution, generateCiGroupedSolutions, type CiCabinetSource, type CiGroupedSolution, type CiApplication } from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions';
+import { assertCiGroupedSolution, CI_GROUPED_SOLUTION_VERSION, generateCiGroupedSolutions, type CiCabinetSource, type CiGroupedSolution, type CiApplication } from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions';
 
 export interface CiSolutionGeneration {id:string;source_revision:string;expected_count:number;status:'draft'|'published'|'cancelled';is_current:boolean;published_at:string|null;invalidated_at:string|null;invalidation_reason:string|null;diagnostics:string[]}
 export class CiSolutionCatalogError extends Error {readonly code='ci_catalog';}
@@ -38,9 +38,10 @@ export async function publishCiGeneratedSolutions(db:SupabaseClient){
 }
 
 export interface CiSolutionQuery {
+  bankPattern?:{series:number;parallelStrings:number}[];
   minPowerKw:number;minEnergyKwh:number;applications:CiApplication[];
   sourceKind?:'assembly'|'cabinet';sourceId?:string;solutionKey?:string;
-  units?:{min:number;max:number};series?:{min:number;max:number};parallel?:{min:number;max:number};
+  units?:{min:number;max:number};ports?:{min:number;max:number};series?:{min:number;max:number};parallel?:{min:number;max:number};
 }
 export async function queryCiGeneratedSolutions(db:SupabaseClient,filter:CiSolutionQuery){
   const generation=await getCiSolutionGeneration(db,true);
@@ -52,10 +53,10 @@ export async function queryCiGeneratedSolutions(db:SupabaseClient,filter:CiSolut
     if(filter.sourceKind)query=query.eq('source_kind',filter.sourceKind);
     if(filter.sourceId)query=query.eq('source_id',filter.sourceId);
     if(filter.solutionKey)query=query.eq('solution_key',filter.solutionKey);
-    for(const [key,range] of [['unit_count',filter.units],['series_count',filter.series],['parallel_count',filter.parallel]] as const){if(range)query=query.gte(key,range.min).lte(key,range.max);}
+    for(const [key,range] of [['unit_count',filter.units],['port_count',filter.ports],['series_count',filter.series],['parallel_count',filter.parallel]] as const){if(range)query=query.gte(key,range.min).lte(key==='series_count'?'series_max_count':key==='parallel_count'?'parallel_max_count':key,range.max);}
     const {data,error}=await query.order('solution_key',{ascending:true}).range(offset,offset+PAGE_SIZE-1);
     if(error)throw new CiSolutionCatalogError(`Falha ao consultar soluções C&I: ${error.message}`);
-    for(const row of data??[]){const solution=row.solution as CiGroupedSolution;assertCiGroupedSolution(solution);solutions.push(solution);}
+    for(const row of data??[]){const solution=row.solution as CiGroupedSolution;assertCiGroupedSolution(solution);if(solution.contractVersion!==CI_GROUPED_SOLUTION_VERSION)throw new CiSolutionCatalogError('Gere novamente as soluções com o modelo de portas independentes.');if(filter.bankPattern){const wanted=filter.bankPattern.map(bank=>`${bank.series}:${bank.parallelStrings}`).sort().join('|');const actual=solution.dc.ports!.filter(port=>port.unit===1).map(port=>`${port.series}:${port.parallelStrings}`).sort().join('|');if(actual!==wanted)continue;}solutions.push(solution);}
     if((data??[]).length<PAGE_SIZE)break;
   }
   await assertCiGenerationCurrent(db,generation.id);

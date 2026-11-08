@@ -1,3 +1,4 @@
+import { repeatRuntimePorts } from './battery-ports.ts';
 import { evaluateCiAccessories, type CiAccessoryContext, type CiAccessoryItem, type CiAccessoryTarget } from './accessories.ts';
 import { evaluateSts } from './sts.ts';
 import type { CiStsContext } from './sts-types.ts';
@@ -17,6 +18,7 @@ import type {
   BessRuntimeParams,
   BessStrategyId,
   CashFlowYear,
+  CiRuntimePort,
   CiBackupConfig,
   CiBessProduct,
   CiGeneratorConfig,
@@ -33,7 +35,7 @@ import type {
 export type BessProductSpec = Pick<
   CiBessProduct,
   'modulePowerKw' | 'moduleCapacityKwh' | 'efficiencyPercent' | 'socMinPercent' | 'socMaxPercent'
-> & { modulePeakPowerKw?: number; moduleChargePowerKw?: number; chargeEfficiencyPercent?: number; dischargeEfficiencyPercent?: number };
+> & { ports?:CiRuntimePort[]; modulePeakPowerKw?: number; moduleChargePowerKw?: number; chargeEfficiencyPercent?: number; dischargeEfficiencyPercent?: number };
 
 /** Resolves a SizingConfig into the explicit list of module counts to
  * evaluate — "fixed" is exactly the one requested count, "auto" is every
@@ -149,7 +151,9 @@ function evaluateModuleCount(
     ? Math.max(product.socMinPercent, backupResult.recommendedSocReservePercent)
     : product.socMinPercent;
 
+  const runtimePorts=product.ports?repeatRuntimePorts(product.ports,moduleCount):undefined;
   const bess: BessRuntimeParams = {
+    ports:runtimePorts,
     maxChargePowerKw: (product.moduleChargePowerKw ?? product.modulePowerKw) * moduleCount,
     chargeEfficiencyPercent: product.chargeEfficiencyPercent,
     dischargeEfficiencyPercent: product.dischargeEfficiencyPercent,
