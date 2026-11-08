@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render } from '@testing-library/react';
+import { act,fireEvent,render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DispatchPoint } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiDispatchChart } from './CiDispatchChart';
@@ -127,6 +127,27 @@ describe('CiDispatchChart', () => {
     const { container } = render(<CiDispatchChart dispatch={[]} />);
     expect(container).toBeEmptyDOMElement();
     expect(instances).toHaveLength(0);
+  });
+
+  it('preserves page scrolling and requires Ctrl for dispatch chart wheel zoom',()=>{
+    const frames:FrameRequestCallback[]=[];
+    const raf=vi.spyOn(globalThis,'requestAnimationFrame').mockImplementation(callback=>{frames.push(callback);return frames.length;});
+    try{
+      const points=Array.from({length:30},(_,i)=>({...sampleDispatch[0],timestamp:new Date(Date.UTC(2026,0,5,0,i*15)).toISOString()}));
+      render(<CiDispatchChart dispatch={points}/>);
+      const instance=instances[0];
+      (instance.chart as {scales:{x:{min:number;max:number}}}).scales.x={min:0,max:29};
+      vi.spyOn(instance.over,'getBoundingClientRect').mockReturnValue({left:0,top:0,width:300,height:200,right:300,bottom:200,x:0,y:0,toJSON:()=>({})});
+      const normal=new WheelEvent('wheel',{deltaY:-100,clientX:150,cancelable:true});
+      fireEvent(instance.over,normal);
+      expect(normal.defaultPrevented).toBe(false);expect(frames).toHaveLength(0);expect(instance.setScaleCalls).toHaveLength(0);
+      const modified=new WheelEvent('wheel',{deltaY:-100,clientX:150,ctrlKey:true,cancelable:true});
+      fireEvent(instance.over,modified);
+      expect(modified.defaultPrevented).toBe(true);
+      act(()=>frames.splice(0).forEach(callback=>callback(0)));
+      expect(instance.setScaleCalls).toHaveLength(1);
+      const range=instance.setScaleCalls[0] as {min:number;max:number};expect(range.max-range.min).toBeLessThan(29);
+    }finally{raf.mockRestore();}
   });
 
   it('initializes uPlot with aligned dispatch series and formatters', () => {

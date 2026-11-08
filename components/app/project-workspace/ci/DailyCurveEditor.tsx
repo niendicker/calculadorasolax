@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn, readCssVar } from '@/lib/utils';
+import type {CurveRangeSelection} from './LoadCurveChart';
 import {
   applyBatchOperation,
   applyMovingAverageSmoothing,
@@ -120,7 +121,10 @@ export interface DailyCurveEditorProps {
   saveModelLimitReached?: boolean;
   solarKw?: (number | null)[];
   solarDescription?: string;
+  solarOnly?:boolean;
   onSolarChange?: (kw: number[]) => void;
+  onSelectRange?:(range:CurveRangeSelection|null)=>void;
+  selectedRanges?:CurveRangeSelection[];
 }
 
 export function DailyCurveEditor({
@@ -135,10 +139,13 @@ export function DailyCurveEditor({
   saveModelLimitReached = false,
   solarKw,
   onSolarChange,
+  solarOnly=false,
+  onSelectRange,
+  selectedRanges=[],
 }: DailyCurveEditorProps) {
-  const [focusedSeries, setFocusedSeries] = useState<'consumption' | 'solar'>('consumption');
+  const [focusedSeries, setFocusedSeries] = useState<'consumption' | 'solar'>(solarOnly?'solar':'consumption');
   const hasSolar = Boolean(solarKw?.length);
-  const solarSelected = hasSolar && focusedSeries === 'solar';
+  const solarSelected = hasSolar && (solarOnly||focusedSeries === 'solar');
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Determine active dataset: dual-pattern mode if weekday/weekend provided, fallback to hourlyKw
@@ -159,6 +166,10 @@ export function DailyCurveEditor({
   const [selectedHour, setSelectedHour] = useState<number>(Math.floor(pointCount / 2));
   const [viewRange, setViewRange] = useState({ start: 0, end: pointCount - 1 });
   const panRef = useRef<{ clientX: number; start: number; end: number } | null>(null);
+  const rangeDragRef=useRef<{startIndex:number;clientX:number}|null>(null);
+  const [rangeMode,setRangeMode]=useState(false);
+  const [rangePreview,setRangePreview]=useState<CurveRangeSelection|null>(null);
+  const [rangeStart,setRangeStart]=useState(0),[rangeEnd,setRangeEnd]=useState(pointCount-1);
 
   const formatTime = useCallback(
     (index: number) => {
@@ -260,6 +271,7 @@ export function DailyCurveEditor({
   }
 
   function selectSeries(series: 'consumption' | 'solar') {
+    if(solarOnly&&series==='consumption')return;
     if (editingSeriesRef.current === series) return;
     if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
     commitPending();
@@ -433,6 +445,11 @@ export function DailyCurveEditor({
 
   const visibleSpan = viewRange.end - viewRange.start;
   const xToPx = (hour: number) => MARGIN.left + ((hour - viewRange.start) / visibleSpan) * plotWidth;
+  const indexAtClientX=(clientX:number,svg:SVGSVGElement)=>{
+    const rect=svg.getBoundingClientRect();
+    const fraction=clamp(((clientX-rect.left)*viewWidth/rect.width-MARGIN.left)/plotWidth,0,1);
+    return Math.round(clamp(viewRange.start+fraction*visibleSpan,0,pointCount-1));
+  };
 
   function moveView(start: number, span = visibleSpan) {
     const boundedSpan = clamp(span, Math.min(4, pointCount - 1), pointCount - 1);
@@ -459,6 +476,7 @@ export function DailyCurveEditor({
     const svg = svgRef.current;
     if (!svg) return;
     const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey || event.deltaY === 0) return;
       event.preventDefault();
       const rect = svg.getBoundingClientRect();
       const fraction = clamp(((event.clientX - rect.left) * (viewWidth / rect.width) - MARGIN.left) / plotWidth, 0, 1);
@@ -770,7 +788,7 @@ export function DailyCurveEditor({
       </div>
 
       {/* 2. Real-Time Energetic KPIs (Faixa de Indicadores Técnicos) */}
-      <section
+      {!solarOnly&&<section
         aria-label="Resumo energético do dia"
         className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3"
       >
@@ -869,7 +887,7 @@ export function DailyCurveEditor({
             </div>
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* 3. Unified Controls Bar (Day Pattern + Series Selector + Layer Toggles + Zoom Presets) */}
       <section
@@ -921,6 +939,7 @@ export function DailyCurveEditor({
               variant="outline"
               size="sm"
               aria-label="Consumo"
+              disabled={solarOnly}
               aria-pressed={!solarSelected}
               className={cn(
                 'h-7 px-2.5 text-xs font-semibold gap-1.5 transition',
@@ -984,7 +1003,7 @@ export function DailyCurveEditor({
             <span>Faixa de ponta (18h–21h)</span>
           </label>
 
-          {hasSolar && (
+          {hasSolar&&!solarOnly && (
             <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none bg-muted/40 px-2.5 py-1 rounded-lg border border-border/60">
               <input
                 type="checkbox"
@@ -1063,13 +1082,13 @@ export function DailyCurveEditor({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="flex items-center gap-1.5">
+              {!solarOnly&&<span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-sky-400" />
                 Consumo:{' '}
                 <strong className="tabular-nums font-semibold">
                   {currentConsumptionVal.toFixed(1)} kW
                 </strong>
-              </span>
+              </span>}
               {hasSolar && (
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-400" />
@@ -1079,7 +1098,7 @@ export function DailyCurveEditor({
                   </strong>
                 </span>
               )}
-              {hasSolar && (
+              {hasSolar&&!solarOnly && (
                 <span
                   className={cn(
                     'px-2 py-0.5 rounded font-semibold tabular-nums text-[11px]',
@@ -1147,6 +1166,15 @@ export function DailyCurveEditor({
                 {1440 / pointCount} min ({visibleSpan + 1} pontos)
               </span>
             </div>
+            {onSelectRange&&<div className="mb-2 space-y-2 text-xs">
+              <Button type="button" size="sm" variant={rangeMode?'default':'outline'} aria-pressed={rangeMode} onClick={()=>setRangeMode(value=>!value)}>Selecionar intervalo</Button>
+              <p className="text-muted-foreground">Shift + arraste para selecionar sem editar os pontos. No celular, ative Selecionar intervalo ou informe os horários.</p>
+              {rangeMode&&<div className="flex flex-wrap items-end gap-2">
+                <label className="space-y-1">Início do intervalo<Select aria-label="Início do intervalo diário" value={rangeStart} onChange={event=>setRangeStart(Number(event.target.value))}>{activeDataset.map((_,i)=><option key={i} value={i}>{formatTime(i)}</option>)}</Select></label>
+                <label className="space-y-1">Último ponto do intervalo<Select aria-label="Fim do intervalo diário" value={rangeEnd} onChange={event=>setRangeEnd(Number(event.target.value))}>{activeDataset.map((_,i)=><option key={i} value={i}>{formatTime(i)}</option>)}</Select></label>
+                <Button type="button" size="sm" variant="outline" onClick={()=>onSelectRange({startIndex:Math.min(rangeStart,rangeEnd),endIndex:Math.max(rangeStart,rangeEnd)})}>Marcar intervalo</Button>
+              </div>}
+            </div>}
 
             <svg
               ref={svgRef}
@@ -1156,6 +1184,14 @@ export function DailyCurveEditor({
               role="group"
               aria-label="Editor da curva diária — arraste os pontos para ajustar a potência ou o fundo para navegar"
               onDoubleClick={() => setViewRange({ start: 0, end: pointCount - 1 })}
+              onPointerDownCapture={event=>{
+                if(!onSelectRange||event.button!==0||(!event.shiftKey&&!rangeMode))return;
+                event.preventDefault();event.stopPropagation();
+                const startIndex=indexAtClientX(event.clientX,event.currentTarget);
+                rangeDragRef.current={startIndex,clientX:event.clientX};
+                setRangePreview({startIndex,endIndex:startIndex});
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
               onPointerDown={(event) => {
                 if (
                   event.button !== 0 ||
@@ -1167,6 +1203,10 @@ export function DailyCurveEditor({
                 event.currentTarget.setPointerCapture(event.pointerId);
               }}
               onPointerMove={(event) => {
+                if(rangeDragRef.current){
+                  const a=rangeDragRef.current.startIndex,b=indexAtClientX(event.clientX,event.currentTarget);
+                  setRangePreview({startIndex:Math.min(a,b),endIndex:Math.max(a,b)});return;
+                }
                 const pan = panRef.current;
                 if (!pan) return;
                 const rect = event.currentTarget.getBoundingClientRect();
@@ -1176,12 +1216,21 @@ export function DailyCurveEditor({
                 moveView(pan.start - delta, pan.end - pan.start);
               }}
               onPointerUp={(event) => {
+                const range=rangeDragRef.current;
+                if(range){
+                  const end=indexAtClientX(event.clientX,event.currentTarget);
+                  const selection={startIndex:Math.min(range.startIndex,end),endIndex:Math.max(range.startIndex,end)};
+                  if(Math.abs(event.clientX-range.clientX)>=4){onSelectRange?.(selection);setRangeStart(selection.startIndex);setRangeEnd(selection.endIndex);}
+                  else onSelectRange?.(null);
+                  rangeDragRef.current=null;setRangePreview(null);
+                }
                 panRef.current = null;
                 if (event.currentTarget.hasPointerCapture(event.pointerId))
                   event.currentTarget.releasePointerCapture(event.pointerId);
               }}
               onPointerCancel={() => {
                 panRef.current = null;
+                rangeDragRef.current=null;setRangePreview(null);
               }}
             >
               <defs>
@@ -1305,6 +1354,12 @@ export function DailyCurveEditor({
               ))}
 
               {/* Vertical Guideline for Selected Hour */}
+              <g clipPath={`url(#${gradientId}-clip)`} className="pointer-events-none">
+                {(rangePreview?[...selectedRanges.slice(0,1),rangePreview]:selectedRanges).map((range,i)=>{
+                  const left=Math.max(MARGIN.left,xToPx(range.startIndex)),right=Math.min(viewWidth-MARGIN.right,xToPx(range.endIndex+1));
+                  return right>left?<rect data-testid="daily-interval-band" key={i} x={left} y={MARGIN.top} width={right-left} height={plotHeight} fill={i===0?primary:'#ff9d00'} fillOpacity={0.18}/>:null;
+                })}
+              </g>
               {selectedHour !== null && (
                 <line
                   x1={xToPx(selectedHour)}
@@ -1413,7 +1468,7 @@ export function DailyCurveEditor({
                   </g>
                 )}
 
-                {(showSecondary || !solarSelected) && (
+                {!solarOnly&&(showSecondary || !solarSelected) && (
                   <g
                     data-testid="daily-consumption-series"
                     opacity={solarSelected ? 0.2 : 1}
@@ -1538,6 +1593,7 @@ export function DailyCurveEditor({
                 </kbd>
                 <span>ajustar pontos</span>
               </span>
+              <span>Ctrl + scroll para zoom</span>
               <span className="inline-flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
                   ←
