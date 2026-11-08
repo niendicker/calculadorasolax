@@ -19,9 +19,9 @@ describe('CiBackupPanel', () => {
     const onChange = vi.fn();
     render(<CiBackupPanel ciOptions={defaultCiOptions} onChange={onChange} />);
 
-    expect(screen.getByText('Proteção para Falta de Rede (Backup C&I)')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Backup' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Habilitar Backup' })).toBeInTheDocument();
-    expect(screen.getByText(/A proteção de backup está desativada/i)).toBeInTheDocument();
+    expect(screen.getByText(/Backup desativado/i)).toBeInTheDocument();
   });
 
   it('enables backup when clicking toggle button', () => {
@@ -54,10 +54,10 @@ describe('CiBackupPanel', () => {
     render(<CiBackupPanel ciOptions={ciOptionsWithBackup} onChange={onChange} />);
 
     expect(screen.getByText('Backup Habilitado')).toBeInTheDocument();
-    expect(screen.getByLabelText(/Potência crítica contínua/i)).toHaveValue(50);
-    expect(screen.getByLabelText(/Autonomia desejada/i)).toHaveValue(4);
+    expect(screen.getByRole('spinbutton', { name: /Potência crítica contínua/i })).toHaveValue(50);
+    expect(screen.getByRole('spinbutton', { name: /Autonomia desejada/i })).toHaveValue(4);
 
-    const powerInput = screen.getByLabelText(/Potência crítica contínua/i);
+    const powerInput = screen.getByRole('spinbutton', { name: /Potência crítica contínua/i });
     fireEvent.change(powerInput, { target: { value: '60' } });
 
     expect(onChange).toHaveBeenCalledWith(

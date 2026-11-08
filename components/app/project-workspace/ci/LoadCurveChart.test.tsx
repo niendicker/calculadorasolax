@@ -750,11 +750,14 @@ describe('interval selection metrics & point badges', () => {
     expect(screen.queryByText(/6\.0 kW/)).not.toBeInTheDocument();
   });
 
-  it('renders summarized guide text below the chart', () => {
+  it('keeps selection discoverable and places navigation details in contextual help', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     expect(
-      screen.getByText('Shift + arraste para selecionar intervalo · Ctrl + scroll para zoom · Duplo clique para redefinir')
+      screen.getByText('Shift + arraste para selecionar')
     ).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Como navegar na curva' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Ctrl + scroll');
   });
 });
 

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Select } from '@/components/ui/select';
 import { cn, readCssVar } from '@/lib/utils';
 import type {CurveRangeSelection} from './LoadCurveChart';
@@ -190,6 +191,8 @@ export function DailyCurveEditor({
   const [showPeakBand, setShowPeakBand] = useState<boolean>(true);
   const [showSecondary, setShowSecondary] = useState<boolean>(true);
 
+  const batchId = useId();
+  const [batchOpen, setBatchOpen] = useState(false);
   // Batch edit state
   const [batchStart, setBatchStart] = useState<number>(Math.round((8 * pointCount) / 24));
   const [batchEnd, setBatchEnd] = useState<number>(Math.round((18 * pointCount) / 24));
@@ -790,7 +793,7 @@ export function DailyCurveEditor({
       {/* 2. Real-Time Energetic KPIs (Faixa de Indicadores Técnicos) */}
       {!solarOnly&&<section
         aria-label="Resumo energético do dia"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3"
+        className={cn('grid grid-cols-2 gap-2.5 sm:gap-3', hasSolar && 'lg:grid-cols-4')}
       >
         {/* KPI 1: Consumo Total */}
         <div className="bg-muted/30 dark:bg-muted/20 rounded-xl p-3 border border-border/70 flex flex-col justify-between">
@@ -838,6 +841,7 @@ export function DailyCurveEditor({
           </div>
         </div>
 
+        {hasSolar&&<>
         {/* KPI 3: Geração FV Estimada */}
         <div className="bg-muted/30 dark:bg-muted/20 rounded-xl p-3 border border-border/70 flex flex-col justify-between">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -887,6 +891,7 @@ export function DailyCurveEditor({
             </div>
           </div>
         </div>
+        </>}
       </section>}
 
       {/* 3. Unified Controls Bar (Day Pattern + Series Selector + Layer Toggles + Zoom Presets) */}
@@ -927,10 +932,10 @@ export function DailyCurveEditor({
             </div>
           )}
 
-          <div className="h-5 w-px bg-border/80 hidden sm:block" />
+          {hasSolar&&<div className="h-5 w-px bg-border/80 hidden sm:block" />}
 
           {/* Explicit Series Selector: Editing Series vs Reference */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          {hasSolar&&<div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-medium text-muted-foreground mr-1 hidden sm:inline">
               Curva em edição:
             </span>
@@ -987,7 +992,7 @@ export function DailyCurveEditor({
                 {solarSelected ? 'Editando' : 'Referência'}
               </span>
             </Button>
-          </div>
+          </div>}
         </div>
 
         {/* Right side: Layer toggles and Zoom Presets */}
@@ -1167,8 +1172,8 @@ export function DailyCurveEditor({
               </span>
             </div>
             {onSelectRange&&<div className="mb-2 space-y-2 text-xs">
-              <Button type="button" size="sm" variant={rangeMode?'default':'outline'} aria-pressed={rangeMode} onClick={()=>setRangeMode(value=>!value)}>Selecionar intervalo</Button>
-              <p className="text-muted-foreground">Shift + arraste para selecionar sem editar os pontos. No celular, ative Selecionar intervalo ou informe os horários.</p>
+              <div className="flex items-center gap-1"><Button type="button" size="sm" variant={rangeMode?'default':'outline'} aria-pressed={rangeMode} onClick={()=>setRangeMode(value=>!value)}>Selecionar intervalo</Button>
+              <InfoTooltip label="Como selecionar um intervalo">Shift + arraste seleciona sem editar os pontos. No celular, ative Selecionar intervalo e arraste no gráfico, ou informe os horários e use Marcar intervalo.</InfoTooltip></div>
               {rangeMode&&<div className="flex flex-wrap items-end gap-2">
                 <label className="space-y-1">Início do intervalo<Select aria-label="Início do intervalo diário" value={rangeStart} onChange={event=>setRangeStart(Number(event.target.value))}>{activeDataset.map((_,i)=><option key={i} value={i}>{formatTime(i)}</option>)}</Select></label>
                 <label className="space-y-1">Último ponto do intervalo<Select aria-label="Fim do intervalo diário" value={rangeEnd} onChange={event=>setRangeEnd(Number(event.target.value))}>{activeDataset.map((_,i)=><option key={i} value={i}>{formatTime(i)}</option>)}</Select></label>
@@ -1180,7 +1185,7 @@ export function DailyCurveEditor({
               ref={svgRef}
               viewBox={`0 0 ${viewWidth} ${viewHeight}`}
               preserveAspectRatio="none"
-              className="h-[235px] min-h-[235px] flex-1 w-full touch-none select-none rounded-xl border border-border/70 bg-card shadow-xs"
+              className="h-[235px] min-h-[235px] shrink-0 w-full touch-none select-none rounded-xl border border-border/70 bg-card shadow-xs"
               role="group"
               aria-label="Editor da curva diária — arraste os pontos para ajustar a potência ou o fundo para navegar"
               onDoubleClick={() => setViewRange({ start: 0, end: pointCount - 1 })}
@@ -1586,33 +1591,7 @@ export function DailyCurveEditor({
 
           {/* Under Chart: Legend, Keyboard hints, and Smoothing action */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-1.5">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  Clique / Arraste
-                </kbd>
-                <span>ajustar pontos</span>
-              </span>
-              <span>Ctrl + scroll para zoom</span>
-              <span className="inline-flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  ←
-                </kbd>
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  →
-                </kbd>
-                <span>navegar</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  ↑
-                </kbd>
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  ↓
-                </kbd>
-                <span>±1 kW (Shift: ±5 kW)</span>
-              </span>
-            </div>
+            <span className="inline-flex items-center gap-1">Arraste os pontos para editar<InfoTooltip label="Como editar a curva">Clique ou arraste um ponto para ajustar a potência. Ctrl + scroll aplica zoom; arraste o fundo para navegar. No ponto selecionado, use ← e → para mudar de horário; ↑ e ↓ ajustam 1 kW, ou 5 kW com Shift. Harmonizar picos suaviza variações entre os pontos.</InfoTooltip></span>
 
             <Button
               id="btnHarmonizeCurve"
@@ -1763,60 +1742,17 @@ export function DailyCurveEditor({
               </div>
             </div>
 
-            {/* Instant Comparison in this Time Slot */}
-            <div className="pt-2 border-t border-border/60 space-y-1 text-xs">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Consumo às {formatTime(selectedHour)}:</span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {currentConsumptionVal.toFixed(1)} kW
-                </span>
-              </div>
-              {hasSolar && (
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>FV às {formatTime(selectedHour)}:</span>
-                  <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
-                    {currentSolarVal.toFixed(1)} kW
-                  </span>
-                </div>
-              )}
-              {hasSolar && (
-                <div className="flex items-center justify-between pt-1 border-t border-border/40 font-medium">
-                  <span className="text-foreground">Balanço:</span>
-                  <span
-                    className={cn(
-                      'font-bold tabular-nums',
-                      currentNetVal < -0.05
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : currentNetVal > 0.05
-                          ? 'text-foreground'
-                          : 'text-muted-foreground'
-                    )}
-                  >
-                    {currentNetVal < -0.05
-                      ? `${currentNetVal.toFixed(1)} kW (Injeção)`
-                      : currentNetVal > 0.05
-                        ? `+${currentNetVal.toFixed(1)} kW (Rede)`
-                        : '0,0 kW (Neutro)'}
-                  </span>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Card 2: Batch Editing by Time Window (Ajuste em Bloco) */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3 shadow-xs">
-            <div className="pb-1 border-b border-border/60">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                Produtividade
-              </span>
-              <h3 className="text-xs font-semibold text-foreground">
-                Ajuste em bloco de horário
-              </h3>
+          {/* Batch tools stay available without competing with point editing. */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 shadow-xs">
+            <div className="flex items-center gap-1">
+              <button type="button" aria-expanded={batchOpen} aria-controls={batchId} onClick={()=>setBatchOpen(value=>!value)} className="flex flex-1 items-center justify-between gap-2 rounded text-left text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Ajuste em bloco de horário<ChevronRight className={cn('h-3.5 w-3.5 shrink-0 transition-transform',batchOpen&&'rotate-90')} aria-hidden="true"/>
+              </button>
+              <InfoTooltip label="Sobre o ajuste em bloco">Aplique um patamar fixo ou uma variação percentual a todos os pontos do intervalo informado.</InfoTooltip>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Aplique um patamar fixo ou variação percentual a múltiplos intervalos de uma só vez.
-            </p>
-
+            <div id={batchId} hidden={!batchOpen} className="space-y-3 pt-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label htmlFor="batch-range-start" className="block text-[10px] font-medium text-muted-foreground mb-1">
@@ -1896,6 +1832,7 @@ export function DailyCurveEditor({
             >
               Aplicar à faixa selecionada
             </Button>
+            </div>
           </div>
         </div>
       </div>

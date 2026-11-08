@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
 import type { CiBackupCurveSelection, LoadCurve, LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -1063,9 +1064,7 @@ export function LoadCurveChart({
         {endBadge && <PointBadge timezone={timezone} badge={endBadge} chartWidth={chartWidth} />}
         {!isHoverDuplicate && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        Shift + arraste para selecionar intervalo · Ctrl + scroll para zoom · Duplo clique para redefinir
-      </p></>}
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">Shift + arraste para selecionar<InfoTooltip label="Como navegar na curva">Shift + arraste seleciona um intervalo para comparar ou usar no backup. Arraste para navegar; Ctrl + scroll aplica zoom. Duplo clique redefine a visualização. Scroll sem Ctrl rola a página.</InfoTooltip></div></>}
 
       {/* Exactly one period pinned: the plain single-period readout. */}
       {summaryA && !summaryB && selections.a && (

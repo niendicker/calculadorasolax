@@ -6,6 +6,7 @@
 
 import { ChevronLeft, ChevronRight, Sun, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import dynamic from 'next/dynamic';
 import { CiEnergyImport } from './CiEnergyImport';
@@ -54,11 +55,9 @@ export function CiSolarPanel({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Sun className="h-5 w-5 text-amber-500" aria-hidden="true" />
-            <h2 className="text-base font-semibold">Geração Fotovoltaica (FV)</h2>
+            <h2 className="text-base font-semibold">Geração Fotovoltaica (FV)</h2><InfoTooltip label="Sobre a geração FV">Integra a geração solar para autoconsumo e recarga do BESS com o excedente.</InfoTooltip>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Integra a curva de geração solar diurna para autoconsumo e recarga direta do BESS com excedente renovável.
-          </p>
+
         </div>
         <Button
           type="button"
@@ -86,7 +85,7 @@ export function CiSolarPanel({
       {!solar.enabled ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-xs text-muted-foreground space-y-2">
           <p className="font-medium text-foreground">A integração solar fotovoltaica está desativada para este projeto.</p>
-          <p>Habilite a geração FV para calcular o autoconsumo e o armazenamento de sobras solares no BESS.</p>
+
         </div>
       ) : (
         <div className="space-y-6">
@@ -96,7 +95,7 @@ export function CiSolarPanel({
                 <div><h3 className="text-sm font-semibold">{imported.source === 'manual' ? 'Geração FV personalizada' : 'Geração FV importada'}</h3><p className="mt-1 text-xs text-muted-foreground">{imported.periodStart} a {imported.periodEnd} · {imported.points.length} amostras · {imported.resolutionMinutes} min</p></div>
                 <Button type="button" variant="outline" size="sm" onClick={() => updateSolar({ generationCurve: undefined, generationPoints: undefined })}>Usar geração estimada</Button>
               </div>
-              <p className="text-xs text-muted-foreground">{imported.source === 'manual' ? 'O cálculo usa o perfil FV ajustado no editor diário, com padrões independentes para dias úteis e fins de semana.' : 'O cálculo usa a geração AC de cada horário do arquivo, sem estimar ou reescalar a produção por kWp. Importe consumo e geração com o mesmo intervalo e período.'}</p>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">{imported.source === 'manual' ? 'Perfil ajustado no editor diário' : 'Geração AC do arquivo'}<InfoTooltip label="Sobre o perfil de geração FV">{imported.source === 'manual' ? 'O cálculo usa padrões independentes para dias úteis e fins de semana, ajustados no editor diário.' : 'O cálculo usa a geração AC de cada horário, sem reescalar a produção por kWp. Consumo e geração devem cobrir o mesmo período e intervalo.'}</InfoTooltip></div>
               {!embedded&&<LoadCurveChart kind="generation" points={imported.points} resolutionMinutes={imported.resolutionMinutes} />}
             </div>
           ) : <>
@@ -105,9 +104,9 @@ export function CiSolarPanel({
             <p className="text-sm font-semibold">Parâmetros do Gerador Fotovoltaico</p>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <label htmlFor="solar-installed-kwp" className="text-xs font-medium text-foreground">
+                <div className="flex items-center gap-1"><label htmlFor="solar-installed-kwp" className="text-xs font-medium text-foreground">
                   Potência dos Módulos (kWp)
-                </label>
+                </label><InfoTooltip label="Sobre a potência dos módulos FV">Capacidade DC instalada no local.</InfoTooltip></div>
                 <Input
                   id="solar-installed-kwp"
                   type="number"
@@ -117,13 +116,12 @@ export function CiSolarPanel({
                   onChange={(e) => updateSolar({ installedPowerKwp: Math.max(0, toNumber(e.target.value)) })}
                   placeholder="Ex: 150"
                 />
-                <p className="text-[11px] text-muted-foreground">Capacidade DC instalada no local.</p>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="solar-inverter-kw" className="text-xs font-medium text-foreground">
+                <div className="flex items-center gap-1"><label htmlFor="solar-inverter-kw" className="text-xs font-medium text-foreground">
                   Potência dos Inversores (kW)
-                </label>
+                </label><InfoTooltip label="Sobre a potência dos inversores FV">Potência máxima de saída AC para a rede local.</InfoTooltip></div>
                 <Input
                   id="solar-inverter-kw"
                   type="number"
@@ -133,13 +131,12 @@ export function CiSolarPanel({
                   onChange={(e) => updateSolar({ inverterPowerKw: Math.max(0, toNumber(e.target.value)) })}
                   placeholder="Ex: 125"
                 />
-                <p className="text-[11px] text-muted-foreground">Potência máxima de saída AC para a rede local.</p>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="solar-daily-yield" className="text-xs font-medium text-foreground">
+                <div className="flex items-center gap-1"><label htmlFor="solar-daily-yield" className="text-xs font-medium text-foreground">
                   Geração Média Diária (kWh/kWp)
-                </label>
+                </label><InfoTooltip label="Sobre a geração média diária">HSP (Horas de Sol Pleno) média da região (4.0 a 5.5).</InfoTooltip></div>
                 <Input
                   id="solar-daily-yield"
                   type="number"
@@ -150,7 +147,6 @@ export function CiSolarPanel({
                   onChange={(e) => updateSolar({ dailyYieldKwhPerKwp: Math.max(0.5, toNumber(e.target.value, 4.5)) })}
                   placeholder="Ex: 4.5"
                 />
-                <p className="text-[11px] text-muted-foreground">HSP (Horas de Sol Pleno) média da região (4.0 a 5.5).</p>
               </div>
             </div>
           </div>
@@ -186,7 +182,7 @@ export function CiSolarPanel({
             <p className="text-sm font-semibold">Política de Integração com o BESS</p>
             <div className="flex items-start gap-3 rounded-xl border bg-muted/15 p-3.5">
               <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" aria-hidden="true" />
-              <div className="space-y-1">
+              <div className="flex items-center gap-1">
                 <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground">
                   <input
                     type="checkbox"
@@ -194,12 +190,8 @@ export function CiSolarPanel({
                     onChange={(e) => updateSolar({ prioritizeBessCharging: e.target.checked })}
                     className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  <span>Priorizar armazenamento do excedente solar nas baterias</span>
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Quando a geração FV ultrapassar o consumo da empresa, o BESS absorve a sobra de energia solar
-                  em vez de ceifar a produção ou injetar na rede sob regras desfavoráveis.
-                </p>
+                  <span>Priorizar armazenamento do excedente solar nas baterias</span></label><InfoTooltip label="Sobre a prioridade de recarga solar">Quando a geração supera o consumo, o BESS absorve o excedente antes de reduzir a produção ou injetar na rede.</InfoTooltip>
+
               </div>
             </div>
           </div>

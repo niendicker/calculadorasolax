@@ -89,8 +89,8 @@ describe('CiLoadCurvePanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }, { timeout: 4000 }));
 
     expect((await screen.findAllByText(/3 amostras/)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Intervalo: 60 min/)).toBeInTheDocument();
-    expect(screen.getByText(/resolução 60 min/)).toBeInTheDocument();
+    expect(screen.getByText('60 min')).toBeInTheDocument();
+    expect(screen.getByText(/3 \/ 672 pontos/)).toBeInTheDocument();
     expect(await screen.findByText(/20\.00/)).toBeInTheDocument(); // pico
     expect(screen.getByText(/10\.00/)).toBeInTheDocument(); // mínima
   });
@@ -126,8 +126,8 @@ describe('CiLoadCurvePanel', () => {
       expect(baseSelect).toHaveValue('comercio');
 
       expect(screen.getAllByRole('slider')).toHaveLength(96);
-      expect(await screen.findByRole('heading',{name:'Curva de consumo e geração'})).toBeInTheDocument();
-      expect(screen.getByText(/672 \/ 672 pontos · resolução 15 min/)).toBeInTheDocument();
+      expect(await screen.findByRole('heading',{name:'Consumo e geração'})).toBeInTheDocument();
+      expect(screen.getByText(/672 \/ 672 pontos/)).toBeInTheDocument();
     });
 
     it('selecting a different preset updates the curve and slider values', async () => {
@@ -214,7 +214,7 @@ describe('CiLoadCurvePanel', () => {
       Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
 
       render(<ControlledPanel />);
-      await screen.findByRole('heading',{name:'Curva de consumo e geração'});
+      await screen.findByRole('heading',{name:'Consumo e geração'});
 
       const exportBtn = screen.getByRole('button', { name: /Exportar CSV/i });
       fireEvent.click(exportBtn);

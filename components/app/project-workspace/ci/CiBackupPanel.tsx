@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Clock, Fuel, Gauge, Plus, Shield, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type {
@@ -139,11 +140,8 @@ export function CiBackupPanel({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-amber-600" aria-hidden="true" />
-            <h2 className="text-base font-semibold">Proteção para Falta de Rede (Backup C&amp;I)</h2>
+            <h2 className="text-base font-semibold">Backup</h2><InfoTooltip label="Sobre a proteção de backup">Reserva energia no BESS para manter as cargas críticas durante a falta de rede. Sem backup, o dimensionamento considera apenas os benefícios tarifários.</InfoTooltip>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Dimensiona a reserva de energia do BESS para manter cargas críticas em funcionamento durante apagões da concessionária.
-          </p>
         </div>
         <Button
           type="button"
@@ -160,7 +158,7 @@ export function CiBackupPanel({
         <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
           <Shield className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <p>
-            A proteção de backup está desativada. O BESS será dimensionado exclusivamente para benefícios tarifários on-grid (Peak Shaving e Load Shifting), sem reservar capacidade para blecautes.
+            Backup desativado. Não há reserva para falta de rede.
           </p>
         </div>
       ) : (
@@ -168,10 +166,7 @@ export function CiBackupPanel({
           {/* Mode Selector */}
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-semibold">Método de dimensionamento das cargas críticas</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Escolha se deseja informar a demanda estimada diretamente ou detalhar item a item.
-              </p>
+              <div className="flex items-center gap-1"><p className="text-sm font-semibold">Cargas críticas</p><InfoTooltip label="Sobre o dimensionamento das cargas">Informe a demanda estimada diretamente ou detalhe cada carga. Os dois métodos determinam a potência e a energia reservadas para o backup.</InfoTooltip></div>
             </div>
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:w-fit">
               {inputModeOptions.map((option) => {
@@ -196,14 +191,14 @@ export function CiBackupPanel({
             </div>
           </div>
 
-          {backup.curveSelection && <div className="space-y-2 rounded-lg border p-3 text-sm"><p>Backup vinculado ao intervalo da curva de consumo. Potência, energia e duração são recalculadas quando o perfil muda.</p>{selectionError && <p role="alert" className="text-destructive">{selectionError}</p>}<Button variant="outline" onClick={()=>updateBackup({curveSelection:undefined,...directValues})}>Usar valores diretos</Button></div>}
+          {backup.curveSelection && <div className="space-y-2 rounded-lg border p-3 text-sm"><div className="flex items-center gap-1">Backup vinculado à curva<InfoTooltip label="Sobre o backup vinculado à curva">Potência, energia e duração acompanham o intervalo selecionado. Use valores diretos para remover esse vínculo.</InfoTooltip></div>{selectionError && <p role="alert" className="text-destructive">{selectionError}</p>}<Button variant="outline" onClick={()=>updateBackup({curveSelection:undefined,...directValues})}>Usar valores diretos</Button></div>}
           {/* Simple Mode Form */}
           {backup.inputMode === 'simple' && !backup.curveSelection && (
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <label htmlFor="target-power-kw" className="text-xs font-medium text-foreground">
+                <div className="flex items-center gap-1"><label htmlFor="target-power-kw" className="text-xs font-medium text-foreground">
                   Potência crítica contínua (kW)
-                </label>
+                </label><InfoTooltip label="Sobre a potência crítica contínua">Potência média das cargas durante a falta de rede.</InfoTooltip></div>
                 <Input
                   id="target-power-kw"
                   type="number"
@@ -213,13 +208,12 @@ export function CiBackupPanel({
                   onChange={(e) => updateBackup({ targetPowerKw: Math.max(0, toNumber(e.target.value)) })}
                   placeholder="Ex: 50"
                 />
-                <p className="text-[11px] text-muted-foreground">Potência média das cargas durante a falta de rede.</p>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="target-peak-power-kw" className="text-xs font-medium text-foreground">
+                <div className="flex items-center gap-1"><label htmlFor="target-peak-power-kw" className="text-xs font-medium text-foreground">
                   Potência de pico / surto (kW) <span className="text-muted-foreground">(opcional)</span>
-                </label>
+                </label><InfoTooltip label="Sobre a potência de pico">Partida de motores ou picos de curta duração.</InfoTooltip></div>
                 <Input
                   id="target-peak-power-kw"
                   type="number"
@@ -229,13 +223,12 @@ export function CiBackupPanel({
                   onChange={(e) => updateBackup({ targetPeakPowerKw: Math.max(0, toNumber(e.target.value)) })}
                   placeholder="Ex: 75"
                 />
-                <p className="text-[11px] text-muted-foreground">Partida de motores ou picos de curta duração.</p>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="autonomy-hours" className="text-xs font-medium text-foreground">
+                <div className="flex items-center gap-1"><label htmlFor="autonomy-hours" className="text-xs font-medium text-foreground">
                   Autonomia desejada (horas)
-                </label>
+                </label><InfoTooltip label="Sobre a autonomia de backup">Tempo mínimo de sustentação sem rede.</InfoTooltip></div>
                 <Input
                   id="autonomy-hours"
                   type="number"
@@ -245,7 +238,6 @@ export function CiBackupPanel({
                   onChange={(e) => updateBackup({ autonomyHours: Math.max(0.5, toNumber(e.target.value, 4)) })}
                   placeholder="Ex: 4"
                 />
-                <p className="text-[11px] text-muted-foreground">Tempo mínimo de sustentação sem rede.</p>
               </div>
             </div>
           )}
@@ -396,9 +388,9 @@ export function CiBackupPanel({
           <div className="space-y-3 border-t pt-4">
             <p className="text-xs font-semibold">Parâmetros Operacionais</p>
             <div className="max-w-xs space-y-1.5">
-              <label htmlFor="safety-margin-percent" className="text-xs font-medium text-foreground">
+              <div className="flex items-center gap-1"><label htmlFor="safety-margin-percent" className="text-xs font-medium text-foreground">
                 Margem de segurança sobre a potência (%)
-              </label>
+              </label><InfoTooltip label="Sobre a margem de segurança">Garante folga operacional para absorver variações momentâneas de carga.</InfoTooltip></div>
               <Input
                 id="safety-margin-percent"
                 type="number"
@@ -408,9 +400,6 @@ export function CiBackupPanel({
                 value={backup.safetyMarginPercent}
                 onChange={(e) => updateBackup({ safetyMarginPercent: Math.max(0, toNumber(e.target.value, 10)) })}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Garante folga operacional para absorver variações momentâneas de carga.
-              </p>
             </div>
           </div>
 
@@ -419,7 +408,7 @@ export function CiBackupPanel({
             <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" aria-hidden="true" />
-                <p className="text-xs font-semibold">Requisitos Calculados para Falta de Rede</p>
+                <p className="text-xs font-semibold">Requisitos de backup</p><InfoTooltip label="Sobre os requisitos de backup">O motor usa estes requisitos para filtrar as soluções viáveis e preservar a reserva mínima de SOC durante o despacho diário.</InfoTooltip>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
                 <div>
@@ -441,9 +430,7 @@ export function CiBackupPanel({
                   </p>
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground pt-1">
-                O motor utilizará esses requisitos para filtrar os cenários viáveis e preservar a reserva mínima de SOC durante o despacho diário.
-              </p>
+
             </div>
           )}
 
@@ -461,11 +448,9 @@ export function CiBackupPanel({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Fuel className="h-5 w-5 text-amber-600" aria-hidden="true" />
-                  <h3 className="text-sm font-semibold">Grupo Motor Gerador (GMG)</h3>
+                  <h3 className="text-sm font-semibold">Grupo Motor Gerador (GMG)</h3><InfoTooltip label="Sobre a integração do gerador">Use o gerador a combustão para estender a autonomia em apagões longos ou dar suporte no horário de ponta.</InfoTooltip>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Integração com gerador a combustão para extensão de autonomia em apagões longos ou suporte em horário de ponta.
-                </p>
+
               </div>
               <Button
                 type="button"
@@ -500,9 +485,9 @@ export function CiBackupPanel({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="gen-fuel-type" className="text-xs font-medium text-foreground">
+                    <div className="flex items-center gap-1"><label htmlFor="gen-fuel-type" className="text-xs font-medium text-foreground">
                       Combustível
-                    </label>
+                    </label><InfoTooltip label="Sobre combustível">Fonte de energia primária do motor.</InfoTooltip></div>
                     <select
                       id="gen-fuel-type"
                       value={generator.fuelType}
@@ -519,7 +504,6 @@ export function CiBackupPanel({
                         </option>
                       ))}
                     </select>
-                    <p className="text-[11px] text-muted-foreground">Fonte de energia primária do motor.</p>
                   </div>
 
                   <div className="space-y-1.5">

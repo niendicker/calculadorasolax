@@ -598,6 +598,9 @@ describe('DailyCurveEditor — editing tools', () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
 
+    expect(screen.getByRole('button', { name: 'Ajuste em bloco de horário' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Aplicar à faixa selecionada' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ajuste em bloco de horário' }));
     // Configure batch to fix value 80 kW
     fireEvent.change(screen.getByLabelText('Operação'), { target: { value: 'set' } });
     fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '80' } });
@@ -679,6 +682,7 @@ it('keeps all editing tools disabled for read-only solar generation', () => {
   const onChange = vi.fn();
   render(<DailyCurveEditor hourlyKw={FLAT_24} solarKw={FLAT_24} onChange={onChange} />);
   fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ajuste em bloco de horário' }));
   for (const name of ['Harmonizar picos', 'Limpar curva', '+5 kW', 'Aplicar à faixa selecionada']) {
     expect(screen.getByRole('button', { name })).toBeDisabled();
   }
@@ -688,6 +692,7 @@ it('keeps all editing tools disabled for read-only solar generation', () => {
 it('does not cap batch edits at an arbitrary power limit', () => {
   const onChange = vi.fn();
   render(<DailyCurveEditor hourlyKw={new Array(24).fill(1500)} onChange={onChange} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Ajuste em bloco de horário' }));
   fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '10' } });
   fireEvent.click(screen.getByRole('button', { name: 'Aplicar à faixa selecionada' }));
   expect(onChange.mock.calls.at(-1)![0][8]).toBe(1650);

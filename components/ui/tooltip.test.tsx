@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { InfoLabel, Tooltip } from './tooltip';
+import { describe, expect, it, vi } from 'vitest';
+import { InfoLabel, InfoTooltip, Tooltip } from './tooltip';
 
 describe('Tooltip / InfoLabel', () => {
   it('shows the tooltip content after the hover delay, portaled outside the trigger', async () => {
@@ -51,5 +51,38 @@ describe('Tooltip / InfoLabel', () => {
     const icon = screen.getByLabelText('Explica o campo X');
     fireEvent.mouseEnter(icon.parentElement?.parentElement as HTMLElement);
     await screen.findByText('Explica o campo X', { selector: 'span.pointer-events-none' }, { timeout: 1000 });
+  });
+});
+
+describe('InfoTooltip', () => {
+  it('opens on tap, describes its trigger and closes on a second tap or outside press', () => {
+    render(<InfoTooltip label="Sobre o campo">Explicação detalhada</InfoTooltip>);
+    const trigger = screen.getByRole('button', { name: 'Sobre o campo' });
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({ top: 200, left: 120, right: 144, bottom: 224, width: 24, height: 24, x: 120, y: 200, toJSON: () => ({}) });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAccessibleDescription('Explicação detalhada');
+    expect(screen.getByRole('tooltip').closest('.fixed')).toHaveClass('z-[90]');
+    expect(screen.getByRole('tooltip').closest('.fixed')).toHaveStyle({ top: '190px', left: '120px' });
+    fireEvent.click(trigger);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('opens on keyboard focus and handles Escape before an enclosing dialog', async () => {
+    const escape = vi.fn();
+    render(<div onKeyDown={escape}><InfoTooltip label="Ajuda">Orientação</InfoTooltip></div>);
+    const trigger = screen.getByRole('button', { name: 'Ajuda' });
+    fireEvent.focus(trigger);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Orientação');
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(escape).not.toHaveBeenCalled();
+    fireEvent.focus(trigger);
+    fireEvent.blur(trigger);
+    await new Promise(resolve => setTimeout(resolve, 350));
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 });

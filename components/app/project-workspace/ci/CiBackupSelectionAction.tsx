@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { resolveBackupCurve } from '@/supabase/functions/_shared/commercial-industrial/backup-curve';
@@ -18,6 +19,7 @@ export function CiBackupSelectionAction({curve,startIndex,endIndex,label,onApply
   curve: LoadCurve; startIndex:number; endIndex:number; label:string;
   onApply:(selection:CiBackupCurveSelection)=>void;
 }) {
+  const methodId = useId();
   const [method,setMethod]=useState<CiBackupCurveSelection['method']>('profile');
   const [power,setPower]=useState('');
   const [applied,setApplied]=useState(false);
@@ -32,13 +34,12 @@ export function CiBackupSelectionAction({curve,startIndex,endIndex,label,onApply
   catch(cause) { error=cause instanceof Error?cause.message:'Seleção inválida.'; }
   return <section className="space-y-3 rounded-lg border bg-muted/10 p-3" aria-label={`Backup do ${label}`}>
     <div className="flex flex-wrap items-end gap-3">
-      <label className="min-w-44 flex-1 space-y-1 text-xs">Como usar o {label}<Select aria-label={`Método de backup do ${label}`} value={method} onChange={event=>{setMethod(event.target.value as CiBackupCurveSelection['method']);setApplied(false);}}>{Object.entries(backupSelectionMethods).map(([value,text])=><option key={value} value={value}>{text}</option>)}</Select></label>
+      <div className="min-w-44 flex-1 space-y-1 text-xs"><span className="flex items-center gap-1"><label htmlFor={methodId}>Como usar o {label}</label><InfoTooltip label={`Sobre o método de backup do ${label}`}>Perfil selecionado preserva as variações do consumo; média e máxima usam uma potência constante. Na média, o pico observado continua sendo exigido. Potência manual declara apenas a carga protegida; ajuste a potência total na partida em Configurar backup. Os valores da prévia são anteriores à margem e às perdas.</InfoTooltip></span><Select id={methodId} aria-label={`Método de backup do ${label}`} value={method} onChange={event=>{setMethod(event.target.value as CiBackupCurveSelection['method']);setApplied(false);}}>{Object.entries(backupSelectionMethods).map(([value,text])=><option key={value} value={value}>{text}</option>)}</Select></div>
       {method==='manual'&&<label className="space-y-1 text-xs">Potência protegida (kW)<Input aria-label={`Potência manual do ${label}`} type="number" min={0} step="any" value={power} onChange={event=>{setPower(event.target.value);setApplied(false);}}/></label>}
       <Button type="button" size="sm" disabled={!preview} onClick={()=>{onApply(selection);setApplied(true);}}>Usar {label} para backup</Button>
     </div>
-    {preview&&<p className="text-xs text-muted-foreground">{preview.durationHours.toFixed(2)} h · potência contínua {preview.continuousPowerKw.toFixed(2)} kW · pico {preview.requiredPeakKw.toFixed(2)} kW · energia {preview.energyKwh.toFixed(2)} kWh, antes da margem e das perdas.</p>}
-    {method==='average'&&<p className="text-xs text-muted-foreground">O pico observado continua sendo exigido, mesmo usando a média para a carga constante.</p>}
-    {method==='manual'&&<p className="text-xs text-muted-foreground">O patamar declara a carga protegida; o restante do consumo não está coberto. A potência total na partida é ajustada em Configurar backup.</p>}
+    {preview&&<p className="text-xs text-muted-foreground">{preview.durationHours.toFixed(2)} h · potência contínua {preview.continuousPowerKw.toFixed(2)} kW · pico {preview.requiredPeakKw.toFixed(2)} kW · energia {preview.energyKwh.toFixed(2)} kWh (sem margem/perdas).</p>}
+    {method==='manual'&&<p className="text-xs text-muted-foreground">Somente a potência declarada será protegida.</p>}
     {error&&<p role="alert" className="text-xs text-destructive">{error}</p>}
     {applied&&<p role="status" className="text-xs">Backup atualizado pelo {label}. Os valores acompanham as alterações da curva.</p>}
   </section>;

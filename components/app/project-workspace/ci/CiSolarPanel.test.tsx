@@ -43,10 +43,10 @@ describe('CiSolarPanel', () => {
     render(<CiSolarPanel ciOptions={ciOptionsWithSolar} onChange={onChange} />);
 
     expect(screen.getByText('Sistema FV Habilitado')).toBeInTheDocument();
-    expect(screen.getByLabelText(/Potência dos Módulos/i)).toHaveValue(100);
-    expect(screen.getByLabelText(/Potência dos Inversores/i)).toHaveValue(80);
+    expect(screen.getByRole('spinbutton', { name: /Potência dos Módulos/i })).toHaveValue(100);
+    expect(screen.getByRole('spinbutton', { name: /Potência dos Inversores/i })).toHaveValue(80);
 
-    const kwpInput = screen.getByLabelText(/Potência dos Módulos/i);
+    const kwpInput = screen.getByRole('spinbutton', { name: /Potência dos Módulos/i });
     fireEvent.change(kwpInput, { target: { value: '150' } });
 
     expect(onChange).toHaveBeenCalledWith(

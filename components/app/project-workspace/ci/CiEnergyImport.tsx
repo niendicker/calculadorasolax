@@ -1,8 +1,9 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { FileUp } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { importEnergyProfiles, readEnergyImportTable, suggestEnergyImportMapping, type EnergyImportMapping, type EnergyImportResult, type EnergyImportTable, type EnergyImportUnit } from '@/supabase/functions/_shared/commercial-industrial/energy-profile-import';
@@ -13,7 +14,8 @@ export function curvesAlign(load: LoadCurve, generation: LoadCurve): boolean {
   return load.resolutionMinutes === generation.resolutionMinutes && load.points.every((point) => timestamps.has(Date.parse(point.timestamp)));
 }
 
-export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries = 'consumption' }: {
+export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries = 'consumption', actions }: {
+  actions?: ReactNode;
   defaultSeries?: 'consumption' | 'generation';
   ciOptions: CommercialIndustrialOptions;
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
@@ -58,6 +60,7 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
       <label className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'cursor-pointer gap-1.5 text-xs focus-within:ring-3 focus-within:ring-ring/50')}>
         <FileUp className="h-4 w-4" aria-hidden="true" />Importar CSV
         <input type="file" accept=".csv,text/csv,.txt,text/plain" aria-label="Importar CSV de consumo e geração" className="sr-only" disabled={reading} onChange={(event) => {
@@ -79,11 +82,14 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
           reader.readAsText(file);
         }} />
       </label>
+      <InfoTooltip label="Sobre a importação CSV">Importe até 7 dias em intervalos de 15, 30 ou 60 minutos. Use consumo total da instalação e geração FV em AC, antes do BESS. Energia em kWh é convertida em potência média pelo intervalo; confira as unidades e os horários.</InfoTooltip>
+      {actions}
+      </div>
       {reading && <p role="status" className="text-xs text-muted-foreground">Lendo arquivo…</p>}
       {success && <p role="status" className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">{success}</p>}
       {errors.length > 0 && <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"><p className="font-medium">Não foi possível importar o arquivo</p><ul className="mt-1 list-disc pl-5">{errors.map((error) => <li key={error}>{error}</li>)}</ul></div>}
       {table && mapping && <div className="space-y-4 rounded-xl border bg-muted/15 p-4">
-        <div><h3 className="text-sm font-semibold">Importar consumo e geração</h3><p className="mt-1 break-all text-xs text-muted-foreground">{fileName} · {table.rows.length} linhas. Até 7 dias; intervalos de 15, 30 ou 60 minutos.</p></div>
+        <div><h3 className="text-sm font-semibold">Importar consumo e geração</h3><p className="mt-1 break-all text-xs text-muted-foreground">{fileName} · {table.rows.length} linhas</p></div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="space-y-1 text-xs font-medium" htmlFor={`${id}-date`}>Data e hora<Select id={`${id}-date`} value={mapping.timestamp} onChange={(event) => updateMapping({ timestamp: Number(event.target.value) })}>{table.headers.map((header, index) => <option key={index} value={index}>{header}</option>)}</Select></label>
           {(['consumption', 'generation'] as const).map((kind) => <div key={kind} className="space-y-2">
@@ -95,7 +101,6 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
           <label className="space-y-1 text-xs font-medium" htmlFor={`${id}-position`}>Data e hora representam<Select id={`${id}-position`} value={mapping.timestampPosition ?? 'start'} onChange={(event) => updateMapping({ timestampPosition: event.target.value as 'start' | 'end' })}><option value="start">Início do intervalo</option><option value="end">Fim do intervalo</option></Select></label>
         </div>
         {previewCurve && <p className="rounded-lg border bg-background p-3 text-xs">Período detectado: {previewCurve.periodStart} a {previewCurve.periodEnd} · {previewCurve.points.length} amostras de {previewCurve.resolutionMinutes} min. {preview?.ok && preview.consumption && preview.generation ? 'Consumo e geração identificados: as duas etapas serão preenchidas.' : 'Apenas a série selecionada será atualizada.'}</p>}
-        <p className="text-xs text-muted-foreground">Use o consumo total da instalação e a geração FV disponível em AC, antes do BESS. Energia em kWh será convertida em potência média pelo intervalo. Confira as unidades e o horário do exportador.</p>
         <div className="flex flex-wrap gap-2"><Button type="button" size="sm" onClick={applyImport}>Importar dados</Button><Button type="button" size="sm" variant="ghost" onClick={() => { setTable(null); setMapping(null); setErrors([]); }}>Cancelar importação</Button></div>
       </div>}
     </div>
