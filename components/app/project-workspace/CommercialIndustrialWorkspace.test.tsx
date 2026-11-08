@@ -9,7 +9,9 @@ import type { InlineProfile } from '../types';
 import { CommercialIndustrialWorkspace } from './CommercialIndustrialWorkspace';
 
 const { listActiveCiBessProducts } = vi.hoisted(() => ({ listActiveCiBessProducts: vi.fn() }));
-vi.mock('@/lib/data/ci-generated-solutions-repository',()=>({getCiSolutionGeneration:vi.fn().mockResolvedValue({expected_count:4})}));
+vi.mock('@/lib/data/ci-generated-solutions-repository',()=>({queryCiGeneratedSolutions:vi.fn().mockResolvedValue({solutions:[]})}));
+vi.mock('@/lib/supabase/client',()=>({createClient:()=>({})}));
+vi.mock('./ci/CiAccessoriesPanel',()=>({CiAccessoriesPanel:()=>null}));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts }));
 
 function renderWorkspace(overrides: { currentCiProjectId?: string | null; ciOptions?: CommercialIndustrialOptions; profile?: InlineProfile | null } = {}) {
@@ -52,6 +54,7 @@ describe('CommercialIndustrialWorkspace', () => {
       ciOptions: {
         ...defaultCiOptions,
         bessProductId: 'bess-product-1',
+        bessSystem:{kind:'model',sourceKind:'cabinet',productId:'bess-product-1'},lineVoltageV:380,
         loadCurve: {
           points: [{ timestamp: '2026-01-01T00:00:00-03:00', powerKw: 10 }],
           resolutionMinutes: 60,
@@ -88,7 +91,7 @@ describe('CommercialIndustrialWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Configuração BESS' }));
 
-    expect(await screen.findByText('Soluções agrupadas C&I')).toBeInTheDocument();
+    expect(await screen.findByRole('heading',{name:'Configurações BESS'})).toBeInTheDocument();
     expect(screen.queryByLabelText('Nome do projeto')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Visão geral' }));
@@ -173,11 +176,11 @@ describe('CommercialIndustrialWorkspace', () => {
       render(<Session />);
       fireEvent.click(screen.getByRole('button', { name: 'Resultados' }));
       fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
-      await screen.findByText('Linha de base (sem BESS)');
+      await screen.findByText('Nenhuma solução atende aos requisitos técnicos');
       fireEvent.click(screen.getByRole('button', { name: 'Estratégia' }));
       fireEvent.click(screen.getByRole('button', { name: /^Peak Shaving/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Resultados' }));
-      expect(screen.getByText('Linha de base (sem BESS)')).toBeInTheDocument();
+      expect(screen.getByText('Nenhuma solução atende aos requisitos técnicos')).toBeInTheDocument();
       expect(screen.getByText(/Os parâmetros do estudo foram alterados/)).toBeInTheDocument();
       expect(fetchCalculation).toHaveBeenCalledTimes(1);
     } finally {

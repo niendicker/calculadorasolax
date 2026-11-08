@@ -19,6 +19,13 @@ it('reads every page with stable ordering and does not truncate at 500',async()=
 it('rejects a catalog invalidated during pagination',async()=>{
  const {db}=queryDb(501,true);await expect(queryCiGeneratedSolutions(db,{minPowerKw:0,minEnergyKwh:0,applications:[]})).rejects.toThrow('mudou');
 });
+it.each([null,{id:'old',expected_count:440,is_current:false,invalidated_at:'2026-11-08T01:06:21Z',invalidation_reason:'ci_bess_products'}])('does not use stored solutions when no generation is current (history: %j)',async(history)=>{
+ const maybeSingle=vi.fn().mockResolvedValueOnce({data:null,error:null}).mockResolvedValueOnce({data:history,error:null});
+ const from=vi.fn(()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:()=>q,maybeSingle};return q;});
+ const promise=queryCiGeneratedSolutions({from} as unknown as SupabaseClient,{minPowerKw:0,minEnergyKwh:0,applications:[]});
+ await expect(promise).rejects.toThrow(history?'Geração invalidada após salvar o cadastro de gabinetes integrados.':'Não há uma geração atual');
+ expect(from.mock.calls).toEqual([['ci_solution_generations'],['ci_solution_generations']]);
+});
 it('stages batches and publishes only after every append; cancels a failed draft',async()=>{
  mock.assemble.mockReturnValue({...modularFixture(),rules:[]});
  const rpc=vi.fn(async(name:string)=>({data:name==='ci_solution_source'?{revision:'r1',sources:{products:[]}}:name==='ci_begin_solution_generation'?'gen':null,error:null as null|Error}));

@@ -239,20 +239,35 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
 };
 
 export interface CommercialIndustrialOptions {
+  /** AC line-to-line voltage. Required for model-based selection. */
+  lineVoltageV?: 220 | 380;
   loadShiftingCoveragePercent?:number;
   selectedAccessoryIds?: string[];
   /** Absent means the existing integrated BESS catalog. */
-  bessSystem?: { kind: 'integrated' } | CiModularSelection | { kind: 'automatic'; minPowerKw: number; minEnergyKwh: number } | {kind:'solution';solutionKey:string};
+  bessSystem?: { kind: 'integrated' } | CiModularSelection | { kind: 'automatic'; minPowerKw: number; minEnergyKwh: number } | {kind:'solution';solutionKey:string} | CiModelSelection;
   loadCurve: LoadCurve | null;
   tariff: TariffConfig | null;
   bessProductId: string | null;
   strategy: BessStrategyId;
   sizing: SizingConfig;
   financialAssumptions: FinancialAssumptions;
-  rankingCriterion: RankingCriterion;
+  /** Legacy financial ranking. Ignored by technical solution selection. */
+  rankingCriterion?: RankingCriterion;
   backup?: CiBackupConfig;
   solar?: CiSolarConfig;
   generator?: CiGeneratorConfig;
+}
+
+export type CiModelSelection =
+  | { kind:'model';sourceKind:'cabinet';productId:string|null }
+  | { kind:'model';sourceKind:'assembly';pcsId:string|null;batteryId:string|null };
+
+export interface CiTechnicalIssue {
+  code:'catalog'|'voltage'|'power'|'energy'|'application'|'backup'|'transfer'|'accessories'|'dispatch'|'combined';
+  message:string;
+  required?:number;
+  available?:number;
+  unit?:string;
 }
 
 // ─── Engine result (plan section 4.5) ───────────────────────────────────
@@ -290,6 +305,7 @@ export interface CashFlowYear {
 /** Aggregates every scenario in the comparison grid carries — enough for the
  * comparison table and ranking, without the point-by-point trace. */
 export interface ScenarioCandidate {
+  technicalChecks?: {backup:boolean;transfer:boolean;accessories:boolean;dispatch:boolean;demand:boolean};
   group?: import('./grouped-solutions.ts').CiGroupedSolution;
   billOfMaterials?: {productId:string;model:string;quantity:number;unitPriceBrl:number;totalBrl:number;bundled?:boolean}[];
   /** False when automatic technical search found equipment with pending personal prices. */
@@ -378,6 +394,7 @@ export interface BessRuntimeParams {
 }
 
 export interface CommercialIndustrialResult {
+  technicalIssues?: CiTechnicalIssue[];
   solutionGeneration?: {id:string;sourceRevision:string;contractVersion:'ci-grouped-v1'|'ci-grouped-v2'};
   technicalRequirements?: {minPowerKw:number;minEnergyKwh:number;operatingEnergyAcKwh:number;backupEnergyAcKwh:number;coveragePercent:number};
   technicalSelection?: { scenarioId: string | null; reason: string };
@@ -390,12 +407,9 @@ export interface CommercialIndustrialResult {
   inputFingerprint: string;
   baseline: BaselineResult;
   scenarios: ScenarioCandidate[];
-  /** `scenarioId: null` means no candidate met the viability bar for
-   * `rankingCriterion` (e.g. no scenario pays back within the analysis
-   * horizon) — never coerced into "recommending" the least-bad option
-   * anyway. `selected` (below) may still be populated for reference in that
-   * case (materialized from the smallest evaluated module count), but
-   * callers must not label it "recomendado" when this is null. */
+  /** New studies recommend the single technically valid solution, regardless
+   * of financial return. Null means no solution meets all technical requirements.
+   * Historical results may instead carry a legacy financial recommendation. */
   recommendation: {
     scenarioId: string | null;
     reason: string;
@@ -404,6 +418,7 @@ export interface CommercialIndustrialResult {
    * trace for that one candidate only. */
   selected: SelectedScenarioDetail | null;
   assumptions: {
+    lineVoltageV?:220|380;
     equipment?: { pcs: CiPcsCatalogEntry; battery: CiBatteryCatalogEntry; compatibility: CiCompatibilityRule; prices: CiModularPrices };
     tariff: TariffConfig;
     financial: FinancialAssumptions;

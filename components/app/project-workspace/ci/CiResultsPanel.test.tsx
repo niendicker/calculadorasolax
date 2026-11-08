@@ -158,13 +158,12 @@ describe('CiResultsPanel', () => {
 
     expect(await screen.findByText('Linha de base (sem BESS)')).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith('/api/projects/ci-project-1/calculations', { method: 'POST' });
-    expect(screen.getByText(/Cenário recomendado — 2 módulos/)).toBeInTheDocument();
+    expect(screen.getByText(/Solução que atende tecnicamente — 2 módulos/)).toBeInTheDocument();
     expect(screen.getByText('Melhor payback dentro da faixa avaliada.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recalcular' })).toBeInTheDocument();
 
-    const rows = screen.getAllByRole('row');
-    expect(rows).toHaveLength(3); // header + 2 scenarios
-    expect(screen.getByText('Recomendado')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/Inspecionar cenário/})).not.toBeInTheDocument();
   });
 
   it('shows the server error message and lets the user try again', async () => {
@@ -225,23 +224,24 @@ describe('CiResultsPanel', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('renders non-recommended, technically invalid scenarios and warnings', async () => {
+  it('shows specific technical failures without alternatives, finances or PDF', async () => {
     const result = makeResult({
       recommendation: { scenarioId: null, reason: 'Nenhum cenário atende ao retorno mínimo.' },
       warnings: ['A curva possui lacunas.'],
     });
-    result.scenarios = [{ ...result.scenarios[0], technicalValidity: false, technicalWarnings: ['Subdimensionado.'] }, ...result.scenarios.slice(1)];
+    result.selected={...result.selected!,technicalValidity:false};
+    result.technicalSelection={scenarioId:null,reason:'Nenhuma atende.'};
+    result.technicalIssues=[{code:'power',message:'Potência insuficiente: exige 150 kW; máximo aprovado 120 kW.'}];
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(result) });
     render(<CiResultsPanel {...panelProps('ci-project-1')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
-    expect(await screen.findByText(/Nenhum cenário economicamente viável/)).toBeInTheDocument();
-    expect(screen.getByText('Inválido')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspecionar cenário de 1 módulo' }));
-    expect(screen.getByText('Subdimensionado.')).toBeInTheDocument();
-    expect(screen.getByText('Avisos técnicos')).toBeInTheDocument();
-    expect(screen.getByText('A curva possui lacunas.')).toBeInTheDocument();
+    expect(await screen.findByText('Nenhuma solução atende aos requisitos técnicos')).toBeInTheDocument();
+    expect(screen.getByText('Potência insuficiente: exige 150 kW; máximo aprovado 120 kW.')).toBeInTheDocument();
+    expect(screen.queryByText('CAPEX')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Gerar memorial (PDF)'})).not.toBeInTheDocument();
   });
 
   it('generates and downloads the C&I memorial PDF', async () => {
@@ -374,19 +374,10 @@ describe('CiResultsPanel', () => {
     // Trigger calculation
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
-    expect(await screen.findByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+    expect(await screen.findByText('Solução que atende tecnicamente — 2 módulos')).toBeInTheDocument();
 
-    // Click on 1 module scenario row to inspect
-    const rows = screen.getAllByRole('row');
-    // Row 0 is header, Row 1 is 1 module, Row 2 is 2 modules
-    fireEvent.click(rows[1]);
-
-    expect(screen.getByText('Cenário inspecionado — 1 módulo')).toBeInTheDocument();
-    expect(screen.getByText('Voltar ao recomendado')).toBeInTheDocument();
-
-    // Return to recommended
-    fireEvent.click(screen.getByRole('button', { name: 'Voltar ao recomendado' }));
-    expect(screen.getByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cenário inspecionado/)).not.toBeInTheDocument();
   });
 
   it('displays a warning banner when options are modified after calculation', async () => {
@@ -398,7 +389,7 @@ describe('CiResultsPanel', () => {
     const { rerender } = render(<CiResultsPanel {...panelProps('ci-project-1')} />);
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
-    expect(await screen.findByText('Cenário recomendado — 2 módulos')).toBeInTheDocument();
+    expect(await screen.findByText('Solução que atende tecnicamente — 2 módulos')).toBeInTheDocument();
     expect(screen.queryByText(/Os parâmetros do estudo foram alterados/)).not.toBeInTheDocument();
 
     // Rerender with modified options
@@ -417,7 +408,7 @@ describe('CiResultsPanel', () => {
     expect(dynamicMocks.buildMemorialPdf).not.toHaveBeenCalled();
     (global.fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
     fireEvent.click(screen.getByRole('button', { name: 'Recalcular' }));
-    expect(screen.getByRole('button', { name: 'Gerar memorial (PDF)' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Gerar memorial (PDF)' })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Salvando parâmetros');
   });
 
@@ -432,13 +423,11 @@ describe('CiResultsPanel', () => {
     expect(onNavigateToSection).toHaveBeenCalledWith('overview');
   });
 
-  it('offers keyboard accessible scenario selection with an announced pressed state', async () => {
-    render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{ result: makeResult(), optionsFingerprint: JSON.stringify(testCiOptions) }} />);
-    const inspect = screen.getByRole('button', { name: 'Inspecionar cenário de 1 módulo' });
-    expect(inspect).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(inspect);
-    expect(inspect).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('Cenário inspecionado — 1 módulo')).toBeInTheDocument();
+  it('shows only the technically selected solution without alternative controls', () => {
+    render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{result:makeResult(),optionsFingerprint:JSON.stringify(testCiOptions)}}/>);
+    expect(screen.getByText(/Solução que atende tecnicamente/)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/Inspecionar/})).not.toBeInTheDocument();
   });
 
 });

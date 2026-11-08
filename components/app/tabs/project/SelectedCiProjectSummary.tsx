@@ -25,7 +25,6 @@ const STRATEGY_LABELS: Record<string, string> = {
   HYBRID: 'Híbrido',
 };
 
-const RANKING_LABELS: Record<string, string> = { PAYBACK: 'Payback', ROI: 'ROI', NPV: 'NPV' };
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
@@ -48,7 +47,7 @@ export function SelectedCiProjectSummary({
   onClose: () => void;
 }) {
   const options = project.calculationOptions;
-  const selected = project.calculationResult?.selected ?? null;
+  const selected = project.calculationResult?.selected?.technicalValidity&&project.calculationResult.technicalSelection?.scenarioId!==null?project.calculationResult.selected:null;
   const bessProduct = ciBessCatalog.find((product) => product.id === options.bessProductId);
   const loadCurve = options.loadCurve;
   const tariff = options.tariff;
@@ -86,7 +85,7 @@ export function SelectedCiProjectSummary({
         <SummaryRow
           label="BESS"
           value={
-            bessProduct
+            options.bessSystem?.kind==='model' ? (options.bessSystem.sourceKind==='cabinet'?'BESS integrado':'PCS/Inversor + bateria') : bessProduct
               ? `${bessProduct.model} · ${bessProduct.manufacturer}`
               : options.bessProductId
                 ? 'Produto selecionado'
@@ -96,13 +95,14 @@ export function SelectedCiProjectSummary({
         <SummaryRow
           label="Módulos"
           value={
-            sizing.mode === 'fixed'
+            options.bessSystem?.kind==='model'?'Dimensionamento técnico automático':sizing.mode === 'fixed'
               ? String(sizing.moduleCount ?? 'Não definido')
               : `Automático (${sizing.minModules ?? 1}–${sizing.maxModules ?? 6})`
           }
         />
         <SummaryRow label="Estratégia" value={STRATEGY_LABELS[options.strategy] ?? options.strategy} />
-        <SummaryRow label="Critério" value={RANKING_LABELS[options.rankingCriterion] ?? options.rankingCriterion} />
+        <SummaryRow label="Seleção" value="Atendimento técnico" />
+        {options.lineVoltageV&&<SummaryRow label="Tensão CA entre fases" value={`${options.lineVoltageV} V`}/>}
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background p-2.5">
@@ -146,7 +146,7 @@ export function SelectedCiProjectSummary({
         </div>
       ) : (
         <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-          Este projeto ainda não tem um resultado calculado.
+          {project.calculationResult?.technicalSelection?.scenarioId===null?'Nenhuma solução atende a todos os requisitos técnicos. Consulte os motivos nos resultados do projeto.':'Este projeto ainda não tem um resultado calculado.'}
         </p>
       )}
 

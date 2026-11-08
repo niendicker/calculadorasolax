@@ -25,10 +25,10 @@ describe('CiStrategyPanel', () => {
     expect(screen.queryByRole('button', { name: /^BASE/ })).not.toBeInTheDocument();
   });
 
-  it('defaults to Híbrido (matching defaultCiOptions) and Payback', () => {
+  it('defaults to Híbrido without financial ranking controls', () => {
     render(<ControlledPanel />);
     expect(screen.getByRole('button', { name: /^Híbrido/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Payback' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Payback' })).not.toBeInTheDocument();
   });
 
   it('selects a strategy', () => {
@@ -38,11 +38,10 @@ describe('CiStrategyPanel', () => {
     expect(screen.getByRole('button', { name: /^Híbrido/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('selects a ranking criterion', () => {
-    render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'VPL (NPV)' }));
-    expect(screen.getByRole('button', { name: 'VPL (NPV)' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Payback' })).toHaveAttribute('aria-pressed', 'false');
+  it('keeps legacy ranking values invisible while preserving financial assumptions', () => {
+    render(<ControlledPanel initial={{rankingCriterion:'NPV'}}/>);
+    for(const name of ['Payback','ROI','VPL (NPV)'])expect(screen.queryByRole('button',{name})).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Taxa de desconto (%/ano)')).toHaveValue(12);
   });
 
   it('edits financial assumptions and clamps them to their bounds', () => {

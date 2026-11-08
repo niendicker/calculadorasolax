@@ -1,12 +1,5 @@
 'use client';
 
-// Fase 6, section 8.1 item 5 ("Estratégia") — dispatch strategy, ranking
-// criterion and the financial assumptions that feed the comparison/ranking
-// engine (Fase 5). strategy/rankingCriterion/financialAssumptions are all
-// non-nullable in CommercialIndustrialOptions (unlike tariff/loadCurve), so
-// unlike CiTariffPanel this reads ciOptions directly with no DEFAULT_*
-// fallback — there's always a concrete value to show.
-
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +8,6 @@ import type {
   BessStrategyId,
   CommercialIndustrialOptions,
   FinancialAssumptions,
-  RankingCriterion,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 // 'BASE' is deliberately excluded — scenarios.ts always computes the
@@ -41,12 +33,6 @@ const strategyOptions: { value: BessStrategyId; label: string; description: stri
     description:
       'Reserva dinamicamente a energia necessária para a próxima janela de ponta e utiliza somente a energia excedente para Peak Shaving. Durante a ponta, combina Load Shifting e redução de demanda. A carga do BESS é modulada dinamicamente para respeitar a demanda contratada.',
   },
-];
-
-const rankingOptions: { value: RankingCriterion; label: string }[] = [
-  { value: 'PAYBACK', label: 'Payback' },
-  { value: 'ROI', label: 'ROI' },
-  { value: 'NPV', label: 'VPL (NPV)' },
 ];
 
 function toNumber(value: string, fallback = 0): number {
@@ -113,34 +99,9 @@ export function CiStrategyPanel({
 
       <div className="space-y-3 border-t pt-4">
         {(ciOptions.strategy==='LOAD_SHIFTING'||ciOptions.strategy==='HYBRID')&&<label className="mb-4 block max-w-sm space-y-1 text-sm">Cobertura do consumo na ponta (%)<Input type="number" min={0} max={100} step="any" value={ciOptions.loadShiftingCoveragePercent??100} onChange={event=>onChange({loadShiftingCoveragePercent:Number(event.target.value)})}/><span className="block text-xs text-muted-foreground">Meta técnica após considerar FV e gerador configurados. O padrão é atender 100% da carga residual na ponta.</span></label>}
-        <p className="text-sm font-semibold">Critério de ranking</p>
-        <p className="text-xs text-muted-foreground">Métrica usada para recomendar a melhor quantidade de módulos.</p>
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:w-fit">
-          {rankingOptions.map((option) => {
-            const active = ciOptions.rankingCriterion === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onChange({ rankingCriterion: option.value })}
-                className={cn(
-                  'flex h-8 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition',
-                  active
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                )}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+        <p className="text-xs text-muted-foreground">A seleção considera somente atendimento técnico, quantidade de equipamentos e energia suficiente. Payback, ROI e VPL são calculados para a solução selecionada.</p>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Payback: menor prazo de retorno. ROI: maior retorno sobre o investimento. VPL (NPV): maior valor presente líquido.
-      </p>
       <div className="space-y-3 border-t pt-4">
         <p className="text-sm font-semibold">Premissas financeiras</p>
         <div className="grid gap-3 sm:grid-cols-2">

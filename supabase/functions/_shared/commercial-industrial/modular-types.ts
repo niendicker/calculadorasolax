@@ -69,6 +69,7 @@ export interface CiModularSelection {
   parallel: { min: number; max: number };
 }
 export interface CiPcsCatalogEntry extends CiPcsSpec {
+  gridTypes?: string[];
   maxBatteryQty?: number | null;
   batteryPorts?: number | null;
   maxCurrentPerPortA?: number | null;

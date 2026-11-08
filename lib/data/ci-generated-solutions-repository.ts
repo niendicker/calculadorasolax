@@ -7,6 +7,13 @@ export interface CiSolutionGeneration {id:string;source_revision:string;expected
 export class CiSolutionCatalogError extends Error {readonly code='ci_catalog';}
 const PAGE_SIZE=500;
 
+export function describeCiGenerationInvalidation(generation:CiSolutionGeneration):string|null{
+  if(generation.is_current||!generation.invalidated_at)return null;
+  const sources:Record<string,string>={ci_inverters:'inversores / PCS',ci_batteries:'baterias',ci_pcs_specs:'limites dos PCS',ci_battery_specs:'limites das baterias',ci_compatibility_rules:'compatibilidades PCS + bateria',ci_bess_products:'gabinetes integrados',ci_accessories:'acessórios',ci_accessory_rules:'regras de acessórios',ci_sts_specs:'limites de STS',ci_sts_compatibility_rules:'compatibilidades de STS'};
+  const source=sources[generation.invalidation_reason??''];
+  return `${source?`Geração invalidada após salvar o cadastro de ${source}.`:'Geração invalidada por atualização do catálogo C&I.'} Gere novamente as soluções aprovadas para liberar novos cálculos.`;
+}
+
 export async function getCiSolutionGeneration(db:SupabaseClient=createClient(),currentOnly=false):Promise<CiSolutionGeneration|null>{
   let query=db.from('ci_solution_generations').select('*').eq('status','published');
   if(currentOnly)query=query.eq('is_current',true);
@@ -38,6 +45,7 @@ export async function publishCiGeneratedSolutions(db:SupabaseClient){
 }
 
 export interface CiSolutionQuery {
+  pcsId?:string;batteryId?:string;
   bankPattern?:{series:number;parallelStrings:number}[];
   minPowerKw:number;minEnergyKwh:number;applications:CiApplication[];
   sourceKind?:'assembly'|'cabinet';sourceId?:string;solutionKey?:string;
@@ -45,13 +53,20 @@ export interface CiSolutionQuery {
 }
 export async function queryCiGeneratedSolutions(db:SupabaseClient,filter:CiSolutionQuery){
   const generation=await getCiSolutionGeneration(db,true);
-  if(!generation)throw new CiSolutionCatalogError('O catálogo de soluções C&I está ausente ou desatualizado. Peça ao administrador para gerar as soluções aprovadas.');
+  if(!generation){
+    // RLS keeps invalidated history visible only to administrators. Preserve
+    // that boundary while giving them the recorded cause of invalidation.
+    const latest=await getCiSolutionGeneration(db);
+    throw new CiSolutionCatalogError(latest&&describeCiGenerationInvalidation(latest)||'Não há uma geração atual de soluções C&I disponível. Peça ao administrador para gerar novamente as soluções aprovadas após concluir as alterações no catálogo.');
+  }
   const solutions:CiGroupedSolution[]=[];
   for(let offset=0;;offset+=PAGE_SIZE){
     let query=db.from('ci_generated_solutions').select('solution').eq('generation_id',generation.id).gte('discharge_power_kw',Math.max(0,filter.minPowerKw-1e-6)).gte('usable_energy_kwh',Math.max(0,filter.minEnergyKwh-1e-6));
     if(filter.applications.length)query=query.contains('applications',filter.applications);
     if(filter.sourceKind)query=query.eq('source_kind',filter.sourceKind);
     if(filter.sourceId)query=query.eq('source_id',filter.sourceId);
+    if(filter.pcsId)query=query.eq('solution->accessoryTarget->>pcsId',filter.pcsId);
+    if(filter.batteryId)query=query.eq('solution->accessoryTarget->>batteryId',filter.batteryId);
     if(filter.solutionKey)query=query.eq('solution_key',filter.solutionKey);
     for(const [key,range] of [['unit_count',filter.units],['port_count',filter.ports],['series_count',filter.series],['parallel_count',filter.parallel]] as const){if(range)query=query.gte(key,range.min).lte(key==='series_count'?'series_max_count':key==='parallel_count'?'parallel_max_count':key,range.max);}
     const {data,error}=await query.order('solution_key',{ascending:true}).range(offset,offset+PAGE_SIZE-1);

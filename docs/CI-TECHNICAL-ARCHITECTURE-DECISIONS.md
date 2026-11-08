@@ -218,3 +218,10 @@ O modelo de banco agregado foi substituído por portas independentes, incluindo
 arranjos diferentes entre portas do mesmo PCS. Ver [CI-BATTERY-PORTS.md](CI-BATTERY-PORTS.md)
 para limites, contagem, SOC por banco, backup e migração 0103. O contrato de novas
 gerações passa a `ci-grouped-v2`; v1 permanece somente para estudos históricos.
+
+## Seleção de modelos e resultado técnico único
+
+Decisão complementar: [seleção de modelos C&I](CI-MODEL-SELECTION.md). O
+usuário escolhe modelos e tensão CA entre fases; o motor escolhe quantidades
+por atendimento técnico. O financeiro é calculado somente após essa escolha.
+Sem atendimento integral, não há solução de referência nem projeção financeira.

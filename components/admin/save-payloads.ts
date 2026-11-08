@@ -112,6 +112,7 @@ export function buildAccessoryPayload(form: Partial<AccessoryRow>) {
 
 export function buildCiBessProductPayload(form: Partial<CiBessProductRow>) {
   return {
+    ac_voltages_v: [...new Set(form.ac_voltages_v ?? [])].filter(value=>value===220||value===380),
     ac_charge_efficiency_percent: toNullableNumber(form.ac_charge_efficiency_percent),
     ac_discharge_efficiency_percent: toNullableNumber(form.ac_discharge_efficiency_percent),
     charge_power_kw: toNullableNumber(form.charge_power_kw),

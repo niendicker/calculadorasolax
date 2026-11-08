@@ -1,21 +1,8 @@
 'use client';
 
-// Fase 6, section 8.1 item 7 ("Resultados e comparação") — runs the
-// canonical calculation route (plan section 7:
-// POST /api/projects/:projectId/calculations) and renders the scenario
-// grid. That route deliberately never takes options in the request body —
-// it always recalculates from the project's own saved `calculation_options`
-// — so this panel can only run once the project has been saved at least
-// once (currentCiProjectId set). Autosave (SinglePageApp.tsx) only writes
-// that column ~12s after the user stops editing, so clicking "Calcular"
-// right after a change would otherwise race it and read a stale snapshot —
-// the same bug fixed for residential's "Recalcular solução" in 08cab2f6.
-// Here the fix is `onFlushSave`: force-persist the live ciOptions before
-// the calculation request, since (unlike residential) this route can't just
-// be handed live options directly. Selecting a different candidate than the
-// auto-recommended one (plan section 4.5's materialization flow) is a later
-// increment; this shows the recommended scenario's full detail (already
-// materialized server-side) plus the comparison grid.
+// Flush live project options before the canonical calculation route reads
+// persisted configuration. Render only the selected technical solution or
+// the proven failure reasons returned by that route.
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -23,79 +10,21 @@ import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, L
 import { ciScenarioLabel } from './ci-scenario-label';
 import { getCiConfigurationStatus } from './ci-configuration-status';
 import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Client, ProjectInfo } from '@/lib/types';
 import { buildPdfFileName, formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears } from '../../helpers';
 import type { InlineProfile } from '../../types';
-import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 const CiDispatchChart = dynamic(() => import('./CiDispatchChart').then((mod) => mod.CiDispatchChart), {
   ssr: false,
   loading: () => <div className="h-[280px] w-full animate-pulse rounded-lg bg-muted" />,
 });
 
-function ScenarioRow({
-  scenario,
-  recommended,
-  active,
-  onSelect,
-}: {
-  scenario: ScenarioCandidate;
-  recommended: boolean;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <tr
-      onClick={onSelect}
-      className={cn(
-        'cursor-pointer transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-        active ? 'bg-primary/10 font-medium' : recommended ? 'bg-primary/[0.04]' : undefined
-      )}
-    >
-      <td className={cn("sticky left-0 z-10 bg-background px-3 py-2 text-sm shadow-[1px_0_0_0_hsl(var(--border))]", scenario.group || scenario.composition ? "min-w-44 max-w-60 whitespace-normal" : "whitespace-nowrap")}>
-        <button
-          type="button"
-          aria-label={`Inspecionar cenário de ${ciScenarioLabel(scenario)}`}
-          aria-pressed={active}
-          onClick={(event) => { event.stopPropagation(); onSelect(); }}
-          className="rounded-md px-2 py-1 font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {!scenario.group && scenario.equipmentLabel && <span className="block text-xs">{scenario.equipmentLabel}</span>}{scenario.group ? <span className="block whitespace-normal">{scenario.group.label}</span> : scenario.composition ? <span className="block whitespace-normal">{scenario.composition.pcsCount} PCS · {scenario.composition.batteryCount} baterias<span className="block text-xs font-normal">{scenario.composition.portBanks ? scenario.composition.portBanks.map((bank,i)=>`Porta ${i+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${scenario.composition.seriesCount}S × ${scenario.composition.parallelStringsPerPcs}P / PCS`}</span></span> : scenario.moduleCount}
-        </button>
-        {recommended && (
-          <Badge variant="secondary" className="ml-2">
-            Recomendado
-          </Badge>
-        )}
-        {active && !recommended && (
-          <Badge variant="outline" className="ml-2 border-primary/40 text-primary">
-            Selecionado
-          </Badge>
-        )}
-        {!scenario.technicalValidity && (
-          <Badge variant="outline" className="ml-2 text-destructive border-destructive/30">
-            Inválido
-          </Badge>
-        )}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(scenario.capex)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatCurrencyBRL(scenario.annualSavings)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatYears(scenario.paybackYearsSimple)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatPercentBRL(scenario.roiPercent)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm">{scenario.pricingComplete === false ? '—' : formatCurrencyBRL(scenario.npv)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-sm text-muted-foreground">
-        {scenario.marginalGain === null ? '—' : formatCurrencyBRL(scenario.marginalGain)}
-      </td>
-    </tr>
-  );
-}
-
 export interface CiCalculationSnapshot {
-  result: CommercialIndustrialResult;
-  optionsFingerprint: string;
+  result:CommercialIndustrialResult;
+  optionsFingerprint:string;
 }
 
 export function CiResultsPanel({
@@ -128,7 +57,6 @@ export function CiResultsPanel({
   canAccessCiBackup?: boolean;
 }) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(initialSnapshot?.result ?? null);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
@@ -146,6 +74,7 @@ export function CiResultsPanel({
     if (!projectId) return;
     setLoading(true);
     setError(null);
+    setResult(null);
     try {
       try {
         await onFlushSave();
@@ -164,7 +93,6 @@ export function CiResultsPanel({
       const optionsFingerprint = JSON.stringify(ciOptions);
       setCalculatedOptionsFingerprint(optionsFingerprint);
       onCalculated?.({ result: calculationResult, optionsFingerprint });
-      setSelectedScenarioId(calculationResult.technicalSelection?.scenarioId ?? calculationResult.recommendation.scenarioId ?? calculationResult.selected?.scenarioId ?? null);
     } catch {
       setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
     } finally {
@@ -189,7 +117,6 @@ export function CiResultsPanel({
         profile,
         result,
         product,
-        rankingCriterion: ciOptions.rankingCriterion,
         solar: ciOptions.solar,
         generator: ciOptions.generator,
       });
@@ -218,18 +145,9 @@ export function CiResultsPanel({
     );
   }
 
-  const sortedScenarios = result ? [...result.scenarios].sort((a, b) => (a.group && b.group) || (a.composition && b.composition) ? a.totalCapacityKwh - b.totalCapacityKwh || a.totalPowerKw - b.totalPowerKw : a.moduleCount - b.moduleCount) : [];
-  const currentScenario =
-    sortedScenarios.find((s) => s.scenarioId === selectedScenarioId) ??
-    (result?.selected?.scenarioId === selectedScenarioId ? result.selected : null) ??
-    sortedScenarios.find((s) => s.scenarioId === result?.technicalSelection?.scenarioId) ??
-    sortedScenarios.find((s) => s.scenarioId === result?.recommendation.scenarioId) ??
-    result?.selected ??
-    null;
-  const isRecommendedActive =
-    result?.recommendation.scenarioId
-      ? currentScenario?.scenarioId === result.recommendation.scenarioId
-      : currentScenario?.scenarioId === result?.selected?.scenarioId;
+  const hasTechnicalSolution=Boolean(result?.selected?.technicalValidity&&result.technicalSelection?.scenarioId!==null);
+  const currentScenario=hasTechnicalSolution?result!.selected:null;
+  const isRecommendedActive=hasTechnicalSolution;
 
   const dispatch = result?.selected?.dispatch ?? [];
   const hasDispatch = dispatch.length > 0;
@@ -260,11 +178,11 @@ export function CiResultsPanel({
         <div>
           <p className="text-sm font-semibold">Simulação de dimensionamento</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Salva as alterações atuais antes de calcular os cenários de BESS.
+            Salva as alterações atuais e dimensiona uma solução que atende ao projeto.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {result?.selected && (
+          {result?.selected?.technicalValidity && result.technicalSelection?.scenarioId!==null && (
             <Button
               type="button"
               variant={memorialSuccess ? 'secondary' : 'outline'}
@@ -326,7 +244,7 @@ export function CiResultsPanel({
         </div>
       )}
 
-      {loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Salvando parâmetros e calculando os cenários. Aguarde…</p>}
+      {loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Salvando parâmetros e dimensionando a solução. Aguarde…</p>}
 
       {!result && !loading && (
         <div className="rounded-xl border border-muted bg-card/60 p-6 space-y-5">
@@ -357,7 +275,9 @@ export function CiResultsPanel({
         </div>
       )}
 
-      {result && (
+      {result && !hasTechnicalSolution && <section role="alert" className="space-y-3 rounded-lg border border-destructive/40 p-4 text-sm"><h3 className="font-semibold">Nenhuma solução atende aos requisitos técnicos</h3><ul className="list-disc space-y-2 pl-5">{(result.technicalIssues?.length?result.technicalIssues.map(issue=>issue.message):[result.technicalSelection?.reason??'Recalcule para identificar os requisitos que não foram atendidos.']).map(message=><li key={message}>{message}</li>)}</ul></section>}
+
+      {result && hasTechnicalSolution && (
         <>
           <div className="space-y-3 border-t pt-4">
             <p className="text-sm font-semibold">Linha de base (sem BESS)</p>
@@ -398,32 +318,14 @@ export function CiResultsPanel({
                   ) : (
                     <BarChart3 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   )}
-                  {currentScenario.scenarioId === result.technicalSelection?.scenarioId ? `Solução que atende tecnicamente — ${ciScenarioLabel(currentScenario)}` : isRecommendedActive
-                    ? (result.recommendation.scenarioId
-                        ? `Cenário recomendado — ${ciScenarioLabel(currentScenario)}`
-                        : result.technicalSelection ? `Nenhuma solução atende tecnicamente — referência: ${ciScenarioLabel(currentScenario)}` : `Nenhum cenário economicamente viável — configuração de referência: ${ciScenarioLabel(currentScenario)} (não recomendada)`)
-                    : `Cenário inspecionado — ${ciScenarioLabel(currentScenario)}`}
+                  {`Solução que atende tecnicamente — ${ciScenarioLabel(currentScenario)}`}
                 </p>
-                {!isRecommendedActive && result.recommendation.scenarioId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-primary"
-                    onClick={() => setSelectedScenarioId(result.recommendation.scenarioId)}
-                  >
-                    Voltar ao recomendado
-                  </Button>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {currentScenario.scenarioId === result.technicalSelection?.scenarioId ? result.technicalSelection.reason : isRecommendedActive
-                  ? result.recommendation.reason
-                  : `Visualizando métricas financeiras detalhadas para a configuração de ${ciScenarioLabel(currentScenario)}. Clique em outra linha da tabela para comparar.`}
-              </p>
-              {currentScenario.scenarioId === result.technicalSelection?.scenarioId && <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>}
+              <p className="text-xs text-muted-foreground">{result.technicalSelection?.reason??'Solução selecionada pelo atendimento aos requisitos técnicos do projeto.'}</p>
+              <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>
               {!currentScenario.group && Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
               {currentScenario.group && <div className="space-y-2 border-t pt-3 text-xs">
+                {result.assumptions.lineVoltageV&&<p>Tensão de operação CA entre fases: {result.assumptions.lineVoltageV} V.</p>}
                 <p>Carga CA até {formatKw(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatKw(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
                 {currentScenario.group.dc.ports ? <ul className="space-y-1">{currentScenario.group.dc.ports.map(port=><li key={`${port.unit}:${port.port}`}>Unidade {port.unit} · banco CC {port.port}: {port.series}S × {port.parallelStrings}P · {port.voltageMinV}–{port.voltageMaxV} V · carga/descarga CC até {port.chargePowerKw.toFixed(1)}/{port.dischargePowerKw.toFixed(1)} kW · {port.chargeCurrentA}/{port.dischargeCurrentA} A.</li>)}</ul> : <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V.</p>}
                 <p>Referência: {currentScenario.group.source.reference} · Revisão {currentScenario.group.source.revision}.</p>
@@ -478,7 +380,7 @@ export function CiResultsPanel({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">Operação e Despacho BESS</p>
-                  <p className="text-xs text-muted-foreground">Dados da configuração calculada: {ciScenarioLabel(result.selected)}. O gráfico e o memorial permanecem vinculados a essa configuração ao inspecionar outras linhas.</p>
+                  <p className="text-xs text-muted-foreground">Dados da configuração calculada: {ciScenarioLabel(result.selected)}. O gráfico e o memorial correspondem à solução selecionada pelo atendimento técnico.</p>
                   <p className="text-xs text-muted-foreground">
                     Comparativo da carga original versus demanda atendida pela rede após o corte de pico com BESS.
                   </p>
@@ -589,40 +491,6 @@ export function CiResultsPanel({
               )}
             </div>
           )}
-
-          <div className="space-y-3 border-t pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{result.solutionGeneration ? 'Comparação de soluções agrupadas' : result.scenarios.some((item) => item.composition) ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</p>
-              <p className="text-xs text-muted-foreground">Clique em uma linha para inspecionar os detalhes acima</p>
-            </div>
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-left">
-                <caption className="sr-only">Comparação dos cenários BESS por solução. Use o botão na primeira coluna para inspecionar cada cenário.</caption>
-                <thead className="border-b bg-muted/50">
-                  <tr>
-                    <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-muted px-3 py-2 text-xs font-medium text-muted-foreground shadow-[1px_0_0_0_hsl(var(--border))]">{result.solutionGeneration ? 'Solução' : result.scenarios.some((item) => item.composition) ? 'Composição' : 'Módulos'}</th>
-                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">CAPEX</th>
-                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Economia/ano</th>
-                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Payback</th>
-                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">ROI</th>
-                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">NPV</th>
-                    <th scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground">Ganho marginal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {sortedScenarios.map((scenario) => (
-                    <ScenarioRow
-                      key={scenario.scenarioId}
-                      scenario={scenario}
-                      recommended={scenario.scenarioId === result.recommendation.scenarioId}
-                      active={scenario.scenarioId === currentScenario?.scenarioId}
-                      onSelect={() => setSelectedScenarioId(scenario.scenarioId)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
           {result.warnings.length > 0 && (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700">

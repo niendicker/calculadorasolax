@@ -139,7 +139,7 @@ describe('CiOverviewPanel', () => {
 
     await waitFor(() => expect(listActiveCiBessProducts).toHaveBeenCalled());
 
-    expect(screen.getByText('Nenhum produto selecionado')).toBeInTheDocument();
+    expect(screen.getByText('Selecione a tensão e os modelos BESS')).toBeInTheDocument();
     expect(screen.getByText('Nenhuma curva importada')).toBeInTheDocument();
     expect(screen.getByText('Tarifa não configurada')).toBeInTheDocument();
     // Strategy always has a default, so it alone starts "Configurado".
@@ -159,7 +159,7 @@ describe('CiOverviewPanel', () => {
 
   it('shows the resolved BESS product name and module count once configured', async () => {
     listActiveCiBessProducts.mockResolvedValue([product]);
-    const ciOptions = { ...defaultCiOptions, bessProductId: 'p1', sizing: { mode: 'fixed' as const, moduleCount: 4, minModules: null, maxModules: null } };
+    const ciOptions = { ...defaultCiOptions, bessProductId: 'p1',bessSystem:{kind:'integrated' as const}, sizing: { mode: 'fixed' as const, moduleCount: 4, minModules: null, maxModules: null } };
 
     renderPanel({ ciOptions });
 
@@ -231,7 +231,7 @@ describe('CiOverviewPanel', () => {
   });
   it('counts enabled solar in the study and continues to the first pending step', () => {
     const onNavigateToSection = vi.fn();
-    renderPanel({ ciOptions: { ...defaultCiOptions, bessProductId: 'p1', solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: false } }, onNavigateToSection });
+    renderPanel({ ciOptions: { ...defaultCiOptions, bessProductId: 'p1',bessSystem:{kind:'integrated' as const}, solar: { enabled: true, installedPowerKwp: 0, inverterPowerKw: 0, dailyYieldKwhPerKwp: 4.5, prioritizeBessCharging: false } }, onNavigateToSection });
     expect(screen.getByText('2 de 5 configurados')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar: Solar FV' }));
     expect(onNavigateToSection).toHaveBeenCalledWith('solar');
