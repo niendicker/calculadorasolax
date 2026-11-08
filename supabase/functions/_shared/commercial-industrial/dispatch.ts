@@ -19,6 +19,7 @@
 //   - runDispatch()'s own SOC/power/no-export clamps decide HOW MUCH the
 //     BESS may discharge — also shared, never re-implemented per strategy.
 
+import { createPortStates, dispatchPorts } from './battery-ports.ts';
 import type {
   BessRuntimeParams,
   BessStrategyId,
@@ -392,6 +393,7 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
   const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess, peakNeeds) : null;
 
   let socPercent = bess.initialSocPercent ?? bess.socMaxPercent;
+  const portStates=bess.ports?.length?createPortStates(bess.ports,socPercent):undefined;
   const trace: DispatchPoint[] = [];
 
   curve.points.forEach((point, index) => {
@@ -405,7 +407,7 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
     const solarSurplusKw = Math.max(0, solarGenerationKw - point.powerKw);
 
     const storedEnergyKwh = (socPercent / 100) * bess.totalCapacityKwh;
-    const availableForPeakShavingKwh = reserve ? Math.max(0, storedEnergyKwh - reserve[index]) : 0;
+    const availableForPeakShavingKwh = reserve ? Math.max(0, storedEnergyKwh - (portStates?bess.totalCapacityKwh*bess.socMinPercent/100:0) - reserve[index]) : 0;
     const decision = decideStrategy(strategy, netLoadAfterSolarKw, period, peakShavingTargetKw, bess, availableForPeakShavingKwh);
 
     const profileTarget=input.gridImportLimitsKw?.[index];
@@ -441,7 +443,12 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
       dischargeKw = Math.max(0, Math.min(decision.dischargeKw, bess.totalPowerKw, maxDischargeKwByEnergy, netLoadAfterSolarKw));
     }
 
-    if (chargeKw > 0) {
+    let portFlows=portStates?.map(port=>({unit:port.unit,port:port.port,chargeKw:0,dischargeKw:0,socKwh:port.socKwh}));
+    if(portStates){
+      if(chargeKw>0){const allocated=dispatchPorts(portStates,'charge',chargeKw,intervalHours,bess.socMinPercent,bess.socMaxPercent,chargeEfficiency);chargeKw=allocated.powerKw;portFlows=allocated.flows;}
+      else if(dischargeKw>0){const allocated=dispatchPorts(portStates,'discharge',dischargeKw,intervalHours,bess.socMinPercent,bess.socMaxPercent,dischargeEfficiency);dischargeKw=allocated.powerKw;portFlows=allocated.flows;}
+      socPercent=portStates.reduce((sum,port)=>sum+port.socKwh,0)/bess.totalCapacityKwh*100;
+    }else if (chargeKw > 0) {
       const storedDeltaKwh = chargeKw * intervalHours * chargeEfficiency;
       socPercent += (storedDeltaKwh / bess.totalCapacityKwh) * 100;
     } else if (dischargeKw > 0) {
@@ -472,6 +479,7 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
     const gridImportKw = Math.max(0, residualNetKw - generatorKw + (solarSurplusKw > 0 && !solar?.prioritizeBessCharging ? 0 : chargeKw > solarSurplusKw ? chargeKw - solarSurplusKw : 0));
 
     trace.push({
+      ...(portFlows?{portFlows}:{}),
       timestamp: point.timestamp,
       tariffPeriod: period,
       loadKw: point.powerKw,

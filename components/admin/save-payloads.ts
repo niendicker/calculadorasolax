@@ -59,6 +59,11 @@ export function buildInverterPayload(form: Partial<InverterRow>) {
   };
 }
 
+/** C&I supports the physical port count independently of residential limits. */
+export function buildCiInverterPayload(form:Partial<InverterRow>){
+  return {...buildInverterPayload(form),battery_ports:Math.max(1,Math.min(32,Math.floor(toNumber(form.battery_ports,1))))};
+}
+
 export function buildBatteryPayload(form: Partial<BatteryRow>) {
   return {
     model: form.model?.trim(),

@@ -9,7 +9,7 @@ describe('grouped solution generation',()=>{
   expect(first.diagnostics).toEqual([]);expect(first.solutions).toHaveLength(7);
   expect(new Set(first.solutions.map(s=>s.key)).size).toBe(7);
   expect(first.solutions).toEqual(generateCiGroupedSolutions(modularFixture(),[cabinetFixture()]).solutions);
-  expect(first.solutions.find(s=>s.counts.pcs===2&&s.counts.parallel===2)).toMatchObject({storage:{nominalEnergyKwh:800,usableEnergyKwh:680},ac:{dischargePowerKw:200},dc:{buses:2}});
+  expect(first.solutions.find(s=>s.counts.pcs===2&&s.counts.ports===2)).toMatchObject({storage:{nominalEnergyKwh:800,usableEnergyKwh:680},ac:{dischargePowerKw:200},dc:{buses:4}});
   expect(JSON.stringify(first.solutions)).not.toContain('unitPriceBrl');
  });
  it('scales cabinet energy and power while retaining independent documented DC buses',()=>{

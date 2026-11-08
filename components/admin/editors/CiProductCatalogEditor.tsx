@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { buildInverterPayload, buildBatteryPayload, buildAccessoryPayload } from '../save-payloads';
+import { buildCiInverterPayload, buildBatteryPayload, buildAccessoryPayload } from '../save-payloads';
 import { InvertersEditor } from './InvertersEditor';
 import { BatteriesEditor } from './BatteriesEditor';
 import { AccessoriesEditor } from './AccessoriesEditor';
@@ -37,7 +37,7 @@ export function CiProductCatalogEditor({ kind, uploadAsset, onActivity, onViewRu
       const before = rows.find(row => row.id === form.id);
       // Price lists are keyed by model. Keep established identities stable.
       if (before && before.model !== form.model.trim()) throw new Error('Para preservar preços e histórico, mantenha o modelo cadastrado. Use o apelido para alterar o nome exibido.');
-      const fields = kind === 'pcs' ? buildInverterPayload(form as Partial<InverterRow>) : kind === 'batteries' ? buildBatteryPayload(form as Partial<BatteryRow>) : buildAccessoryPayload(form as Partial<AccessoryRow>);
+      const fields = kind === 'pcs' ? buildCiInverterPayload(form as Partial<InverterRow>) : kind === 'batteries' ? buildBatteryPayload(form as Partial<BatteryRow>) : buildAccessoryPayload(form as Partial<AccessoryRow>);
       const payload = {...fields,...(form.id ? {id:form.id} : {})};
       const {data,error} = await createClient().from(table).upsert(payload as never).select('*').single();
       if (error) throw new Error(error.message);
@@ -57,7 +57,7 @@ export function CiProductCatalogEditor({ kind, uploadAsset, onActivity, onViewRu
   const common = {onSave:(afterPersist?:()=>void) => {void save(afterPersist);},onRemove:(id:string)=>{void remove(id);},removingIds:new Set<string>(),uploadAsset:upload,saving,error};
   if (loading) return <p role="status">Carregando catálogo C&I…</p>;
   return <div className="space-y-4"><p className="text-sm text-muted-foreground">Catálogo exclusivo C&I. Preços definidos nas categorias C&I do Portfólio.</p>{error && <div role="alert" className="text-sm text-destructive">{error}<Button variant="ghost" onClick={()=>{setLoading(true);setAttempt(value=>value+1);}}>Recarregar</Button></div>}
-    {kind === 'pcs' ? <InvertersEditor {...common} rows={rows as InverterRow[]} form={form as Partial<InverterRow>} setForm={setForm} essRows={[]} onViewEssRules={onViewRules}/>
+    {kind === 'pcs' ? <InvertersEditor ciBatteryPorts {...common} rows={rows as InverterRow[]} form={form as Partial<InverterRow>} setForm={setForm} essRows={[]} onViewEssRules={onViewRules}/>
       : kind === 'batteries' ? <BatteriesEditor {...common} rows={rows as BatteryRow[]} form={form as Partial<BatteryRow>} setForm={setForm}/>
       : <AccessoriesEditor {...common} rows={rows as AccessoryRow[]} form={form as Partial<AccessoryRow>} setForm={setForm} rules={[]} onViewRules={onViewRules}/>}
   </div>;

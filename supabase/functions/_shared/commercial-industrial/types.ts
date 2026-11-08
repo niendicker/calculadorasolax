@@ -264,7 +264,11 @@ export type TariffPeriod = 'peak' | 'offPeak';
 /** One simulated interval of BESS operation — the unit `dispatch[]` is made
  * of. Only ever attached to the scenario the user actually selected/saved
  * (plan section 4.5); candidates in the comparison grid never carry this. */
+export interface CiRuntimePort {unit:number;port:number;nominalEnergyKwh:number;chargePowerKw:number;dischargePowerKw:number;unitChargePowerKw:number;unitDischargePowerKw:number}
+export interface CiPortFlow {unit:number;port:number;chargeKw:number;dischargeKw:number;socKwh:number}
+
 export interface DispatchPoint {
+  portFlows?: CiPortFlow[];
   timestamp: string;
   tariffPeriod: TariffPeriod;
   loadKw: number;
@@ -358,6 +362,7 @@ export interface BaselineResult {
  * the dispatch engine splits it into charge/discharge legs via its square
  * root, per the plan's documented MVP convention. */
 export interface BessRuntimeParams {
+  ports?: CiRuntimePort[];
   maxChargePowerKw?: number;
   chargeEfficiencyPercent?: number;
   dischargeEfficiencyPercent?: number;
@@ -373,7 +378,7 @@ export interface BessRuntimeParams {
 }
 
 export interface CommercialIndustrialResult {
-  solutionGeneration?: {id:string;sourceRevision:string;contractVersion:'ci-grouped-v1'};
+  solutionGeneration?: {id:string;sourceRevision:string;contractVersion:'ci-grouped-v1'|'ci-grouped-v2'};
   technicalRequirements?: {minPowerKw:number;minEnergyKwh:number;operatingEnergyAcKwh:number;backupEnergyAcKwh:number;coveragePercent:number};
   technicalSelection?: { scenarioId: string | null; reason: string };
   searchDiagnostics?: string[];

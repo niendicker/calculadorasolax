@@ -9,7 +9,7 @@ vi.mock('./CiProductCatalogEditor', () => ({CiProductCatalogEditor: () => <p>Pro
 vi.mock('@/lib/data/ci-modular-catalog-repository', () => ({ loadCiModularCatalog: mocks.load, saveCiPcsSpec: mocks.savePcs, saveCiBatterySpec: mocks.saveBattery, saveCiCompatibilityRule: mocks.saveRule }));
 function fixture() {
   const data = modularFixture();
-  return { ...data, inverterOptions: data.pcs.map((pcs) => ({ id: pcs.inverter_id, model: pcs.model, battery_voltage_min_v: pcs.voltageMinV, battery_voltage_max_v: pcs.voltageMaxV, battery_charge_efficiency_percent: pcs.chargeEfficiencyPercent, battery_discharge_efficiency_percent: pcs.dischargeEfficiencyPercent })), batteryOptions: data.batteries.map((battery) => ({ id: battery.battery_id, model: battery.model, capacity_kwh: battery.capacityKwh, voltage_min_v: battery.voltageMinV, voltage_max_v: battery.voltageMaxV, min_soc_percent: battery.socMinPercent, round_trip_efficiency_percent: battery.roundTripEfficiencyPercent })) };
+  return { ...data, inverterOptions: data.pcs.map((pcs) => ({ id: pcs.inverter_id, model: pcs.model,power_kw:pcs.discharge_power_kw,battery_ports:pcs.batteryPorts,battery_current_max_a:pcs.port_charge_current_a, battery_voltage_min_v: pcs.voltageMinV, battery_voltage_max_v: pcs.voltageMaxV, battery_charge_efficiency_percent: pcs.chargeEfficiencyPercent, battery_discharge_efficiency_percent: pcs.dischargeEfficiencyPercent })), batteryOptions: data.batteries.map((battery) => ({ id: battery.battery_id, model: battery.model, capacity_kwh: battery.capacityKwh, voltage_min_v: battery.voltageMinV, voltage_max_v: battery.voltageMaxV, min_soc_percent: battery.socMinPercent, round_trip_efficiency_percent: battery.roundTripEfficiencyPercent })) };
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.load.mockResolvedValue(fixture()); mocks.savePcs.mockResolvedValue(undefined); mocks.saveRule.mockResolvedValue('new-rule'); });
 
@@ -25,9 +25,12 @@ describe('C&I modular administrative catalog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     const dialog = screen.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Potência contínua de carga AC (kW)'), { target: { value: '70' } });
+    fireEvent.change(within(dialog).getByLabelText('Corrente contínua de carga CC por porta (A)'), {target:{value:'150'}});
+    fireEvent.change(within(dialog).getByLabelText('Corrente contínua de descarga CC por porta (A)'), {target:{value:'160'}});
+    fireEvent.change(within(dialog).getByLabelText('Limite adicional de carga CC por porta (kW)'), {target:{value:'20'}});
     fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(mocks.savePcs).toHaveBeenCalledTimes(1));
-    expect(mocks.savePcs).toHaveBeenCalledWith(expect.objectContaining({ inverter_id: fixture().pcs[0].inverter_id, charge_power_kw: 70 }));
+    expect(mocks.savePcs).toHaveBeenCalledWith(expect.objectContaining({ inverter_id: fixture().pcs[0].inverter_id, charge_power_kw: 70,discharge_power_kw:100,port_charge_current_a:150,port_discharge_current_a:160,port_charge_power_kw:20 }));
     expect(mocks.savePcs.mock.calls[0][0]).not.toHaveProperty('model');
     expect(onActivity).toHaveBeenCalledWith(expect.objectContaining({ entityType: 'ci_pcs', action: 'update' }));
   });
@@ -47,4 +50,12 @@ describe('C&I modular administrative catalog', () => {
     await waitFor(() => expect(mocks.saveRule).toHaveBeenCalledTimes(1));
     expect(mocks.saveRule).toHaveBeenCalledWith(expect.objectContaining({ pcs_id: fixture().pcs[0].inverter_id, battery_id: fixture().batteries[0].battery_id, approval_status: 'approved', reference_document: 'Documento sintético de teste' }));
   });
+});
+
+it('rejects a per-port current above the physical per-port catalog rating',async()=>{
+ render(<CiModularCatalogEditor uploadAsset={vi.fn()} integrated={null}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Inversores / PCS'}));fireEvent.click(screen.getByRole('button',{name:'Limites contínuos C&I'}));
+ await screen.findByText('PCS teste 100');fireEvent.click(screen.getByRole('button',{name:'Editar'}));const dialog=screen.getByRole('dialog');
+ fireEvent.change(within(dialog).getByLabelText('Corrente contínua de carga CC por porta (A)'),{target:{value:'201'}});
+ fireEvent.click(within(dialog).getByRole('button',{name:'Salvar'}));expect(await within(dialog).findByRole('alert')).toHaveTextContent('por porta');expect(mocks.savePcs).not.toHaveBeenCalled();
 });

@@ -14,7 +14,7 @@ beforeEach(()=>{vi.clearAllMocks();mocks.query.mockResolvedValue({generation:{id
 function options(){return {...modularOptions(),bessSystem:{kind:'automatic' as const,minPowerKw:0,minEnergyKwh:0}};}
 it('simulates both sources from one persisted contract and selects technical adequacy despite negative finances',async()=>{
  const {db,where}=client();const result=await calculatePersistedCi(db,options());
- expect(result.engineVersion).toBe('ci-grouped-v1');expect(result.solutionGeneration?.id).toBe('generation');expect(result.scenarios).toHaveLength(7);
+ expect(result.engineVersion).toBe('ci-grouped-v2');expect(result.solutionGeneration?.id).toBe('generation');expect(result.scenarios).toHaveLength(7);
  expect(result.scenarios.some(s=>s.group?.source.kind==='cabinet')).toBe(true);expect(result.scenarios.some(s=>s.group?.source.kind==='assembly')).toBe(true);
  expect(result.selected?.technicalValidity).toBe(true);expect(result.selected?.npv).toBeLessThan(0);expect(result.recommendation.scenarioId).toBeNull();expect(result.selected?.dispatch.length).toBe(672);expect(where).toHaveBeenCalledWith('user_id','owner');
  expect(mocks.query).toHaveBeenCalledWith(db,expect.objectContaining({minPowerKw:100,minEnergyKwh:300,applications:['load_shifting']}));expect(mocks.current).toHaveBeenCalledWith(db,'generation');
@@ -27,7 +27,7 @@ it('checks real dispatch adequacy beyond nominal power and useful energy',async(
  const result=await calculatePersistedCi(client().db,options());expect(result.technicalSelection?.scenarioId).toBeNull();expect(result.selected?.technicalValidity).toBe(false);
 });
 it('translates legacy selections to stored source/count filters',async()=>{
- const {db}=client();await calculatePersistedCi(db,modularOptions());expect(mocks.query).toHaveBeenCalledWith(db,expect.objectContaining({sourceKind:'assembly',sourceId:modularFixture().rules[0].id,units:{min:1,max:2},series:{min:2,max:2},parallel:{min:1,max:2}}));
+ const {db}=client();await calculatePersistedCi(db,modularOptions());expect(mocks.query).toHaveBeenCalledWith(db,expect.objectContaining({sourceKind:'assembly',sourceId:modularFixture().rules[0].id,units:{min:1,max:2},ports:{min:1,max:2},series:{min:2,max:2},parallel:{min:1,max:1}}));
 });
 it('validates fixed generated selections and preserves diagnostics for unsupported applications',async()=>{
  const solution=solutions()[0];mocks.query.mockResolvedValue({generation:{id:'g',source_revision:'r'},solutions:[solution]});

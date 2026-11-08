@@ -27,12 +27,12 @@ describe('C&I modular configuration', () => {
     fireEvent.change(screen.getByLabelText('Bateria / compatibilidade aprovada'), { target: { value: fixture.rules[0].id } });
     expect(screen.getByLabelText('Baterias em série por string')).toHaveValue(2);
     expect(screen.getByRole('button', { name: 'Avançar para Curvas e aplicações' })).toBeEnabled();
-    fireEvent.change(screen.getByLabelText('Strings em paralelo por PCS'), { target: { value: '2' } });
-    expect(screen.getByLabelText('Strings em paralelo por PCS')).toHaveValue(2);
+    fireEvent.change(screen.getByLabelText('Portas utilizadas por PCS'), { target: { value: '2' } });
+    expect(screen.getByLabelText('Portas utilizadas por PCS')).toHaveValue(2);
     expect(screen.getByLabelText('Composição salva')).toHaveTextContent('"compatibilityId":"30000000-0000-0000-0000-000000000001"');
     fireEvent.click(screen.getByRole('button', { name: 'Comparar composições' }));
     expect(screen.getByLabelText('Máximo: Quantidade de PCS')).toHaveValue(2);
-    expect(screen.getByLabelText('Máximo: Strings em paralelo por PCS')).toHaveValue(2);
+    expect(screen.getByLabelText('Máximo: Portas utilizadas por PCS')).toHaveValue(2);
     expect(screen.getByText('Composições avaliadas')).toBeInTheDocument();
   });
 

@@ -210,3 +210,11 @@ gerador efetivamente permite: somente na ponta, nos modos habilitados e sem
 atribuir ao gerador redução de importação abaixo da demanda contratada.
 Regressões exercitam os dois casos pelo motor completo, além de verificar que
 gerador exclusivo de falta de rede ou fora da ponta não reduz os requisitos.
+
+
+### Portas CC independentes
+
+O modelo de banco agregado foi substituído por portas independentes, incluindo
+arranjos diferentes entre portas do mesmo PCS. Ver [CI-BATTERY-PORTS.md](CI-BATTERY-PORTS.md)
+para limites, contagem, SOC por banco, backup e migração 0103. O contrato de novas
+gerações passa a `ci-grouped-v2`; v1 permanece somente para estudos históricos.

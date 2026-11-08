@@ -35,6 +35,7 @@ import {
 } from '../types';
 
 export function InvertersEditor(props: {
+  ciBatteryPorts?: boolean;
   rows: InverterRow[];
   form: Partial<InverterRow>;
   setForm: (value: Partial<InverterRow>) => void;
@@ -273,7 +274,7 @@ export function InvertersEditor(props: {
                       onChange={(topology) => setForm({ ...form, topology })}
                     />
                   </Field>
-                  <Field asDiv label="Portas">
+                  {props.ciBatteryPorts ? <NumberWithUnitField label="Portas independentes" tip="Quantidade física de portas CC independentes para bancos de baterias." unit="portas" min={1} max={32} step={1} value={form.battery_ports??1} onChange={event=>setForm({...form,battery_ports:Math.max(1,Math.min(32,Math.floor(Number(event.target.value)||1)))})}/> : <Field asDiv label="Portas">
                     <InlineOptionTabs
                       options={[
                         { value: 1, label: '1' },
@@ -282,11 +283,11 @@ export function InvertersEditor(props: {
                       value={form.battery_ports ?? 1}
                       onChange={(battery_ports) => setForm({ ...form, battery_ports })}
                     />
-                  </Field>
+                  </Field>}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <NumberWithUnitField
-                    label="Tensão mín."
+                    label={props.ciBatteryPorts?"Tensão mínima por porta":"Tensão mín."}
                     tip="Menor tensão de bateria aceita pelo inversor."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
@@ -296,7 +297,7 @@ export function InvertersEditor(props: {
                     onClear={() => setForm({ ...form, battery_voltage_min_v: null })}
                   />
                   <NumberWithUnitField
-                    label="Tensão máx."
+                    label={props.ciBatteryPorts?"Tensão máxima por porta":"Tensão máx."}
                     tip="Maior tensão de bateria aceita pelo inversor."
                     icon={<Cable className="h-4 w-4" />}
                     unit="V"
@@ -306,7 +307,7 @@ export function InvertersEditor(props: {
                     onClear={() => setForm({ ...form, battery_voltage_max_v: null })}
                   />
                   <NumberWithUnitField
-                    label="Corrente máx."
+                    label={props.ciBatteryPorts?"Corrente máxima por porta":"Corrente máx."}
                     tip="Corrente máxima de bateria por porta, suportada pelo inversor."
                     icon={<Activity className="h-4 w-4" />}
                     unit="A"

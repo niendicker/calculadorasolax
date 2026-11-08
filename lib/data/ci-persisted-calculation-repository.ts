@@ -3,10 +3,10 @@ import { queryCiGeneratedSolutions, assertCiGenerationCurrent, type CiSolutionQu
 import { loadCiAccessoryContext } from './ci-accessories-repository';
 import { loadCiStsCatalog } from './ci-sts-repository';
 import { deriveCiTechnicalRequirements } from '@/supabase/functions/_shared/commercial-industrial/technical-requirements';
-import { groupedSolutionSpec, type CiGroupedSolution } from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions';
+import { CI_GROUPED_SOLUTION_VERSION, groupedSolutionSpec, type CiGroupedSolution } from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions';
 import { buildScenarioGrid, materializeScenarioDetail, prepareScenarioBaseline, type ScenarioGridInput } from '@/supabase/functions/_shared/commercial-industrial/scenarios';
 import { recommendScenario } from '@/supabase/functions/_shared/commercial-industrial/ranking';
-import { validateModularSelection } from '@/supabase/functions/_shared/commercial-industrial/modular';
+import { normalizeCiModularSelection, validateModularSelection } from '@/supabase/functions/_shared/commercial-industrial/modular';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export async function calculatePersistedCi(db:SupabaseClient,options:CommercialIndustrialOptions):Promise<CommercialIndustrialResult>{
@@ -19,7 +19,8 @@ export async function calculatePersistedCi(db:SupabaseClient,options:CommercialI
   const filter:CiSolutionQuery={minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,applications:requirements.applications};
   if(mode?.kind==='modular'){
     const errors=validateModularSelection(mode);if(errors.length)throw new Error(errors.join(' '));
-    Object.assign(filter,{minPowerKw:0,minEnergyKwh:0,applications:[],sourceKind:'assembly',sourceId:mode.compatibilityId,units:mode.pcs,series:mode.series,parallel:mode.parallel});
+    const normalized=normalizeCiModularSelection(mode);
+    Object.assign(filter,{minPowerKw:0,minEnergyKwh:0,applications:[],sourceKind:'assembly',sourceId:mode.compatibilityId,units:normalized.pcs,ports:normalized.ports,bankPattern:normalized.portBanks,series:normalized.series,parallel:normalized.parallel});
   }else if(mode?.kind==='solution'){
     if(!mode.solutionKey?.trim())throw new Error('Selecione uma solução gerada.');
     Object.assign(filter,{minPowerKw:0,minEnergyKwh:0,applications:[],solutionKey:mode.solutionKey});
@@ -65,5 +66,5 @@ export async function calculatePersistedCi(db:SupabaseClient,options:CommercialI
   const snapshot={options,generation:generation.id,sourceRevision:generation.source_revision,solutionKeys:solutions.map(solution=>solution.key),accessoryContext,stsCatalog,prices:[...prices]};
   const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(snapshot)));
   await assertCiGenerationCurrent(db,generation.id);
-  return {engineVersion:'ci-grouped-v1',inputFingerprint:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),solutionGeneration:{id:generation.id,sourceRevision:generation.source_revision,contractVersion:'ci-grouped-v1'},technicalRequirements:{minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,operatingEnergyAcKwh:requirements.operatingEnergyAcKwh,backupEnergyAcKwh:requirements.backupEnergyAcKwh,coveragePercent:requirements.coveragePercent},baseline:baseline.result,scenarios,recommendation,selected,technicalSelection:{scenarioId:technical[0]?.scenarioId??null,reason:technical.length?`${technical.length} de ${scenarios.length} soluções consultadas atendem tecnicamente. Selecionada a menor potência e, no desempate, a menor energia nominal. O retorno financeiro é analisado separadamente.`:'Nenhuma solução da geração publicada atende à curva, à estratégia e às aplicações do projeto.'},assumptions:{tariff:options.tariff,financial:options.financialAssumptions,loadCurve:options.loadCurve},warnings:[...(technical.length?[]:['Nenhuma solução técnica encontrada. Revise requisitos, aplicações e o catálogo gerado.']),...(selected?.missingPrices?.length?[`Preços pendentes: ${selected.missingPrices.join(', ')}.`]:[])],backup:selected?.backupResult,accessoryContext,stsContext:chosen?inputFor(chosen).stsContext:undefined};
+  return {engineVersion:'ci-grouped-v2',inputFingerprint:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),solutionGeneration:{id:generation.id,sourceRevision:generation.source_revision,contractVersion:CI_GROUPED_SOLUTION_VERSION},technicalRequirements:{minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,operatingEnergyAcKwh:requirements.operatingEnergyAcKwh,backupEnergyAcKwh:requirements.backupEnergyAcKwh,coveragePercent:requirements.coveragePercent},baseline:baseline.result,scenarios,recommendation,selected,technicalSelection:{scenarioId:technical[0]?.scenarioId??null,reason:technical.length?`${technical.length} de ${scenarios.length} soluções consultadas atendem tecnicamente. Selecionada a menor potência e, no desempate, a menor energia nominal. O retorno financeiro é analisado separadamente.`:'Nenhuma solução da geração publicada atende à curva, à estratégia e às aplicações do projeto.'},assumptions:{tariff:options.tariff,financial:options.financialAssumptions,loadCurve:options.loadCurve},warnings:[...(technical.length?[]:['Nenhuma solução técnica encontrada. Revise requisitos, aplicações e o catálogo gerado.']),...(selected?.missingPrices?.length?[`Preços pendentes: ${selected.missingPrices.join(', ')}.`]:[])],backup:selected?.backupResult,accessoryContext,stsContext:chosen?inputFor(chosen).stsContext:undefined};
 }
