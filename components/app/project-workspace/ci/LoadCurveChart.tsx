@@ -15,7 +15,7 @@
 // uPlot's canvas/DOM code never runs during SSR and its ~50kb only ships
 // once a curve is actually imported.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
@@ -36,7 +36,7 @@ export interface CurveRangeSelection {
  * first thing you select), B is what you're comparing against it. A third
  * shift-drag replaces B only, so you can try several candidate periods
  * against the same baseline without reselecting it every time. */
-interface SelectionSlots {
+export interface SelectionSlots {
   a: CurveRangeSelection | null;
   b: CurveRangeSelection | null;
 }
@@ -55,21 +55,23 @@ export interface PointBadgeInfo {
   labelPrefix?: string;
 }
 
-function formatBadgeText(point: LoadCurvePoint | undefined): string {
+function formatBadgeText(point: LoadCurvePoint | undefined,timezone?:string): string {
   if (!point) return '';
   const date = new Date(point.timestamp);
-  const weekdayRaw = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  const weekdayRaw = date.toLocaleDateString('pt-BR', { weekday: 'short',timeZone:timezone }).replace('.', '');
   const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
-  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit',timeZone:timezone,hourCycle:'h23' });
   return `${weekday} ${time} · ${point.powerKw.toFixed(1)} kW`;
 }
 
 function PointBadge({
   badge,
   chartWidth,
+  timezone,
 }: {
   badge: PointBadgeInfo;
   chartWidth: number;
+  timezone?:string;
 }) {
   const isNearTop = badge.y < 35;
   const clampedX = Math.max(65, Math.min(chartWidth - 65, badge.x));
@@ -91,7 +93,7 @@ function PointBadge({
         }}
       >
         {badge.labelPrefix ? `${badge.labelPrefix}: ` : ''}
-        {formatBadgeText(badge.point)}
+        {formatBadgeText(badge.point,timezone)}
       </div>
     </>
   );
@@ -130,22 +132,23 @@ function getBadgeInfo(
 /** Weekday-only at midnight ("seg"), weekday+time otherwise ("seg 14:00") —
  * used for both axis ticks (mostly midnights, see dayBoundaryIndices) and
  * the live legend/cursor label (any point). */
-function formatPointLabel(point: LoadCurvePoint | undefined): string {
+function formatPointLabel(point: LoadCurvePoint | undefined,timezone?:string): string {
   if (!point) return '';
   const date = new Date(point.timestamp);
-  const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-  if (date.getHours() === 0 && date.getMinutes() === 0) return weekday;
-  return `${weekday} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short',timeZone:timezone }).replace('.', '');
+  if (date.toLocaleTimeString('pt-BR',{timeZone:timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'})==='00:00') return weekday;
+  return `${weekday} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit',timeZone:timezone,hourCycle:'h23' })}`;
 }
 
 /** Indices where the local day changes — gives clean "seg/ter/qua/..." tick
  * labels aligned to real day boundaries instead of arbitrary evenly-spaced
  * numeric ticks, which is what you actually want for a representative week. */
-function dayBoundaryIndices(points: LoadCurvePoint[]): number[] {
+function dayBoundaryIndices(points: LoadCurvePoint[],timezone?:string): number[] {
   const indices: number[] = [];
+  const time=new Intl.DateTimeFormat('pt-BR',{timeZone:timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   points.forEach((point, index) => {
     const date = new Date(point.timestamp);
-    if (date.getHours() === 0 && date.getMinutes() === 0) indices.push(index);
+    if (time.format(date)==='00:00') indices.push(index);
   });
   return indices;
 }
@@ -202,7 +205,7 @@ function clampXRange(min: number, max: number, pointsRef: { current: LoadCurvePo
   return [min, max];
 }
 
-/** Click-drag to pan, scroll-wheel to zoom, and shift+click-drag to select a
+/** Click-drag to pan, Ctrl+scroll-wheel to zoom, and shift+click-drag to select a
  * range (for the min/max/energy readout below the chart) — mirroring
  * uPlot's own wheel-zoom demo, there's no built-in option for pan/zoom, so
  * it's wired directly against the plot's `.u-over` element. `cursor.drag`
@@ -247,6 +250,7 @@ function attachPanAndZoom(
   }
 
   function onWheel(event: WheelEvent) {
+    if (!event.ctrlKey || event.deltaY === 0) return;
     event.preventDefault();
     const rect = over.getBoundingClientRect();
     const left = event.clientX - rect.left;
@@ -407,7 +411,8 @@ function buildOptions(
   onZoomChange: (zoomed: boolean) => void,
   onRedraw?: () => void,
   seriesLabel = 'Potência',
-  includeGeneration = false
+  includeGeneration = false,
+  timezoneRef:{current:string|undefined}={current:undefined}
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const secondary = readCssVar('--chart-2', '#ff9d00');
@@ -449,10 +454,10 @@ function buildOptions(
         gap: 8,
         font: '12px ui-sans-serif, system-ui, sans-serif',
         splits: (_self, _axisIdx, scaleMin, scaleMax) => {
-          const boundaries = dayBoundaryIndices(pointsRef.current).filter((index) => index >= scaleMin && index <= scaleMax);
+          const boundaries = dayBoundaryIndices(pointsRef.current,timezoneRef.current).filter((index) => index >= scaleMin && index <= scaleMax);
           return boundaries.length >= 2 ? boundaries : evenlySpacedIndices(scaleMin, scaleMax);
         },
-        values: (_self, ticks) => ticks.map((tick) => formatPointLabel(pointsRef.current[Math.round(tick)])),
+        values: (_self, ticks) => ticks.map((tick) => formatPointLabel(pointsRef.current[Math.round(tick)],timezoneRef.current)),
       },
       {
         stroke: mutedForeground,
@@ -470,7 +475,7 @@ function buildOptions(
     ],
     series: [
       {
-        value: (_self, rawValue) => formatPointLabel(pointsRef.current[Math.round(rawValue ?? 0)]),
+        value: (_self, rawValue) => formatPointLabel(pointsRef.current[Math.round(rawValue ?? 0)],timezoneRef.current),
       },
       {
         label: seriesLabel,
@@ -494,9 +499,11 @@ function buildOptions(
           self.ctx.fillStyle = 'rgba(100, 116, 139, 0.08)';
 
           let rangeStart: number | null = null;
+          const weekdayFormatter=new Intl.DateTimeFormat('en-US',{weekday:'short',timeZone:timezoneRef.current});
           for (let i = 0; i < points.length; i++) {
             const d = new Date(points[i].timestamp);
-            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            const weekday=weekdayFormatter.format(d);
+            const isWeekend = weekday==='Sun'||weekday==='Sat';
             if (isWeekend) {
               if (rangeStart === null) rangeStart = i;
             } else if (rangeStart !== null) {
@@ -654,7 +661,9 @@ function PeriodHeader({
   range,
   points,
   onClear,
+  timezone,
 }: {
+  timezone?:string;
   label: string;
   color: string;
   range: CurveRangeSelection;
@@ -665,7 +674,7 @@ function PeriodHeader({
     <div className="flex items-center justify-between gap-2">
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-        {label}: {formatPointLabel(points[range.startIndex])} – {formatPointLabel(points[range.endIndex])} (
+        {label}: {formatPointLabel(points[range.startIndex],timezone)} – {formatPointLabel(points[range.endIndex],timezone)} (
         {range.endIndex - range.startIndex + 1} pontos)
       </p>
       <Button type="button" variant="ghost" size="xs" onClick={onClear}>
@@ -684,6 +693,10 @@ export function LoadCurveChart({
   generationPoints,
   backupCurve,
   onApplyBackupSelection,
+  selectionSlots,
+  onSelectionSlotsChange,
+  summaryOnly=false,
+  timezone,
 }: {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
@@ -692,6 +705,10 @@ export function LoadCurveChart({
   generationPoints?: { timestamp: string; powerKw: number | null }[];
   backupCurve?: LoadCurve;
   onApplyBackupSelection?: (selection:CiBackupCurveSelection)=>void;
+  selectionSlots?:SelectionSlots;
+  onSelectionSlotsChange?:Dispatch<SetStateAction<SelectionSlots>>;
+  summaryOnly?:boolean;
+  timezone?:string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
@@ -700,11 +717,14 @@ export function LoadCurveChart({
   const includeGeneration = generationPoints !== undefined;
   const hasPoints = points.length > 0;
   const contractedDemandKwRef = useRef(contractedDemandKw);
+  const timezoneRef=useRef(timezone);
   // Set right after (re)creating the chart below, consumed by the very next
   // run of the points-sync effect — see that effect for why this is needed.
   const skipNextPointsEffectRef = useRef(false);
   const [isZoomed, setIsZoomed] = useState(false);
-  const [selections, setSelections] = useState<SelectionSlots>(EMPTY_SELECTIONS);
+  const [ownSelections,setOwnSelections]=useState<SelectionSlots>(EMPTY_SELECTIONS);
+  const selections=selectionSlots??ownSelections;
+  const setSelections=onSelectionSlotsChange??setOwnSelections;
   const [redrawSeq, setRedrawSeq] = useState(0);
   const [hoverBadge, setHoverBadge] = useState<PointBadgeInfo | null>(null);
   const [badgeLayout, setBadgeLayout] = useState<{ start: PointBadgeInfo | null; end: PointBadgeInfo | null; width: number }>({ start: null, end: null, width: 600 });
@@ -727,7 +747,7 @@ export function LoadCurveChart({
 
   if (previousPointsLength !== points.length) {
     setPreviousPointsLength(points.length);
-    if (selections.a || selections.b) setSelections(EMPTY_SELECTIONS);
+    if (!selectionSlots&&(selections.a || selections.b)) setOwnSelections(EMPTY_SELECTIONS);
   }
 
   // The first completed drag pins A as the baseline; once A exists, every
@@ -769,7 +789,8 @@ export function LoadCurveChart({
       setIsZoomed,
       () => setRedrawSeq((s) => s + 1),
       kind === 'generation' ? 'Geração FV' : includeGeneration ? 'Consumo' : 'Potência',
-      includeGeneration
+      includeGeneration,
+      timezoneRef
     );
     const chart = new uPlot(options, buildData(pointsRef.current, generationRef.current), el);
     chartRef.current = chart;
@@ -790,7 +811,13 @@ export function LoadCurveChart({
     };
     // Values synchronize in the data effect; edits must preserve the chart and zoom.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeGeneration, kind, hasPoints]);
+  }, [includeGeneration, kind, hasPoints,summaryOnly]);
+
+  useEffect(()=>{
+    if(timezoneRef.current===timezone)return;
+    timezoneRef.current=timezone;
+    if(chartRef.current?.scales.x?.min!=null)chartRef.current.redraw(false,true);
+  },[timezone]);
 
   const isInitialContractMountRef = useRef(true);
   useEffect(() => {
@@ -882,7 +909,7 @@ export function LoadCurveChart({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [summaryOnly]);
 
   function summaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
     if (!range) return null;
@@ -966,7 +993,7 @@ export function LoadCurveChart({
   return (
     <div className="space-y-3">
       {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
-      <div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
+      {!summaryOnly&&<div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
         <div className="p-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração máxima' : 'Demanda máxima'}</p>
@@ -1015,10 +1042,10 @@ export function LoadCurveChart({
             <span className="text-xs font-normal text-muted-foreground">kWh</span>
           </p>
         </div>
-      </div>
+      </div>}
 
       {/* Gráfico semanal (235px, como o editor diário) com uPlot e fundo de fins de semana */}
-      <div className="relative">
+      {!summaryOnly&&<><div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
         {isZoomed && (
           <Button
@@ -1032,18 +1059,18 @@ export function LoadCurveChart({
             Redefinir zoom
           </Button>
         )}
-        {startBadge && <PointBadge badge={startBadge} chartWidth={chartWidth} />}
-        {endBadge && <PointBadge badge={endBadge} chartWidth={chartWidth} />}
-        {!isHoverDuplicate && hoverBadge && <PointBadge badge={hoverBadge} chartWidth={chartWidth} />}
+        {startBadge && <PointBadge timezone={timezone} badge={startBadge} chartWidth={chartWidth} />}
+        {endBadge && <PointBadge timezone={timezone} badge={endBadge} chartWidth={chartWidth} />}
+        {!isHoverDuplicate && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Shift + arraste para selecionar intervalo · Duplo clique para redefinir
-      </p>
+        Shift + arraste para selecionar intervalo · Ctrl + scroll para zoom · Duplo clique para redefinir
+      </p></>}
 
       {/* Exactly one period pinned: the plain single-period readout. */}
       {summaryA && !summaryB && selections.a && (
         <div className="space-y-2 rounded-lg border bg-card p-3">
-          <PeriodHeader
+          <PeriodHeader timezone={timezone}
             label="Seleção"
             color="var(--chart-1)"
             range={selections.a}
@@ -1066,7 +1093,7 @@ export function LoadCurveChart({
       )}
       {summaryB && !summaryA && selections.b && (
         <div className="space-y-2 rounded-lg border bg-card p-3">
-          <PeriodHeader
+          <PeriodHeader timezone={timezone}
             label="Seleção"
             color="var(--chart-2)"
             range={selections.b}
@@ -1091,14 +1118,14 @@ export function LoadCurveChart({
       {/* Both periods pinned: side-by-side comparison with a delta column. */}
       {summaryA && summaryB && selections.a && selections.b && (
         <div className="space-y-2 rounded-lg border bg-card p-3">
-          <PeriodHeader
+          <PeriodHeader timezone={timezone}
             label="Período A"
             color="var(--chart-1)"
             range={selections.a}
             points={points}
             onClear={() => setSelections((previous) => ({ ...previous, a: null }))}
           />
-          <PeriodHeader
+          <PeriodHeader timezone={timezone}
             label="Período B"
             color="var(--chart-2)"
             range={selections.b}
@@ -1186,7 +1213,7 @@ export function LoadCurveChart({
       {kind==='load'&&backupCurve&&onApplyBackupSelection&&<div className="space-y-3">{([{range:selections.a,label:'período A'},{range:selections.b,label:'período B'}]).map(({range,label})=>range&&<CiBackupSelectionAction key={`${label}:${points[range.startIndex]?.timestamp}:${points[range.endIndex]?.timestamp}`} curve={backupCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={onApplyBackupSelection}/>)}</div>}
 
       {/* Base do painel: Status da demanda contratada */}
-      {kind === 'generation' ? null : hasContract ? (
+      {summaryOnly||kind === 'generation' ? null : hasContract ? (
         <div
           className={cn(
             'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs',

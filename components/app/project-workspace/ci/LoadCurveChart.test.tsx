@@ -294,8 +294,8 @@ describe('LoadCurveChart', () => {
     chart.scales.x = { min: 0, max: 29 };
     mockChartRect(instance.over);
 
-    fireEvent.wheel(instance.over, { clientX: 150, deltaY: -100 });
-    fireEvent.wheel(instance.over, { clientX: 150, deltaY: 100 });
+    fireEvent.wheel(instance.over, { ctrlKey: true, clientX: 150, deltaY: -100 });
+    fireEvent.wheel(instance.over, { ctrlKey: true, clientX: 150, deltaY: 100 });
     expect(instance.setScaleCalls).toHaveLength(0);
 
     act(() => {
@@ -308,6 +308,37 @@ describe('LoadCurveChart', () => {
     expect(range.max - range.min).toBeGreaterThan(0);
   });
 
+  it('leaves scrolling uncancelled without Ctrl and applies Ctrl-wheel zoom',()=>{
+    const points=Array.from({length:30},(_,i)=>point(new Date(Date.UTC(2026,0,5,0,i*15)).toISOString(),i));
+    render(<LoadCurveChart points={points} resolutionMinutes={15}/>);
+    const instance=instances[0];chartObject(instance).scales.x={min:0,max:29};mockChartRect(instance.over);
+    const normal=new WheelEvent('wheel',{deltaY:-100,clientX:150,cancelable:true});
+    fireEvent(instance.over,normal);
+    act(()=>flushAnimationFrames());
+    expect(normal.defaultPrevented).toBe(false);expect(instance.setScaleCalls).toHaveLength(0);
+    const modified=new WheelEvent('wheel',{deltaY:-100,clientX:150,ctrlKey:true,cancelable:true});
+    fireEvent(instance.over,modified);
+    expect(modified.defaultPrevented).toBe(true);
+    act(()=>flushAnimationFrames());
+    expect(instance.setScaleCalls).toHaveLength(1);
+    const range=instance.setScaleCalls[0] as {min:number;max:number};expect(range.max-range.min).toBeLessThan(29);
+  });
+
+  it('reuses controlled interval summaries without creating a second chart',()=>{
+    const change=vi.fn();
+    render(<LoadCurveChart summaryOnly points={samplePoints} resolutionMinutes={15} selectionSlots={{a:{startIndex:0,endIndex:1},b:null}} onSelectionSlotsChange={change}/>);
+    expect(instances).toHaveLength(0);
+    expect(screen.getByText(/Seleção:/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Limpar'}));expect(change).toHaveBeenCalled();
+  });
+
+  it('uses the supplied project timezone in axis labels instead of the browser timezone',()=>{
+    const points=[point('2026-01-05T03:00:00Z',10),point('2026-01-05T04:00:00Z',20)];
+    render(<LoadCurveChart points={points} resolutionMinutes={60} timezone="America/Manaus"/>);
+    const options=chartOptions(instances[0]);
+    expect(options.axes[0].values(null,[0,1])).toEqual(['dom 23:00','seg']);
+  });
+
   it('resets a pending wheel frame on unmount and ignores unavailable x scales', () => {
     const { unmount } = render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} />);
     const instance = instances[0];
@@ -315,11 +346,11 @@ describe('LoadCurveChart', () => {
     mockChartRect(instance.over);
 
     chart.scales.x = { min: null, max: null };
-    fireEvent.wheel(instance.over, { clientX: 100, deltaY: -100 });
+    fireEvent.wheel(instance.over, { ctrlKey: true, clientX: 100, deltaY: -100 });
     expect(animationFrames.size).toBe(0);
 
     chart.scales.x = { min: 0, max: 2 };
-    fireEvent.wheel(instance.over, { clientX: 100, deltaY: -100 });
+    fireEvent.wheel(instance.over, { ctrlKey: true, clientX: 100, deltaY: -100 });
     expect(animationFrames.size).toBe(1);
     unmount();
     expect(animationFrames.size).toBe(0);
@@ -722,7 +753,7 @@ describe('interval selection metrics & point badges', () => {
   it('renders summarized guide text below the chart', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     expect(
-      screen.getByText('Shift + arraste para selecionar intervalo · Duplo clique para redefinir')
+      screen.getByText('Shift + arraste para selecionar intervalo · Ctrl + scroll para zoom · Duplo clique para redefinir')
     ).toBeInTheDocument();
   });
 });
