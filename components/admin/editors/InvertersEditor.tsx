@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Activity, Cable, ListChecks, Search, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,8 @@ import {
 
 export function InvertersEditor(props: {
   ciBatteryPorts?: boolean;
+  additionalFields?: ReactNode;
+  additionalBadges?: (row: InverterRow) => string[];
   rows: InverterRow[];
   form: Partial<InverterRow>;
   setForm: (value: Partial<InverterRow>) => void;
@@ -339,24 +341,26 @@ export function InvertersEditor(props: {
                     value={form.standby_consumption_w ?? 0}
                     onChange={(event) => setForm({ ...form, standby_consumption_w: toNumber(event.target.value) })}
                   />
-                  <NumberWithUnitField
-                    label="Potência máx. de carga"
-                    tip="Limite opcional de potência para carregar a bateria."
-                    unit="W"
-                    placeholder="-"
-                    value={form.max_battery_charge_power_w ?? undefined}
-                    onChange={(event) => setForm({ ...form, max_battery_charge_power_w: toNullableNumber(event.target.value) })}
-                    onClear={() => setForm({ ...form, max_battery_charge_power_w: null })}
-                  />
-                  <NumberWithUnitField
-                    label="Potência máx. de descarga"
-                    tip="Limite opcional de potência entregue pela bateria através do inversor."
-                    unit="W"
-                    placeholder="-"
-                    value={form.max_battery_discharge_power_w ?? undefined}
-                    onChange={(event) => setForm({ ...form, max_battery_discharge_power_w: toNullableNumber(event.target.value) })}
-                    onClear={() => setForm({ ...form, max_battery_discharge_power_w: null })}
-                  />
+                  {!props.ciBatteryPorts && <>
+                    <NumberWithUnitField
+                      label="Potência máx. de carga"
+                      tip="Limite opcional de potência para carregar a bateria."
+                      unit="W"
+                      placeholder="-"
+                      value={form.max_battery_charge_power_w ?? undefined}
+                      onChange={(event) => setForm({ ...form, max_battery_charge_power_w: toNullableNumber(event.target.value) })}
+                      onClear={() => setForm({ ...form, max_battery_charge_power_w: null })}
+                    />
+                    <NumberWithUnitField
+                      label="Potência máx. de descarga"
+                      tip="Limite opcional de potência entregue pela bateria através do inversor."
+                      unit="W"
+                      placeholder="-"
+                      value={form.max_battery_discharge_power_w ?? undefined}
+                      onChange={(event) => setForm({ ...form, max_battery_discharge_power_w: toNullableNumber(event.target.value) })}
+                      onClear={() => setForm({ ...form, max_battery_discharge_power_w: null })}
+                    />
+                  </>}
                 </div>
               </div>
               <Field asDiv label="Funcionalidades">
@@ -384,13 +388,15 @@ export function InvertersEditor(props: {
               uploadAsset={props.uploadAsset}
             />
           )}
+          {activeFormTab === 'general' && props.additionalFields}
+          {props.error && <p role="alert" className="text-sm text-destructive">{props.error}</p>}
           <Actions onSave={() => props.onSave(close)} saving={props.saving} />
         </>
       }
       items={visibleRows.map((row) => ({
         id: row.id,
         title: row.model,
-        badges: [row.topology, `${row.phases} fase${row.phases === 1 ? '' : 's'}`],
+        badges: [row.topology, `${row.phases} fase${row.phases === 1 ? '' : 's'}`, ...(props.additionalBadges?.(row) ?? [])],
         details: [
           ['Potência', `${row.standard_power_kva ?? row.power_kw} / ${row.peak_power_kva ?? '-'} kVA`],
           ['Portas bat.', `${row.battery_ports ?? 1}× · ${row.battery_current_max_a ?? '-'} A`],

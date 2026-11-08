@@ -2200,6 +2200,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      save_ci_equipment: { Args: { p_kind: string; p_product: Json; p_limits: Json; p_id?: string | null }; Returns: Json }
+      delete_ci_equipment: { Args: { p_kind: string; p_id: string }; Returns: undefined }
       ci_solution_source: {Args: Record<PropertyKey, never>;Returns:Json}
       ci_begin_solution_generation: {Args:{p_source_revision:string;p_expected_count:number};Returns:string}
       ci_append_solution_generation: {Args:{p_generation_id:string;p_solutions:Json};Returns:undefined}

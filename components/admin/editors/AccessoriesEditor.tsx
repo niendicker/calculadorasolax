@@ -1,5 +1,6 @@
 'use client';
 
+import { FieldHelpLabel } from '../field-help';
 import { useMemo, useState } from 'react';
 import { ListChecks, Search, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -136,10 +137,11 @@ export function AccessoriesEditor(props: {
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  aria-label="Ativo"
                   checked={form.active ?? true}
                   onChange={(event) => setForm({ ...form, active: event.target.checked })}
                 />
-                Ativo
+                <FieldHelpLabel label="Ativo" />
               </label>
               <NumberWithUnitField
                 label="Garantia"
