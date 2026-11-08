@@ -10,6 +10,18 @@ import { totalDailyKwh, totalPeakW, totalPowerByPhase, useWizardStore } from './
 import { createSupabaseMock } from '@/lib/test-helpers/supabase-mock';
 import { resetWizardStore } from '@/lib/test-helpers/wizard-store-reset';
 import type { SavedCiProject, SavedProject, SingleLoad } from '@/lib/types';
+import { DEFAULT_CI_BACKUP_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
+
+it('initializes automatic STS when backup is enabled from any project editor and preserves electrical data across toggles', () => {
+  useWizardStore.getState().setCiOptions({ backup: { ...DEFAULT_CI_BACKUP_CONFIG, enabled: true } });
+  const initial = useWizardStore.getState().ciOptions.backup!;
+  expect(initial.sts).toMatchObject({ mode: 'auto', accessoryId: null, powerFactor: 0 });
+  useWizardStore.getState().setCiOptions({ backup: { ...initial, sts: { ...initial.sts!, powerFactor: .92, maxGridPassageKw: 180 } } });
+  const configured = useWizardStore.getState().ciOptions.backup!;
+  useWizardStore.getState().setCiOptions({ backup: { ...configured, enabled: false } });
+  useWizardStore.getState().setCiOptions({ backup: { ...useWizardStore.getState().ciOptions.backup!, enabled: true } });
+  expect(useWizardStore.getState().ciOptions.backup?.sts).toMatchObject({ mode: 'auto', powerFactor: .92, maxGridPassageKw: 180 });
+});
 
 const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: createClientMock }));

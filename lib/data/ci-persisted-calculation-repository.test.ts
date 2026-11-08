@@ -4,6 +4,7 @@ import {modularFixture,modularOptions} from '@/supabase/functions/_shared/commer
 import {cabinetFixture} from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions.test-fixtures';
 import {generateCiGroupedSolutions} from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions';
 import {calculatePersistedCi} from './ci-persisted-calculation-repository';
+import {stsBackup,stsFixture} from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
 const mocks=vi.hoisted(()=>({query:vi.fn(),current:vi.fn(),accessories:vi.fn(),sts:vi.fn()}));
 vi.mock('./ci-generated-solutions-repository',()=>({queryCiGeneratedSolutions:mocks.query,assertCiGenerationCurrent:mocks.current}));
 vi.mock('./ci-accessories-repository',()=>({loadCiAccessoryContext:mocks.accessories}));
@@ -12,6 +13,29 @@ const solutions=()=>generateCiGroupedSolutions(modularFixture(),[cabinetFixture(
 function client(priced=true){const where=vi.fn();const q={select:()=>q,eq:(...a:unknown[])=>{where(...a);return q;},in:()=>q,order:()=>q,range:async()=>({data:priced?[{product_type:'ci_pcs',product_model:'PCS teste 100',unit_value:1e8},{product_type:'ci_battery',product_model:'Rack teste 100',unit_value:1e8},{product_type:'ci_bess',product_model:'Gabinete teste',unit_value:1e8}]:[],error:null})};return {where,db:{auth:{getUser:async()=>({data:{user:{id:'owner'}},error:null})},from:()=>q} as unknown as SupabaseClient};}
 beforeEach(()=>{vi.clearAllMocks();mocks.query.mockResolvedValue({generation:{id:'generation',source_revision:'revision'},solutions:solutions()});mocks.accessories.mockResolvedValue({products:[],rules:[],prices:{},selectedIds:[],stsIds:[]});mocks.sts.mockResolvedValue({specs:[],rules:[]});});
 function options(){return {...modularOptions(),bessSystem:{kind:'automatic' as const,minPowerKw:0,minEnergyKwh:0}};}
+it('requires explicit electrical inputs for legacy backup without STS instead of skipping transfer', async () => {
+ const backup={...stsBackup(),sts:undefined};
+ await expect(calculatePersistedCi(client().db,{...options(),backup})).rejects.toThrow('fator de potência');
+ expect(mocks.query).not.toHaveBeenCalled();
+});
+it('automatically selects a compatible STS even when a saved project requested a different manual model', async () => {
+ const backup=stsBackup();backup.targetPowerKw=20;backup.targetPeakPowerKw=20;backup.autonomyHours=.25;
+ backup.sts={...backup.sts!,mode:'manual',accessoryId:'large',gridBusScope:'backup_bus',maxGridPassageKw:20};
+ const catalog=modularFixture();
+ mocks.query.mockResolvedValue({generation:{id:'g',source_revision:'r'},solutions:generateCiGroupedSolutions(catalog,[]).solutions});
+ mocks.sts.mockResolvedValue(stsFixture().catalog);
+ mocks.accessories.mockResolvedValue({products:stsFixture().catalog.specs.map(spec=>({id:spec.accessory_id,model:spec.model,active:true})),rules:[],prices:{},selectedIds:[],stsIds:['small','large']});
+ const opts=options();opts.loadShiftingCoveragePercent=50;
+ const result=await calculatePersistedCi(client(false).db,{...opts,backup});
+ expect(result.selected?.sts?.status).toBe('selected');
+ expect(result.selected?.sts?.selected?.spec.accessory_id).toBe('small');
+ expect(backup.sts.mode).toBe('manual');
+});
+it('reports missing transfer compatibility as a technical failure without dropping the STS', async () => {
+ const result=await calculatePersistedCi(client().db,{...options(),backup:stsBackup(),loadShiftingCoveragePercent:50});
+ expect(result.selected).toBeNull();
+ expect(result.technicalIssues?.some(issue=>issue.code==='transfer')).toBe(true);
+});
 it('simulates both sources from one persisted contract and selects technical adequacy despite negative finances',async()=>{
  const {db,where}=client();const result=await calculatePersistedCi(db,options());
  expect(result.engineVersion).toBe('ci-technical-v1');expect(result.solutionGeneration?.id).toBe('generation');expect(result.scenarios).toHaveLength(1);

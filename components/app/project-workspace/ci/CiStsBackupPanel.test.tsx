@@ -15,34 +15,35 @@ function Harness({initial=stsBackup(),modular=false}: {initial?:CiBackupConfig;m
  return <CiStsBackupPanel options={modular?modularOptions():{...modularOptions(),bessSystem:{kind:'integrated'},bessProductId:'integrated'}} backup={backup} onChange={p=>setBackup({...backup,...p})}/>;
 }
 describe('backup STS selector',()=>{
- it('preserves legacy projects without loading the external catalog and requires explicit FP when enabled',async()=>{
+ it('starts automatic selection for legacy backup and requires explicit FP',async()=>{
   render(<Harness initial={{...stsBackup(),sts:undefined}}/>);
-  expect(mocks.load).not.toHaveBeenCalled();
-  expect(screen.getByLabelText('Seleção de STS')).toHaveValue('none');
-  fireEvent.change(screen.getByLabelText('Seleção de STS'),{target:{value:'auto'}});
-  await screen.findByText(/A menor STS elegível/);
+  expect(mocks.load).toHaveBeenCalled();
+  expect(screen.queryByLabelText('Seleção de STS')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Modelo STS')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Fator de potência de projeto')).toHaveValue(null);
+  await screen.findByText(/Modelos com compatibilidade aprovada/);
   expect(screen.getByRole('alert')).toHaveTextContent('fator de potência');
  });
- it('offers only approved matching models and preserves electrical inputs when switching modes',async()=>{
-  render(<Harness/>);
-  fireEvent.change(screen.getByLabelText('Seleção de STS'),{target:{value:'manual'}});
-  await screen.findByRole('option',{name:/ZERO-125 teste/});
-  fireEvent.change(screen.getByLabelText('Modelo STS'),{target:{value:'small'}});
-  fireEvent.change(screen.getByLabelText('Tensão entre fases da STS'),{target:{value:'400'}});
-  fireEvent.change(screen.getByLabelText('Seleção de STS'),{target:{value:'auto'}});
+ it('preserves saved electrical inputs and replaces manual model selection on edit',async()=>{
+  const backup=stsBackup();backup.sts!.mode='manual';backup.sts!.accessoryId='large';
+  const change=vi.fn();
+  render(<CiStsBackupPanel options={{...modularOptions(),bessSystem:{kind:'integrated'},bessProductId:'integrated'}} backup={backup} onChange={change}/>);
+  await screen.findByText(/Modelos com compatibilidade aprovada/);
   expect(screen.getByLabelText('Fator de potência de projeto')).toHaveValue(0.9);
-  expect(screen.getByLabelText('Tensão entre fases da STS')).toHaveValue('400');
-  fireEvent.change(screen.getByLabelText('Seleção de STS'),{target:{value:'none'}});
-  expect(screen.queryByLabelText('Fator de potência de projeto')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Tensão entre fases da STS'),{target:{value:'400'}});
+  expect(change).toHaveBeenCalledWith({sts:{...backup.sts,lineVoltageV:400,mode:'auto',accessoryId:null}});
  });
- it('shows revoked saved selections and supports retry after a catalog failure',async()=>{
+ it('supports retry after a catalog failure',async()=>{
   mocks.load.mockRejectedValueOnce(new Error('catálogo indisponível'));
-  const b=stsBackup();b.sts!.mode='manual';b.sts!.accessoryId='revoked';
-  render(<Harness initial={b}/>);
+  render(<Harness/>);
   expect(await screen.findByText('catálogo indisponível')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:'Tentar novamente'}));
-  expect(await screen.findByText(/A STS salva está indisponível/)).toBeInTheDocument();
+  expect(await screen.findByText(/Modelos com compatibilidade aprovada/)).toBeInTheDocument();
+ });
+ it('does not load STS or expose inputs with backup disabled',()=>{
+  render(<Harness initial={{...stsBackup(),enabled:false}}/>);
+  expect(mocks.load).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText('Fator de potência de projeto')).not.toBeInTheDocument();
  });
 });
 
@@ -58,8 +59,7 @@ it('keeps a PCS lookup failure visible when the STS request finishes later, and 
   expect(screen.getByText('Falha ao carregar a composição PCS')).toBeInTheDocument();
   mocks.load.mockResolvedValue(catalog);
   fireEvent.click(screen.getByRole('button',{name:'Tentar novamente'}));
-  fireEvent.change(screen.getByLabelText('Seleção de STS'),{target:{value:'manual'}});
-  expect(await screen.findByRole('option',{name:/ZERO-125 teste/})).toBeInTheDocument();
+  expect(await screen.findByText(/Modelos com compatibilidade aprovada: ZERO-125 teste/)).toBeInTheDocument();
   expect(screen.queryByText('Falha ao carregar a composição PCS')).not.toBeInTheDocument();
 });
 
@@ -71,12 +71,12 @@ it.each(['cabinet','assembly'] as const)('resolves STS for selected %s models an
  const backup=stsBackup();backup.sts!.mode='manual';
  const options={...modularOptions(),bessProductId:null,lineVoltageV:380 as const,bessSystem:sourceKind==='cabinet'?{kind:'model' as const,sourceKind,productId:'integrated'}:{kind:'model' as const,sourceKind,pcsId,batteryId:'battery'}};
  const {rerender}=render(<CiStsBackupPanel options={options} backup={backup} onChange={vi.fn()}/>);
- expect(await screen.findByRole('option',{name:/ZERO-125 teste/})).toBeInTheDocument();
+ expect(await screen.findByText(/Modelos com compatibilidade aprovada: ZERO-125 teste/)).toBeInTheDocument();
  rerender(<CiStsBackupPanel options={{...options,lineVoltageV:220}} backup={backup} onChange={vi.fn()}/>);
  await screen.findByText(/Nenhuma STS com compatibilidade aprovada/);
- expect(screen.queryByRole('option',{name:/ZERO-125 teste/})).not.toBeInTheDocument();
+ expect(screen.queryByText(/Modelos com compatibilidade aprovada: ZERO-125 teste/)).not.toBeInTheDocument();
  const other=sourceKind==='cabinet'?{kind:'model' as const,sourceKind,productId:'other'}:{kind:'model' as const,sourceKind,pcsId:'other',batteryId:'battery'};
  rerender(<CiStsBackupPanel options={{...options,bessSystem:other}} backup={backup} onChange={vi.fn()}/>);
  await screen.findByText(/Nenhuma STS com compatibilidade aprovada/);
- expect(screen.queryByRole('option',{name:/ZERO-125 teste/})).not.toBeInTheDocument();
+ expect(screen.queryByText(/Modelos com compatibilidade aprovada: ZERO-125 teste/)).not.toBeInTheDocument();
 });

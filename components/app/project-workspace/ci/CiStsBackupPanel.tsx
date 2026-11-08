@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { loadCiStsCatalog } from '@/lib/data/ci-sts-repository';
+import { automaticStsSelection } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
 import { isApprovedStsRule, validateStsSelection } from '@/supabase/functions/_shared/commercial-industrial/sts';
 import type { CiStsCatalog, CiStsSelection } from '@/supabase/functions/_shared/commercial-industrial/sts-types';
 import type { CiBackupConfig, CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export function CiStsBackupPanel({options,backup,onChange}: {options: CommercialIndustrialOptions; backup: CiBackupConfig; onChange: (partial: Partial<CiBackupConfig>)=>void}) {
-  const sts=backup.sts;
-  const requested=Boolean(sts);
+  const sts=automaticStsSelection(backup.sts);
+  const requested=backup.enabled;
   const [loaded,setLoaded]=useState<{key:string;catalog:CiStsCatalog;pcsId:string|null;bessId:string|null}|null>(null);
   const [failure,setFailure]=useState<{key:string;message:string}|null>(null);
   const [attempt,setAttempt]=useState(0);
@@ -42,18 +43,17 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
   const catalog=loaded?.key===targetKey?loaded.catalog:null;
   const equipmentPcs=loaded?.key===targetKey?loaded.pcsId:null;
   const error=failure?.key===targetKey?failure.message:'';
-  const update=(partial:Partial<CiStsSelection>)=>{if(sts)onChange({sts:{...sts,...partial}});};
+  const update=(partial:Partial<CiStsSelection>)=>onChange({sts:automaticStsSelection({...sts,...partial})});
   const rules=catalog?.rules.filter(r=>isApprovedStsRule(r) && r.line_voltage_v===sts?.lineVoltageV && (!options.lineVoltageV||r.line_voltage_v===options.lineVoltageV) && r.frequency_hz===sts?.frequencyHz && (automatic || (equipmentPcs ? r.pcs_id===equipmentPcs : Boolean(loaded?.bessId) && r.bess_product_id===loaded?.bessId)))??[];
   const specs=catalog?.specs.filter(s=>s.active&&s.accessoryActive&&rules.some(r=>r.accessory_id===s.accessory_id))??[];
-  const errors=sts?validateStsSelection(sts):[];
+  const errors=validateStsSelection(sts);
+  if (!backup.enabled) return null;
   return <section aria-label="Transferência / STS" className="space-y-4 rounded-xl border bg-muted/10 p-4">
     <div><h3 className="text-sm font-semibold">Transferência / STS</h3><p className="mt-1 text-xs text-muted-foreground">Uma STS por barramento trifásico com neutro e PE. Seleção por corrente nominal contínua e compatibilidade aprovada, sem sobrecarga.</p></div>
-    <label className="block space-y-1.5 text-xs font-medium">Seleção de STS<Select aria-label="Seleção de STS" value={sts?.mode??'none'} onChange={e=>{if(e.target.value==='none')onChange({sts:undefined});else onChange({sts:{gridBusScope:'installation',accessoryId:null,lineVoltageV:380,frequencyHz:60,powerFactor:0,maxGridPassageKw:0,...sts,mode:e.target.value as CiStsSelection['mode']}});}}><option value="none">Sem STS externa — transferência não avaliada</option><option value="auto">Selecionar automaticamente</option><option value="manual">Selecionar manualmente</option></Select></label>
-    {sts&&<>
+    <p className="text-xs text-muted-foreground">Com backup habilitado, a STS é selecionada automaticamente entre os modelos aprovados que atendem ao projeto. Informe os dados elétricos abaixo.</p>
       {error?<div role="alert" className="space-y-2 text-sm text-destructive"><p>{error}</p><Button type="button" variant="outline" onClick={()=>setAttempt(a=>a+1)}>Tentar novamente</Button></div>:!catalog?<p role="status" className="text-xs text-muted-foreground">Carregando STS…</p>:<>
         {specs.length===0&&<p role="status" className="text-xs text-muted-foreground">Nenhuma STS com compatibilidade aprovada para este equipamento. Cadastre em Administração → BESS C&I → STS / Transferência.</p>}
-        {sts.mode==='manual'&&<label className="block space-y-1.5 text-xs font-medium">Modelo STS<Select aria-label="Modelo STS" value={sts.accessoryId??''} onChange={e=>update({accessoryId:e.target.value||null})}><option value="">Selecione uma STS</option>{specs.map(s=><option key={s.accessory_id} value={s.accessory_id}>{s.model} · até {rules.find(r=>r.accessory_id===s.accessory_id)?.max_pcs} PCS/unidades</option>)}</Select></label>}
-        {sts.mode==='manual'&&sts.accessoryId&&!specs.some(s=>s.accessory_id===sts.accessoryId)&&<p role="alert" className="text-xs text-destructive">A STS salva está indisponível ou sem compatibilidade aprovada. Selecione outra para recalcular.</p>}
+        {specs.length > 0 && <p className="text-xs text-muted-foreground">Modelos com compatibilidade aprovada: {specs.map(spec => spec.model).join(', ')}. A seleção final depende dos limites elétricos.</p>}
       </>}
       <label className="block space-y-1.5 text-xs font-medium">Barramento atendido pela STS<Select aria-label="Barramento atendido pela STS" value={sts.gridBusScope} onChange={e=>update({gridBusScope:e.target.value as CiStsSelection['gridBusScope']})}><option value="installation">Instalação — verificar a curva geral</option><option value="backup_bus">Somente barramento de backup — passagem declarada</option></Select></label>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -65,6 +65,5 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
       <p className="text-xs text-muted-foreground">Informe o máximo previsto de importação ou exportação pelo gabinete, incluindo carregamento do BESS e FV. {sts.gridBusScope==='installation'?'O cálculo também verifica o fluxo líquido da curva geral.':'A curva geral não representa este barramento: declare seu máximo incluindo o FV conectado. O cálculo confronta a declaração com as cargas nominais e o fluxo conhecido do BESS, sem compensar por FV/gerador de localização não informada.'} A margem de backup é aplicada uma única vez. O fator de utilização das cargas não reduz a potência nominal exigida da STS.</p>
       <p className="text-xs text-muted-foreground">A menor STS elegível será selecionada em cada cenário. Preço do Portfólio entra no CAPEX. O Nexus inclui EMS; revise o controlador exigido para evitar duplicidade. Os 0 ms do datasheet são condicionais e não são garantidos pelo cálculo.</p>
       {errors.length>0&&<div role="alert" className="text-xs text-destructive">{errors.map(e=><p key={e}>{e}</p>)}</div>}
-    </>}
   </section>;
 }

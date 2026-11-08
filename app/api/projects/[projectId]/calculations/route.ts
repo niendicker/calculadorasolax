@@ -1,5 +1,6 @@
+import { withAutomaticBackupSts } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
 import { NextResponse } from 'next/server';
-import type { CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { validateCommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/validation';
 import { createClient } from '@/lib/supabase/server';
 import { consumeRateLimit, getRequestClientKey, rateLimitResponse } from '@/lib/security/rate-limit';
@@ -61,10 +62,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: 'Este endpoint é exclusivo para projetos C&I.' }, { status: 400 });
   }
 
-  const options = project.calculation_options as { bessProductId?: string | null; bessSystem?: { kind?: string; compatibilityId?: string | null }; backup?: { enabled?: boolean } | null; generator?: { enabled?:boolean } } | null;
+  const savedOptions = project.calculation_options as unknown as CommercialIndustrialOptions | null;
+  const options = savedOptions ? { ...savedOptions, backup: withAutomaticBackupSts(savedOptions.backup) } : null;
   const isModular = options?.bessSystem?.kind === 'modular';
   const isAutomatic = options?.bessSystem?.kind === 'automatic' || options?.bessSystem?.kind === 'solution' || options?.bessSystem?.kind === 'model';
-  if (!options || Object.keys(options).length === 0 || (!isAutomatic && (isModular ? !options.bessSystem?.compatibilityId : !options.bessProductId))) {
+  if (!options || Object.keys(options).length === 0 || (!isAutomatic && (options.bessSystem?.kind === 'modular' ? !options.bessSystem.compatibilityId : !options.bessProductId))) {
     return NextResponse.json(
       { error: 'Configure a curva de carga, a tarifa e o produto BESS antes de calcular.' },
       { status: 422 }
@@ -73,7 +75,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
   // Validate locally as well: a deployed Edge Function may predate imported generation support.
   if (project.calculation_options.loadCurve) {
-    const validationErrors = validateCommercialIndustrialOptions(project.calculation_options);
+    const validationErrors = validateCommercialIndustrialOptions(options);
     if (validationErrors.length) return NextResponse.json({ error: validationErrors.join(' ') }, { status: 422 });
   }
 

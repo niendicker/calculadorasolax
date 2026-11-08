@@ -15,6 +15,7 @@ import type {
   CommercialIndustrialOptions,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { DEFAULT_CI_GENERATOR_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { withAutomaticBackupSts } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
 import { CiStsBackupPanel } from './CiStsBackupPanel';
 import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
 
@@ -91,7 +92,7 @@ export function CiBackupPanel({
   const [newLoadFactor, setNewLoadFactor] = useState('100');
 
   function updateBackup(partial: Partial<CiBackupConfig>) {
-    onChange({ backup: { ...backup, ...partial } });
+    onChange({ backup: withAutomaticBackupSts({ ...backup, ...partial }) });
   }
 
   function handleAddLoad() {

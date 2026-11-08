@@ -3,6 +3,7 @@
 // their own table (clients, projects, user_load_catalog, etc.) but none of
 // this logic depends on Zustand's set/get — it's pure data shaping.
 
+import { withAutomaticBackupSts } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
 import { addressFromJson } from '@/lib/address';
 import {
   defaultCiBackupConfig,
@@ -149,7 +150,7 @@ export function commercialIndustrialOptionsFromJson(value: unknown): CommercialI
   const generator = isRecord(rawRecord.generator)
     ? ({ ...defaultCiGeneratorConfig, ...rawRecord.generator } as typeof defaultCiGeneratorConfig)
     : defaultCiGeneratorConfig;
-  return { ...defaultCiOptions, ...rawRecord, backup, solar, generator } as CommercialIndustrialOptions;
+  return { ...defaultCiOptions, ...rawRecord, backup: withAutomaticBackupSts(backup), solar, generator } as CommercialIndustrialOptions;
 }
 
 export function ciProjectFromRow(row: Record<string, unknown>): SavedCiProject {

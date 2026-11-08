@@ -45,6 +45,27 @@ const ciProject = {
   calculation_options: { bessProductId: 'product-1' },
 };
 
+it('asks for transfer electrical data when legacy backup has no STS configured', async () => {
+  findOwnCiProjectMock.mockResolvedValue({ ...ciProject, calculation_options: { ...modularOptions(), backup: { ...stsBackup(), sts: undefined } } });
+  const { POST } = await import('./route');
+  const response = await POST(makeRequest(), makeParams());
+  expect(response.status).toBe(422);
+  expect((await response.json()).error).toContain('fator de potência');
+  expect(invokeMock).not.toHaveBeenCalled();
+});
+
+it('converts a saved manual STS to automatic selection before invoking the project calculation', async () => {
+  const backup = stsBackup();
+  backup.sts = { ...backup.sts!, mode: 'manual', accessoryId: 'legacy-sts' };
+  checkUserCiBackupAccessMock.mockResolvedValue(true);
+  findOwnCiProjectMock.mockResolvedValue({ ...ciProject, calculation_options: { ...modularOptions(), backup } });
+  const { POST } = await import('./route');
+  expect((await POST(makeRequest(), makeParams())).status).toBe(200);
+  expect(invokeMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+    options: expect.objectContaining({ backup: { ...backup, sts: { ...backup.sts, mode: 'auto', accessoryId: null } } }),
+  }));
+});
+
 it('accepts automatic technical search without a manually selected model or its price', async () => {
   const { POST } = await import('./route');
   findOwnCiProjectMock.mockResolvedValue({...ciProject,calculation_options:{bessProductId:null,bessSystem:{kind:'automatic',minPowerKw:150,minEnergyKwh:300}}});
