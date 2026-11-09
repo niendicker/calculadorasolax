@@ -15,13 +15,14 @@ import {
   toQuarterHourPattern,
   DAILY_CURVE_PRESETS,
 } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
-import { LOAD_CURVE_MAX_POINTS, type CommercialIndustrialOptions, type LoadCurve, type LoadCurvePoint, type LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { LOAD_CURVE_MAX_POINTS, type CommercialIndustrialOptions, type LoadCurve, type LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiEnergyImport, curvesAlign } from './CiEnergyImport';
 import { DailyCurveEditor } from './DailyCurveEditor';
 import { CiBackupSelectionAction } from './CiBackupSelectionAction';
 import type { CurveRangeSelection, SelectionSlots } from './LoadCurveChart';
 import { ciCurveDays, ciDayRange, ciEditorRange } from './ci-curve-days';
 import { buildDailySolarProfile, buildSolarPreviewPoints, updateDailySolarProfile } from './ci-daily-solar-profile';
+import { exportEnergyCurveCsv } from './ci-energy-csv';
 import { DateRangePicker } from './DateRangePicker';
 import { CiApplicationModal, type CiApplication } from './CiApplicationModal';
 import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
@@ -55,40 +56,6 @@ function addDaysIsoDate(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const CUSTOM_PRESETS_STORAGE_KEY = 'solax_ci_custom_daily_profiles';
-const MAX_CUSTOM_PRESETS = 5;
-
-interface StoredCustomPreset {
-  id: string;
-  label: string;
-  weekdayKw: number[];
-  weekendKw: number[];
-}
-
-function loadCustomPresetsFromStorage(): StoredCustomPreset[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCustomPresetToStorage(preset: StoredCustomPreset): StoredCustomPreset[] | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const current = loadCustomPresetsFromStorage();
-    if (current.length >= MAX_CUSTOM_PRESETS) return null;
-    const updated = [...current.filter((p) => p.id !== preset.id), preset];
-    localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(updated));
-    return updated;
-  } catch {
-    return null;
-  }
-}
-
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -98,12 +65,6 @@ function downloadBlob(blob: Blob, filename: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function generateCurveCsvContent(points: LoadCurvePoint[], factor: number): string {
-  const header = 'timestamp,powerKva\n';
-  const rows = points.map((p) => `${p.timestamp},${p.powerKw / factor}`).join('\n');
-  return header + rows;
 }
 
 export function CiLoadCurvePanel({
@@ -157,7 +118,7 @@ export function CiLoadCurvePanel({
   const [isCurveCleared, setIsCurveCleared] = useState(false);
   const [sourceMode, setSourceMode] = useState<CurveSourceMode>(existing?.source === 'csv' ? 'csv' : 'manual');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(
-    hasManualConfig ? (initialManualConfig!.presetId ?? 'custom') : 'comercio'
+    hasManualConfig ? (DAILY_CURVE_PRESETS.some(preset => preset.id === initialManualConfig!.presetId) ? initialManualConfig!.presetId! : 'custom') : 'comercio'
   );
   const [weekdayKw, setWeekdayKw] = useState<number[]>(
     hasManualConfig ? toQuarterHourPattern(initialManualConfig!.weekdayKw) : toQuarterHourPattern(DAILY_CURVE_PRESETS[0].weekdayKw)
@@ -166,34 +127,6 @@ export function CiLoadCurvePanel({
     hasManualConfig ? toQuarterHourPattern(initialManualConfig!.weekendKw) : toQuarterHourPattern(DAILY_CURVE_PRESETS[0].weekendKw)
   );
   const [activePattern, setActivePattern] = useState<DailyPattern>('weekday');
-  const [customPresets, setCustomPresets] = useState<StoredCustomPreset[]>([]);
-  const [modelSaveError, setModelSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCustomPresets(loadCustomPresetsFromStorage());
-  }, []);
-
-  function handleSaveAsCustomModel(name: string, newWeekdayKw: number[], newWeekendKw: number[]) {
-    if (customPresets.length >= MAX_CUSTOM_PRESETS) return false;
-    const newPreset: StoredCustomPreset = {
-      id: `custom-${Date.now()}`,
-      label: name,
-      weekdayKw: newWeekdayKw.slice(),
-      weekendKw: newWeekendKw.slice(),
-    };
-    const saved = saveCustomPresetToStorage(newPreset);
-    if (!saved) {
-      const current = loadCustomPresetsFromStorage();
-      setCustomPresets(current);
-      setModelSaveError(current.length >= MAX_CUSTOM_PRESETS ? null : 'Não foi possível salvar o modelo neste navegador.');
-      return false;
-    }
-    setCustomPresets(saved);
-    setModelSaveError(null);
-    setSelectedPresetId(newPreset.id);
-    return true;
-  }
-
   // Derive manual curve
   const manualResult = useMemo(() => {
     if (sourceMode !== 'manual' || isCurveCleared) return null;
@@ -291,15 +224,6 @@ export function CiLoadCurvePanel({
       setFileName(null);
       return;
     }
-    const customPreset = customPresets.find((p) => p.id === presetId);
-    if (customPreset) {
-      setSelectedPresetId(customPreset.id);
-      setWeekdayKw(toQuarterHourPattern(customPreset.weekdayKw));
-      setWeekendKw(toQuarterHourPattern(customPreset.weekendKw));
-      setSourceMode('manual');
-      setViewMode('day');
-      setFileName(null);
-    }
   }
 
   function handleUpdatePatternKw(pattern: DailyPattern, kw: number[]) {
@@ -328,7 +252,7 @@ export function CiLoadCurvePanel({
       timezone,
     });
     if (sample.ok) {
-      const csvContent = generateCurveCsvContent(sample.curve.points, factor);
+      const csvContent = exportEnergyCurveCsv(sample.curve, factor);
       downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'modelo-curva-de-carga.csv');
     }
   }
@@ -336,7 +260,7 @@ export function CiLoadCurvePanel({
   function handleExportCurrentCsv() {
     const curveToExport = activeCurve ?? existing ?? manualCurve;
     if (!curveToExport) return;
-    const csvContent = generateCurveCsvContent(curveToExport.points, factor);
+    const csvContent = exportEnergyCurveCsv(curveToExport, factor, ciOptions.solar);
     downloadBlob(
       new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }),
       `curva-carga-${curveToExport.periodStart}_${curveToExport.periodEnd}.csv`
@@ -445,7 +369,7 @@ export function CiLoadCurvePanel({
 
           <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
             <Button type="button" variant="ghost" size="sm" onClick={handleExportCurrentCsv} disabled={!activeCurve} className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" aria-hidden="true"/>Exportar CSV</Button>
-            <InfoTooltip label="Sobre os dados da curva">Perfis manuais usam intervalos de 15 minutos e até {LOAD_CURVE_MAX_POINTS} pontos. O CSV mantém seus horários e a resolução de origem. A exportação sempre inclui a curva inteira, mesmo no modo Dia. Fuso atual: {activeCurve?.timezone??timezone}.</InfoTooltip>
+            <InfoTooltip label="Sobre os dados da curva">Perfis manuais usam intervalos de 15 minutos e até {LOAD_CURVE_MAX_POINTS} pontos. O CSV mantém seus horários e a resolução de origem. Exporte o CSV para guardar e reutilizar as curvas. O arquivo inclui consumo e, com Solar FV ativo, geração em kVA, no período inteiro, mesmo no modo Dia. Ao importar novamente, use o mesmo FP. Horários sem geração disponível ficam em branco. Fuso atual: {activeCurve?.timezone??timezone}.</InfoTooltip>
           </div>
         </div>
         <div className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 sm:flex sm:flex-wrap">
@@ -457,7 +381,6 @@ export function CiLoadCurvePanel({
           <label className="col-span-2 min-w-0 space-y-1.5 text-xs font-medium text-muted-foreground sm:w-48">Dia de referência<Select className="h-10 bg-background font-normal text-foreground md:h-9" aria-label="Dia de referência" value={referenceDay?.date??''} disabled={!days.length} onChange={event=>{setReferenceDate(event.target.value);const day=days.find(item=>item.date===event.target.value);if(day)setActivePattern(day.pattern);}}>{days.length?days.map(day=><option key={day.date} value={day.date}>{day.label.replace(/\/\d{4}/, '')}</option>):<option value="">Sem dia disponível</option>}</Select></label>
           {sourceMode==='manual'&&<div className="col-span-2 min-w-0 space-y-1.5 text-xs font-medium text-muted-foreground sm:w-48"><span className="flex items-center gap-1"><label htmlFor={profileId}>Perfil base</label><InfoTooltip label="Sobre o perfil base">O perfil editado se repete nos dias úteis ou fins de semana. A seleção de intervalo usa a data de referência e a resolução da curva.</InfoTooltip></span><Select className="h-10 bg-background font-normal text-foreground md:h-9" id={profileId} aria-label="Perfil base" value={selectedPresetId} onChange={event=>handleSelectPreset(event.target.value)}>
             {DAILY_CURVE_PRESETS.map(preset=><option key={preset.id} value={preset.id}>{preset.label}</option>)}
-            {customPresets.length>0&&<optgroup label="Modelos salvos">{customPresets.map(preset=><option key={preset.id} value={preset.id}>★ {preset.label}</option>)}</optgroup>}
             <option value="custom">Personalizado</option>
           </Select></div>}
           {sourceMode==='manual'&&<span className="col-span-2 text-xs text-muted-foreground sm:ml-auto sm:max-w-40 sm:pb-2">{displayedPattern==='weekday'?'Edição aplicada aos dias úteis':'Edição aplicada aos fins de semana'}</span>}
@@ -472,7 +395,7 @@ export function CiLoadCurvePanel({
             onSolarChange={activeCurve?handleUpdateSolarKw:undefined}
             solarDescription={ciOptions.solar?.generationCurve?.source==='manual'?'Perfil FV personalizado · edite os pontos':ciOptions.solar?.generationCurve||ciOptions.solar?.generationPoints?'Média por horário dos dias selecionados · dados importados':'Geração estimada em Solar FV'}
             weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={displayedPattern}
-            onUpdatePatternKw={handleUpdatePatternKw} onSaveAsCustomModel={handleSaveAsCustomModel} saveModelLimitReached={customPresets.length>=MAX_CUSTOM_PRESETS}
+            onUpdatePatternKw={handleUpdatePatternKw}
             onSelectRange={activeCurve&&referenceDay?selectDailyRange:undefined} selectedRanges={editorRanges}
             selectionActions={canAccessCiBackup && activeCurve ? <>
               <h3 className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />Backup da seleção</h3>
@@ -486,7 +409,6 @@ export function CiLoadCurvePanel({
         <div hidden={viewMode!=='period'}>
           {activeCurve?<LoadCurveChart points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} contractedDemandKw={ciOptions.tariff?.contractedDemandKw} backupCurve={canAccessCiBackup?activeCurve:undefined} onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}/>:<p className="flex h-36 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">Nenhuma curva de carga disponível para exibição.</p>}
         </div>
-        {modelSaveError&&<p role="alert" className="text-xs text-destructive">{modelSaveError}</p>}
       </section>
 
       {backupSummary&&<div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">

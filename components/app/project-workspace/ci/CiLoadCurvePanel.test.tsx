@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildManualDayCurve } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
 import { defaultCiOptions } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -263,48 +263,6 @@ describe('CiLoadCurvePanel', () => {
     });
   });
 });
-
-describe('saved daily profile limit', () => {
-  const storageKey = 'solax_ci_custom_daily_profiles';
-  const presets = (count: number) => Array.from({ length: count }, (_, index) => ({
-    id: `saved-${index}`, label: `Modelo ${index + 1}`, weekdayKw: Array(96).fill(50), weekendKw: Array(96).fill(20),
-  }));
-
-  afterEach(() => localStorage.removeItem(storageKey));
-
-  it('saves the fifth model and then disables creating another', () => {
-    localStorage.setItem(storageKey, JSON.stringify(presets(4)));
-    render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar como modelo' }));
-    fireEvent.change(screen.getByPlaceholderText('Nome do modelo...'), { target: { value: 'Quinto modelo' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-    expect(JSON.parse(localStorage.getItem(storageKey)!)).toHaveLength(5);
-    expect(screen.getByText('Limite de 5 modelos atingido.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Modelo salvo/ })).toBeDisabled();
-  });
-
-  it('preserves existing models above the limit while blocking new saves', () => {
-    const existing = JSON.stringify(presets(6));
-    localStorage.setItem(storageKey, existing);
-    render(<ControlledPanel />);
-    expect(screen.getByRole('button', { name: 'Salvar como modelo' })).toBeDisabled();
-    expect(screen.getByRole('option', { name: /Modelo 6/ })).toBeInTheDocument();
-    expect(localStorage.getItem(storageKey)).toBe(existing);
-  });
-
-  it('rechecks storage before saving when another tab has filled the last slot', () => {
-    localStorage.setItem(storageKey, JSON.stringify(presets(4)));
-    render(<ControlledPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar como modelo' }));
-    fireEvent.change(screen.getByPlaceholderText('Nome do modelo...'), { target: { value: 'Sexto modelo' } });
-    localStorage.setItem(storageKey, JSON.stringify(presets(5)));
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-    expect(JSON.parse(localStorage.getItem(storageKey)!)).toHaveLength(5);
-    expect(screen.getByRole('button', { name: 'Salvar como modelo' })).toBeDisabled();
-    expect(screen.queryByText('Modelo salvo!')).not.toBeInTheDocument();
-  });
-});
-
 
 describe('unified curve workspace', () => {
   it('keeps period and file controls secondary and preserves data when collapsing them', () => {

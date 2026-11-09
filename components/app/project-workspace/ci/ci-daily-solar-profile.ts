@@ -55,7 +55,15 @@ export function buildSolarPreviewPoints(solar: CiSolarConfig | undefined, consum
 export function updateDailySolarProfile(solar: CiSolarConfig, consumption: LoadCurve, pattern: 'weekday' | 'weekend', values: number[]): CiSolarConfig {
   const weekdayKw = pattern === 'weekday' ? values : buildDailySolarProfile(solar, 'weekday', consumption.timezone, consumption)!.map(value => value ?? 0);
   const weekendKw = pattern === 'weekend' ? values : buildDailySolarProfile(solar, 'weekend', consumption.timezone, consumption)!.map(value => value ?? 0);
-  const generationCurve: LoadCurve = { ...consumption, source: 'manual', manualConfig: { weekdayKw: weekdayKw.slice(), weekendKw: weekendKw.slice(), presetId: 'custom' }, points: [] };
+  return applyDailySolarProfiles(solar, consumption, weekdayKw, weekendKw);
+}
+
+/** Reuse active-power patterns on the target timestamps, without changing consumption. */
+export function applyDailySolarProfiles(solar: CiSolarConfig, consumption: LoadCurve, weekdayKw: number[], weekendKw: number[], presetId = 'custom'): CiSolarConfig {
+  if ([weekdayKw, weekendKw].some(values => values.length !== 96 || values.some(value => !Number.isFinite(value) || value < 0))) {
+    throw new Error('O modelo FV precisa de 96 valores não negativos para cada tipo de dia.');
+  }
+  const generationCurve: LoadCurve = { ...consumption, source: 'manual', manualConfig: { weekdayKw: weekdayKw.slice(), weekendKw: weekendKw.slice(), presetId }, points: [] };
   const updated = { ...solar, generationPoints: undefined, generationCurve };
   generationCurve.points = buildSolarPreviewPoints(updated, consumption)!.map(point => ({ ...point, powerKw: point.powerKw ?? 0 }));
   return updated;
