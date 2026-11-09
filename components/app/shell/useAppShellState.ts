@@ -19,7 +19,11 @@ export function useAppShellState(activeTab: AppTab) {
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
-    const onScroll = () => setScrolled(element.scrollTop > 8);
+    // Compacting the header (py-4 -> py-2) releases 16px into this scroller.
+    // Near the bottom, the browser clamps scrollTop by that same amount.
+    // Separate thresholds prevent that layout change from expanding the header
+    // again and starting an endless resize/scroll cycle.
+    const onScroll = () => setScrolled(previous => previous ? element.scrollTop > 8 : element.scrollTop > 24);
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => element.removeEventListener('scroll', onScroll);
   }, []);

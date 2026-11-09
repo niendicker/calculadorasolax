@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDailySolarProfile } from './ci-daily-solar-profile';
+import { applyDailySolarProfiles, buildDailySolarProfile } from './ci-daily-solar-profile';
 import { DEFAULT_CI_SOLAR_CONFIG } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 describe('daily solar profile', () => {
@@ -43,4 +43,23 @@ describe('edited PV persistence and weekly projection', () => {
     expect(buildDailySolarProfile(reopened, 'weekday', consumption.timezone)![48]).toBe(80);
     expect(buildSolarPreviewPoints(reopened, { ...consumption, points: [{ timestamp: '2026-11-03T12:00:00-03:00', powerKw: 100 }] })![0].powerKw).toBe(100);
   });
+});
+
+it('applies models to partial imported timestamps and interval averages without changing consumption or the saved model', () => {
+  const curve={points:[{timestamp:'2026-11-02T00:00:00-03:00',powerKw:100},{timestamp:'2026-11-02T00:30:00-03:00',powerKw:80}],resolutionMinutes:30 as const,timezone:'America/Sao_Paulo',profileBasis:'representative_period' as const,periodStart:'2026-11-02',periodEnd:'2026-11-02',source:'csv' as const};
+  const weekday=Array(96).fill(0);weekday.splice(0,4,10,30,40,60);
+  const solar=applyDailySolarProfiles({...DEFAULT_CI_SOLAR_CONFIG,enabled:true},curve,weekday,Array(96).fill(25),'saved-fv');
+  expect(solar.generationCurve!.points).toEqual([{...curve.points[0],powerKw:20},{...curve.points[1],powerKw:50}]);
+  expect(solar.generationCurve!.resolutionMinutes).toBe(30);
+  expect(solar.generationCurve!.points.reduce((sum,point)=>sum+point.powerKw*.5,0)).toBe(35);
+  weekday[0]=999;
+  expect(solar.generationCurve!.manualConfig!.weekdayKw[0]).toBe(10);
+  expect(solar.generationCurve!.manualConfig!.presetId).toBe('saved-fv');
+  expect(curve.points.map(point=>point.powerKw)).toEqual([100,80]);
+});
+
+it('rejects incomplete or invalid saved FV arrays', () => {
+  const curve={points:[],resolutionMinutes:15 as const,timezone:'UTC',profileBasis:'representative_period' as const,periodStart:'2026-11-02',periodEnd:'2026-11-02',source:'manual' as const};
+  expect(()=>applyDailySolarProfiles(DEFAULT_CI_SOLAR_CONFIG,curve,Array(95).fill(0),Array(96).fill(0))).toThrow('96 valores');
+  expect(()=>applyDailySolarProfiles(DEFAULT_CI_SOLAR_CONFIG,curve,Array(96).fill(-1),Array(96).fill(0))).toThrow('96 valores');
 });
