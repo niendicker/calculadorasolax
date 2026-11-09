@@ -1,3 +1,4 @@
+import { formatAcPower, formatAcPowerWarning, projectAcPowerFactor } from '@/supabase/functions/_shared/commercial-industrial/ac-power';
 import { ciScenarioLabel } from './ci-scenario-label';
 import { Document, G, Line, Page, Polyline, Rect, StyleSheet, Svg, Text, View, pdf } from '@react-pdf/renderer';
 import type { Client, ProjectInfo } from '@/lib/types';
@@ -14,7 +15,7 @@ import type {
   TariffMarket,
   TariffModality,
 } from '@/supabase/functions/_shared/commercial-industrial/types';
-import { formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears, maskDocument } from '../../helpers';
+import { formatCurrencyBRL, formatKwh, formatPercentBRL, formatYears, maskDocument } from '../../helpers';
 import { COLORS } from '../../project-quote-pdf';
 import type { InlineProfile } from '../../types';
 
@@ -302,7 +303,9 @@ function TimeSeriesChart({
 function ModuleComparisonChart({
   scenarios,
   recommendedScenarioId,
+  powerFactor = 1,
 }: {
+  powerFactor?: number;
   scenarios: ScenarioCandidate[];
   /** null when no scenario met the viability bar (Fase 6 audit, Problem
    * #5) — no bar gets the "*" marker in that case. */
@@ -343,7 +346,7 @@ function ModuleComparisonChart({
       <View style={{ flexDirection: 'row' }}>
         {sorted.map((scenario) => (
           <Text key={scenario.scenarioId} style={{ flex: 1, fontSize: 6.5, textAlign: 'center', color: COLORS.muted }}>
-            {scenario.group ? `${scenario.totalPowerKw.toFixed(0)}kW/${scenario.usefulCapacityKwh.toFixed(0)}kWh` : scenario.composition ? `${scenario.composition.pcsCount}PCS/${scenario.composition.batteryCount}bat` : scenario.moduleCount}
+            {scenario.group ? `${formatAcPower(scenario.totalPowerKw, powerFactor, 0)}/${scenario.usefulCapacityKwh.toFixed(0)}kWh` : scenario.composition ? `${scenario.composition.pcsCount}PCS/${scenario.composition.batteryCount}bat` : scenario.moduleCount}
             {scenario.scenarioId === recommendedScenarioId ? '*' : ''}
           </Text>
         ))}
@@ -358,13 +361,14 @@ function ModuleComparisonChart({
   );
 }
 
-function DispatchTimeSeries({ dispatch, resolutionMinutes, periodStart, periodEnd }: { dispatch: DispatchPoint[]; resolutionMinutes: number; periodStart: string; periodEnd: string }) {
+function DispatchTimeSeries({ dispatch, resolutionMinutes, periodStart, periodEnd, powerFactor = 1 }: { powerFactor?: number; dispatch: DispatchPoint[]; resolutionMinutes: number; periodStart: string; periodEnd: string }) {
+  const formatPower = (kw: number) => formatAcPower(kw, powerFactor);
   const caption = `Semana representativa: ${periodStart} a ${periodEnd} · resolução de ${resolutionMinutes} min · ${dispatch.length} pontos.`;
   return (
     <>
       <TimeSeriesChart
         caption={caption}
-        formatAxisValue={formatKw}
+        formatAxisValue={formatPower}
         series={[
           { values: dispatch.map((point) => point.loadKw), color: COLORS.destructive, label: 'Carga original' },
           { values: dispatch.map((point) => point.gridImportKw), color: COLORS.primary, label: 'Carga após BESS (importação da rede)' },
@@ -372,7 +376,7 @@ function DispatchTimeSeries({ dispatch, resolutionMinutes, periodStart, periodEn
       />
       <TimeSeriesChart
         caption={caption}
-        formatAxisValue={formatKw}
+        formatAxisValue={formatPower}
         series={[
           { values: dispatch.map((point) => point.chargeKw), color: '#2f9e58', label: 'Carga do BESS' },
           { values: dispatch.map((point) => point.dischargeKw), color: '#b45309', label: 'Descarga do BESS' },
@@ -449,12 +453,14 @@ export interface CiMemorialPdfInput {
  * that would otherwise say "recomendado" switches to a neutral "avaliado"
  * framing instead (never silently mislabeling a nonviable result). */
 export function CiMemorialPdfDocument({ projectInfo, client, profile, result, product, solar, generator }: CiMemorialPdfInput) {
+  const factor = projectAcPowerFactor(result.assumptions.acPowerFactor);
+  const formatPower = (kw: number, digits = 1) => formatAcPower(kw, factor, digits);
   const generatedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
   const selected = result.selected;
   const isRecommended = result.recommendation.scenarioId !== null;
   const strategyInfo = selected ? STRATEGY_LABELS[selected.strategy] : null;
   const sortedScenarios = [...result.scenarios].sort((a, b) => a.moduleCount - b.moduleCount);
-  const totalWarnings = [...result.warnings, ...(selected?.technicalWarnings ?? [])];
+  const totalWarnings = [...result.warnings, ...(selected?.technicalWarnings ?? [])].map(message => formatAcPowerWarning(message, factor));
 
   return (
     <Document>
@@ -526,8 +532,9 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
               { label: 'Período representado', value: `${result.assumptions.loadCurve.periodStart} a ${result.assumptions.loadCurve.periodEnd}` },
               { label: 'Resolução / fuso', value: `${result.assumptions.loadCurve.resolutionMinutes} min · ${result.assumptions.loadCurve.timezone}` },
               { label: 'Tarifa de energia (ponta / fora ponta)', value: `${formatCurrencyBRL(result.assumptions.tariff.energyRatePeakBrlPerMwh)} / ${formatCurrencyBRL(result.assumptions.tariff.energyRateOffPeakBrlPerMwh)} por MWh` },
-              { label: 'Tarifa de demanda', value: `${formatCurrencyBRL(result.assumptions.tariff.demandRateBrlPerKwMonth)}/kW-mês` },
-              { label: 'Demanda contratada', value: formatKw(result.assumptions.tariff.contractedDemandKw) },
+              { label: 'Tarifa de demanda', value: `${formatCurrencyBRL(result.assumptions.tariff.demandRateBrlPerKwMonth * factor)}/kVA-mês` },
+              { label: 'Fator de potência CA', value: String(factor) },
+              { label: 'Demanda contratada', value: formatPower(result.assumptions.tariff.contractedDemandKw) },
               { label: 'Janela de ponta', value: `${result.assumptions.tariff.peakStart} às ${result.assumptions.tariff.peakEnd}` },
               { label: 'Modalidade tarifária / mercado', value: `${TARIFF_MODALITY_LABELS[result.assumptions.tariff.tariffModality]} · ${MARKET_LABELS[result.assumptions.tariff.market]}` },
               { label: 'ICMS / PIS-COFINS', value: `${formatPercentBRL(result.assumptions.tariff.icmsPercent)} / ${formatPercentBRL(result.assumptions.tariff.pisCofinsPercent)}` },
@@ -546,8 +553,8 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           <MetricRows
             metrics={[
               { label: 'Custo anual estimado', value: formatCurrencyBRL(result.baseline.annualCostBrl) },
-              { label: 'Demanda máx. na ponta', value: formatKw(result.baseline.maxDemandPeakKw) },
-              { label: 'Demanda máx. fora ponta', value: formatKw(result.baseline.maxDemandOffPeakKw) },
+              { label: 'Demanda máx. na ponta', value: formatPower(result.baseline.maxDemandPeakKw) },
+              { label: 'Demanda máx. fora ponta', value: formatPower(result.baseline.maxDemandOffPeakKw) },
               {
                 // Fase 6 audit, Problem #1: this used to show the ANNUALIZED
                 // total mislabeled "(semana)" — ~52x (WEEKS_PER_YEAR) too
@@ -573,7 +580,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                 { label: 'Produto', value: selected.group ? selected.group.label : selected.composition ? `${selected.composition.pcsModel} + ${selected.composition.batteryModel}` : product ? `${product.model} · ${product.manufacturer}` : 'Produto não disponível no catálogo ativo' },
                 ...(product?.description ? [{ label: 'Descrição', value: product.description }] : []),
                 { label: selected.group ? 'Solução' : selected.composition ? 'Composição' : 'Quantidade de módulos', value: selected.group || selected.composition ? ciScenarioLabel(selected) : `${selected.moduleCount}` },
-                { label: 'Potência total', value: formatKw(selected.totalPowerKw) },
+                { label: 'Potência total', value: formatPower(selected.totalPowerKw) },
                 { label: 'Capacidade total / útil', value: `${formatKwh(selected.totalCapacityKwh)} / ${formatKwh(selected.usefulCapacityKwh)}` },
                 ...(product ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL(product.efficiency_percent) }] : []),
                 ...(product
@@ -599,7 +606,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
           <Text style={styles.sectionTitle}>Solução agrupada — limites CC/CA</Text>
           <InfoRows rows={[
             { label: 'Solução', value: selected.group.label },
-            { label: 'Carga / descarga CA', value: `${formatKw(selected.group.ac.chargePowerKw)} / ${formatKw(selected.group.ac.dischargePowerKw)}` },
+            { label: 'Carga / descarga CA', value: `${formatPower(selected.group.ac.chargePowerKw)} / ${formatPower(selected.group.ac.dischargePowerKw)}` },
             { label: 'Barramentos / tensão CC', value: `${selected.group.dc.buses} / ${selected.group.dc.voltageMinV}–${selected.group.dc.voltageMaxV} V` },
             { label: 'Energia nominal / útil', value: `${selected.group.storage.nominalEnergyKwh.toFixed(1)} / ${selected.group.storage.usableEnergyKwh.toFixed(1)} kWh` },
             { label: 'Referência / revisão', value: `${selected.group.source.reference} / ${selected.group.source.revision}` },
@@ -614,7 +621,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             { label: 'PCS', value: `${selected.composition.pcsCount} × ${selected.composition.pcsModel}` },
             { label: 'Baterias', value: `${selected.composition.batteryCount} × ${selected.composition.batteryModel}` },
             { label: 'Arranjo por PCS', value: selected.composition.portBanks ? selected.composition.portBanks.map((bank,index)=>`Porta ${index+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${selected.composition.seriesCount} em série × ${selected.composition.parallelStringsPerPcs} strings em paralelo` },
-            { label: 'Potência AC carga / descarga', value: `${formatKw(selected.composition.chargePowerKw)} / ${formatKw(selected.composition.dischargePowerKw)}` },
+            { label: 'Potência AC carga / descarga', value: `${formatPower(selected.composition.chargePowerKw)} / ${formatPower(selected.composition.dischargePowerKw)}` },
             { label: 'Faixa de tensão do banco', value: `${selected.composition.voltageMinV}–${selected.composition.voltageMaxV} V` },
             { label: 'Compatibilidade / revisão', value: `${selected.composition.compatibilityName} / ${selected.composition.revision}` },
             { label: 'Referência', value: selected.composition.referenceDocument },
@@ -641,7 +648,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                   { label: 'Energia FV no período', value: `${solar.generationCurve.points.reduce((sum, point) => sum + point.powerKw * solar.generationCurve!.resolutionMinutes / 60, 0).toFixed(2)} kWh` },
                 ] : [
                 { label: 'Potência instalada DC', value: `${solar.installedPowerKwp} kWp` },
-                { label: 'Potência dos inversores AC', value: formatKw(solar.inverterPowerKw) },
+                { label: 'Potência dos inversores AC', value: formatPower(solar.inverterPowerKw) },
                 { label: 'Geração diária média estimada', value: `${(solar.installedPowerKwp * (solar.dailyYieldKwhPerKwp || 4.5)).toFixed(1)} kWh/dia (${solar.dailyYieldKwhPerKwp || 4.5} kWh/kWp)` },
                 ]),
                 {
@@ -658,7 +665,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             <Text style={styles.sectionTitle}>Grupo Motor Gerador (GMG)</Text>
             <InfoRows
               rows={[
-                { label: 'Potência nominal', value: `${generator.ratedPowerKva} kVA (potência ativa: ${(generator.ratedPowerKva * (generator.powerFactor || 0.8)).toFixed(1)} kW)` },
+                { label: 'Potência nominal', value: `${generator.ratedPowerKva} kVA (FP ${generator.powerFactor})` },
                 { label: 'Tipo de combustível', value: generator.fuelType === 'diesel' ? 'Diesel S10' : generator.fuelType === 'natural_gas' ? 'Gás Natural' : 'Biogás' },
                 {
                   label: 'Modo de acionamento',
@@ -707,7 +714,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                 { label: 'Autonomia estimada sem rede', value: `${result.backup.effectiveAutonomyHours.toFixed(1)} horas` },
                 {
                   label: 'Potência crítica contínua',
-                  value: `${result.backup.requiredContinuousPowerKw.toFixed(1)} kW (suportado pelo BESS: ${formatKw(selected?.totalPowerKw ?? 0)})`,
+                  value: `${formatPower(result.backup.requiredContinuousPowerKw)} (suportado pelo BESS: ${formatPower(selected?.totalPowerKw ?? 0)})`,
                 },
                 { label: 'Energia requerida para contingência', value: `${result.backup.requiredEnergyKwh.toFixed(1)} kWh` },
                 { label: selected?.group ? 'Múltiplos teóricos do agrupamento p/ autonomia' : selected?.composition ? 'Múltiplos da composição p/ autonomia' : 'Módulos mínimos p/ autonomia', value: `${result.backup.minModulesForBackup}` },
@@ -715,7 +722,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                   label: 'Reserva operacional de SOC mantida',
                   value: `${result.backup.recommendedSocReservePercent.toFixed(1)}% (não consumida no despacho on-grid)`,
                 },
-                ...(result.backup.warningMessage ? [{ label: 'Observações técnicas', value: result.backup.warningMessage }] : []),
+                ...(result.backup.warningMessage ? [{ label: 'Observações técnicas', value: formatAcPowerWarning(result.backup.warningMessage, factor) }] : []),
               ]}
             />
           </View>
@@ -724,7 +731,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
         {selected && selected.dispatch.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Curva de carga original × carga após BESS, carga/descarga</Text>
-            <DispatchTimeSeries
+            <DispatchTimeSeries powerFactor={factor}
               dispatch={selected.dispatch}
               resolutionMinutes={result.assumptions.loadCurve.resolutionMinutes}
               periodStart={result.assumptions.loadCurve.periodStart}
@@ -747,7 +754,7 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
 
         {result.engineVersion!=='ci-technical-v1'&&<View style={styles.section}>
           <Text style={styles.sectionTitle}>{selected?.group ? 'Comparação de soluções agrupadas' : selected?.composition ? 'Comparação de composições PCS + baterias' : 'Comparação por quantidade de módulos'}</Text>
-          <ModuleComparisonChart scenarios={result.scenarios} recommendedScenarioId={result.recommendation.scenarioId} />
+          <ModuleComparisonChart powerFactor={factor} scenarios={result.scenarios} recommendedScenarioId={result.recommendation.scenarioId} />
           <View style={[styles.table, { marginTop: 10 }]}>
             <View style={styles.tableHeaderRow} fixed>
               <Text style={[styles.tableCellFirst, styles.tableHeaderText]}>{selected?.group ? 'Solução' : selected?.composition ? 'Composição' : 'Módulos'}</Text>

@@ -34,6 +34,7 @@ export const defaultCiGeneratorConfig: CiGeneratorConfig = {
  * that tree at the type level (see the `import type` above). If the shared
  * defaults ever change, update both. */
 export const defaultCiOptions: CommercialIndustrialOptions = {
+  acPowerFactor: 1,
   loadCurve: null,
   tariff: null,
   bessProductId: null,

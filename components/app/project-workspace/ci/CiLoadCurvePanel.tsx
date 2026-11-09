@@ -3,12 +3,12 @@
 // One curve workspace: edit/select a reference day or inspect the full period.
 // Imported samples remain unchanged when switching views.
 
+import { CiAcPowerProvider, useCiAcPower } from './ci-ac-power';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, Sun, Fuel, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/ui/tooltip';
 import {
   buildManualDayCurve,
@@ -18,6 +18,7 @@ import {
 import { LOAD_CURVE_MAX_POINTS, type CommercialIndustrialOptions, type LoadCurve, type LoadCurvePoint, type LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiEnergyImport, curvesAlign } from './CiEnergyImport';
 import { DailyCurveEditor } from './DailyCurveEditor';
+import { CiBackupSelectionAction } from './CiBackupSelectionAction';
 import type { CurveRangeSelection, SelectionSlots } from './LoadCurveChart';
 import { ciCurveDays, ciDayRange, ciEditorRange } from './ci-curve-days';
 import { buildDailySolarProfile, buildSolarPreviewPoints, updateDailySolarProfile } from './ci-daily-solar-profile';
@@ -99,9 +100,9 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function generateCurveCsvContent(points: LoadCurvePoint[]): string {
-  const header = 'timestamp,powerKw\n';
-  const rows = points.map((p) => `${p.timestamp},${p.powerKw}`).join('\n');
+function generateCurveCsvContent(points: LoadCurvePoint[], factor: number): string {
+  const header = 'timestamp,powerKva\n';
+  const rows = points.map((p) => `${p.timestamp},${p.powerKw / factor}`).join('\n');
   return header + rows;
 }
 
@@ -122,7 +123,11 @@ export function CiLoadCurvePanel({
   initialApplication?: CiApplication | null;
   onApplicationClose?: () => void;
 }) {
+  const { factor, toKva } = useCiAcPower(ciOptions.acPowerFactor);
+
   const profileId = useId();
+  const dataId = useId();
+  const [dataOpen, setDataOpen] = useState(false);
   const [application,setApplication]=useState<CiApplication|null>(initialApplication);
   const closeApplication=()=>{setApplication(null);onApplicationClose?.();};
   const existing = ciOptions.loadCurve;
@@ -210,8 +215,8 @@ export function CiLoadCurvePanel({
       : (manualCurve ?? (existing?.source === 'manual' ? existing : null));
 
   const days = useMemo(() => ciCurveDays(activeCurve), [activeCurve]);
-  const matchingDays = sourceMode === 'manual' ? days.filter(day => day.pattern === activePattern) : days;
-  const referenceDay = matchingDays.find(day => day.date === referenceDate) ?? matchingDays[0];
+  const referenceDay = days.find(day => day.date === referenceDate) ?? days.find(day => day.pattern === activePattern) ?? days[0];
+  const displayedPattern = referenceDay?.pattern ?? activePattern;
   const dailyKey = JSON.stringify([
     sourceMode, referenceDay?.date, activeCurve?.resolutionMinutes,
     activeCurve?.points[0]?.timestamp, activeCurve?.points.at(-1)?.timestamp, activeCurve?.points.length,
@@ -238,7 +243,7 @@ export function CiLoadCurvePanel({
     points: referenceDay.indices.map(index => activeCurve.points[index]),
   } : null;
 
-  const dailySolarKw = useMemo(() => buildDailySolarProfile(ciOptions.solar, activePattern, timezone, activeCurve), [ciOptions.solar, activePattern, timezone, activeCurve]);
+  const dailySolarKw = useMemo(() => buildDailySolarProfile(ciOptions.solar, displayedPattern, timezone, activeCurve), [ciOptions.solar, displayedPattern, timezone, activeCurve]);
 
   const weeklySolarPoints = useMemo(() => activeCurve ? buildSolarPreviewPoints(ciOptions.solar, activeCurve) : undefined, [ciOptions.solar, activeCurve]);
 
@@ -253,7 +258,7 @@ export function CiLoadCurvePanel({
 
   function handleUpdateSolarKw(values: number[]) {
     if (!ciOptions.solar?.enabled || !activeCurve) return;
-    onChange({ solar: updateDailySolarProfile(ciOptions.solar, activeCurve, activePattern, values) });
+    onChange({ solar: updateDailySolarProfile(ciOptions.solar, activeCurve, displayedPattern, values) });
   }
 
   const errors = manualResult && !manualResult.ok ? manualResult.errors : [];
@@ -323,7 +328,7 @@ export function CiLoadCurvePanel({
       timezone,
     });
     if (sample.ok) {
-      const csvContent = generateCurveCsvContent(sample.curve.points);
+      const csvContent = generateCurveCsvContent(sample.curve.points, factor);
       downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'modelo-curva-de-carga.csv');
     }
   }
@@ -331,7 +336,7 @@ export function CiLoadCurvePanel({
   function handleExportCurrentCsv() {
     const curveToExport = activeCurve ?? existing ?? manualCurve;
     if (!curveToExport) return;
-    const csvContent = generateCurveCsvContent(curveToExport.points);
+    const csvContent = generateCurveCsvContent(curveToExport.points, factor);
     downloadBlob(
       new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }),
       `curva-carga-${curveToExport.periodStart}_${curveToExport.periodEnd}.csv`
@@ -351,43 +356,19 @@ export function CiLoadCurvePanel({
     onChange({loadCurve:activeCurve,backup:{...DEFAULT_CI_BACKUP_CONFIG,...ciOptions.backup,enabled:true,inputMode:'simple',curveSelection:selection,targetPowerKw:preview.continuousPowerKw,autonomyHours:preview.durationHours}});
   };
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold">Curvas e aplicações</h2>
-        <InfoTooltip label="Sobre curvas e aplicações">Importe consumo e geração de até 7 dias ou edite um perfil de consumo em intervalos de 15 minutos. Configure FV, gerador e backup nas aplicações do projeto.</InfoTooltip>
-      </div>
-
-      <section aria-label="Aplicações do projeto" className="space-y-3">
+    <CiAcPowerProvider powerFactor={factor}><div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
-          <h3 className="text-sm font-semibold">Aplicações</h3>
-          <InfoTooltip label="Sobre as aplicações">Ajuste a geração FV, o gerador e a reserva de backup sem sair da curva. Para vincular o backup ao consumo, selecione um intervalo no gráfico e aplique-o ao backup.</InfoTooltip>
+          <h2 className="text-base font-semibold">Curvas e aplicações</h2>
+          <InfoTooltip label="Sobre curvas e aplicações">Edite a curva ou importe medições de até 7 dias. Configure FV, gerador e backup pelos botões de aplicações. Para vincular o backup ao consumo, selecione um intervalo no gráfico e aplique-o ao backup.</InfoTooltip>
         </div>
-        <div className={`grid gap-2 ${canAccessCiBackup?'sm:grid-cols-3':''}`}>
-          {([{id:'solar',label:'FV',enabled:ciOptions.solar?.enabled},{id:'generator',label:'Gerador',enabled:ciOptions.generator?.enabled},{id:'backup',label:'Backup',enabled:ciOptions.backup?.enabled}] as const).filter(item=>item.id==='solar'||canAccessCiBackup).map(item=><Button key={item.id} type="button" variant="outline" aria-label={`Configurar ${item.id==='solar'?'FV':item.label.toLowerCase()}`} aria-haspopup="dialog" onClick={()=>setApplication(item.id)} className="h-auto justify-between gap-3 p-3">
-            <span className="text-sm font-medium">{item.label}</span>
-            <span className="flex items-center gap-2"><Badge variant={item.enabled?'secondary':'outline'}>{item.enabled?'Ativo':'Desativado'}</Badge><ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true"/></span>
+        <section aria-label="Aplicações do projeto" className={`grid gap-1.5 sm:flex sm:w-auto ${canAccessCiBackup?'w-full grid-cols-3':'w-auto grid-cols-1'}`}>
+          {([{id:'solar',label:'FV',icon:Sun,enabled:ciOptions.solar?.enabled},{id:'generator',label:'Gerador',icon:Fuel,enabled:ciOptions.generator?.enabled},{id:'backup',label:'Backup',icon:ShieldCheck,enabled:ciOptions.backup?.enabled}] as const).filter(item=>item.id==='solar'||canAccessCiBackup).map(item=><Button key={item.id} type="button" size="sm" variant="outline" aria-label={`Configurar ${item.id==='solar'?'FV':item.label.toLowerCase()}`} aria-haspopup="dialog" aria-describedby={`${dataId}-${item.id}-status`} onClick={()=>setApplication(item.id)} className="h-auto flex-col gap-1 px-2 py-2 text-xs sm:h-9 sm:flex-row sm:gap-2 sm:px-3 sm:py-0">
+            <item.icon aria-hidden="true" className="hidden size-3.5 text-muted-foreground sm:block" />
+            {item.label}<span id={`${dataId}-${item.id}-status`} className={`rounded-md px-1.5 py-0.5 text-[11px] font-normal ${item.enabled?'bg-primary/10 text-primary':'bg-muted text-muted-foreground'}`}>{item.enabled?'Ativo':'Inativo'}</span>
           </Button>)}
-        </div>
-        {backupSummary&&<div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums">
-          <span className="flex items-center gap-1 font-medium">Reserva de backup<InfoTooltip label="Sobre a reserva de backup">Requisitos com margem de segurança, antes das perdas. Revise cargas, autonomia e transferência em Configurar backup.</InfoTooltip></span>
-          <span>{backupSummary.requiredContinuousPowerKw.toFixed(2)} kW contínuos</span><span>{backupSummary.requiredPeakPowerKw.toFixed(2)} kW de pico</span><span>{backupSummary.autonomyHours.toFixed(2)} h</span><span>{backupSummary.requiredEnergyKwh.toFixed(2)} kWh</span>
-        </div>}
-        {backupError&&<p role="alert" className="text-xs text-destructive">{backupError}</p>}
-      </section>
-
-      <CiEnergyImport actions={<>
-        <Button type="button" variant="ghost" size="sm" onClick={handleDownloadTemplate} className="gap-1.5 text-xs text-muted-foreground">
-          <Download className="h-3.5 w-3.5" aria-hidden="true" />Baixar CSV modelo
-        </Button>
-        {(existing || fileName || !isCurveCleared) && <Button type="button" variant="ghost" size="sm" onClick={handleClearCurve} className="text-xs text-muted-foreground hover:text-destructive">Remover curva</Button>}
-      </>} ciOptions={ciOptions} onChange={onChange} onImported={(result, name) => {
-        if (!result.consumption) return;
-        setSourceMode('csv'); setViewMode('period');setEditImportedSolar(false); setIsCurveCleared(false); setFileName(name);
-        setResolutionMinutes(result.consumption.resolutionMinutes);
-        setTimezone(result.consumption.timezone);
-        setPeriodStart(result.consumption.periodStart); setPeriodEnd(result.consumption.periodEnd);
-      }} />
-
+        </section>
+      </div>
       {/* Mensagens de erro e avisos */}
       {errors.length > 0 && (
         <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-3.5 text-xs text-destructive">
@@ -405,23 +386,16 @@ export function CiLoadCurvePanel({
 
       {ciOptions.solar?.enabled && ciOptions.solar.generationCurve && activeCurve && !curvesAlign(activeCurve, ciOptions.solar.generationCurve) && <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-300">A geração importada não cobre todos os horários deste consumo. Importe consumo e geração com o mesmo período e intervalo antes de calcular.</p>}
 
-      {/* 3. Faixa compacta de configuração (Período unificado, Fuso horário, Resolução) */}
-      <section aria-label="Curva principal" className="space-y-4 rounded-xl border border-border/80 bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1">
+      <section aria-label="Curva principal" className="space-y-3 rounded-xl border border-border/80 bg-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h3 className="text-sm font-semibold">Consumo e geração</h3>
-            <InfoTooltip label="Sobre a curva do projeto">O modo Dia permite editar o perfil e selecionar intervalos na data de referência. Período exibe a curva inteira. Exportar CSV sempre inclui todos os pontos.</InfoTooltip>
+            <p aria-live="polite" className="mt-1 break-words text-xs text-muted-foreground">{sourceMode==='csv'?`CSV · ${fileName??'Curva salva'}`:'Perfil manual'} · {periodStart.split('-').reverse().join('/')} a {periodEnd.split('-').reverse().join('/')} · {pointCount} pontos · {resolutionMinutes} min · FP {factor}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="Visualização da curva" className="inline-flex gap-1">
-              <Button type="button" size="sm" variant={viewMode==='day'?'default':'outline'} aria-pressed={viewMode==='day'} onClick={()=>setViewMode('day')}>Dia</Button>
-              <Button type="button" size="sm" variant={viewMode==='period'?'default':'outline'} aria-pressed={viewMode==='period'} onClick={()=>setViewMode('period')}>Período</Button>
-            </div>
-            <Button type="button" variant="ghost" size="sm" onClick={handleExportCurrentCsv} disabled={!activeCurve} className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" aria-hidden="true"/>Exportar CSV</Button>
-          </div>
+          <Button type="button" size="sm" variant="outline" aria-expanded={dataOpen||errors.length>0} aria-controls={dataId} onClick={()=>setDataOpen(value=>!value)} className="h-10 gap-2 text-xs md:h-9"><SlidersHorizontal aria-hidden="true"/>Período e CSV<ChevronRight className={`h-3.5 w-3.5 transition-transform ${dataOpen?'rotate-90':''}`} aria-hidden="true"/></Button>
         </div>
-        {sourceMode==='csv'&&fileName&&<p className="break-all text-xs text-muted-foreground">CSV · {fileName}</p>}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
+        <div id={dataId} hidden={!dataOpen&&errors.length===0} className="space-y-3 rounded-lg border bg-muted/10 p-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-end">
           {/* Seletor de período com dropdown de calendário personalizado */}
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted-foreground">Período</span>
@@ -454,43 +428,72 @@ export function CiLoadCurvePanel({
             </Select>
           </label>
 
-          <div className="space-y-1 text-xs">
-            <span className="font-medium text-muted-foreground">Amostras</span>
-            <p className="flex h-8 items-center gap-1 tabular-nums">{pointCount} / {LOAD_CURVE_MAX_POINTS} pontos · <span>{resolutionMinutes} min</span>
-              <InfoTooltip label="Sobre as amostras da curva">Até 672 pontos em 7 dias. Perfis manuais usam intervalos de 15 minutos; arquivos CSV mantêm os horários e a resolução de origem.</InfoTooltip>
-            </p>
+        </div>
+      <CiEnergyImport actions={<>
+        <Button type="button" variant="ghost" size="sm" onClick={handleDownloadTemplate} className="gap-1.5 text-xs text-muted-foreground">
+          <Download className="h-3.5 w-3.5" aria-hidden="true" />Baixar CSV modelo
+        </Button>
+        {(existing || fileName || !isCurveCleared) && <Button type="button" variant="ghost" size="sm" onClick={handleClearCurve} className="text-xs text-muted-foreground hover:text-destructive">Remover curva</Button>}
+      </>} ciOptions={ciOptions} onChange={onChange} onImported={(result, name) => {
+        setDataOpen(false);
+        if (!result.consumption) return;
+        setSourceMode('csv'); setViewMode('period');setEditImportedSolar(false); setIsCurveCleared(false); setFileName(name);
+        setResolutionMinutes(result.consumption.resolutionMinutes);
+        setTimezone(result.consumption.timezone);
+        setPeriodStart(result.consumption.periodStart); setPeriodEnd(result.consumption.periodEnd);
+      }} />
+
+          <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+            <Button type="button" variant="ghost" size="sm" onClick={handleExportCurrentCsv} disabled={!activeCurve} className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" aria-hidden="true"/>Exportar CSV</Button>
+            <InfoTooltip label="Sobre os dados da curva">Perfis manuais usam intervalos de 15 minutos e até {LOAD_CURVE_MAX_POINTS} pontos. O CSV mantém seus horários e a resolução de origem. A exportação sempre inclui a curva inteira, mesmo no modo Dia. Fuso atual: {activeCurve?.timezone??timezone}.</InfoTooltip>
           </div>
         </div>
-
-        {viewMode==='day'&&<div className="flex flex-wrap items-end gap-3">
-          <label className="space-y-1 text-xs">Dia de referência<Select aria-label="Dia de referência" value={referenceDay?.date??''} disabled={!matchingDays.length} onChange={event=>setReferenceDate(event.target.value)}>{matchingDays.length?matchingDays.map(day=><option key={day.date} value={day.date}>{day.label}</option>):<option value="">Sem dia disponível</option>}</Select></label>
-          <div className="space-y-1 text-xs"><span className="flex items-center gap-1"><label htmlFor={profileId}>Perfil base</label><InfoTooltip label="Sobre o perfil base">O perfil editado se repete nos dias úteis ou fins de semana. A seleção de intervalo usa a data de referência e a resolução da curva.</InfoTooltip></span><Select id={profileId} aria-label="Perfil base" value={selectedPresetId} onChange={event=>handleSelectPreset(event.target.value)}>
+        <div className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 sm:flex sm:flex-wrap">
+          <div role="group" aria-label="Visualização da curva" className="col-span-2 inline-flex self-end rounded-lg border border-border/60 bg-muted/50 p-1">
+            <Button type="button" size="sm" variant="ghost" className={`h-9 rounded-md px-4 text-xs md:h-8 ${viewMode==='day'?'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background':'text-muted-foreground'}`} aria-pressed={viewMode==='day'} onClick={()=>setViewMode('day')}>Dia</Button>
+            <Button type="button" size="sm" variant="ghost" className={`h-9 rounded-md px-4 text-xs md:h-8 ${viewMode==='period'?'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background':'text-muted-foreground'}`} aria-pressed={viewMode==='period'} onClick={()=>setViewMode('period')}>Período</Button>
+          </div>
+        {viewMode==='day'&&<>
+          <label className="col-span-2 min-w-0 space-y-1.5 text-xs font-medium text-muted-foreground sm:w-48">Dia de referência<Select className="h-10 bg-background font-normal text-foreground md:h-9" aria-label="Dia de referência" value={referenceDay?.date??''} disabled={!days.length} onChange={event=>{setReferenceDate(event.target.value);const day=days.find(item=>item.date===event.target.value);if(day)setActivePattern(day.pattern);}}>{days.length?days.map(day=><option key={day.date} value={day.date}>{day.label.replace(/\/\d{4}/, '')}</option>):<option value="">Sem dia disponível</option>}</Select></label>
+          {sourceMode==='manual'&&<div className="col-span-2 min-w-0 space-y-1.5 text-xs font-medium text-muted-foreground sm:w-48"><span className="flex items-center gap-1"><label htmlFor={profileId}>Perfil base</label><InfoTooltip label="Sobre o perfil base">O perfil editado se repete nos dias úteis ou fins de semana. A seleção de intervalo usa a data de referência e a resolução da curva.</InfoTooltip></span><Select className="h-10 bg-background font-normal text-foreground md:h-9" id={profileId} aria-label="Perfil base" value={selectedPresetId} onChange={event=>handleSelectPreset(event.target.value)}>
             {DAILY_CURVE_PRESETS.map(preset=><option key={preset.id} value={preset.id}>{preset.label}</option>)}
             {customPresets.length>0&&<optgroup label="Modelos salvos">{customPresets.map(preset=><option key={preset.id} value={preset.id}>★ {preset.label}</option>)}</optgroup>}
             <option value="custom">Personalizado</option>
-          </Select></div>
+          </Select></div>}
+          {sourceMode==='manual'&&<span className="col-span-2 text-xs text-muted-foreground sm:ml-auto sm:max-w-40 sm:pb-2">{displayedPattern==='weekday'?'Edição aplicada aos dias úteis':'Edição aplicada aos fins de semana'}</span>}
           {sourceMode==='csv'&&dailySolarKw&&<Button type="button" size="sm" variant="outline" onClick={()=>{if(referenceDay)setActivePattern(referenceDay.pattern);setEditImportedSolar(value=>!value);}}>{editImportedSolar?'Ver dados do dia':'Editar perfil FV'}</Button>}
           {sourceMode==='csv'&&<Button type="button" size="sm" variant="outline" onClick={()=>{setSourceMode('manual');setResolutionMinutes(15);setIsCurveCleared(false);setSelectedPresetId('custom');}}>Editar perfil típico</Button>}
-        </div>}
-        {viewMode==='day'&&sourceMode==='csv'&&<p className="text-xs text-muted-foreground">Editar perfil típico ou escolher um perfil base substitui o consumo importado.</p>}
+        </>}
+        </div>
+        {viewMode==='day'&&sourceMode==='csv'&&<p className="text-xs text-muted-foreground">Editar perfil típico substitui o consumo importado.</p>}
         {sourceMode==='manual'&&<div hidden={viewMode!=='day'} className="space-y-4">
           <DailyCurveEditor
             solarKw={dailySolarKw}
             onSolarChange={activeCurve?handleUpdateSolarKw:undefined}
             solarDescription={ciOptions.solar?.generationCurve?.source==='manual'?'Perfil FV personalizado · edite os pontos':ciOptions.solar?.generationCurve||ciOptions.solar?.generationPoints?'Média por horário dos dias selecionados · dados importados':'Geração estimada em Solar FV'}
-            weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={activePattern} onPatternChange={setActivePattern}
+            weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={displayedPattern}
             onUpdatePatternKw={handleUpdatePatternKw} onSaveAsCustomModel={handleSaveAsCustomModel} saveModelLimitReached={customPresets.length>=MAX_CUSTOM_PRESETS}
             onSelectRange={activeCurve&&referenceDay?selectDailyRange:undefined} selectedRanges={editorRanges}
+            selectionActions={canAccessCiBackup && activeCurve ? <>
+              <h3 className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />Backup da seleção</h3>
+              {dailySlots.a || dailySlots.b ? ([{ range: dailySlots.a, label: 'período A' }, { range: dailySlots.b, label: 'período B' }]).map(({ range, label }) => range && <CiBackupSelectionAction key={`${label}:${activeCurve.points[range.startIndex]?.timestamp}:${activeCurve.points[range.endIndex]?.timestamp}`} curve={activeCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={applyBackupSelection} />) : <p className="rounded-xl border border-dashed p-4 text-xs text-muted-foreground">Arraste no gráfico para selecionar o consumo que deseja usar no backup.</p>}
+            </> : undefined}
           />
-          {activeCurve&&(dailySlots.a||dailySlots.b)&&<LoadCurveChart summaryOnly points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} selectionSlots={dailySlots} onSelectionSlotsChange={setDailySlots} backupCurve={canAccessCiBackup?activeCurve:undefined} onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}/>}
+          {activeCurve&&(dailySlots.a||dailySlots.b)&&<LoadCurveChart summaryOnly points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} selectionSlots={dailySlots} onSelectionSlotsChange={setDailySlots}/>}
         </div>}
-        {sourceMode==='csv'&&viewMode==='day'&&editImportedSolar&&dailySolarKw&&<div className="space-y-3"><div className="flex items-center gap-1 text-xs font-medium">Perfil FV<InfoTooltip label="Sobre a edição do perfil FV">A edição é feita por tipo de dia. O consumo importado é preservado; a geração é alinhada aos horários originais.</InfoTooltip></div><DailyCurveEditor solarOnly weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={activePattern} onPatternChange={setActivePattern} solarKw={dailySolarKw} onSolarChange={handleUpdateSolarKw}/></div>}
+        {sourceMode==='csv'&&viewMode==='day'&&editImportedSolar&&dailySolarKw&&<div className="space-y-3"><div className="flex items-center gap-1 text-xs font-medium">Perfil FV<InfoTooltip label="Sobre a edição do perfil FV">A edição é feita por tipo de dia. O consumo importado é preservado; a geração é alinhada aos horários originais.</InfoTooltip></div><DailyCurveEditor solarOnly weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={displayedPattern} solarKw={dailySolarKw} onSolarChange={handleUpdateSolarKw}/></div>}
         {sourceMode==='csv'&&viewMode==='day'&&!editImportedSolar&&csvDayCurve&&<LoadCurveChart key={`day:${dailyKey}`} points={csvDayCurve.points} generationPoints={weeklySolarPoints?referenceDay?.indices.map(index=>weeklySolarPoints[index]):undefined} resolutionMinutes={csvDayCurve.resolutionMinutes} timezone={csvDayCurve.timezone} contractedDemandKw={ciOptions.tariff?.contractedDemandKw} backupCurve={canAccessCiBackup?csvDayCurve:undefined} onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}/>}
         <div hidden={viewMode!=='period'}>
           {activeCurve?<LoadCurveChart points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} contractedDemandKw={ciOptions.tariff?.contractedDemandKw} backupCurve={canAccessCiBackup?activeCurve:undefined} onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}/>:<p className="flex h-36 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">Nenhuma curva de carga disponível para exibição.</p>}
         </div>
         {modelSaveError&&<p role="alert" className="text-xs text-destructive">{modelSaveError}</p>}
       </section>
+
+      {backupSummary&&<div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+        <span className="flex items-center gap-1 font-medium text-foreground">Reserva de backup<InfoTooltip label="Sobre a reserva de backup">Requisitos com margem de segurança, antes das perdas. Ajuste cargas, autonomia e transferência em Configurar backup.</InfoTooltip></span>
+        <span>{toKva(backupSummary.requiredContinuousPowerKw).toFixed(2)} kVA contínuos</span><span>{toKva(backupSummary.requiredPeakPowerKw).toFixed(2)} kVA de pico</span><span>{backupSummary.autonomyHours.toFixed(2)} h</span><span>{backupSummary.requiredEnergyKwh.toFixed(2)} kWh</span>
+      </div>}
+      {backupError&&<p role="alert" className="text-xs text-destructive">{backupError}</p>}
 
       {/* Navigation follows the curve and application settings. */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
@@ -518,6 +521,6 @@ export function CiLoadCurvePanel({
         )}
       </div>
       {application&&(application==='solar'||canAccessCiBackup)&&<CiApplicationModal key={application} application={application} ciOptions={ciOptions} onSave={onChange} onClose={closeApplication}/>}
-    </div>
+    </div></CiAcPowerProvider>
   );
 }

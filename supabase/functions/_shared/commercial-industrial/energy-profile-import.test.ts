@@ -105,3 +105,17 @@ describe('rolling periods and unit suffixes', () => {
     expect(result.ok && result.generation?.points[0].powerKw).toBe(1);
   });
 });
+
+it('imports apparent power using explicit FP while preserving active energy sources', () => {
+  const table = readEnergyImportTable('timestamp,powerKva\n2026-01-01T00:00:00Z,100\n2026-01-01T01:00:00Z,100');
+  const mapping = suggestEnergyImportMapping(table, 'UTC');
+  expect(mapping.consumptionUnit).toBe('kVA');
+  const result = importEnergyProfiles(table, { ...mapping, powerFactor: 0.8 });
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.consumption!.points.map(point => point.powerKw)).toEqual([80, 80]);
+  expect(result.consumption!.points.reduce((sum, point) => sum + point.powerKw * result.consumption!.resolutionMinutes / 60, 0)).toBe(160);
+  expect(importEnergyProfiles(table, mapping).ok).toBe(false);
+  const active = importEnergyProfiles(table, { ...mapping, consumptionUnit: 'kWh', powerFactor: 0.8 });
+  expect(active.ok && active.consumption!.points[0].powerKw).toBe(100);
+});

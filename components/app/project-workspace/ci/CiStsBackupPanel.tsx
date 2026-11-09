@@ -1,5 +1,6 @@
 'use client';
 
+import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/ui/tooltip';
@@ -14,6 +15,7 @@ import type { CiBackupConfig, CommercialIndustrialOptions } from '@/supabase/fun
 export function CiStsBackupPanel({options,backup,onChange}: {options: CommercialIndustrialOptions; backup: CiBackupConfig; onChange: (partial: Partial<CiBackupConfig>)=>void}) {
   const passageId = useId();
   const sts=automaticStsSelection(backup.sts);
+  const { toKva, fromKva } = useCiAcPower(sts.powerFactor > 0 ? sts.powerFactor : options.acPowerFactor);
   const requested=backup.enabled;
   const [loaded,setLoaded]=useState<{key:string;catalog:CiStsCatalog;pcsId:string|null;bessId:string|null}|null>(null);
   const [failure,setFailure]=useState<{key:string;message:string}|null>(null);
@@ -61,7 +63,7 @@ export function CiStsBackupPanel({options,backup,onChange}: {options: Commercial
         <label className="space-y-1 text-xs font-medium">Tensão entre fases da STS<Select aria-label="Tensão entre fases da STS" value={sts.lineVoltageV} onChange={e=>update({lineVoltageV:Number(e.target.value) as 380|400})}><option value={380}>380 V (220 V fase-neutro)</option><option value={400}>400 V (230 V fase-neutro)</option></Select></label>
         <label className="space-y-1 text-xs font-medium">Frequência da STS<Select aria-label="Frequência da STS" value={sts.frequencyHz} onChange={e=>update({frequencyHz:Number(e.target.value) as 50|60})}><option value={50}>50 Hz</option><option value={60}>60 Hz</option></Select></label>
         <label className="space-y-1 text-xs font-medium">Fator de potência de projeto<Input aria-label="Fator de potência de projeto" type="number" min={0.01} max={1} step={0.01} placeholder="Informe o menor FP esperado" value={sts.powerFactor||''} onChange={e=>update({powerFactor:Number(e.target.value)})}/></label>
-        <div className="space-y-1 text-xs font-medium"><span className="flex items-center gap-1"><label htmlFor={passageId}>Máxima passagem pela rede (kW)</label><InfoTooltip label="Sobre a máxima passagem pela STS">Informe o máximo de importação ou exportação pelo gabinete, incluindo recarga do BESS e FV. {sts.gridBusScope==='installation'?'O cálculo também verifica o fluxo líquido da curva geral.':'A curva geral não representa este barramento: declare seu máximo incluindo o FV conectado. O cálculo confronta a declaração com as cargas nominais e o fluxo conhecido do BESS, sem compensar por FV/gerador de localização não informada.'} A margem de backup é aplicada uma vez. O fator de utilização das cargas não reduz a potência nominal exigida.</InfoTooltip></span><Input id={passageId} aria-label="Máxima passagem pela rede (kW)" type="number" min={0} step="any" value={sts.maxGridPassageKw} onChange={e=>update({maxGridPassageKw:Number(e.target.value)})}/></div>
+        <div className="space-y-1 text-xs font-medium"><span className="flex items-center gap-1"><label htmlFor={passageId}>Máxima passagem pela rede (kVA)</label><InfoTooltip label="Sobre a máxima passagem pela STS">Informe o máximo de importação ou exportação pelo gabinete, incluindo recarga do BESS e FV. {sts.gridBusScope==='installation'?'O cálculo também verifica o fluxo líquido da curva geral.':'A curva geral não representa este barramento: declare seu máximo incluindo o FV conectado. O cálculo confronta a declaração com as cargas nominais e o fluxo conhecido do BESS, sem compensar por FV/gerador de localização não informada.'} A margem de backup é aplicada uma vez. O fator de utilização das cargas não reduz a potência nominal exigida.</InfoTooltip></span><Input id={passageId} aria-label="Máxima passagem pela rede (kVA)" type="number" min={0} step="any" value={toKva(sts.maxGridPassageKw)} onChange={e=>update({maxGridPassageKw:fromKva(Number(e.target.value))})}/></div>
       </div>
       {errors.length>0&&<div role="alert" className="text-xs text-destructive">{errors.map(e=><p key={e}>{e}</p>)}</div>}
   </section>;

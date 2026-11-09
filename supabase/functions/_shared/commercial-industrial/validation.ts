@@ -334,6 +334,10 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
   }
 
   const options = raw as Record<string, unknown>;
+  if (options.acPowerFactor !== undefined && (!isFiniteNumber(options.acPowerFactor) || options.acPowerFactor <= 0 || options.acPowerFactor > 1)) {
+    errors.push('acPowerFactor: informe um fator de potência CA maior que zero e até 1.');
+  }
+
 
   validateLoadCurve(options.loadCurve ?? null, errors);
   validateTariff(options.tariff ?? null, errors);

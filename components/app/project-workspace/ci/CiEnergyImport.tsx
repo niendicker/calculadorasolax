@@ -1,5 +1,6 @@
 'use client';
 
+import { useCiAcPower } from './ci-ac-power';
 import { useId, useState, type ReactNode } from 'react';
 import { FileUp } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -21,6 +22,7 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
   onChange: (partial: Partial<CommercialIndustrialOptions>) => void;
   onImported?: (result: Extract<EnergyImportResult, { ok: true }>, fileName: string) => void;
 }) {
+  const { factor } = useCiAcPower(ciOptions.acPowerFactor);
   const id = useId();
   const [table, setTable] = useState<EnergyImportTable | null>(null);
   const [mapping, setMapping] = useState<EnergyImportMapping | null>(null);
@@ -30,7 +32,7 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
   const [success, setSuccess] = useState('');
   const timezone = ciOptions.loadCurve?.timezone ?? ciOptions.solar?.generationCurve?.timezone ?? 'America/Sao_Paulo';
 
-  const preview = table && mapping ? importEnergyProfiles(table, mapping) : null;
+  const preview = table && mapping ? importEnergyProfiles(table, { ...mapping, powerFactor: factor }) : null;
   const previewCurve = preview?.ok ? preview.consumption ?? preview.generation : null;
 
   function updateMapping(partial: Partial<EnergyImportMapping>) {
@@ -40,7 +42,7 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
 
   function applyImport() {
     if (!table || !mapping) return;
-    const result = importEnergyProfiles(table, mapping);
+    const result = importEnergyProfiles(table, { ...mapping, powerFactor: factor });
     if (!result.ok) { setErrors(result.errors); return; }
     const load = result.consumption ?? ciOptions.loadCurve;
     const generation = result.generation ?? (ciOptions.solar?.enabled ? ciOptions.solar.generationCurve : null);
@@ -82,7 +84,7 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
           reader.readAsText(file);
         }} />
       </label>
-      <InfoTooltip label="Sobre a importação CSV">Importe até 7 dias em intervalos de 15, 30 ou 60 minutos. Use consumo total da instalação e geração FV em AC, antes do BESS. Energia em kWh é convertida em potência média pelo intervalo; confira as unidades e os horários.</InfoTooltip>
+      <InfoTooltip label="Sobre a importação CSV">Importe até 7 dias em intervalos de 15, 30 ou 60 minutos. Use consumo total da instalação e geração FV em AC, antes do BESS. Energia em kWh é convertida em potência média pelo intervalo; confira as unidades e os horários. Fontes em kVA usam o FP do projeto para calcular a energia ativa.</InfoTooltip>
       {actions}
       </div>
       {reading && <p role="status" className="text-xs text-muted-foreground">Lendo arquivo…</p>}
@@ -94,7 +96,7 @@ export function CiEnergyImport({ ciOptions, onChange, onImported, defaultSeries 
           <label className="space-y-1 text-xs font-medium" htmlFor={`${id}-date`}>Data e hora<Select id={`${id}-date`} value={mapping.timestamp} onChange={(event) => updateMapping({ timestamp: Number(event.target.value) })}>{table.headers.map((header, index) => <option key={index} value={index}>{header}</option>)}</Select></label>
           {(['consumption', 'generation'] as const).map((kind) => <div key={kind} className="space-y-2">
             <label className="block space-y-1 text-xs font-medium" htmlFor={`${id}-${kind}`}>{kind === 'consumption' ? 'Coluna de consumo' : 'Coluna de geração'}<Select id={`${id}-${kind}`} value={mapping[kind] ?? ''} onChange={(event) => updateMapping({ [kind]: event.target.value === '' ? null : Number(event.target.value) })}><option value="">Não importar</option>{table.headers.map((header, index) => <option key={index} value={index}>{header}</option>)}</Select></label>
-            <label className="block space-y-1 text-xs" htmlFor={`${id}-${kind}-unit`}>Unidade de {kind === 'consumption' ? 'consumo' : 'geração'}<Select id={`${id}-${kind}-unit`} disabled={mapping[kind] === null} value={mapping[`${kind}Unit`]} onChange={(event) => updateMapping({ [`${kind}Unit`]: event.target.value as EnergyImportUnit })}>{['kW', 'W', 'MW', 'kWh', 'Wh', 'MWh'].map((unit) => <option key={unit} value={unit}>{unit}</option>)}</Select></label>
+            <label className="block space-y-1 text-xs" htmlFor={`${id}-${kind}-unit`}>Unidade de {kind === 'consumption' ? 'consumo' : 'geração'}<Select id={`${id}-${kind}-unit`} disabled={mapping[kind] === null} value={mapping[`${kind}Unit`]} onChange={(event) => updateMapping({ [`${kind}Unit`]: event.target.value as EnergyImportUnit })}>{['kVA', 'VA', 'MVA', 'kW', 'W', 'MW', 'kWh', 'Wh', 'MWh'].map((unit) => <option key={unit} value={unit}>{unit}</option>)}</Select></label>
           </div>)}
           <label className="space-y-1 text-xs font-medium" htmlFor={`${id}-resolution`}>Intervalo das medições<Select id={`${id}-resolution`} value={mapping.resolutionMinutes} onChange={(event) => updateMapping({ resolutionMinutes: Number(event.target.value) as 15 | 30 | 60 })}>{[15, 30, 60].map((value) => <option key={value} value={value}>{value} minutos</option>)}</Select></label>
           <label className="space-y-1 text-xs font-medium" htmlFor={`${id}-timezone`}>Fuso horário do arquivo<Select id={`${id}-timezone`} value={mapping.timezone} onChange={(event) => updateMapping({ timezone: event.target.value })}><option value="America/Sao_Paulo">Brasília (UTC-3)</option><option value="America/Manaus">Manaus / Cuiabá (UTC-4)</option></Select></label>

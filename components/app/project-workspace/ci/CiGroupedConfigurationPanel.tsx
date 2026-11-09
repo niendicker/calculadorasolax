@@ -1,6 +1,8 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {Button} from '@/components/ui/button';
+import {CiAcPowerFactorInput} from './ci-ac-power';
+import {InfoTooltip} from '@/components/ui/tooltip';
 import {Select} from '@/components/ui/select';
 import {createClient} from '@/lib/supabase/client';
 import {queryCiGeneratedSolutions} from '@/lib/data/ci-generated-solutions-repository';
@@ -37,6 +39,10 @@ export function CiGroupedConfigurationPanel({ciOptions,onChange,onNavigatePrev,o
   return <div className="space-y-4">
     <div><h2 className="text-sm font-semibold">Configurações BESS</h2><p className="mt-1 text-xs text-muted-foreground">Escolha a tensão e os modelos. A curva de carga, a estratégia e as aplicações determinam as quantidades e o arranjo necessários.</p></div>
     <label className="block max-w-sm space-y-1 text-sm">Tensão CA entre fases<Select aria-label="Tensão CA entre fases" value={voltage??''} onChange={event=>changeVoltage(Number(event.target.value) as 220|380)}><option value="" disabled>Selecione a tensão</option><option value={380}>380 V</option><option value={220}>220 V</option></Select></label>
+    <div className="flex max-w-sm items-end gap-2">
+      <label className="block flex-1 space-y-1 text-sm">Fator de potência CA do projeto<CiAcPowerFactorInput label="Fator de potência CA do projeto" value={ciOptions.acPowerFactor??1} onChange={value=>onChange({acPowerFactor:value})} /></label>
+      <InfoTooltip label="Sobre o fator de potência CA">Converte as potências CA apresentadas em kVA: kVA = kW ÷ FP. Energia, tarifas e limites ativos continuam calculados em kW e kWh. Potências CC e baterias mantêm suas unidades. O gerador e a STS usam seus próprios fatores documentados. Projetos anteriores começam com FP 1.</InfoTooltip>
+    </div>
     <div className="flex flex-wrap gap-2"><Button variant={model.sourceKind==='cabinet'?'default':'outline'} aria-pressed={model.sourceKind==='cabinet'} onClick={()=>select({kind:'model',sourceKind:'cabinet',productId:null})}>BESS integrado</Button><Button variant={model.sourceKind==='assembly'?'default':'outline'} aria-pressed={model.sourceKind==='assembly'} onClick={()=>select({kind:'model',sourceKind:'assembly',pcsId:null,batteryId:null})}>PCS/Inversor + bateria</Button></div>
     {loading&&<p role="status" className="text-sm">Consultando modelos compatíveis…</p>}
     {error&&<div role="alert" className="space-y-2 text-sm text-destructive"><p>{error}</p><Button variant="outline" onClick={()=>{setError(null);setLoading(true);setAttempt(a=>a+1);}}>Tentar novamente</Button></div>}

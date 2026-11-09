@@ -86,11 +86,11 @@ describe('CiBackupPanel', () => {
     render(<CiBackupPanel ciOptions={ciOptionsDetailed} onChange={onChange} />);
 
     expect(screen.getByText('Servidores TI')).toBeInTheDocument();
-    expect(screen.getByText('20.00 kW')).toBeInTheDocument();
+    expect(screen.getByText('20.00 kVA')).toBeInTheDocument();
 
     // Add a new load
     fireEvent.change(screen.getByPlaceholderText(/Nome da carga/i), { target: { value: 'Iluminação' } });
-    fireEvent.change(screen.getByPlaceholderText(/Potência unitária/i), { target: { value: '3000' } });
+    fireEvent.change(screen.getByPlaceholderText(/Potência unitária/i), { target: { value: '3' } });
     fireEvent.change(screen.getByPlaceholderText(/Quantidade/i), { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar carga' }));
 

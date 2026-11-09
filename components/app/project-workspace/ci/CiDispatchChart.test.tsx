@@ -184,7 +184,7 @@ describe('CiDispatchChart', () => {
     // Test draw hook
     options.hooks.draw[0](instance.chart);
     const fakeChart = instance.chart as { ctx: { fillText: ReturnType<typeof vi.fn> } };
-    expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kW'), expect.any(Number), expect.any(Number));
+    expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kVA'), expect.any(Number), expect.any(Number));
   });
 
   it('updates chart data when dispatch points change', () => {
@@ -243,4 +243,22 @@ describe('CiDispatchChart', () => {
     expect(getByText('Exibição:')).toBeInTheDocument();
     expect(getByText('Semana Completa')).toBeInTheDocument();
   });
+});
+
+it('uses the generator study FP independently from the project FP on the common kVA axis', () => {
+  const dispatch: DispatchPoint[] = [{ timestamp: '2026-01-01T00:00:00Z', tariffPeriod: 'offPeak', loadKw: 92, gridImportKw: 12, chargeKw: 0, dischargeKw: 0, socKwh: 50, generatorKw: 80 }];
+  render(<CiDispatchChart dispatch={dispatch} powerFactor={.92} generatorPowerFactor={.8} />);
+  const instance = instances.at(-1)!;
+  const data = instance.data as number[][];
+  expect(data[1][0]).toBe(92); // Active load coordinates preserve the existing scale.
+  expect(data[5][0]).toBeCloseTo(92, 10); // 80 kW / .8 = 100 kVA, matching 92 kW / .92.
+  const options = instance.options as { series: { value?: (chart: unknown, value: number) => string }[] };
+  expect(options.series[5].value!(undefined, data[5][0])).toBe('100.0 kVA');
+});
+
+it('uses the latest dispatch when a new study changes both FP and data together', () => {
+  const point: DispatchPoint = { timestamp: '2026-01-01T00:00:00Z', tariffPeriod: 'offPeak', loadKw: 80, gridImportKw: 80, chargeKw: 0, dischargeKw: 0, socKwh: 50 };
+  const { rerender }=render(<CiDispatchChart dispatch={[point]} powerFactor={1}/>);
+  rerender(<CiDispatchChart dispatch={[{...point,loadKw:160,gridImportKw:160}]} powerFactor={.8}/>);
+  expect((instances.at(-1)!.data as number[][])[1][0]).toBe(160);
 });

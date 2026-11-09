@@ -5,6 +5,7 @@
 // dispatch, highlighting peak shaving and the contracted demand threshold.
 // Built with uPlot for smooth pan/zoom and live crosshair inspection.
 
+import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import uPlot from 'uplot';
@@ -16,6 +17,8 @@ import type { DispatchPoint } from '@/supabase/functions/_shared/commercial-indu
 const CHART_HEIGHT = 260;
 
 export interface CiDispatchChartProps {
+  powerFactor?: number;
+  generatorPowerFactor?: number;
   dispatch: DispatchPoint[];
   contractedDemandKw?: number;
 }
@@ -55,14 +58,14 @@ function areaFill(primary: string) {
   };
 }
 
-function buildDispatchData(dispatch: DispatchPoint[]): uPlot.AlignedData {
+function buildDispatchData(dispatch: DispatchPoint[], factor = 1, generatorFactor = factor): uPlot.AlignedData {
   return [
     dispatch.map((_, index) => index),
     dispatch.map((point) => point.loadKw),
     dispatch.map((point) => point.gridImportKw),
     dispatch.map((point) => point.dischargeKw),
     dispatch.map((point) => point.solarGenerationKw ?? 0),
-    dispatch.map((point) => point.generatorKw ?? 0),
+    dispatch.map((point) => (point.generatorKw ?? 0) * factor / generatorFactor),
   ];
 }
 
@@ -169,7 +172,8 @@ function buildOptions(
   width: number,
   pointsRef: { current: DispatchPoint[] },
   contractedDemandKwRef: { current: number | undefined },
-  onZoomChange: (zoomed: boolean) => void
+  onZoomChange: (zoomed: boolean) => void,
+  factor = 1
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const border = readCssVar('--border', '#d7e0ea');
@@ -222,7 +226,7 @@ function buildOptions(
         gap: 8,
         size: 64,
         font: '12px ui-sans-serif, system-ui, sans-serif',
-        values: (_self, ticks) => ticks.map((value) => `${value} kW`),
+        values: (_self, ticks) => ticks.map((value) => `${Number((value / factor).toFixed(2))} kVA`),
       },
     ],
     series: [
@@ -235,7 +239,7 @@ function buildOptions(
         width: 1.5,
         dash: [4, 4],
         points: { show: false },
-        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(1)} kVA`),
       },
       {
         label: 'Demanda da Rede (com BESS)',
@@ -243,28 +247,28 @@ function buildOptions(
         width: 2,
         fill: areaFill(primary),
         points: { show: false },
-        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(1)} kVA`),
       },
       {
         label: 'Descarga BESS (Corte)',
         stroke: '#16a34a',
         width: 1.5,
         points: { show: false },
-        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(1)} kVA`),
       },
       {
         label: 'Geração Solar FV',
         stroke: '#eab308',
         width: 1.5,
         points: { show: false },
-        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(1)} kVA`),
       },
       {
         label: 'Gerador (GMG)',
         stroke: '#f97316',
         width: 1.5,
         points: { show: false },
-        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(1)} kW`),
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(1)} kVA`),
       },
     ],
     hooks: {
@@ -306,7 +310,7 @@ function buildOptions(
               self.ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
               self.ctx.textAlign = 'right';
               if (typeof self.ctx.fillText === 'function') {
-                self.ctx.fillText(`Contratada: ${contracted} kW`, bLeft + bWidth - 6, yPos - 4);
+                self.ctx.fillText(`Contratada: ${Number((contracted / factor).toFixed(2))} kVA`, bLeft + bWidth - 6, yPos - 4);
               }
               self.ctx.restore();
             }
@@ -317,7 +321,10 @@ function buildOptions(
   };
 }
 
-export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChartProps) {
+export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, generatorPowerFactor }: CiDispatchChartProps) {
+  const { factor } = useCiAcPower(powerFactor);
+  const generatorFactor = generatorPowerFactor ?? factor;
+
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | 'all'>('all');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
@@ -371,8 +378,10 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
     const el = containerRef.current;
     if (!el || pointsRef.current.length === 0) return;
 
-    const options = buildOptions(el.clientWidth || 600, pointsRef, contractedDemandKwRef, setIsZoomed);
-    const chart = new uPlot(options, buildDispatchData(pointsRef.current), el);
+    // A new study may change both FP and dispatch in the same render.
+    pointsRef.current = activePoints;
+    const options = buildOptions(el.clientWidth || 600, pointsRef, contractedDemandKwRef, setIsZoomed, factor);
+    const chart = new uPlot(options, buildDispatchData(pointsRef.current, factor, generatorFactor), el);
     chartRef.current = chart;
     skipNextPointsEffectRef.current = true;
     const detachPanAndZoom = attachPanAndZoom(chart, pointsRef);
@@ -382,7 +391,9 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
       chart.destroy();
       chartRef.current = null;
     };
-  }, []);
+    // The data effect keeps ordinary edits in the existing chart.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factor, generatorFactor]);
 
   useEffect(() => {
     pointsRef.current = activePoints;
@@ -393,14 +404,14 @@ export function CiDispatchChart({ dispatch, contractedDemandKw }: CiDispatchChar
     const chart = chartRef.current;
     if (!chart) return;
 
-    chart.setData(buildDispatchData(activePoints));
+    chart.setData(buildDispatchData(activePoints, factor, generatorFactor));
     if (chart.scales.x?.min == null) {
       const [min, max] = fullXRange(pointsRef);
       chart.setScale('x', { min, max });
     } else {
       chart.redraw(true, true);
     }
-  }, [activePoints]);
+  }, [activePoints, factor, generatorFactor]);
 
   useEffect(() => {
     const el = containerRef.current;

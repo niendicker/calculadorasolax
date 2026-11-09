@@ -1,9 +1,12 @@
+import { apparentKvaToActiveKw } from './ac-power.ts';
 import { zonedTimeToUtcIso } from './manual-day-curve.ts';
 import type { LoadCurve, LoadCurveResolutionMinutes } from './types.ts';
 
-export type EnergyImportUnit = 'kW' | 'W' | 'MW' | 'kWh' | 'Wh' | 'MWh';
+export type EnergyImportUnit = 'kW' | 'W' | 'MW' | 'kWh' | 'Wh' | 'MWh' | 'kVA' | 'VA' | 'MVA';
 export interface EnergyImportTable { headers: string[]; rows: { cells: string[]; line: number }[]; decimalComma: boolean }
 export interface EnergyImportMapping {
+  /** Required for apparent-power source columns; ignored for active power/energy. */
+  powerFactor?: number;
   timestamp: number;
   consumption: number | null;
   generation: number | null;
@@ -52,8 +55,8 @@ export function readEnergyImportTable(text: string): EnergyImportTable {
     .filter(({ cells }) => cells.some(Boolean));
   const dateIndex = headers.findIndex((value) => dateHeaders.includes(normalized(value)));
   // Skip only the simulator's optional units row; malformed data rows remain errors.
-  if (rows.length && !/\d/.test(rows[0].cells[dateIndex] ?? '') && rows[0].cells.some((cell) => /^(kW|W|MW|kWh|Wh|MWh)$/i.test(cell))) {
-    headers.forEach((header, index) => { if (/^(kW|W|MW|kWh|Wh|MWh)$/i.test(rows[0].cells[index] ?? '')) headers[index] = `${header} (${rows[0].cells[index]})`; });
+  if (rows.length && !/\d/.test(rows[0].cells[dateIndex] ?? '') && rows[0].cells.some((cell) => /^(kW|W|MW|kWh|Wh|MWh|kVA|VA|MVA)$/i.test(cell))) {
+    headers.forEach((header, index) => { if (/^(kW|W|MW|kWh|Wh|MWh|kVA|VA|MVA)$/i.test(rows[0].cells[index] ?? '')) headers[index] = `${header} (${rows[0].cells[index]})`; });
     rows.shift();
   }
   return { headers, rows, decimalComma: delimiter !== ',' && rows.some(({ cells }) => cells.some((cell, index) => index !== dateIndex && /\d,\d/.test(cell))) };
@@ -61,14 +64,14 @@ export function readEnergyImportTable(text: string): EnergyImportTable {
 
 export function suggestEnergyImportMapping(table: EnergyImportTable, timezone: string, defaultSeries: 'consumption' | 'generation' = 'consumption'): EnergyImportMapping {
   const names = table.headers.map(normalized);
-  const find = (aliases: string[]) => { const index = names.findIndex((name) => aliases.some((alias) => name === alias || name === `${alias}kw` || name === `${alias}kwh` || name === `${alias}w` || name === `${alias}wh` || name === `${alias}mw` || name === `${alias}mwh`)); return index < 0 ? null : index; };
+  const find = (aliases: string[]) => { const index = names.findIndex((name) => aliases.some((alias) => name === alias || name === `${alias}kw` || name === `${alias}kwh` || name === `${alias}w` || name === `${alias}wh` || name === `${alias}mw` || name === `${alias}mwh` || name === `${alias}kva` || name === `${alias}va` || name === `${alias}mva`)); return index < 0 ? null : index; };
   let consumption = find(['consumption', 'consumo', 'load', 'carga', 'power', 'potencia', 'euser']);
   let generation = find(['generation', 'geracao', 'solar', 'pv', 'pvpower', 'pvgeneration', 'eavail', 'eoutinv']);
-  if (defaultSeries === 'generation' && generation === null && consumption !== null && /^(power|potencia)(kw|kwh|w|wh|mw|mwh)?$/.test(names[consumption])) { generation = consumption; consumption = null; }
+  if (defaultSeries === 'generation' && generation === null && consumption !== null && /^(power|potencia)(kw|kwh|w|wh|mw|mwh|kva|va|mva)?$/.test(names[consumption])) { generation = consumption; consumption = null; }
   const unit = (index: number | null): EnergyImportUnit => {
     const header = index === null ? '' : table.headers[index];
-    const matched = header.match(/(MWh|kWh|Wh|MW|kW|W)(?:\)|\]|\s)*$/i)?.[1].toLowerCase();
-    return (['MWh', 'kWh', 'Wh', 'MW', 'kW', 'W'].find((value) => value.toLowerCase() === matched) as EnergyImportUnit | undefined) ?? (index !== null && /^(euser|eavail|eoutinv)/.test(names[index]) ? 'kWh' : 'kW');
+    const matched = header.match(/(MWh|kWh|Wh|MW|kW|W|MVA|kVA|VA)(?:\)|\]|\s)*$/i)?.[1].toLowerCase();
+    return (['MWh', 'kWh', 'Wh', 'MW', 'kW', 'W', 'MVA', 'kVA', 'VA'].find((value) => value.toLowerCase() === matched) as EnergyImportUnit | undefined) ?? (index !== null && /^(euser|eavail|eoutinv)/.test(names[index]) ? 'kWh' : 'kW');
   };
   const timestamp = names.findIndex((name) => dateHeaders.includes(name));
   let resolutionMinutes: LoadCurveResolutionMinutes = 15;
@@ -113,6 +116,7 @@ export function importEnergyProfiles(table: EnergyImportTable, mapping: EnergyIm
     const value = Number(text);
     if (!text || !Number.isFinite(value) || value < 0) throw new Error('Informe valores numéricos não negativos.');
     const factor = unit.startsWith('M') ? 1000 : unit.startsWith('k') ? 1 : 0.001;
+    if (unit.endsWith('VA')) return apparentKvaToActiveKw(value * factor, mapping.powerFactor ?? NaN);
     return value * factor / (unit.endsWith('h') ? mapping.resolutionMinutes / 60 : 1);
   };
   const rows: { timestamp: string; consumption?: number; generation?: number }[] = [];

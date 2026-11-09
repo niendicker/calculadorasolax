@@ -1,3 +1,4 @@
+import { projectAcPowerFactor } from '@/supabase/functions/_shared/commercial-industrial/ac-power';
 import { withAutomaticBackupSts } from '@/supabase/functions/_shared/commercial-industrial/automatic-sts';
 import { validateStsSelection } from '@/supabase/functions/_shared/commercial-industrial/sts';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -12,6 +13,7 @@ import { normalizeCiModularSelection, validateModularSelection } from '@/supabas
 import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioCandidate } from '@/supabase/functions/_shared/commercial-industrial/types';
 
 export async function calculatePersistedCi(db:SupabaseClient,options:CommercialIndustrialOptions):Promise<CommercialIndustrialResult>{
+  projectAcPowerFactor(options.acPowerFactor);
   options = { ...options, backup: withAutomaticBackupSts(options.backup) };
   if(options.backup?.enabled){
     const errors=validateStsSelection(options.backup.sts);
@@ -110,5 +112,5 @@ export async function calculatePersistedCi(db:SupabaseClient,options:CommercialI
   const snapshot={options,generation:generation.id,sourceRevision:generation.source_revision,solutionKeys:solutions.map(solution=>solution.key),accessoryContext,stsCatalog,prices:[...prices]};
   const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(snapshot)));
   await assertCiGenerationCurrent(db,generation.id);
-  return {engineVersion:'ci-technical-v1',inputFingerprint:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),solutionGeneration:{id:generation.id,sourceRevision:generation.source_revision,contractVersion:CI_GROUPED_SOLUTION_VERSION},technicalRequirements:{minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,operatingEnergyAcKwh:requirements.operatingEnergyAcKwh,backupEnergyAcKwh:requirements.backupEnergyAcKwh,coveragePercent:requirements.coveragePercent},baseline:baseline.result,scenarios,recommendation,selected,technicalSelection:{scenarioId:chosen?.key??null,reason},technicalIssues,assumptions:{lineVoltageV:options.lineVoltageV,tariff:options.tariff,financial:options.financialAssumptions,loadCurve:options.loadCurve},warnings:[...(selected?.missingPrices?.length?[`Preços pendentes: ${selected.missingPrices.join(', ')}.`]:[])],backup:selected?.backupResult,accessoryContext,stsContext:chosen?inputFor(chosen).stsContext:undefined};
+  return {engineVersion:'ci-technical-v1',inputFingerprint:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),solutionGeneration:{id:generation.id,sourceRevision:generation.source_revision,contractVersion:CI_GROUPED_SOLUTION_VERSION},technicalRequirements:{minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,operatingEnergyAcKwh:requirements.operatingEnergyAcKwh,backupEnergyAcKwh:requirements.backupEnergyAcKwh,coveragePercent:requirements.coveragePercent},baseline:baseline.result,scenarios,recommendation,selected,technicalSelection:{scenarioId:chosen?.key??null,reason},technicalIssues,assumptions:{acPowerFactor:options.acPowerFactor??1,generatorPowerFactor:options.generator?.enabled?options.generator.powerFactor:undefined,lineVoltageV:options.lineVoltageV,tariff:options.tariff,financial:options.financialAssumptions,loadCurve:options.loadCurve},warnings:[...(selected?.missingPrices?.length?[`Preços pendentes: ${selected.missingPrices.join(', ')}.`]:[])],backup:selected?.backupResult,accessoryContext,stsContext:chosen?inputFor(chosen).stsContext:undefined};
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildManualDayCurve } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
 import { defaultCiOptions } from '@/lib/store/defaults';
@@ -36,11 +36,17 @@ function ControlledPanel({ initial }: { initial?: Partial<CommercialIndustrialOp
   return <CiLoadCurvePanel ciOptions={ciOptions} onChange={(partial) => setCiOptions((s) => ({ ...s, ...partial }))} />;
 }
 
+function openData() {
+  const trigger = screen.getByRole('button', { name: 'Período e CSV' });
+  if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger);
+}
+
 function csvFile(content: string) {
   return new File([content], 'curva.csv', { type: 'text/csv' });
 }
 
 async function importFile(content: string) {
+  openData();
   const input = screen.getByLabelText(/Importar CSV|Trocar arquivo/i, { selector: 'input' });
   fireEvent.change(input, { target: { files: [csvFile(content)] } });
 }
@@ -48,7 +54,8 @@ async function importFile(content: string) {
 describe('CiLoadCurvePanel', () => {
   it('defaults to 15 min resolution and America/Sao_Paulo, offering only the two Brazilian timezones', () => {
     render(<ControlledPanel />);
-    expect(screen.getByText('15 min')).toBeInTheDocument();
+    expect(screen.getByText(/672 pontos · 15 min/)).toBeInTheDocument();
+    openData();
     const tzSelect = screen.getByLabelText('Fuso horário') as HTMLSelectElement;
     expect(tzSelect.value).toBe('America/Sao_Paulo');
 
@@ -65,6 +72,7 @@ describe('CiLoadCurvePanel', () => {
 
   it('renders unified period range selector button and opens custom calendar dropdown', () => {
     render(<ControlledPanel />);
+    openData();
     const triggerBtn = screen.getByRole('button', { name: /Selecionar período/i });
     expect(triggerBtn).toBeInTheDocument();
     expect(triggerBtn).toHaveTextContent(/\d{2}\/\d{2}\/\d{4} – \d{2}\/\d{2}\/\d{4}/);
@@ -84,13 +92,12 @@ describe('CiLoadCurvePanel', () => {
 
   it('imports a valid CSV and shows the weekly preview with measurements', async () => {
     render(<ControlledPanel />);
-    const csv = 'timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
+    const csv = 'timestamp,powerKva\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n2026-01-01T02:00:00Z,15\n';
     await importFile(csv);
     fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }, { timeout: 4000 }));
 
-    expect((await screen.findAllByText(/3 amostras/)).length).toBeGreaterThan(0);
-    expect(screen.getByText('60 min')).toBeInTheDocument();
-    expect(screen.getByText(/3 \/ 672 pontos/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Período e CSV' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(/3 pontos · 60 min/)).toBeInTheDocument();
     expect(await screen.findByText(/20\.00/)).toBeInTheDocument(); // pico
     expect(screen.getByText(/10\.00/)).toBeInTheDocument(); // mínima
   });
@@ -104,9 +111,10 @@ describe('CiLoadCurvePanel', () => {
 
   it('removes an imported curve when requested', async () => {
     render(<ControlledPanel />);
-    await importFile('timestamp,powerKw\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
+    await importFile('timestamp,powerKva\n2026-01-01T00:00:00Z,10\n2026-01-01T01:00:00Z,20\n');
     fireEvent.click(await screen.findByRole('button', { name: 'Importar dados' }));
-    expect((await screen.findAllByText(/2 amostras/)).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/2 pontos/)).toBeVisible();
+    openData();
 
     const removeBtn = screen.getByRole('button', { name: /Remover curva/i });
     fireEvent.click(removeBtn);
@@ -127,7 +135,7 @@ describe('CiLoadCurvePanel', () => {
 
       expect(screen.getAllByRole('slider')).toHaveLength(96);
       expect(await screen.findByRole('heading',{name:'Consumo e geração'})).toBeInTheDocument();
-      expect(screen.getByText(/672 \/ 672 pontos/)).toBeInTheDocument();
+      expect(screen.getByText(/672 pontos · 15 min/)).toBeInTheDocument();
     });
 
     it('selecting a different preset updates the curve and slider values', async () => {
@@ -148,20 +156,24 @@ describe('CiLoadCurvePanel', () => {
 
       expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '100');
 
-      fireEvent.click(screen.getByRole('button', { name: 'Fim de semana' }));
+      const daySelect = screen.getByLabelText('Dia de referência') as HTMLSelectElement;
+      const weekend = [...daySelect.options].find(option => option.text.includes('Fim de semana'))!;
+      const weekday = [...daySelect.options].find(option => option.text.includes('Dia útil'))!;
+      fireEvent.change(daySelect, { target: { value: weekend.value } });
       expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '10');
 
-      fireEvent.click(screen.getByRole('button', { name: 'Dias úteis' }));
+      fireEvent.change(daySelect, { target: { value: weekday.value } });
       expect(screen.getByRole('slider', { name: 'Potência às 10:00' })).toHaveAttribute('aria-valuenow', '100');
     });
 
-    it('editing numeric input marks preset as "Personalizado"', async () => {
+    it('editing a graph point marks preset as "Personalizado"', async () => {
       render(<ControlledPanel />);
       const baseSelect = screen.getByLabelText('Perfil base');
       expect(baseSelect).toHaveValue('comercio');
 
-      const numericInput = screen.getByLabelText('Potência ativa');
-      fireEvent.change(numericInput, { target: { value: '150' } });
+      const point = screen.getByRole('slider', { name: 'Potência às 12:00' });
+      for (let n = 0; n < 16; n++) fireEvent.keyDown(point, { key: 'ArrowUp', shiftKey: true });
+      await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });
 
       expect(baseSelect).toHaveValue('custom');
       expect(screen.getByRole('slider', { name: 'Potência às 12:00' })).toHaveAttribute('aria-valuenow', '150');
@@ -188,7 +200,8 @@ describe('CiLoadCurvePanel', () => {
       const baseSelect = screen.getByLabelText('Perfil base');
       expect(baseSelect).toHaveValue('industria-1-turno');
       expect(screen.getAllByRole('slider')).toHaveLength(96);
-      expect(screen.getByRole('button', { name: 'Fim de semana' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Dia de referência')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Fim de semana' })).not.toBeInTheDocument();
     });
   });
 
@@ -200,6 +213,7 @@ describe('CiLoadCurvePanel', () => {
       Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
 
       render(<ControlledPanel />);
+      openData();
       const btn = screen.getByRole('button', { name: /Baixar CSV modelo/i });
       fireEvent.click(btn);
 
@@ -216,6 +230,7 @@ describe('CiLoadCurvePanel', () => {
       render(<ControlledPanel />);
       await screen.findByRole('heading',{name:'Consumo e geração'});
 
+      openData();
       const exportBtn = screen.getByRole('button', { name: /Exportar CSV/i });
       fireEvent.click(exportBtn);
 
@@ -292,6 +307,35 @@ describe('saved daily profile limit', () => {
 
 
 describe('unified curve workspace', () => {
+  it('keeps period and file controls secondary and preserves data when collapsing them', () => {
+    render(<ControlledPanel />);
+    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Fuso horário' })).not.toBeInTheDocument();
+    openData();
+    fireEvent.change(screen.getByLabelText('Fuso horário'), { target: { value: 'America/Manaus' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Período e CSV' }));
+    expect(screen.queryByRole('combobox', { name: 'Fuso horário' })).not.toBeInTheDocument();
+    openData();
+    expect(screen.getByLabelText('Fuso horário')).toHaveValue('America/Manaus');
+  });
+
+  it('edits the weekend profile when the saved period contains only weekend days', async () => {
+    const built = buildManualDayCurve(Array(96).fill(50), Array(96).fill(20), {
+      resolutionMinutes: 15, timezone: 'America/Sao_Paulo', periodStart: '2026-11-07', periodEnd: '2026-11-08',
+    }, 'custom');
+    if (!built.ok) throw new Error('Invalid fixture');
+    const onChange = vi.fn();
+    render(<CiLoadCurvePanel ciOptions={{ ...defaultCiOptions, loadCurve: built.curve }} onChange={onChange} />);
+    expect(screen.getByLabelText('Dia de referência')).toHaveValue('2026-11-07');
+    const point = screen.getByRole('slider', { name: 'Potência às 12:00' });
+    expect(point).toHaveAttribute('aria-valuenow', '20');
+    for (let n = 0; n < 3; n++) fireEvent.keyDown(point, { key: 'ArrowUp', shiftKey: true });
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });
+    const curve = onChange.mock.calls.at(-1)![0].loadCurve;
+    expect(curve.manualConfig.weekendKw[48]).toBe(35);
+    expect(curve.manualConfig.weekdayKw[48]).toBe(50);
+  });
+
   function manualCurve() {
     const result = buildManualDayCurve(Array(96).fill(50), Array(96).fill(20), {
       resolutionMinutes: 30, timezone: 'America/Manaus', periodStart: '2026-01-05', periodEnd: '2026-01-11',
@@ -302,9 +346,12 @@ describe('unified curve workspace', () => {
 
   function markMorning() {
     fireEvent.click(screen.getByRole('button', { name: 'Selecionar intervalo' }));
-    fireEvent.change(screen.getByLabelText('Início do intervalo diário'), { target: { value: '32' } });
-    fireEvent.change(screen.getByLabelText('Fim do intervalo diário'), { target: { value: '39' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Marcar intervalo' }));
+    const svg = screen.getByRole('group', { name: /Seleção de intervalo da curva diária/ });
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, top: 0, left: 0, width: 640, height: 235, right: 640, bottom: 235, toJSON: () => ({}) });
+    const x = (index: number) => 54 + index / 95 * (640 - 54 - 14);
+    fireEvent.pointerDown(svg, { button: 0, pointerId: 1, clientX: x(32), clientY: 100 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: x(39), clientY: 100 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: x(39), clientY: 100 });
   }
 
   it('applies the selected reference day to backup and preserves it when switching views', async () => {
@@ -315,6 +362,9 @@ describe('unified curve workspace', () => {
     fireEvent.change(screen.getByLabelText('Dia de referência'), { target: { value: '2026-01-07' } });
     markMorning();
     const apply = await screen.findByRole('button', { name: 'Usar período A para backup' });
+    expect(within(screen.getByRole('complementary', { name: 'Ações da seleção' })).getByRole('button', { name: 'Usar período A para backup' })).toBe(apply);
+    expect(screen.queryByLabelText('Início do intervalo diário')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Fim do intervalo diário')).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('Método de backup do período A'), { target: { value: 'maximum' } });
     fireEvent.click(apply);
@@ -354,6 +404,7 @@ describe('unified curve workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dia' }));
     fireEvent.change(screen.getByLabelText('Dia de referência'), { target: { value: '2026-01-08' } });
     expect(onChange).not.toHaveBeenCalled();
+    openData();
     fireEvent.click(screen.getByRole('button', { name: 'Exportar CSV' }));
     const blob = createObjectURL.mock.calls[0][0] as Blob;
     const text = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
@@ -365,6 +416,6 @@ describe('unified curve workspace', () => {
     expect(onChange).toHaveBeenCalled();
     expect(onChange.mock.calls.every(([partial]) => !('loadCurve' in partial))).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Período' }));
-    expect(screen.getByText(/336 \/ 672 pontos/)).toBeInTheDocument();
+    expect(screen.getByText(/336 pontos/)).toBeInTheDocument();
   });
 });

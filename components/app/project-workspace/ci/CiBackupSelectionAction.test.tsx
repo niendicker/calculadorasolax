@@ -15,3 +15,13 @@ it('previews and applies the selected consumption window with a persisted method
   expect(apply).toHaveBeenCalledWith({method:'manual',manualPowerKw:25,startTimestamp:curve.points[0].timestamp,endTimestampExclusive:new Date(Date.parse(curve.points[3].timestamp)+15*60_000).toISOString()});
   expect(screen.getByRole('status')).toHaveTextContent('Backup atualizado');
 });
+
+it('converts manual backup kVA to active power before persisting the selection',async()=>{
+ const {CiAcPowerProvider}=await import('./ci-ac-power');
+ const curve=modularOptions().loadCurve!;const apply=vi.fn();
+ render(<CiAcPowerProvider powerFactor={.8}><CiBackupSelectionAction curve={curve} startIndex={0} endIndex={3} label="período A" onApply={apply}/></CiAcPowerProvider>);
+ fireEvent.change(screen.getByLabelText('Método de backup do período A'),{target:{value:'manual'}});
+ fireEvent.change(screen.getByLabelText('Potência manual do período A'),{target:{value:'25'}});
+ fireEvent.click(screen.getByRole('button',{name:'Usar período A para backup'}));
+ expect(apply).toHaveBeenCalledWith(expect.objectContaining({manualPowerKw:20}));
+});

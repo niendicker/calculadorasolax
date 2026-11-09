@@ -191,6 +191,8 @@ export async function handleCalculateCommercialIndustrial(
       recommendation,
       selected,
       assumptions: {
+        acPowerFactor: options.acPowerFactor ?? 1,
+        generatorPowerFactor: options.generator?.enabled ? options.generator.powerFactor : undefined,
         tariff: options.tariff,
         financial: options.financialAssumptions,
         loadCurve: {

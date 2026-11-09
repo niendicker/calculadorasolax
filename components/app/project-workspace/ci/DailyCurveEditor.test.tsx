@@ -11,19 +11,36 @@ function getSlider(hour: number) {
   return screen.getByRole('slider', { name: `Potência às ${hour}h` });
 }
 
+
+function selectedPoint(solar = false) {
+  return screen.getAllByRole('slider').find(point => point.getAttribute('tabindex') === '0' && point.getAttribute('aria-label')?.startsWith(solar ? 'Geração FV' : 'Potência'))!;
+}
+
+async function editPoint(value: number, solar = false) {
+  const point = selectedPoint(solar);
+  let current = Number(point.getAttribute('aria-valuenow'));
+  while (Math.abs(value - current) >= 1) {
+    const delta = value - current;
+    const shiftKey = Math.abs(delta) >= 5;
+    fireEvent.keyDown(point, { key: delta > 0 ? 'ArrowUp' : 'ArrowDown', shiftKey });
+    current = Number(point.getAttribute('aria-valuenow'));
+  }
+  await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });
+}
+
 describe('DailyCurveEditor', () => {
-  it('renders one slider per hour of the day', () => {
+  it('renders one slider per hour of the day', async () => {
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
     expect(screen.getAllByRole('slider')).toHaveLength(24);
     expect(getSlider(0)).toHaveAttribute('aria-valuenow', '50');
     expect(getSlider(23)).toHaveAttribute('aria-valuenow', '50');
   });
 
-  it('shows the point tooltip only while focused and preserves selection on blur', () => {
+  it('shows the point tooltip only while focused and preserves selection on blur', async () => {
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
-    expect(screen.queryByText('12:00 · 50.0 kW')).not.toBeInTheDocument();
+    expect(screen.queryByText('12:00 · 50.0 kVA')).not.toBeInTheDocument();
     fireEvent.focus(getSlider(12));
-    const badgeText = screen.getByText('12:00 · 50.0 kW');
+    const badgeText = screen.getByText('12:00 · 50.0 kVA');
     expect(badgeText).toBeInTheDocument();
 
     const rect = badgeText.previousElementSibling as SVGRectElement;
@@ -31,11 +48,11 @@ describe('DailyCurveEditor', () => {
     expect(rect).toHaveAttribute('width', '108');
     expect(rect).toHaveAttribute('height', '20');
     fireEvent.blur(getSlider(12));
-    expect(screen.queryByText('12:00 · 50.0 kW')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Horário selecionado')).toHaveValue('12');
+    expect(screen.queryByText('12:00 · 50.0 kVA')).not.toBeInTheDocument();
+    expect(selectedPoint()).toHaveAttribute('data-hour', '12');
   });
 
-  it('dragging a point updates its value via onChange, coalesced to one call per frame', async () => {
+  it('dragging a point publishes its final value via onChange once on release', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
     const point = getSlider(12);
@@ -54,8 +71,8 @@ describe('DailyCurveEditor', () => {
       toJSON: () => ({}),
     });
 
-    fireEvent.pointerDown(point, { pointerId: 1, clientY: 20 }); // near the top -> near max kW
-    fireEvent.pointerMove(point, { pointerId: 1, clientY: 200 }); // near the bottom -> near 0 kW
+    fireEvent.pointerDown(point, { pointerId: 1, clientY: 20 }); // near the top -> near max kVA
+    fireEvent.pointerMove(point, { pointerId: 1, clientY: 200 }); // near the bottom -> near 0 kVA
     fireEvent.pointerUp(point, { pointerId: 1, clientY: 200 });
 
     await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -94,7 +111,7 @@ describe('DailyCurveEditor', () => {
 
     expect(onChange).toHaveBeenCalled();
     const lastCall = onChange.mock.calls.at(-1)![0] as number[];
-    // For FLAT_24 (all 50 kW), maxKw is 50. Capped at 50, never runaway to 100/200/500
+    // For FLAT_24 (all 50 kVA), maxKw is 50. Capped at 50, never runaway to 100/200/500
     expect(lastCall[12]).toBe(50);
   });
 
@@ -115,25 +132,25 @@ describe('DailyCurveEditor', () => {
       toJSON: () => ({}),
     });
 
-    // Initial scale is 50 kW (from FLAT_24 max 50)
+    // Initial scale is 50 kVA (from FLAT_24 max 50)
     expect(point).toHaveAttribute('aria-valuemax', '50');
-    expect(screen.getByText('50 kW')).toBeInTheDocument();
+    expect(screen.getByText('50 kVA')).toBeInTheDocument();
 
-    // Drag to top and release -> scale doubles to 100 kW
+    // Drag to top and release -> scale doubles to 100 kVA
     fireEvent.pointerDown(point, { pointerId: 1, clientY: 0 });
     fireEvent.pointerMove(point, { pointerId: 1, clientY: -20 });
     fireEvent.pointerUp(point, { pointerId: 1, clientY: -20 });
 
     expect(point).toHaveAttribute('aria-valuemax', '100');
-    expect(screen.getByText('100 kW')).toBeInTheDocument();
+    expect(screen.getByText('100 kVA')).toBeInTheDocument();
 
-    // Drag to top of new scale (100 kW) and release -> doubles again to 200 kW
+    // Drag to top of new scale (100 kVA) and release -> doubles again to 200 kVA
     fireEvent.pointerDown(point, { pointerId: 2, clientY: 0 });
     fireEvent.pointerMove(point, { pointerId: 2, clientY: -20 });
     fireEvent.pointerUp(point, { pointerId: 2, clientY: -20 });
 
     expect(point).toHaveAttribute('aria-valuemax', '200');
-    expect(screen.getByText('200 kW')).toBeInTheDocument();
+    expect(screen.getByText('200 kVA')).toBeInTheDocument();
 
     // Dragging down to bottom/middle and releasing does NOT double the scale
     fireEvent.pointerDown(point, { pointerId: 3, clientY: 100 });
@@ -143,7 +160,7 @@ describe('DailyCurveEditor', () => {
     expect(point).toHaveAttribute('aria-valuemax', '200');
   });
 
-  it('ArrowUp/ArrowDown on a focused point nudges its value by 1 kW (5 with Shift)', async () => {
+  it('ArrowUp/ArrowDown on a focused point nudges its value by 1 kVA (5 with Shift)', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
     const point = getSlider(6);
@@ -159,7 +176,7 @@ describe('DailyCurveEditor', () => {
     expect(lastCall[6]).toBeCloseTo(55, 5); // 50 +1 +5 -1
   });
 
-  it('ignores pointermove for a point that never captured the pointer', () => {
+  it('ignores pointermove for a point that never captured the pointer', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
     const untouched = getSlider(3);
@@ -169,7 +186,7 @@ describe('DailyCurveEditor', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('expands laterally on large screens to fill available container width', () => {
+  it('expands laterally on large screens to fill available container width', async () => {
     let resizeCallback: (() => void) | undefined;
     const OriginalResizeObserver = global.ResizeObserver;
     global.ResizeObserver = class MockResizeObserver {
@@ -193,7 +210,7 @@ describe('DailyCurveEditor', () => {
       });
 
       const svg = container.querySelector('svg[role="group"]');
-      expect(svg).toHaveAttribute('viewBox', '0 0 1000 235');
+      expect(svg).toHaveAttribute('viewBox', '0 0 1000 320');
 
       // Hour 23 slider cx should be near right edge: 54 + (1000 - 68) = 986
       const hour23 = getSlider(23);
@@ -219,7 +236,7 @@ function mockSvgRect(point: HTMLElement) {
 }
 
 describe('DailyCurveEditor — suavização padrão', () => {
-  it('uses smoothing by default without exposing a mode toggle', () => {
+  it('uses smoothing by default without exposing a mode toggle', async () => {
     render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /Suavizar/i })).not.toBeInTheDocument();
     expect(getSlider(12)).toHaveAttribute('r', '8');
@@ -239,7 +256,7 @@ describe('DailyCurveEditor — suavização padrão', () => {
     const delta = result[12] - 50;
     expect(delta).not.toBe(0);
 
-    // The first 5 kW belong entirely to the dragged point. The excess uses
+    // The first 5 kVA belong entirely to the dragged point. The excess uses
     // the raised-cosine falloff: weight(1)=0.5, weight(2)=0.
     const adjacentDelta = Math.sign(delta) * Math.max(0, Math.abs(delta) - 5);
     expect(result[11]).toBe(Math.round((50 + adjacentDelta * 0.5) * 10) / 10);
@@ -307,8 +324,8 @@ describe('DailyCurveEditor — suavização padrão', () => {
     initial[13] = 30; // below hour 12
     render(<DailyCurveEditor hourlyKw={initial} onChange={onChange} />);
 
-    // Nudge hour 12 up to 65 kW (above initial 50, but still below hour 11 at 80)
-    // 50 + 3 * 5 = 65 kW
+    // Nudge hour 12 up to 65 kVA (above initial 50, but still below hour 11 at 80)
+    // 50 + 3 * 5 = 65 kVA
     for (let i = 0; i < 3; i++) {
       fireEvent.keyDown(getSlider(12), { key: 'ArrowUp', shiftKey: true });
     }
@@ -321,8 +338,8 @@ describe('DailyCurveEditor — suavização padrão', () => {
     // Hour 11 (above, was 80) is NOT pulled up because hour 12 (65) hasn't passed it yet
     expect(result[11]).toBe(80);
 
-    // Now drag/nudge hour 12 further up to 90 kW (passing hour 11's initial 80 kW)
-    // 65 + 5 * 5 = 90 kW
+    // Now drag/nudge hour 12 further up to 90 kVA (passing hour 11's initial 80 kVA)
+    // 65 + 5 * 5 = 90 kVA
     for (let i = 0; i < 5; i++) {
       fireEvent.keyDown(getSlider(12), { key: 'ArrowUp', shiftKey: true });
     }
@@ -342,8 +359,8 @@ describe('DailyCurveEditor — suavização padrão', () => {
     initial[13] = 30; // below hour 12
     render(<DailyCurveEditor hourlyKw={initial} onChange={onChange} />);
 
-    // Nudge hour 12 down to 40 kW (below initial 50, but still above hour 13 at 30)
-    // 50 - 2 * 5 = 40 kW
+    // Nudge hour 12 down to 40 kVA (below initial 50, but still above hour 13 at 30)
+    // 50 - 2 * 5 = 40 kVA
     for (let i = 0; i < 2; i++) {
       fireEvent.keyDown(getSlider(12), { key: 'ArrowDown', shiftKey: true });
     }
@@ -356,8 +373,8 @@ describe('DailyCurveEditor — suavização padrão', () => {
     // Hour 13 (below, was 30) is NOT pulled down because hour 12 (40) hasn't dropped below it
     expect(result[13]).toBe(30);
 
-    // Now nudge hour 12 down to 20 kW (passing hour 13's 30 kW going down)
-    // 40 - 4 * 5 = 20 kW
+    // Now nudge hour 12 down to 20 kVA (passing hour 13's 30 kVA going down)
+    // 40 - 4 * 5 = 20 kVA
     for (let i = 0; i < 4; i++) {
       fireEvent.keyDown(getSlider(12), { key: 'ArrowDown', shiftKey: true });
     }
@@ -370,7 +387,7 @@ describe('DailyCurveEditor — suavização padrão', () => {
     expect(result[13]).toBeCloseTo(25, 1);
   });
 
-  it('triggers onSaveAsCustomModel when user enters name and clicks save', () => {
+  it('triggers onSaveAsCustomModel when user enters name and clicks save', async () => {
     const onSave = vi.fn();
     render(<DailyCurveEditor hourlyKw={FLAT_24} onSaveAsCustomModel={onSave} />);
 
@@ -389,20 +406,20 @@ describe('DailyCurveEditor — suavização padrão', () => {
 
 
 describe('DailyCurveEditor — 15-minute profile and viewport navigation', () => {
-  it('edits a quarter-hour independently and exposes 96 time slots', () => {
+  it('edits a quarter-hour independently and exposes 96 time slots', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
     expect(screen.getAllByRole('slider')).toHaveLength(96);
-    fireEvent.change(screen.getByLabelText('Horário selecionado'), { target: { value: '41' } });
-    fireEvent.change(screen.getByLabelText('Potência ativa'), { target: { value: '85' } });
+    fireEvent.click(screen.getByRole('slider', { name: 'Potência às 10:15' }));
+    await editPoint(85, false);
     const values = onChange.mock.calls.at(-1)![0];
     expect(values).toHaveLength(96);
     expect(values[41]).toBe(85);
-    expect(values[40]).toBe(50);
+    expect(values[39]).toBe(50);
     expect(screen.getByRole('slider', { name: 'Potência às 10:15' })).toHaveAttribute('aria-valuenow', '85');
   });
 
-  it('zooms and pans the viewport without changing the profile, then resets to the full day', () => {
+  it('zooms and pans the viewport without changing the profile, then resets to the full day', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
     fireEvent.click(screen.getByRole('button', { name: 'Ampliar gráfico diário' }));
@@ -451,13 +468,17 @@ describe('DailyCurveEditor — 15-minute profile and viewport navigation', () =>
     expect(change).not.toHaveBeenCalled();expect(solar).not.toHaveBeenCalled();
   });
 
-  it('offers interval inputs without requiring a keyboard modifier or editing data',()=>{
+  it('selects directly on the graph without time inputs, modifiers or editing data',()=>{
     const select=vi.fn(),change=vi.fn();
     render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={change} onSelectRange={select}/>);
     fireEvent.click(screen.getByRole('button',{name:'Selecionar intervalo'}));
-    fireEvent.change(screen.getByLabelText('Início do intervalo diário'),{target:{value:'32'}});
-    fireEvent.change(screen.getByLabelText('Fim do intervalo diário'),{target:{value:'39'}});
-    fireEvent.click(screen.getByRole('button',{name:'Marcar intervalo'}));
+    expect(screen.queryByLabelText('Início do intervalo diário')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Fim do intervalo diário')).not.toBeInTheDocument();
+    const svg=screen.getByRole('group',{name:/Seleção de intervalo da curva diária/});mockSvgRect(svg);
+    const x=(index:number)=>54+index/95*(640-54-14);
+    fireEvent.pointerDown(svg,{button:0,pointerId:4,clientX:x(32),clientY:100});
+    fireEvent.pointerMove(svg,{pointerId:4,clientX:x(39),clientY:100});
+    fireEvent.pointerUp(svg,{pointerId:4,clientX:x(39),clientY:100});
     expect(select).toHaveBeenCalledWith({startIndex:32,endIndex:39});expect(change).not.toHaveBeenCalled();
   });
 
@@ -471,7 +492,7 @@ describe('DailyCurveEditor — 15-minute profile and viewport navigation', () =>
     expect(solar).toHaveBeenCalled();expect(consumption).not.toHaveBeenCalled();
   });
 
-  it('preserves undo when the parent echoes a changed 96-point pattern', () => {
+  it('preserves undo when the parent echoes a changed 96-point pattern', async () => {
     const original = new Array(96).fill(50);
     function Controlled() {
       const [values, setValues] = useState(original);
@@ -479,36 +500,36 @@ describe('DailyCurveEditor — 15-minute profile and viewport navigation', () =>
     }
     render(<Controlled />);
     fireEvent.click(screen.getByRole('button', { name: 'Limpar curva' }));
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(0);
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(0));
     fireEvent.click(screen.getByRole('button', { name: /Desfazer/ }));
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(50);
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(50));
     expect(screen.getAllByRole('slider')).toHaveLength(96);
   });
 });
 
 describe('daily editor solar comparison', () => {
-  it('dims the other series when selecting solar or consumption and preserves consumption edits', () => {
+  it('dims the other series when selecting solar or consumption and preserves consumption edits', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={Array(96).fill(100)} solarKw={Array(96).fill(75)} onChange={onChange} />);
     expect(screen.getByTestId('daily-solar-series')).toHaveAttribute('opacity', '0.2');
     fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
     expect(screen.getByTestId('daily-consumption-series')).toHaveAttribute('opacity', '0.2');
     expect(screen.getByTestId('daily-solar-series')).toHaveAttribute('opacity', '1');
-    expect(screen.getByLabelText('Geração FV selecionada')).toHaveValue(75);
-    expect(screen.getByLabelText('Geração FV selecionada')).toHaveAttribute('readonly');
+    expect(selectedPoint(true)).toHaveAttribute('aria-valuenow', String(75));
+    expect(selectedPoint(true)).toHaveAttribute('aria-readonly', 'true');
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('slider', { name: 'Geração FV às 10:15' }));
-    expect(screen.getByLabelText('Horário selecionado')).toHaveValue('41');
+    expect(selectedPoint(true)).toHaveAttribute('data-solar-point', '41');
     fireEvent.click(screen.getByRole('button', { name: 'Consumo' }));
     expect(screen.getByTestId('daily-consumption-series')).toHaveAttribute('opacity', '1');
-    fireEvent.change(screen.getByLabelText('Potência ativa'), { target: { value: '110' } });
+    await editPoint(110, false);
     expect(onChange.mock.calls.at(-1)![0][41]).toBe(110);
   });
 });
 
 
 describe('editing daily PV points', () => {
-  it('edits, smooths, clears and restores PV independently from consumption', () => {
+  it('edits, smooths, clears and restores PV independently from consumption', async () => {
     const onLoad = vi.fn();
     const onSolar = vi.fn();
     function Editable() {
@@ -517,9 +538,9 @@ describe('editing daily PV points', () => {
     }
     render(<Editable />);
     fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
-    fireEvent.change(screen.getByLabelText('Geração FV selecionada'), { target: { value: '90' } });
+    await editPoint(90, true);
     expect(onSolar.mock.calls.at(-1)![0][48]).toBe(90);
-    expect(screen.getByLabelText('Geração FV selecionada')).not.toHaveAttribute('readonly');
+    expect(selectedPoint(true)).toHaveAttribute('aria-readonly', 'false');
     expect(onLoad).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Geração FV às 12:00' }), { key: 'ArrowUp', shiftKey: true });
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Geração FV às 12:00' }), { key: 'ArrowUp', shiftKey: true });
@@ -530,7 +551,7 @@ describe('editing daily PV points', () => {
     expect(onSolar.mock.calls.at(-1)![0][47]).toBeGreaterThan(75);
     expect(onLoad).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Consumo' }));
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(100);
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(100));
   });
 });
 
@@ -550,74 +571,68 @@ it('limits 15-minute smoothing to the two immediate neighbors for both load and 
 });
 
 
-it('hides the FV tooltip when its point loses focus, including when using the lateral editor', () => {
+it('hides the FV tooltip when its point loses focus, when using graph controls', async () => {
   render(<DailyCurveEditor hourlyKw={Array(96).fill(100)} solarKw={Array(96).fill(75)} onSolarChange={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
-  expect(screen.queryByText('12:00 · 75.0 kW FV')).not.toBeInTheDocument();
+  expect(screen.queryByText('12:00 · 75.0 kVA FV')).not.toBeInTheDocument();
   const point = screen.getByRole('slider', { name: 'Geração FV às 12:00' });
   fireEvent.focus(point);
-  expect(screen.getByText('12:00 · 75.0 kW FV')).toBeInTheDocument();
+  expect(screen.getByText('12:00 · 75.0 kVA FV')).toBeInTheDocument();
   fireEvent.blur(point);
-  fireEvent.focus(screen.getByLabelText('Geração FV selecionada'));
-  expect(screen.queryByText('12:00 · 75.0 kW FV')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Geração FV selecionada')).toHaveValue(75);
+  fireEvent.focus(screen.getByRole('button', { name: 'Visualização' }));
+  expect(screen.queryByText('12:00 · 75.0 kVA FV')).not.toBeInTheDocument();
+  expect(selectedPoint(true)).toHaveAttribute('aria-valuenow', String(75));
 });
 
 describe('DailyCurveEditor — editing tools', () => {
-  it('displays real-time energetic KPIs and jumps to peak demand', () => {
+  it('keeps keyboard edits separate from selecting an interval', async () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={new Array(24).fill(50)} onChange={onChange} onSelectRange={vi.fn()} />);
+    const point = getSlider(12);
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar intervalo' }));
+    expect(screen.queryByRole('spinbutton', { name: 'Potência ativa' })).not.toBeInTheDocument();
+    fireEvent.keyDown(point, { key: 'ArrowUp' });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Editar pontos' }));
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(50));
+    fireEvent.keyDown(point, { key: 'ArrowUp' });
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(51));
+  });
+
+  it('returns to point editing if a cleared curve can no longer provide interval selection', async () => {
+    const onChange = vi.fn();
+    const props = { hourlyKw: FLAT_24, onChange };
+    const { rerender } = render(<DailyCurveEditor {...props} onSelectRange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar intervalo' }));
+    rerender(<DailyCurveEditor {...props} />);
+    expect(getSlider(12)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Selecionar intervalo' })).not.toBeInTheDocument();
+    await editPoint(55, false);
+    expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining([55]));
+  });
+
+  it('displays real-time energetic KPIs and jumps to peak demand', async () => {
     const values = new Array(96).fill(40);
     values[53] = 120; // 13:15 peak demand
     render(<DailyCurveEditor hourlyKw={values} onChange={vi.fn()} />);
 
-    expect(screen.getByText('Consumo Diário Total')).toBeInTheDocument();
-    expect(screen.getByText('Demanda de Pico (Consumo)')).toBeInTheDocument();
+    expect(screen.getByText('Consumo diário')).toBeInTheDocument();
+    expect(screen.getByText('Demanda de pico')).toBeInTheDocument();
     expect(screen.getByText('120,0')).toBeInTheDocument();
 
     const jumpBtn = screen.getByRole('button', { name: /às 13:15/ });
     expect(jumpBtn).toBeInTheDocument();
 
     fireEvent.click(jumpBtn);
-    expect(screen.getByLabelText('Horário selecionado')).toHaveValue('53');
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(120);
+    expect(selectedPoint()).toHaveAttribute('data-hour', '53');
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(120));
   });
 
-  it('provides quick stepper buttons (-5, -1, +1, +5 kW) in the inspector', () => {
-    const onChange = vi.fn();
-    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '+5 kW' }));
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(55);
-    expect(onChange.mock.calls.at(-1)![0][48]).toBe(55);
 
-    fireEvent.click(screen.getByRole('button', { name: '-1 kW' }));
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(54);
-    expect(onChange.mock.calls.at(-1)![0][48]).toBe(54);
-  });
 
-  it('performs batch editing across a time range', () => {
-    const onChange = vi.fn();
-    render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
 
-    expect(screen.getByRole('button', { name: 'Ajuste em bloco de horário' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('button', { name: 'Aplicar à faixa selecionada' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Ajuste em bloco de horário' }));
-    // Configure batch to fix value 80 kW
-    fireEvent.change(screen.getByLabelText('Operação'), { target: { value: 'set' } });
-    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '80' } });
-    fireEvent.change(screen.getByLabelText('Início'), { target: { value: '32' } }); // 08:00
-    fireEvent.change(screen.getByLabelText('Fim'), { target: { value: '40' } }); // 10:00
-
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar à faixa selecionada' }));
-
-    const updated = onChange.mock.calls.at(-1)![0];
-    for (let i = 32; i <= 40; i++) {
-      expect(updated[i]).toBe(80);
-    }
-    expect(updated[31]).toBe(50);
-    expect(updated[41]).toBe(50);
-  });
-
-  it('supports undo and redo stack across edits', () => {
+  it('supports undo and redo stack across edits', async () => {
     const onChange = vi.fn();
     render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={onChange} />);
 
@@ -627,23 +642,24 @@ describe('DailyCurveEditor — editing tools', () => {
     expect(undoBtn).toBeDisabled();
     expect(redoBtn).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('button', { name: '+5 kW' }));
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(55);
+    await editPoint(55);
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(55));
     expect(undoBtn).not.toBeDisabled();
 
     fireEvent.click(undoBtn);
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(50);
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(50));
     expect(redoBtn).not.toBeDisabled();
 
     fireEvent.click(redoBtn);
-    expect(screen.getByLabelText('Potência ativa')).toHaveValue(55);
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(55));
   });
 
-  it('renders peak tariff band (18h-21h) and quick zoom presets', () => {
+  it('renders peak tariff band (18h-21h) and quick zoom presets', async () => {
     render(<DailyCurveEditor hourlyKw={new Array(96).fill(50)} onChange={vi.fn()} />);
 
     expect(screen.getByText('Ponta (18h–21h)')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Visualização' }));
     const solarZoomBtn = screen.getByRole('button', { name: 'Solar (6h–18h)' });
     fireEvent.click(solarZoomBtn);
     const range = screen.getByRole('status', { name: 'Período visível no gráfico diário' });
@@ -654,7 +670,7 @@ describe('DailyCurveEditor — editing tools', () => {
     expect(screen.getByRole('status', { name: 'Período visível no gráfico diário' }).textContent).toContain('00:00');
   });
 
-  it('harmonizes isolated peaks with moving average smoothing button', () => {
+  it('harmonizes isolated peaks with moving average smoothing button', async () => {
     const onChange = vi.fn();
     const noisy = new Array(96).fill(50);
     noisy[48] = 100; // spike at 12:00
@@ -667,33 +683,162 @@ describe('DailyCurveEditor — editing tools', () => {
   });
 });
 
-it('restores and redoes clearing the curve through the same history', () => {
+it('restores and redoes clearing the curve through the same history', async () => {
   render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Limpar curva' }));
-  expect(screen.getByLabelText('Potência ativa')).toHaveValue(0);
+  expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(0));
   fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }));
-  expect(screen.getByLabelText('Potência ativa')).toHaveValue(50);
+  expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(50));
   expect(screen.getByRole('button', { name: 'Desfazer' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Refazer' }));
-  expect(screen.getByLabelText('Potência ativa')).toHaveValue(0);
+  expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(0));
 });
 
-it('keeps all editing tools disabled for read-only solar generation', () => {
+it('keeps all editing tools disabled for read-only solar generation', async () => {
   const onChange = vi.fn();
   render(<DailyCurveEditor hourlyKw={FLAT_24} solarKw={FLAT_24} onChange={onChange} />);
   fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Ajuste em bloco de horário' }));
-  for (const name of ['Harmonizar picos', 'Limpar curva', '+5 kW', 'Aplicar à faixa selecionada']) {
+  for (const name of ['Harmonizar picos', 'Limpar curva']) {
     expect(screen.getByRole('button', { name })).toBeDisabled();
   }
   expect(onChange).not.toHaveBeenCalled();
 });
 
-it('does not cap batch edits at an arbitrary power limit', () => {
+
+
+describe('drag preview and project publication', () => {
+  function mockDragRect(point: HTMLElement) {
+    vi.spyOn(point.closest('svg')!, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, width: 640, height: 220, right: 640, bottom: 220,
+      x: 0, y: 0, toJSON: () => ({}),
+    });
+  }
+
+  async function paintFrame() {
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });
+  }
+
+  it('can start dragging the solar curve directly without first switching series', async () => {
+    const onLoad = vi.fn();
+    const onSolar = vi.fn();
+    render(<DailyCurveEditor hourlyKw={Array(96).fill(100)} solarKw={Array(96).fill(75)} onChange={onLoad} onSolarChange={onSolar} />);
+    const point = screen.getByRole('slider', { name: 'Geração FV às 12:00' });
+    mockDragRect(point);
+    fireEvent.pointerDown(point, { pointerId: 6, clientY: 80 });
+    await paintFrame();
+    expect(selectedPoint(true)).not.toHaveAttribute('aria-valuenow', String(75));
+    expect(onSolar).not.toHaveBeenCalled();
+    fireEvent.pointerMove(point, { pointerId: 6, clientY: 180 });
+    fireEvent.pointerUp(point, { pointerId: 6 });
+    expect(onSolar).toHaveBeenCalledTimes(1);
+    expect(onSolar.mock.calls[0][0][48]).toBeLessThan(75);
+    expect(onLoad).not.toHaveBeenCalled();
+  });
+
+  it('previews over multiple frames without rebuilding the project and publishes the final movement on release', async () => {
+    const onChange = vi.fn();
+    render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
+    const point = getSlider(12);
+    mockDragRect(point);
+    fireEvent.pointerDown(point, { pointerId: 7, clientY: 80 });
+    await paintFrame();
+    expect(selectedPoint(false)).not.toHaveAttribute('aria-valuenow', String(50));
+    expect(onChange).not.toHaveBeenCalled();
+    const first = point.getAttribute('aria-valuenow');
+    fireEvent.pointerMove(point, { pointerId: 7, clientY: 140 });
+    await paintFrame();
+    expect(point.getAttribute('aria-valuenow')).not.toBe(first);
+    expect(onChange).not.toHaveBeenCalled();
+    // This final movement must be committed even before its RAF can run.
+    fireEvent.pointerMove(point, { pointerId: 7, clientY: 200 });
+    fireEvent.pointerUp(point, { pointerId: 7, clientY: 200 });
+    const final = onChange.mock.calls[0][0] as number[];
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(final[12]).toBeLessThan(10);
+    expect(final[10]).toBe(50);
+    await paintFrame();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }));
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(50));
+    fireEvent.click(screen.getByRole('button', { name: 'Refazer' }));
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(final[12]));
+  });
+
+  it('publishes cancelled or lost-capture solar gestures once without changing consumption', async () => {
+    const onLoad = vi.fn();
+    const onSolar = vi.fn();
+    render(<DailyCurveEditor hourlyKw={Array(96).fill(100)} solarKw={Array(96).fill(75)} onChange={onLoad} onSolarChange={onSolar} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Geração FV' }));
+    const point = screen.getByRole('slider', { name: 'Geração FV às 12:00' });
+    mockDragRect(point);
+    fireEvent.pointerDown(point, { pointerId: 8, clientY: 80 });
+    fireEvent.pointerMove(point, { pointerId: 8, clientY: 160 });
+    await paintFrame();
+    expect(onSolar).not.toHaveBeenCalled();
+    fireEvent.pointerCancel(point, { pointerId: 8 });
+    fireEvent.lostPointerCapture(point, { pointerId: 8 });
+    expect(onSolar).toHaveBeenCalledTimes(1);
+    expect(onLoad).not.toHaveBeenCalled();
+    expect(onSolar.mock.calls[0][0][48]).toBeLessThan(75);
+    await paintFrame();
+    expect(onSolar).toHaveBeenCalledTimes(1);
+    onSolar.mockClear();
+    fireEvent.pointerDown(point, { pointerId: 9, clientY: 100 });
+    fireEvent.pointerMove(point, { pointerId: 9, clientY: 180 });
+    await paintFrame();
+    expect(onSolar).not.toHaveBeenCalled();
+    fireEvent.lostPointerCapture(point, { pointerId: 9 });
+    expect(onSolar).toHaveBeenCalledTimes(1);
+    expect(onLoad).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a stale unfinished gesture after the editor is removed', async () => {
+    const onChange = vi.fn();
+    const { unmount } = render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
+    const point = getSlider(12);
+    mockDragRect(point);
+    fireEvent.pointerDown(point, { pointerId: 9, clientY: 80 });
+    fireEvent.pointerMove(point, { pointerId: 9, clientY: 200 });
+    unmount();
+    expect(onChange).not.toHaveBeenCalled();
+    await paintFrame();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('discards a stale draft when an external profile replaces the edited dataset', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<DailyCurveEditor hourlyKw={FLAT_24} onChange={onChange} />);
+    const point = getSlider(12);
+    mockDragRect(point);
+    fireEvent.pointerDown(point, { pointerId: 10, clientY: 80 });
+    rerender(<DailyCurveEditor hourlyKw={Array(24).fill(20)} onChange={onChange} />);
+    fireEvent.pointerMove(point, { pointerId: 10, clientY: 200 });
+    fireEvent.pointerUp(point, { pointerId: 10 });
+    await paintFrame();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(20));
+  });
+});
+
+it('shows only backup beside the taller graph, without point or batch panels', () => {
+  render(<DailyCurveEditor hourlyKw={FLAT_24} selectionActions={<button>Configurar backup da seleção</button>} />);
+  expect(screen.getByRole('complementary', { name: 'Ações da seleção' })).toContainElement(screen.getByRole('button', { name: 'Configurar backup da seleção' }));
+  expect(screen.queryByText('Ponto selecionado')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Ajuste em bloco de horário' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+  expect(screen.getByRole('group', { name: /Editor da curva diária/ })).toHaveAttribute('viewBox', '0 0 640 320');
+});
+
+it('edits apparent CA power at nonunity FP while preserving active energy and emitted kW', async () => {
+  const { CiAcPowerProvider } = await import('./ci-ac-power');
   const onChange = vi.fn();
-  render(<DailyCurveEditor hourlyKw={new Array(24).fill(1500)} onChange={onChange} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Ajuste em bloco de horário' }));
-  fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '10' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Aplicar à faixa selecionada' }));
-  expect(onChange.mock.calls.at(-1)![0][8]).toBe(1650);
+  render(<CiAcPowerProvider powerFactor={0.8}><DailyCurveEditor hourlyKw={Array(24).fill(80)} onChange={onChange} /></CiAcPowerProvider>);
+  const point = getSlider(12);
+  expect(point).toHaveAttribute('aria-valuenow', '100');
+  expect(point).toHaveAttribute('aria-valuetext', '100.0 kVA');
+  expect(screen.getByText('1.920,0')).toBeInTheDocument();
+  fireEvent.keyDown(point, { key: 'ArrowUp' });
+  expect(point).toHaveAttribute('aria-valuenow', '101');
+  await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });
+  expect(onChange.mock.calls.at(-1)![0][12]).toBeCloseTo(80.8, 10);
 });

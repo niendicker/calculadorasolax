@@ -1,7 +1,8 @@
 'use client';
 
+import { CiAcPowerFactorInput, useCiAcPower } from './ci-ac-power';
 import { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clock, Fuel, Gauge, Plus, Shield, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Fuel, Plus, Shield, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
@@ -70,6 +71,8 @@ export function CiBackupPanel({
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
 }) {
+  const { toKva, fromKva } = useCiAcPower(ciOptions.acPowerFactor);
+
   const backup = ciOptions.backup ?? {
     enabled: false,
     inputMode: 'simple',
@@ -88,7 +91,7 @@ export function CiBackupPanel({
 
   // State for new load entry in detailed mode
   const [newLoadName, setNewLoadName] = useState('');
-  const [newLoadPowerW, setNewLoadPowerW] = useState('');
+  const [newLoadPowerKva, setNewLoadPowerKva] = useState('');
   const [newLoadQty, setNewLoadQty] = useState('1');
   const [newLoadFactor, setNewLoadFactor] = useState('100');
 
@@ -98,7 +101,7 @@ export function CiBackupPanel({
 
   function handleAddLoad() {
     if (!newLoadName.trim()) return;
-    const powerW = Math.max(1, toNumber(newLoadPowerW, 100));
+    const powerW = fromKva(Math.max(0.001, toNumber(newLoadPowerKva, 0.1))) * 1000;
     const quantity = Math.max(1, Math.round(toNumber(newLoadQty, 1)));
     const usageFactor = Math.min(1, Math.max(0.1, toNumber(newLoadFactor, 100) / 100));
 
@@ -115,7 +118,7 @@ export function CiBackupPanel({
     });
 
     setNewLoadName('');
-    setNewLoadPowerW('');
+    setNewLoadPowerKva('');
     setNewLoadQty('1');
     setNewLoadFactor('100');
   }
@@ -197,30 +200,30 @@ export function CiBackupPanel({
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1"><label htmlFor="target-power-kw" className="text-xs font-medium text-foreground">
-                  Potência crítica contínua (kW)
+                  Potência crítica contínua (kVA)
                 </label><InfoTooltip label="Sobre a potência crítica contínua">Potência média das cargas durante a falta de rede.</InfoTooltip></div>
                 <Input
                   id="target-power-kw"
                   type="number"
                   min="0"
                   step="0.5"
-                  value={backup.targetPowerKw || ''}
-                  onChange={(e) => updateBackup({ targetPowerKw: Math.max(0, toNumber(e.target.value)) })}
+                  value={backup.targetPowerKw ? toKva(backup.targetPowerKw) : ''}
+                  onChange={(e) => updateBackup({ targetPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
                   placeholder="Ex: 50"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1"><label htmlFor="target-peak-power-kw" className="text-xs font-medium text-foreground">
-                  Potência de pico / surto (kW) <span className="text-muted-foreground">(opcional)</span>
+                  Potência de pico / surto (kVA) <span className="text-muted-foreground">(opcional)</span>
                 </label><InfoTooltip label="Sobre a potência de pico">Partida de motores ou picos de curta duração.</InfoTooltip></div>
                 <Input
                   id="target-peak-power-kw"
                   type="number"
                   min="0"
                   step="0.5"
-                  value={backup.targetPeakPowerKw || ''}
-                  onChange={(e) => updateBackup({ targetPeakPowerKw: Math.max(0, toNumber(e.target.value)) })}
+                  value={backup.targetPeakPowerKw ? toKva(backup.targetPeakPowerKw) : ''}
+                  onChange={(e) => updateBackup({ targetPeakPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
                   placeholder="Ex: 75"
                 />
               </div>
@@ -268,7 +271,7 @@ export function CiBackupPanel({
                       }}
                       className="rounded border bg-background/80 px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-primary/10 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                     >
-                      + {preset.name} ({(preset.powerW * preset.quantity * preset.usageFactor / 1000).toFixed(1)} kW)
+                      + {preset.name} ({toKva(preset.powerW * preset.quantity * preset.usageFactor / 1000).toFixed(1)} kVA)
                     </button>
                   ))}
                 </div>
@@ -288,10 +291,12 @@ export function CiBackupPanel({
                   <div>
                     <Input
                       type="number"
-                      aria-label="Potência unitária (W)"
-                      placeholder="Potência unitária (W)"
-                      value={newLoadPowerW}
-                      onChange={(e) => setNewLoadPowerW(e.target.value)}
+                      min={0.001}
+                      step={0.001}
+                      aria-label="Potência unitária (kVA)"
+                      placeholder="Potência unitária (kVA)"
+                      value={newLoadPowerKva}
+                      onChange={(e) => setNewLoadPowerKva(e.target.value)}
                     />
                   </div>
                   <div>
@@ -343,9 +348,9 @@ export function CiBackupPanel({
                           <tr key={load.id} className="hover:bg-muted/20">
                             <td className="p-2.5 font-medium">{load.name}</td>
                             <td className="p-2.5">{load.quantity}</td>
-                            <td className="p-2.5">{load.powerW} W</td>
+                            <td className="p-2.5">{toKva(load.powerW / 1000).toFixed(3)} kVA</td>
                             <td className="p-2.5">{Math.round((load.usageFactor ?? 1) * 100)}%</td>
-                            <td className="p-2.5 font-semibold">{(continuousW / 1000).toFixed(2)} kW</td>
+                            <td className="p-2.5 font-semibold">{toKva(continuousW / 1000).toFixed(2)} kVA</td>
                             <td className="p-2.5 text-right">
                               <Button
                                 type="button"
@@ -383,7 +388,7 @@ export function CiBackupPanel({
             </div>
           )}
 
-          {backup.curveSelection && <label className="block max-w-xs space-y-1 text-xs">Potência total na partida (kW)<Input aria-label="Potência total na partida (kW)" type="number" min={0} step="any" value={backup.targetPeakPowerKw ?? 0} onChange={event=>updateBackup({targetPeakPowerKw:Math.max(0,toNumber(event.target.value))})}/></label>}
+          {backup.curveSelection && <label className="block max-w-xs space-y-1 text-xs">Potência total na partida (kVA)<Input aria-label="Potência total na partida (kVA)" type="number" min={0} step="any" value={toKva(backup.targetPeakPowerKw ?? 0)} onChange={event=>updateBackup({targetPeakPowerKw:fromKva(Math.max(0,toNumber(event.target.value)))})}/></label>}
           {/* Operational Settings (Safety Margin) */}
           <div className="space-y-3 border-t pt-4">
             <p className="text-xs font-semibold">Parâmetros Operacionais</p>
@@ -414,13 +419,13 @@ export function CiBackupPanel({
                 <div>
                   <span className="text-xs text-muted-foreground">Potência Contínua Necessária</span>
                   <p className="text-sm font-bold text-foreground">
-                    {requirements.requiredContinuousPowerKw.toFixed(1)} kW
+                    {toKva(requirements.requiredContinuousPowerKw).toFixed(1)} kVA
                   </p>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">Potência de Pico/Surto</span>
                   <p className="text-sm font-bold text-foreground">
-                    {requirements.requiredPeakPowerKw.toFixed(1)} kW
+                    {toKva(requirements.requiredPeakPowerKw).toFixed(1)} kVA
                   </p>
                 </div>
                 <div>
@@ -479,9 +484,7 @@ export function CiBackupPanel({
                       onChange={(e) => updateGenerator({ ratedPowerKva: Math.max(0, toNumber(e.target.value)) })}
                       placeholder="Ex: 150"
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Potência ativa: {((generator.ratedPowerKva || 0) * (generator.powerFactor || 0.8)).toFixed(1)} kW (FP {generator.powerFactor})
-                    </p>
+                    <label className="mt-2 block space-y-1 text-xs">Fator de potência do gerador<CiAcPowerFactorInput label="Fator de potência do gerador" value={generator.powerFactor} onChange={value=>updateGenerator({powerFactor:value})} /></label>
                   </div>
 
                   <div className="space-y-1.5">

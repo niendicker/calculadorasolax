@@ -4,6 +4,8 @@
 // persisted configuration. Render only the selected technical solution or
 // the proven failure reasons returned by that route.
 
+import { formatAcPowerWarning } from '@/supabase/functions/_shared/commercial-industrial/ac-power';
+import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
@@ -13,7 +15,7 @@ import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Client, ProjectInfo } from '@/lib/types';
-import { buildPdfFileName, formatCurrencyBRL, formatKw, formatKwh, formatPercentBRL, formatYears } from '../../helpers';
+import { buildPdfFileName, formatCurrencyBRL, formatKwh, formatPercentBRL, formatYears } from '../../helpers';
 import type { InlineProfile } from '../../types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 
@@ -57,6 +59,8 @@ export function CiResultsPanel({
   canAccessCiBackup?: boolean;
 }) {
   const [result, setResult] = useState<CommercialIndustrialResult | null>(initialSnapshot?.result ?? null);
+  const { factor, formatPower } = useCiAcPower(result ? result.assumptions.acPowerFactor ?? 1 : ciOptions.acPowerFactor);
+  const powerWarning = (text: string) => formatAcPowerWarning(text, factor);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
@@ -275,7 +279,7 @@ export function CiResultsPanel({
         </div>
       )}
 
-      {result && !hasTechnicalSolution && <section role="alert" className="space-y-3 rounded-lg border border-destructive/40 p-4 text-sm"><h3 className="font-semibold">Nenhuma solução atende aos requisitos técnicos</h3><ul className="list-disc space-y-2 pl-5">{(result.technicalIssues?.length?result.technicalIssues.map(issue=>issue.message):[result.technicalSelection?.reason??'Recalcule para identificar os requisitos que não foram atendidos.']).map(message=><li key={message}>{message}</li>)}</ul></section>}
+      {result && !hasTechnicalSolution && <section role="alert" className="space-y-3 rounded-lg border border-destructive/40 p-4 text-sm"><h3 className="font-semibold">Nenhuma solução atende aos requisitos técnicos</h3><ul className="list-disc space-y-2 pl-5">{(result.technicalIssues?.length?result.technicalIssues.map(issue=>issue.unit==='kW'&&issue.required!==undefined&&issue.available!==undefined?`Potência insuficiente: o projeto exige ${formatPower(issue.required)}; os modelos selecionados permitem até ${formatPower(issue.available)} nas configurações aprovadas.`:issue.message):[result.technicalSelection?.reason??'Recalcule para identificar os requisitos que não foram atendidos.']).map(message=><li key={message}>{powerWarning(message)}</li>)}</ul></section>}
 
       {result && hasTechnicalSolution && (
         <>
@@ -288,11 +292,11 @@ export function CiResultsPanel({
               </div>
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-xs text-muted-foreground">Demanda máx. ponta</p>
-                <p className="mt-1 text-sm font-semibold">{formatKw(result.baseline.maxDemandPeakKw)}</p>
+                <p className="mt-1 text-sm font-semibold">{formatPower(result.baseline.maxDemandPeakKw)}</p>
               </div>
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-xs text-muted-foreground">Demanda máx. fora ponta</p>
-                <p className="mt-1 text-sm font-semibold">{formatKw(result.baseline.maxDemandOffPeakKw)}</p>
+                <p className="mt-1 text-sm font-semibold">{formatPower(result.baseline.maxDemandOffPeakKw)}</p>
               </div>
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-xs text-muted-foreground">Energia importada (ano)</p>
@@ -326,16 +330,16 @@ export function CiResultsPanel({
               {!currentScenario.group && Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
               {currentScenario.group && <div className="space-y-2 border-t pt-3 text-xs">
                 {result.assumptions.lineVoltageV&&<p>Tensão de operação CA entre fases: {result.assumptions.lineVoltageV} V.</p>}
-                <p>Carga CA até {formatKw(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatKw(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
+                <p>Carga CA até {formatPower(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatPower(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
                 {currentScenario.group.dc.ports ? <ul className="space-y-1">{currentScenario.group.dc.ports.map(port=><li key={`${port.unit}:${port.port}`}>Unidade {port.unit} · banco CC {port.port}: {port.series}S × {port.parallelStrings}P · {port.voltageMinV}–{port.voltageMaxV} V · carga/descarga CC até {port.chargePowerKw.toFixed(1)}/{port.dischargePowerKw.toFixed(1)} kW · {port.chargeCurrentA}/{port.dischargeCurrentA} A.</li>)}</ul> : <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V.</p>}
                 <p>Referência: {currentScenario.group.source.reference} · Revisão {currentScenario.group.source.revision}.</p>
-                {result.technicalRequirements && <p>Requisitos do projeto: {formatKw(result.technicalRequirements.minPowerKw)} · {result.technicalRequirements.minEnergyKwh.toFixed(1)} kWh úteis mínimos, incluindo reserva de backup.</p>}
+                {result.technicalRequirements && <p>Requisitos do projeto: {formatPower(result.technicalRequirements.minPowerKw)} · {result.technicalRequirements.minEnergyKwh.toFixed(1)} kWh úteis mínimos, incluindo reserva de backup.</p>}
                 <p className="font-semibold">Composição da solução</p>
                 <ul className="space-y-1">{currentScenario.billOfMaterials?.map(item=><li key={item.productId} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
               </div>}
               {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
                 <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.portBanks ? currentScenario.composition.portBanks.map((bank,i)=>`Porta ${i+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${currentScenario.composition.seriesCount} unidades em série × ${currentScenario.composition.parallelStringsPerPcs} strings por PCS.`}</p>
-                <p>Carga AC até {formatKw(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatKw(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
+                <p>Carga AC até {formatPower(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatPower(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
                 <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
                 <ul className="space-y-1">{currentScenario.composition.items.filter(item=>!currentScenario.accessories?.length || item.productType!=='accessory').map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{currentScenario.pricingComplete === false ? '' : ` · ${formatCurrencyBRL(item.unitPriceBrl)}/un.`}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
               </div>}
@@ -343,7 +347,7 @@ export function CiResultsPanel({
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
                   <p className="font-medium">Avisos deste cenário</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
-                    {currentScenario.technicalWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                    {currentScenario.technicalWarnings.map((warning) => <li key={warning}>{powerWarning(warning)}</li>)}
                   </ul>
                 </div>
               )}
@@ -391,16 +395,16 @@ export function CiResultsPanel({
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-md border bg-muted/20 p-2.5">
                     <p className="text-xs text-muted-foreground">Pico de Carga Original</p>
-                    <p className="mt-1 text-sm font-semibold">{formatKw(maxOriginalDemandKw)}</p>
+                    <p className="mt-1 text-sm font-semibold">{formatPower(maxOriginalDemandKw)}</p>
                   </div>
                   <div className="rounded-md border bg-muted/20 p-2.5">
                     <p className="text-xs text-muted-foreground">Pico com BESS (Rede)</p>
-                    <p className="mt-1 text-sm font-semibold">{formatKw(maxGridDemandKw)}</p>
+                    <p className="mt-1 text-sm font-semibold">{formatPower(maxGridDemandKw)}</p>
                   </div>
                   <div className="rounded-md border bg-muted/20 p-2.5">
                     <p className="text-xs text-muted-foreground">Redução no Pico</p>
                     <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                      {formatKw(peakReductionKw)} ({peakReductionPercent.toFixed(1)}%)
+                      {formatPower(peakReductionKw)} ({peakReductionPercent.toFixed(1)}%)
                     </p>
                   </div>
                   <div className="rounded-md border bg-muted/20 p-2.5">
@@ -427,7 +431,7 @@ export function CiResultsPanel({
                 )}
               </div>
 
-              <CiDispatchChart
+              <CiDispatchChart powerFactor={result.assumptions.acPowerFactor ?? 1} generatorPowerFactor={result.assumptions.generatorPowerFactor}
                 dispatch={dispatch}
                 contractedDemandKw={result.assumptions.tariff.contractedDemandKw}
               />
@@ -474,7 +478,7 @@ export function CiResultsPanel({
                 <div>
                   <p className="text-xs text-muted-foreground">Potência Crítica Suportada</p>
                   <p className="mt-1 text-sm font-semibold">
-                    {result.selected?.totalPowerKw ?? 0} kW / {result.backup.requiredContinuousPowerKw.toFixed(1)} kW
+                    {formatPower(result.selected?.totalPowerKw ?? 0)} / {formatPower(result.backup.requiredContinuousPowerKw)}
                   </p>
                 </div>
                 <div>
@@ -487,7 +491,7 @@ export function CiResultsPanel({
                 </div>
               </div>
               {result.backup.warningMessage && (
-                <p className="text-xs text-amber-700 pt-1">{result.backup.warningMessage}</p>
+                <p className="text-xs text-amber-700 pt-1">{powerWarning(result.backup.warningMessage)}</p>
               )}
             </div>
           )}
@@ -497,7 +501,7 @@ export function CiResultsPanel({
               <p className="font-medium">Avisos técnicos</p>
               <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs">
                 {result.warnings.map((message) => (
-                  <li key={message}>{message}</li>
+                  <li key={message}>{powerWarning(message)}</li>
                 ))}
               </ul>
             </div>

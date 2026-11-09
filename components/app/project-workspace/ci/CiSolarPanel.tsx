@@ -4,6 +4,7 @@
 // Permite dimensionar o sistema solar acoplado (ou existente), sua produção média
 // e a prioridade de recarga do BESS com o excedente solar diurno.
 
+import { useCiAcPower } from './ci-ac-power';
 import { ChevronLeft, ChevronRight, Sun, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/ui/tooltip';
@@ -36,6 +37,8 @@ export function CiSolarPanel({
   onNavigateNext?: () => void;
   embedded?: boolean;
 }) {
+  const { toKva, fromKva } = useCiAcPower(ciOptions.acPowerFactor);
+
   const solar = ciOptions.solar ?? DEFAULT_CI_SOLAR_CONFIG;
 
   function updateSolar(partial: Partial<CiSolarConfig>) {
@@ -120,15 +123,15 @@ export function CiSolarPanel({
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1"><label htmlFor="solar-inverter-kw" className="text-xs font-medium text-foreground">
-                  Potência dos Inversores (kW)
+                  Potência dos Inversores (kVA)
                 </label><InfoTooltip label="Sobre a potência dos inversores FV">Potência máxima de saída AC para a rede local.</InfoTooltip></div>
                 <Input
                   id="solar-inverter-kw"
                   type="number"
                   min="0"
                   step="0.5"
-                  value={solar.inverterPowerKw || ''}
-                  onChange={(e) => updateSolar({ inverterPowerKw: Math.max(0, toNumber(e.target.value)) })}
+                  value={solar.inverterPowerKw ? toKva(solar.inverterPowerKw) : ''}
+                  onChange={(e) => updateSolar({ inverterPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
                   placeholder="Ex: 125"
                 />
               </div>

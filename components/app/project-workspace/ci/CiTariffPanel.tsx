@@ -8,6 +8,7 @@
 // only for what's rendered — nothing is written to the store until the user
 // actually edits a field, matching bessProductId's null-until-chosen pattern.
 
+import { useCiAcPower } from './ci-ac-power';
 import { AlertTriangle, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -103,6 +104,8 @@ export function CiTariffPanel({
   onNavigatePrev?: () => void;
   onNavigateNext?: () => void;
 }) {
+  const { factor, toKva, fromKva } = useCiAcPower(ciOptions.acPowerFactor);
+
   const tariff = ciOptions.tariff ?? DEFAULT_TARIFF;
 
   function update(partial: Partial<TariffConfig>) {
@@ -202,23 +205,23 @@ export function CiTariffPanel({
         <p className="text-sm font-semibold">Demanda</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Tarifa de demanda (R$/kW-mês)</span>
+            <span>Tarifa de demanda (R$/kVA-mês)</span>
             <Input
               type="number"
               min={0}
               step="0.01"
-              value={tariff.demandRateBrlPerKwMonth}
-              onChange={(event) => update({ demandRateBrlPerKwMonth: Math.max(0, toNumber(event.target.value)) })}
+              value={tariff.demandRateBrlPerKwMonth * factor}
+              onChange={(event) => update({ demandRateBrlPerKwMonth: Math.max(0, toNumber(event.target.value)) / factor })}
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Demanda contratada (kW)</span>
+            <span>Demanda contratada (kVA)</span>
             <Input
               type="number"
               min={0}
               step="1"
-              value={tariff.contractedDemandKw}
-              onChange={(event) => update({ contractedDemandKw: Math.max(0, toNumber(event.target.value)) })}
+              value={toKva(tariff.contractedDemandKw)}
+              onChange={(event) => update({ contractedDemandKw: fromKva(Math.max(0, toNumber(event.target.value))) })}
             />
           </label>
         </div>
