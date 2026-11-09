@@ -231,14 +231,14 @@ describe('CiResultsPanel', () => {
     });
     result.selected={...result.selected!,technicalValidity:false};
     result.technicalSelection={scenarioId:null,reason:'Nenhuma atende.'};
-    result.technicalIssues=[{code:'power',message:'Potência insuficiente: exige 150 kW; máximo aprovado 120 kW.'}];
+    result.technicalIssues=[{code:'power',message:'Potência insuficiente: exige 150 kVA; máximo aprovado 120 kVA.'}];
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: () => Promise.resolve(result) });
     render(<CiResultsPanel {...panelProps('ci-project-1')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
 
     expect(await screen.findByText('Nenhuma solução atende aos requisitos técnicos')).toBeInTheDocument();
-    expect(screen.getByText('Potência insuficiente: exige 150 kW; máximo aprovado 120 kW.')).toBeInTheDocument();
+    expect(screen.getByText('Potência insuficiente: exige 150 kVA; máximo aprovado 120 kVA.')).toBeInTheDocument();
     expect(screen.queryByText('CAPEX')).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByRole('button',{name:'Gerar memorial (PDF)'})).not.toBeInTheDocument();
@@ -319,11 +319,11 @@ describe('CiResultsPanel', () => {
 
     expect(await screen.findByText('Operação e Despacho BESS')).toBeInTheDocument();
     expect(screen.getByText('Pico de Carga Original')).toBeInTheDocument();
-    expect(screen.getAllByText('350,0 kW')).toHaveLength(2); // baseline + peak shaving
+    expect(screen.getAllByText('350,0 kVA')).toHaveLength(2); // baseline + peak shaving
     expect(screen.getByText('Pico com BESS (Rede)')).toBeInTheDocument();
-    expect(screen.getByText('250,0 kW')).toBeInTheDocument();
+    expect(screen.getByText('250,0 kVA')).toBeInTheDocument();
     expect(screen.getByText('Redução no Pico')).toBeInTheDocument();
-    expect(screen.getByText(/100,0 kW/)).toBeInTheDocument();
+    expect(screen.getByText(/100,0 kVA/)).toBeInTheDocument();
     expect(screen.getByText('Economia em Demanda')).toBeInTheDocument();
   });
 

@@ -1,4 +1,5 @@
 'use client';
+import { useCiAcPower } from './ci-ac-power';
 import { computeBackupRequirements } from '@/supabase/functions/_shared/commercial-industrial/backup';
 
 // C&I workspace, "Visão geral" — dashboard-style summary mirroring
@@ -35,7 +36,7 @@ import { listActiveCiBessProducts, type CiBessProductRecord } from '@/lib/data/c
 import type { Client, ProjectInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
-import { formatCurrencyBRL, formatKw, formatYears } from '../../helpers';
+import { formatCurrencyBRL, formatYears } from '../../helpers';
 import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
 import { ProjectInfoEditor } from '../ProjectInfoEditor';
 import { ProjectInfoModal, type ProjectInfoEditField } from '../ProjectInfoModal';
@@ -152,6 +153,8 @@ export function CiOverviewPanel({
   canAccessCiBackup?: boolean;
   onNavigateToSection: (section: CiWorkspaceSection) => void;
 }) {
+  const { formatPower } = useCiAcPower(ciOptions.acPowerFactor);
+
   const [projectInfoEditField, setProjectInfoEditField] = useState<ProjectInfoEditField>(null);
   const [bessProducts, setBessProducts] = useState<CiBessProductRecord[]>([]);
 
@@ -173,7 +176,7 @@ export function CiOverviewPanel({
 
   const status = getCiConfigurationStatus(ciOptions);
   const { bess: bessConfigured, curve: curveConfigured, tariff: tariffConfigured } = status;
-  const bessSummary = ciOptions.bessSystem?.kind === 'model' ? (!status.bess?'Selecione a tensão e os modelos BESS':`${ciOptions.bessSystem.sourceKind==='cabinet'?'BESS integrado':'PCS/Inversor + bateria'} · ${ciOptions.lineVoltageV} V · Quantidades automáticas`) : ciOptions.bessSystem?.kind === 'solution' ? 'Solução agrupada fixada no catálogo gerado' : ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${ciOptions.bessSystem.minPowerKw} kW / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
+  const bessSummary = ciOptions.bessSystem?.kind === 'model' ? (!status.bess?'Selecione a tensão e os modelos BESS':`${ciOptions.bessSystem.sourceKind==='cabinet'?'BESS integrado':'PCS/Inversor + bateria'} · ${ciOptions.lineVoltageV} V · Quantidades automáticas`) : ciOptions.bessSystem?.kind === 'solution' ? 'Solução agrupada fixada no catálogo gerado' : ciOptions.bessSystem?.kind === 'automatic' ? `Busca em todos os aprovados · mínimo ${formatPower(ciOptions.bessSystem.minPowerKw)} / ${ciOptions.bessSystem.minEnergyKwh} kWh úteis` : ciOptions.bessSystem?.kind === 'modular'
     ? `PCS + baterias · ${ciOptions.bessSystem.compatibilityId ? 'Compatibilidade selecionada' : 'Selecione uma compatibilidade'} · ${ciOptions.bessSystem.mode === 'auto' ? 'Comparação automática' : 'Composição fixa'}`
     : !ciOptions.bessProductId
     ? 'Selecione a tensão e os modelos BESS'
@@ -189,7 +192,7 @@ export function CiOverviewPanel({
 
   const tariff = ciOptions.tariff;
   const tariffSummary = tariff
-    ? `Modalidade ${tariff.tariffModality === 'verde' ? 'Verde' : 'Azul'} · Demanda contratada ${formatKw(tariff.contractedDemandKw)}`
+    ? `Modalidade ${tariff.tariffModality === 'verde' ? 'Verde' : 'Azul'} · Demanda contratada ${formatPower(tariff.contractedDemandKw)}`
     : 'Tarifa não configurada';
 
   const strategySummary = `${STRATEGY_LABELS[ciOptions.strategy] ?? ciOptions.strategy} · Seleção técnica`;
@@ -199,13 +202,13 @@ export function CiOverviewPanel({
   const solarSummary = !solar?.enabled
     ? 'Desativado'
     : solar.generationCurve ? `${solar.generationCurve.source === 'manual' ? 'Perfil personalizado' : 'Curva importada'} · ${solar.generationCurve.points.length} pontos · ${solar.generationCurve.resolutionMinutes} min`
-    : `${solar.installedPowerKwp} kWp · ${solar.inverterPowerKw || solar.installedPowerKwp} kW inversor`;
+    : `${solar.installedPowerKwp} kWp · ${formatPower(solar.inverterPowerKw || solar.installedPowerKwp)} inversor`;
 
   const backup = ciOptions.backup;
   const backupConfigured = Boolean(backup?.enabled && status.backup);
   let backupSummary = backup?.enabled ? 'Revise os requisitos de backup' : 'Desativado';
   if(backup?.enabled){
-    try{const requirements=computeBackupRequirements(backup,ciOptions.loadCurve);if(requirements)backupSummary=`${requirements.requiredContinuousPowerKw.toFixed(1)} kW · ${requirements.autonomyHours.toFixed(2)}h · ${requirements.requiredEnergyKwh.toFixed(1)} kWh`;}
+    try{const requirements=computeBackupRequirements(backup,ciOptions.loadCurve);if(requirements)backupSummary=`${formatPower(requirements.requiredContinuousPowerKw)} · ${requirements.autonomyHours.toFixed(2)}h · ${requirements.requiredEnergyKwh.toFixed(1)} kWh`;}
     catch{backupSummary='Intervalo indisponível na curva atual';}
   }
 

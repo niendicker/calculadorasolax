@@ -1,16 +1,15 @@
 'use client';
 
 // Lets the user draw a representative day's load shape by dragging quarter-hour
-// points directly on an SVG chart, synchronized with a lateral numeric editor
-// for the selected hour. Features local smoothing by default, energetic KPIs,
-// batch editing by time window, undo/redo support, and independent controls
+// points directly on an SVG chart. Features local smoothing by default,
+// energetic KPIs, undo/redo support, and independent controls
 // for weekdays and weekends.
 
+import { useCiAcPower } from './ci-ac-power';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   BookmarkPlus,
   Check,
-  ChevronLeft,
   ChevronRight,
   RotateCcw,
   Sparkles,
@@ -18,16 +17,17 @@ import {
   Redo2,
   ZoomIn,
   ZoomOut,
+  Pencil,
+  ScanLine,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { cn, readCssVar } from '@/lib/utils';
 import type {CurveRangeSelection} from './LoadCurveChart';
 import {
-  applyBatchOperation,
   applyMovingAverageSmoothing,
-  BatchOperationMode,
   calculateDailyMetrics,
   formatPtNumber,
 } from './daily-curve-metrics';
@@ -38,7 +38,7 @@ type EditMode = 'normal' | 'smooth';
 const BRUSH_RADIUS_POINTS = 2;
 const SMOOTH_ADJACENT_THRESHOLD_KW = 5;
 const DEFAULT_VIEW_WIDTH = 640;
-const VIEW_HEIGHT = 235;
+const VIEW_HEIGHT = 320;
 const MARGIN = { top: 26, right: 14, bottom: 26, left: 54 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -106,7 +106,7 @@ function pxToKw(pxY: number, maxKw: number, plotHeight: number): number {
 }
 
 export interface DailyCurveEditorProps {
-  /** 24 kW values for direct single-day editing. */
+  /** Active kW samples; CA controls display kVA at the project power factor. */
   hourlyKw?: number[];
   onChange?: (hourlyKw: number[]) => void;
   /** Full dual-pattern props when orchestrated with weekday/weekend. */
@@ -125,6 +125,7 @@ export interface DailyCurveEditorProps {
   onSolarChange?: (kw: number[]) => void;
   onSelectRange?:(range:CurveRangeSelection|null)=>void;
   selectedRanges?:CurveRangeSelection[];
+  selectionActions?: React.ReactNode;
 }
 
 export function DailyCurveEditor({
@@ -142,7 +143,10 @@ export function DailyCurveEditor({
   solarOnly=false,
   onSelectRange,
   selectedRanges=[],
+  selectionActions,
 }: DailyCurveEditorProps) {
+  const { toKva, fromKva } = useCiAcPower();
+
   const [focusedSeries, setFocusedSeries] = useState<'consumption' | 'solar'>(solarOnly?'solar':'consumption');
   const hasSolar = Boolean(solarKw?.length);
   const solarSelected = hasSolar && (solarOnly||focusedSeries === 'solar');
@@ -168,8 +172,13 @@ export function DailyCurveEditor({
   const panRef = useRef<{ clientX: number; start: number; end: number } | null>(null);
   const rangeDragRef=useRef<{startIndex:number;clientX:number}|null>(null);
   const [rangeMode,setRangeMode]=useState(false);
+  const canSelectRange = Boolean(onSelectRange);
+  const [previousCanSelectRange, setPreviousCanSelectRange] = useState(canSelectRange);
+  if (previousCanSelectRange !== canSelectRange) {
+    setPreviousCanSelectRange(canSelectRange);
+    if (!canSelectRange) setRangeMode(false);
+  }
   const [rangePreview,setRangePreview]=useState<CurveRangeSelection|null>(null);
-  const [rangeStart,setRangeStart]=useState(0),[rangeEnd,setRangeEnd]=useState(pointCount-1);
 
   const formatTime = useCallback(
     (index: number) => {
@@ -190,11 +199,9 @@ export function DailyCurveEditor({
   const [showPeakBand, setShowPeakBand] = useState<boolean>(true);
   const [showSecondary, setShowSecondary] = useState<boolean>(true);
 
-  // Batch edit state
-  const [batchStart, setBatchStart] = useState<number>(Math.round((8 * pointCount) / 24));
-  const [batchEnd, setBatchEnd] = useState<number>(Math.round((18 * pointCount) / 24));
-  const [batchMode, setBatchMode] = useState<BatchOperationMode>('scale');
-  const [batchValue, setBatchValue] = useState<string>('10');
+  const viewOptionsId = useId();
+  const [viewOptionsOpen, setViewOptionsOpen] = useState(false);
+
 
   // Toast / feedback message
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -215,6 +222,8 @@ export function DailyCurveEditor({
   const latestKwRef = useRef(activeDataset);
   const lastEmittedRef = useRef<number[] | null>(null);
   const pendingRef = useRef<number[] | null>(null);
+  const pendingEmitterRef = useRef<((values: number[]) => void) | null>(null);
+  const pointerEditingRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const smoothInteractionRef = useRef<{ hour: number; startingKw: number[] } | null>(null);
   const dragScaleMaxRef = useRef<number | null>(null);
@@ -232,6 +241,8 @@ export function DailyCurveEditor({
       return;
     latestKwRef.current = activeDataset;
     pendingRef.current = null;
+    pendingEmitterRef.current = null;
+    pointerEditingRef.current = false;
     setLocalKw(activeDataset);
     setHistory([]);
     setRedoStack([]);
@@ -243,6 +254,9 @@ export function DailyCurveEditor({
     () => () => {
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      // An unfinished gesture belongs to this editor, not a replacement project.
+      pendingRef.current = null;
+      pendingEmitterRef.current = null;
     },
     []
   );
@@ -260,8 +274,23 @@ export function DailyCurveEditor({
   function commitPending() {
     frameRef.current = null;
     const pending = pendingRef.current;
+    const publish = pendingEmitterRef.current;
     pendingRef.current = null;
-    if (pending) emit(pending);
+    pendingEmitterRef.current = null;
+    if (pending) {
+      setLocalKw(pending);
+      publish?.(pending);
+    }
+  }
+
+  function paintPendingFrame() {
+    frameRef.current = null;
+    if (pointerEditingRef.current) {
+      // Keep the gesture local; project/weekly/PV calculations run on release.
+      if (pendingRef.current) setLocalKw(pendingRef.current);
+    } else {
+      commitPending();
+    }
   }
 
   function pushHistoryState(previousSnapshot: number[]) {
@@ -275,10 +304,13 @@ export function DailyCurveEditor({
     if (editingSeriesRef.current === series) return;
     if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
     commitPending();
+    pointerEditingRef.current = false;
     editingSeriesRef.current = series;
     const values = series === 'solar' ? normalizedSolar! : consumptionDataset;
     latestKwRef.current = values;
-    lastEmittedRef.current = null;
+    // This series is already synchronized; the following effect must not
+    // discard a pointer gesture that started directly on its curve.
+    lastEmittedRef.current = values;
     setLocalKw(values);
     setHistory([]);
     setRedoStack([]);
@@ -289,31 +321,23 @@ export function DailyCurveEditor({
 
   function updateHour(hour: number, kw: number) {
     const previous = latestKwRef.current;
-    const roundedKw = Math.round(kw * 10) / 10;
+    const roundedKw = fromKva(Math.round(toKva(kw) * 10) / 10);
     const starting = smoothInteractionRef.current?.hour === hour ? smoothInteractionRef.current.startingKw : previous;
     const next = applyPointUpdate(starting, hour, roundedKw, 'smooth');
     latestKwRef.current = next;
-    setLocalKw(next);
+    // Keyboard nudges remain immediate; pointer movement paints once per frame.
+    if (!pointerEditingRef.current) setLocalKw(next);
     pendingRef.current = next;
-    if (frameRef.current == null) frameRef.current = requestAnimationFrame(commitPending);
+    pendingEmitterRef.current = emit;
+    if (frameRef.current == null) frameRef.current = requestAnimationFrame(paintPendingFrame);
   }
 
   function cancelPending() {
     if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
     pendingRef.current = null;
-  }
-
-  function commitHourImmediately(hour: number, kw: number) {
-    cancelPending();
-    pushHistoryState(latestKwRef.current.slice());
-    if (kw > currentMaxKw) {
-      setScaleCeilingOverride(niceCeiling(kw * 1.1));
-    }
-    const next = applyPointUpdate(latestKwRef.current, hour, Math.round(kw * 10) / 10, 'normal');
-    latestKwRef.current = next;
-    setLocalKw(next);
-    emit(next);
+    pendingEmitterRef.current = null;
+    pointerEditingRef.current = false;
   }
 
   function handleClearCurve() {
@@ -324,7 +348,7 @@ export function DailyCurveEditor({
     setLocalKw(cleared);
     setScaleCeilingOverride(null);
     emit(cleared);
-    showToast('Curva zerada (0 kW em todos os patamares).');
+    showToast('Curva zerada (0 kVA em todos os patamares).');
   }
 
   function handleUndo() {
@@ -357,32 +381,6 @@ export function DailyCurveEditor({
       emit(next);
       showToast('Ação refeita.');
     }
-  }
-
-  function handleQuickStep(step: number) {
-    cancelPending();
-    const currentVal = localKw[selectedHour] ?? 0;
-    const nextVal = Math.max(0, Math.round((currentVal + step) * 10) / 10);
-    commitHourImmediately(selectedHour, nextVal);
-  }
-
-  function handleApplyBatch() {
-    const val = Number(batchValue);
-    if (!batchValue.trim() || !Number.isFinite(val)) return;
-    cancelPending();
-    pushHistoryState(latestKwRef.current.slice());
-    const next = applyBatchOperation(latestKwRef.current, batchStart, batchEnd, batchMode, val, Number.POSITIVE_INFINITY);
-    const maxInBatch = Math.max(...next);
-    if (maxInBatch > currentMaxKw) {
-      setScaleCeilingOverride(niceCeiling(maxInBatch * 1.1));
-    }
-    latestKwRef.current = next;
-    setLocalKw(next);
-    emit(next);
-    const countPoints = Math.abs(batchEnd - batchStart) + 1;
-    showToast(
-      `Faixa ${formatTime(Math.min(batchStart, batchEnd))}–${formatTime(Math.max(batchStart, batchEnd))} atualizada (${countPoints} patamares).`
-    );
   }
 
   function handleHarmonizeCurve() {
@@ -533,6 +531,7 @@ export function DailyCurveEditor({
     series: 'consumption' | 'solar' = 'consumption'
   ) {
     selectSeries(series);
+    pointerEditingRef.current = true;
     event.currentTarget.focus();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -548,7 +547,7 @@ export function DailyCurveEditor({
   }
 
   function handlePointerMove(hour: number, event: React.PointerEvent<SVGCircleElement>) {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    if (!pointerEditingRef.current || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
     hasDraggedRef.current = true;
     const newKw = pointerPositionToKw(event.clientY);
     lastPointerKwRef.current = newKw;
@@ -556,6 +555,7 @@ export function DailyCurveEditor({
   }
 
   function handlePointerUp(event: React.PointerEvent<SVGCircleElement>) {
+    pointerEditingRef.current = false;
     if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
     commitPending();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -575,7 +575,11 @@ export function DailyCurveEditor({
   }
 
   function handleKeyDown(hour: number, event: React.KeyboardEvent<SVGCircleElement>) {
-    const step = event.shiftKey ? 5 : 1;
+    if (rangeMode && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      event.preventDefault();
+      return;
+    }
+    const step = fromKva(event.shiftKey ? 5 : 1);
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       beginInteraction(hour);
@@ -611,7 +615,6 @@ export function DailyCurveEditor({
         }
       : null;
 
-  const currentSelectedKw = localKw[selectedHour] ?? 0;
   const solarColor = 'var(--chart-2, #ff9d00)';
   const solarLinePath =
     generationKw
@@ -638,261 +641,13 @@ export function DailyCurveEditor({
   const peakBandVisible =
     showPeakBand && peakBandEnd > viewRange.start && peakBandStart < viewRange.end;
 
-  const currentConsumptionVal = consumptionKw[selectedHour] ?? 0;
-  const currentSolarVal = generationKw?.[selectedHour] ?? 0;
-  const currentNetVal = currentConsumptionVal - currentSolarVal;
 
   return (
     <div className="space-y-4">
-      {/* 1. Header with Model Status and Global Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-border/50">
-        <div className="flex flex-wrap items-center gap-2">
-          {dirtyCount > 0 ? (
-            <span
-              id="dirtyBadge"
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              Editado · {dirtyCount} {dirtyCount === 1 ? 'ajuste' : 'ajustes'}
-            </span>
-          ) : (
-            <span
-              id="dirtyBadge"
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Sincronizado com modelo
-            </span>
-          )}
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
-          {/* History: Undo / Redo controls */}
-          <div
-            className="inline-flex items-center rounded-lg border border-border/80 bg-muted/40 p-0.5"
-            role="group"
-            aria-label="Histórico de edição"
-          >
-            <Button
-              id="btnUndo"
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-label="Desfazer"
-              title="Desfazer última edição"
-              disabled={history.length === 0}
-              onClick={handleUndo}
-              className="h-7 px-2 text-xs font-medium gap-1 text-foreground"
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Desfazer</span>
-            </Button>
-            <Button
-              id="btnRedo"
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-label="Refazer"
-              title="Refazer edição"
-              disabled={redoStack.length === 0}
-              onClick={handleRedo}
-              className="h-7 px-2 text-xs font-medium gap-1 text-foreground"
-            >
-              <Redo2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Refazer</span>
-            </Button>
-          </div>
-
-          {/* Action: Limpar curva */}
-          <button
-            type="button"
-            disabled={solarSelected && !onSolarChange}
-            onClick={handleClearCurve}
-            className="text-xs text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Limpar curva
-          </button>
-
-          {/* Primary Action: Salvar como modelo */}
-          {onSaveAsCustomModel &&
-            (isSavingModel && !saveModelLimitReached ? (
-              <div className="flex items-center gap-1.5 bg-background p-1 rounded-md border border-primary/40 shadow-xs">
-                <Input
-                  type="text"
-                  placeholder="Nome do modelo..."
-                  value={modelNameInput}
-                  onChange={(e) => setModelNameInput(e.target.value)}
-                  className="h-7 w-36 text-xs px-2"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  size="xs"
-                  className="h-7 px-2.5 text-[11px]"
-                  disabled={!modelNameInput.trim() || saveModelLimitReached || solarSelected}
-                  onClick={() => {
-                    const targetWeekday = isDualPattern ? (weekdayKw ?? localKw) : localKw;
-                    const targetWeekend = isDualPattern ? (weekendKw ?? localKw) : localKw;
-                    if (onSaveAsCustomModel(modelNameInput.trim(), targetWeekday, targetWeekend) === false) return;
-                    setIsSavingModel(false);
-                    setModelNameInput('');
-                    setSavedSuccess(true);
-                    setDirtyCount(0);
-                    setHistory([]);
-                    setRedoStack([]);
-                    showToast('Perfil salvo como modelo com sucesso.');
-                    setTimeout(() => setSavedSuccess(false), 3000);
-                  }}
-                >
-                  Salvar
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  className="h-7 px-1.5 text-[11px]"
-                  onClick={() => {
-                    setIsSavingModel(false);
-                    setModelNameInput('');
-                  }}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={saveModelLimitReached || solarSelected}
-                onClick={() => setIsSavingModel(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {savedSuccess ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                    <span className="text-emerald-600">Modelo salvo!</span>
-                  </>
-                ) : (
-                  <>
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                    <span>Salvar como modelo</span>
-                  </>
-                )}
-              </button>
-            ))}
-          {onSaveAsCustomModel && saveModelLimitReached && (
-            <span role="status" className="text-xs text-muted-foreground">
-              Limite de 5 modelos atingido.
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Real-Time Energetic KPIs (Faixa de Indicadores Técnicos) */}
-      {!solarOnly&&<section
-        aria-label="Resumo energético do dia"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3"
-      >
-        {/* KPI 1: Consumo Total */}
-        <div className="bg-muted/30 dark:bg-muted/20 rounded-xl p-3 border border-border/70 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-primary" />
-            <span>Consumo Diário Total</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between gap-1">
-            <div className="flex items-baseline gap-1">
-              <span className="text-base sm:text-lg font-bold text-foreground tabular-nums">
-                {formatPtNumber(metrics.totalConsumptionKwh, 1)}
-              </span>
-              <span className="text-[11px] font-medium text-muted-foreground">kWh/dia</span>
-            </div>
-            <div className="text-right text-[11px] text-muted-foreground">
-              <span>Média: </span>
-              <span className="font-semibold text-foreground tabular-nums">
-                {formatPtNumber(metrics.avgConsumptionKw, 1)} kW
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 2: Demanda de Pico */}
-        <div className="bg-muted/30 dark:bg-muted/20 rounded-xl p-3 border border-border/70 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-slate-600 dark:bg-slate-300" />
-            <span>Demanda de Pico (Consumo)</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between gap-1">
-            <div className="flex items-baseline gap-1">
-              <span className="text-base sm:text-lg font-bold text-foreground tabular-nums">
-                {formatPtNumber(metrics.peakConsumptionKw, 1)}
-              </span>
-              <span className="text-[11px] font-medium text-muted-foreground">kW</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => selectPoint(metrics.peakConsumptionIndex)}
-              className="text-[11px] font-semibold text-primary hover:underline tabular-nums"
-              title="Ir para o horário de pico no gráfico"
-            >
-              às {formatTime(metrics.peakConsumptionIndex)} →
-            </button>
-          </div>
-        </div>
-
-        {/* KPI 3: Geração FV Estimada */}
-        <div className="bg-muted/30 dark:bg-muted/20 rounded-xl p-3 border border-border/70 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>Geração FV Estimada</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between gap-1">
-            <div className="flex items-baseline gap-1">
-              <span className="text-base sm:text-lg font-bold text-foreground tabular-nums">
-                {hasSolar ? formatPtNumber(metrics.totalSolarKwh, 1) : '—'}
-              </span>
-              <span className="text-[11px] font-medium text-muted-foreground">kWh/dia</span>
-            </div>
-            <div className="text-right text-[11px] text-muted-foreground">
-              {hasSolar ? (
-                <>
-                  <span>Pico: </span>
-                  <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
-                    {formatPtNumber(metrics.peakSolarKw, 1)} kW
-                  </span>
-                </>
-              ) : (
-                <span>Sem dados FV</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 4: Cobertura Solar / Excedente */}
-        <div className="bg-muted/30 dark:bg-muted/20 rounded-xl p-3 border border-border/70 flex flex-col justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Cobertura Solar / Excedente</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between gap-1">
-            <div className="flex items-baseline gap-1">
-              <span className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                {hasSolar ? `${formatPtNumber(metrics.solarCoveragePercent, 1)}%` : '—'}
-              </span>
-              <span className="text-[11px] text-muted-foreground">do consumo</span>
-            </div>
-            <div className="text-right text-[11px] text-muted-foreground">
-              <span>Injeção: </span>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                {hasSolar ? `${formatPtNumber(metrics.solarExportKwh, 1)} kWh` : '—'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>}
-
       {/* 3. Unified Controls Bar (Day Pattern + Series Selector + Layer Toggles + Zoom Presets) */}
-      <section
+      {Boolean((isDualPattern&&onPatternChange)||hasSolar)&&<section
         aria-label="Controles da curva e visualização"
-        className="flex flex-wrap items-center justify-between gap-3 pt-2 pb-2 border-b border-border/60"
+        className="flex flex-wrap items-center justify-between gap-2"
       >
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Day Type Selector: Weekday vs Weekend */}
@@ -927,71 +682,41 @@ export function DailyCurveEditor({
             </div>
           )}
 
-          <div className="h-5 w-px bg-border/80 hidden sm:block" />
+          {hasSolar&&<div className="h-5 w-px bg-border/80 hidden sm:block" />}
 
-          {/* Explicit Series Selector: Editing Series vs Reference */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground mr-1 hidden sm:inline">
-              Curva em edição:
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Consumo"
-              disabled={solarOnly}
-              aria-pressed={!solarSelected}
-              className={cn(
-                'h-7 px-2.5 text-xs font-semibold gap-1.5 transition',
-                !solarSelected
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                  : 'bg-background text-foreground hover:bg-muted'
-              )}
-              onClick={() => selectSeries('consumption')}
-            >
-              <span className={cn('h-2 w-2 rounded-full', !solarSelected ? 'bg-sky-300' : 'bg-primary')} />
-              <span>Consumo</span>
-              <span
-                className={cn(
-                  'px-1.5 py-0.2 rounded text-[10px] font-medium',
-                  !solarSelected ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
-                )}
-              >
-                {!solarSelected ? 'Editando' : 'Referência'}
-              </span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Geração FV"
-              aria-pressed={solarSelected}
-              disabled={!hasSolar}
-              className={cn(
-                'h-7 px-2.5 text-xs font-semibold gap-1.5 transition',
-                solarSelected
-                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                  : 'bg-background text-foreground hover:bg-muted'
-              )}
-              onClick={() => selectSeries('solar')}
-            >
-              <span className={cn('h-2 w-2 rounded-full', solarSelected ? 'bg-slate-950' : 'bg-amber-500')} />
-              <span>Geração FV</span>
-              <span
-                className={cn(
-                  'px-1.5 py-0.2 rounded text-[10px] font-medium',
-                  solarSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-muted text-muted-foreground'
-                )}
-              >
-                {solarSelected ? 'Editando' : 'Referência'}
-              </span>
-            </Button>
-          </div>
+          {hasSolar && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Editar curva</span>
+              <div role="group" aria-label="Curva em edição" className="inline-flex items-center rounded-lg border border-border/60 bg-muted/50 p-1">
+                {([
+                  { id: 'consumption', label: 'Consumo', selected: !solarSelected, dot: 'bg-primary' },
+                  { id: 'solar', label: 'Geração FV', selected: solarSelected, dot: 'bg-amber-500' },
+                ] as const).map(series => (
+                  <Button
+                    key={series.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={series.label}
+                    aria-pressed={series.selected}
+                    disabled={series.id === 'consumption' && solarOnly}
+                    onClick={() => selectSeries(series.id)}
+                    className={cn('h-9 gap-2 rounded-md px-3 text-xs md:h-8', series.selected ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}
+                  >
+                    <span aria-hidden="true" className={cn('size-2 rounded-full', series.dot)} />
+                    {series.label}
+                    {series.selected && <Check className="size-3.5" aria-hidden="true" />}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Right side: Layer toggles and Zoom Presets */}
-        <div className="flex flex-wrap items-center gap-2">
+
+      </section>}
+      <div id={viewOptionsId} hidden={!viewOptionsOpen}>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
           {/* Layer toggles */}
           <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none bg-muted/40 px-2.5 py-1 rounded-lg border border-border/60">
             <input
@@ -1064,64 +789,61 @@ export function DailyCurveEditor({
               Ponta (16h–24h)
             </button>
           </div>
-        </div>
-      </section>
+                </div>
+      </div>
 
       {/* 4. Main 2-Column Area: SVG Chart (Left) + Inspector & Batch Editor (Right) */}
-      <div className="flex flex-col lg:flex-row gap-4 items-stretch">
+      <div className="flex flex-col items-start gap-4 lg:flex-row">
         {/* Left Column: Interactive SVG Chart */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2">
-          {/* Contextual Floating Info Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-white/20 font-bold tabular-nums">
-                {formatTime(selectedHour)}
-              </span>
-              <span className="text-slate-300">
-                Patamar #{selectedHour + 1} de {pointCount}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {!solarOnly&&<span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-sky-400" />
-                Consumo:{' '}
-                <strong className="tabular-nums font-semibold">
-                  {currentConsumptionVal.toFixed(1)} kW
-                </strong>
-              </span>}
-              {hasSolar && (
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  FV:{' '}
-                  <strong className="tabular-nums font-semibold">
-                    {currentSolarVal.toFixed(1)} kW
-                  </strong>
-                </span>
-              )}
-              {hasSolar&&!solarOnly && (
-                <span
-                  className={cn(
-                    'px-2 py-0.5 rounded font-semibold tabular-nums text-[11px]',
-                    currentNetVal < -0.05
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : currentNetVal > 0.05
-                        ? 'bg-sky-500/20 text-sky-200'
-                        : 'bg-slate-700 text-slate-300'
-                  )}
-                >
-                  {currentNetVal < -0.05
-                    ? `Saldo: ${currentNetVal.toFixed(1)} kW (Excedente FV)`
-                    : currentNetVal > 0.05
-                      ? `Líquido: +${currentNetVal.toFixed(1)} kW`
-                      : 'Saldo: 0,0 kW'}
-                </span>
-              )}
-            </div>
+        <div className="flex min-w-0 w-full flex-1 flex-col gap-2">
+          <div ref={containerRef} data-testid="daily-chart-container" className="relative flex w-full flex-col">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1">
+                {onSelectRange && <>
+                  <div role="group" aria-label="Ferramenta da curva" className="inline-flex rounded-lg border border-border/60 bg-muted/50 p-1">
+                    <Button type="button" size="sm" variant="ghost" aria-pressed={!rangeMode} onClick={() => setRangeMode(false)} className={cn('h-9 gap-1.5 rounded-md px-3 text-xs md:h-8', !rangeMode ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}><Pencil aria-hidden="true" />Editar pontos</Button>
+                    <Button type="button" size="sm" variant="ghost" aria-pressed={rangeMode} onClick={() => setRangeMode(true)} className={cn('h-9 gap-1.5 rounded-md px-3 text-xs md:h-8', rangeMode ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}><ScanLine aria-hidden="true" />Selecionar intervalo</Button>
+                  </div>
+                </>}
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+        <Button type="button" size="sm" variant="ghost" aria-expanded={viewOptionsOpen} aria-controls={viewOptionsId} aria-label="Visualização" onClick={()=>setViewOptionsOpen(value=>!value)} className="h-9 gap-1.5 text-xs md:h-8"><SlidersHorizontal aria-hidden="true"/><span className="hidden sm:inline">Visualização</span><ChevronRight className={cn('h-3.5 w-3.5 transition-transform',viewOptionsOpen&&'rotate-90')} aria-hidden="true"/></Button>
+          {/* History: Undo / Redo controls */}
+          <div
+            className="inline-flex items-center rounded-lg border border-border/60 bg-background p-0.5"
+            role="group"
+            aria-label="Histórico de edição"
+          >
+            <Button
+              id="btnUndo"
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-label="Desfazer"
+              title="Desfazer última edição"
+              disabled={history.length === 0}
+              onClick={handleUndo}
+              className="h-9 w-9 p-0 text-foreground md:h-8 md:w-8"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+
+            </Button>
+            <Button
+              id="btnRedo"
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-label="Refazer"
+              title="Refazer edição"
+              disabled={redoStack.length === 0}
+              onClick={handleRedo}
+              className="h-9 w-9 p-0 text-foreground md:h-8 md:w-8"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+
+            </Button>
           </div>
 
-          <div ref={containerRef} data-testid="daily-chart-container" className="relative flex w-full flex-1 flex-col">
-            {/* Viewport Zoom & Reset Controls */}
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-1 text-xs">
               <div className="flex items-center gap-1">
                 <Button
                   type="button"
@@ -1130,7 +852,7 @@ export function DailyCurveEditor({
                   aria-label="Ampliar gráfico diário"
                   disabled={visibleSpan <= 4}
                   onClick={() => zoom(0.5)}
-                  className="h-7 w-7 p-0"
+                  className="h-9 w-9 p-0 md:h-8 md:w-8"
                 >
                   <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
@@ -1141,7 +863,7 @@ export function DailyCurveEditor({
                   aria-label="Reduzir zoom do gráfico diário"
                   disabled={visibleSpan >= pointCount - 1}
                   onClick={() => zoom(2)}
-                  className="h-7 w-7 p-0"
+                  className="h-9 w-9 p-0 md:h-8 md:w-8"
                 >
                   <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
@@ -1150,39 +872,25 @@ export function DailyCurveEditor({
                   variant="ghost"
                   size="sm"
                   onClick={() => setViewRange({ start: 0, end: pointCount - 1 })}
-                  className="h-7 px-2 text-xs"
+                  aria-label="Ver dia inteiro"
+                  title="Ver dia inteiro"
+                  className="h-9 px-2 text-xs md:h-8"
                 >
-                  <RotateCcw className="h-3 w-3 mr-1" aria-hidden="true" />
-                  Ver dia inteiro
+                  <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                  <span className="hidden sm:inline">Ver dia inteiro</span>
                 </Button>
               </div>
-
-              <span
-                role="status"
-                aria-label="Período visível no gráfico diário"
-                className="text-xs text-muted-foreground"
-              >
-                {formatTime(Math.ceil(viewRange.start))}–{formatTime(Math.floor(viewRange.end))} ·{' '}
-                {1440 / pointCount} min ({visibleSpan + 1} pontos)
-              </span>
+              </div>
             </div>
-            {onSelectRange&&<div className="mb-2 space-y-2 text-xs">
-              <Button type="button" size="sm" variant={rangeMode?'default':'outline'} aria-pressed={rangeMode} onClick={()=>setRangeMode(value=>!value)}>Selecionar intervalo</Button>
-              <p className="text-muted-foreground">Shift + arraste para selecionar sem editar os pontos. No celular, ative Selecionar intervalo ou informe os horários.</p>
-              {rangeMode&&<div className="flex flex-wrap items-end gap-2">
-                <label className="space-y-1">Início do intervalo<Select aria-label="Início do intervalo diário" value={rangeStart} onChange={event=>setRangeStart(Number(event.target.value))}>{activeDataset.map((_,i)=><option key={i} value={i}>{formatTime(i)}</option>)}</Select></label>
-                <label className="space-y-1">Último ponto do intervalo<Select aria-label="Fim do intervalo diário" value={rangeEnd} onChange={event=>setRangeEnd(Number(event.target.value))}>{activeDataset.map((_,i)=><option key={i} value={i}>{formatTime(i)}</option>)}</Select></label>
-                <Button type="button" size="sm" variant="outline" onClick={()=>onSelectRange({startIndex:Math.min(rangeStart,rangeEnd),endIndex:Math.max(rangeStart,rangeEnd)})}>Marcar intervalo</Button>
-              </div>}
-            </div>}
+            <span role="status" aria-label="Período visível no gráfico diário" className="sr-only">{formatTime(Math.ceil(viewRange.start))}–{formatTime(Math.floor(viewRange.end))} · {1440/pointCount} min ({visibleSpan+1} pontos)</span>
 
             <svg
               ref={svgRef}
               viewBox={`0 0 ${viewWidth} ${viewHeight}`}
               preserveAspectRatio="none"
-              className="h-[235px] min-h-[235px] flex-1 w-full touch-none select-none rounded-xl border border-border/70 bg-card shadow-xs"
+              className="h-[320px] min-h-[320px] shrink-0 w-full touch-none select-none rounded-xl border border-border/70 bg-card shadow-xs"
               role="group"
-              aria-label="Editor da curva diária — arraste os pontos para ajustar a potência ou o fundo para navegar"
+              aria-label={rangeMode ? 'Seleção de intervalo da curva diária — arraste para marcar sem editar' : 'Editor da curva diária — arraste os pontos para ajustar a potência ou o fundo para navegar'}
               onDoubleClick={() => setViewRange({ start: 0, end: pointCount - 1 })}
               onPointerDownCapture={event=>{
                 if(!onSelectRange||event.button!==0||(!event.shiftKey&&!rangeMode))return;
@@ -1220,7 +928,7 @@ export function DailyCurveEditor({
                 if(range){
                   const end=indexAtClientX(event.clientX,event.currentTarget);
                   const selection={startIndex:Math.min(range.startIndex,end),endIndex:Math.max(range.startIndex,end)};
-                  if(Math.abs(event.clientX-range.clientX)>=4){onSelectRange?.(selection);setRangeStart(selection.startIndex);setRangeEnd(selection.endIndex);}
+                  if(Math.abs(event.clientX-range.clientX)>=4){onSelectRange?.(selection);}
                   else onSelectRange?.(null);
                   rangeDragRef.current=null;setRangePreview(null);
                 }
@@ -1333,7 +1041,7 @@ export function DailyCurveEditor({
                       fontSize={11}
                       fill={mutedForeground}
                     >
-                      {Math.round(kw)} kW
+                      {toKva(kw).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kVA
                     </text>
                   </g>
                 );
@@ -1400,9 +1108,9 @@ export function DailyCurveEditor({
                           tabIndex={selectedHour === index ? 0 : -1}
                           aria-label={`Geração FV às ${formatTime(index)}`}
                           aria-valuemin={0}
-                          aria-valuemax={maxKw}
-                          aria-valuenow={kw}
-                          aria-valuetext={`${kw.toFixed(1)} kW`}
+                          aria-valuemax={toKva(maxKw)}
+                          aria-valuenow={toKva(kw)}
+                          aria-valuetext={`${toKva(kw).toFixed(1)} kVA`}
                           aria-readonly={!onSolarChange}
                           className="cursor-ns-resize focus:outline-none focus:stroke-[4]"
                           onPointerDown={(event) => {
@@ -1418,6 +1126,7 @@ export function DailyCurveEditor({
                           }}
                           onPointerUp={handlePointerUp}
                           onPointerCancel={handlePointerUp}
+                          onLostPointerCapture={handlePointerUp}
                           onClick={(event) => {
                             event.currentTarget.focus();
                             selectSeries('solar');
@@ -1460,7 +1169,7 @@ export function DailyCurveEditor({
                               fontSize={10}
                               fill={card}
                             >
-                              {formatTime(selectedHour)} · {generationKw![selectedHour]!.toFixed(1)} kW FV
+                              {formatTime(selectedHour)} · {toKva(generationKw![selectedHour]!).toFixed(1)} kVA FV
                             </text>
                           </g>
                         );
@@ -1503,15 +1212,16 @@ export function DailyCurveEditor({
                             role="slider"
                             aria-label={`Potência às ${pointCount === 24 ? `${hour}h` : formatTime(hour)}`}
                             aria-valuemin={0}
-                            aria-valuemax={maxKw}
-                            aria-valuenow={kw}
-                            aria-valuetext={`${kw.toFixed(1)} kW`}
+                            aria-valuemax={toKva(maxKw)}
+                            aria-valuenow={toKva(kw)}
+                            aria-valuetext={`${toKva(kw).toFixed(1)} kVA`}
                             onPointerDown={(event) => {
                               handlePointerDown(hour, event);
                             }}
                             onPointerMove={(event) => handlePointerMove(hour, event)}
                             onPointerUp={handlePointerUp}
                             onPointerCancel={handlePointerUp}
+                          onLostPointerCapture={handlePointerUp}
                             onKeyDown={(event) => handleKeyDown(hour, event)}
                             onClick={(event) => {
                               event.currentTarget.focus();
@@ -1570,7 +1280,7 @@ export function DailyCurveEditor({
                                     fill={card}
                                     className="select-none tabular-nums"
                                   >
-                                    {formatTime(hour)} · {kw.toFixed(1)} kW
+                                    {formatTime(hour)} · {toKva(kw).toFixed(1)} kVA
                                   </text>
                                 </g>
                               );
@@ -1586,33 +1296,7 @@ export function DailyCurveEditor({
 
           {/* Under Chart: Legend, Keyboard hints, and Smoothing action */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-1.5">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  Clique / Arraste
-                </kbd>
-                <span>ajustar pontos</span>
-              </span>
-              <span>Ctrl + scroll para zoom</span>
-              <span className="inline-flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  ←
-                </kbd>
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  →
-                </kbd>
-                <span>navegar</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  ↑
-                </kbd>
-                <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-foreground bg-muted border border-border/80 rounded">
-                  ↓
-                </kbd>
-                <span>±1 kW (Shift: ±5 kW)</span>
-              </span>
-            </div>
+            <span className="inline-flex items-center gap-1">{rangeMode ? 'Arraste para marcar um intervalo' : 'Arraste os pontos para editar'}<InfoTooltip label="Como editar a curva">Clique ou arraste um ponto para ajustar a potência no modo Editar pontos. Ctrl + scroll aplica zoom; arraste o fundo para navegar. No ponto selecionado, use ← e → para mudar de horário; ↑ e ↓ ajustam 1 kVA, ou 5 kVA com Shift. Shift + arraste seleciona sem editar os pontos. No celular, ative Selecionar intervalo e arraste no gráfico. Use a seleção para configurar o backup no painel ao lado.</InfoTooltip></span>
 
             <Button
               id="btnHarmonizeCurve"
@@ -1629,274 +1313,117 @@ export function DailyCurveEditor({
           </div>
         </div>
 
-        {/* Right Column: Lateral Inspector (Top) + Batch Edit by Range (Bottom) */}
-        <div className="w-full lg:w-[260px] shrink-0 flex flex-col gap-3">
-          {/* Card 1: Point Inspector */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                  Inspetor de Patamar
-                </span>
-                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
-                  <span
-                    className={cn(
-                      'w-2 h-2 rounded-full',
-                      solarSelected ? 'bg-amber-500' : 'bg-primary'
-                    )}
-                  />
-                  <span>Editando: {solarSelected ? 'Geração FV' : 'Consumo'}</span>
-                </span>
-              </div>
-            </div>
+        {selectionActions && <aside aria-label="Ações da seleção" className="flex w-full shrink-0 flex-col gap-3 lg:w-[256px]">
+          {selectionActions}
+        </aside>}
+      </div>
 
-            {/* Hour Selector with Navigation Buttons */}
-            <div className="space-y-1">
-              <label
-                htmlFor="select-hour-dropdown"
-                className="text-[11px] font-medium text-muted-foreground"
-              >
-                Horário do intervalo
-              </label>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 bg-background"
-                  onClick={() => selectPoint((selectedHour + pointCount - 1) % pointCount)}
-                  aria-label={pointCount === 24 ? 'Hora anterior' : 'Intervalo anterior'}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <Select
-                  id="select-hour-dropdown"
-                  value={String(selectedHour)}
-                  onChange={(e) => selectPoint(Number(e.target.value))}
-                  aria-label="Horário selecionado"
-                  className="h-8 text-xs font-semibold text-foreground bg-background"
-                >
-                  {Array.from({ length: pointCount }, (_, i) => (
-                    <option key={i} value={i}>
-                      {formatTime(i)}
-                    </option>
-                  ))}
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 bg-background"
-                  onClick={() => selectPoint((selectedHour + 1) % pointCount)}
-                  aria-label={pointCount === 24 ? 'Próxima hora' : 'Próximo intervalo'}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Power Numeric Input & Quick Steppers */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                <label htmlFor="active-power-input" className="font-medium">
-                  {solarSelected ? 'Geração FV' : 'Potência'}
-                </label>
-                <span className="tabular-nums">0–{Math.round(maxKw)} kW</span>
-              </div>
-              <div className="relative">
-                <Input
-                  id="active-power-input"
-                  aria-label={solarSelected ? 'Geração FV selecionada' : 'Potência ativa'}
-                  readOnly={solarSelected && !onSolarChange}
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={currentSelectedKw}
-                  onChange={(e) => {
-                    if (solarSelected && !onSolarChange) return;
-                    const parsed = parseFloat(e.target.value);
-                    if (!isNaN(parsed)) {
-                      commitHourImmediately(selectedHour, Math.max(0, parsed));
-                    }
-                  }}
-                  className="h-8.5 pr-9 text-sm font-semibold tabular-nums text-foreground bg-background [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground select-none">
-                  kW
-                </span>
-              </div>
-
-              {/* Quick Stepper Buttons */}
-              <div className="grid grid-cols-4 gap-1 pt-1">
-                <button
-                  type="button"
-                  disabled={solarSelected && !onSolarChange}
-                  onClick={() => handleQuickStep(-5)}
-                  className="py-1 rounded bg-muted hover:bg-muted/80 text-[11px] font-semibold tabular-nums text-foreground transition disabled:opacity-50"
-                >
-                  -5 kW
-                </button>
-                <button
-                  type="button"
-                  disabled={solarSelected && !onSolarChange}
-                  onClick={() => handleQuickStep(-1)}
-                  className="py-1 rounded bg-muted hover:bg-muted/80 text-[11px] font-semibold tabular-nums text-foreground transition disabled:opacity-50"
-                >
-                  -1 kW
-                </button>
-                <button
-                  type="button"
-                  disabled={solarSelected && !onSolarChange}
-                  onClick={() => handleQuickStep(1)}
-                  className="py-1 rounded bg-muted hover:bg-muted/80 text-[11px] font-semibold tabular-nums text-foreground transition disabled:opacity-50"
-                >
-                  +1 kW
-                </button>
-                <button
-                  type="button"
-                  disabled={solarSelected && !onSolarChange}
-                  onClick={() => handleQuickStep(5)}
-                  className="py-1 rounded bg-muted hover:bg-muted/80 text-[11px] font-semibold tabular-nums text-foreground transition disabled:opacity-50"
-                >
-                  +5 kW
-                </button>
-              </div>
-            </div>
-
-            {/* Instant Comparison in this Time Slot */}
-            <div className="pt-2 border-t border-border/60 space-y-1 text-xs">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Consumo às {formatTime(selectedHour)}:</span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {currentConsumptionVal.toFixed(1)} kW
-                </span>
-              </div>
-              {hasSolar && (
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>FV às {formatTime(selectedHour)}:</span>
-                  <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
-                    {currentSolarVal.toFixed(1)} kW
-                  </span>
-                </div>
-              )}
-              {hasSolar && (
-                <div className="flex items-center justify-between pt-1 border-t border-border/40 font-medium">
-                  <span className="text-foreground">Balanço:</span>
-                  <span
-                    className={cn(
-                      'font-bold tabular-nums',
-                      currentNetVal < -0.05
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : currentNetVal > 0.05
-                          ? 'text-foreground'
-                          : 'text-muted-foreground'
-                    )}
-                  >
-                    {currentNetVal < -0.05
-                      ? `${currentNetVal.toFixed(1)} kW (Injeção)`
-                      : currentNetVal > 0.05
-                        ? `+${currentNetVal.toFixed(1)} kW (Rede)`
-                        : '0,0 kW (Neutro)'}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Card 2: Batch Editing by Time Window (Ajuste em Bloco) */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3 shadow-xs">
-            <div className="pb-1 border-b border-border/60">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                Produtividade
-              </span>
-              <h3 className="text-xs font-semibold text-foreground">
-                Ajuste em bloco de horário
-              </h3>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Aplique um patamar fixo ou variação percentual a múltiplos intervalos de uma só vez.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label htmlFor="batch-range-start" className="block text-[10px] font-medium text-muted-foreground mb-1">
-                  Início
-                </label>
-                <Select
-                  id="batch-range-start"
-                  value={String(batchStart)}
-                  onChange={(e) => setBatchStart(Number(e.target.value))}
-                  className="h-7 text-xs font-semibold bg-background"
-                >
-                  {Array.from({ length: pointCount }, (_, i) => (
-                    <option key={i} value={i}>
-                      {formatTime(i)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <div>
-                <label htmlFor="batch-range-end" className="block text-[10px] font-medium text-muted-foreground mb-1">
-                  Fim
-                </label>
-                <Select
-                  id="batch-range-end"
-                  value={String(batchEnd)}
-                  onChange={(e) => setBatchEnd(Number(e.target.value))}
-                  className="h-7 text-xs font-semibold bg-background"
-                >
-                  {Array.from({ length: pointCount }, (_, i) => (
-                    <option key={i} value={i}>
-                      {formatTime(i)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label htmlFor="batch-operation-mode" className="block text-[10px] font-medium text-muted-foreground mb-1">
-                  Operação
-                </label>
-                <Select
-                  id="batch-operation-mode"
-                  value={batchMode}
-                  onChange={(e) => setBatchMode(e.target.value as BatchOperationMode)}
-                  className="h-7 text-xs font-semibold bg-background"
-                >
-                  <option value="scale">Escalar (%)</option>
-                  <option value="set">Fixar (kW)</option>
-                  <option value="offset">Somar/Subtrair (kW)</option>
-                </Select>
-              </div>
-
-              <div>
-                <label htmlFor="batch-operation-value" className="block text-[10px] font-medium text-muted-foreground mb-1">
-                  Valor
-                </label>
-                <Input
-                  id="batch-operation-value"
-                  type="number"
-                  step={batchMode === 'scale' ? 5 : 1}
-                  value={batchValue}
-                  onChange={(e) => setBatchValue(e.target.value)}
-                  className="h-7 text-xs font-bold tabular-nums bg-background"
-                />
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              size="sm"
-              disabled={solarSelected && !onSolarChange}
-              onClick={handleApplyBatch}
-              className="w-full h-8 text-xs font-semibold"
+      {!solarOnly&&<section aria-label="Resumo energético do dia" className={cn('grid grid-cols-2 gap-3 border-t pt-3',hasSolar&&'sm:grid-cols-4')}>
+        <div><p className="text-xs text-muted-foreground">Consumo diário</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatPtNumber(metrics.totalConsumptionKwh,1)} <span className="text-xs font-normal text-muted-foreground">kWh</span></p><p className="mt-0.5 text-xs text-muted-foreground">Média {formatPtNumber(toKva(metrics.avgConsumptionKw),1)} kVA</p></div>
+        <div><p className="text-xs text-muted-foreground">Demanda de pico</p><div className="mt-1 flex flex-wrap items-baseline gap-x-2"><span className="text-sm font-semibold tabular-nums">{formatPtNumber(toKva(metrics.peakConsumptionKw),1)} <span className="text-xs font-normal text-muted-foreground">kVA</span></span><button type="button" onClick={()=>selectPoint(metrics.peakConsumptionIndex)} className="rounded text-xs text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring">às {formatTime(metrics.peakConsumptionIndex)} →</button></div></div>
+        {hasSolar&&<><div><p className="text-xs text-muted-foreground">Geração FV</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatPtNumber(metrics.totalSolarKwh,1)} <span className="text-xs font-normal text-muted-foreground">kWh</span></p><p className="mt-0.5 text-xs text-muted-foreground">Pico {formatPtNumber(toKva(metrics.peakSolarKw),1)} kVA</p></div><div><p className="text-xs text-muted-foreground">Cobertura solar</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatPtNumber(metrics.solarCoveragePercent,1)}%</p><p className="mt-0.5 text-xs text-muted-foreground">Excedente {formatPtNumber(metrics.solarExportKwh,1)} kWh</p></div></>}
+      </section>}
+      {/* 1. Header with Model Status and Global Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/50">
+        <div className="flex flex-wrap items-center gap-2">
+          {dirtyCount > 0 ? (
+            <span
+              id="dirtyBadge"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
             >
-              Aplicar à faixa selecionada
-            </Button>
-          </div>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Editado · {dirtyCount} {dirtyCount === 1 ? 'ajuste' : 'ajustes'}
+            </span>
+          ) : (
+            <span
+              id="dirtyBadge"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/30 text-muted-foreground border border-border/50"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+              Perfil atual
+            </span>
+          )}
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
+          {/* Action: Limpar curva */}
+          <Button type="button" variant="ghost" size="sm" disabled={solarSelected && !onSolarChange} onClick={handleClearCurve} className="h-9 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive">
+            Limpar curva
+          </Button>
+
+          {/* Primary Action: Salvar como modelo */}
+          {onSaveAsCustomModel &&
+            (isSavingModel && !saveModelLimitReached ? (
+              <div className="flex items-center gap-1.5 bg-background p-1 rounded-md border border-primary/40 shadow-xs">
+                <Input
+                  type="text"
+                  placeholder="Nome do modelo..."
+                  value={modelNameInput}
+                  onChange={(e) => setModelNameInput(e.target.value)}
+                  className="h-7 w-36 text-xs px-2"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  size="xs"
+                  className="h-7 px-2.5 text-[11px]"
+                  disabled={!modelNameInput.trim() || saveModelLimitReached || solarSelected}
+                  onClick={() => {
+                    const targetWeekday = isDualPattern ? (weekdayKw ?? localKw) : localKw;
+                    const targetWeekend = isDualPattern ? (weekendKw ?? localKw) : localKw;
+                    if (onSaveAsCustomModel(modelNameInput.trim(), targetWeekday, targetWeekend) === false) return;
+                    setIsSavingModel(false);
+                    setModelNameInput('');
+                    setSavedSuccess(true);
+                    setDirtyCount(0);
+                    setHistory([]);
+                    setRedoStack([]);
+                    showToast('Perfil salvo como modelo com sucesso.');
+                    setTimeout(() => setSavedSuccess(false), 3000);
+                  }}
+                >
+                  Salvar
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="h-7 px-1.5 text-[11px]"
+                  onClick={() => {
+                    setIsSavingModel(false);
+                    setModelNameInput('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={saveModelLimitReached || solarSelected}
+                onClick={() => setIsSavingModel(true)}
+                className="h-9 gap-1.5 text-xs"
+              >
+                {savedSuccess ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    <span className="text-emerald-600">Modelo salvo!</span>
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    <span>Salvar como modelo</span>
+                  </>
+                )}
+              </Button>
+            ))}
+          {onSaveAsCustomModel && saveModelLimitReached && (
+            <span role="status" className="text-xs text-muted-foreground">
+              Limite de 5 modelos atingido.
+            </span>
+          )}
         </div>
       </div>
 

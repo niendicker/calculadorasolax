@@ -132,3 +132,15 @@ it('explains failed dispatch despite sufficient nominal power and energy, with n
  const result=await calculatePersistedCi(client().db,options());
  expect(result.selected).toBeNull();expect(result.scenarios).toEqual([]);expect(result.technicalIssues?.map(i=>i.code)).toContain('dispatch');expect(cash).not.toHaveBeenCalled();cash.mockRestore();
 });
+
+it('persists the study FP without reinterpreting stored active curves, energy or costs', async () => {
+ const original=options();
+ const unity=await calculatePersistedCi(client().db,{...original,acPowerFactor:1});
+ const nonunity=await calculatePersistedCi(client().db,{...original,acPowerFactor:.8});
+ expect(nonunity.assumptions.acPowerFactor).toBe(.8);
+ expect(nonunity.baseline).toEqual(unity.baseline);
+ expect(nonunity.technicalRequirements).toEqual(unity.technicalRequirements);
+ expect(nonunity.selected?.annualSavings).toEqual(unity.selected?.annualSavings);
+ expect(nonunity.inputFingerprint).not.toBe(unity.inputFingerprint);
+ await expect(calculatePersistedCi(client().db,{...original,acPowerFactor:0})).rejects.toThrow('fator de potência');
+});

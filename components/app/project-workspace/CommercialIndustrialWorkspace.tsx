@@ -13,6 +13,7 @@
 // ./ci/CiOverviewPanel.tsx, which in turn reuses ProjectInfoEditor and
 // ProjectInfoModal — nothing here touches SavedProject or residential state.
 
+import { CiAcPowerProvider } from './ci/ci-ac-power';
 import { useState } from 'react';
 import { getCiConfigurationStatus } from './ci/ci-configuration-status';
 import { AlertTriangle, BarChart3, BatteryCharging, ClipboardList, LineChart, Receipt, SlidersHorizontal } from 'lucide-react';
@@ -105,7 +106,7 @@ export function CommercialIndustrialWorkspace({
   const workspaceNavigation = getNavigationWithStatus(ciOptions, canAccessCiBackup);
 
   return (
-    <ProjectWorkspaceShell
+    <CiAcPowerProvider powerFactor={ciOptions.acPowerFactor}><ProjectWorkspaceShell
       title={projectInfo.name || 'Projeto C&I sem nome'}
       autosaveStatus={autosaveStatus}
       autosaveLastSavedAt={autosaveLastSavedAt}
@@ -209,6 +210,6 @@ export function CommercialIndustrialWorkspace({
           </CardContent>
         </Card>
       )}
-    </ProjectWorkspaceShell>
+    </ProjectWorkspaceShell></CiAcPowerProvider>
   );
 }

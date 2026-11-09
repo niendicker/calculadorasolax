@@ -15,10 +15,12 @@
 // uPlot's canvas/DOM code never runs during SSR and its ~50kb only ships
 // once a curve is actually imported.
 
+import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
+import { InfoTooltip } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
 import type { CiBackupCurveSelection, LoadCurve, LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -55,13 +57,13 @@ export interface PointBadgeInfo {
   labelPrefix?: string;
 }
 
-function formatBadgeText(point: LoadCurvePoint | undefined,timezone?:string): string {
+function formatBadgeText(point: LoadCurvePoint | undefined,timezone?:string, factor = 1): string {
   if (!point) return '';
   const date = new Date(point.timestamp);
   const weekdayRaw = date.toLocaleDateString('pt-BR', { weekday: 'short',timeZone:timezone }).replace('.', '');
   const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
   const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit',timeZone:timezone,hourCycle:'h23' });
-  return `${weekday} ${time} · ${point.powerKw.toFixed(1)} kW`;
+  return `${weekday} ${time} · ${(point.powerKw / factor).toFixed(1)} kVA`;
 }
 
 function PointBadge({
@@ -73,6 +75,7 @@ function PointBadge({
   chartWidth: number;
   timezone?:string;
 }) {
+  const { factor } = useCiAcPower();
   const isNearTop = badge.y < 35;
   const clampedX = Math.max(65, Math.min(chartWidth - 65, badge.x));
   const top = isNearTop ? badge.y + 12 : badge.y - 28;
@@ -93,7 +96,7 @@ function PointBadge({
         }}
       >
         {badge.labelPrefix ? `${badge.labelPrefix}: ` : ''}
-        {formatBadgeText(badge.point,timezone)}
+        {formatBadgeText(badge.point,timezone,factor)}
       </div>
     </>
   );
@@ -412,7 +415,8 @@ function buildOptions(
   onRedraw?: () => void,
   seriesLabel = 'Potência',
   includeGeneration = false,
-  timezoneRef:{current:string|undefined}={current:undefined}
+  timezoneRef:{current:string|undefined}={current:undefined},
+  factor = 1
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const secondary = readCssVar('--chart-2', '#ff9d00');
@@ -466,16 +470,17 @@ function buildOptions(
         gap: 8,
         // Fixed instead of auto-measured: uPlot's own gutter-width
         // convergence can settle a pass early and leave the y-axis labels
-        // clipped on the left (e.g. "250 kW" rendered as "50 kW") — a fixed
-        // width sized for "999 kW" sidesteps that outright.
+        // clipped on the left (e.g. "250 kVA" rendered as "50 kVA") — a fixed
+        // width sized for "999 kVA" sidesteps that outright.
         size: 64,
         font: '12px ui-sans-serif, system-ui, sans-serif',
-        values: (_self, ticks) => ticks.map((value) => `${value} kW`),
+        values: (_self, ticks) => ticks.map((value) => `${Number((value / factor).toFixed(2))} kVA`),
       },
     ],
     series: [
       {
-        value: (_self, rawValue) => formatPointLabel(pointsRef.current[Math.round(rawValue ?? 0)],timezoneRef.current),
+        label: 'Horário',
+        value: (_self, rawValue) => rawValue == null ? '—' : formatPointLabel(pointsRef.current[Math.round(rawValue)],timezoneRef.current),
       },
       {
         label: seriesLabel,
@@ -483,9 +488,9 @@ function buildOptions(
         width: 2,
         fill: areaFill(primary),
         points: { show: false },
-        value: (_self, rawValue) => (rawValue == null ? '—' : `${Number(rawValue).toFixed(2)} kW`),
+        value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(2)} kVA`),
       },
-      ...(includeGeneration ? [{ label: 'Geração FV', stroke: secondary, width: 2, points: { show: false }, value: (_self: uPlot, rawValue: number | null) => rawValue == null ? '—' : `${Number(rawValue).toFixed(2)} kW` }] : []),
+      ...(includeGeneration ? [{ label: 'Geração FV', stroke: secondary, width: 2, points: { show: false }, value: (_self: uPlot, rawValue: number | null) => rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(2)} kVA` }] : []),
     ],
     hooks: {
       drawClear: [
@@ -587,7 +592,7 @@ function buildOptions(
               self.ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
               self.ctx.textAlign = 'right';
               if (typeof self.ctx.fillText === 'function') {
-                self.ctx.fillText(`Contratada: ${contracted} kW`, bLeft + bWidth - 6, yPos - 4);
+                self.ctx.fillText(`Contratada: ${Number((contracted / factor).toFixed(2))} kVA`, bLeft + bWidth - 6, yPos - 4);
               }
               self.ctx.restore();
             }
@@ -611,9 +616,9 @@ interface SelectionSummary {
 }
 
 const METRIC_ROWS: { key: 'peakKw' | 'minKw' | 'averageKw' | 'totalEnergyKwh'; label: string; unit: string }[] = [
-  { key: 'peakKw', label: 'Pico', unit: 'kW' },
-  { key: 'minKw', label: 'Mínima', unit: 'kW' },
-  { key: 'averageKw', label: 'Média', unit: 'kW' },
+  { key: 'peakKw', label: 'Pico', unit: 'kVA' },
+  { key: 'minKw', label: 'Mínima', unit: 'kVA' },
+  { key: 'averageKw', label: 'Média', unit: 'kVA' },
   { key: 'totalEnergyKwh', label: 'Energia', unit: 'kWh' },
 ];
 
@@ -634,11 +639,12 @@ function summarizeSelection(points: LoadCurvePoint[], resolutionMinutes: LoadCur
 }
 
 function SolarSelectionSummary({ summary }: { summary: SelectionSummary | null }) {
+  const { factor } = useCiAcPower();
   return (
     <section aria-label="Geração FV no período selecionado" className="space-y-2 border-t border-border/60 pt-2">
       <h4 className="text-xs font-semibold">Geração FV</h4>
       {summary ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {METRIC_ROWS.map(row => <div key={row.key}><p className="text-[11px] text-muted-foreground">{row.label}</p><p className="text-sm font-semibold">{summary[row.key].toFixed(2)} {row.unit}</p></div>)}
+        {METRIC_ROWS.map(row => <div key={row.key}><p className="text-[11px] text-muted-foreground">{row.label}</p><p className="text-sm font-semibold">{(summary[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}</p></div>)}
       </div> : <p className="text-xs text-muted-foreground">Sem dados FV completos para este período.</p>}
     </section>
   );
@@ -648,10 +654,10 @@ function SolarSelectionSummary({ summary }: { summary: SelectionSummary | null }
  * denominator for the percentage since A is the fixed baseline the user
  * picked first — a null percentage (aValue === 0) still shows the absolute
  * delta rather than hiding the row. */
-function formatDelta(aValue: number, bValue: number, unit: string): string {
-  const delta = bValue - aValue;
+function formatDelta(aValue: number, bValue: number, unit: string, factor = 1): string {
+  const delta = (bValue - aValue) / (unit === 'kVA' ? factor : 1);
   const sign = delta >= 0 ? '+' : '';
-  const percent = aValue !== 0 ? ` (${sign}${((delta / aValue) * 100).toFixed(1)}%)` : '';
+  const percent = aValue !== 0 ? ` (${sign}${(((bValue - aValue) / aValue) * 100).toFixed(1)}%)` : '';
   return `${sign}${delta.toFixed(2)} ${unit}${percent}`;
 }
 
@@ -710,6 +716,8 @@ export function LoadCurveChart({
   summaryOnly?:boolean;
   timezone?:string;
 }) {
+  const { factor, toKva } = useCiAcPower();
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
   const pointsRef = useRef(points);
@@ -790,7 +798,8 @@ export function LoadCurveChart({
       () => setRedrawSeq((s) => s + 1),
       kind === 'generation' ? 'Geração FV' : includeGeneration ? 'Consumo' : 'Potência',
       includeGeneration,
-      timezoneRef
+      timezoneRef,
+      factor
     );
     const chart = new uPlot(options, buildData(pointsRef.current, generationRef.current), el);
     chartRef.current = chart;
@@ -811,7 +820,7 @@ export function LoadCurveChart({
     };
     // Values synchronize in the data effect; edits must preserve the chart and zoom.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeGeneration, kind, hasPoints,summaryOnly]);
+  }, [includeGeneration, kind, hasPoints,summaryOnly,factor]);
 
   useEffect(()=>{
     if(timezoneRef.current===timezone)return;
@@ -992,58 +1001,6 @@ export function LoadCurveChart({
 
   return (
     <div className="space-y-3">
-      {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
-      {!summaryOnly&&<div className="grid grid-cols-2 divide-y rounded-xl border border-border/80 bg-muted/20 sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-border/60">
-        <div className="p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração máxima' : 'Demanda máxima'}</p>
-            {isSelectionActive && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
-            )}
-          </div>
-          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
-            {peakKw.toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kW</span>
-          </p>
-        </div>
-        <div className="p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração mínima' : 'Demanda mínima'}</p>
-            {isSelectionActive && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
-            )}
-          </div>
-          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
-            {minKw.toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kW</span>
-          </p>
-        </div>
-        <div className="p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Potência média</p>
-            {isSelectionActive && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
-            )}
-          </div>
-          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
-            {averageKw.toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kW</span>
-          </p>
-        </div>
-        <div className="p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
-            {isSelectionActive && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">intervalo</span>
-            )}
-          </div>
-          <p className="mt-1 text-[23px] font-bold tabular-nums text-foreground">
-            {totalEnergyKwh.toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kWh</span>
-          </p>
-        </div>
-      </div>}
-
       {/* Gráfico semanal (235px, como o editor diário) com uPlot e fundo de fins de semana */}
       {!summaryOnly&&<><div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
@@ -1063,9 +1020,47 @@ export function LoadCurveChart({
         {endBadge && <PointBadge timezone={timezone} badge={endBadge} chartWidth={chartWidth} />}
         {!isHoverDuplicate && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        Shift + arraste para selecionar intervalo · Ctrl + scroll para zoom · Duplo clique para redefinir
-      </p></>}
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">Shift + arraste para selecionar<InfoTooltip label="Como navegar na curva">Shift + arraste seleciona um intervalo para comparar ou usar no backup. Arraste para navegar; Ctrl + scroll aplica zoom. Duplo clique redefine a visualização. Scroll sem Ctrl rola a página.</InfoTooltip></div></>}
+
+      {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
+      {!summaryOnly&&!isSelectionActive&&<div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração máxima' : 'Demanda máxima'}</p>
+          </div>
+          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
+            {toKva(peakKw).toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kVA</span>
+          </p>
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração mínima' : 'Demanda mínima'}</p>
+          </div>
+          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
+            {toKva(minKw).toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kVA</span>
+          </p>
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Potência média</p>
+          </div>
+          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
+            {toKva(averageKw).toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kVA</span>
+          </p>
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
+          </div>
+          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
+            {totalEnergyKwh.toFixed(2)}{' '}
+            <span className="text-xs font-normal text-muted-foreground">kWh</span>
+          </p>
+        </div>
+      </div>}
 
       {/* Exactly one period pinned: the plain single-period readout. */}
       {summaryA && !summaryB && selections.a && (
@@ -1083,7 +1078,7 @@ export function LoadCurveChart({
               <div key={row.key}>
                 <p className="text-[11px] text-muted-foreground">{row.label}</p>
                 <p className="text-sm font-semibold">
-                  {summaryA[row.key].toFixed(2)} {row.unit}
+                  {(summaryA[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
                 </p>
               </div>
             ))}
@@ -1106,7 +1101,7 @@ export function LoadCurveChart({
               <div key={row.key}>
                 <p className="text-[11px] text-muted-foreground">{row.label}</p>
                 <p className="text-sm font-semibold">
-                  {summaryB[row.key].toFixed(2)} {row.unit}
+                  {(summaryB[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
                 </p>
               </div>
             ))}
@@ -1159,7 +1154,7 @@ export function LoadCurveChart({
                   </th>
                   {METRIC_ROWS.map((row) => (
                     <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
-                      {summaryA[row.key].toFixed(2)} {row.unit}
+                      {(summaryA[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
                     </td>
                   ))}
                 </tr>
@@ -1176,7 +1171,7 @@ export function LoadCurveChart({
                   </th>
                   {METRIC_ROWS.map((row) => (
                     <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
-                      {summaryB[row.key].toFixed(2)} {row.unit}
+                      {(summaryB[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
                     </td>
                   ))}
                 </tr>
@@ -1186,7 +1181,7 @@ export function LoadCurveChart({
                   </th>
                   {METRIC_ROWS.map((row) => (
                     <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums text-foreground">
-                      {formatDelta(summaryA[row.key], summaryB[row.key], row.unit)}
+                      {formatDelta(summaryA[row.key], summaryB[row.key], row.unit, factor)}
                     </td>
                   ))}
                 </tr>
@@ -1196,12 +1191,12 @@ export function LoadCurveChart({
                 {([{ label: 'Período A · FV', summary: solarSummaryA }, { label: 'Período B · FV', summary: solarSummaryB }]).map(({ label, summary }) => (
                   <tr key={label} className="border-b border-border/60">
                     <th scope="row" className="py-1.5 text-left font-semibold">{label}</th>
-                    {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{summary ? `${summary[row.key].toFixed(2)} ${row.unit}` : '—'}</td>)}
+                    {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{summary ? `${(summary[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} ${row.unit}` : '—'}</td>)}
                   </tr>
                 ))}
                 <tr>
                   <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">Diferença FV (B − A)</th>
-                  {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{solarSummaryA && solarSummaryB ? formatDelta(solarSummaryA[row.key], solarSummaryB[row.key], row.unit) : '—'}</td>)}
+                  {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{solarSummaryA && solarSummaryB ? formatDelta(solarSummaryA[row.key], solarSummaryB[row.key], row.unit, factor) : '—'}</td>)}
                 </tr>
               </tbody>}
             </table>
@@ -1227,9 +1222,9 @@ export function LoadCurveChart({
               <>
                 <AlertTriangle className="h-4 w-4 shrink-0 text-destructive dark:text-red-400" aria-hidden="true" />
                 <span>
-                  <strong>Demanda contratada excedida</strong> (Ultrapassagem detectada): pico de {peakKw.toFixed(2)} kW excede o contrato ({contractedDemandKw} kW) em{' '}
+                  <strong>Demanda contratada excedida</strong> (Ultrapassagem detectada): pico de {toKva(peakKw).toFixed(2)} kVA excede o contrato ({toKva(contractedDemandKw ?? 0)} kVA) em{' '}
                   <strong className="font-semibold text-foreground">
-                    +{exceedanceKw.toFixed(2)} kW (+{exceedancePercent.toFixed(1)}%)
+                    +{toKva(exceedanceKw).toFixed(2)} kVA (+{exceedancePercent.toFixed(1)}%)
                   </strong>
                   .
                 </span>
@@ -1238,8 +1233,8 @@ export function LoadCurveChart({
               <>
                 <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                 <span>
-                  <strong>Dentro da demanda contratada</strong>: pico de {peakKw.toFixed(2)} kW dentro do contrato ({contractedDemandKw} kW), com margem livre de{' '}
-                  <strong className="font-semibold text-foreground">{marginKw.toFixed(2)} kW</strong>.
+                  <strong>Dentro da demanda contratada</strong>: pico de {toKva(peakKw).toFixed(2)} kVA dentro do contrato ({toKva(contractedDemandKw ?? 0)} kVA), com margem livre de{' '}
+                  <strong className="font-semibold text-foreground">{toKva(marginKw).toFixed(2)} kVA</strong>.
                 </span>
               </>
             )}

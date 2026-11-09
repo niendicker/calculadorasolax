@@ -48,6 +48,7 @@ const INVALID_FIELD_LABELS: Record<string, string> = {
   'whiteTariff.businessDaysPerMonth': 'Tarifa Branca: dias úteis',
   'whiteTariff.pontaWindowHours': 'Tarifa Branca: duração da ponta',
   'whiteTariff.intermediateWindowHours': 'Tarifa Branca: duração intermediária',
+  'acPowerFactor': 'Fator de potência CA do projeto',
   'generator.powerFactor': 'Gerador: fator de potência',
   'generator.voltageV': 'Gerador: tensão',
   'generator.phases': 'Gerador: número de fases',

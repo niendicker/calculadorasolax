@@ -239,6 +239,8 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
 };
 
 export interface CommercialIndustrialOptions {
+  /** Display/input conversion for CA powers. Stored powers remain active kW; absent means FP 1. */
+  acPowerFactor?: number;
   /** AC line-to-line voltage. Required for model-based selection. */
   lineVoltageV?: 220 | 380;
   loadShiftingCoveragePercent?:number;
@@ -418,6 +420,8 @@ export interface CommercialIndustrialResult {
    * trace for that one candidate only. */
   selected: SelectedScenarioDetail | null;
   assumptions: {
+    acPowerFactor?: number;
+    generatorPowerFactor?: number;
     lineVoltageV?:220|380;
     equipment?: { pcs: CiPcsCatalogEntry; battery: CiBatteryCatalogEntry; compatibility: CiCompatibilityRule; prices: CiModularPrices };
     tariff: TariffConfig;

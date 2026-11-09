@@ -80,3 +80,16 @@ it.each(['cabinet','assembly'] as const)('resolves STS for selected %s models an
  await screen.findByText(/Nenhuma STS com compatibilidade aprovada/);
  expect(screen.queryByText(/Modelos com compatibilidade aprovada: ZERO-125 teste/)).not.toBeInTheDocument();
 });
+
+it('keeps an invalid STS power factor editable without crashing the backup form', async () => {
+ render(<Harness/>);
+ await screen.findByText(/Modelos com compatibilidade aprovada/);
+ const field=screen.getByLabelText('Fator de potência de projeto');
+ expect(()=>fireEvent.change(field,{target:{value:'1.1'}})).not.toThrow();
+ expect(screen.getByRole('alert')).toHaveTextContent('fator de potência');
+ expect(screen.getByLabelText('Máxima passagem pela rede (kVA)')).toBeDisabled();
+ fireEvent.change(field,{target:{value:'0.8'}});
+ expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+ expect(screen.getByLabelText('Máxima passagem pela rede (kVA)')).toBeEnabled();
+ expect(screen.getByLabelText('Máxima passagem pela rede (kVA)')).toHaveValue(100);
+});

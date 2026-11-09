@@ -31,8 +31,8 @@ describe('CiTariffPanel', () => {
     expect(screen.getByLabelText('Fora ponta (R$/MWh)')).toHaveValue(420);
     expect(screen.getByText(/Equivalente a R\$ 0,42 \/ kWh/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Demanda contratada (kW)'), { target: { value: '300' } });
-    expect(screen.getByLabelText('Demanda contratada (kW)')).toHaveValue(300);
+    fireEvent.change(screen.getByLabelText('Demanda contratada (kVA)'), { target: { value: '300' } });
+    expect(screen.getByLabelText('Demanda contratada (kVA)')).toHaveValue(300);
   });
 
   it('switches modality and market', () => {
@@ -79,10 +79,22 @@ describe('CiTariffPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'CPFL Paulista (A4 Verde)' }));
     expect(screen.getByLabelText('Ponta (R$/MWh)')).toHaveValue(1420);
     expect(screen.getByLabelText('Fora ponta (R$/MWh)')).toHaveValue(510);
-    expect(screen.getByLabelText('Tarifa de demanda (R$/kW-mês)')).toHaveValue(46.8);
+    expect(screen.getByLabelText('Tarifa de demanda (R$/kVA-mês)')).toHaveValue(46.8);
 
     fireEvent.click(screen.getByRole('button', { name: '17:30–20:30' }));
     expect(screen.getByLabelText('Início')).toHaveValue('17:30');
     expect(screen.getByLabelText('Fim')).toHaveValue('20:30');
   });
+});
+
+it('converts demand and its price together without changing billing at nonunity FP', () => {
+  const onChange = vi.fn();
+  render(<CiTariffPanel ciOptions={{ ...defaultCiOptions, acPowerFactor: 0.8, tariff: { energyRatePeakBrlPerMwh: 1000, energyRateOffPeakBrlPerMwh: 500, demandRateBrlPerKwMonth: 50, contractedDemandKw: 100, peakStart: '18:00', peakEnd: '21:00', tariffModality: 'verde', market: 'cativo', icmsPercent: 0, pisCofinsPercent: 0 } }} onChange={onChange} />);
+  expect(screen.getByLabelText('Demanda contratada (kVA)')).toHaveValue(125);
+  expect(screen.getByLabelText('Tarifa de demanda (R$/kVA-mês)')).toHaveValue(40);
+  expect(125 * 40).toBe(100 * 50);
+  fireEvent.change(screen.getByLabelText('Demanda contratada (kVA)'), { target: { value: '150' } });
+  expect(onChange.mock.calls.at(-1)![0].tariff.contractedDemandKw).toBe(120);
+  fireEvent.change(screen.getByLabelText('Tarifa de demanda (R$/kVA-mês)'), { target: { value: '48' } });
+  expect(onChange.mock.calls.at(-1)![0].tariff.demandRateBrlPerKwMonth).toBe(60);
 });

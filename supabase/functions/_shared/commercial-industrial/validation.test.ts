@@ -322,3 +322,11 @@ describe('imported solar and period validation', () => {
     expect(validateCommercialIndustrialOptions(makeOptions({ loadCurve: curve as NonNullable<CommercialIndustrialOptions['loadCurve']> })).some((error) => error.includes('7 dias'))).toBe(true);
   });
 });
+
+it('validates configured CA FP while accepting historical projects without it', () => {
+  expect(validateCommercialIndustrialOptions(makeOptions({ acPowerFactor: 0.8 }))).toEqual([]);
+  expect(validateCommercialIndustrialOptions(makeOptions())).toEqual([]);
+  for (const value of [0, -1, 1.1, NaN, Infinity]) {
+    expect(validateCommercialIndustrialOptions(makeOptions({ acPowerFactor: value })).join(' ')).toContain('acPowerFactor');
+  }
+});

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleHelp } from 'lucide-react';
+import { CircleHelp, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** Minimum room (px) a tooltip needs above its trigger to open upward;
@@ -35,6 +35,7 @@ export function useTooltipFlip<T extends HTMLElement = HTMLElement>(): {
   onMouseLeave: () => void;
   onFocus: () => void;
   onBlur: () => void;
+  showNow: () => void;
 } {
   const ref = useRef<T>(null);
   const [openUp, setOpenUp] = useState(true);
@@ -48,13 +49,16 @@ export function useTooltipFlip<T extends HTMLElement = HTMLElement>(): {
     }
   }
 
+  function showNow() {
+    clearPending();
+    const top = ref.current?.getBoundingClientRect().top;
+    if (top !== undefined) setOpenUp(top > MIN_SPACE_ABOVE);
+    setVisible(true);
+  }
+
   function show() {
     clearPending();
-    timeoutRef.current = setTimeout(() => {
-      const top = ref.current?.getBoundingClientRect().top;
-      if (top !== undefined) setOpenUp(top > MIN_SPACE_ABOVE);
-      setVisible(true);
-    }, SHOW_DELAY_MS);
+    timeoutRef.current = setTimeout(showNow, SHOW_DELAY_MS);
   }
 
   function hide() {
@@ -64,7 +68,7 @@ export function useTooltipFlip<T extends HTMLElement = HTMLElement>(): {
 
   useEffect(() => clearPending, []);
 
-  return { ref, openUp, visible, onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide };
+  return { ref, openUp, visible, onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide, showNow };
 }
 
 /** The floating bubble itself: slightly rounded corners and generous text
@@ -115,10 +119,15 @@ export function TooltipBubble({
     let left = align === 'end' ? triggerRect.right - bubbleRect.width : triggerRect.left;
     left = Math.min(Math.max(VIEWPORT_MARGIN_PX, left), window.innerWidth - bubbleRect.width - VIEWPORT_MARGIN_PX);
 
-    const top = openUp ? triggerRect.top - GAP_PX - bubbleRect.height : triggerRect.bottom + GAP_PX;
+    const above = triggerRect.top - GAP_PX - bubbleRect.height;
+    const below = triggerRect.bottom + GAP_PX;
+    const fitsAbove = above >= VIEWPORT_MARGIN_PX;
+    const fitsBelow = below + bubbleRect.height <= window.innerHeight - VIEWPORT_MARGIN_PX;
+    const preferredTop = (openUp && fitsAbove) || !fitsBelow ? above : below;
+    const top = Math.max(VIEWPORT_MARGIN_PX, Math.min(preferredTop, window.innerHeight - bubbleRect.height - VIEWPORT_MARGIN_PX));
 
     setPosition({ top, left });
-  }, [visible, openUp, align, triggerRef]);
+  }, [mounted, visible, openUp, align, triggerRef]);
 
   if (!mounted) return null;
 
@@ -185,4 +194,51 @@ export function InfoLabel({ label, tip }: { label: string; tip: string }) {
       </Tooltip>
     </span>
   );
+}
+
+/** Contextual help that also opens on tap and closes with Escape or blur. */
+export function InfoTooltip({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  const { ref, openUp, visible: hovered, onMouseEnter, onMouseLeave, onFocus, onBlur, showNow } = useTooltipFlip<HTMLButtonElement>();
+  const [pinned, setPinned] = useState(false);
+  const visible = pinned || hovered;
+
+  useEffect(() => {
+    if (!pinned) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !ref.current?.contains(event.target)) {
+        setPinned(false);
+        onBlur();
+      }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    return () => document.removeEventListener('pointerdown', closeOutside);
+  }, [pinned, ref, onBlur]);
+
+  return <span className="inline-flex shrink-0 align-middle">
+    <button
+      ref={ref}
+      type="button"
+      aria-label={label}
+      aria-describedby={visible ? id : undefined}
+      className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onFocus}
+      onBlur={() => { onBlur(); setPinned(false); }}
+      onClick={event => {
+        event.preventDefault();
+        if (pinned) onBlur(); else showNow();
+        setPinned(value => !value);
+      }}
+      onKeyDown={event => {
+        if (event.key === 'Escape' && visible) {
+          event.preventDefault(); event.stopPropagation(); onBlur(); setPinned(false);
+        }
+      }}
+    ><Info className="h-3.5 w-3.5" aria-hidden="true" /></button>
+    {visible && <TooltipBubble triggerRef={ref} openUp={openUp} visible className="z-[90]">
+      <span id={id} role="tooltip">{children}</span>
+    </TooltipBubble>}
+  </span>;
 }

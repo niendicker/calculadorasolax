@@ -250,3 +250,15 @@ it('renders a grouped contract and its historical generation without requiring a
  result.scenarios=[result.selected];result.solutionGeneration={id:'historical-generation',sourceRevision:'revision',contractVersion:'ci-grouped-v1'};
  const blob=await buildCiMemorialPdfBlob(baseInput({result,product:null}));expect(await pdfMagicBytes(blob)).toBe('%PDF-');expect(blob.size).toBeGreaterThan(1000);
 },15000);
+
+it('prints study apparent powers and FP while preserving active energy units', async () => {
+  const { CiMemorialPdfDocument } = await import('./ci-memorial-pdf');
+  const result = makeResult();
+  result.assumptions.acPowerFactor = 0.8;
+  const document = JSON.stringify(CiMemorialPdfDocument(baseInput({ result })));
+  expect(document).toContain('125,0 kVA'); // 100 kW of active BESS output.
+  expect(document).toContain('437,5 kVA'); // Baseline peak 350 kW.
+  expect(document).toContain('Fator de potência CA');
+  expect(document).toContain('180,0 kWh');
+  expect(document).toContain('/kVA-mês');
+});

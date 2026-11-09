@@ -117,6 +117,7 @@ type TestChartOptions = {
     values: (_self: unknown, ticks: number[]) => string[];
   }>;
   series: Array<{
+    label?: string;
     value: (_self: unknown, rawValue?: number | null) => string;
     fill?: (self: never) => unknown;
   }>;
@@ -249,10 +250,12 @@ describe('LoadCurveChart', () => {
     expect(axis.splits({}, 0, 0, 1)).toHaveLength(6);
     expect(axis.splits({}, 0, 1, 1)).toEqual([1]);
     expect(axis.values({}, [0, 1, 2, 99])).toHaveLength(4);
-    expect(options.axes[1].values({}, [0, 2.5])).toEqual(['0 kW', '2.5 kW']);
+    expect(options.axes[1].values({}, [0, 2.5])).toEqual(['0 kVA', '2.5 kVA']);
+    expect(options.series[0].label).toBe('Horário');
+    expect(options.series[0].value({}, null)).toBe('—');
     expect(options.series[0].value({}, 1)).toContain('01:30');
     expect(options.series[1].value({}, null)).toBe('—');
-    expect(options.series[1].value({}, 12.345)).toBe('12.35 kW');
+    expect(options.series[1].value({}, 12.345)).toBe('12.35 kVA');
 
     const fill = options.series[1].fill!;
     expect(fill(chart as never)).toBeDefined();
@@ -420,8 +423,8 @@ describe('shift+drag range selection', () => {
     fireEvent.mouseUp(document, { clientX: 250 });
 
     expect(screen.getByText(/\(16 pontos\)/)).toBeInTheDocument(); // indices 10..25 inclusive
-    expect(screen.getByText('26.00 kW')).toBeInTheDocument(); // peak, index 25 -> 26
-    expect(screen.getByText('11.00 kW')).toBeInTheDocument(); // min, index 10 -> 11
+    expect(screen.getByText('26.00 kVA')).toBeInTheDocument(); // peak, index 25 -> 26
+    expect(screen.getByText('11.00 kVA')).toBeInTheDocument(); // min, index 10 -> 11
     expect(screen.getByText('296.00 kWh')).toBeInTheDocument(); // sum(11..26) * 1h
   });
 
@@ -507,10 +510,10 @@ describe('shift+drag range selection', () => {
     // Row header for delta
     expect(screen.getByRole('rowheader', { name: /Diferença \(B − A\)/ })).toBeInTheDocument();
 
-    // Peak: A=26, B=6 -> delta -20.00 kW (-76.9%)
-    expect(screen.getByText('26.00 kW')).toBeInTheDocument();
-    expect(screen.getByText('6.00 kW')).toBeInTheDocument();
-    expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
+    // Peak: A=26, B=6 -> delta -20.00 kVA (-76.9%)
+    expect(screen.getByText('26.00 kVA')).toBeInTheDocument();
+    expect(screen.getByText('6.00 kVA')).toBeInTheDocument();
+    expect(screen.getByText('-20.00 kVA (-76.9%)')).toBeInTheDocument();
   });
 
   it('preserves both periods A and B and comparison table when container resize occurs', () => {
@@ -533,7 +536,7 @@ describe('shift+drag range selection', () => {
     // Both periods remain visible and comparison table remains mounted
     expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
     expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
-    expect(screen.getByText('-20.00 kW (-76.9%)')).toBeInTheDocument();
+    expect(screen.getByText('-20.00 kVA (-76.9%)')).toBeInTheDocument();
   });
 
   it('a third shift+drag replaces only B, leaving A as the fixed baseline', () => {
@@ -546,9 +549,9 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 0, 20); // replaces B: indices 0..2 -> values 1..3
 
     expect(screen.getAllByText(/Período A/)[0]).toHaveTextContent('seg'); // still the original A range
-    expect(screen.getByText('26.00 kW')).toBeInTheDocument(); // A's peak unchanged
-    expect(screen.getByText('3.00 kW')).toBeInTheDocument(); // B's new peak
-    expect(screen.queryByText('6.00 kW')).not.toBeInTheDocument(); // B's old peak is gone
+    expect(screen.getByText('26.00 kVA')).toBeInTheDocument(); // A's peak unchanged
+    expect(screen.getByText('3.00 kVA')).toBeInTheDocument(); // B's new peak
+    expect(screen.queryByText('6.00 kVA')).not.toBeInTheDocument(); // B's old peak is gone
   });
 
   it("each period's own Limpar clears just that slot", () => {
@@ -562,7 +565,7 @@ describe('shift+drag range selection', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Limpar/ })[0]); // clears A
     expect(screen.queryByText(/Período/)).not.toBeInTheDocument(); // back to plain single-selection view
     expect(screen.getByText('Seleção:', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText('6.00 kW')).toBeInTheDocument(); // B survived
+    expect(screen.getByText('6.00 kVA')).toBeInTheDocument(); // B survived
   });
 
   it('double-click clears both pinned periods', () => {
@@ -657,19 +660,19 @@ describe('pan/zoom stability across data updates', () => {
   });
 
   it('renders an exceedance alert when the peak exceeds the contracted demand', () => {
-    // samplePoints has peak = 12 kW
+    // samplePoints has peak = 12 kVA
     render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} contractedDemandKw={10} />);
 
     expect(screen.getByText(/Ultrapassagem detectada/i)).toBeInTheDocument();
-    expect(screen.getByText(/\+2\.00 kW \(\+20\.0%\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/\+2\.00 kVA \(\+20\.0%\)/i)).toBeInTheDocument();
   });
 
   it('renders a within-contract confirmation when the peak is below or equal to contracted demand', () => {
-    // samplePoints has peak = 12 kW, contract = 15 kW -> 3 kW free margin
+    // samplePoints has peak = 12 kVA, contract = 15 kVA -> 3 kVA free margin
     render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} contractedDemandKw={15} />);
 
     expect(screen.getByText(/dentro do contrato/i)).toBeInTheDocument();
-    expect(screen.getByText(/3\.00 kW/i)).toBeInTheDocument();
+    expect(screen.getByText(/3\.00 kVA/i)).toBeInTheDocument();
   });
 
   it('incorporates contractedDemandKw into the y-scale range calculation and draws horizontal reference', () => {
@@ -688,7 +691,7 @@ describe('pan/zoom stability across data updates', () => {
     // Call draw hook to verify it renders the reference line without crashing
     options.hooks.draw[0](instance.chart);
     const fakeChart = instance.chart as { ctx: { fillText: ReturnType<typeof vi.fn> } };
-    expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kW'), expect.any(Number), expect.any(Number));
+    expect(fakeChart.ctx.fillText).toHaveBeenCalledWith(expect.stringContaining('Contratada: 15 kVA'), expect.any(Number), expect.any(Number));
   });
 });
 
@@ -711,12 +714,12 @@ describe('interval selection metrics & point badges', () => {
     } as DOMRect);
   }
 
-  it('recalculates top indicators exclusively for selected range and displays "intervalo" badges', () => {
+  it('shows selected metrics once and restores full-period indicators after clearing', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     const over = instances.at(-1)!.over;
     mockOverRect(over);
 
-    // Initial indicators show full week metrics (peak 30 kW, min 1 kW)
+    // Initial indicators show full week metrics (peak 30 kVA, min 1 kVA)
     expect(screen.getByText('30.00')).toBeInTheDocument();
     expect(screen.getByText('1.00')).toBeInTheDocument();
     expect(screen.queryAllByText('intervalo')).toHaveLength(0);
@@ -726,14 +729,17 @@ describe('interval selection metrics & point badges', () => {
     fireEvent.mouseMove(document, { clientX: 250 });
     fireEvent.mouseUp(document, { clientX: 250 });
 
-    // Top indicators now reflect only the selected interval (peak 26 kW, min 11 kW)
-    expect(screen.getByText('26.00')).toBeInTheDocument();
-    expect(screen.getByText('11.00')).toBeInTheDocument();
-    expect(screen.getAllByText('intervalo')).toHaveLength(4);
+    // The selection summary replaces the overview rather than duplicating its values.
+    expect(screen.getByText('26.00 kVA')).toBeInTheDocument();
+    expect(screen.getByText('11.00 kVA')).toBeInTheDocument();
+    expect(screen.queryByText('Demanda máxima')).not.toBeInTheDocument();
 
     // Início and Fim badges are rendered on the chart
-    expect(screen.getByText(/Início:.*11\.0 kW/)).toBeInTheDocument();
-    expect(screen.getByText(/Fim:.*26\.0 kW/)).toBeInTheDocument();
+    expect(screen.getByText(/Início:.*11\.0 kVA/)).toBeInTheDocument();
+    expect(screen.getByText(/Fim:.*26\.0 kVA/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
+    expect(screen.getByText('Demanda máxima')).toBeInTheDocument();
+    expect(screen.getByText('30.00')).toBeInTheDocument();
   });
 
   it('displays hover badge on mousemove and clears on mouseleave', () => {
@@ -741,20 +747,23 @@ describe('interval selection metrics & point badges', () => {
     const over = instances.at(-1)!.over;
     mockOverRect(over);
 
-    // Hover over clientX 50 -> index 5 -> power 6 kW
+    // Hover over clientX 50 -> index 5 -> power 6 kVA
     fireEvent.mouseMove(over, { clientX: 50, buttons: 0 });
-    expect(screen.getByText(/6\.0 kW/)).toBeInTheDocument();
+    expect(screen.getByText(/6\.0 kVA/)).toBeInTheDocument();
 
     // Mouse leave clears hover badge
     fireEvent.mouseLeave(over);
-    expect(screen.queryByText(/6\.0 kW/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/6\.0 kVA/)).not.toBeInTheDocument();
   });
 
-  it('renders summarized guide text below the chart', () => {
+  it('keeps selection discoverable and places navigation details in contextual help', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     expect(
-      screen.getByText('Shift + arraste para selecionar intervalo · Ctrl + scroll para zoom · Duplo clique para redefinir')
+      screen.getByText('Shift + arraste para selecionar')
     ).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Como navegar na curva' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Ctrl + scroll');
   });
 });
 
@@ -783,9 +792,9 @@ describe('FV statistics for selected periods', () => {
     const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={generation} />);
     selectRange(instances.at(-1)!.over, 100, 250);
     const single = within(screen.getByRole('region', { name: 'Geração FV no período selecionado' }));
-    expect(single.getByText('52.00 kW')).toBeInTheDocument();
-    expect(single.getByText('22.00 kW')).toBeInTheDocument();
-    expect(single.getByText('37.00 kW')).toBeInTheDocument();
+    expect(single.getByText('52.00 kVA')).toBeInTheDocument();
+    expect(single.getByText('22.00 kVA')).toBeInTheDocument();
+    expect(single.getByText('37.00 kVA')).toBeInTheDocument();
     expect(single.getByText('148.00 kWh')).toBeInTheDocument();
     selectRange(instances.at(-1)!.over, 10, 50);
     const comparison = within(screen.getByRole('rowgroup', { name: 'Geração FV' }));
@@ -817,4 +826,12 @@ it('handles an empty curve becoming populated without changing hook order', () =
   expect(instances.at(-1)?.data).toEqual([[0, 1], [20, 40]]);
   rerender(<LoadCurveChart points={[]} resolutionMinutes={15} />);
   expect(instances.at(-1)?.destroyed).toBe(true);
+});
+
+it('converts selected power metrics to kVA without converting kWh', async () => {
+  const { CiAcPowerProvider } = await import('./ci-ac-power');
+  const points=[0,1].map(hour=>({timestamp:`2026-01-01T0${hour}:00:00Z`,powerKw:80}));
+  render(<CiAcPowerProvider powerFactor={.8}><LoadCurveChart summaryOnly points={points} resolutionMinutes={60} selectionSlots={{a:{startIndex:0,endIndex:1},b:null}}/></CiAcPowerProvider>);
+  expect(screen.getAllByText('100.00 kVA').length).toBe(3);
+  expect(screen.getByText('160.00 kWh')).toBeInTheDocument();
 });

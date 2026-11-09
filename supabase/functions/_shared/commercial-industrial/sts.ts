@@ -13,7 +13,7 @@ export function validateStsSelection(raw: unknown): string[] {
   if (![380, 400].includes(Number(s.lineVoltageV)) || typeof s.lineVoltageV !== 'number') errors.push('STS: informe tensão entre fases de 380 ou 400 V.');
   if (![50, 60].includes(Number(s.frequencyHz)) || typeof s.frequencyHz !== 'number') errors.push('STS: informe frequência de 50 ou 60 Hz.');
   if (!positive(s.powerFactor) || s.powerFactor > 1) errors.push('STS: informe fator de potência maior que zero e até 1.');
-  if (typeof s.maxGridPassageKw !== 'number' || !Number.isFinite(s.maxGridPassageKw) || s.maxGridPassageKw < 0) errors.push('STS: informe a máxima potência de passagem pela rede (kW).');
+  if (typeof s.maxGridPassageKw !== 'number' || !Number.isFinite(s.maxGridPassageKw) || s.maxGridPassageKw < 0) errors.push('STS: informe a máxima potência de passagem pela rede (kVA).');
   if (s.gridBusScope === 'backup_bus' && !positive(s.maxGridPassageKw)) errors.push('STS no barramento de backup: declare a máxima passagem, incluindo BESS e FV conectados a ele.');
   return errors;
 }
