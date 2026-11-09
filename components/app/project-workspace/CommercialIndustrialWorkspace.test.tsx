@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultCiOptions, defaultProjectInfo } from '@/lib/store/defaults';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
@@ -151,8 +151,9 @@ describe('CommercialIndustrialWorkspace', () => {
     expect(screen.queryByRole('button',{name:'Solar FV'})).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Curvas e aplicações'}));
     fireEvent.click(screen.getByRole('button',{name:'Configurar backup'}));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Proteção para Falta de Rede (Backup C&I)')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Configurar backup' });
+    expect(within(dialog).getByRole('heading', { name: 'Backup' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Habilitar Backup' })).toBeInTheDocument();
   });
   it('retains a calculation across tabs and warns after editing the strategy', async () => {
     const result = {
