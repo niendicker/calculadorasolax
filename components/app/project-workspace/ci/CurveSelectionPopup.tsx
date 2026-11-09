@@ -86,7 +86,7 @@ export function CurveSelectionPopup({ points, generationPoints, resolutionMinute
 
   const missingSolar = generationPoints !== undefined && (delta ? !a.solar || !b.solar : !current.solar);
   return (
-    <section aria-label="Resumo do intervalo selecionado" className={cn(position, 'w-[340px] max-h-[calc(100%-1rem)] overflow-auto overscroll-contain rounded-xl border border-border bg-card/95 p-3 text-xs shadow-lg backdrop-blur-sm')}>
+    <section aria-label="Resumo do intervalo selecionado" className={cn(position, 'w-[340px] max-h-[calc(100%-1rem)] overflow-auto overscroll-contain rounded-xl border border-border bg-card/85 p-3 text-xs shadow-lg backdrop-blur-md')}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 font-semibold"><span className={cn('size-1.5 rounded-full', view === 'b' ? 'bg-chart-2' : 'bg-chart-1')} aria-hidden="true" />{delta ? 'Diferença B − A' : both ? `Período ${view.toUpperCase()}` : 'Intervalo selecionado'}</div>
         <Button type="button" variant="ghost" size="xs" className="size-6 p-0" aria-label="Fechar resumo da seleção" onClick={() => setDismissed(true)}><X className="size-3.5" aria-hidden="true" /></Button>
