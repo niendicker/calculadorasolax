@@ -8,7 +8,8 @@ import { formatAcPowerWarning } from '@/supabase/functions/_shared/commercial-in
 import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, Loader2, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, Check, CheckCircle2, ChevronLeft, FileDown, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CiSolutionProducts } from './CiSolutionProducts';
 import { ciScenarioLabel } from './ci-scenario-label';
 import { getCiConfigurationStatus } from './ci-configuration-status';
 import type { CiWorkspaceSection } from '../CommercialIndustrialWorkspace';
@@ -151,7 +152,6 @@ export function CiResultsPanel({
 
   const hasTechnicalSolution=Boolean(result?.selected?.technicalValidity&&result.technicalSelection?.scenarioId!==null);
   const currentScenario=hasTechnicalSolution?result!.selected:null;
-  const isRecommendedActive=hasTechnicalSolution;
 
   const dispatch = result?.selected?.dispatch ?? [];
   const hasDispatch = dispatch.length > 0;
@@ -283,6 +283,79 @@ export function CiResultsPanel({
 
       {result && hasTechnicalSolution && (
         <>
+          {currentScenario && (
+            <section aria-label="Solução dimensionada" className="space-y-5 rounded-lg border border-primary/20 bg-primary/[0.04] p-4 sm:p-5">
+              <CiSolutionProducts scenario={currentScenario} />
+              <section aria-label="Capacidade da solução" className="space-y-3 border-t pt-4">
+                <h3 className="flex items-center gap-2 text-sm font-semibold"><CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />Capacidade e atendimento técnico</h3>
+                <p className="text-xs text-muted-foreground">{`Solução que atende tecnicamente — ${ciScenarioLabel(currentScenario)}`}</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    ['Potência CA', formatPower(currentScenario.totalPowerKw)],
+                    ['Energia nominal', formatKwh(currentScenario.totalCapacityKwh, 1)],
+                    ['Energia útil', formatKwh(currentScenario.usefulCapacityKwh, 1)],
+                  ].map(([label, value]) => <div key={label} className="min-w-0 rounded-lg border bg-card p-3">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="mt-1 break-words text-lg font-semibold">{value}</p>
+                  </div>)}
+                </div>
+                {result.technicalRequirements && <p className="text-xs text-muted-foreground">Requisitos do projeto: {formatPower(result.technicalRequirements.minPowerKw)} · {formatKwh(result.technicalRequirements.minEnergyKwh, 1)} úteis mínimos, incluindo reserva de backup.</p>}
+                <p className="text-xs text-muted-foreground">{result.technicalSelection?.reason ?? 'Solução selecionada pelo atendimento aos requisitos técnicos do projeto.'}</p>
+              </section>
+              {currentScenario.technicalWarnings.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
+                  <p className="font-medium">Avisos deste cenário</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {currentScenario.technicalWarnings.map((warning) => <li key={warning}>{powerWarning(warning)}</li>)}
+                  </ul>
+                </div>
+              )}
+              <section aria-label="Investimento e retorno" className="space-y-3 border-t pt-4">
+                <h3 className="text-sm font-semibold">Investimento e retorno</h3>
+                <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>
+                {currentScenario.pricingComplete === false ? <p role="status" className="text-sm">Preencha os preços no Portfólio para avaliar o financeiro: {currentScenario.missingPrices?.join(', ')}.</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">CAPEX</p>
+                    <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.capex)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Economia anual</p>
+                    <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.annualSavings)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Payback simples / descontado</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {formatYears(currentScenario.paybackYearsSimple)}
+                      {currentScenario.paybackYearsDiscounted !== undefined
+                        ? ` / ${formatYears(currentScenario.paybackYearsDiscounted)}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ROI / NPV</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {formatPercentBRL(currentScenario.roiPercent)} / {formatCurrencyBRL(currentScenario.npv)}
+                    </p>
+                  </div>
+                </div>}
+              </section>
+              {(currentScenario.group || currentScenario.composition) && <details className="rounded-lg border bg-card p-3">
+                <summary className="cursor-pointer rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">Detalhes de conexão e compatibilidade</summary>
+                {currentScenario.group && <div className="space-y-2 border-t pt-3 text-xs">
+                  {result.assumptions.lineVoltageV&&<p>Tensão de operação CA entre fases: {result.assumptions.lineVoltageV} V.</p>}
+                  <p>Carga CA até {formatPower(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatPower(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
+                  {currentScenario.group.dc.ports ? <ul className="space-y-1">{currentScenario.group.dc.ports.map(port=><li key={`${port.unit}:${port.port}`}>Unidade {port.unit} · banco CC {port.port}: {port.series}S × {port.parallelStrings}P · {port.voltageMinV}–{port.voltageMaxV} V · carga/descarga CC até {port.chargePowerKw.toFixed(1)}/{port.dischargePowerKw.toFixed(1)} kW · {port.chargeCurrentA}/{port.dischargeCurrentA} A.</li>)}</ul> : <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V.</p>}
+                  <p>Referência: {currentScenario.group.source.reference} · Revisão {currentScenario.group.source.revision}.</p>
+                </div>}
+                {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
+                  <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.portBanks ? currentScenario.composition.portBanks.map((bank,i)=>`Porta ${i+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${currentScenario.composition.seriesCount} unidades em série × ${currentScenario.composition.parallelStringsPerPcs} strings por PCS.`}</p>
+                  <p>Carga AC até {formatPower(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatPower(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
+                  <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
+                </div>}
+              </details>}
+            </section>
+          )}
+
           <div className="space-y-3 border-t pt-4">
             <p className="text-sm font-semibold">Linha de base (sem BESS)</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -306,78 +379,6 @@ export function CiResultsPanel({
               </div>
             </div>
           </div>
-
-          {currentScenario && (
-            <div
-              className={
-                isRecommendedActive && result.recommendation.scenarioId
-                  ? 'space-y-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-4'
-                  : 'space-y-3 rounded-lg border border-muted-foreground/30 bg-muted/20 p-4'
-              }
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  {isRecommendedActive && result.recommendation.scenarioId ? (
-                    <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
-                  ) : (
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  )}
-                  {`Solução que atende tecnicamente — ${ciScenarioLabel(currentScenario)}`}
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">{result.technicalSelection?.reason??'Solução selecionada pelo atendimento aos requisitos técnicos do projeto.'}</p>
-              <p className="text-xs text-muted-foreground">{result.recommendation.reason}</p>
-              {!currentScenario.group && Boolean(currentScenario.accessories?.length) && <div className="space-y-2 border-t pt-3 text-xs"><p className="font-semibold">Acessórios C&I</p><ul className="space-y-2">{currentScenario.accessories!.map(item=><li key={item.productId}><div className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{item.bundled ? ' · Incluso':''}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></div><p className="text-muted-foreground">{item.reasons.join('; ')}</p></li>)}</ul></div>}
-              {currentScenario.group && <div className="space-y-2 border-t pt-3 text-xs">
-                {result.assumptions.lineVoltageV&&<p>Tensão de operação CA entre fases: {result.assumptions.lineVoltageV} V.</p>}
-                <p>Carga CA até {formatPower(currentScenario.group.ac.chargePowerKw)} · Descarga CA até {formatPower(currentScenario.group.ac.dischargePowerKw)} · Energia útil {currentScenario.group.storage.usableEnergyKwh.toFixed(1)} kWh.</p>
-                {currentScenario.group.dc.ports ? <ul className="space-y-1">{currentScenario.group.dc.ports.map(port=><li key={`${port.unit}:${port.port}`}>Unidade {port.unit} · banco CC {port.port}: {port.series}S × {port.parallelStrings}P · {port.voltageMinV}–{port.voltageMaxV} V · carga/descarga CC até {port.chargePowerKw.toFixed(1)}/{port.dischargePowerKw.toFixed(1)} kW · {port.chargeCurrentA}/{port.dischargeCurrentA} A.</li>)}</ul> : <p>{currentScenario.group.dc.buses} barramento(s) CC · {currentScenario.group.dc.voltageMinV}–{currentScenario.group.dc.voltageMaxV} V.</p>}
-                <p>Referência: {currentScenario.group.source.reference} · Revisão {currentScenario.group.source.revision}.</p>
-                {result.technicalRequirements && <p>Requisitos do projeto: {formatPower(result.technicalRequirements.minPowerKw)} · {result.technicalRequirements.minEnergyKwh.toFixed(1)} kWh úteis mínimos, incluindo reserva de backup.</p>}
-                <p className="font-semibold">Composição da solução</p>
-                <ul className="space-y-1">{currentScenario.billOfMaterials?.map(item=><li key={item.productId} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
-              </div>}
-              {currentScenario.composition && <div className="space-y-3 border-t pt-3 text-xs">
-                <p>{currentScenario.composition.pcsModel} + {currentScenario.composition.batteryModel} · {currentScenario.composition.portBanks ? currentScenario.composition.portBanks.map((bank,i)=>`Porta ${i+1}: ${bank.series}S × ${bank.parallelStrings}P`).join(' / ') : `${currentScenario.composition.seriesCount} unidades em série × ${currentScenario.composition.parallelStringsPerPcs} strings por PCS.`}</p>
-                <p>Carga AC até {formatPower(currentScenario.composition.chargePowerKw)} · Descarga AC até {formatPower(currentScenario.composition.dischargePowerKw)} · Banco DC {currentScenario.composition.voltageMinV}–{currentScenario.composition.voltageMaxV} V.</p>
-                <p>Compatibilidade: {currentScenario.composition.compatibilityName} · Revisão {currentScenario.composition.revision}.</p>
-                <ul className="space-y-1">{currentScenario.composition.items.filter(item=>!currentScenario.accessories?.length || item.productType!=='accessory').map((item) => <li key={`${item.productType}-${item.productId}`} className="flex flex-wrap justify-between gap-2"><span>{item.quantity} × {item.model}{currentScenario.pricingComplete === false ? '' : ` · ${formatCurrencyBRL(item.unitPriceBrl)}/un.`}</span><strong>{currentScenario.pricingComplete === false ? 'Preço pendente' : formatCurrencyBRL(item.totalBrl)}</strong></li>)}</ul>
-              </div>}
-              {currentScenario.technicalWarnings.length > 0 && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
-                  <p className="font-medium">Avisos deste cenário</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-4">
-                    {currentScenario.technicalWarnings.map((warning) => <li key={warning}>{powerWarning(warning)}</li>)}
-                  </ul>
-                </div>
-              )}
-              {currentScenario.pricingComplete === false ? <p role="status" className="text-sm">Preencha os preços no Portfólio para avaliar o financeiro: {currentScenario.missingPrices?.join(', ')}.</p> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">CAPEX</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.capex)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Economia anual</p>
-                  <p className="mt-1 text-sm font-semibold">{formatCurrencyBRL(currentScenario.annualSavings)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Payback simples / descontado</p>
-                  <p className="mt-1 text-sm font-semibold">
-                    {formatYears(currentScenario.paybackYearsSimple)}
-                    {currentScenario.paybackYearsDiscounted !== undefined
-                      ? ` / ${formatYears(currentScenario.paybackYearsDiscounted)}`
-                      : ''}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">ROI / NPV</p>
-                  <p className="mt-1 text-sm font-semibold">
-                    {formatPercentBRL(currentScenario.roiPercent)} / {formatCurrencyBRL(currentScenario.npv)}
-                  </p>
-                </div>
-              </div>}
-            </div>
-          )}
 
           {result.selected && hasDispatch && (
             <div className="space-y-4 rounded-lg border bg-card p-4">
