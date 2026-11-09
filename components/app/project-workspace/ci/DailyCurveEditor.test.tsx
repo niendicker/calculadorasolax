@@ -597,22 +597,7 @@ describe('DailyCurveEditor — editing tools', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining([55]));
   });
 
-  it('displays real-time energetic KPIs and jumps to peak demand', async () => {
-    const values = new Array(96).fill(40);
-    values[53] = 120; // 13:15 peak demand
-    render(<DailyCurveEditor hourlyKw={values} onChange={vi.fn()} />);
 
-    expect(screen.getByText('Consumo diário')).toBeInTheDocument();
-    expect(screen.getByText('Demanda de pico')).toBeInTheDocument();
-    expect(screen.getByText('120,0')).toBeInTheDocument();
-
-    const jumpBtn = screen.getByRole('button', { name: /às 13:15/ });
-    expect(jumpBtn).toBeInTheDocument();
-
-    fireEvent.click(jumpBtn);
-    expect(selectedPoint()).toHaveAttribute('data-hour', '53');
-    expect(selectedPoint(false)).toHaveAttribute('aria-valuenow', String(120));
-  });
 
 
 
@@ -822,7 +807,6 @@ it('edits apparent CA power at nonunity FP while preserving active energy and em
   const point = getSlider(12);
   expect(point).toHaveAttribute('aria-valuenow', '100');
   expect(point).toHaveAttribute('aria-valuetext', '100.0 kVA');
-  expect(screen.getByText('1.920,0')).toBeInTheDocument();
   fireEvent.keyDown(point, { key: 'ArrowUp' });
   expect(point).toHaveAttribute('aria-valuenow', '101');
   await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });

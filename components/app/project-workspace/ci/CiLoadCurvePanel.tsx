@@ -17,6 +17,7 @@ import {
 } from '@/supabase/functions/_shared/commercial-industrial/manual-day-curve';
 import { LOAD_CURVE_MAX_POINTS, type CommercialIndustrialOptions, type LoadCurve, type LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiEnergyImport, curvesAlign } from './CiEnergyImport';
+import { CurveSelectionPopup } from './CurveSelectionPopup';
 import { DailyCurveEditor } from './DailyCurveEditor';
 import { CiBackupSelectionAction } from './CiBackupSelectionAction';
 import type { CurveRangeSelection, SelectionSlots } from './LoadCurveChart';
@@ -43,7 +44,7 @@ type DailyPattern = 'weekday' | 'weekend';
 // that entirely out of the server render.
 const LoadCurveChart = dynamic(() => import('./LoadCurveChart').then((mod) => mod.LoadCurveChart), {
   ssr: false,
-  loading: () => <div className="h-[235px] w-full animate-pulse rounded-lg bg-muted" />,
+  loading: () => <div className="h-[320px] w-full animate-pulse rounded-lg bg-muted" />,
 });
 
 function todayIsoDate(): string {
@@ -179,6 +180,8 @@ export function CiLoadCurvePanel({
   const dailySolarKw = useMemo(() => buildDailySolarProfile(ciOptions.solar, displayedPattern, timezone, activeCurve), [ciOptions.solar, displayedPattern, timezone, activeCurve]);
 
   const weeklySolarPoints = useMemo(() => activeCurve ? buildSolarPreviewPoints(ciOptions.solar, activeCurve) : undefined, [ciOptions.solar, activeCurve]);
+
+  const dailySelectionPopup = activeCurve && <CurveSelectionPopup points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} selections={dailySlots} onSelectionsChange={setDailySlots} align={(editorRanges.at(-1)?.startIndex ?? 0) < 48 ? 'right' : 'left'} />;
 
   // Reproject edited PV patterns when the consumption period/resolution changes.
   useEffect(() => {
@@ -397,14 +400,14 @@ export function CiLoadCurvePanel({
             weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={displayedPattern}
             onUpdatePatternKw={handleUpdatePatternKw}
             onSelectRange={activeCurve&&referenceDay?selectDailyRange:undefined} selectedRanges={editorRanges}
+            selectionPopup={dailySelectionPopup}
             selectionActions={canAccessCiBackup && activeCurve ? <>
               <h3 className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />Backup da seleção</h3>
               {dailySlots.a || dailySlots.b ? ([{ range: dailySlots.a, label: 'período A' }, { range: dailySlots.b, label: 'período B' }]).map(({ range, label }) => range && <CiBackupSelectionAction key={`${label}:${activeCurve.points[range.startIndex]?.timestamp}:${activeCurve.points[range.endIndex]?.timestamp}`} curve={activeCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={applyBackupSelection} />) : <p className="rounded-xl border border-dashed p-4 text-xs text-muted-foreground">Arraste no gráfico para selecionar o consumo que deseja usar no backup.</p>}
             </> : undefined}
           />
-          {activeCurve&&(dailySlots.a||dailySlots.b)&&<LoadCurveChart summaryOnly points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} selectionSlots={dailySlots} onSelectionSlotsChange={setDailySlots}/>}
         </div>}
-        {sourceMode==='csv'&&viewMode==='day'&&editImportedSolar&&dailySolarKw&&<div className="space-y-3"><div className="flex items-center gap-1 text-xs font-medium">Perfil FV<InfoTooltip label="Sobre a edição do perfil FV">A edição é feita por tipo de dia. O consumo importado é preservado; a geração é alinhada aos horários originais.</InfoTooltip></div><DailyCurveEditor solarOnly weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={displayedPattern} solarKw={dailySolarKw} onSolarChange={handleUpdateSolarKw}/></div>}
+        {sourceMode==='csv'&&viewMode==='day'&&editImportedSolar&&dailySolarKw&&<div className="space-y-3"><div className="flex items-center gap-1 text-xs font-medium">Perfil FV<InfoTooltip label="Sobre a edição do perfil FV">A edição é feita por tipo de dia. O consumo importado é preservado; a geração é alinhada aos horários originais.</InfoTooltip></div><DailyCurveEditor solarOnly weekdayKw={weekdayKw} weekendKw={weekendKw} activePattern={displayedPattern} solarKw={dailySolarKw} onSolarChange={handleUpdateSolarKw} onSelectRange={activeCurve&&referenceDay?selectDailyRange:undefined} selectedRanges={editorRanges} selectionPopup={dailySelectionPopup}/></div>}
         {sourceMode==='csv'&&viewMode==='day'&&!editImportedSolar&&csvDayCurve&&<LoadCurveChart key={`day:${dailyKey}`} points={csvDayCurve.points} generationPoints={weeklySolarPoints?referenceDay?.indices.map(index=>weeklySolarPoints[index]):undefined} resolutionMinutes={csvDayCurve.resolutionMinutes} timezone={csvDayCurve.timezone} contractedDemandKw={ciOptions.tariff?.contractedDemandKw} backupCurve={canAccessCiBackup?csvDayCurve:undefined} onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}/>}
         <div hidden={viewMode!=='period'}>
           {activeCurve?<LoadCurveChart points={activeCurve.points} generationPoints={weeklySolarPoints} resolutionMinutes={activeCurve.resolutionMinutes} timezone={activeCurve.timezone} contractedDemandKw={ciOptions.tariff?.contractedDemandKw} backupCurve={canAccessCiBackup?activeCurve:undefined} onApplyBackupSelection={canAccessCiBackup?applyBackupSelection:undefined}/>:<p className="flex h-36 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">Nenhuma curva de carga disponível para exibição.</p>}

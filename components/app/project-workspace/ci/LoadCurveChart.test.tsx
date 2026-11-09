@@ -327,12 +327,12 @@ describe('LoadCurveChart', () => {
     const range=instance.setScaleCalls[0] as {min:number;max:number};expect(range.max-range.min).toBeLessThan(29);
   });
 
-  it('reuses controlled interval summaries without creating a second chart',()=>{
+  it('renders controlled summaries inside the chart',()=>{
     const change=vi.fn();
-    render(<LoadCurveChart summaryOnly points={samplePoints} resolutionMinutes={15} selectionSlots={{a:{startIndex:0,endIndex:1},b:null}} onSelectionSlotsChange={change}/>);
-    expect(instances).toHaveLength(0);
-    expect(screen.getByText(/Seleção:/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Limpar'}));expect(change).toHaveBeenCalled();
+    render(<LoadCurveChart points={samplePoints} resolutionMinutes={15} selectionSlots={{a:{startIndex:0,endIndex:1},b:null}} onSelectionSlotsChange={change}/>);
+    const popup=screen.getByRole('region',{name:'Resumo do intervalo selecionado'});
+    expect(screen.getByTestId('period-chart-surface')).toContainElement(popup);
+    fireEvent.click(within(popup).getByRole('button',{name:'Limpar seleção'}));expect(change).toHaveBeenCalled();
   });
 
   it('uses the supplied project timezone in axis labels instead of the browser timezone',()=>{
@@ -377,7 +377,7 @@ describe('LoadCurveChart', () => {
     Object.defineProperty(target, 'clientWidth', { configurable: true, value: 640 });
     act(() => resizeCallback?.());
 
-    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 235 });
+    expect(instance.setSizeCalls.at(-1)).toEqual({ width: 640, height: 320 });
     expect(instance.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
     expect(screen.getByRole('button', { name: /Limpar/ })).toBeInTheDocument();
   });
@@ -422,10 +422,10 @@ describe('shift+drag range selection', () => {
     fireEvent.mouseMove(document, { clientX: 250 });
     fireEvent.mouseUp(document, { clientX: 250 });
 
-    expect(screen.getByText(/\(16 pontos\)/)).toBeInTheDocument(); // indices 10..25 inclusive
-    expect(screen.getByText('26.00 kVA')).toBeInTheDocument(); // peak, index 25 -> 26
-    expect(screen.getByText('11.00 kVA')).toBeInTheDocument(); // min, index 10 -> 11
-    expect(screen.getByText('296.00 kWh')).toBeInTheDocument(); // sum(11..26) * 1h
+    expect(screen.getByText(/16 pontos/)).toBeInTheDocument(); // indices 10..25 inclusive
+    expect(screen.getByText('26,00 kVA')).toBeInTheDocument(); // peak, index 25 -> 26
+    expect(screen.getByText('11,00 kVA')).toBeInTheDocument(); // min, index 10 -> 11
+    expect(screen.getByText('296,00 kWh')).toBeInTheDocument(); // sum(11..26) * 1h
   });
 
   it('a plain click (sub-threshold drag) with shift held clears an existing selection', () => {
@@ -488,55 +488,28 @@ describe('shift+drag range selection', () => {
     fireEvent.mouseUp(document, { clientX: endX });
   }
 
-  it('a second shift+drag pins a comparison period B and shows a pivoted comparison table with deltas', () => {
+  it('compares A, B and their difference inside one popup', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
-    const over = instances.at(-1)!.over;
-    mockOverRect(over);
-
-    dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
-    dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
-
-    expect(screen.getAllByText(/Período A/)).toHaveLength(2);
-    expect(screen.getAllByText(/Período B/)).toHaveLength(2);
-    expect(screen.getAllByRole('button', { name: /Limpar/ })).toHaveLength(2);
-
-    // Column headers for metrics
-    expect(screen.getByRole('columnheader', { name: 'Intervalo' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Pico' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Mínima' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Média' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Energia' })).toBeInTheDocument();
-
-    // Row header for delta
-    expect(screen.getByRole('rowheader', { name: /Diferença \(B − A\)/ })).toBeInTheDocument();
-
-    // Peak: A=26, B=6 -> delta -20.00 kVA (-76.9%)
-    expect(screen.getByText('26.00 kVA')).toBeInTheDocument();
-    expect(screen.getByText('6.00 kVA')).toBeInTheDocument();
-    expect(screen.getByText('-20.00 kVA (-76.9%)')).toBeInTheDocument();
+    const over=instances.at(-1)!.over;mockOverRect(over);
+    dragSelect(over,100,250);dragSelect(over,10,50);
+    expect(screen.getByText('6,00 kVA')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    expect(screen.getByText('26,00 kVA')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Diferença'}));
+    expect(screen.getByText('-20,00 kVA')).toBeInTheDocument();
+    expect(screen.getAllByRole('region',{name:'Resumo do intervalo selecionado'})).toHaveLength(1);
   });
 
-  it('preserves both periods A and B and comparison table when container resize occurs', () => {
+  it('preserves both intervals and the selected popup view on resize', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
-    const instance = instances.at(-1)!;
-    const over = instance.over;
-    mockOverRect(over);
-
-    dragSelect(over, 100, 250); // A: indices 10..25 -> values 11..26
-    dragSelect(over, 10, 50); // B: indices 1..5 -> values 2..6
-
-    expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
-
-    // Simulate container resize (e.g. scrollbar appearing when comparison table renders)
-    const target = instance.target!;
-    Object.defineProperty(target, 'clientWidth', { configurable: true, value: 585 });
-    act(() => resizeCallback?.());
-
-    // Both periods remain visible and comparison table remains mounted
-    expect(screen.getAllByText(/Período A/)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/Período B/)[0]).toBeInTheDocument();
-    expect(screen.getByText('-20.00 kVA (-76.9%)')).toBeInTheDocument();
+    const instance=instances.at(-1)!;mockOverRect(instance.over);
+    dragSelect(instance.over,100,250);dragSelect(instance.over,10,50);
+    fireEvent.click(screen.getByRole('button',{name:'Diferença'}));
+    Object.defineProperty(instance.target!, 'clientWidth', {configurable:true,value:585});
+    act(()=>resizeCallback?.());
+    expect(screen.getByRole('button',{name:'Período A'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Período B'})).toBeInTheDocument();
+    expect(screen.getByText('-20,00 kVA')).toBeInTheDocument();
   });
 
   it('a third shift+drag replaces only B, leaving A as the fixed baseline', () => {
@@ -548,24 +521,20 @@ describe('shift+drag range selection', () => {
     dragSelect(over, 10, 50); // B: values 2..6
     dragSelect(over, 0, 20); // replaces B: indices 0..2 -> values 1..3
 
-    expect(screen.getAllByText(/Período A/)[0]).toHaveTextContent('seg'); // still the original A range
-    expect(screen.getByText('26.00 kVA')).toBeInTheDocument(); // A's peak unchanged
-    expect(screen.getByText('3.00 kVA')).toBeInTheDocument(); // B's new peak
-    expect(screen.queryByText('6.00 kVA')).not.toBeInTheDocument(); // B's old peak is gone
+    expect(screen.getByText('3,00 kVA')).toBeInTheDocument(); // B's new peak
+    expect(screen.queryByText('6,00 kVA')).not.toBeInTheDocument(); // B's old peak is gone
+    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    expect(screen.getByText('26,00 kVA')).toBeInTheDocument();
   });
 
   it("each period's own Limpar clears just that slot", () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
-    const over = instances.at(-1)!.over;
-    mockOverRect(over);
-
-    dragSelect(over, 100, 250); // A
-    dragSelect(over, 10, 50); // B
-
-    fireEvent.click(screen.getAllByRole('button', { name: /Limpar/ })[0]); // clears A
-    expect(screen.queryByText(/Período/)).not.toBeInTheDocument(); // back to plain single-selection view
-    expect(screen.getByText('Seleção:', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText('6.00 kVA')).toBeInTheDocument(); // B survived
+    const over=instances.at(-1)!.over;mockOverRect(over);
+    dragSelect(over,100,250);dragSelect(over,10,50);
+    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    fireEvent.click(screen.getByRole('button',{name:'Limpar período A'}));
+    expect(screen.queryByRole('button',{name:'Período A'})).not.toBeInTheDocument();
+    expect(screen.getByText('6,00 kVA')).toBeInTheDocument();
   });
 
   it('double-click clears both pinned periods', () => {
@@ -575,7 +544,7 @@ describe('shift+drag range selection', () => {
 
     dragSelect(over, 100, 250); // A
     dragSelect(over, 10, 50); // B
-    expect(screen.getAllByRole('button', { name: /Limpar/ })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /Limpar/ })).toHaveLength(1);
 
     fireEvent.dblClick(over);
     expect(screen.queryByRole('button', { name: /Limpar/ })).not.toBeInTheDocument();
@@ -714,32 +683,18 @@ describe('interval selection metrics & point badges', () => {
     } as DOMRect);
   }
 
-  it('shows selected metrics once and restores full-period indicators after clearing', () => {
+  it('shows selection metrics in the graph and keeps summaries below removed', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
-    const over = instances.at(-1)!.over;
-    mockOverRect(over);
-
-    // Initial indicators show full week metrics (peak 30 kVA, min 1 kVA)
-    expect(screen.getByText('30.00')).toBeInTheDocument();
-    expect(screen.getByText('1.00')).toBeInTheDocument();
-    expect(screen.queryAllByText('intervalo')).toHaveLength(0);
-
-    // Shift-drag selects indices 10..25 (powers 11..26)
-    fireEvent.mouseDown(over, { button: 0, shiftKey: true, clientX: 100 });
-    fireEvent.mouseMove(document, { clientX: 250 });
-    fireEvent.mouseUp(document, { clientX: 250 });
-
-    // The selection summary replaces the overview rather than duplicating its values.
-    expect(screen.getByText('26.00 kVA')).toBeInTheDocument();
-    expect(screen.getByText('11.00 kVA')).toBeInTheDocument();
+    const over=instances.at(-1)!.over;mockOverRect(over);
     expect(screen.queryByText('Demanda máxima')).not.toBeInTheDocument();
-
-    // Início and Fim badges are rendered on the chart
-    expect(screen.getByText(/Início:.*11\.0 kVA/)).toBeInTheDocument();
-    expect(screen.getByText(/Fim:.*26\.0 kVA/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
-    expect(screen.getByText('Demanda máxima')).toBeInTheDocument();
-    expect(screen.getByText('30.00')).toBeInTheDocument();
+    fireEvent.mouseDown(over,{button:0,shiftKey:true,clientX:100});
+    fireEvent.mouseMove(document,{clientX:250});fireEvent.mouseUp(document,{clientX:250});
+    const popup=screen.getByRole('region',{name:'Resumo do intervalo selecionado'});
+    expect(screen.getByTestId('period-chart-surface')).toContainElement(popup);
+    expect(within(popup).getByText('26,00 kVA')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Limpar seleção'}));
+    expect(screen.queryByRole('region',{name:'Resumo do intervalo selecionado'})).not.toBeInTheDocument();
+    expect(screen.queryByText('Demanda máxima')).not.toBeInTheDocument();
   });
 
   it('displays hover badge on mousemove and clears on mouseleave', () => {
@@ -787,33 +742,30 @@ describe('FV statistics for selected periods', () => {
     fireEvent.mouseUp(document, { clientX: end });
   }
 
-  it('shows FV peak, minimum, mean, energy and A/B deltas, updating with edited generation', () => {
-    const generation = points.map(point => ({ ...point, powerKw: point.powerKw * 2 })).reverse();
-    const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={generation} />);
-    selectRange(instances.at(-1)!.over, 100, 250);
-    const single = within(screen.getByRole('region', { name: 'Geração FV no período selecionado' }));
-    expect(single.getByText('52.00 kVA')).toBeInTheDocument();
-    expect(single.getByText('22.00 kVA')).toBeInTheDocument();
-    expect(single.getByText('37.00 kVA')).toBeInTheDocument();
-    expect(single.getByText('148.00 kWh')).toBeInTheDocument();
-    selectRange(instances.at(-1)!.over, 10, 50);
-    const comparison = within(screen.getByRole('rowgroup', { name: 'Geração FV' }));
-    expect(comparison.getByText('148.00 kWh')).toBeInTheDocument();
-    expect(comparison.getByText('10.00 kWh')).toBeInTheDocument();
-    expect(comparison.getByText('-138.00 kWh (-93.2%)')).toBeInTheDocument();
-    rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: point.powerKw * 3 }))} />);
-    expect(comparison.getByText('222.00 kWh')).toBeInTheDocument();
-    expect(comparison.getByText('15.00 kWh')).toBeInTheDocument();
+  it('shows synchronized FV metrics and updates the comparison after generation edits', () => {
+    const generation=points.map(point=>({...point,powerKw:point.powerKw*2})).reverse();
+    const {rerender}=render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={generation}/>);
+    selectRange(instances.at(-1)!.over,100,250);
+    const popup=within(screen.getByRole('region',{name:'Resumo do intervalo selecionado'}));
+    for(const value of ['52,00 kVA','22,00 kVA','37,00 kVA','148,00 kWh']) expect(popup.getByText(value)).toBeInTheDocument();
+    selectRange(instances.at(-1)!.over,10,50);
+    expect(popup.getByText('10,00 kWh')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Diferença'}));
+    expect(popup.getByText('-138,00 kWh')).toBeInTheDocument();
+    rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point=>({...point,powerKw:point.powerKw*3}))}/>);
+    expect(popup.getByText('-207,00 kWh')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    expect(popup.getByText('222,00 kWh')).toBeInTheDocument();
   });
 
   it('distinguishes missing FV readings from actual zero generation', () => {
     const { rerender } = render(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point => ({ ...point, powerKw: 0 }))} />);
     selectRange(instances.at(-1)!.over, 100, 250);
-    const region = screen.getByRole('region', { name: 'Geração FV no período selecionado' });
-    expect(within(region).getByText('0.00 kWh')).toBeInTheDocument();
+    const region = screen.getByRole('region', { name: 'Resumo do intervalo selecionado' });
+    expect(within(region).getByText('0,00 kWh')).toBeInTheDocument();
     rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.filter((_, index) => index !== 12).map(point => ({ ...point, powerKw: 0 }))} />);
-    expect(within(region).getByText('Sem dados FV completos para este período.')).toBeInTheDocument();
-    expect(within(region).queryByText('0.00 kWh')).not.toBeInTheDocument();
+    expect(within(region).getByText('Sem dados FV completos para este intervalo.')).toBeInTheDocument();
+    expect(within(region).queryByText('0,00 kWh')).not.toBeInTheDocument();
   });
 });
 
@@ -822,7 +774,7 @@ it('handles an empty curve becoming populated without changing hook order', () =
   const { rerender } = render(<LoadCurveChart points={[]} resolutionMinutes={15} />);
   const populated = [point('2026-01-05T00:00:00Z', 20), point('2026-01-05T00:15:00Z', 40)];
   rerender(<LoadCurveChart points={populated} resolutionMinutes={15} />);
-  expect(screen.getByText('40.00')).toBeInTheDocument();
+  expect(screen.queryByText('Demanda máxima')).not.toBeInTheDocument();
   expect(instances.at(-1)?.data).toEqual([[0, 1], [20, 40]]);
   rerender(<LoadCurveChart points={[]} resolutionMinutes={15} />);
   expect(instances.at(-1)?.destroyed).toBe(true);
@@ -831,7 +783,7 @@ it('handles an empty curve becoming populated without changing hook order', () =
 it('converts selected power metrics to kVA without converting kWh', async () => {
   const { CiAcPowerProvider } = await import('./ci-ac-power');
   const points=[0,1].map(hour=>({timestamp:`2026-01-01T0${hour}:00:00Z`,powerKw:80}));
-  render(<CiAcPowerProvider powerFactor={.8}><LoadCurveChart summaryOnly points={points} resolutionMinutes={60} selectionSlots={{a:{startIndex:0,endIndex:1},b:null}}/></CiAcPowerProvider>);
-  expect(screen.getAllByText('100.00 kVA').length).toBe(3);
-  expect(screen.getByText('160.00 kWh')).toBeInTheDocument();
+  render(<CiAcPowerProvider powerFactor={.8}><LoadCurveChart points={points} resolutionMinutes={60} selectionSlots={{a:{startIndex:0,endIndex:1},b:null}}/></CiAcPowerProvider>);
+  expect(screen.getAllByText('100,00 kVA').length).toBe(3);
+  expect(screen.getByText('160,00 kWh')).toBeInTheDocument();
 });
