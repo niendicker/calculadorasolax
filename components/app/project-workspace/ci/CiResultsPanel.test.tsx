@@ -2,12 +2,15 @@ import { evaluateSts } from '@/supabase/functions/_shared/commercial-industrial/
 import { stsFixture, stsBackup } from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyAddress } from '@/lib/address';
 import type { Client, ProjectInfo } from '@/lib/types';
 import type { CommercialIndustrialOptions, CommercialIndustrialResult } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CiResultsPanel } from './CiResultsPanel';
+import { generateCiGroupedSolutions } from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions';
+import { modularFixture } from '@/supabase/functions/_shared/commercial-industrial/modular.test-fixtures';
+import { cabinetFixture } from '@/supabase/functions/_shared/commercial-industrial/grouped-solutions.test-fixtures';
 
 const testProjectInfo: ProjectInfo = { name: 'Fábrica Teste', clientId: null, address: emptyAddress(), notes: '' };
 const testClient: Client | null = null;
@@ -132,6 +135,48 @@ afterEach(() => {
 });
 
 describe('CiResultsPanel', () => {
+  it.each(['grouped', 'modular', 'cabinet'] as const)('presents %s equipment and quantities before baseline, without duplicating STS or accessories', (kind) => {
+    const result = makeResult();
+    const solutions = generateCiGroupedSolutions(modularFixture(), [cabinetFixture()]).solutions;
+    const group = solutions.find((item) => kind === 'cabinet' ? item.source.kind === 'cabinet' : item.source.kind === 'assembly')!;
+    const sts = evaluateSts(stsBackup(), [], stsFixture(), 1)!;
+    const transfer = sts.selected!;
+    const accessories = [
+      { productId: 'controller', model: 'Controlador EMS', quantity: 1, unitPriceBrl: 0, totalBrl: 0, bundled: true, reasons: ['Incluído no equipamento'], ruleIds: [] },
+      { productId: transfer.spec.accessory_id, model: transfer.spec.model, quantity: 1, unitPriceBrl: transfer.unitPriceBrl, totalBrl: transfer.totalBrl, bundled: false, reasons: [], ruleIds: [] },
+    ];
+    const equipment = group.components.filter((item) => item.productType !== 'ci_accessory').map((item) => ({ ...item, unitPriceBrl: 100, totalBrl: 100 * item.quantity }));
+    result.selected = { ...result.selected!, sts, accessories, ...(kind === 'modular'
+      ? { composition: { ...group.composition!, items: equipment.map((item) => ({ ...item, productType: item.productType === 'ci_pcs' ? 'inverter' as const : 'battery' as const })) } }
+      : { group, billOfMaterials: [...equipment, ...accessories] }) };
+    render(<CiResultsPanel {...panelProps('project')} initialSnapshot={{ result, optionsFingerprint: JSON.stringify(testCiOptions) }} />);
+
+    const products = screen.getByRole('region', { name: 'Produtos da solução' });
+    for (const item of equipment) {
+      const heading = within(products).getByRole('heading', { name: item.model });
+      expect(heading.closest('li')).toHaveTextContent(`${item.quantity} ${item.quantity === 1 ? 'unidade' : 'unidades'}`);
+    }
+    expect(within(products).getAllByText(/Controlador EMS/)).toHaveLength(1);
+    expect(within(products).getByText('Incluso')).toBeInTheDocument();
+    expect(within(products).getAllByText(new RegExp(transfer.spec.model))).toHaveLength(1);
+    expect(products.compareDocumentPosition(screen.getByText('Linha de base (sem BESS)')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const details = screen.getByText('Detalhes de conexão e compatibilidade').closest('details')!;
+    expect(details.open).toBe(false);
+  });
+
+  it('keeps products visible but hides placeholder prices when the selected BOM is not fully priced', () => {
+    const result = makeResult();
+    result.selected = { ...result.selected!, pricingComplete: false, missingPrices: ['BESS teste'], billOfMaterials: [
+      { productId: 'bess', model: 'BESS teste', quantity: 2, unitPriceBrl: 0, totalBrl: 0 },
+    ] };
+    render(<CiResultsPanel {...panelProps('project')} initialSnapshot={{ result, optionsFingerprint: JSON.stringify(testCiOptions) }} />);
+    const products = screen.getByRole('region', { name: 'Produtos da solução' });
+    expect(within(products).getByRole('heading', { name: 'BESS teste' })).toBeInTheDocument();
+    expect(within(products).getByText('Preço pendente')).toBeInTheDocument();
+    expect(within(products).queryByText(/R\$/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gerar memorial (PDF)' })).toBeDisabled();
+  });
+
   it('shows technical suitability and pending prices without presenting placeholder finances',()=>{
     const result=makeResult();
     result.scenarios=result.scenarios.map(s=>({...s,pricingComplete:false,missingPrices:['PCS sem preço']}));
@@ -323,7 +368,7 @@ describe('CiResultsPanel', () => {
     expect(screen.getByText('Pico com BESS (Rede)')).toBeInTheDocument();
     expect(screen.getByText('250,0 kVA')).toBeInTheDocument();
     expect(screen.getByText('Redução no Pico')).toBeInTheDocument();
-    expect(screen.getByText(/100,0 kVA/)).toBeInTheDocument();
+    expect(screen.getByText(/100,0 kVA \(28.6%\)/)).toBeInTheDocument();
     expect(screen.getByText('Economia em Demanda')).toBeInTheDocument();
   });
 
