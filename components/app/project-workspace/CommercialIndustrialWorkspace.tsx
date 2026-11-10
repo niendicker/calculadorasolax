@@ -203,6 +203,7 @@ export function CommercialIndustrialWorkspace({
               client={client}
               profile={profile}
               ciOptions={ciOptions}
+              onUpdateCiOptions={onUpdateCiOptions}
               onFlushSave={onFlushSave}
               prevSectionLabel="Estratégia"
               onNavigatePrev={() => navigate('strategy')}

@@ -262,3 +262,21 @@ it('uses the latest dispatch when a new study changes both FP and data together'
   rerender(<CiDispatchChart dispatch={[{...point,loadKw:160,gridImportKw:160}]} powerFactor={.8}/>);
   expect((instances.at(-1)!.data as number[][])[1][0]).toBe(160);
 });
+
+it('displays active recharge and discharge window summary badges', () => {
+  const { getByText } = render(
+    <CiDispatchChart
+      dispatch={sampleDispatch}
+      rechargeWindow={{ start: '10:00', end: '15:00' }}
+      dischargeWindow={{ start: '18:00', end: '21:00' }}
+    />
+  );
+
+  expect(getByText(/carga permitida:/i)).toBeInTheDocument();
+  expect(getByText('10:00')).toBeInTheDocument();
+  expect(getByText('15:00')).toBeInTheDocument();
+
+  expect(getByText(/descarga \(ponta\):/i)).toBeInTheDocument();
+  expect(getByText('18:00')).toBeInTheDocument();
+  expect(getByText('21:00')).toBeInTheDocument();
+});

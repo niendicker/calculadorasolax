@@ -22,6 +22,7 @@ import type {
   CiBackupConfig,
   CiBessProduct,
   CiGeneratorConfig,
+  CiRechargeWindow,
   CiSolarConfig,
   DispatchPoint,
   FinancialAssumptions,
@@ -84,6 +85,8 @@ export interface ScenarioGridInput {
   backup?: CiBackupConfig | null;
   solar?: CiSolarConfig | null;
   generator?: CiGeneratorConfig | null;
+  rechargeWindow?: CiRechargeWindow | null;
+  dischargeWindow?: CiRechargeWindow | null;
 }
 
 export interface ScenarioGridResult {
@@ -176,6 +179,8 @@ function evaluateModuleCount(
     contractedDemandKw: tariff.contractedDemandKw,
     solar: input.solar,
     generator: input.generator,
+    rechargeWindow: input.rechargeWindow,
+    dischargeWindow: input.dischargeWindow,
   });
   const summary = summarizeDispatch(trace, curve.resolutionMinutes);
   const annualized = annualizeWeeklyDispatch(summary);

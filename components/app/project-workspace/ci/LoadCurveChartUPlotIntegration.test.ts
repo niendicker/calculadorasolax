@@ -130,7 +130,7 @@ describe('uPlot scale protection integration (real uPlot)', () => {
     document.body.appendChild(el);
 
     const pointCount = 96;
-    const pointsRef = { current: Array.from({ length: pointCount }, (_, i) => ({ powerKw: 30 })) };
+    const pointsRef = { current: Array.from({ length: pointCount }, () => ({ powerKw: 30 })) };
     const contractedDemandKwRef = { current: 50 };
 
     const options: uPlot.Options = {

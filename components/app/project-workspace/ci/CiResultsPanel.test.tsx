@@ -27,10 +27,12 @@ const testCiOptions: CommercialIndustrialOptions = {
 const dynamicMocks = vi.hoisted(() => ({
   buildMemorialPdf: vi.fn(),
   listProducts: vi.fn(),
+  fetchProductImages: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('./ci-memorial-pdf', () => ({ buildCiMemorialPdfBlob: dynamicMocks.buildMemorialPdf }));
 vi.mock('@/lib/data/ci-bess-products-repository', () => ({ listActiveCiBessProducts: dynamicMocks.listProducts }));
+vi.mock('@/lib/data/ci-product-images', () => ({ fetchCiProductImages: dynamicMocks.fetchProductImages }));
 
 vi.mock('uplot', () => ({
   default: class FakeUPlot {
@@ -473,6 +475,107 @@ describe('CiResultsPanel', () => {
     expect(screen.getByText(/Solução que atende tecnicamente/)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByRole('button',{name:/Inspecionar/})).not.toBeInTheDocument();
+  });
+
+  it('switches between internal tabs and toggles visibility of the respective panels', () => {
+    const result = makeResult();
+    const { container } = render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{ result, optionsFingerprint: JSON.stringify(testCiOptions) }} />);
+
+    const productsTab = screen.getByRole('tab', { name: /Produtos & Valores/ });
+    const dispatchTab = screen.getByRole('tab', { name: /Operação & Despacho/ });
+    const engineeringTab = screen.getByRole('tab', { name: /Engenharia & Confiabilidade/ });
+
+    expect(productsTab).toHaveAttribute('aria-selected', 'true');
+    expect(dispatchTab).toHaveAttribute('aria-selected', 'false');
+    expect(engineeringTab).toHaveAttribute('aria-selected', 'false');
+
+    const productsPanel = container.querySelector('#ci-results-panel-products');
+    const dispatchPanel = container.querySelector('#ci-results-panel-dispatch');
+    const engineeringPanel = container.querySelector('#ci-results-panel-engineering');
+
+    expect(productsPanel).not.toHaveAttribute('hidden');
+    expect(dispatchPanel).toHaveAttribute('hidden');
+    expect(engineeringPanel).toHaveAttribute('hidden');
+
+    fireEvent.click(dispatchTab);
+    expect(dispatchTab).toHaveAttribute('aria-selected', 'true');
+    expect(productsTab).toHaveAttribute('aria-selected', 'false');
+    expect(dispatchPanel).not.toHaveAttribute('hidden');
+    expect(productsPanel).toHaveAttribute('hidden');
+
+    fireEvent.click(engineeringTab);
+    expect(engineeringTab).toHaveAttribute('aria-selected', 'true');
+    expect(engineeringPanel).not.toHaveAttribute('hidden');
+    expect(dispatchPanel).toHaveAttribute('hidden');
+  });
+
+  it('renders the executive KPI ribbon with main figures', () => {
+    const result = makeResult();
+    render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{ result, optionsFingerprint: JSON.stringify(testCiOptions) }} />);
+
+    const ribbon = screen.getByRole('region', { name: 'Indicadores executivos' });
+    expect(ribbon).toHaveTextContent('Investimento (CAPEX)');
+    expect(ribbon).toHaveTextContent('Economia anual');
+    expect(ribbon).toHaveTextContent('Payback simples');
+    expect(ribbon).toHaveTextContent('Capacidade do sistema');
+  });
+
+  it('renders product images when provided and falls back to icons when missing', async () => {
+    dynamicMocks.fetchProductImages.mockResolvedValueOnce({
+      'bess-1': 'https://cdn.example.com/bess-product.png',
+    });
+    const result = makeResult();
+    result.selected = {
+      ...result.selected!,
+      billOfMaterials: [
+        { productId: 'bess-1', model: 'BESS Comercial 100kW', quantity: 1, unitPriceBrl: 100000, totalBrl: 100000 },
+        { productId: 'inv-1', model: 'Inversor Sem Imagem', quantity: 1, unitPriceBrl: 50000, totalBrl: 50000 },
+      ],
+    };
+
+    render(<CiResultsPanel {...panelProps('ci-project-1')} initialSnapshot={{ result, optionsFingerprint: JSON.stringify(testCiOptions) }} />);
+
+    const img = await screen.findByRole('img', { name: 'BESS Comercial 100kW' });
+    expect(img).toHaveAttribute('src', 'https://cdn.example.com/bess-product.png');
+    expect(screen.queryByRole('img', { name: 'Inversor Sem Imagem' })).not.toBeInTheDocument();
+  });
+
+  it('passes rechargeWindow to dispatch chart and shows active recharge window badge', async () => {
+    const onUpdateCiOptions = vi.fn();
+    const base = makeResult();
+    const result = makeResult({
+      selected: {
+        ...base.selected!,
+        dispatch: [
+          {
+            timestamp: '2026-01-01T17:00:00Z',
+            tariffPeriod: 'offPeak',
+            loadKw: 150,
+            chargeKw: 0,
+            dischargeKw: 0,
+            gridImportKw: 150,
+            socKwh: 50,
+          },
+        ],
+      },
+    });
+    const optionsWithRecharge = { ...testCiOptions, rechargeWindow: { start: '08:00', end: '16:00' } };
+
+    render(
+      <CiResultsPanel
+        {...panelProps('ci-project-1')}
+        ciOptions={optionsWithRecharge}
+        onUpdateCiOptions={onUpdateCiOptions}
+        initialSnapshot={{ result, optionsFingerprint: JSON.stringify(optionsWithRecharge) }}
+      />
+    );
+
+    const dispatchTab = screen.getByRole('tab', { name: /operação & despacho/i });
+    fireEvent.click(dispatchTab);
+
+    expect(await screen.findByText(/carga permitida:/i)).toBeInTheDocument();
+    expect(screen.getByText('08:00')).toBeInTheDocument();
+    expect(screen.getByText('16:00')).toBeInTheDocument();
   });
 
 });

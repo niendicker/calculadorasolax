@@ -5,6 +5,7 @@ import {
   checkDispatchInvariants,
   classifyTariffPeriod,
   computeHybridReserve,
+  isWithinTimeWindow,
   runDispatch,
   summarizeDispatch,
   type TariffWindow,
@@ -1044,4 +1045,161 @@ it('reserves only residual peak energy when a project profile includes imported 
   const curve=makeCurve([{hour:17,minute:45,powerKw:80},{hour:18,powerKw:100},{hour:18,minute:15,powerKw:100}]);
   const trace=runDispatch({curve,bess:makeBess({totalPowerKw:100,totalCapacityKwh:40,socMinPercent:0,efficiencyPercent:100}),strategy:'HYBRID',tariffWindow:DEFAULT_WINDOW,peakShavingTargetKw:50,contractedDemandKw:50,gridImportLimitsKw:[50,0,0],solar:{...DEFAULT_CI_SOLAR_CONFIG,enabled:true,installedPowerKwp:100,inverterPowerKw:100,generationCurve:{...curve,points:curve.points.map((p,i)=>({...p,powerKw:i===0?0:80}))}}});
   expect(trace.map(p=>p.gridImportKw)).toEqual([50,0,0]);
+});
+
+describe('isWithinTimeWindow', () => {
+  it('checks standard non-wrapping window', () => {
+    const window = { start: '08:00', end: '16:00' };
+    expect(isWithinTimeWindow('2026-08-24T08:00:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T12:00:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T15:59:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T07:59:00Z', 'UTC', window)).toBe(false);
+    expect(isWithinTimeWindow('2026-08-24T16:00:00Z', 'UTC', window)).toBe(false);
+    expect(isWithinTimeWindow('2026-08-24T22:00:00Z', 'UTC', window)).toBe(false);
+  });
+
+  it('checks window that wraps past midnight', () => {
+    const window = { start: '22:00', end: '06:00' };
+    expect(isWithinTimeWindow('2026-08-24T22:00:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T23:30:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T02:00:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T05:59:00Z', 'UTC', window)).toBe(true);
+    expect(isWithinTimeWindow('2026-08-24T06:00:00Z', 'UTC', window)).toBe(false);
+    expect(isWithinTimeWindow('2026-08-24T12:00:00Z', 'UTC', window)).toBe(false);
+    expect(isWithinTimeWindow('2026-08-24T21:59:00Z', 'UTC', window)).toBe(false);
+  });
+
+  it('returns false when start === end', () => {
+    expect(isWithinTimeWindow('2026-08-24T12:00:00Z', 'UTC', { start: '12:00', end: '12:00' })).toBe(false);
+  });
+});
+
+describe('solar recharge prioritization & recharge window', () => {
+  it('does NOT charge from grid off-peak post-ponta when prioritizeBessCharging is true, reserving capacity for solar surplus next day', () => {
+    // 21:00 (peak ends), 22:00 (off-peak night), 23:00 (off-peak night), 11:00 next day (solar surplus)
+    const curve = makeCurve([
+      { hour: 20, powerKw: 100 }, // peak
+      { hour: 21, powerKw: 80 },  // off-peak immediately after ponta
+      { hour: 22, powerKw: 60 },  // off-peak night
+      { hour: 11, powerKw: 30 },  // daytime with solar surplus
+    ], 60);
+
+    const solarGenerationCurve = {
+      ...curve,
+      points: [
+        { timestamp: curve.points[0].timestamp, powerKw: 0 },
+        { timestamp: curve.points[1].timestamp, powerKw: 0 },
+        { timestamp: curve.points[2].timestamp, powerKw: 0 },
+        { timestamp: curve.points[3].timestamp, powerKw: 80 }, // surplus = 80 - 30 = 50 kW
+      ],
+    };
+
+    const trace = runDispatch({
+      curve,
+      bess: makeBess({ totalPowerKw: 50, totalCapacityKwh: 100, initialSocPercent: 20, socMinPercent: 10, socMaxPercent: 100 }),
+      strategy: 'LOAD_SHIFTING',
+      tariffWindow: DEFAULT_WINDOW, // 18:00-21:00
+      peakShavingTargetKw: null,
+      contractedDemandKw: 100,
+      solar: {
+        ...DEFAULT_CI_SOLAR_CONFIG,
+        enabled: true,
+        prioritizeBessCharging: true,
+        generationCurve: solarGenerationCurve,
+      },
+    });
+
+    // At 21:00 and 22:00 (post-ponta at night), BESS must NOT charge from the grid!
+    expect(trace[1].chargeKw).toBe(0);
+    expect(trace[2].chargeKw).toBe(0);
+
+    // Next day at 11:00, BESS recharges with solar surplus!
+    expect(trace[3].chargeKw).toBeGreaterThan(0);
+    expect(trace[3].gridImportKw).toBe(0); // covered by solar
+  });
+
+  it('restricts grid charging strictly to the configured rechargeWindow', () => {
+    const curve = makeCurve([
+      { hour: 22, powerKw: 50 }, // off-peak night (outside window)
+      { hour: 3, powerKw: 50 },  // off-peak night (inside window 02:00-06:00)
+      { hour: 7, powerKw: 50 },  // off-peak morning (outside window)
+    ], 60);
+
+    const trace = runDispatch({
+      curve,
+      bess: makeBess({ totalPowerKw: 50, totalCapacityKwh: 100, initialSocPercent: 20, socMinPercent: 10, socMaxPercent: 100 }),
+      strategy: 'LOAD_SHIFTING',
+      tariffWindow: DEFAULT_WINDOW,
+      peakShavingTargetKw: null,
+      contractedDemandKw: 100,
+      rechargeWindow: { start: '02:00', end: '06:00' },
+    });
+
+    // 22:00 is outside rechargeWindow -> no grid charge
+    expect(trace[0].chargeKw).toBe(0);
+    // 03:00 is inside rechargeWindow -> charges from grid
+    expect(trace[1].chargeKw).toBeGreaterThan(0);
+    // 07:00 is outside rechargeWindow -> no grid charge
+    expect(trace[2].chargeKw).toBe(0);
+  });
+
+  it('restricts load shifting discharge strictly to the configured dischargeWindow', () => {
+    // Hours: 18 (ponta), 19 (ponta), 20 (ponta), 22 (fora ponta)
+    const curve = makeCurve([
+      { hour: 18, powerKw: 60 },
+      { hour: 19, powerKw: 60 },
+      { hour: 20, powerKw: 60 },
+      { hour: 22, powerKw: 40 },
+    ], 60);
+
+    // Concessionaire peak is 18:00-21:00, but user restricted dischargeWindow to 19:00-20:00
+    const trace = runDispatch({
+      curve,
+      bess: makeBess({ totalPowerKw: 50, totalCapacityKwh: 100, initialSocPercent: 100, socMinPercent: 10 }),
+      strategy: 'LOAD_SHIFTING',
+      tariffWindow: DEFAULT_WINDOW, // 18:00-21:00
+      peakShavingTargetKw: null,
+      contractedDemandKw: 100,
+      dischargeWindow: { start: '19:00', end: '20:00' },
+    });
+
+    // 18:00 is outside dischargeWindow -> no discharge
+    expect(trace[0].dischargeKw).toBe(0);
+    // 19:00 is inside dischargeWindow -> discharges
+    expect(trace[1].dischargeKw).toBe(50);
+    // 20:00 is outside dischargeWindow (end is exclusive or at 20:00 boundary) -> no discharge
+    expect(trace[2].dischargeKw).toBe(0);
+    // 22:00 is outside dischargeWindow -> no discharge
+    expect(trace[3].dischargeKw).toBe(0);
+  });
+
+  it('in HYBRID, dischargeWindow restricts peak load-shifting while peak shaving continues everywhere', () => {
+    // Hour 14 (off-peak, 120 kW > contracted 100 kW -> peak shaving needed)
+    // Hour 18 (ponta, outside dischargeWindow 19-21)
+    // Hour 19 (ponta, inside dischargeWindow)
+    const curve = makeCurve([
+      { hour: 14, powerKw: 120 },
+      { hour: 18, powerKw: 80 },
+      { hour: 19, powerKw: 80 },
+    ], 60);
+
+    const trace = runDispatch({
+      curve,
+      bess: makeBess({ totalPowerKw: 50, totalCapacityKwh: 200, initialSocPercent: 100, socMinPercent: 10 }),
+      strategy: 'HYBRID',
+      tariffWindow: DEFAULT_WINDOW, // 18:00-21:00
+      peakShavingTargetKw: 100,
+      contractedDemandKw: 100,
+      dischargeWindow: { start: '19:00', end: '21:00' },
+    });
+
+    // Hour 14 (off-peak): peak shaving fires (120 - 100 = 20 kW discharge)!
+    expect(trace[0].dischargeKw).toBe(20);
+
+    // Hour 18: outside dischargeWindow, and load (80) <= target (100), so no peak discharge
+    expect(trace[1].dischargeKw).toBe(0);
+
+    // Hour 19: inside dischargeWindow -> peak discharge fires to cover load up to totalPowerKw
+    expect(trace[2].dischargeKw).toBe(50);
+  });
 });

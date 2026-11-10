@@ -330,3 +330,13 @@ it('validates configured CA FP while accepting historical projects without it', 
     expect(validateCommercialIndustrialOptions(makeOptions({ acPowerFactor: value })).join(' ')).toContain('acPowerFactor');
   }
 });
+
+it('validates rechargeWindow and dischargeWindow format', () => {
+  expect(validateCommercialIndustrialOptions(makeOptions({ rechargeWindow: { start: '08:00', end: '16:00' } }))).toEqual([]);
+  expect(validateCommercialIndustrialOptions(makeOptions({ dischargeWindow: { start: '18:00', end: '21:00' } }))).toEqual([]);
+  expect(validateCommercialIndustrialOptions(makeOptions({ rechargeWindow: null, dischargeWindow: null }))).toEqual([]);
+  expect(validateCommercialIndustrialOptions(makeOptions({ rechargeWindow: { start: '25:00', end: '16:00' } })).join(' ')).toContain('rechargeWindow.start');
+  expect(validateCommercialIndustrialOptions(makeOptions({ dischargeWindow: { start: '08:00', end: '16:60' } })).join(' ')).toContain('dischargeWindow.end');
+  expect(validateCommercialIndustrialOptions(makeOptions({ rechargeWindow: '08:00-16:00' as unknown as NonNullable<CommercialIndustrialOptions['rechargeWindow']> })).join(' ')).toContain('rechargeWindow deve ser um objeto');
+  expect(validateCommercialIndustrialOptions(makeOptions({ dischargeWindow: '18:00-21:00' as unknown as NonNullable<CommercialIndustrialOptions['dischargeWindow']> })).join(' ')).toContain('dischargeWindow deve ser um objeto');
+});

@@ -6,7 +6,7 @@ import { CiEnergyImport } from './CiEnergyImport';
 
 async function chooseFile(content: string) {
   fireEvent.change(screen.getByLabelText('Importar CSV de consumo e geração'), { target: { files: [new File([content], 'simulacao.csv', { type: 'text/csv' })] } });
-  return screen.findByRole('button', { name: 'Importar dados' });
+  return screen.findByRole('button', { name: 'Aplicar' });
 }
 
 describe('CiEnergyImport', () => {
@@ -14,8 +14,8 @@ describe('CiEnergyImport', () => {
     const onChange = vi.fn();
     render(<CiEnergyImport ciOptions={defaultCiOptions} onChange={onChange} />);
     const apply = await chooseFile('timestamp,consumptionKw,generationKw\n2026-01-01T12:00:00-03:00,100,50\n2026-01-01T12:15:00-03:00,110,60');
-    expect(screen.getByLabelText('Coluna de consumo')).toHaveValue('1');
-    expect(screen.getByLabelText('Coluna de geração')).toHaveValue('2');
+    expect(screen.getByRole('combobox',{name:'Coluna de consumo'})).toHaveTextContent('consumptionKw');
+    expect(screen.getByRole('combobox',{name:'Coluna de geração'})).toHaveTextContent('generationKw');
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.click(apply);
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -38,8 +38,14 @@ describe('CiEnergyImport', () => {
     const onChange = vi.fn();
     render(<CiEnergyImport ciOptions={defaultCiOptions} onChange={onChange} />);
     const apply = await chooseFile('date,PV AC output\n01/01/2026 12:00,25');
-    fireEvent.change(screen.getByLabelText('Coluna de geração'), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText('Unidade de geração'), { target: { value: 'kWh' } });
+    fireEvent.click(screen.getByRole('combobox',{name:'Coluna de geração'}));
+    const column = await screen.findByRole('option',{name:'PV AC output'});
+    fireEvent.pointerDown(column,{pointerType:'mouse'});
+    fireEvent.click(column);
+    fireEvent.click(screen.getByRole('combobox',{name:'Unidade de geração'}));
+    const unit = await screen.findByRole('option',{name:'kWh'});
+    fireEvent.pointerDown(unit,{pointerType:'mouse'});
+    fireEvent.click(unit);
     fireEvent.click(apply);
     expect(onChange.mock.calls[0][0].solar.generationCurve.points[0].powerKw).toBe(100);
     expect(onChange.mock.calls[0][0].loadCurve).toBeUndefined();
@@ -51,8 +57,8 @@ describe('CiEnergyImport', () => {
     fireEvent.click(await chooseFile('timestamp,generationKw\n2026-01-02T15:00:00Z,50'));
     expect(screen.getByRole('alert')).toHaveTextContent('mesmos horários');
     expect(onChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar importação' }));
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Importar dados' })).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Aplicar' })).not.toBeInTheDocument());
   });
   it('defaults a generic power column to generation when importing from Solar FV', async () => {
     const onChange = vi.fn();

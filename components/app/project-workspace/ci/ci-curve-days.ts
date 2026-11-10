@@ -18,7 +18,9 @@ export function ciCurveDays(curve: LoadCurve | null): CiCurveDay[] {
   });
   const days = new Map<string, CiCurveDay>();
   curve.points.forEach((point, index) => {
-    const parts = Object.fromEntries(formatter.formatToParts(new Date(point.timestamp)).map(part => [part.type, part.value]));
+    const dateObj = new Date(point.timestamp);
+    if (isNaN(dateObj.getTime())) return;
+    const parts = Object.fromEntries(formatter.formatToParts(dateObj).map(part => [part.type, part.value]));
     const date = `${parts.year}-${parts.month}-${parts.day}`;
     let day = days.get(date);
     if (!day) {

@@ -30,6 +30,8 @@ export interface LoadCurveManualConfig {
   presetId: string | null;
   weekdayKw: number[];
   weekendKw: number[];
+  /** Edits to individual recorded instants, applied after expanding the base profiles. */
+  pointOverrides?: Record<string, number>;
 }
 
 export interface LoadCurve {
@@ -238,6 +240,15 @@ export const DEFAULT_CI_GENERATOR_CONFIG: CiGeneratorConfig = {
   dispatchMode: 'blackout_only',
 };
 
+export interface CiTimeWindow {
+  /** Format HH:mm, e.g. "08:00" */
+  start: string;
+  /** Format HH:mm, e.g. "16:00" */
+  end: string;
+}
+
+export type CiRechargeWindow = CiTimeWindow;
+
 export interface CommercialIndustrialOptions {
   /** Display/input conversion for CA powers. Stored powers remain active kW; absent means FP 1. */
   acPowerFactor?: number;
@@ -258,6 +269,10 @@ export interface CommercialIndustrialOptions {
   backup?: CiBackupConfig;
   solar?: CiSolarConfig;
   generator?: CiGeneratorConfig;
+  /** Optional allowed recharge window for the BESS. */
+  rechargeWindow?: CiTimeWindow | null;
+  /** Optional allowed discharge window for peak period / load shifting. */
+  dischargeWindow?: CiTimeWindow | null;
 }
 
 export type CiModelSelection =
@@ -427,6 +442,8 @@ export interface CommercialIndustrialResult {
     tariff: TariffConfig;
     financial: FinancialAssumptions;
     loadCurve: Pick<LoadCurve, 'resolutionMinutes' | 'profileBasis' | 'periodStart' | 'periodEnd' | 'timezone'>;
+    rechargeWindow?: CiTimeWindow | null;
+    dischargeWindow?: CiTimeWindow | null;
   };
   warnings: string[];
   /** Consolidated backup metrics if backup calculation was enabled. */

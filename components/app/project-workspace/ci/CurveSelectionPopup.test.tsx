@@ -27,7 +27,7 @@ describe('curve selection popup', () => {
   it('supports independent A/B views and signed differences without converting kWh', () => {
     render(popup({ a, b }));
     expect(screen.getByRole('row',{name:'Energia 8,00 kWh 4,00 kWh'})).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    fireEvent.click(screen.getByRole('button',{name:'Carga'}));
     expect(screen.getByRole('row',{name:'Energia 60,00 kWh 20,00 kWh'})).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Diferença'}));
     expect(screen.getByRole('row',{name:'Energia -52,00 kWh -16,00 kWh'})).toBeInTheDocument();
@@ -52,8 +52,8 @@ describe('curve selection popup', () => {
     render(<Harness/>);
     fireEvent.click(screen.getByRole('button',{name:'Fechar resumo da seleção'}));
     fireEvent.click(screen.getByRole('button',{name:'Selecionar B'}));
-    expect(screen.getByRole('button',{name:'Período B'})).toHaveAttribute('aria-pressed','true');
-    fireEvent.click(screen.getByRole('button',{name:'Limpar período B'}));
+    expect(screen.getByRole('button',{name:'Descarga'})).toHaveAttribute('aria-pressed','true');
+    fireEvent.click(screen.getByRole('button',{name:'Limpar Descarga'}));
     expect(screen.getByRole('row',{name:'Energia 60,00 kWh 20,00 kWh'})).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Limpar seleção'}));
     expect(screen.queryByRole('region',{name:'Resumo do intervalo selecionado'})).not.toBeInTheDocument();

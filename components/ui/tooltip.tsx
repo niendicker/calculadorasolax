@@ -242,3 +242,13 @@ export function InfoTooltip({ label, children }: { label: string; children: Reac
     </TooltipBubble>}
   </span>;
 }
+
+/** Short help points, with one explanation per line. */
+export function TooltipList({ items }: { items: ReactNode[] }) {
+  return <span role="list" className="block space-y-1.5 text-left">
+    {items.map((item, index) => <span key={index} role="listitem" className="flex items-start gap-2">
+      <span aria-hidden="true" className="shrink-0">•</span>
+      <span className="min-w-0">{item}</span>
+    </span>)}
+  </span>;
+}

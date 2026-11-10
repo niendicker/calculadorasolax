@@ -6,21 +6,40 @@
 // Built with uPlot for smooth pan/zoom and live crosshair inspection.
 
 import { useCiAcPower } from './ci-ac-power';
-import { useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BatteryCharging, MoreHorizontal, RefreshCw } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { Button } from '@/components/ui/button';
 import { readCssVar } from '@/lib/utils';
-import type { DispatchPoint } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CiRechargeWindow, DispatchPoint } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { ChartPopupMenu, type ChartPopupAction } from './ChartPopupMenu';
 
 const CHART_HEIGHT = 260;
+
+export interface CurvePlotGeometry {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+}
 
 export interface CiDispatchChartProps {
   powerFactor?: number;
   generatorPowerFactor?: number;
   dispatch: DispatchPoint[];
   contractedDemandKw?: number;
+  rechargeWindow?: CiRechargeWindow | null;
+  dischargeWindow?: CiRechargeWindow | null;
+}
+
+function parseHHMM(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
 }
 
 function formatDispatchPointLabel(point: DispatchPoint | undefined): string {
@@ -173,6 +192,7 @@ function buildOptions(
   pointsRef: { current: DispatchPoint[] },
   contractedDemandKwRef: { current: number | undefined },
   onZoomChange: (zoomed: boolean) => void,
+  onDraw?: (chart: uPlot) => void,
   factor = 1
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
@@ -278,6 +298,7 @@ function buildOptions(
           const [fullMin, fullMax] = fullXRange(pointsRef);
           const { min, max } = self.scales.x;
           onZoomChange((min ?? fullMin) > fullMin + 0.5 || (max ?? fullMax) < fullMax - 0.5);
+          onDraw?.(self);
         },
       ],
       draw: [
@@ -315,53 +336,139 @@ function buildOptions(
               self.ctx.restore();
             }
           }
+          onDraw?.(self);
         },
       ],
     },
   };
 }
 
-export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, generatorPowerFactor }: CiDispatchChartProps) {
+function computeActiveDaySlices(points: DispatchPoint[]): { startIndex: number; count: number }[] {
+  const slices: { startIndex: number; count: number }[] = [];
+  let curStart = 0;
+  let curDayKey = '';
+  points.forEach((point, idx) => {
+    const key = point.timestamp ? point.timestamp.slice(0, 10) : '';
+    if (key !== curDayKey && idx > 0) {
+      slices.push({ startIndex: curStart, count: idx - curStart });
+      curStart = idx;
+    }
+    curDayKey = key;
+  });
+  if (points.length > curStart) {
+    slices.push({ startIndex: curStart, count: points.length - curStart });
+  }
+  return slices;
+}
+
+export function CiDispatchChart({
+  dispatch,
+  contractedDemandKw,
+  powerFactor,
+  generatorPowerFactor,
+  rechargeWindow,
+  dischargeWindow,
+}: CiDispatchChartProps) {
   const { factor } = useCiAcPower(powerFactor);
   const generatorFactor = generatorPowerFactor ?? factor;
 
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | 'all'>('all');
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
+  const [geometry, setGeometry] = useState<CurvePlotGeometry>({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    xMin: 0,
+    xMax: 1,
+    yMin: 0,
+    yMax: 1,
+  });
 
-  // Group points into days (using day boundary or 00:00 marks, or by date string)
-  const dayGroups: { label: string; points: DispatchPoint[] }[] = [];
-  let currentGroup: DispatchPoint[] = [];
-  let currentDayKey = '';
+  // Group points into days
+  const dayGroups = useMemo(() => {
+    const groups: { label: string; points: DispatchPoint[] }[] = [];
+    let currentGroup: DispatchPoint[] = [];
+    let currentDayKey = '';
 
-  dispatch.forEach((point) => {
-    const dayKey = point.timestamp ? point.timestamp.slice(0, 10) : '';
-    if (dayKey !== currentDayKey && currentGroup.length > 0) {
+    dispatch.forEach((point) => {
+      const dayKey = point.timestamp ? point.timestamp.slice(0, 10) : '';
+      if (dayKey !== currentDayKey && currentGroup.length > 0) {
+        const date = new Date(currentGroup[0].timestamp);
+        const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+        const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        groups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
+        currentGroup = [];
+      }
+      currentDayKey = dayKey;
+      currentGroup.push(point);
+    });
+    if (currentGroup.length > 0) {
       const date = new Date(currentGroup[0].timestamp);
       const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
       const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      dayGroups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
-      currentGroup = [];
+      groups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
     }
-    currentDayKey = dayKey;
-    currentGroup.push(point);
-  });
-  if (currentGroup.length > 0) {
-    const date = new Date(currentGroup[0].timestamp);
-    const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-    const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    dayGroups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
-  }
+    return groups;
+  }, [dispatch]);
 
-  const activePoints = selectedDayIndex === 'all' || !dayGroups[selectedDayIndex]
-    ? dispatch
-    : dayGroups[selectedDayIndex].points;
+  const activePoints = useMemo(() => {
+    return selectedDayIndex === 'all' || !dayGroups[selectedDayIndex]
+      ? dispatch
+      : dayGroups[selectedDayIndex].points;
+  }, [selectedDayIndex, dayGroups, dispatch]);
 
   const pointsRef = useRef(activePoints);
   const contractedDemandKwRef = useRef(contractedDemandKw);
   const isInitialContractMountRef = useRef(true);
   const skipNextPointsEffectRef = useRef(false);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [resetZoomTrigger, setResetZoomTrigger] = useState(0);
+
+  const updateGeometry = useCallback((chart?: uPlot | null) => {
+    const activeChart = chart ?? chartRef.current;
+    const container = containerRef.current;
+    if (!activeChart || !container) return;
+    const rect = activeChart.over ? activeChart.over.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+    const parent = container.getBoundingClientRect();
+    const width = rect.width || activeChart.bbox?.width || container.clientWidth || 600;
+    const height = rect.height || activeChart.bbox?.height || CHART_HEIGHT;
+    const nextLeft = rect.left && parent.left ? rect.left - parent.left : 0;
+    const nextTop = rect.top && parent.top ? rect.top - parent.top : 0;
+    const nextXMin = activeChart.scales.x?.min ?? 0;
+    const nextXMax = activeChart.scales.x?.max ?? Math.max(pointsRef.current.length - 1, 1);
+    const nextYMin = activeChart.scales.y?.min ?? 0;
+    const nextYMax = activeChart.scales.y?.max ?? 100;
+
+    setGeometry((prev) => {
+      if (
+        prev.left === nextLeft &&
+        prev.top === nextTop &&
+        prev.width === width &&
+        prev.height === height &&
+        prev.xMin === nextXMin &&
+        prev.xMax === nextXMax &&
+        prev.yMin === nextYMin &&
+        prev.yMax === nextYMax
+      ) {
+        return prev;
+      }
+      return {
+        left: nextLeft,
+        top: nextTop,
+        width,
+        height,
+        xMin: nextXMin,
+        xMax: nextXMax,
+        yMin: nextYMin,
+        yMax: nextYMax,
+      };
+    });
+  }, []);
 
   useEffect(() => {
     contractedDemandKwRef.current = contractedDemandKw;
@@ -375,14 +482,21 @@ export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, gen
   }, [contractedDemandKw]);
 
   useEffect(() => {
+    if (resetZoomTrigger === 0) return;
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.setScale('x', { min: 0, max: Math.max(activePoints.length - 1, 0) });
+  }, [resetZoomTrigger, activePoints.length]);
+
+  useEffect(() => {
     const el = containerRef.current;
     if (!el || pointsRef.current.length === 0) return;
 
-    // A new study may change both FP and dispatch in the same render.
     pointsRef.current = activePoints;
-    const options = buildOptions(el.clientWidth || 600, pointsRef, contractedDemandKwRef, setIsZoomed, factor);
+    const options = buildOptions(el.clientWidth || 600, pointsRef, contractedDemandKwRef, setIsZoomed, updateGeometry, factor);
     const chart = new uPlot(options, buildDispatchData(pointsRef.current, factor, generatorFactor), el);
     chartRef.current = chart;
+    updateGeometry(chart);
     skipNextPointsEffectRef.current = true;
     const detachPanAndZoom = attachPanAndZoom(chart, pointsRef);
 
@@ -391,9 +505,8 @@ export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, gen
       chart.destroy();
       chartRef.current = null;
     };
-    // The data effect keeps ordinary edits in the existing chart.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [factor, generatorFactor]);
+  }, [factor, generatorFactor, updateGeometry]);
 
   useEffect(() => {
     pointsRef.current = activePoints;
@@ -411,7 +524,8 @@ export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, gen
     } else {
       chart.redraw(true, true);
     }
-  }, [activePoints, factor, generatorFactor]);
+    updateGeometry(chart);
+  }, [activePoints, factor, generatorFactor, updateGeometry]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -419,16 +533,40 @@ export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, gen
     const observer = new ResizeObserver(() => {
       if (chartRef.current && el.clientWidth > 0) {
         chartRef.current.setSize({ width: el.clientWidth, height: CHART_HEIGHT });
+        updateGeometry(chartRef.current);
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
+  }, [updateGeometry]);
+
+  const handleResetZoom = useCallback(() => {
+    setResetZoomTrigger((prev) => prev + 1);
+    setMenu(null);
   }, []);
 
   if (dispatch.length === 0) return null;
 
+  const activeSlices = computeActiveDaySlices(activePoints);
+
+  const popupActions: ChartPopupAction[] = [];
+  if (isZoomed) {
+    popupActions.push({
+      id: 'reset-zoom',
+      label: 'Redefinir zoom',
+      icon: <RefreshCw className="h-4 w-4" aria-hidden="true" />,
+      onSelect: handleResetZoom,
+    });
+  }
+
+  const toX = (index: number) => {
+    if (geometry.xMax <= geometry.xMin || geometry.width <= 0) return 0;
+    return ((index - geometry.xMin) / (geometry.xMax - geometry.xMin)) * geometry.width;
+  };
+
   return (
     <div className="space-y-2">
+      {/* Day selector tabs */}
       {dayGroups.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5 border-b pb-2">
           <span className="text-xs font-medium text-muted-foreground mr-1">Exibição:</span>
@@ -460,24 +598,175 @@ export function CiDispatchChart({ dispatch, contractedDemandKw, powerFactor, gen
         </div>
       )}
 
+      {/* Summary badges when active */}
+      {(rechargeWindow || dischargeWindow) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {rechargeWindow && (
+            <div className="flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-900 dark:text-emerald-200">
+              <BatteryCharging className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <span>
+                Carga permitida: <strong>{rechargeWindow.start}</strong> às <strong>{rechargeWindow.end}</strong>
+              </span>
+            </div>
+          )}
+          {dischargeWindow && (
+            <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-900 dark:text-amber-200">
+              <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+              <span>
+                Descarga (Ponta): <strong>{dischargeWindow.start}</strong> às <strong>{dischargeWindow.end}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="relative">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
+
+        {/* Options popup menu button */}
+        {popupActions.length > 0 && (
+          <Button
+            ref={menuTriggerRef}
+            data-popup-trigger
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            className="absolute right-2 top-2 z-40 rounded-full bg-card/90 shadow-sm backdrop-blur-md"
+            aria-label="Opções do gráfico de despacho"
+            aria-haspopup="dialog"
+            aria-expanded={Boolean(menu)}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setMenu({ x: rect.left, y: rect.bottom + 4 });
+            }}
+          >
+            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        )}
+
+        {/* Visual Recharge & Discharge Overlays */}
+        {(rechargeWindow || dischargeWindow) && geometry.width > 0 && (
+          <div
+            className="pointer-events-none absolute z-20"
+            style={{ left: geometry.left, top: geometry.top, width: geometry.width, height: geometry.height }}
+          >
+            {activeSlices.map((slice, sliceIdx) => {
+              const renderWindow = (win: CiRechargeWindow, colorBorder: string, colorBg: string, labelPrefix: string, topOffset: number) => {
+                const startMinute = parseHHMM(win.start);
+                const endMinute = parseHHMM(win.end);
+                const fracStart = slice.startIndex + (startMinute / 1440) * slice.count;
+                const fracEnd = slice.startIndex + (endMinute / 1440) * slice.count;
+                const xStart = toX(fracStart);
+                const xEnd = toX(fracEnd);
+                const xDayStart = toX(slice.startIndex);
+                const xDayEnd = toX(slice.startIndex + slice.count);
+
+                return (
+                  <div key={labelPrefix} className="absolute inset-0 pointer-events-none">
+                    {startMinute <= endMinute ? (
+                      (() => {
+                        const bandLeft = Math.max(0, xStart);
+                        const bandRight = Math.min(geometry.width, xEnd);
+                        if (bandRight <= bandLeft) return null;
+                        return (
+                          <div
+                            className={`absolute inset-y-0 ${colorBg} pointer-events-none`}
+                            style={{ left: bandLeft, width: bandRight - bandLeft }}
+                          />
+                        );
+                      })()
+                    ) : (
+                      <>
+                        {(() => {
+                          const bandLeft = Math.max(0, xStart);
+                          const bandRight = Math.min(geometry.width, xDayEnd);
+                          if (bandRight <= bandLeft) return null;
+                          return (
+                            <div
+                              className={`absolute inset-y-0 ${colorBg} pointer-events-none`}
+                              style={{ left: bandLeft, width: bandRight - bandLeft }}
+                            />
+                          );
+                        })()}
+                        {(() => {
+                          const bandLeft = Math.max(0, xDayStart);
+                          const bandRight = Math.min(geometry.width, xEnd);
+                          if (bandRight <= bandLeft) return null;
+                          return (
+                            <div
+                              className={`absolute inset-y-0 ${colorBg} pointer-events-none`}
+                              style={{ left: bandLeft, width: bandRight - bandLeft }}
+                            />
+                          );
+                        })()}
+                      </>
+                    )}
+
+                    {sliceIdx === 0 && xStart >= -4 && xStart <= geometry.width + 4 && (
+                      <div className={`absolute inset-y-0 border-l-2 border-dashed ${colorBorder} z-30`} style={{ left: xStart }}>
+                        <span
+                          style={{ top: topOffset, transform: 'translateX(-50%)' }}
+                          className="absolute whitespace-nowrap rounded border border-border/60 bg-card/90 px-1.5 py-0.5 text-[9px] font-medium shadow-xs"
+                        >
+                          {labelPrefix} {win.start}
+                        </span>
+                      </div>
+                    )}
+
+                    {sliceIdx === 0 && xEnd >= -4 && xEnd <= geometry.width + 4 && (
+                      <div className={`absolute inset-y-0 border-l-2 border-dashed ${colorBorder} z-30`} style={{ left: xEnd }}>
+                        <span
+                          style={{ top: topOffset + 18, transform: 'translateX(-50%)' }}
+                          className="absolute whitespace-nowrap rounded border border-border/60 bg-card/90 px-1.5 py-0.5 text-[9px] font-medium shadow-xs"
+                        >
+                          Fim {win.end}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              return (
+                <div key={sliceIdx} className="absolute inset-0 pointer-events-none">
+                  {rechargeWindow && renderWindow(rechargeWindow, 'border-emerald-500/70', 'bg-emerald-500/10 dark:bg-emerald-500/15', 'Carga', 8)}
+                  {dischargeWindow && renderWindow(dischargeWindow, 'border-amber-500/70', 'bg-amber-500/10 dark:bg-amber-500/15', 'Descarga', 44)}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {isZoomed && (
           <Button
             type="button"
             variant="outline"
             size="xs"
-            className="absolute right-0 top-0 bg-card"
-            onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(activePoints.length - 1, 0) })}
+            className="absolute right-12 top-2 z-40 bg-card/90 shadow-xs backdrop-blur-md"
+            onClick={handleResetZoom}
           >
-            <RefreshCw className="h-3 w-3" aria-hidden="true" />
+            <RefreshCw className="h-3 w-3 mr-1" aria-hidden="true" />
             Redefinir zoom
           </Button>
         )}
       </div>
+
       <p className="text-[11px] text-muted-foreground">
-        Arraste para navegar · Ctrl + scroll para zoom · duplo clique para redefinir
+        Arraste para navegar · Ctrl + scroll para zoom
       </p>
+
+      {/* Popup Menu */}
+      {menu && (
+        <ChartPopupMenu
+          x={menu.x}
+          y={menu.y}
+          level="main"
+          title="Opções do gráfico"
+          actions={popupActions}
+          onClose={() => setMenu(null)}
+          returnFocus={menuTriggerRef}
+        />
+      )}
     </div>
   );
 }
