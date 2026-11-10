@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Battery, BatteryCharging, Boxes, Check, Info, Loader2, Lock, MoreHorizontal, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Battery, BatteryCharging, Boxes, ArrowLeftRight, Check, Info, Loader2, Lock, MoreHorizontal, Package, Plus, Search, Truck, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDeleteModalButton } from '@/components/ui/confirm-delete-button';
@@ -96,7 +96,7 @@ const sectionDefinitions: {
     fallbackIcon: <BatteryCharging className="h-8 w-8 text-muted-foreground" />,
     smallIcon: <BatteryCharging className="h-4 w-4 text-muted-foreground" />,
   },
-  ...([{type:'ci_pcs',label:'PCS C&I',icon:Zap},{type:'ci_battery',label:'Baterias C&I',icon:Battery},{type:'ci_accessory',label:'Acessórios C&I',icon:Boxes}] as const).map(({type,label,icon:Icon})=>({type,label,icon:Icon,fallbackIcon:<Icon className="h-8 w-8 text-muted-foreground"/>,smallIcon:<Icon className="h-4 w-4 text-muted-foreground"/>})),
+  ...([{type:'ci_pcs',label:'PCS C&I',icon:Zap},{type:'ci_battery',label:'Baterias C&I',icon:Battery},{type:'ci_accessory',label:'Acessórios C&I',icon:Boxes},{type:'ci_sts',label:'STS C&I',icon:ArrowLeftRight}] as const).map(({type,label,icon:Icon})=>({type,label,icon:Icon,fallbackIcon:<Icon className="h-8 w-8 text-muted-foreground"/>,smallIcon:<Icon className="h-4 w-4 text-muted-foreground"/>})),
 ];
 
 export function MyStockTab({
@@ -144,17 +144,17 @@ export function MyStockTab({
   const [summaryAddOpen, setSummaryAddOpen] = useState(false);
   const [productQuery, setProductQuery] = useState('');
   const [supplierCosts, setSupplierCosts] = useState<SupplierCostMap>({});
-  const [ciCatalogs, setCiCatalogs] = useState<Record<'ci_pcs'|'ci_battery'|'ci_accessory',CatalogEntry[]>>({ci_pcs:[],ci_battery:[],ci_accessory:[]});
+  const [ciCatalogs, setCiCatalogs] = useState<Record<'ci_pcs'|'ci_battery'|'ci_accessory'|'ci_sts',CatalogEntry[]>>({ci_pcs:[],ci_battery:[],ci_accessory:[],ci_sts:[]});
   const [ciCatalogError,setCiCatalogError] = useState<string | null>(null);
   useEffect(()=>{
     if(!canAccessCi) return;
     let alive=true;
     const db=createClient();
-    Promise.all([db.from('ci_inverters').select('*').order('model'),db.from('ci_batteries').select('*').order('model'),db.from('ci_accessories').select('*').eq('active',true).order('model')]).then(results=>{
+    Promise.all([db.from('ci_inverters').select('*').order('model'),db.from('ci_batteries').select('*').order('model'),db.from('ci_accessories').select('*').eq('active',true).order('model'),db.from('ci_sts_products').select('*').eq('active',true).order('model')]).then(results=>{
       if(!alive) return;
       for(const result of results) if(result.error) throw new Error(result.error.message);
       const map=(index:number)=>(results[index].data ?? []).map(row=>({id:row.id,model:row.model,imageUrl:row.image_url,nickname:row.nickname,documents:row.documents as unknown as ProductDocument[],description:'description' in row ? row.description as string | null : null,specs:[...('power_kw' in row ? [['Potência nominal',`${row.power_kw} kW`]]:'capacity_kwh' in row ? [['Capacidade',`${row.capacity_kwh} kWh`]]:[]),['Garantia',`${row.warranty_years} anos`]] as [string,string][]}));
-      setCiCatalogs({ci_pcs:map(0),ci_battery:map(1),ci_accessory:map(2)});
+      setCiCatalogs({ci_pcs:map(0),ci_battery:map(1),ci_accessory:map(2),ci_sts:map(3)});
     }).catch(cause=>{if(alive)setCiCatalogError(cause instanceof Error ? cause.message:'Não foi possível carregar os catálogos C&I.');});
     return ()=>{alive=false;};
   },[canAccessCi]);

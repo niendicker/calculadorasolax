@@ -1,13 +1,13 @@
 import { beforeEach,describe,expect,it,vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { loadCiStsCatalog,loadCiStsContext,saveCiStsSpec,saveCiStsRule } from './ci-sts-repository';
+import { loadCiStsCatalog,loadCiStsContext,saveCiStsProduct,saveCiStsRule } from './ci-sts-repository';
 import { stsFixture } from '@/supabase/functions/_shared/commercial-industrial/sts.test-fixtures';
 const mocks=vi.hoisted(()=>({createClient:vi.fn()}));
 vi.mock('@/lib/supabase/client',()=>({createClient:mocks.createClient}));
 beforeEach(()=>vi.clearAllMocks());
 function db(price:number|null=5000, failure:string|null=null) {
  const fixture=stsFixture();const lookups:Record<string,unknown>[]=[];
- const tables:Record<string,unknown>={ci_sts_specs:fixture.catalog.specs,ci_sts_compatibility_rules:fixture.catalog.rules,ci_accessories:fixture.catalog.specs.map(s=>({id:s.accessory_id,model:s.model,active:true}))};
+ const tables:Record<string,unknown>={ci_sts_specs:fixture.catalog.specs,ci_sts_compatibility_rules:fixture.catalog.rules,ci_sts_products:fixture.catalog.specs.map(s=>({id:s.accessory_id,model:s.model,active:true}))};
  const client={auth:{getUser:vi.fn().mockResolvedValue({data:{user:{id:'owner'}},error:null})},from:(table:string)=>{
   const where:Record<string,unknown>={table};if(table==='user_stock_items')lookups.push(where);
   const result={data:tables[table],error:failure?{message:failure}:null};
@@ -16,13 +16,13 @@ function db(price:number|null=5000, failure:string|null=null) {
  return{client,lookups};
 }
 describe('C&I STS catalog and user pricing',()=>{
- it('resolves independent C&I accessory IDs and queries prices scoped to the authenticated owner',async()=>{
+ it('resolves own C&I STS product IDs and queries prices scoped to the authenticated owner',async()=>{
   const {client,lookups}=db();
   const context=await loadCiStsContext(client,stsFixture().target);
   expect(context.catalog.specs[0].model).toBe('ZERO-125 teste');
   expect(context.prices.small).toBe(5000);
   expect(lookups).toHaveLength(2);
-  expect(lookups.every(q=>q.user_id==='owner'&&q.product_type==='ci_accessory')).toBe(true);
+  expect(lookups.every(q=>q.user_id==='owner'&&q.product_type==='ci_sts')).toBe(true);
  });
  it('keeps missing price distinct from explicitly registered zero',async()=>{
   expect((await loadCiStsContext(db(null).client,stsFixture().target)).prices.small).toBeUndefined();
@@ -34,10 +34,10 @@ describe('C&I STS catalog and user pricing',()=>{
   await expect(loadCiStsContext(client,stsFixture().target)).rejects.toThrow('sessão');
  });
  it('writes to C&I tables only and reports denied writes',async()=>{
-  const upsert=vi.fn().mockResolvedValue({error:{message:'denied'}});const from=vi.fn(()=>({upsert}));mocks.createClient.mockReturnValue({from});
+  const rpc=vi.fn().mockResolvedValue({data:null,error:{message:'denied'}});const upsert=vi.fn();const from=vi.fn(()=>({upsert}));mocks.createClient.mockReturnValue({from,rpc});
   const {model:_model,accessoryActive:_active,...spec}=stsFixture().catalog.specs[0];void _model;void _active;
-  await expect(saveCiStsSpec(spec)).rejects.toThrow('denied');
-  expect(from).toHaveBeenCalledWith('ci_sts_specs');
+  await expect(saveCiStsProduct({model:'ZERO-125 teste',nickname:null,description:null,active:true,warranty_years:2,image_url:null,documents:[]},spec,spec.accessory_id)).rejects.toThrow('denied');
+  expect(rpc).toHaveBeenCalledWith('save_ci_sts',expect.objectContaining({p_id:spec.accessory_id}));
   upsert.mockReturnValue({select:()=>({single:()=>Promise.resolve({data:{id:'rule'},error:null})})} as never);
   await expect(saveCiStsRule(stsFixture().catalog.rules[0])).resolves.toBe('rule');
   expect(from).toHaveBeenLastCalledWith('ci_sts_compatibility_rules');

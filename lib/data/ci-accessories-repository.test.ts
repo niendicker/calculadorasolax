@@ -6,11 +6,11 @@ vi.mock('@/lib/supabase/client',()=>({createClient:mocks.createClient}));
 beforeEach(()=>vi.clearAllMocks());
 function client(price: number | null = 250, error: string | null = null) {
  const calls:{table:string;where:Record<string,unknown>}[]=[];
- const tables:Record<string,unknown[]>={ci_accessories:[{id:'ci',model:'Mesmo nome',active:true}],ci_accessory_rules:[],ci_sts_specs:[],user_stock_items:[{product_model:'Mesmo nome',unit_value:price}]};
+ const tables:Record<string,unknown[]>={ci_accessories:[{id:'ci',model:'Mesmo nome',active:true}],ci_accessory_rules:[],ci_sts_products:[],user_stock_items:[{product_type:'ci_accessory',product_model:'Mesmo nome',unit_value:price}]};
  const db={auth:{getUser:vi.fn().mockResolvedValue({data:{user:{id:'owner'}},error:null})},from:(table:string)=>{
   const call={table,where:{}};calls.push(call);
   const result={data:tables[table],error:error ? {message:error}:null};
-  const q={select:()=>q,order:()=>q,eq:(key:string,value:unknown)=>{(call.where as Record<string,unknown>)[key]=value;return q;},then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(result).then(resolve)};
+  const q={select:()=>q,order:()=>q,in:(key:string,value:unknown)=>{(call.where as Record<string,unknown>)[key]=value;return q;},eq:(key:string,value:unknown)=>{(call.where as Record<string,unknown>)[key]=value;return q;},then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(result).then(resolve)};
   return q;
  }} as unknown as SupabaseClient;
  return {db,calls};
@@ -20,7 +20,7 @@ describe('C&I accessory context',()=>{
   const {db,calls}=client();
   const result=await loadCiAccessoryContext(db,['ci']);
   expect(result.prices).toEqual({ci:250});expect(result.selectedIds).toEqual(['ci']);
-  expect(calls).toEqual(expect.arrayContaining([{table:'user_stock_items',where:{user_id:'owner',product_type:'ci_accessory'}}]));
+  expect(calls).toEqual(expect.arrayContaining([{table:'user_stock_items',where:{user_id:'owner',product_type:['ci_accessory','ci_sts']}}]));
   expect(calls.some(call=>['accessories','accessory_rules'].includes(call.table))).toBe(false);
  });
  it('preserves deliberate zero and absent price separately',async()=>{

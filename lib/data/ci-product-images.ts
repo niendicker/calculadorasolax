@@ -28,6 +28,7 @@ export async function fetchCiProductImages(
       'ci_inverters',
       'ci_batteries',
       'ci_accessories',
+      'ci_sts_products',
       'inverters',
       'batteries',
       'accessories',
