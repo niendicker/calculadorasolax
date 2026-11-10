@@ -228,7 +228,7 @@ export function AdminPanel() {
   }
 
   async function uploadProductAsset(
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories' | 'ci_sts_products',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File

@@ -3,6 +3,7 @@ alter table public.batteries add column nominal_voltage_v numeric not null defau
 alter table public.inverters add column model text unique, add column image_url text, add column documents jsonb default '[]';
 alter table public.batteries add column model text unique, add column image_url text, add column documents jsonb default '[]';
 alter table public.accessories alter column model set not null;
+alter table public.accessories add column nickname text, add column description text, add column warranty_years integer not null default 2, add column image_url text, add column documents jsonb not null default '[]';
 create unique index accessories_model_key on public.accessories(model);
 create table public.user_stock_items(id uuid primary key default gen_random_uuid(),user_id uuid not null,product_type text constraint user_stock_items_product_type_check check(product_type in ('inverter','battery','accessory','ci_bess')),product_model text,unit_value numeric,created_at timestamptz default now(),updated_at timestamptz default now(),unique(user_id,product_type,product_model));
 insert into public.inverters(id,power_kw,battery_voltage_min_v,battery_voltage_max_v,battery_charge_efficiency_percent,battery_discharge_efficiency_percent,model,image_url,documents) values ('00000000-0000-0000-0000-000000000001',100,600,1000,96,96,'PCS C&I','image-ci','[{"name":"Ficha","url":"document-ci"}]');

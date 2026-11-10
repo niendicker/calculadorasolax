@@ -14,7 +14,8 @@ com os residenciais. Reutilizamos os componentes de edição existentes.
 - Compatibilidades, controlador obrigatório e STS referenciam exclusivamente C&I.
   Quantidade máxima de PCS continua configurável e documentada nas regras.
   Não se considera sobrecarga transitória.
-- As categorias do Portfólio são `ci_pcs`, `ci_battery`, `ci_accessory` e `ci_bess`.
+- A STS tem cadastro próprio em `ci_sts_products` (mesmos campos de produto dos acessórios), com a ficha elétrica em `ci_sts_specs`. Em **Administração → BESS C&I → STS** o produto e a ficha são salvos juntos (`save_ci_sts`). Os nomes de coluna `accessory_id` das tabelas STS foram mantidos por compatibilidade com snapshots e gerações publicadas; hoje apontam para `ci_sts_products.id`.
+- As categorias do Portfólio são `ci_pcs`, `ci_battery`, `ci_accessory`, `ci_sts` e `ci_bess`.
   Todas usam o preço próprio do usuário diretamente, sem markup residencial.
   Preço zero registrado é aceito; preço ausente para um item cobrado bloqueia o cálculo.
 
@@ -38,6 +39,10 @@ preços mesmo em contas no limite do Portfólio; a verificação de limite volta
 valer para novas inclusões. Nenhum cálculo usa preço residencial como fallback.
 As tabelas são criadas com `LIKE` incluindo campos, defaults, checks e índices,
 sem herança PostgreSQL e sem copiar políticas de escrita residenciais.
+
+## Migração 0107 (STS como produto próprio)
+
+Move as STS de `ci_accessories` para `ci_sts_products` preservando IDs, e copia os preços de `ci_accessory` para `ci_sts` (inclusive zeros). Regras de acessório continuam podendo exigir/excluir uma STS: a FK única virou validação nas duas tabelas. Falha se uma compatibilidade PCS + bateria usa uma STS como controlador. Validação: `bash scripts/check-ci-catalog-migration.sh`.
 
 ## Regras de acessórios
 

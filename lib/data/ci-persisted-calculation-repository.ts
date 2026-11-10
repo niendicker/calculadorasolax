@@ -56,15 +56,15 @@ export async function calculatePersistedCi(db:SupabaseClient,options:CommercialI
   const prices=new Map<string,number>();
   async function loadPrices(){
   for(let offset=0;;offset+=500){
-    const {data,error}=await db.from('user_stock_items').select('id,product_type,product_model,unit_value').eq('user_id',userId).in('product_type',['ci_pcs','ci_battery','ci_accessory','ci_bess']).order('id').range(offset,offset+499);
+    const {data,error}=await db.from('user_stock_items').select('id,product_type,product_model,unit_value').eq('user_id',userId).in('product_type',['ci_pcs','ci_battery','ci_accessory','ci_sts','ci_bess']).order('id').range(offset,offset+499);
     if(error)throw new Error(error.message);
     for(const row of data??[]){const value=row.unit_value===null?NaN:Number(row.unit_value);if(Number.isFinite(value)&&value>=0)prices.set(`${row.product_type}:${row.product_model}`,value);}
     if((data??[]).length<500)break;
   }
   }
   const price=(type:string,model:string)=>prices.get(`${type}:${model}`);
-  const accessories=()=>({...accessoryContext,prices:Object.fromEntries(accessoryContext.products.map(item=>[item.id,price('ci_accessory',item.model)??0]))});
-  const transferPrices=()=>Object.fromEntries(stsCatalog.specs.map(item=>[item.accessory_id,price('ci_accessory',item.model)??0]));
+  const accessories=()=>({...accessoryContext,prices:Object.fromEntries(accessoryContext.products.map(item=>[item.id,price(accessoryContext.stsIds.includes(item.id)?'ci_sts':'ci_accessory',item.model)??0]))});
+  const transferPrices=()=>Object.fromEntries(stsCatalog.specs.map(item=>[item.accessory_id,price('ci_sts',item.model)??0]));
 
   // Both cabinet and assembly enter exactly this same physical/financial pipeline.
   const inputFor=(solution:CiGroupedSolution):ScenarioGridInput=>{

@@ -278,6 +278,43 @@ export type Database = {
         Relationships: []
       }
 
+      ci_sts_products: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          documents: Json
+          id: string
+          image_url: string | null
+          model: string
+          nickname: string | null
+          warranty_years: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          documents?: Json
+          id?: string
+          image_url?: string | null
+          model: string
+          nickname?: string | null
+          warranty_years?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          documents?: Json
+          id?: string
+          image_url?: string | null
+          model?: string
+          nickname?: string | null
+          warranty_years?: number
+        }
+        Relationships: []
+      }
+
       ci_sts_specs: {
         Row: {
           accessory_id: string
@@ -2202,6 +2239,8 @@ export type Database = {
     Functions: {
       save_ci_equipment: { Args: { p_kind: string; p_product: Json; p_limits: Json; p_id?: string | null }; Returns: Json }
       delete_ci_equipment: { Args: { p_kind: string; p_id: string }; Returns: undefined }
+      save_ci_sts: { Args: { p_product: Json; p_limits: Json; p_id?: string | null }; Returns: Json }
+      delete_ci_sts: { Args: { p_id: string }; Returns: undefined }
       ci_solution_source: {Args: Record<PropertyKey, never>;Returns:Json}
       ci_begin_solution_generation: {Args:{p_source_revision:string;p_expected_count:number};Returns:string}
       ci_append_solution_generation: {Args:{p_generation_id:string;p_solutions:Json};Returns:undefined}

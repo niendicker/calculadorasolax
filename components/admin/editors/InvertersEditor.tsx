@@ -45,7 +45,7 @@ export function InvertersEditor(props: {
   onRemove: (id: string) => void;
   removingIds: Set<string>;
   uploadAsset: (
-    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories',
+    table: 'inverters' | 'batteries' | 'accessories' | 'ci_bess_products' | 'ci_inverters' | 'ci_batteries' | 'ci_accessories' | 'ci_sts_products',
     model: string | undefined,
     kind: 'image' | 'documents',
     file: File
