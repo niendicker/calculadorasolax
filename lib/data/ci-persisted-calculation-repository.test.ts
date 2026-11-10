@@ -75,7 +75,7 @@ it('respects partial load-shifting coverage in actual dispatch',async()=>{
 it('preserves imported solar values through the common simulator',async()=>{
  const opts=options();const generationCurve={...opts.loadCurve!,points:opts.loadCurve!.points.map(p=>({...p,powerKw:27.5}))};
  const catalog=modularFixture();catalog.rules[0].supports_solar=true;mocks.query.mockResolvedValue({generation:{id:'g',source_revision:'r'},solutions:generateCiGroupedSolutions(catalog,[]).solutions});
- const result=await calculatePersistedCi(client().db,{...opts,solar:{enabled:true,installedPowerKwp:0,inverterPowerKw:0,dailyYieldKwhPerKwp:4.5,prioritizeBessCharging:true,generationCurve}});expect(result.selected!.dispatch.every(p=>p.solarGenerationKw===27.5)).toBe(true);
+ const result=await calculatePersistedCi(client().db,{...opts,solar:{enabled:true,installedPowerKwp:0,inverterPowerKw:0,dailyYieldKwhPerKwp:4.5,prioritizeBessCharging:false,generationCurve}});expect(result.selected!.dispatch.every(p=>p.solarGenerationKw===27.5)).toBe(true);
 });
 
 it('keeps a smaller approved BESS eligible when generator peak support meets the remaining demand',async()=>{
@@ -143,4 +143,10 @@ it('persists the study FP without reinterpreting stored active curves, energy or
  expect(nonunity.selected?.annualSavings).toEqual(unity.selected?.annualSavings);
  expect(nonunity.inputFingerprint).not.toBe(unity.inputFingerprint);
  await expect(calculatePersistedCi(client().db,{...original,acPowerFactor:0})).rejects.toThrow('fator de potência');
+});
+
+it('persists rechargeWindow in assumptions and applies it during calculation', async () => {
+  const rechargeWindow = { start: '02:00', end: '06:00' };
+  const result = await calculatePersistedCi(client().db, { ...options(), rechargeWindow });
+  expect(result.assumptions.rechargeWindow).toEqual(rechargeWindow);
 });

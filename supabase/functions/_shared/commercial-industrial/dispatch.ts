@@ -24,6 +24,7 @@ import type {
   BessRuntimeParams,
   BessStrategyId,
   CiGeneratorConfig,
+  CiRechargeWindow,
   CiSolarConfig,
   DispatchPoint,
   LoadCurve,
@@ -59,6 +60,10 @@ export interface DispatchInput {
   contractedDemandKw: number;
   solar?: CiSolarConfig | null;
   generator?: CiGeneratorConfig | null;
+  /** Optional allowed recharge window for BESS (restricts grid charging). */
+  rechargeWindow?: CiRechargeWindow | null;
+  /** Optional allowed discharge window for BESS (restricts peak discharge). */
+  dischargeWindow?: CiRechargeWindow | null;
 }
 
 /** Generates an idealized bell-curve daily solar generation profile in kW (6:00 to 18:00) */
@@ -124,6 +129,20 @@ export function classifyTariffPeriod(timestamp: string, timezone: string, window
   const end = parseHHMM(window.peakEnd);
   const isPeak = start <= end ? minute >= start && minute < end : minute >= start || minute < end;
   return isPeak ? 'peak' : 'offPeak';
+}
+
+/** Determines if an instant falls within a time window (e.g. "08:00" to "16:00"
+ * or an overnight interval like "22:00" to "06:00"). */
+export function isWithinTimeWindow(
+  timestamp: string,
+  timezone: string,
+  window: { start: string; end: string }
+): boolean {
+  if (window.start === window.end) return false;
+  const minute = minutesOfDay(timestamp, timezone);
+  const start = parseHHMM(window.start);
+  const end = parseHHMM(window.end);
+  return start <= end ? minute >= start && minute < end : minute >= start || minute < end;
 }
 
 // ─── Shared charge restriction (Fase 7 audit, section 4) ────────────────
@@ -284,13 +303,13 @@ interface PeakWindowSpan {
  * decreases point-by-point through the window itself as that idealized
  * discharge is "spent" — see the worked example in the audit's section
  * 3.1 (310 -> 190 -> 80 -> 0 kWh). */
-export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindow, bess: BessRuntimeParams, dischargeNeedsKw?: number[]): number[] {
+export function computeHybridReserve(curve: LoadCurve, tariffWindow: TariffWindow, bess: BessRuntimeParams, dischargeNeedsKw?: number[], dischargeWindow?: CiRechargeWindow | null): number[] {
   const intervalHours = curve.resolutionMinutes / 60;
 
   const dischargeEfficiency = (bess.dischargeEfficiencyPercent !== undefined ? bess.dischargeEfficiencyPercent / 100 : Math.sqrt(bess.efficiencyPercent / 100));
   const usefulCapacityKwh = (bess.totalCapacityKwh * (bess.socMaxPercent - bess.socMinPercent)) / 100;
 
-  const periods = curve.points.map((point) => classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow));
+  const periods = curve.points.map((point) => dischargeWindow ? (isWithinTimeWindow(point.timestamp, curve.timezone, dischargeWindow) ? 'peak' : 'offPeak') : classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow));
 
   const windows: PeakWindowSpan[] = [];
   let cursor = 0;
@@ -369,7 +388,7 @@ export function minimumBessDischargeKw(
  *   - discharge never exceeds the interval's own load — "sem exportação
  *     para a rede" (no selling back to the grid). */
 export function runDispatch(input: DispatchInput): DispatchPoint[] {
-  const { curve, bess, strategy, tariffWindow, peakShavingTargetKw, contractedDemandKw, solar, generator } = input;
+  const { curve, bess, strategy, tariffWindow, peakShavingTargetKw, contractedDemandKw, solar, generator, rechargeWindow, dischargeWindow } = input;
   const intervalHours = curve.resolutionMinutes / 60;
   const importedSolar = solar?.enabled && solar.generationCurve
     ? new Map(solar.generationCurve.points.map((point) => [Date.parse(point.timestamp), point.powerKw]))
@@ -388,9 +407,10 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
   const peakNeeds = strategy === 'HYBRID' ? input.gridImportLimitsKw?.map((target, index) => {
     const point = curve.points[index];
     const netLoadKw = Math.max(0, point.powerKw - solarGenerationAt(index));
-    return target === null ? netLoadKw : minimumBessDischargeKw(netLoadKw, target, classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow), contractedDemandKw, generator);
+    const isPeak = dischargeWindow ? isWithinTimeWindow(point.timestamp, curve.timezone, dischargeWindow) : classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow) === 'peak';
+    return target === null ? netLoadKw : minimumBessDischargeKw(netLoadKw, target, isPeak ? 'peak' : 'offPeak', contractedDemandKw, generator);
   }) : undefined;
-  const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess, peakNeeds) : null;
+  const reserve = strategy === 'HYBRID' ? computeHybridReserve(curve, tariffWindow, bess, peakNeeds, dischargeWindow) : null;
 
   let socPercent = bess.initialSocPercent ?? bess.socMaxPercent;
   const portStates=bess.ports?.length?createPortStates(bess.ports,socPercent):undefined;
@@ -398,6 +418,8 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
 
   curve.points.forEach((point, index) => {
     const period = classifyTariffPeriod(point.timestamp, curve.timezone, tariffWindow);
+    const isDischargeActive = dischargeWindow ? isWithinTimeWindow(point.timestamp, curve.timezone, dischargeWindow) : (period === 'peak');
+    const effectivePeriod: TariffPeriod = isDischargeActive ? 'peak' : 'offPeak';
 
     // 1. Solar generation at this interval
     const solarGenerationKw = solarGenerationAt(index);
@@ -408,21 +430,25 @@ export function runDispatch(input: DispatchInput): DispatchPoint[] {
 
     const storedEnergyKwh = (socPercent / 100) * bess.totalCapacityKwh;
     const availableForPeakShavingKwh = reserve ? Math.max(0, storedEnergyKwh - (portStates?bess.totalCapacityKwh*bess.socMinPercent/100:0) - reserve[index]) : 0;
-    const decision = decideStrategy(strategy, netLoadAfterSolarKw, period, peakShavingTargetKw, bess, availableForPeakShavingKwh);
+    const decision = decideStrategy(strategy, netLoadAfterSolarKw, effectivePeriod, peakShavingTargetKw, bess, availableForPeakShavingKwh);
 
     const profileTarget=input.gridImportLimitsKw?.[index];
-    if (period==='peak' && profileTarget!==null && profileTarget!==undefined && (strategy==='LOAD_SHIFTING'||strategy==='HYBRID')) {
+    if (isDischargeActive && profileTarget!==null && profileTarget!==undefined && (strategy==='LOAD_SHIFTING'||strategy==='HYBRID')) {
       decision.dischargeKw=Math.max(0,netLoadAfterSolarKw-profileTarget);
     }
     let chargeKw = 0;
     let dischargeKw = 0;
 
     // 2. BESS Charging: prioritize solar surplus if enabled, or grid charging
+    const isGridChargePermitted = rechargeWindow
+      ? isWithinTimeWindow(point.timestamp, curve.timezone, rechargeWindow)
+      : !(solar?.enabled && solar.prioritizeBessCharging);
+
     if (solarSurplusKw > 0 && solar?.prioritizeBessCharging && (bess.maxChargePowerKw ?? bess.totalPowerKw) > 0) {
       const maxStorableEnergyKwh = ((bess.socMaxPercent - socPercent) / 100) * bess.totalCapacityKwh;
       const socLimitedChargePowerKw = maxStorableEnergyKwh > 0 ? maxStorableEnergyKwh / (intervalHours * chargeEfficiency) : 0;
       chargeKw = Math.min(solarSurplusKw, bess.maxChargePowerKw ?? bess.totalPowerKw, socLimitedChargePowerKw);
-    } else if (decision.chargeKw > 0) {
+    } else if (decision.chargeKw > 0 && isGridChargePermitted) {
       const maxStorableEnergyKwh = ((bess.socMaxPercent - socPercent) / 100) * bess.totalCapacityKwh;
       const socLimitedChargePowerKw = maxStorableEnergyKwh > 0 ? maxStorableEnergyKwh / (intervalHours * chargeEfficiency) : 0;
       chargeKw = calculateAllowedChargePower({

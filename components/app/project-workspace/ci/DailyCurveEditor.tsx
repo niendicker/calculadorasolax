@@ -25,6 +25,8 @@ import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/ui/tooltip';
 import { cn, readCssVar } from '@/lib/utils';
 import type {CurveRangeSelection} from './LoadCurveChart';
+import { CurveAnalysisOverlay, CurveReferenceReadout } from './CurveAnalysisOverlay';
+import { curveScaleMaximum } from './curve-analysis';
 import {
   applyMovingAverageSmoothing,
 } from './daily-curve-metrics';
@@ -122,6 +124,13 @@ export interface DailyCurveEditorProps {
   selectedRanges?:CurveRangeSelection[];
   selectionActions?: React.ReactNode;
   selectionPopup?: React.ReactNode;
+  onAdjustRange?: (index: number, range: CurveRangeSelection) => void;
+  rangeLabels?: string[];
+  referenceKw?: number;
+  onReferenceChange?: (kw: number) => void;
+  contractedDemandKw?: number;
+  referencePoints?: { powerKw: number }[];
+  referenceResolutionMinutes?: number;
 }
 
 export function DailyCurveEditor({
@@ -139,6 +148,13 @@ export function DailyCurveEditor({
   selectedRanges=[],
   selectionActions,
   selectionPopup,
+  onAdjustRange,
+  rangeLabels,
+  referenceKw,
+  onReferenceChange,
+  contractedDemandKw,
+  referencePoints,
+  referenceResolutionMinutes,
 }: DailyCurveEditorProps) {
   const { factor, toKva, fromKva } = useCiAcPower();
 
@@ -422,8 +438,9 @@ export function DailyCurveEditor({
       1
     )
   );
-  const currentMaxKw = Math.max(baseMaxKw, scaleCeilingOverride ?? 0);
-  const maxKw = dragMaxKw ?? currentMaxKw;
+  const currentMaxKw = Math.max(baseMaxKw, curveScaleMaximum(Math.max(...consumptionKw, ...(generationKw ?? []).map(value => value ?? 0)), referenceKw, contractedDemandKw), scaleCeilingOverride ?? 0);
+  const [referenceDragMaxKw, setReferenceDragMaxKw] = useState<number | null>(null);
+  const maxKw = referenceDragMaxKw ?? dragMaxKw ?? currentMaxKw;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(DEFAULT_VIEW_WIDTH);
@@ -709,7 +726,7 @@ export function DailyCurveEditor({
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 rounded-xl border border-border/60 p-2 sm:p-3">
       {/* 3. Unified Controls Bar (Day Pattern + Series Selector + Layer Toggles + Zoom Presets) */}
       {Boolean((isDualPattern&&onPatternChange)||hasSolar)&&<section
         aria-label="Controles da curva e visualização"
@@ -756,7 +773,7 @@ export function DailyCurveEditor({
               <div role="group" aria-label="Curva em edição" className="inline-flex items-center rounded-lg border border-border/60 bg-muted/50 p-1">
                 {([
                   { id: 'consumption', label: 'Consumo', selected: !solarSelected, dot: 'bg-primary' },
-                  { id: 'solar', label: 'Geração FV', selected: solarSelected, dot: 'bg-amber-500' },
+                  { id: 'solar', label: 'Fotovoltaico', selected: solarSelected, dot: 'bg-amber-500' },
                 ] as const).map(series => (
                   <Button
                     key={series.id}
@@ -858,8 +875,64 @@ export function DailyCurveEditor({
                 </div>
       </div>
 
-      {/* 4. Main 2-Column Area: SVG Chart (Left) + Inspector & Batch Editor (Right) */}
-      <div className="flex flex-col items-start gap-4 lg:flex-row">
+      <header aria-label="Análise e ações da curva" className="space-y-2">
+          <CurveReferenceReadout values={referencePoints?.map(point=>point.powerKw) ?? (selectedRanges.length ? consumptionKw.slice(selectedRanges.at(-1)!.startIndex,selectedRanges.at(-1)!.endIndex+1) : consumptionKw)} referenceKw={referenceKw} resolutionMinutes={referenceResolutionMinutes ?? 1440/pointCount} selected={Boolean(selectedRanges.length)}/>
+          {/* Under Chart: Legend, Keyboard hints, and Smoothing action */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+            <InfoTooltip label="Como editar a curva">Ctrl + Shift + arraste desenha a curva ativa, ajustando todos os pontos percorridos. O gesto inteiro pode ser desfeito de uma vez. Clique ou arraste um ponto para ajustar sua potência no modo Editar. Ctrl + scroll aplica zoom; arraste o fundo para navegar. No ponto selecionado, use ← e → para mudar de horário; ↑ e ↓ ajustam 1 kVA, ou 5 kVA com Shift. Shift + arraste seleciona sem editar os pontos. No celular, ative Selecionar e arraste no gráfico. Use a seleção para configurar o backup no cabeçalho.</InfoTooltip>
+
+            <Button
+              id="btnHarmonizeCurve"
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={solarSelected && !onSolarChange}
+              onClick={handleHarmonizeCurve}
+              className="h-7 text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Harmonizar picos
+            </Button>
+          </div>
+      {/* 1. Editing status and global actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/50">
+        <div className="flex flex-wrap items-center gap-2">
+          {dirtyCount > 0 ? (
+            <span
+              id="dirtyBadge"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Editado · {dirtyCount} {dirtyCount === 1 ? 'ajuste' : 'ajustes'}
+            </span>
+          ) : (
+            <span
+              id="dirtyBadge"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/30 text-muted-foreground border border-border/50"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+              Perfil atual
+            </span>
+          )}
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
+          {/* Action: Limpar curva */}
+          <Button type="button" variant="ghost" size="sm" disabled={solarSelected && !onSolarChange} onClick={handleClearCurve} className="h-9 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive">
+            Limpar curva
+          </Button>
+
+
+        </div>
+      </div>
+
+        {selectionActions && <section aria-label="Backup da seleção" className="space-y-2 border-t border-border/60 pt-2">
+          {selectionActions}
+        </section>}
+      </header>
+
+      {/* Interactive chart */}
+      <div className="flex flex-col gap-2">
         {/* Left Column: Interactive SVG Chart */}
         <div className="flex min-w-0 w-full flex-1 flex-col gap-2">
           <div ref={containerRef} data-testid="daily-chart-container" className="relative flex w-full flex-col">
@@ -867,8 +940,8 @@ export function DailyCurveEditor({
               <div className="flex flex-wrap items-center gap-1">
                 {onSelectRange && <>
                   <div role="group" aria-label="Ferramenta da curva" className="inline-flex rounded-lg border border-border/60 bg-muted/50 p-1">
-                    <Button type="button" size="sm" variant="ghost" aria-pressed={!rangeMode} onClick={() => setRangeMode(false)} className={cn('h-9 gap-1.5 rounded-md px-3 text-xs md:h-8', !rangeMode ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}><Pencil aria-hidden="true" />Editar pontos</Button>
-                    <Button type="button" size="sm" variant="ghost" aria-pressed={rangeMode} onClick={() => setRangeMode(true)} className={cn('h-9 gap-1.5 rounded-md px-3 text-xs md:h-8', rangeMode ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}><ScanLine aria-hidden="true" />Selecionar intervalo</Button>
+                    <Button type="button" size="sm" variant="ghost" aria-pressed={!rangeMode} onClick={() => setRangeMode(false)} className={cn('h-9 gap-1.5 rounded-md px-3 text-xs md:h-8', !rangeMode ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}><Pencil aria-hidden="true" />Editar</Button>
+                    <Button type="button" size="sm" variant="ghost" aria-pressed={rangeMode} onClick={() => setRangeMode(true)} className={cn('h-9 gap-1.5 rounded-md px-3 text-xs md:h-8', rangeMode ? 'bg-background text-foreground shadow-xs ring-1 ring-border/70 hover:bg-background' : 'text-muted-foreground')}><ScanLine aria-hidden="true" />Selecionar</Button>
                   </div>
                 </>}
               </div>
@@ -1204,7 +1277,7 @@ export function DailyCurveEditor({
                           strokeWidth={2}
                           role="slider"
                           tabIndex={selectedHour === index ? 0 : -1}
-                          aria-label={`Geração FV às ${formatTime(index)}`}
+                          aria-label={`Fotovoltaico às ${formatTime(index)}`}
                           aria-valuemin={0}
                           aria-valuemax={toKva(maxKw)}
                           aria-valuenow={toKva(kw)}
@@ -1389,65 +1462,18 @@ export function DailyCurveEditor({
                   </g>
                 )}
               </g>
+              {contractedDemandKw !== undefined && contractedDemandKw > 0 && <g className="pointer-events-none">
+                <line x1={MARGIN.left} x2={viewWidth-MARGIN.right} y1={yToPx(contractedDemandKw,maxKw,plotHeight)} y2={yToPx(contractedDemandKw,maxKw,plotHeight)} stroke="var(--destructive)" strokeDasharray="6 4"/>
+                <text x={viewWidth-MARGIN.right-6} y={yToPx(contractedDemandKw,maxKw,plotHeight)-5} textAnchor="end" fontSize={10} fill="var(--destructive)">Contratada: {toKva(contractedDemandKw).toFixed(2)} kVA</text>
+              </g>}
             </svg>
+            <CurveAnalysisOverlay geometry={{ left: MARGIN.left / viewWidth * containerWidth, top: MARGIN.top, width: plotWidth / viewWidth * containerWidth, height: plotHeight, xMin: viewRange.start, xMax: viewRange.end, yMin: 0, yMax: maxKw }} ranges={selectedRanges.map((range,index)=>({range,label:rangeLabels?.[index]??`período ${index===0?'A':'B'}`}))} length={pointCount} rangeStep={Math.max(1,(referenceResolutionMinutes??1440/pointCount)/(1440/pointCount))} endAtBinBoundary onRangeChange={onAdjustRange} referenceKw={referenceKw} onReferenceChange={onReferenceChange} onReferenceDragChange={dragging=>setReferenceDragMaxKw(dragging?maxKw:null)} formatIndex={formatTime}/>
             {selectionPopup}
             </div>
           </div>
 
-          {/* Under Chart: Legend, Keyboard hints, and Smoothing action */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">{curveBrushActive ? 'Desenhando a curva · solte para concluir' : rangeMode ? 'Arraste para marcar um intervalo' : 'Arraste os pontos · Ctrl + Shift para desenhar'}<InfoTooltip label="Como editar a curva">Ctrl + Shift + arraste desenha a curva ativa, ajustando todos os pontos percorridos. O gesto inteiro pode ser desfeito de uma vez. Clique ou arraste um ponto para ajustar sua potência no modo Editar pontos. Ctrl + scroll aplica zoom; arraste o fundo para navegar. No ponto selecionado, use ← e → para mudar de horário; ↑ e ↓ ajustam 1 kVA, ou 5 kVA com Shift. Shift + arraste seleciona sem editar os pontos. No celular, ative Selecionar intervalo e arraste no gráfico. Use a seleção para configurar o backup no painel ao lado.</InfoTooltip></span>
-
-            <Button
-              id="btnHarmonizeCurve"
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={solarSelected && !onSolarChange}
-              onClick={handleHarmonizeCurve}
-              className="h-7 text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Harmonizar picos
-            </Button>
-          </div>
         </div>
 
-        {selectionActions && <aside aria-label="Ações da seleção" className="flex w-full shrink-0 flex-col gap-3 lg:w-[256px]">
-          {selectionActions}
-        </aside>}
-      </div>
-
-      {/* 1. Editing status and global actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/50">
-        <div className="flex flex-wrap items-center gap-2">
-          {dirtyCount > 0 ? (
-            <span
-              id="dirtyBadge"
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              Editado · {dirtyCount} {dirtyCount === 1 ? 'ajuste' : 'ajustes'}
-            </span>
-          ) : (
-            <span
-              id="dirtyBadge"
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/30 text-muted-foreground border border-border/50"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-              Perfil atual
-            </span>
-          )}
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
-          {/* Action: Limpar curva */}
-          <Button type="button" variant="ghost" size="sm" disabled={solarSelected && !onSolarChange} onClick={handleClearCurve} className="h-9 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive">
-            Limpar curva
-          </Button>
-
-
-        </div>
       </div>
 
       {/* Floating Action Toast */}

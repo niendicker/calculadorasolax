@@ -322,6 +322,26 @@ function validateGenerator(raw: unknown, errors: string[]): void {
   }
 }
 
+export function validateTimeWindow(raw: unknown, fieldName: string, errors: string[]): void {
+  if (raw === undefined || raw === null) return;
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push(`${fieldName} deve ser um objeto com start e end no formato HH:mm.`);
+    return;
+  }
+  const window = raw as Record<string, unknown>;
+  const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (typeof window.start !== 'string' || !HHMM_PATTERN.test(window.start)) {
+    errors.push(`${fieldName}.start deve estar no formato HH:mm.`);
+  }
+  if (typeof window.end !== 'string' || !HHMM_PATTERN.test(window.end)) {
+    errors.push(`${fieldName}.end deve estar no formato HH:mm.`);
+  }
+}
+
+export function validateRechargeWindow(raw: unknown, errors: string[]): void {
+  validateTimeWindow(raw, 'rechargeWindow', errors);
+}
+
 /** Validates a raw (untrusted) payload against the CommercialIndustrialOptions
  * contract. Returns an empty array when valid. Mirrors
  * validateResidentialOptions's calling convention so the API route layer can
@@ -381,6 +401,8 @@ export function validateCommercialIndustrialOptions(raw: unknown): string[] {
   }
 
   validateGenerator(options.generator, errors);
+  validateTimeWindow(options.rechargeWindow, 'rechargeWindow', errors);
+  validateTimeWindow(options.dischargeWindow, 'dischargeWindow', errors);
 
   if (options.rankingCriterion!==undefined&&!VALID_RANKING_CRITERIA.includes(options.rankingCriterion as (typeof VALID_RANKING_CRITERIA)[number])) {
     errors.push('rankingCriterion must be one of: ' + VALID_RANKING_CRITERIA.join(', '));

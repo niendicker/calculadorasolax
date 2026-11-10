@@ -276,9 +276,8 @@ describe('LoadCurveChart', () => {
       setScale(instance.chart as never, 'y');
       setScale(instance.chart as never, 'x');
     });
-    expect(screen.getByRole('button', { name: 'Redefinir zoom' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Redefinir zoom' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Opções do gráfico' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver semana inteira' }));
     expect(instance.setScaleCalls.at(-1)).toEqual({ min: 0, max: 2 });
 
     act(() => {
@@ -392,7 +391,7 @@ describe('shift+drag range selection', () => {
     const over=instances.at(-1)!.over;mockOverRect(over);
     fireEvent.mouseDown(over,{button:0,shiftKey:true,clientX:100});
     fireEvent.mouseMove(document,{clientX:150});fireEvent.mouseUp(document,{clientX:150});
-    fireEvent.click(screen.getByRole('button',{name:'Usar período A para backup'}));
+    fireEvent.click(screen.getByRole('button',{name:/Usar (Carga|período A) para backup/i}));
     expect(onApply).toHaveBeenCalledWith({method:'profile',startTimestamp:points[10].timestamp,endTimestampExclusive:points[16].timestamp});
   });
   // powerKw = index + 1, so a slice's min/max/energy are easy to predict.
@@ -426,6 +425,30 @@ describe('shift+drag range selection', () => {
     expect(screen.getByText('26,00 kVA')).toBeInTheDocument(); // peak, index 25 -> 26
     expect(screen.getByText('11,00 kVA')).toBeInTheDocument(); // min, index 10 -> 11
     expect(screen.getByText('296,00 kWh')).toBeInTheDocument(); // sum(11..26) * 1h
+  });
+
+  it('selects by touch in selection mode and discards a canceled or unmounted gesture', () => {
+    const { unmount } = render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    const over = instances.at(-1)!.over;
+    mockOverRect(over);
+    fireEvent.click(screen.getByRole('button', { name: 'Opções do gráfico' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar intervalo' }));
+    fireEvent.pointerDown(over, { pointerType: 'touch', pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 250 });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 250 });
+    expect(screen.getByText('296,00 kWh')).toBeInTheDocument();
+    fireEvent.pointerDown(over, { pointerType: 'touch', pointerId: 2, button: 0, clientX: 50 });
+    fireEvent.pointerMove(document, { pointerId: 2, clientX: 100 });
+    fireEvent.pointerCancel(document, { pointerId: 2 });
+    fireEvent.pointerUp(document, { pointerId: 2, clientX: 100 });
+    expect(screen.queryByRole('button', { name: /(Período B|Descarga)/i })).not.toBeInTheDocument();
+    expect(screen.getByText('296,00 kWh')).toBeInTheDocument();
+    fireEvent.pointerDown(over, { pointerType: 'touch', pointerId: 3, button: 0, clientX: 50 });
+    unmount();
+    const calls = instances.at(-1)!.setSelectCalls.length;
+    fireEvent.pointerMove(document, { pointerId: 3, clientX: 100 });
+    fireEvent.pointerUp(document, { pointerId: 3, clientX: 100 });
+    expect(instances.at(-1)!.setSelectCalls).toHaveLength(calls);
   });
 
   it('a plain click (sub-threshold drag) with shift held clears an existing selection', () => {
@@ -493,7 +516,7 @@ describe('shift+drag range selection', () => {
     const over=instances.at(-1)!.over;mockOverRect(over);
     dragSelect(over,100,250);dragSelect(over,10,50);
     expect(screen.getByText('6,00 kVA')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    fireEvent.click(screen.getByRole('button',{name:/^(Período A|Carga)$/}));
     expect(screen.getByText('26,00 kVA')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Diferença'}));
     expect(screen.getByText('-20,00 kVA')).toBeInTheDocument();
@@ -507,8 +530,8 @@ describe('shift+drag range selection', () => {
     fireEvent.click(screen.getByRole('button',{name:'Diferença'}));
     Object.defineProperty(instance.target!, 'clientWidth', {configurable:true,value:585});
     act(()=>resizeCallback?.());
-    expect(screen.getByRole('button',{name:'Período A'})).toBeInTheDocument();
-    expect(screen.getByRole('button',{name:'Período B'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:/^(Período A|Carga)$/})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:/^(Período B|Descarga)$/})).toBeInTheDocument();
     expect(screen.getByText('-20,00 kVA')).toBeInTheDocument();
   });
 
@@ -523,7 +546,7 @@ describe('shift+drag range selection', () => {
 
     expect(screen.getByText('3,00 kVA')).toBeInTheDocument(); // B's new peak
     expect(screen.queryByText('6,00 kVA')).not.toBeInTheDocument(); // B's old peak is gone
-    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    fireEvent.click(screen.getByRole('button',{name:/^(Período A|Carga)$/}));
     expect(screen.getByText('26,00 kVA')).toBeInTheDocument();
   });
 
@@ -531,9 +554,9 @@ describe('shift+drag range selection', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     const over=instances.at(-1)!.over;mockOverRect(over);
     dragSelect(over,100,250);dragSelect(over,10,50);
-    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
-    fireEvent.click(screen.getByRole('button',{name:'Limpar período A'}));
-    expect(screen.queryByRole('button',{name:'Período A'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/^(Período A|Carga)$/}));
+    fireEvent.click(screen.getByRole('button',{name:/^(Limpar período A|Limpar Carga)$/}));
+    expect(screen.queryByRole('button',{name:/^(Período A|Carga)$/})).not.toBeInTheDocument();
     expect(screen.getByText('6,00 kVA')).toBeInTheDocument();
   });
 
@@ -655,7 +678,7 @@ describe('pan/zoom stability across data updates', () => {
 
     const yRange = options.scales.y.range(instance.chart, 0, 12);
     expect(yRange[0]).toBe(0);
-    expect(yRange[1]).toBeCloseTo(15 * 1.08);
+    expect(yRange[1]).toBeCloseTo(15 * 1.15);
 
     // Call draw hook to verify it renders the reference line without crashing
     options.hooks.draw[0](instance.chart);
@@ -714,11 +737,11 @@ describe('interval selection metrics & point badges', () => {
   it('keeps selection discoverable and places navigation details in contextual help', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
     expect(
-      screen.getByText('Shift + arraste para selecionar')
+      screen.getByRole('button', { name: 'Opções do gráfico' })
     ).toBeInTheDocument();
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Como navegar na curva' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Ctrl + scroll');
+    fireEvent.click(screen.getByRole('button', { name: 'Atalhos do gráfico' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Ctrl + rolagem');
   });
 });
 
@@ -754,7 +777,7 @@ describe('FV statistics for selected periods', () => {
     expect(popup.getByText('-138,00 kWh')).toBeInTheDocument();
     rerender(<LoadCurveChart points={points} resolutionMinutes={15} generationPoints={points.map(point=>({...point,powerKw:point.powerKw*3}))}/>);
     expect(popup.getByText('-207,00 kWh')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Período A'}));
+    fireEvent.click(popup.getByRole('button',{name:/^(Período A|Carga)$/}));
     expect(popup.getByText('222,00 kWh')).toBeInTheDocument();
   });
 

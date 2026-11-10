@@ -3,9 +3,10 @@
 import { useCiAcPower } from './ci-ac-power';
 import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { InfoTooltip } from '@/components/ui/tooltip';
+import { InfoTooltip, TooltipList } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { IconSelect } from '@/components/ui/icon-select';
+import { ChartNoAxesCombined, Gauge, TrendingUp, Pencil } from 'lucide-react';
 import { resolveBackupCurve } from '@/supabase/functions/_shared/commercial-industrial/backup-curve';
 import type { CiBackupCurveSelection, LoadCurve } from '@/supabase/functions/_shared/commercial-industrial/types';
 
@@ -37,7 +38,18 @@ export function CiBackupSelectionAction({curve,startIndex,endIndex,label,onApply
   catch(cause) { error=cause instanceof Error?cause.message:'Seleção inválida.'; }
   return <section className="space-y-3 rounded-lg border bg-muted/10 p-3" aria-label={`Backup do ${label}`}>
     <div className="flex flex-wrap items-end gap-3">
-      <div className="min-w-44 flex-1 space-y-1 text-xs"><span className="flex items-center gap-1"><label htmlFor={methodId}>Como usar o {label}</label><InfoTooltip label={`Sobre o método de backup do ${label}`}>Perfil selecionado preserva as variações do consumo; média e máxima usam uma potência constante. Na média, o pico observado continua sendo exigido. Potência manual declara apenas a carga protegida; ajuste a potência total na partida em Configurar backup. Os valores da prévia são anteriores à margem e às perdas.</InfoTooltip></span><Select id={methodId} aria-label={`Método de backup do ${label}`} value={method} onChange={event=>{setMethod(event.target.value as CiBackupCurveSelection['method']);setApplied(false);}}>{Object.entries(backupSelectionMethods).map(([value,text])=><option key={value} value={value}>{text}</option>)}</Select></div>
+      <div className="min-w-44 flex-1 space-y-1 text-xs"><span className="flex items-center gap-1"><label htmlFor={methodId}>Como usar o {label}</label><InfoTooltip label={`Sobre o método de backup do ${label}`}><TooltipList items={[
+        <><strong>Perfil:</strong> mantém as variações do consumo selecionado.</>,
+        <><strong>Média:</strong> usa potência constante e mantém a exigência do pico observado.</>,
+        <><strong>Máxima:</strong> usa o pico como potência constante.</>,
+        <><strong>Manual:</strong> informe a carga protegida. Ajuste a potência total de partida em Backup.</>,
+        <><strong>Prévia:</strong> valores antes da margem de segurança e das perdas.</>,
+      ]}/></InfoTooltip></span><IconSelect id={methodId} label={`Método de backup do ${label}`} className="w-full" value={method} onValueChange={value=>{setMethod(value as CiBackupCurveSelection['method']);setApplied(false);}} options={[
+        {value:'profile',label:backupSelectionMethods.profile,icon:<ChartNoAxesCombined/>},
+        {value:'average',label:backupSelectionMethods.average,icon:<Gauge/>},
+        {value:'maximum',label:backupSelectionMethods.maximum,icon:<TrendingUp/>},
+        {value:'manual',label:backupSelectionMethods.manual,icon:<Pencil/>},
+      ]}/></div>
       {method==='manual'&&<label className="space-y-1 text-xs">Potência protegida (kVA)<Input aria-label={`Potência manual do ${label}`} type="number" min={0} step="any" value={power} onChange={event=>{setPower(event.target.value);setApplied(false);}}/></label>}
       <Button type="button" size="sm" disabled={!preview} onClick={()=>{onApply(selection);setApplied(true);}}>Usar {label} para backup</Button>
     </div>

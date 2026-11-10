@@ -1,31 +1,27 @@
 'use client';
 
-// Visual companion to the "Resumo da curva atual" metrics below it — until
-// now the panel only showed aggregate numbers (peak/min/average/energy),
-// with no way to actually see the curve's shape. Uses uPlot (canvas-based,
-// ~50kb min, no React wrapper dependency) instead of a hand-rolled SVG: the
-// live, following crosshair + legend and the built-in resize handling are
-// what "dinâmico" actually needs, and this is still the only chart
-// dependency in the whole app — see docs/CI-MODULE-PLAN.md section 8.3's
-// own "SVG first, add a library only if it doesn't hold up" framing; a
-// representative week already has up to 672 points; a hand-rolled tooltip
-// with the same responsiveness would cost more than this one dependency.
-//
-// Loaded via next/dynamic with ssr:false (see CiLoadCurvePanel.tsx) so
-// uPlot's canvas/DOM code never runs during SSR and its ~50kb only ships
-// once a curve is actually imported.
+// One canvas chart for period navigation and interval analysis. Accessible HTML
+// overlays add grouped point editing and reference controls without a second chart.
 
 import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, MoreHorizontal, ScanLine, Pencil, Link2, Ruler, CalendarDays, Sun, Undo2, Redo2, Sparkles, Eraser, Zap, BatteryCharging } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
-import { InfoTooltip } from '@/components/ui/tooltip';
+import { InfoTooltip, TooltipList } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
-import type { CiBackupCurveSelection, LoadCurve, LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
+import type { CiBackupCurveSelection, CiTimeWindow, LoadCurve, LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
 import { CurveSelectionPopup } from './CurveSelectionPopup';
+import { CurveAnalysisOverlay, CurveReferenceReadout, type CurvePlotGeometry } from './CurveAnalysisOverlay';
+import { curveScaleMaximum } from './curve-analysis';
 import { CiBackupSelectionAction } from './CiBackupSelectionAction';
+import { CurveTimeline, curveDayLabel } from './CurveTimeline';
+import { CurvePointEditor } from './CurvePointEditor';
+import { ciCurveDays, type CiCurveDay } from './ci-curve-days';
+import type { CurvePointEdit } from './weekly-curve-editing';
+import { ChartPopupMenu, type ChartPopupAction } from './ChartPopupMenu';
+import { applyMovingAverageSmoothing } from './daily-curve-metrics';
 
 const CHART_HEIGHT = 320;
 const MIN_SELECTION_DRAG_PX = 4;
@@ -45,6 +41,8 @@ export interface SelectionSlots {
 }
 
 const EMPTY_SELECTIONS: SelectionSlots = { a: null, b: null };
+const DEFAULT_RECHARGE_WINDOW: CiTimeWindow = { start: '08:00', end: '16:00' };
+const DEFAULT_DISCHARGE_WINDOW: CiTimeWindow = { start: '18:00', end: '21:00' };
 
 function clampIndex(index: number, length: number): number {
   return Math.min(Math.max(index, 0), Math.max(length - 1, 0));
@@ -194,9 +192,12 @@ function attachPanAndZoom(
   onSelectionChange: (selection: CurveRangeSelection | null) => void,
   onResetSelections: () => void,
   onHoverPoint?: (badge: PointBadgeInfo | null) => void,
-  onRedraw?: () => void
+  onRedraw?: () => void,
+  selectionModeRef: { current: boolean } = { current: false }
 ): () => void {
   const over = chart.over;
+  // The edit layer is a sibling of the uPlot root; listen on their shared surface.
+  const wheelTarget = chart.root.parentElement?.parentElement ?? over;
   const ZOOM_FACTOR = 0.75;
   over.style.cursor = 'grab';
 
@@ -227,6 +228,7 @@ function attachPanAndZoom(
     if (!event.ctrlKey || event.deltaY === 0) return;
     event.preventDefault();
     const rect = over.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
     const left = event.clientX - rect.left;
     const xVal = chart.posToVal(left, 'x');
     const { min: curMin, max: curMax } = pendingRange ?? chart.scales.x;
@@ -276,6 +278,8 @@ function attachPanAndZoom(
     onHoverPoint?.(null);
   }
 
+  let cancelGesture: (() => void) | null = null;
+
   function startRangeSelection(event: MouseEvent) {
     event.preventDefault();
     onHoverPoint?.(null);
@@ -291,6 +295,10 @@ function attachPanAndZoom(
     function onUp(upEvent: MouseEvent) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', cancel);
+      cancelGesture = null;
 
       const endPx = clampPx(upEvent.clientX - rect.left);
       if (Math.abs(endPx - startPx) < MIN_SELECTION_DRAG_PX) {
@@ -311,13 +319,27 @@ function attachPanAndZoom(
       onRedraw?.();
     }
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    function cancel() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', cancel);
+      clearVisualSelect();
+      over.style.cursor = 'grab';
+      cancelGesture = null;
+    }
+    cancelGesture?.();
+    cancelGesture = cancel;
+    const isTouch = event.type === 'pointerdown';
+    document.addEventListener(isTouch ? 'pointermove' : 'mousemove', onMove);
+    document.addEventListener(isTouch ? 'pointerup' : 'mouseup', onUp);
+    document.addEventListener('pointercancel', cancel);
   }
 
   function onMouseDown(event: MouseEvent) {
     if (event.button !== 0) return;
-    if (event.shiftKey) {
+    if (event.shiftKey || selectionModeRef.current) {
       startRangeSelection(event);
       return;
     }
@@ -342,10 +364,28 @@ function attachPanAndZoom(
       over.style.cursor = 'grab';
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', cancel);
+      cancelGesture = null;
       onRedraw?.();
     }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    function cancel() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', cancel);
+      clearVisualSelect();
+      over.style.cursor = 'grab';
+      cancelGesture = null;
+    }
+    cancelGesture?.();
+    cancelGesture = cancel;
+    const isTouch = event.type === 'pointerdown';
+    document.addEventListener(isTouch ? 'pointermove' : 'mousemove', onMove);
+    document.addEventListener(isTouch ? 'pointerup' : 'mouseup', onUp);
+    document.addEventListener('pointercancel', cancel);
   }
 
   function onDoubleClick() {
@@ -357,19 +397,83 @@ function attachPanAndZoom(
     onRedraw?.();
   }
 
+  function onTouchDown(event: PointerEvent) {
+    if (event.pointerType === 'mouse') return;
+    event.preventDefault();
+    onMouseDown(event);
+  }
+
+  over.style.touchAction = 'none';
+  over.addEventListener('pointerdown', onTouchDown);
+  const onSurfaceWheel = (event: WheelEvent) => {
+    if (event.target instanceof Node && !over.contains(event.target)) onWheel(event);
+  };
   over.addEventListener('wheel', onWheel, { passive: false });
+  if (wheelTarget !== over) wheelTarget.addEventListener('wheel', onSurfaceWheel, { passive: false });
   over.addEventListener('mousedown', onMouseDown);
   over.addEventListener('dblclick', onDoubleClick);
   over.addEventListener('mousemove', onMouseMove);
   over.addEventListener('mouseleave', onMouseLeave);
 
   return () => {
+    cancelGesture?.();
+    over.removeEventListener('pointerdown', onTouchDown);
     over.removeEventListener('wheel', onWheel);
+    if (wheelTarget !== over) wheelTarget.removeEventListener('wheel', onSurfaceWheel);
     over.removeEventListener('mousedown', onMouseDown);
     over.removeEventListener('dblclick', onDoubleClick);
     over.removeEventListener('mousemove', onMouseMove);
     over.removeEventListener('mouseleave', onMouseLeave);
     if (pendingFrame != null) cancelAnimationFrame(pendingFrame);
+  };
+}
+
+function parseHHMM(value: string): number {
+  const [h, m] = value.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function formatMinutesToHHMM(totalMinutes: number): string {
+  const clamped = Math.min(1439, Math.max(0, totalMinutes));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export function timeWindowToDayRange(
+  day: CiCurveDay | undefined,
+  window: CiTimeWindow | null | undefined
+): CurveRangeSelection | null {
+  if (!day || !window || !window.start || !window.end) return null;
+  const startMin = parseHHMM(window.start);
+  const endMin = parseHHMM(window.end);
+  const isWrapping = startMin > endMin;
+
+  const indices = day.indices.filter((_, i) => {
+    const m = day.minutes[i];
+    if (isWrapping) {
+      return m >= startMin || m < endMin;
+    }
+    return m >= startMin && m < endMin;
+  });
+
+  if (!indices.length) return null;
+  return { startIndex: indices[0], endIndex: indices[indices.length - 1] };
+}
+
+export function dayRangeToTimeWindow(
+  day: CiCurveDay | undefined,
+  range: CurveRangeSelection,
+  resolutionMinutes: number
+): CiTimeWindow {
+  if (!day) return { start: '00:00', end: '00:00' };
+  const startSlot = day.indices.indexOf(range.startIndex);
+  const endSlot = day.indices.indexOf(range.endIndex);
+  const startMin = startSlot !== -1 ? day.minutes[startSlot] : 0;
+  const endMin = endSlot !== -1 ? (day.minutes[endSlot] + resolutionMinutes) : 1440;
+  return {
+    start: formatMinutesToHHMM(startMin),
+    end: formatMinutesToHHMM(endMin >= 1440 ? 0 : endMin),
   };
 }
 
@@ -387,7 +491,10 @@ function buildOptions(
   seriesLabel = 'Potência',
   includeGeneration = false,
   timezoneRef:{current:string|undefined}={current:undefined},
-  factor = 1
+  factor = 1,
+  referenceKwRef: { current: number | undefined } = { current: undefined },
+  frozenYMaxRef: { current: number | null } = { current: null },
+  allBandsRef?: { current: { cargas: CurveRangeSelection[]; descargas: CurveRangeSelection[] } }
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const secondary = readCssVar('--chart-2', '#ff9d00');
@@ -398,7 +505,7 @@ function buildOptions(
   return {
     width,
     height: CHART_HEIGHT,
-    padding: [16, 12, 0, 4],
+    padding: [16, 44, 0, 4],
     cursor: {
       points: { size: 7, width: 2, stroke: primary, fill: card },
       drag: { x: false, y: false, setScale: false },
@@ -414,9 +521,10 @@ function buildOptions(
       },
       y: {
         range: (_self, dataMin, dataMax) => {
+          if (frozenYMaxRef.current !== null) return [Math.min(0, dataMin), frozenYMaxRef.current];
           const contracted = contractedDemandKwRef.current;
           const targetMax = contracted && contracted > 0 ? Math.max(dataMax, contracted) : dataMax;
-          const maxWithPadding = targetMax > 0 ? targetMax * 1.08 : 10;
+          const maxWithPadding = curveScaleMaximum(targetMax, referenceKwRef.current);
           return [Math.min(0, dataMin), maxWithPadding];
         },
       },
@@ -428,9 +536,11 @@ function buildOptions(
         ticks: { stroke: border, width: 1 },
         gap: 8,
         font: '12px ui-sans-serif, system-ui, sans-serif',
-        splits: (_self, _axisIdx, scaleMin, scaleMax) => {
+        splits: (self, _axisIdx, scaleMin, scaleMax) => {
           const boundaries = dayBoundaryIndices(pointsRef.current,timezoneRef.current).filter((index) => index >= scaleMin && index <= scaleMax);
-          return boundaries.length >= 2 ? boundaries : evenlySpacedIndices(scaleMin, scaleMax);
+          const tickCount = Math.max(2, Math.floor((self.width ?? width) / 100));
+          const stride = Math.max(1, Math.ceil(boundaries.length / tickCount));
+          return boundaries.length >= 2 ? boundaries.filter((_, index) => index % stride === 0) : evenlySpacedIndices(scaleMin, scaleMax, Math.min(6, tickCount));
         },
         values: (_self, ticks) => ticks.map((tick) => formatPointLabel(pointsRef.current[Math.round(tick)],timezoneRef.current)),
       },
@@ -461,7 +571,7 @@ function buildOptions(
         points: { show: false },
         value: (_self, rawValue) => (rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(2)} kVA`),
       },
-      ...(includeGeneration ? [{ label: 'Geração FV', stroke: secondary, width: 2, points: { show: false }, value: (_self: uPlot, rawValue: number | null) => rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(2)} kVA` }] : []),
+      ...(includeGeneration ? [{ label: 'Fotovoltaico', stroke: secondary, width: 2, points: { show: false }, value: (_self: uPlot, rawValue: number | null) => rawValue == null ? '—' : `${(Number(rawValue) / factor).toFixed(2)} kVA` }] : []),
     ],
     hooks: {
       drawClear: [
@@ -521,6 +631,7 @@ function buildOptions(
       // already triggers a real uPlot redraw on its own.
       draw: [
         (self) => {
+          onRedraw?.();
           const top = Number.isFinite(self.bbox.top) ? self.bbox.top : 0;
           const height = Number.isFinite(self.bbox.height) ? self.bbox.height : CHART_HEIGHT;
 
@@ -533,6 +644,15 @@ function buildOptions(
             self.ctx.fillStyle = color;
             self.ctx.fillRect(Math.min(left, right), top, Math.abs(right - left), height);
             self.ctx.restore();
+          }
+
+          if (allBandsRef?.current) {
+            for (const r of allBandsRef.current.cargas) {
+              drawBand(r, 'rgba(16, 185, 129, 0.16)');
+            }
+            for (const r of allBandsRef.current.descargas) {
+              drawBand(r, 'rgba(245, 158, 11, 0.16)');
+            }
           }
 
           drawBand(selectionsRef.current.a, `${primary}26`);
@@ -589,6 +709,15 @@ export function LoadCurveChart({
   selectionSlots,
   onSelectionSlotsChange,
   timezone,
+  referenceKw,
+  onReferenceChange,
+  curveDays,
+  onEditPoints,
+  editHistory,
+  rechargeWindow,
+  onRechargeWindowChange,
+  dischargeWindow,
+  onDischargeWindowChange,
 }: {
   points: LoadCurvePoint[];
   resolutionMinutes: LoadCurveResolutionMinutes;
@@ -600,6 +729,15 @@ export function LoadCurveChart({
   selectionSlots?:SelectionSlots;
   onSelectionSlotsChange?:Dispatch<SetStateAction<SelectionSlots>>;
   timezone?:string;
+  referenceKw?: number;
+  onReferenceChange?: (kw: number | undefined) => void;
+  curveDays?: CiCurveDay[];
+  onEditPoints?: (edits: CurvePointEdit[], groupedDates: string[], series: 'load' | 'generation') => void;
+  editHistory?: {canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void};
+  rechargeWindow?: CiTimeWindow | null;
+  onRechargeWindowChange?: (window: CiTimeWindow | null) => void;
+  dischargeWindow?: CiTimeWindow | null;
+  onDischargeWindowChange?: (window: CiTimeWindow | null) => void;
 }) {
   const { factor, toKva } = useCiAcPower();
 
@@ -610,17 +748,106 @@ export function LoadCurveChart({
   const includeGeneration = generationPoints !== undefined;
   const hasPoints = points.length > 0;
   const contractedDemandKwRef = useRef(contractedDemandKw);
+  const referenceKwRef = useRef(referenceKw);
+  const frozenYMaxRef = useRef<number | null>(null);
+  const [geometry, setGeometry] = useState<CurvePlotGeometry>({ left: 0, top: 0, width: 0, height: 0, xMin: 0, xMax: 1, yMin: 0, yMax: 1 });
   const timezoneRef=useRef(timezone);
   // Set right after (re)creating the chart below, consumed by the very next
   // run of the points-sync effect — see that effect for why this is needed.
   const skipNextPointsEffectRef = useRef(false);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const [, setIsZoomed] = useState(false);
+  const [gestureTool, setGestureTool] = useState<'select' | 'draw' | null>(null);
+  const [modifiers, setModifiers] = useState({ select: false, draw: false });
+  const [menu, setMenu] = useState<{x: number; y: number; level: 'main' | 'days' | 'curve'} | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const longPressRef = useRef<{timer: ReturnType<typeof setTimeout>; x: number; y: number} | null>(null);
+  const closeMenu = () => setMenu(null);
+  const cancelLongPress = () => { if (longPressRef.current) clearTimeout(longPressRef.current.timer); longPressRef.current = null; };
+  const openMenu = (x: number, y: number, level: 'main' | 'days' | 'curve' = 'main') => {
+    cancelLongPress();
+    chartRef.current?.over.dispatchEvent(new Event('pointercancel', {bubbles:true}));
+    setMenu({x,y,level});
+  };
+  const openFromButton = (event: React.MouseEvent<HTMLButtonElement>, level: 'main' | 'days' = 'main') => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    openMenu(rect.left + rect.width / 2, rect.bottom + 6, level);
+  };
+  useEffect(() => {
+    const update = (event: KeyboardEvent) => {
+      setModifiers({select:event.shiftKey&&!event.ctrlKey,draw:event.ctrlKey&&event.shiftKey});
+      if (event.key==='Escape') setGestureTool(null);
+    };
+    const reset = () => setModifiers({select:false,draw:false});
+    window.addEventListener('keydown', update); window.addEventListener('keyup', update); window.addEventListener('blur', reset);
+    return () => { window.removeEventListener('keydown', update); window.removeEventListener('keyup', update); window.removeEventListener('blur', reset); if(longPressRef.current) clearTimeout(longPressRef.current.timer); };
+  }, []);
+  const [editSeries, setEditSeries] = useState<'load' | 'generation'>('load');
+  const [groupedDates, setGroupedDates] = useState<string[]>([]);
+  const [visibleRange, setVisibleRange] = useState<CurveRangeSelection>({ startIndex: 0, endIndex: Math.max(1, points.length - 1) });
+  const changeVisibleRange = (range: CurveRangeSelection) => {
+    setVisibleRange(range);
+    chartRef.current?.setScale('x', { min: range.startIndex, max: range.endIndex });
+    setRedrawSeq(sequence => sequence + 1);
+  };
+  const selectionModeRef = useRef(false);
+  useEffect(() => { selectionModeRef.current = gestureTool === 'select'; }, [gestureTool]);
   const [ownSelections,setOwnSelections]=useState<SelectionSlots>(EMPTY_SELECTIONS);
   const selections=selectionSlots??ownSelections;
   const setSelections=onSelectionSlotsChange??setOwnSelections;
   const [redrawSeq, setRedrawSeq] = useState(0);
   const [hoverBadge, setHoverBadge] = useState<PointBadgeInfo | null>(null);
   const [chartWidth, setChartWidth] = useState(600);
+
+  const effectiveDays = useMemo(() => {
+    if (curveDays && curveDays.length > 0) return curveDays;
+    if (!points.length) return [];
+    try {
+      return ciCurveDays({ points, resolutionMinutes, timezone: timezone ?? 'America/Sao_Paulo' } as LoadCurve);
+    } catch {
+      return [];
+    }
+  }, [curveDays, points, resolutionMinutes, timezone]);
+
+  const fullView = visibleRange.startIndex <= 0 && visibleRange.endIndex >= points.length - 1;
+
+  const visibleDay = useMemo(() => {
+    return effectiveDays.find(
+      (day) => !fullView && day.indices.at(-1)! >= visibleRange.startIndex && day.indices[0] <= visibleRange.endIndex
+    ) ?? effectiveDays[0];
+  }, [effectiveDays, fullView, visibleRange]);
+
+  const activeRechargeWindow = rechargeWindow !== undefined ? rechargeWindow : DEFAULT_RECHARGE_WINDOW;
+  const activeDischargeWindow = dischargeWindow !== undefined ? dischargeWindow : DEFAULT_DISCHARGE_WINDOW;
+
+  const cargaRange = useMemo(() => {
+    return timeWindowToDayRange(visibleDay, activeRechargeWindow);
+  }, [visibleDay, activeRechargeWindow]);
+
+  const descargaRange = useMemo(() => {
+    return timeWindowToDayRange(visibleDay, activeDischargeWindow);
+  }, [visibleDay, activeDischargeWindow]);
+
+  const allBands = useMemo(() => {
+    const cargas: CurveRangeSelection[] = [];
+    const descargas: CurveRangeSelection[] = [];
+    if (activeRechargeWindow) {
+      for (const day of effectiveDays) {
+        const r = timeWindowToDayRange(day, activeRechargeWindow);
+        if (r) cargas.push(r);
+      }
+    }
+    if (activeDischargeWindow) {
+      for (const day of effectiveDays) {
+        const r = timeWindowToDayRange(day, activeDischargeWindow);
+        if (r) descargas.push(r);
+      }
+    }
+    return { cargas, descargas };
+  }, [effectiveDays, activeRechargeWindow, activeDischargeWindow]);
+
+  const allBandsRef = useRef(allBands);
+
   // Mirrors `selections` for the canvas draw hook (see buildOptions), which
   // — like the other formatters there — is built once on mount and needs to
   // read current state at draw time, not whatever it closed over back then.
@@ -649,11 +876,26 @@ export function LoadCurveChart({
   // shift-click (no real drag — see MIN_SELECTION_DRAG_PX) reports `null`
   // here and drops whichever slot was filled most recently, undo-style.
   function handleSelectionChange(range: CurveRangeSelection | null) {
+    setGestureTool(null);
     setSelections((previous) => {
       if (range === null) {
-        if (previous.b) return { ...previous, b: null };
-        if (previous.a) return EMPTY_SELECTIONS;
+        if (previous.b) {
+          onDischargeWindowChange?.(null);
+          return { ...previous, b: null };
+        }
+        if (previous.a) {
+          onRechargeWindowChange?.(null);
+          return EMPTY_SELECTIONS;
+        }
         return previous;
+      }
+      if (visibleDay) {
+        const window = dayRangeToTimeWindow(visibleDay, range, resolutionMinutes);
+        if (previous.a === null) {
+          onRechargeWindowChange?.(window);
+        } else {
+          onDischargeWindowChange?.(window);
+        }
       }
       return previous.a === null ? { ...previous, a: range } : { ...previous, b: range };
     });
@@ -681,10 +923,13 @@ export function LoadCurveChart({
       contractedDemandKwRef,
       setIsZoomed,
       () => setRedrawSeq((s) => s + 1),
-      kind === 'generation' ? 'Geração FV' : includeGeneration ? 'Consumo' : 'Potência',
+      kind === 'generation' ? 'Fotovoltaico' : includeGeneration ? 'Consumo' : 'Potência',
       includeGeneration,
       timezoneRef,
-      factor
+      factor,
+      referenceKwRef,
+      frozenYMaxRef,
+      allBandsRef
     );
     const chart = new uPlot(options, buildData(pointsRef.current, generationRef.current), el);
     chartRef.current = chart;
@@ -695,7 +940,8 @@ export function LoadCurveChart({
       handleSelectionChange,
       handleResetSelections,
       setHoverBadge,
-      () => setRedrawSeq((s) => s + 1)
+      () => setRedrawSeq((s) => s + 1),
+      selectionModeRef
     );
 
     return () => {
@@ -712,6 +958,13 @@ export function LoadCurveChart({
     timezoneRef.current=timezone;
     if(chartRef.current?.scales.x?.min!=null)chartRef.current.redraw(false,true);
   },[timezone]);
+
+  useEffect(() => {
+    if (referenceKwRef.current === referenceKw) return;
+    referenceKwRef.current = referenceKw;
+    const chart = chartRef.current;
+    if (chart?.scales.x?.min != null) chart.redraw(true, true);
+  }, [referenceKw]);
 
   const isInitialContractMountRef = useRef(true);
   useEffect(() => {
@@ -740,6 +993,18 @@ export function LoadCurveChart({
     // re-ranging the x-scale like redraw(true, ...) would.
     chart.redraw(false, false);
   }, [selections]);
+
+  const isInitialAllBandsMountRef = useRef(true);
+  useEffect(() => {
+    allBandsRef.current = allBands;
+    if (isInitialAllBandsMountRef.current) {
+      isInitialAllBandsMountRef.current = false;
+      return;
+    }
+    const chart = chartRef.current;
+    if (!chart || chart.scales.x?.min == null) return;
+    chart.redraw(false, false);
+  }, [allBands]);
 
   useEffect(() => {
     // The mount effect above just (re)created the chart from this exact
@@ -813,10 +1078,48 @@ export function LoadCurveChart({
     return target.reduce((peak, point) => Math.max(peak, point.powerKw), 0);
   }, [points, activeSelection]);
 
+  const canEditGeneration = Boolean(generationPoints?.every(point => point.powerKw !== null));
+  const canEditVisible = visibleRange.endIndex - visibleRange.startIndex <= 1440 / resolutionMinutes && (editSeries === 'load' || canEditGeneration);
+  const editVisible = (operation: 'smooth' | 'clear') => {
+    if (!onEditPoints || !canEditVisible) return;
+    const start = Math.max(0, Math.ceil(visibleRange.startIndex));
+    const end = Math.min(points.length - 1, Math.floor(visibleRange.endIndex));
+    const values = points.slice(start, end + 1).map((point, offset) => editSeries === 'generation' ? generationPoints![start + offset].powerKw! : point.powerKw);
+    const updated = operation === 'clear' ? values.map(() => 0) : applyMovingAverageSmoothing(values, Number.POSITIVE_INFINITY);
+    onEditPoints(updated.map((powerKw, offset) => ({ index: start + offset, powerKw })), groupedDates, editSeries);
+  };
+
   // The hover badge follows the resized plot; selection details use the popup.
   useEffect(() => {
     setChartWidth(containerRef.current?.clientWidth || 600);
-  }, [redrawSeq]);
+    const chart = chartRef.current;
+    const container = containerRef.current;
+    if (!chart || !container) return;
+    const startIndex = chart.scales.x.min ?? 0;
+    const endIndex = chart.scales.x.max ?? Math.max(1, points.length - 1);
+    setVisibleRange(previous => previous.startIndex === startIndex && previous.endIndex === endIndex ? previous : { startIndex, endIndex });
+    if (chart.scales.y?.max == null) return;
+    const rect = chart.over.getBoundingClientRect();
+    const parent = container.getBoundingClientRect();
+    setGeometry({ left: rect.left - parent.left, top: rect.top - parent.top, width: rect.width, height: rect.height, xMin: chart.scales.x.min ?? 0, xMax: chart.scales.x.max ?? points.length - 1, yMin: chart.scales.y.min ?? 0, yMax: chart.scales.y.max });
+  }, [redrawSeq, points.length]);
+
+  const isCargaOrDescarga = kind === 'load';
+  const labels = useMemo(() => ({
+    a: isCargaOrDescarga ? 'Carga' : 'Período A',
+    b: isCargaOrDescarga ? 'Descarga' : 'Período B',
+  }), [isCargaOrDescarga]);
+
+  const overlayRanges = useMemo(() => {
+    const list: { range: CurveRangeSelection; label: string }[] = [];
+    if (selections.a || cargaRange) {
+      list.push({ range: selections.a ?? cargaRange!, label: labels.a });
+    }
+    if (selections.b || descargaRange) {
+      list.push({ range: selections.b ?? descargaRange!, label: labels.b });
+    }
+    return list;
+  }, [selections.a, selections.b, cargaRange, descargaRange, labels]);
 
   if (points.length === 0) return null;
 
@@ -826,31 +1129,140 @@ export function LoadCurveChart({
   const exceedancePercent = hasExceedance && contractedDemandKw ? (exceedanceKw / contractedDemandKw) * 100 : 0;
   const marginKw = hasContract && !hasExceedance && contractedDemandKw ? contractedDemandKw - peakKw : 0;
 
+  const handleRangeChange = (index: number, range: CurveRangeSelection) => {
+    const activeLabel = overlayRanges[index]?.label;
+    if (!activeLabel) return;
+    const isCarga = activeLabel === 'Carga' || activeLabel.includes('A');
+    const slot = isCarga ? 'a' : 'b';
+
+    if (visibleDay) {
+      const window = dayRangeToTimeWindow(visibleDay, range, resolutionMinutes);
+      if (isCarga) {
+        onRechargeWindowChange?.(window);
+      } else {
+        onDischargeWindowChange?.(window);
+      }
+    }
+
+    setSelections(prev => ({ ...prev, [slot]: range }));
+  };
+
+  const finish = (action: () => void) => () => { action(); closeMenu(); };
+  const startDrawing = () => {
+    if (!canEditVisible && curveDays?.length) {
+      const rect = chartRef.current?.over.getBoundingClientRect();
+      const index = rect && menu ? Math.round(chartRef.current!.posToVal(Math.max(0,Math.min(rect.width,menu.x-rect.left)),'x')) : Math.round(visibleRange.startIndex);
+      const day = curveDays.find(day=>day.indices.includes(index)) ?? curveDays[0];
+      changeVisibleRange({startIndex:day.indices[0],endIndex:Math.max(day.indices[0]+1,day.indices.at(-1)!)});
+    }
+    setGestureTool('draw');
+  };
+  const icon = (Icon: typeof Pencil) => <Icon className="size-4" aria-hidden="true"/>;
+  const popupActions: ChartPopupAction[] = menu?.level==='days' ? (curveDays??[]).map(day=>({
+    id:day.date,label:curveDayLabel(day.date),icon:<CalendarDays className="size-4" aria-hidden="true"/>,selected:groupedDates.includes(day.date),
+    onSelect:()=>setGroupedDates(previous=>previous.includes(day.date)?previous.filter(date=>date!==day.date):[...previous,day.date]),
+  })) : menu?.level==='curve' ? [
+    {id:'draw',label:'Desenhar curva',icon:icon(Pencil),disabled:!onEditPoints||(editSeries==='generation'&&!canEditGeneration),onSelect:()=>{startDrawing();closeMenu();}},
+    {id:'load',label:'Consumo',icon:icon(Zap),selected:editSeries==='load',onSelect:finish(()=>setEditSeries('load'))},
+    ...(includeGeneration?[{id:'solar',label:'Fotovoltaico',icon:icon(Sun),selected:editSeries==='generation',disabled:!canEditGeneration,onSelect:finish(()=>setEditSeries('generation'))}]:[]),
+    {id:'undo',label:'Desfazer',icon:icon(Undo2),disabled:!editHistory?.canUndo,onSelect:finish(()=>editHistory?.undo())},
+    {id:'redo',label:'Refazer',icon:icon(Redo2),disabled:!editHistory?.canRedo,onSelect:finish(()=>editHistory?.redo())},
+    {id:'smooth',label:'Harmonizar picos',icon:icon(Sparkles),disabled:!canEditVisible,onSelect:finish(()=>editVisible('smooth'))},
+    {id:'clear',label:'Zerar trecho visível',icon:icon(Eraser),disabled:!canEditVisible,onSelect:finish(()=>editVisible('clear'))},
+  ] : [
+    {id:'select',label:'Selecionar intervalo',icon:icon(ScanLine),onSelect:finish(()=>setGestureTool('select'))},
+    ...(onEditPoints?[
+      {id:'curve',label:'Editar curva',submenu:true,icon:icon(Pencil),onSelect:()=>setMenu(menu&&{...menu,level:'curve'})},
+      {id:'days',label:'Vincular dias',submenu:true,icon:icon(Link2),disabled:!curveDays?.length,onSelect:()=>setMenu(menu&&{...menu,level:'days'})},
+    ]:[]),
+    ...(onReferenceChange?[{id:'reference',label:referenceKw===undefined?'Mostrar referência':'Ocultar referência',icon:icon(Ruler),selected:referenceKw!==undefined,onSelect:finish(()=>onReferenceChange(referenceKw===undefined?(contractedDemandKw??Math.max(1,...points.map(point=>point.powerKw))*.8):undefined))}]:[]),
+    {id:'reset',label:'Ver semana inteira',icon:icon(CalendarDays),onSelect:()=>{changeVisibleRange({startIndex:0,endIndex:Math.max(1,points.length-1)});closeMenu();}},
+  ];
+
   return (
     <div className="space-y-3">
-      {/* Gráfico semanal (320px, como o editor diário) com uPlot e fundo de fins de semana */}
-      <div className="relative" data-testid="period-chart-surface">
-        <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
-        {!isSelectionActive && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
-        <CurveSelectionPopup points={points} generationPoints={generationPoints} resolutionMinutes={resolutionMinutes} timezone={timezone} selections={selections} onSelectionsChange={setSelections} kind={kind} />
+      {curveDays && <div role="group" aria-label="Dias visíveis" className="flex flex-wrap items-center gap-1">
+        <Button type="button" variant={fullView?'secondary':'ghost'} size="sm" className="h-8 text-xs" aria-pressed={fullView} onClick={()=>changeVisibleRange({startIndex:0,endIndex:Math.max(1,points.length-1)})}>Todos os dias</Button>
+        {curveDays.map(day => {
+          const visible = !fullView && day.indices.at(-1)! >= visibleRange.startIndex && day.indices[0] <= visibleRange.endIndex;
+          return <Button key={day.date} type="button" variant={visible?'secondary':'ghost'} size="sm" className="h-8 text-xs" aria-pressed={visible} onClick={()=>changeVisibleRange({startIndex:day.indices[0],endIndex:Math.max(day.indices[0]+1,day.indices.at(-1)!)})}>{curveDayLabel(day.date)}</Button>;
+        })}
+      </div>}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2">
+          {groupedDates.length>1 && <Button type="button" size="xs" variant="secondary" onClick={event=>openFromButton(event,'days')}>Editando juntos: {curveDays?.filter(day=>groupedDates.includes(day.date)).map(day=>curveDayLabel(day.date).split(',')[0]).join(', ')}</Button>}
+          {editSeries==='generation' && <span>Curva ativa: Fotovoltaico</span>}
+          {gestureTool && <Button type="button" size="xs" variant="secondary" onClick={()=>setGestureTool(null)}>{gestureTool==='select'?'Arraste para selecionar':'Arraste para desenhar'} · Cancelar</Button>}
+          {referenceKw!==undefined && onReferenceChange && <label className="flex items-center gap-1">Referência <input type="number" aria-label="Valor da referência em kVA" className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs text-foreground" min={0} step={1} value={Number(toKva(referenceKw).toFixed(2))} onChange={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>=0)onReferenceChange(value*factor);}}/> kVA</label>}
+        </div>
+        <InfoTooltip label="Atalhos do gráfico"><TooltipList items={[
+          <><strong>Navegar:</strong> arraste o fundo do gráfico.</>,
+          <><strong>Zoom:</strong> Ctrl + rolagem.</>,
+          <><strong>Editar:</strong> amplie para até um dia e arraste os pontos.</>,
+          <><strong>Desenhar:</strong> Ctrl + Shift + arraste.</>,
+          <><strong>Selecionar:</strong> Shift + arraste.</>,
+          <><strong>Opções:</strong> clique direito, toque prolongado ou botão ⋯.</>,
+          <><strong>No celular:</strong> ative Desenhar ou Selecionar no menu.</>,
+        ]}/></InfoTooltip>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">Shift + arraste para selecionar<InfoTooltip label="Como navegar na curva">Shift + arraste seleciona um intervalo para comparar ou usar no backup. Arraste para navegar; Ctrl + scroll aplica zoom. Duplo clique redefine a visualização. Scroll sem Ctrl rola a página.</InfoTooltip></div>
-        {isZoomed && (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className="shrink-0"
-            onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(points.length - 1, 0) })}
-          >
-            <RefreshCw className="h-3 w-3" aria-hidden="true" />
-            Redefinir zoom
-          </Button>
-        )}
-      </div>
+      <header aria-label="Análise e ações da curva" className="space-y-2">
+      {kind === 'load' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card/60 px-3 py-1.5 text-xs backdrop-blur-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300">
+                <BatteryCharging className="h-3.5 w-3.5" aria-hidden="true" />
+                Carga permitida:
+              </span>
+              <input
+                type="time"
+                aria-label="Hora de início da carga permitida"
+                value={activeRechargeWindow?.start ?? '08:00'}
+                onChange={(e) => onRechargeWindowChange?.({ start: e.target.value, end: activeRechargeWindow?.end ?? '16:00' })}
+                className="h-6.5 rounded-md border border-input bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <span className="text-muted-foreground">às</span>
+              <input
+                type="time"
+                aria-label="Hora de fim da carga permitida"
+                value={activeRechargeWindow?.end ?? '16:00'}
+                onChange={(e) => onRechargeWindowChange?.({ start: activeRechargeWindow?.start ?? '08:00', end: e.target.value })}
+                className="h-6.5 rounded-md border border-input bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
 
-      {kind==='load'&&backupCurve&&onApplyBackupSelection&&<div className="space-y-3">{([{range:selections.a,label:'período A'},{range:selections.b,label:'período B'}]).map(({range,label})=>range&&<CiBackupSelectionAction key={`${label}:${points[range.startIndex]?.timestamp}:${points[range.endIndex]?.timestamp}`} curve={backupCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={onApplyBackupSelection}/>)}</div>}
+            <div className="h-3.5 w-px bg-border/60 hidden sm:block" />
+
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300">
+                <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                Descarga (Ponta):
+              </span>
+              <input
+                type="time"
+                aria-label="Hora de início da descarga"
+                value={activeDischargeWindow?.start ?? '18:00'}
+                onChange={(e) => onDischargeWindowChange?.({ start: e.target.value, end: activeDischargeWindow?.end ?? '21:00' })}
+                className="h-6.5 rounded-md border border-input bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <span className="text-muted-foreground">às</span>
+              <input
+                type="time"
+                aria-label="Hora de fim da descarga"
+                value={activeDischargeWindow?.end ?? '21:00'}
+                onChange={(e) => onDischargeWindowChange?.({ start: activeDischargeWindow?.start ?? '18:00', end: e.target.value })}
+                className="h-6.5 rounded-md border border-input bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          <span className="text-[11px] text-muted-foreground hidden lg:inline">
+            Arraste as alças verticais no gráfico para ajustar as faixas diárias
+          </span>
+        </div>
+      )}
+      <CurveReferenceReadout values={(activeSelection ? points.slice(activeSelection.startIndex, activeSelection.endIndex + 1) : points).map(point => point.powerKw)} referenceKw={referenceKw} resolutionMinutes={resolutionMinutes} selected={isSelectionActive} />
+      {kind==='load'&&backupCurve&&onApplyBackupSelection&&<div className="space-y-3">{([{range:selections.a ?? cargaRange,label:labels.a},{range:selections.b ?? descargaRange,label:labels.b}]).map(({range,label})=>range&&<CiBackupSelectionAction key={`${label}:${points[range.startIndex]?.timestamp}:${points[range.endIndex]?.timestamp}`} curve={backupCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={onApplyBackupSelection}/>)}</div>}
 
       {/* Base do painel: Status da demanda contratada */}
       {kind === 'generation' ? null : hasContract ? (
@@ -891,6 +1303,33 @@ export function LoadCurveChart({
           <span>Demanda contratada: não definida (configure na etapa Tarifa para acompanhar limites).</span>
         </div>
       )}
+      </header>
+
+      {/* Gráfico semanal (320px, como o editor diário) com uPlot e fundo de fins de semana */}
+      <div ref={surfaceRef} className="relative" data-testid="period-chart-surface"
+        onContextMenu={event=>{if(event.target instanceof Element && event.target.closest('section[aria-label="Resumo do intervalo selecionado"], input, [data-popup-trigger]'))return;event.preventDefault();openMenu(event.clientX,event.clientY);}}
+        onPointerDownCapture={event=>{
+          if(event.pointerType!=='touch'&&event.pointerType!=='pen')return;
+          if(event.target instanceof Element && event.target.closest('section[aria-label="Resumo do intervalo selecionado"], input, [data-popup-trigger]'))return;
+          cancelLongPress();
+          const {clientX:x,clientY:y}=event;
+          longPressRef.current={x,y,timer:setTimeout(()=>openMenu(x,y),550)};
+        }}
+        onPointerMoveCapture={event=>{const press=longPressRef.current;if(press&&Math.hypot(event.clientX-press.x,event.clientY-press.y)>8)cancelLongPress();}}
+        onPointerUpCapture={cancelLongPress} onPointerCancelCapture={cancelLongPress}
+      >
+        <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
+        {!isSelectionActive && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
+        {!menu && onEditPoints && canEditVisible && <CurvePointEditor draw={gestureTool==='draw'||modifiers.draw} selecting={gestureTool==='select'||modifiers.select} onComplete={()=>setGestureTool(null)} geometry={geometry} points={editSeries==='generation' && generationPoints ? generationPoints.map(point=>({...point,powerKw:point.powerKw??0})) : points} timezone={timezone} label={editSeries==='generation'?'Fotovoltaico':'Consumo'} onEdit={edits=>onEditPoints(edits,groupedDates,editSeries)} />}
+        <CurveAnalysisOverlay geometry={geometry} ranges={overlayRanges} length={points.length} onRangeChange={handleRangeChange} referenceKw={referenceKw} onReferenceChange={onReferenceChange} onReferenceDragChange={dragging => {
+          frozenYMaxRef.current = dragging ? geometry.yMax : null;
+          if (!dragging) chartRef.current?.redraw(true, true);
+        }} formatIndex={index => formatBadgeText(points[index], timezone, factor)} />
+        <Button ref={menuTriggerRef} data-popup-trigger type="button" size="icon-sm" variant="outline" className="absolute right-2 top-2 z-40 rounded-full bg-card/90 shadow-sm backdrop-blur-md" aria-label="Opções do gráfico" aria-haspopup="dialog" aria-expanded={Boolean(menu)} onClick={event=>openFromButton(event)}><MoreHorizontal aria-hidden="true"/></Button>
+        <CurveSelectionPopup points={points} generationPoints={generationPoints} resolutionMinutes={resolutionMinutes} timezone={timezone} selections={selectionSlots ?? { a: selections.a ?? cargaRange, b: selections.b ?? descargaRange }} onSelectionsChange={setSelections} kind={kind} labels={labels} />
+      </div>
+      {menu && <ChartPopupMenu x={menu.x} y={menu.y} level={menu.level} title={menu.level==='days'?'Vincular dias':menu.level==='curve'?'Editar curva':'Opções do gráfico'} actions={popupActions} onBack={menu.level==='main'?undefined:()=>setMenu({...menu,level:'main'})} onClose={closeMenu} returnFocus={menuTriggerRef}/>}
+      {curveDays && points.length>1 && <CurveTimeline days={curveDays} length={points.length} range={visibleRange} onChange={changeVisibleRange} />}
     </div>
   );
 }
