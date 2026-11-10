@@ -98,8 +98,7 @@ describe('CiLoadCurvePanel', () => {
 
     expect(screen.getByRole('button', { name: 'Período e CSV' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText(/3 pontos · 60 min/)).toBeInTheDocument();
-    expect(await screen.findByText(/20\.00/)).toBeInTheDocument(); // pico
-    expect(screen.getByText(/10\.00/)).toBeInTheDocument(); // mínima
+    expect(screen.queryByText('Demanda máxima')).not.toBeInTheDocument();
   });
 
   it('shows errors for an invalid CSV and does not apply the curve', async () => {
@@ -346,7 +345,7 @@ describe('unified curve workspace', () => {
     const onChange = vi.fn();
     render(<CiLoadCurvePanel ciOptions={{ ...defaultCiOptions, loadCurve: manualCurve() }} onChange={onChange} />);
     markMorning();
-    expect(await screen.findByText(/Seleção:/)).toBeInTheDocument();
+    expect(await screen.findByRole('region',{name:'Resumo do intervalo selecionado'})).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /para backup/ })).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
   });

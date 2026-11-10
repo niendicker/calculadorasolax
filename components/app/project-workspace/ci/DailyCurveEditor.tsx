@@ -27,8 +27,6 @@ import { cn, readCssVar } from '@/lib/utils';
 import type {CurveRangeSelection} from './LoadCurveChart';
 import {
   applyMovingAverageSmoothing,
-  calculateDailyMetrics,
-  formatPtNumber,
 } from './daily-curve-metrics';
 
 const EMPTY_DAY = new Array(24).fill(0);
@@ -123,6 +121,7 @@ export interface DailyCurveEditorProps {
   onSelectRange?:(range:CurveRangeSelection|null)=>void;
   selectedRanges?:CurveRangeSelection[];
   selectionActions?: React.ReactNode;
+  selectionPopup?: React.ReactNode;
 }
 
 export function DailyCurveEditor({
@@ -139,6 +138,7 @@ export function DailyCurveEditor({
   onSelectRange,
   selectedRanges=[],
   selectionActions,
+  selectionPopup,
 }: DailyCurveEditorProps) {
   const { factor, toKva, fromKva } = useCiAcPower();
 
@@ -701,12 +701,6 @@ export function DailyCurveEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solarLinePath, pointCount, plotWidth, plotHeight]);
 
-  // Energetic KPIs calculation
-  const metrics = useMemo(
-    () => calculateDailyMetrics(consumptionKw, generationKw),
-    [consumptionKw, generationKw]
-  );
-
   // Peak tariff band indices: in Brazil typically 18:00 to 21:00
   const peakBandStart = Math.round((18 * pointCount) / 24);
   const peakBandEnd = Math.round((21 * pointCount) / 24);
@@ -956,6 +950,7 @@ export function DailyCurveEditor({
             </div>
             <span role="status" aria-label="Período visível no gráfico diário" className="sr-only">{formatTime(Math.ceil(viewRange.start))}–{formatTime(Math.floor(viewRange.end))} · {1440/pointCount} min ({visibleSpan+1} pontos)</span>
 
+            <div className="relative" data-testid="daily-chart-surface">
             <svg
               ref={svgRef}
               tabIndex={-1}
@@ -1395,6 +1390,8 @@ export function DailyCurveEditor({
                 )}
               </g>
             </svg>
+            {selectionPopup}
+            </div>
           </div>
 
           {/* Under Chart: Legend, Keyboard hints, and Smoothing action */}
@@ -1421,11 +1418,6 @@ export function DailyCurveEditor({
         </aside>}
       </div>
 
-      {!solarOnly&&<section aria-label="Resumo energético do dia" className={cn('grid grid-cols-2 gap-3 border-t pt-3',hasSolar&&'sm:grid-cols-4')}>
-        <div><p className="text-xs text-muted-foreground">Consumo diário</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatPtNumber(metrics.totalConsumptionKwh,1)} <span className="text-xs font-normal text-muted-foreground">kWh</span></p><p className="mt-0.5 text-xs text-muted-foreground">Média {formatPtNumber(toKva(metrics.avgConsumptionKw),1)} kVA</p></div>
-        <div><p className="text-xs text-muted-foreground">Demanda de pico</p><div className="mt-1 flex flex-wrap items-baseline gap-x-2"><span className="text-sm font-semibold tabular-nums">{formatPtNumber(toKva(metrics.peakConsumptionKw),1)} <span className="text-xs font-normal text-muted-foreground">kVA</span></span><button type="button" onClick={()=>selectPoint(metrics.peakConsumptionIndex)} className="rounded text-xs text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring">às {formatTime(metrics.peakConsumptionIndex)} →</button></div></div>
-        {hasSolar&&<><div><p className="text-xs text-muted-foreground">Geração FV</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatPtNumber(metrics.totalSolarKwh,1)} <span className="text-xs font-normal text-muted-foreground">kWh</span></p><p className="mt-0.5 text-xs text-muted-foreground">Pico {formatPtNumber(toKva(metrics.peakSolarKw),1)} kVA</p></div><div><p className="text-xs text-muted-foreground">Cobertura solar</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatPtNumber(metrics.solarCoveragePercent,1)}%</p><p className="mt-0.5 text-xs text-muted-foreground">Excedente {formatPtNumber(metrics.solarExportKwh,1)} kWh</p></div></>}
-      </section>}
       {/* 1. Editing status and global actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/50">
         <div className="flex flex-wrap items-center gap-2">

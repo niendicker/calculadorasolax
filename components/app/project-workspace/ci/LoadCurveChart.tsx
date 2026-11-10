@@ -17,16 +17,17 @@
 
 import { useCiAcPower } from './ci-ac-power';
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { InfoTooltip } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { cn, readCssVar } from '@/lib/utils';
 import type { CiBackupCurveSelection, LoadCurve, LoadCurvePoint, LoadCurveResolutionMinutes } from '@/supabase/functions/_shared/commercial-industrial/types';
+import { CurveSelectionPopup } from './CurveSelectionPopup';
 import { CiBackupSelectionAction } from './CiBackupSelectionAction';
 
-const CHART_HEIGHT = 235;
+const CHART_HEIGHT = 320;
 const MIN_SELECTION_DRAG_PX = 4;
 
 export interface CurveRangeSelection {
@@ -100,36 +101,6 @@ function PointBadge({
       </div>
     </>
   );
-}
-
-function getBadgeInfo(
-  chart: uPlot | null,
-  index: number,
-  point: LoadCurvePoint | undefined,
-  isZoomed: boolean,
-  labelPrefix?: string
-): PointBadgeInfo | null {
-  if (!chart || !point) return null;
-  if (isZoomed && chart.scales?.x?.min != null && chart.scales?.x?.max != null) {
-    const min = chart.scales.x.min;
-    const max = chart.scales.x.max;
-    if (index < min - 0.5 || index > max + 0.5) {
-      return null;
-    }
-  }
-  const bboxLeft = Number.isFinite(chart.bbox?.left) ? chart.bbox.left : 0;
-  const bboxTop = Number.isFinite(chart.bbox?.top) ? chart.bbox.top : 0;
-  const px = chart.valToPos(index, 'x');
-  const py = chart.valToPos(point.powerKw, 'y');
-  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
-
-  return {
-    index,
-    point,
-    x: bboxLeft + px,
-    y: bboxTop + py,
-    labelPrefix,
-  };
 }
 
 /** Weekday-only at midnight ("seg"), weekday+time otherwise ("seg 14:00") —
@@ -607,90 +578,6 @@ function clearChartSelect(chart: uPlot | null) {
   chart?.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
 }
 
-interface SelectionSummary {
-  peakKw: number;
-  minKw: number;
-  averageKw: number;
-  totalEnergyKwh: number;
-  pointCount: number;
-}
-
-const METRIC_ROWS: { key: 'peakKw' | 'minKw' | 'averageKw' | 'totalEnergyKwh'; label: string; unit: string }[] = [
-  { key: 'peakKw', label: 'Pico', unit: 'kVA' },
-  { key: 'minKw', label: 'Mínima', unit: 'kVA' },
-  { key: 'averageKw', label: 'Média', unit: 'kVA' },
-  { key: 'totalEnergyKwh', label: 'Energia', unit: 'kWh' },
-];
-
-/** Same shape/formula as summarizeLoadCurve (load-curve.ts), applied to a
- * dragged sub-range instead of the whole curve — kept local rather than
- * imported since it only needs `resolutionMinutes`, not a full LoadCurve. */
-function summarizeSelection(points: LoadCurvePoint[], resolutionMinutes: LoadCurveResolutionMinutes): SelectionSummary {
-  const intervalHours = resolutionMinutes / 60;
-  let peakKw = points[0].powerKw;
-  let minKw = points[0].powerKw;
-  let sumKw = 0;
-  for (const point of points) {
-    if (point.powerKw > peakKw) peakKw = point.powerKw;
-    if (point.powerKw < minKw) minKw = point.powerKw;
-    sumKw += point.powerKw;
-  }
-  return { peakKw, minKw, averageKw: sumKw / points.length, totalEnergyKwh: sumKw * intervalHours, pointCount: points.length };
-}
-
-function SolarSelectionSummary({ summary }: { summary: SelectionSummary | null }) {
-  const { factor } = useCiAcPower();
-  return (
-    <section aria-label="Geração FV no período selecionado" className="space-y-2 border-t border-border/60 pt-2">
-      <h4 className="text-xs font-semibold">Geração FV</h4>
-      {summary ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {METRIC_ROWS.map(row => <div key={row.key}><p className="text-[11px] text-muted-foreground">{row.label}</p><p className="text-sm font-semibold">{(summary[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}</p></div>)}
-      </div> : <p className="text-xs text-muted-foreground">Sem dados FV completos para este período.</p>}
-    </section>
-  );
-}
-
-/** "B relative to A": positive means B is higher. `aValue` is the
- * denominator for the percentage since A is the fixed baseline the user
- * picked first — a null percentage (aValue === 0) still shows the absolute
- * delta rather than hiding the row. */
-function formatDelta(aValue: number, bValue: number, unit: string, factor = 1): string {
-  const delta = (bValue - aValue) / (unit === 'kVA' ? factor : 1);
-  const sign = delta >= 0 ? '+' : '';
-  const percent = aValue !== 0 ? ` (${sign}${(((bValue - aValue) / aValue) * 100).toFixed(1)}%)` : '';
-  return `${sign}${delta.toFixed(2)} ${unit}${percent}`;
-}
-
-function PeriodHeader({
-  label,
-  color,
-  range,
-  points,
-  onClear,
-  timezone,
-}: {
-  timezone?:string;
-  label: string;
-  color: string;
-  range: CurveRangeSelection;
-  points: LoadCurvePoint[];
-  onClear: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-        {label}: {formatPointLabel(points[range.startIndex],timezone)} – {formatPointLabel(points[range.endIndex],timezone)} (
-        {range.endIndex - range.startIndex + 1} pontos)
-      </p>
-      <Button type="button" variant="ghost" size="xs" onClick={onClear}>
-        <X className="h-3 w-3" aria-hidden="true" />
-        Limpar
-      </Button>
-    </div>
-  );
-}
-
 export function LoadCurveChart({
   points,
   resolutionMinutes,
@@ -701,7 +588,6 @@ export function LoadCurveChart({
   onApplyBackupSelection,
   selectionSlots,
   onSelectionSlotsChange,
-  summaryOnly=false,
   timezone,
 }: {
   points: LoadCurvePoint[];
@@ -713,7 +599,6 @@ export function LoadCurveChart({
   onApplyBackupSelection?: (selection:CiBackupCurveSelection)=>void;
   selectionSlots?:SelectionSlots;
   onSelectionSlotsChange?:Dispatch<SetStateAction<SelectionSlots>>;
-  summaryOnly?:boolean;
   timezone?:string;
 }) {
   const { factor, toKva } = useCiAcPower();
@@ -735,7 +620,7 @@ export function LoadCurveChart({
   const setSelections=onSelectionSlotsChange??setOwnSelections;
   const [redrawSeq, setRedrawSeq] = useState(0);
   const [hoverBadge, setHoverBadge] = useState<PointBadgeInfo | null>(null);
-  const [badgeLayout, setBadgeLayout] = useState<{ start: PointBadgeInfo | null; end: PointBadgeInfo | null; width: number }>({ start: null, end: null, width: 600 });
+  const [chartWidth, setChartWidth] = useState(600);
   // Mirrors `selections` for the canvas draw hook (see buildOptions), which
   // — like the other formatters there — is built once on mount and needs to
   // read current state at draw time, not whatever it closed over back then.
@@ -820,7 +705,7 @@ export function LoadCurveChart({
     };
     // Values synchronize in the data effect; edits must preserve the chart and zoom.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeGeneration, kind, hasPoints,summaryOnly,factor]);
+  }, [includeGeneration, kind, hasPoints,factor]);
 
   useEffect(()=>{
     if(timezoneRef.current===timezone)return;
@@ -918,78 +803,20 @@ export function LoadCurveChart({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [summaryOnly]);
-
-  function summaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
-    if (!range) return null;
-    const slice = points.slice(range.startIndex, range.endIndex + 1);
-    return slice.length > 0 ? summarizeSelection(slice, resolutionMinutes) : null;
-  }
-
-  const generationByTimestamp = new Map(generationPoints?.map(point => [Date.parse(point.timestamp), point.powerKw]));
-  function solarSummaryFor(range: CurveRangeSelection | null): SelectionSummary | null {
-    if (!range || !generationPoints) return null;
-    const selected = points.slice(range.startIndex, range.endIndex + 1);
-    const solarPoints: LoadCurvePoint[] = [];
-    for (const point of selected) {
-      const powerKw = generationByTimestamp.get(Date.parse(point.timestamp));
-      if (powerKw == null || !Number.isFinite(powerKw) || powerKw < 0) return null;
-      solarPoints.push({ timestamp: point.timestamp, powerKw });
-    }
-    return solarPoints.length ? summarizeSelection(solarPoints, resolutionMinutes) : null;
-  }
-  const solarSummaryA = solarSummaryFor(selections.a);
-  const solarSummaryB = solarSummaryFor(selections.b);
-
-  const summaryA = summaryFor(selections.a);
-  const summaryB = summaryFor(selections.b);
+  }, []);
 
   const activeSelection = selections.b ?? selections.a;
   const isSelectionActive = Boolean(activeSelection && points.length > 0);
 
-  const { peakKw, minKw, averageKw, totalEnergyKwh } = useMemo(() => {
-    const targetPoints = isSelectionActive && activeSelection
-      ? points.slice(activeSelection.startIndex, activeSelection.endIndex + 1)
-      : points;
+  const peakKw = useMemo(() => {
+    const target = activeSelection ? points.slice(activeSelection.startIndex, activeSelection.endIndex + 1) : points;
+    return target.reduce((peak, point) => Math.max(peak, point.powerKw), 0);
+  }, [points, activeSelection]);
 
-    const total = targetPoints.length;
-    let peak = 0;
-    let min = total > 0 ? targetPoints[0].powerKw : 0;
-    let sum = 0;
-    for (const p of targetPoints) {
-      if (p.powerKw > peak) peak = p.powerKw;
-      if (p.powerKw < min) min = p.powerKw;
-      sum += p.powerKw;
-    }
-    const intervalH = resolutionMinutes / 60;
-    return {
-      peakKw: peak,
-      minKw: min,
-      averageKw: total > 0 ? sum / total : 0,
-      totalEnergyKwh: sum * intervalH,
-    };
-  }, [points, resolutionMinutes, isSelectionActive, activeSelection]);
-
-  // uPlot owns the geometry; copy it into React state after drawing.
+  // The hover badge follows the resized plot; selection details use the popup.
   useEffect(() => {
-    const chart = chartRef.current;
-    setBadgeLayout({
-      start: activeSelection
-        ? getBadgeInfo(chart, activeSelection.startIndex, points[activeSelection.startIndex], isZoomed, 'Início')
-        : null,
-      end: activeSelection && activeSelection.startIndex !== activeSelection.endIndex
-        ? getBadgeInfo(chart, activeSelection.endIndex, points[activeSelection.endIndex], isZoomed, 'Fim')
-        : null,
-      width: containerRef.current?.clientWidth || chart?.width || 600,
-    });
-  }, [activeSelection, points, isZoomed, redrawSeq]);
-  const { start: startBadge, end: endBadge, width: chartWidth } = badgeLayout;
-
-  const isHoverDuplicate =
-    hoverBadge != null &&
-    ((startBadge != null && hoverBadge.index === startBadge.index) ||
-      (endBadge != null && hoverBadge.index === endBadge.index));
-
+    setChartWidth(containerRef.current?.clientWidth || 600);
+  }, [redrawSeq]);
 
   if (points.length === 0) return null;
 
@@ -1001,214 +828,32 @@ export function LoadCurveChart({
 
   return (
     <div className="space-y-3">
-      {/* Gráfico semanal (235px, como o editor diário) com uPlot e fundo de fins de semana */}
-      {!summaryOnly&&<><div className="relative">
+      {/* Gráfico semanal (320px, como o editor diário) com uPlot e fundo de fins de semana */}
+      <div className="relative" data-testid="period-chart-surface">
         <div ref={containerRef} className="w-full [&_.u-legend]:text-xs [&_.u-legend]:text-muted-foreground" />
+        {!isSelectionActive && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
+        <CurveSelectionPopup points={points} generationPoints={generationPoints} resolutionMinutes={resolutionMinutes} timezone={timezone} selections={selections} onSelectionsChange={setSelections} kind={kind} />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">Shift + arraste para selecionar<InfoTooltip label="Como navegar na curva">Shift + arraste seleciona um intervalo para comparar ou usar no backup. Arraste para navegar; Ctrl + scroll aplica zoom. Duplo clique redefine a visualização. Scroll sem Ctrl rola a página.</InfoTooltip></div>
         {isZoomed && (
           <Button
             type="button"
             variant="outline"
             size="xs"
-            className="absolute right-0 top-0 bg-card z-10"
+            className="shrink-0"
             onClick={() => chartRef.current?.setScale('x', { min: 0, max: Math.max(points.length - 1, 0) })}
           >
             <RefreshCw className="h-3 w-3" aria-hidden="true" />
             Redefinir zoom
           </Button>
         )}
-        {startBadge && <PointBadge timezone={timezone} badge={startBadge} chartWidth={chartWidth} />}
-        {endBadge && <PointBadge timezone={timezone} badge={endBadge} chartWidth={chartWidth} />}
-        {!isHoverDuplicate && hoverBadge && <PointBadge timezone={timezone} badge={hoverBadge} chartWidth={chartWidth} />}
       </div>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">Shift + arraste para selecionar<InfoTooltip label="Como navegar na curva">Shift + arraste seleciona um intervalo para comparar ou usar no backup. Arraste para navegar; Ctrl + scroll aplica zoom. Duplo clique redefine a visualização. Scroll sem Ctrl rola a página.</InfoTooltip></div></>}
-
-      {/* 4 indicadores em uma única faixa, separados por divisórias sutis */}
-      {!summaryOnly&&!isSelectionActive&&<div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
-        <div className="min-w-0">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração máxima' : 'Demanda máxima'}</p>
-          </div>
-          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
-            {toKva(peakKw).toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kVA</span>
-          </p>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">{kind === 'generation' ? 'Geração mínima' : 'Demanda mínima'}</p>
-          </div>
-          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
-            {toKva(minKw).toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kVA</span>
-          </p>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Potência média</p>
-          </div>
-          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
-            {toKva(averageKw).toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kVA</span>
-          </p>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Energia no período</p>
-          </div>
-          <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
-            {totalEnergyKwh.toFixed(2)}{' '}
-            <span className="text-xs font-normal text-muted-foreground">kWh</span>
-          </p>
-        </div>
-      </div>}
-
-      {/* Exactly one period pinned: the plain single-period readout. */}
-      {summaryA && !summaryB && selections.a && (
-        <div className="space-y-2 rounded-lg border bg-card p-3">
-          <PeriodHeader timezone={timezone}
-            label="Seleção"
-            color="var(--chart-1)"
-            range={selections.a}
-            points={points}
-            onClear={() => setSelections(EMPTY_SELECTIONS)}
-          />
-          {includeGeneration && <h4 className="text-xs font-semibold">Consumo</h4>}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {METRIC_ROWS.map((row) => (
-              <div key={row.key}>
-                <p className="text-[11px] text-muted-foreground">{row.label}</p>
-                <p className="text-sm font-semibold">
-                  {(summaryA[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
-                </p>
-              </div>
-            ))}
-          </div>
-          {includeGeneration && <SolarSelectionSummary summary={solarSummaryA} />}
-        </div>
-      )}
-      {summaryB && !summaryA && selections.b && (
-        <div className="space-y-2 rounded-lg border bg-card p-3">
-          <PeriodHeader timezone={timezone}
-            label="Seleção"
-            color="var(--chart-2)"
-            range={selections.b}
-            points={points}
-            onClear={() => setSelections(EMPTY_SELECTIONS)}
-          />
-          {includeGeneration && <h4 className="text-xs font-semibold">Consumo</h4>}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {METRIC_ROWS.map((row) => (
-              <div key={row.key}>
-                <p className="text-[11px] text-muted-foreground">{row.label}</p>
-                <p className="text-sm font-semibold">
-                  {(summaryB[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
-                </p>
-              </div>
-            ))}
-          </div>
-          {includeGeneration && <SolarSelectionSummary summary={solarSummaryB} />}
-        </div>
-      )}
-
-      {/* Both periods pinned: side-by-side comparison with a delta column. */}
-      {summaryA && summaryB && selections.a && selections.b && (
-        <div className="space-y-2 rounded-lg border bg-card p-3">
-          <PeriodHeader timezone={timezone}
-            label="Período A"
-            color="var(--chart-1)"
-            range={selections.a}
-            points={points}
-            onClear={() => setSelections((previous) => ({ ...previous, a: null }))}
-          />
-          <PeriodHeader timezone={timezone}
-            label="Período B"
-            color="var(--chart-2)"
-            range={selections.b}
-            points={points}
-            onClear={() => setSelections((previous) => ({ ...previous, b: null }))}
-          />
-          <div className="overflow-x-auto">
-            <table className={cn("w-full text-xs", includeGeneration && "min-w-[560px]")}>
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th scope="col" className="py-1.5 text-left font-medium">Intervalo</th>
-                  {METRIC_ROWS.map((row) => (
-                    <th key={row.key} scope="col" className="py-1.5 text-right font-medium">
-                      {row.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody aria-label={includeGeneration ? "Consumo" : undefined}>
-                {includeGeneration && <tr><th colSpan={5} className="pt-2 text-left font-semibold">Consumo</th></tr>}
-                <tr className="border-b border-border/60">
-                  <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        className="inline-block h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: 'var(--chart-1)' }}
-                        aria-hidden="true"
-                      />
-                      Período A
-                    </span>
-                  </th>
-                  {METRIC_ROWS.map((row) => (
-                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
-                      {(summaryA[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b border-border/60">
-                  <th scope="row" className="py-1.5 text-left font-semibold text-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        className="inline-block h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: 'var(--chart-2)' }}
-                        aria-hidden="true"
-                      />
-                      Período B
-                    </span>
-                  </th>
-                  {METRIC_ROWS.map((row) => (
-                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">
-                      {(summaryB[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} {row.unit}
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">
-                    Diferença (B − A)
-                  </th>
-                  {METRIC_ROWS.map((row) => (
-                    <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums text-foreground">
-                      {formatDelta(summaryA[row.key], summaryB[row.key], row.unit, factor)}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-              {includeGeneration && <tbody aria-label="Geração FV">
-                <tr><th colSpan={5} className="border-t border-border/60 pt-3 text-left font-semibold">Geração FV</th></tr>
-                {([{ label: 'Período A · FV', summary: solarSummaryA }, { label: 'Período B · FV', summary: solarSummaryB }]).map(({ label, summary }) => (
-                  <tr key={label} className="border-b border-border/60">
-                    <th scope="row" className="py-1.5 text-left font-semibold">{label}</th>
-                    {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{summary ? `${(summary[row.key] / (row.unit === 'kVA' ? factor : 1)).toFixed(2)} ${row.unit}` : '—'}</td>)}
-                  </tr>
-                ))}
-                <tr>
-                  <th scope="row" className="py-1.5 text-left font-normal text-muted-foreground">Diferença FV (B − A)</th>
-                  {METRIC_ROWS.map(row => <td key={row.key} className="py-1.5 text-right font-semibold tabular-nums">{solarSummaryA && solarSummaryB ? formatDelta(solarSummaryA[row.key], solarSummaryB[row.key], row.unit, factor) : '—'}</td>)}
-                </tr>
-              </tbody>}
-            </table>
-          </div>
-          {includeGeneration && (!solarSummaryA || !solarSummaryB) && <p className="text-xs text-muted-foreground">Sem dados FV completos para um dos períodos. Valores indisponíveis aparecem como —.</p>}
-        </div>
-      )}
 
       {kind==='load'&&backupCurve&&onApplyBackupSelection&&<div className="space-y-3">{([{range:selections.a,label:'período A'},{range:selections.b,label:'período B'}]).map(({range,label})=>range&&<CiBackupSelectionAction key={`${label}:${points[range.startIndex]?.timestamp}:${points[range.endIndex]?.timestamp}`} curve={backupCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={onApplyBackupSelection}/>)}</div>}
 
       {/* Base do painel: Status da demanda contratada */}
-      {summaryOnly||kind === 'generation' ? null : hasContract ? (
+      {kind === 'generation' ? null : hasContract ? (
         <div
           className={cn(
             'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs',
