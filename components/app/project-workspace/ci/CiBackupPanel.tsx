@@ -2,10 +2,11 @@
 
 import { CiAcPowerFactorInput, useCiAcPower } from './ci-ac-power';
 import { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clock, Fuel, Plus, Shield, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Fuel, Gauge, Plus, Shield, ShieldAlert, Sparkles, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
+import { NumberField, NumberFieldControl } from '@/components/ui/number-field';
 import { cn } from '@/lib/utils';
 import type {
   CiBackupConfig,
@@ -198,50 +199,50 @@ export function CiBackupPanel({
           {/* Simple Mode Form */}
           {backup.inputMode === 'simple' && !backup.curveSelection && (
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1"><label htmlFor="target-power-kw" className="text-xs font-medium text-foreground">
-                  Potência crítica contínua (kVA)
-                </label><InfoTooltip label="Sobre a potência crítica contínua">Potência média das cargas durante a falta de rede.</InfoTooltip></div>
-                <Input
-                  id="target-power-kw"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={backup.targetPowerKw ? toKva(backup.targetPowerKw) : ''}
-                  onChange={(e) => updateBackup({ targetPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
-                  placeholder="Ex: 50"
-                />
-              </div>
+              <NumberField
+                id="target-power-kw"
+                compact
+                label="Potência crítica contínua"
+                unit="kVA"
+                icon={<Zap />}
+                tipLabel="Sobre a potência crítica contínua"
+                tip="Potência média das cargas durante a falta de rede."
+                min="0"
+                step="0.5"
+                value={backup.targetPowerKw ? toKva(backup.targetPowerKw) : ''}
+                onChange={(e) => updateBackup({ targetPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
+                placeholder="Ex: 50"
+              />
 
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1"><label htmlFor="target-peak-power-kw" className="text-xs font-medium text-foreground">
-                  Potência de pico / surto (kVA) <span className="text-muted-foreground">(opcional)</span>
-                </label><InfoTooltip label="Sobre a potência de pico">Partida de motores ou picos de curta duração.</InfoTooltip></div>
-                <Input
-                  id="target-peak-power-kw"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={backup.targetPeakPowerKw ? toKva(backup.targetPeakPowerKw) : ''}
-                  onChange={(e) => updateBackup({ targetPeakPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
-                  placeholder="Ex: 75"
-                />
-              </div>
+              <NumberField
+                id="target-peak-power-kw"
+                compact
+                label="Potência de pico / surto"
+                unit="kVA"
+                icon={<Zap />}
+                optional
+                tipLabel="Sobre a potência de pico"
+                tip="Partida de motores ou picos de curta duração."
+                min="0"
+                step="0.5"
+                value={backup.targetPeakPowerKw ? toKva(backup.targetPeakPowerKw) : ''}
+                onChange={(e) => updateBackup({ targetPeakPowerKw: fromKva(Math.max(0, toNumber(e.target.value))) })}
+                placeholder="Ex: 75"
+              />
 
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1"><label htmlFor="autonomy-hours" className="text-xs font-medium text-foreground">
-                  Autonomia desejada (horas)
-                </label><InfoTooltip label="Sobre a autonomia de backup">Tempo mínimo de sustentação sem rede.</InfoTooltip></div>
-                <Input
-                  id="autonomy-hours"
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={backup.autonomyHours || ''}
-                  onChange={(e) => updateBackup({ autonomyHours: Math.max(0.5, toNumber(e.target.value, 4)) })}
-                  placeholder="Ex: 4"
-                />
-              </div>
+              <NumberField
+                id="autonomy-hours"
+                compact
+                label="Autonomia desejada"
+                unit="horas"
+                tipLabel="Sobre a autonomia de backup"
+                tip="Tempo mínimo de sustentação sem rede."
+                min="0.5"
+                step="0.5"
+                value={backup.autonomyHours || ''}
+                onChange={(e) => updateBackup({ autonomyHours: Math.max(0.5, toNumber(e.target.value, 4)) })}
+                placeholder="Ex: 4"
+              />
             </div>
           )}
 
@@ -289,19 +290,20 @@ export function CiBackupPanel({
                     />
                   </div>
                   <div>
-                    <Input
-                      type="number"
+                    <NumberFieldControl
+                      unit="kVA"
+                      icon={<Zap />}
+                      aria-label="Potência unitária (kVA)"
                       min={0.001}
                       step={0.001}
-                      aria-label="Potência unitária (kVA)"
-                      placeholder="Potência unitária (kVA)"
+                      placeholder="Potência unitária"
                       value={newLoadPowerKva}
                       onChange={(e) => setNewLoadPowerKva(e.target.value)}
                     />
                   </div>
                   <div>
-                    <Input
-                      type="number"
+                    <NumberFieldControl
+                      unit="un."
                       aria-label="Quantidade"
                       placeholder="Quantidade"
                       value={newLoadQty}
@@ -309,10 +311,11 @@ export function CiBackupPanel({
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Input
-                      type="number"
+                    <NumberFieldControl
+                      unit="%"
+                      icon={<Gauge />}
                       aria-label="Fator de uso (%)"
-                      placeholder="Fator uso (%)"
+                      placeholder="Fator uso"
                       value={newLoadFactor}
                       onChange={(e) => setNewLoadFactor(e.target.value)}
                       title="Fator de uso simultâneo ou ciclo de carga (%)"
@@ -372,12 +375,11 @@ export function CiBackupPanel({
               )}
 
               <div className="max-w-xs space-y-1.5 pt-2">
-                <label htmlFor="detailed-autonomy-hours" className="text-xs font-medium text-foreground">
-                  Autonomia desejada para as cargas acima (horas)
-                </label>
-                <Input
+                <NumberField
                   id="detailed-autonomy-hours"
-                  type="number"
+                  compact
+                  label="Autonomia desejada para as cargas acima"
+                  unit="horas"
                   min="0.5"
                   step="0.5"
                   value={backup.autonomyHours || ''}
@@ -388,24 +390,25 @@ export function CiBackupPanel({
             </div>
           )}
 
-          {backup.curveSelection && <label className="block max-w-xs space-y-1 text-xs">Potência total na partida (kVA)<Input aria-label="Potência total na partida (kVA)" type="number" min={0} step="any" value={toKva(backup.targetPeakPowerKw ?? 0)} onChange={event=>updateBackup({targetPeakPowerKw:fromKva(Math.max(0,toNumber(event.target.value)))})}/></label>}
+          {backup.curveSelection && <NumberField className="max-w-xs" compact label="Potência total na partida" unit="kVA" icon={<Zap />} min={0} step="any" value={toKva(backup.targetPeakPowerKw ?? 0)} onChange={event=>updateBackup({targetPeakPowerKw:fromKva(Math.max(0,toNumber(event.target.value)))})} />}
           {/* Operational Settings (Safety Margin) */}
           <div className="space-y-3 border-t pt-4">
             <p className="text-xs font-semibold">Parâmetros Operacionais</p>
-            <div className="max-w-xs space-y-1.5">
-              <div className="flex items-center gap-1"><label htmlFor="safety-margin-percent" className="text-xs font-medium text-foreground">
-                Margem de segurança sobre a potência (%)
-              </label><InfoTooltip label="Sobre a margem de segurança">Garante folga operacional para absorver variações momentâneas de carga.</InfoTooltip></div>
-              <Input
-                id="safety-margin-percent"
-                type="number"
-                min="0"
-                max="50"
-                step="1"
-                value={backup.safetyMarginPercent}
-                onChange={(e) => updateBackup({ safetyMarginPercent: Math.max(0, toNumber(e.target.value, 10)) })}
-              />
-            </div>
+            <NumberField
+              id="safety-margin-percent"
+              compact
+              className="max-w-xs"
+              label="Margem de segurança sobre a potência"
+              unit="%"
+              icon={<Gauge />}
+              tipLabel="Sobre a margem de segurança"
+              tip="Garante folga operacional para absorver variações momentâneas de carga."
+              min="0"
+              max="50"
+              step="1"
+              value={backup.safetyMarginPercent}
+              onChange={(e) => updateBackup({ safetyMarginPercent: Math.max(0, toNumber(e.target.value, 10)) })}
+            />
           </div>
 
           {/* Requirements Live Summary */}
@@ -472,12 +475,12 @@ export function CiBackupPanel({
               <div className="space-y-4 rounded-xl border bg-muted/5 p-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-1.5">
-                    <label htmlFor="gen-power-kva" className="text-xs font-medium text-foreground">
-                      Potência Nominal (kVA)
-                    </label>
-                    <Input
+                    <NumberField
                       id="gen-power-kva"
-                      type="number"
+                      compact
+                      label="Potência Nominal"
+                      unit="kVA"
+                      icon={<Zap />}
                       min="0"
                       step="5"
                       value={generator.ratedPowerKva || ''}
@@ -510,12 +513,11 @@ export function CiBackupPanel({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="gen-fuel-cost" className="text-xs font-medium text-foreground">
-                      Preço do Combustível (R$)
-                    </label>
-                    <Input
+                    <NumberField
                       id="gen-fuel-cost"
-                      type="number"
+                      compact
+                      label="Preço do Combustível"
+                      unit="R$"
                       min="0"
                       step="0.05"
                       value={generator.fuelCostBrlPerUnit || ''}

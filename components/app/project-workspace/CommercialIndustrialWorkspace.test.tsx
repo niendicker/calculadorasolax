@@ -91,7 +91,7 @@ describe('CommercialIndustrialWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Configuração BESS' }));
 
-    expect(await screen.findByRole('heading',{name:'Configurações BESS'})).toBeInTheDocument();
+    expect(await screen.findByRole('heading',{name:'Configuração BESS'})).toBeInTheDocument();
     expect(screen.queryByLabelText('Nome do projeto')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Visão geral' }));

@@ -705,6 +705,7 @@ export function LoadCurveChart({
   kind = 'load',
   generationPoints,
   backupCurve,
+  backupSelection,
   onApplyBackupSelection,
   selectionSlots,
   onSelectionSlotsChange,
@@ -725,6 +726,7 @@ export function LoadCurveChart({
   kind?: 'load' | 'generation';
   generationPoints?: { timestamp: string; powerKw: number | null }[];
   backupCurve?: LoadCurve;
+  backupSelection?: CiBackupCurveSelection;
   onApplyBackupSelection?: (selection:CiBackupCurveSelection)=>void;
   selectionSlots?:SelectionSlots;
   onSelectionSlotsChange?:Dispatch<SetStateAction<SelectionSlots>>;
@@ -1120,6 +1122,7 @@ export function LoadCurveChart({
     }
     return list;
   }, [selections.a, selections.b, cargaRange, descargaRange, labels]);
+  const backupRanges=[{range:selections.a ?? cargaRange,label:labels.a},{range:selections.b ?? descargaRange,label:labels.b}].flatMap(({range,label})=>range?[{label,startIndex:range.startIndex,endIndex:range.endIndex}]:[]);
 
   if (points.length === 0) return null;
 
@@ -1181,30 +1184,12 @@ export function LoadCurveChart({
 
   return (
     <div className="space-y-3">
-      {curveDays && <div role="group" aria-label="Dias visíveis" className="flex flex-wrap items-center gap-1">
-        <Button type="button" variant={fullView?'secondary':'ghost'} size="sm" className="h-8 text-xs" aria-pressed={fullView} onClick={()=>changeVisibleRange({startIndex:0,endIndex:Math.max(1,points.length-1)})}>Todos os dias</Button>
-        {curveDays.map(day => {
-          const visible = !fullView && day.indices.at(-1)! >= visibleRange.startIndex && day.indices[0] <= visibleRange.endIndex;
-          return <Button key={day.date} type="button" variant={visible?'secondary':'ghost'} size="sm" className="h-8 text-xs" aria-pressed={visible} onClick={()=>changeVisibleRange({startIndex:day.indices[0],endIndex:Math.max(day.indices[0]+1,day.indices.at(-1)!)})}>{curveDayLabel(day.date)}</Button>;
-        })}
+      {(groupedDates.length>1 || editSeries==='generation' || gestureTool || (referenceKw!==undefined && onReferenceChange)) && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        {groupedDates.length>1 && <Button type="button" size="xs" variant="secondary" onClick={event=>openFromButton(event,'days')}>Editando juntos: {curveDays?.filter(day=>groupedDates.includes(day.date)).map(day=>curveDayLabel(day.date).split(',')[0]).join(', ')}</Button>}
+        {editSeries==='generation' && <span>Curva ativa: Fotovoltaico</span>}
+        {gestureTool && <Button type="button" size="xs" variant="secondary" onClick={()=>setGestureTool(null)}>{gestureTool==='select'?'Arraste para selecionar':'Arraste para desenhar'} · Cancelar</Button>}
+        {referenceKw!==undefined && onReferenceChange && <label className="flex items-center gap-1">Referência <input type="number" aria-label="Valor da referência em kVA" className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs text-foreground" min={0} step={1} value={Number(toKva(referenceKw).toFixed(2))} onChange={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>=0)onReferenceChange(value*factor);}}/> kVA</label>}
       </div>}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <div className="flex flex-wrap items-center gap-2">
-          {groupedDates.length>1 && <Button type="button" size="xs" variant="secondary" onClick={event=>openFromButton(event,'days')}>Editando juntos: {curveDays?.filter(day=>groupedDates.includes(day.date)).map(day=>curveDayLabel(day.date).split(',')[0]).join(', ')}</Button>}
-          {editSeries==='generation' && <span>Curva ativa: Fotovoltaico</span>}
-          {gestureTool && <Button type="button" size="xs" variant="secondary" onClick={()=>setGestureTool(null)}>{gestureTool==='select'?'Arraste para selecionar':'Arraste para desenhar'} · Cancelar</Button>}
-          {referenceKw!==undefined && onReferenceChange && <label className="flex items-center gap-1">Referência <input type="number" aria-label="Valor da referência em kVA" className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs text-foreground" min={0} step={1} value={Number(toKva(referenceKw).toFixed(2))} onChange={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>=0)onReferenceChange(value*factor);}}/> kVA</label>}
-        </div>
-        <InfoTooltip label="Atalhos do gráfico"><TooltipList items={[
-          <><strong>Navegar:</strong> arraste o fundo do gráfico.</>,
-          <><strong>Zoom:</strong> Ctrl + rolagem.</>,
-          <><strong>Editar:</strong> amplie para até um dia e arraste os pontos.</>,
-          <><strong>Desenhar:</strong> Ctrl + Shift + arraste.</>,
-          <><strong>Selecionar:</strong> Shift + arraste.</>,
-          <><strong>Opções:</strong> clique direito, toque prolongado ou botão ⋯.</>,
-          <><strong>No celular:</strong> ative Desenhar ou Selecionar no menu.</>,
-        ]}/></InfoTooltip>
-      </div>
       <header aria-label="Análise e ações da curva" className="space-y-2">
       {kind === 'load' && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card/60 px-3 py-1.5 text-xs backdrop-blur-xs">
@@ -1262,7 +1247,7 @@ export function LoadCurveChart({
         </div>
       )}
       <CurveReferenceReadout values={(activeSelection ? points.slice(activeSelection.startIndex, activeSelection.endIndex + 1) : points).map(point => point.powerKw)} referenceKw={referenceKw} resolutionMinutes={resolutionMinutes} selected={isSelectionActive} />
-      {kind==='load'&&backupCurve&&onApplyBackupSelection&&<div className="space-y-3">{([{range:selections.a ?? cargaRange,label:labels.a},{range:selections.b ?? descargaRange,label:labels.b}]).map(({range,label})=>range&&<CiBackupSelectionAction key={`${label}:${points[range.startIndex]?.timestamp}:${points[range.endIndex]?.timestamp}`} curve={backupCurve} startIndex={range.startIndex} endIndex={range.endIndex} label={label} onApply={onApplyBackupSelection}/>)}</div>}
+      {kind==='load'&&backupCurve&&onApplyBackupSelection&&backupRanges.length>0&&<CiBackupSelectionAction curve={backupCurve} ranges={backupRanges} applied={backupSelection} onApply={onApplyBackupSelection}/>}
 
       {/* Base do painel: Status da demanda contratada */}
       {kind === 'generation' ? null : hasContract ? (
@@ -1325,11 +1310,29 @@ export function LoadCurveChart({
           frozenYMaxRef.current = dragging ? geometry.yMax : null;
           if (!dragging) chartRef.current?.redraw(true, true);
         }} formatIndex={index => formatBadgeText(points[index], timezone, factor)} />
-        <Button ref={menuTriggerRef} data-popup-trigger type="button" size="icon-sm" variant="outline" className="absolute right-2 top-2 z-40 rounded-full bg-card/90 shadow-sm backdrop-blur-md" aria-label="Opções do gráfico" aria-haspopup="dialog" aria-expanded={Boolean(menu)} onClick={event=>openFromButton(event)}><MoreHorizontal aria-hidden="true"/></Button>
+        <div data-popup-trigger className="absolute right-2 top-2 z-40 flex items-center gap-0.5 rounded-full border border-border bg-card/90 p-0.5 shadow-sm backdrop-blur-md">
+          <InfoTooltip label="Atalhos do gráfico"><TooltipList items={[
+            <><strong>Navegar:</strong> arraste o fundo do gráfico.</>,
+            <><strong>Zoom:</strong> Ctrl + rolagem.</>,
+            <><strong>Editar:</strong> amplie para até um dia e arraste os pontos.</>,
+            <><strong>Desenhar:</strong> Ctrl + Shift + arraste.</>,
+            <><strong>Selecionar:</strong> Shift + arraste.</>,
+            <><strong>Opções:</strong> clique direito, toque prolongado ou botão ⋯.</>,
+            <><strong>No celular:</strong> ative Desenhar ou Selecionar no menu.</>,
+          ]}/></InfoTooltip>
+          <Button ref={menuTriggerRef} data-popup-trigger type="button" size="icon-sm" variant="ghost" className="rounded-full" aria-label="Opções do gráfico" aria-haspopup="dialog" aria-expanded={Boolean(menu)} onClick={event=>openFromButton(event)}><MoreHorizontal aria-hidden="true"/></Button>
+        </div>
         <CurveSelectionPopup points={points} generationPoints={generationPoints} resolutionMinutes={resolutionMinutes} timezone={timezone} selections={selectionSlots ?? { a: selections.a ?? cargaRange, b: selections.b ?? descargaRange }} onSelectionsChange={setSelections} kind={kind} labels={labels} />
       </div>
       {menu && <ChartPopupMenu x={menu.x} y={menu.y} level={menu.level} title={menu.level==='days'?'Vincular dias':menu.level==='curve'?'Editar curva':'Opções do gráfico'} actions={popupActions} onBack={menu.level==='main'?undefined:()=>setMenu({...menu,level:'main'})} onClose={closeMenu} returnFocus={menuTriggerRef}/>}
       {curveDays && points.length>1 && <CurveTimeline days={curveDays} length={points.length} range={visibleRange} onChange={changeVisibleRange} />}
+      {curveDays && <div role="group" aria-label="Dias visíveis" className="flex flex-wrap items-center gap-1">
+        <Button type="button" variant={fullView?'secondary':'ghost'} size="sm" className="h-8 text-xs" aria-pressed={fullView} onClick={()=>changeVisibleRange({startIndex:0,endIndex:Math.max(1,points.length-1)})}>Todos os dias</Button>
+        {curveDays.map(day => {
+          const visible = !fullView && day.indices.at(-1)! >= visibleRange.startIndex && day.indices[0] <= visibleRange.endIndex;
+          return <Button key={day.date} type="button" variant={visible?'secondary':'ghost'} size="sm" className="h-8 text-xs" aria-pressed={visible} onClick={()=>changeVisibleRange({startIndex:day.indices[0],endIndex:Math.max(day.indices[0]+1,day.indices.at(-1)!)})}>{curveDayLabel(day.date)}</Button>;
+        })}
+      </div>}
     </div>
   );
 }

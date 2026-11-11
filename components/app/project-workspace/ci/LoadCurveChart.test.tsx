@@ -736,6 +736,7 @@ describe('interval selection metrics & point badges', () => {
 
   it('keeps selection discoverable and places navigation details in contextual help', () => {
     render(<LoadCurveChart points={manyPoints} resolutionMinutes={60} />);
+    expect(within(screen.getByTestId('period-chart-surface')).getByRole('button', { name: 'Atalhos do gráfico' })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Opções do gráfico' })
     ).toBeInTheDocument();

@@ -39,7 +39,7 @@ function ControlledPanel({ initial }: { initial?: Partial<CommercialIndustrialOp
 }
 
 function openData() {
-  const trigger = screen.getByRole('button', { name: 'Período e CSV' });
+  const trigger = screen.getByRole('button', { name: 'Configurar dados' });
   if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger);
 }
 
@@ -96,7 +96,7 @@ describe('CiLoadCurvePanel', () => {
     await importFile(csv);
     fireEvent.click(await screen.findByRole('button', { name: 'Aplicar' }, { timeout: 4000 }));
 
-    expect(screen.getByRole('button', { name: 'Período e CSV' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Configurar dados' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText(/3 pontos · 60 min/)).toBeInTheDocument();
     expect(screen.queryByText('Demanda máxima')).not.toBeInTheDocument();
   });
@@ -217,6 +217,7 @@ describe('weekly curve workspace', () => {
   it('starts with one weekly chart and keeps file actions secondary', async () => {
     render(<ControlledPanel initial={{ loadCurve: manualCurve() }} />);
     expect(await screen.findByRole('group', { name: 'Dias visíveis' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Resumo dos dados da curva')).toHaveTextContent('Perfil manual · 05/01/2026 a 11/01/2026 · 15 min');
     expect(screen.getAllByTestId('period-chart-surface')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Dia' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Dia de referência')).not.toBeInTheDocument();
@@ -224,7 +225,14 @@ describe('weekly curve workspace', () => {
     expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Mover janela do tempo' })).toBeInTheDocument();
     openData();
+    const settings = screen.getByRole('region', { name: 'Configuração dos dados da curva' });
+    expect(screen.getByRole('button', { name: 'Configurar dados' })).toHaveAttribute('aria-controls', settings.id);
+    expect(within(settings).getByRole('heading', { name: 'Período e fuso' })).toBeVisible();
+    expect(within(settings).getByRole('heading', { name: 'Arquivos CSV' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar dados' }));
+    expect(settings).not.toBeVisible();
+    expect(screen.getByLabelText('Resumo dos dados da curva')).toBeVisible();
   });
 
   it('synchronizes day filters and timeline without changing project data', async () => {
