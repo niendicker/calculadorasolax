@@ -9,9 +9,10 @@
 // actually edits a field, matching bessProductId's null-until-chosen pattern.
 
 import { useCiAcPower } from './ci-ac-power';
-import { AlertTriangle, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { AlertTriangle, Banknote, ChevronLeft, ChevronRight, Gauge, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumberField } from '@/components/ui/number-field';
 import { cn } from '@/lib/utils';
 import type { CommercialIndustrialOptions, TariffConfig, TariffMarket, TariffModality } from '@/supabase/functions/_shared/commercial-industrial/types';
 
@@ -155,42 +156,28 @@ export function CiTariffPanel({
       <div className="space-y-3">
         <p className="text-sm font-semibold">Tarifa de energia</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="tariff-peak-mwh" className="text-sm font-medium">
-              Ponta (R$/MWh)
-            </label>
-            <Input
-              id="tariff-peak-mwh"
-              type="number"
-              min={0}
-              step="0.01"
-              value={tariff.energyRatePeakBrlPerMwh}
-              onChange={(event) => update({ energyRatePeakBrlPerMwh: Math.max(0, toNumber(event.target.value)) })}
-            />
-            {tariff.energyRatePeakBrlPerMwh > 0 && (
-              <span className="text-[11px] font-normal text-muted-foreground">
-                Equivalente a R$ {(tariff.energyRatePeakBrlPerMwh / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / kWh
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="tariff-offpeak-mwh" className="text-sm font-medium">
-              Fora ponta (R$/MWh)
-            </label>
-            <Input
-              id="tariff-offpeak-mwh"
-              type="number"
-              min={0}
-              step="0.01"
-              value={tariff.energyRateOffPeakBrlPerMwh}
-              onChange={(event) => update({ energyRateOffPeakBrlPerMwh: Math.max(0, toNumber(event.target.value)) })}
-            />
-            {tariff.energyRateOffPeakBrlPerMwh > 0 && (
-              <span className="text-[11px] font-normal text-muted-foreground">
-                Equivalente a R$ {(tariff.energyRateOffPeakBrlPerMwh / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / kWh
-              </span>
-            )}
-          </div>
+          <NumberField
+            id="tariff-peak-mwh"
+            label="Ponta"
+            unit="R$/MWh"
+            icon={<Banknote />}
+            min={0}
+            step="0.01"
+            value={tariff.energyRatePeakBrlPerMwh}
+            onChange={(event) => update({ energyRatePeakBrlPerMwh: Math.max(0, toNumber(event.target.value)) })}
+            hint={tariff.energyRatePeakBrlPerMwh > 0 ? <>Equivalente a R$ {(tariff.energyRatePeakBrlPerMwh / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / kWh</> : undefined}
+          />
+          <NumberField
+            id="tariff-offpeak-mwh"
+            label="Fora ponta"
+            unit="R$/MWh"
+            icon={<Banknote />}
+            min={0}
+            step="0.01"
+            value={tariff.energyRateOffPeakBrlPerMwh}
+            onChange={(event) => update({ energyRateOffPeakBrlPerMwh: Math.max(0, toNumber(event.target.value)) })}
+            hint={tariff.energyRateOffPeakBrlPerMwh > 0 ? <>Equivalente a R$ {(tariff.energyRateOffPeakBrlPerMwh / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} / kWh</> : undefined}
+          />
         </div>
 
         {isPeakLowerOrEqual && (
@@ -204,26 +191,24 @@ export function CiTariffPanel({
       <div className="space-y-3 border-t pt-4">
         <p className="text-sm font-semibold">Demanda</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Tarifa de demanda (R$/kVA-mês)</span>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={tariff.demandRateBrlPerKwMonth * factor}
-              onChange={(event) => update({ demandRateBrlPerKwMonth: Math.max(0, toNumber(event.target.value)) / factor })}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Demanda contratada (kVA)</span>
-            <Input
-              type="number"
-              min={0}
-              step="1"
-              value={toKva(tariff.contractedDemandKw)}
-              onChange={(event) => update({ contractedDemandKw: fromKva(Math.max(0, toNumber(event.target.value))) })}
-            />
-          </label>
+          <NumberField
+            label="Tarifa de demanda"
+            unit="R$/kVA-mês"
+            icon={<Banknote />}
+            min={0}
+            step="0.01"
+            value={tariff.demandRateBrlPerKwMonth * factor}
+            onChange={(event) => update({ demandRateBrlPerKwMonth: Math.max(0, toNumber(event.target.value)) / factor })}
+          />
+          <NumberField
+            label="Demanda contratada"
+            unit="kVA"
+            icon={<Zap />}
+            min={0}
+            step="1"
+            value={toKva(tariff.contractedDemandKw)}
+            onChange={(event) => update({ contractedDemandKw: fromKva(Math.max(0, toNumber(event.target.value))) })}
+          />
         </div>
         <p className="text-xs text-muted-foreground">
           A demanda contratada também é o alvo padrão do Peak Shaving quando nenhum outro valor é configurado.
@@ -320,28 +305,26 @@ export function CiTariffPanel({
       <div className="space-y-3 border-t pt-4">
         <p className="text-sm font-semibold">Impostos</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>ICMS (%)</span>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={tariff.icmsPercent}
-              onChange={(event) => update({ icmsPercent: clampPercent(event.target.value) })}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>PIS/COFINS (%)</span>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={tariff.pisCofinsPercent}
-              onChange={(event) => update({ pisCofinsPercent: clampPercent(event.target.value) })}
-            />
-          </label>
+          <NumberField
+            label="ICMS"
+            unit="%"
+            icon={<Gauge />}
+            min={0}
+            max={100}
+            step="0.01"
+            value={tariff.icmsPercent}
+            onChange={(event) => update({ icmsPercent: clampPercent(event.target.value) })}
+          />
+          <NumberField
+            label="PIS/COFINS"
+            unit="%"
+            icon={<Gauge />}
+            min={0}
+            max={100}
+            step="0.01"
+            value={tariff.pisCofinsPercent}
+            onChange={(event) => update({ pisCofinsPercent: clampPercent(event.target.value) })}
+          />
         </div>
       </div>
 

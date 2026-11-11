@@ -1,8 +1,8 @@
 'use client';
 
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { NumberField } from '@/components/ui/number-field';
 import { cn } from '@/lib/utils';
 import type {
   BessStrategyId,
@@ -98,61 +98,57 @@ export function CiStrategyPanel({
       </div>
 
       <div className="space-y-3 border-t pt-4">
-        {(ciOptions.strategy==='LOAD_SHIFTING'||ciOptions.strategy==='HYBRID')&&<label className="mb-4 block max-w-sm space-y-1 text-sm">Cobertura do consumo na ponta (%)<Input type="number" min={0} max={100} step="any" value={ciOptions.loadShiftingCoveragePercent??100} onChange={event=>onChange({loadShiftingCoveragePercent:Number(event.target.value)})}/><span className="block text-xs text-muted-foreground">Meta técnica após considerar FV e gerador configurados. O padrão é atender 100% da carga residual na ponta.</span></label>}
+        {(ciOptions.strategy==='LOAD_SHIFTING'||ciOptions.strategy==='HYBRID')&&<NumberField className="mb-4 max-w-sm" label="Cobertura do consumo na ponta" unit="%" icon={<Gauge />} min={0} max={100} step="any" value={ciOptions.loadShiftingCoveragePercent??100} onChange={event=>onChange({loadShiftingCoveragePercent:Number(event.target.value)})} hint="Meta técnica após considerar FV e gerador configurados. O padrão é atender 100% da carga residual na ponta." />}
         <p className="text-xs text-muted-foreground">A seleção considera somente atendimento técnico, quantidade de equipamentos e energia suficiente. Payback, ROI e VPL são calculados para a solução selecionada.</p>
       </div>
 
       <div className="space-y-3 border-t pt-4">
         <p className="text-sm font-semibold">Premissas financeiras</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Taxa de desconto (%/ano)</span>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.1"
-              value={ciOptions.financialAssumptions.discountRatePercent}
-              onChange={(event) =>
-                updateFinancialAssumptions({ discountRatePercent: Math.min(100, Math.max(0, toNumber(event.target.value))) })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Horizonte de análise (anos)</span>
-            <Input
-              type="number"
-              min={1}
-              max={30}
-              step="1"
-              value={ciOptions.financialAssumptions.analysisHorizonYears}
-              onChange={(event) =>
-                updateFinancialAssumptions({ analysisHorizonYears: Math.min(30, Math.max(1, Math.round(toNumber(event.target.value, 1)))) })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Inflação energética anual (%)</span>
-            <Input
-              type="number"
-              step="0.1"
-              value={ciOptions.financialAssumptions.annualEnergyInflationPercent}
-              onChange={(event) => updateFinancialAssumptions({ annualEnergyInflationPercent: toNumber(event.target.value) })}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <span>Meses faturados por ano</span>
-            <Input
-              type="number"
-              min={1}
-              max={12}
-              step="1"
-              value={ciOptions.financialAssumptions.monthsPerYear}
-              onChange={(event) =>
-                updateFinancialAssumptions({ monthsPerYear: Math.min(12, Math.max(1, Math.round(toNumber(event.target.value, 12)))) })
-              }
-            />
-          </label>
+          <NumberField
+            label="Taxa de desconto"
+            unit="%/ano"
+            icon={<Gauge />}
+            min={0}
+            max={100}
+            step="0.1"
+            value={ciOptions.financialAssumptions.discountRatePercent}
+            onChange={(event) =>
+              updateFinancialAssumptions({ discountRatePercent: Math.min(100, Math.max(0, toNumber(event.target.value))) })
+            }
+          />
+          <NumberField
+            label="Horizonte de análise"
+            unit="anos"
+            icon={<CalendarDays />}
+            min={1}
+            max={30}
+            step="1"
+            value={ciOptions.financialAssumptions.analysisHorizonYears}
+            onChange={(event) =>
+              updateFinancialAssumptions({ analysisHorizonYears: Math.min(30, Math.max(1, Math.round(toNumber(event.target.value, 1)))) })
+            }
+          />
+          <NumberField
+            label="Inflação energética anual"
+            unit="%"
+            icon={<Gauge />}
+            step="0.1"
+            value={ciOptions.financialAssumptions.annualEnergyInflationPercent}
+            onChange={(event) => updateFinancialAssumptions({ annualEnergyInflationPercent: toNumber(event.target.value) })}
+          />
+          <NumberField
+            label="Meses faturados por ano"
+            unit="meses"
+            icon={<CalendarDays />}
+            min={1}
+            max={12}
+            step="1"
+            value={ciOptions.financialAssumptions.monthsPerYear}
+            onChange={(event) =>
+              updateFinancialAssumptions({ monthsPerYear: Math.min(12, Math.max(1, Math.round(toNumber(event.target.value, 12)))) })
+            }
+          />
         </div>
       </div>
 

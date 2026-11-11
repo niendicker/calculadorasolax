@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ComponentProps, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { EyeOff, FileText, ImageIcon, Loader2, Pencil, Plus, Save, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteButton } from '@/components/ui/confirm-delete-button';
 import { Input } from '@/components/ui/input';
+import { NumberFieldControl, type NumberFieldControlProps } from '@/components/ui/number-field';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InfoLabel } from '@/components/ui/tooltip';
@@ -119,47 +120,13 @@ export function NumberWithUnitField({
   unit,
   onClear,
   ...props
-}: Omit<ComponentProps<typeof Input>, 'type' | 'inputMode'> & {
+}: NumberFieldControlProps & {
   label: string;
   tip: string;
-  icon?: ReactNode;
-  unit: string;
-  onClear?: () => void;
 }) {
-  const hasValue = props.value !== undefined && props.value !== null && props.value !== '';
   return (
     <Field label={<InfoLabel label={label} tip={tip} />}>
-      <div className="flex h-10 items-center rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:h-8">
-        {icon && (
-          <span className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
-        )}
-        <Input
-          {...props}
-          value={props.value ?? ''}
-          type="number"
-          inputMode="decimal"
-          onFocus={(e) => e.target.select()}
-          className={cn(
-            'h-full border-0 bg-transparent px-1 py-0 focus-visible:border-transparent focus-visible:ring-0',
-            !icon && 'pl-2.5'
-          )}
-        />
-        {onClear && hasValue && (
-          <button
-            type="button"
-            aria-label="Limpar campo"
-            tabIndex={-1}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={onClear}
-            className="mr-1 flex size-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground md:size-6"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
-        <span className="mr-2 shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-          {unit}
-        </span>
-      </div>
+      <NumberFieldControl icon={icon} unit={unit} onClear={onClear} {...props} />
     </Field>
   );
 }

@@ -41,25 +41,25 @@ describe('CiStrategyPanel', () => {
   it('keeps legacy ranking values invisible while preserving financial assumptions', () => {
     render(<ControlledPanel initial={{rankingCriterion:'NPV'}}/>);
     for(const name of ['Payback','ROI','VPL (NPV)'])expect(screen.queryByRole('button',{name})).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Taxa de desconto (%/ano)')).toHaveValue(12);
+    expect(screen.getByLabelText('Taxa de desconto')).toHaveValue(12);
   });
 
   it('edits financial assumptions and clamps them to their bounds', () => {
     render(<ControlledPanel />);
-    fireEvent.change(screen.getByLabelText('Taxa de desconto (%/ano)'), { target: { value: '15' } });
-    expect(screen.getByLabelText('Taxa de desconto (%/ano)')).toHaveValue(15);
+    fireEvent.change(screen.getByLabelText('Taxa de desconto'), { target: { value: '15' } });
+    expect(screen.getByLabelText('Taxa de desconto')).toHaveValue(15);
 
-    fireEvent.change(screen.getByLabelText('Taxa de desconto (%/ano)'), { target: { value: '150' } });
-    expect(screen.getByLabelText('Taxa de desconto (%/ano)')).toHaveValue(100);
+    fireEvent.change(screen.getByLabelText('Taxa de desconto'), { target: { value: '150' } });
+    expect(screen.getByLabelText('Taxa de desconto')).toHaveValue(100);
 
-    fireEvent.change(screen.getByLabelText('Horizonte de análise (anos)'), { target: { value: '99' } });
-    expect(screen.getByLabelText('Horizonte de análise (anos)')).toHaveValue(30);
+    fireEvent.change(screen.getByLabelText('Horizonte de análise'), { target: { value: '99' } });
+    expect(screen.getByLabelText('Horizonte de análise')).toHaveValue(30);
 
     fireEvent.change(screen.getByLabelText('Meses faturados por ano'), { target: { value: '13' } });
     expect(screen.getByLabelText('Meses faturados por ano')).toHaveValue(12);
 
-    fireEvent.change(screen.getByLabelText('Inflação energética anual (%)'), { target: { value: '-2.5' } });
-    expect(screen.getByLabelText('Inflação energética anual (%)')).toHaveValue(-2.5);
+    fireEvent.change(screen.getByLabelText('Inflação energética anual'), { target: { value: '-2.5' } });
+    expect(screen.getByLabelText('Inflação energética anual')).toHaveValue(-2.5);
   });
 
   it('calls onNavigatePrev and onNavigateNext when clicked', () => {

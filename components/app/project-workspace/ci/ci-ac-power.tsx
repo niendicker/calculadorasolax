@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { Input } from '@/components/ui/input';
+import { Gauge } from 'lucide-react';
+import { NumberFieldControl } from '@/components/ui/number-field';
 import { activeKwToApparentKva, apparentKvaToActiveKw, formatAcPower, projectAcPowerFactor } from '@/supabase/functions/_shared/commercial-industrial/ac-power';
 
 const CiAcPowerContext = createContext(1);
@@ -22,14 +23,14 @@ export function useCiAcPower(override?: number) {
 }
 
 /** Keep incomplete typing local; only publish a physically valid factor. */
-export function CiAcPowerFactorInput({ value, onChange, label }: { value: number; onChange: (factor: number) => void; label: string }) {
+export function CiAcPowerFactorInput({ value, onChange, label, id }: { value: number; onChange: (factor: number) => void; label: string; id?: string }) {
   const [draft, setDraft] = useState(String(value));
   const [previous, setPrevious] = useState(value);
   if (previous !== value) {
     setPrevious(value);
     setDraft(String(value));
   }
-  return <Input aria-label={label} type="number" min={0.01} max={1} step={0.01} value={draft} onChange={event => {
+  return <NumberFieldControl id={id} aria-label={label} unit="FP" icon={<Gauge />} min={0.01} max={1} step={0.01} value={draft} onChange={event => {
     const text = event.target.value;
     setDraft(text);
     const factor = Number(text);

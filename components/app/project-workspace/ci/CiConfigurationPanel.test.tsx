@@ -62,3 +62,27 @@ it('keeps legacy configuration until the user selects models',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'PCS/Inversor + bateria'}));
  expect(screen.getByLabelText('Configuração salva')).toHaveTextContent('"kind":"model"');
 });
+it('shows the selected model sheet from single-unit solutions and the applications it supports',async()=>{
+ render(<Controlled initial={{lineVoltageV:380}}/>);
+ await screen.findByRole('option',{name:/Gabinete teste/});
+ expect(screen.queryByRole('region',{name:/Ficha de/})).not.toBeInTheDocument();
+ expect(screen.getByText('Selecione o modelo para avançar.')).toHaveAttribute('role','status');
+ fireEvent.change(screen.getByLabelText('Modelo BESS integrado'),{target:{value:cabinetFixture().id}});
+ const sheet=screen.getByRole('region',{name:'Ficha de Gabinete teste'});
+ expect(sheet).toHaveTextContent('Potência CA de descarga');
+ expect(sheet).toHaveTextContent(/kVA por unidade/);
+ expect(sheet).toHaveTextContent(/kWh por unidade/);
+ expect(sheet).toHaveTextContent('até 3 unidades');
+ expect(sheet).toHaveTextContent('380 V');
+ expect(sheet).toHaveTextContent('Peak Shaving');
+ expect(sheet).toHaveTextContent('Backup');
+ expect(sheet).not.toHaveTextContent('Gerador');
+ expect(screen.queryByText(/para avançar\./)).not.toBeInTheDocument();
+});
+it('explains when no model is documented at the selected voltage',async()=>{
+ render(<Controlled initial={{lineVoltageV:220}}/>);
+ await screen.findByRole('option',{name:/Gabinete teste/});
+ expect(screen.getByRole('alert')).toHaveTextContent('Nenhum modelo documentado em 220 V');
+ fireEvent.change(screen.getByLabelText('Tensão CA entre fases'),{target:{value:'380'}});
+ expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
