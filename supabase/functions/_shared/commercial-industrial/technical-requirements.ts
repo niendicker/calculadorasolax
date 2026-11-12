@@ -1,5 +1,5 @@
 import { computeBackupRequirements } from './backup.ts';
-import { minimumBessDischargeKw, runDispatch } from './dispatch.ts';
+import { isWithinTimeWindow, minimumBessDischargeKw, runDispatch } from './dispatch.ts';
 import type { CommercialIndustrialOptions, DispatchPoint } from './types.ts';
 import type { CiApplication } from './grouped-solutions.ts';
 
@@ -11,16 +11,21 @@ export function deriveCiTechnicalRequirements(options:CommercialIndustrialOption
   if(!Number.isFinite(coverage)||coverage<0||coverage>100)throw new Error('A cobertura de consumo na ponta deve estar entre 0 e 100%.');
   let power=0,energy=0,windowEnergy=0;
   const intervalHours=options.loadCurve.resolutionMinutes/60;
+  // A configured discharge window replaces the concessionaire peak as the
+  // load-shifting period, exactly as runDispatch does; the generator credit
+  // keeps the tariff period because peak support only runs on the tariff peak.
+  const dischargeWindow=options.dischargeWindow;
   const limits=trace.map(point=>{
     const netLoadKw=Math.max(0,point.loadKw-(point.solarGenerationKw??0));
+    const shiftingPeriod=dischargeWindow?(isWithinTimeWindow(point.timestamp,options.loadCurve!.timezone,dischargeWindow)?'peak':'offPeak'):point.tariffPeriod;
     let target:number|null=null;
     if(options.strategy==='PEAK_SHAVING'||options.strategy==='HYBRID')target=options.tariff!.contractedDemandKw;
-    if((options.strategy==='LOAD_SHIFTING'||options.strategy==='HYBRID')&&point.tariffPeriod==='peak')target=Math.min(target??Infinity,netLoadKw*(1-coverage/100));
+    if((options.strategy==='LOAD_SHIFTING'||options.strategy==='HYBRID')&&shiftingPeriod==='peak')target=Math.min(target??Infinity,netLoadKw*(1-coverage/100));
     const deficit=target===null?0:minimumBessDischargeKw(netLoadKw,target,point.tariffPeriod,options.tariff!.contractedDemandKw,options.generator);
     power=Math.max(power,deficit);windowEnergy+=deficit*intervalHours;energy=Math.max(energy,windowEnergy);
     // A possible charging opportunity ends a lower-bound energy window. Its actual
     // duration, power and losses remain constraints of the candidate simulation.
-    if((point.tariffPeriod==='offPeak'&&point.gridImportKw<options.tariff!.contractedDemandKw-1e-6)||(options.solar?.enabled&&options.solar.prioritizeBessCharging&&(point.solarGenerationKw??0)>point.loadKw))windowEnergy=0;
+    if((shiftingPeriod==='offPeak'&&point.gridImportKw<options.tariff!.contractedDemandKw-1e-6)||(options.solar?.enabled&&options.solar.prioritizeBessCharging&&(point.solarGenerationKw??0)>point.loadKw))windowEnergy=0;
     return target;
   });
   const backup=computeBackupRequirements(options.backup,options.loadCurve);
