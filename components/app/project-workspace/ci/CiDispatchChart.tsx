@@ -35,6 +35,7 @@ export interface CiDispatchChartProps {
   contractedDemandKw?: number;
   rechargeWindow?: CiRechargeWindow | null;
   dischargeWindow?: CiRechargeWindow | null;
+  timezone?: string;
 }
 
 function parseHHMM(value: string): number {
@@ -42,21 +43,31 @@ function parseHHMM(value: string): number {
   return (hours || 0) * 60 + (minutes || 0);
 }
 
-function formatDispatchPointLabel(point: DispatchPoint | undefined): string {
+function formatDispatchPointLabel(point: DispatchPoint | undefined, timezone?: string): string {
   if (!point) return '';
   const date = new Date(point.timestamp);
-  const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-  if (date.getHours() === 0 && date.getMinutes() === 0) return weekday;
-  return `${weekday} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: timezone }).replace('.', '');
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: timezone, hourCycle: 'h23' });
+  if (time === '00:00') return weekday;
+  return `${weekday} ${time}`;
 }
 
-function dayBoundaryIndices(points: DispatchPoint[]): number[] {
+function dayBoundaryIndices(points: DispatchPoint[], timezone?: string): number[] {
+  const time = new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const indices: number[] = [];
   points.forEach((point, index) => {
-    const date = new Date(point.timestamp);
-    if (date.getHours() === 0 && date.getMinutes() === 0) indices.push(index);
+    if (time.format(new Date(point.timestamp)) === '00:00') indices.push(index);
   });
   return indices;
+}
+
+function getPointDayKey(point: DispatchPoint, timezone?: string): string {
+  if (!point.timestamp) return '';
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(point.timestamp));
+  } catch {
+    return point.timestamp.slice(0, 10);
+  }
 }
 
 function evenlySpacedIndices(scaleMin: number, scaleMax: number, count = 6): number[] {
@@ -193,7 +204,8 @@ function buildOptions(
   contractedDemandKwRef: { current: number | undefined },
   onZoomChange: (zoomed: boolean) => void,
   onDraw?: (chart: uPlot) => void,
-  factor = 1
+  factor = 1,
+  timezoneRef: { current: string | undefined } = { current: undefined }
 ): uPlot.Options {
   const primary = readCssVar('--chart-1', '#24506b');
   const border = readCssVar('--border', '#d7e0ea');
@@ -234,10 +246,10 @@ function buildOptions(
         gap: 8,
         font: '12px ui-sans-serif, system-ui, sans-serif',
         splits: (_self, _axisIdx, scaleMin, scaleMax) => {
-          const boundaries = dayBoundaryIndices(pointsRef.current).filter((index) => index >= scaleMin && index <= scaleMax);
+          const boundaries = dayBoundaryIndices(pointsRef.current, timezoneRef.current).filter((index) => index >= scaleMin && index <= scaleMax);
           return boundaries.length >= 2 ? boundaries : evenlySpacedIndices(scaleMin, scaleMax);
         },
-        values: (_self, ticks) => ticks.map((tick) => formatDispatchPointLabel(pointsRef.current[Math.round(tick)])),
+        values: (_self, ticks) => ticks.map((tick) => formatDispatchPointLabel(pointsRef.current[Math.round(tick)], timezoneRef.current)),
       },
       {
         stroke: mutedForeground,
@@ -251,7 +263,7 @@ function buildOptions(
     ],
     series: [
       {
-        value: (_self, rawValue) => formatDispatchPointLabel(pointsRef.current[Math.round(rawValue ?? 0)]),
+        value: (_self, rawValue) => formatDispatchPointLabel(pointsRef.current[Math.round(rawValue ?? 0)], timezoneRef.current),
       },
       {
         label: 'Carga Original',
@@ -343,12 +355,12 @@ function buildOptions(
   };
 }
 
-function computeActiveDaySlices(points: DispatchPoint[]): { startIndex: number; count: number }[] {
+function computeActiveDaySlices(points: DispatchPoint[], timezone?: string): { startIndex: number; count: number }[] {
   const slices: { startIndex: number; count: number }[] = [];
   let curStart = 0;
   let curDayKey = '';
   points.forEach((point, idx) => {
-    const key = point.timestamp ? point.timestamp.slice(0, 10) : '';
+    const key = getPointDayKey(point, timezone);
     if (key !== curDayKey && idx > 0) {
       slices.push({ startIndex: curStart, count: idx - curStart });
       curStart = idx;
@@ -368,6 +380,7 @@ export function CiDispatchChart({
   generatorPowerFactor,
   rechargeWindow,
   dischargeWindow,
+  timezone,
 }: CiDispatchChartProps) {
   const { factor } = useCiAcPower(powerFactor);
   const generatorFactor = generatorPowerFactor ?? factor;
@@ -396,11 +409,11 @@ export function CiDispatchChart({
     let currentDayKey = '';
 
     dispatch.forEach((point) => {
-      const dayKey = point.timestamp ? point.timestamp.slice(0, 10) : '';
+      const dayKey = getPointDayKey(point, timezone);
       if (dayKey !== currentDayKey && currentGroup.length > 0) {
         const date = new Date(currentGroup[0].timestamp);
-        const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-        const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: timezone }).replace('.', '');
+        const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: timezone });
         groups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
         currentGroup = [];
       }
@@ -409,12 +422,12 @@ export function CiDispatchChart({
     });
     if (currentGroup.length > 0) {
       const date = new Date(currentGroup[0].timestamp);
-      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-      const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const weekday = date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: timezone }).replace('.', '');
+      const dayNum = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: timezone });
       groups.push({ label: `${weekday} (${dayNum})`, points: currentGroup });
     }
     return groups;
-  }, [dispatch]);
+  }, [dispatch, timezone]);
 
   const activePoints = useMemo(() => {
     return selectedDayIndex === 'all' || !dayGroups[selectedDayIndex]
@@ -424,6 +437,10 @@ export function CiDispatchChart({
 
   const pointsRef = useRef(activePoints);
   const contractedDemandKwRef = useRef(contractedDemandKw);
+  const timezoneRef = useRef(timezone);
+  useEffect(() => {
+    timezoneRef.current = timezone;
+  }, [timezone]);
   const isInitialContractMountRef = useRef(true);
   const skipNextPointsEffectRef = useRef(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -493,7 +510,7 @@ export function CiDispatchChart({
     if (!el || pointsRef.current.length === 0) return;
 
     pointsRef.current = activePoints;
-    const options = buildOptions(el.clientWidth || 600, pointsRef, contractedDemandKwRef, setIsZoomed, updateGeometry, factor);
+    const options = buildOptions(el.clientWidth || 600, pointsRef, contractedDemandKwRef, setIsZoomed, updateGeometry, factor, timezoneRef);
     const chart = new uPlot(options, buildDispatchData(pointsRef.current, factor, generatorFactor), el);
     chartRef.current = chart;
     updateGeometry(chart);

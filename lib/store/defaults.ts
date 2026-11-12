@@ -44,6 +44,7 @@ export const defaultCiOptions: CommercialIndustrialOptions = {
   backup: defaultCiBackupConfig,
   solar: defaultCiSolarConfig,
   generator: defaultCiGeneratorConfig,
+  rechargeWindow: { start: '08:00', end: '16:00' },
 };
 
 export const defaultResidential: ResidentialOptions = {

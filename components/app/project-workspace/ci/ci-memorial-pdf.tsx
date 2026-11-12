@@ -582,9 +582,15 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
                 { label: selected.group ? 'Solução' : selected.composition ? 'Composição' : 'Quantidade de módulos', value: selected.group || selected.composition ? ciScenarioLabel(selected) : `${selected.moduleCount}` },
                 { label: 'Potência total', value: formatPower(selected.totalPowerKw) },
                 { label: 'Capacidade total / útil', value: `${formatKwh(selected.totalCapacityKwh)} / ${formatKwh(selected.usefulCapacityKwh)}` },
-                ...(product ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL(product.efficiency_percent) }] : []),
+                ...(product
+                  ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL(product.efficiency_percent) }]
+                  : selected.group
+                  ? [{ label: 'Eficiência de ciclo (catálogo)', value: formatPercentBRL((selected.group.storage.chargeEfficiencyPercent * selected.group.storage.dischargeEfficiencyPercent) / 100) }]
+                  : []),
                 ...(product
                   ? [{ label: 'Faixa de SOC operacional', value: `${formatPercentBRL(product.soc_min_percent, 0)} – ${formatPercentBRL(product.soc_max_percent, 0)}` }]
+                  : selected.group
+                  ? [{ label: 'Faixa de SOC operacional', value: `${formatPercentBRL(selected.group.storage.socMinPercent, 0)} – ${formatPercentBRL(selected.group.storage.socMaxPercent, 0)}` }]
                   : []),
                 ...(product ? [{ label: 'Garantia', value: `${product.warranty_years} anos` }] : []),
               ]}
@@ -746,8 +752,8 @@ export function CiMemorialPdfDocument({ projectInfo, client, profile, result, pr
             <SocChart
               dispatch={selected.dispatch}
               totalCapacityKwh={selected.totalCapacityKwh}
-              socMinPercent={product?.soc_min_percent ?? result.assumptions.equipment?.battery.socMinPercent ?? null}
-              socMaxPercent={product?.soc_max_percent ?? result.assumptions.equipment?.battery.soc_max_percent ?? null}
+              socMinPercent={product?.soc_min_percent ?? selected.group?.storage.socMinPercent ?? result.assumptions.equipment?.battery.socMinPercent ?? null}
+              socMaxPercent={product?.soc_max_percent ?? selected.group?.storage.socMaxPercent ?? result.assumptions.equipment?.battery.soc_max_percent ?? null}
             />
           </View>
         )}

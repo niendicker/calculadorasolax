@@ -97,7 +97,12 @@ export function CiBackupPanel({
   const [newLoadFactor, setNewLoadFactor] = useState('100');
 
   function updateBackup(partial: Partial<CiBackupConfig>) {
-    onChange({ backup: withAutomaticBackupSts({ ...backup, ...partial }) });
+    onChange({
+      backup: withAutomaticBackupSts(
+        { ...backup, ...partial },
+        { lineVoltageV: ciOptions.lineVoltageV, acPowerFactor: ciOptions.acPowerFactor }
+      ),
+    });
   }
 
   function handleAddLoad() {
@@ -442,7 +447,7 @@ export function CiBackupPanel({
             </div>
           )}
 
-          <CiStsBackupPanel options={ciOptions} backup={backup} onChange={updateBackup} />
+          <CiStsBackupPanel options={ciOptions} backup={backup} />
 
 
         </>

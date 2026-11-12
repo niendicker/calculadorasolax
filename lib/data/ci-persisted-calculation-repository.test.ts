@@ -13,10 +13,26 @@ const solutions=()=>generateCiGroupedSolutions(modularFixture(),[cabinetFixture(
 function client(priced=true){const where=vi.fn();const q={select:()=>q,eq:(...a:unknown[])=>{where(...a);return q;},in:()=>q,order:()=>q,range:async()=>({data:priced?[{product_type:'ci_pcs',product_model:'PCS teste 100',unit_value:1e8},{product_type:'ci_battery',product_model:'Rack teste 100',unit_value:1e8},{product_type:'ci_bess',product_model:'Gabinete teste',unit_value:1e8}]:[],error:null})};return {where,db:{auth:{getUser:async()=>({data:{user:{id:'owner'}},error:null})},from:()=>q} as unknown as SupabaseClient};}
 beforeEach(()=>{vi.clearAllMocks();mocks.query.mockResolvedValue({generation:{id:'generation',source_revision:'revision'},solutions:solutions()});mocks.accessories.mockResolvedValue({products:[],rules:[],prices:{},selectedIds:[],stsIds:[]});mocks.sts.mockResolvedValue({specs:[],rules:[]});});
 function options(){return {...modularOptions(),bessSystem:{kind:'automatic' as const,minPowerKw:0,minEnergyKwh:0}};}
-it('requires explicit electrical inputs for legacy backup without STS instead of skipping transfer', async () => {
- const backup={...stsBackup(),sts:undefined};
- await expect(calculatePersistedCi(client().db,{...options(),backup})).rejects.toThrow('fator de potência');
+it('rejects an invalid STS configuration', async () => {
+ const backup={...stsBackup(),sts:{...stsBackup().sts!,maxGridPassageKw:-10}};
+ await expect(calculatePersistedCi(client().db,{...options(),backup})).rejects.toThrow('máxima potência de passagem');
  expect(mocks.query).not.toHaveBeenCalled();
+});
+it('automatically sets up STS when backup has no explicit transfer selection', async () => {
+ const backup={...stsBackup(),sts:undefined,targetPowerKw:20,targetPeakPowerKw:20,autonomyHours:.25};
+ mocks.sts.mockResolvedValue(stsFixture().catalog);
+ mocks.accessories.mockResolvedValue({products:stsFixture().catalog.specs.map(spec=>({id:spec.accessory_id,model:spec.model,active:true})),rules:[],prices:{},selectedIds:[],stsIds:['small','large']});
+ const result=await calculatePersistedCi(client(false).db,{...options(),backup,loadShiftingCoveragePercent:50});
+ expect(result.selected?.sts?.status).toBe('selected');
+});
+it('allows backup calculation on 220 V networks with engineering notice and without blocking STS mismatch', async () => {
+ const backup={...stsBackup(),targetPowerKw:20,targetPeakPowerKw:20,autonomyHours:.25};
+ const s220 = solutions().map(s => ({ ...s, ac: { ...s.ac, lineVoltagesV: [220, 380] } }));
+ mocks.query.mockResolvedValue({ generation: { id: 'g', source_revision: 'r' }, solutions: s220 });
+ const result=await calculatePersistedCi(client(false).db,{...options(),lineVoltageV:220,backup,loadShiftingCoveragePercent:50});
+ expect(result.warnings.some(w=>w.includes('220 V'))).toBe(true);
+ expect(result.selected).not.toBeNull();
+ expect(result.selected?.sts).toBeUndefined();
 });
 it('automatically selects a compatible STS even when a saved project requested a different manual model', async () => {
  const backup=stsBackup();backup.targetPowerKw=20;backup.targetPeakPowerKw=20;backup.autonomyHours=.25;

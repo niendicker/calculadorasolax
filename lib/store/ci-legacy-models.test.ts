@@ -6,7 +6,7 @@ import { stsBackup } from '@/supabase/functions/_shared/commercial-industrial/st
 it('initializes automatic STS when opening a saved project with backup and no transfer selection', () => {
  const backup = { ...stsBackup(), sts: undefined };
  const loaded = commercialIndustrialOptionsFromJson({ backup });
- expect(loaded.backup?.sts).toMatchObject({ mode: 'auto', accessoryId: null, powerFactor: 0 });
+ expect(loaded.backup?.sts).toMatchObject({ mode: 'auto', accessoryId: null, powerFactor: 0.92 });
  expect(backup.sts).toBeUndefined();
 });
 

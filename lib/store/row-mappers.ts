@@ -150,7 +150,16 @@ export function commercialIndustrialOptionsFromJson(value: unknown): CommercialI
   const generator = isRecord(rawRecord.generator)
     ? ({ ...defaultCiGeneratorConfig, ...rawRecord.generator } as typeof defaultCiGeneratorConfig)
     : defaultCiGeneratorConfig;
-  return { ...defaultCiOptions, ...rawRecord, backup: withAutomaticBackupSts(backup), solar, generator } as CommercialIndustrialOptions;
+  return {
+    ...defaultCiOptions,
+    ...rawRecord,
+    backup: withAutomaticBackupSts(backup, {
+      lineVoltageV: rawRecord.lineVoltageV as number | undefined,
+      acPowerFactor: rawRecord.acPowerFactor as number | undefined,
+    }),
+    solar,
+    generator,
+  } as CommercialIndustrialOptions;
 }
 
 export function ciProjectFromRow(row: Record<string, unknown>): SavedCiProject {

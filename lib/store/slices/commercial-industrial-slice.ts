@@ -55,9 +55,20 @@ export const createCommercialIndustrialSlice: StateCreator<WizardStore, [], [], 
     })),
 
   setCiOptions: (partial) =>
-    set((s) => ({
-      ciOptions: { ...s.ciOptions, ...partial, backup: withAutomaticBackupSts(partial.backup ?? s.ciOptions.backup) },
-    })),
+    set((s) => {
+      const nextLineVoltageV = partial.lineVoltageV ?? s.ciOptions.lineVoltageV;
+      const nextAcPowerFactor = partial.acPowerFactor ?? s.ciOptions.acPowerFactor;
+      return {
+        ciOptions: {
+          ...s.ciOptions,
+          ...partial,
+          backup: withAutomaticBackupSts(partial.backup ?? s.ciOptions.backup, {
+            lineVoltageV: nextLineVoltageV,
+            acPowerFactor: nextAcPowerFactor,
+          }),
+        },
+      };
+    }),
 
   newCiProjectDraft: () =>
     set({

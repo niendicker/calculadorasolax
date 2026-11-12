@@ -621,6 +621,7 @@ export function CiResultsPanel({
                   contractedDemandKw={result.assumptions.tariff.contractedDemandKw}
                   rechargeWindow={ciOptions.rechargeWindow ?? result.assumptions.rechargeWindow ?? null}
                   dischargeWindow={ciOptions.dischargeWindow ?? result.assumptions.dischargeWindow ?? null}
+                  timezone={ciOptions.loadCurve?.timezone ?? result.assumptions.loadCurve?.timezone}
                 />
               </div>
             )}

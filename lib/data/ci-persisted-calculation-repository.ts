@@ -14,10 +14,16 @@ import type { CommercialIndustrialOptions, CommercialIndustrialResult, ScenarioC
 
 export async function calculatePersistedCi(db:SupabaseClient,options:CommercialIndustrialOptions):Promise<CommercialIndustrialResult>{
   projectAcPowerFactor(options.acPowerFactor);
-  options = { ...options, backup: withAutomaticBackupSts(options.backup) };
-  if(options.backup?.enabled){
-    const errors=validateStsSelection(options.backup.sts);
-    if(errors.length)throw new Error(errors.join(' '));
+  options = {
+    ...options,
+    backup: withAutomaticBackupSts(options.backup, {
+      lineVoltageV: options.lineVoltageV,
+      acPowerFactor: options.acPowerFactor,
+    }),
+  };
+  if (options.backup?.enabled && options.backup.sts) {
+    const errors = validateStsSelection(options.backup.sts);
+    if (errors.length) throw new Error(errors.join(' '));
   }
   if(!options.loadCurve||!options.tariff)throw new Error('Configure a curva de carga e a tarifa.');
   const {data:auth,error:authError}=await db.auth.getUser();
@@ -82,7 +88,7 @@ export async function calculatePersistedCi(db:SupabaseClient,options:CommercialI
   const compatible=solutions.filter(solution=>!options.lineVoltageV||solution.ac.lineVoltagesV?.includes(options.lineVoltageV));
   const evaluated:ScenarioCandidate[]=[];
   let chosen:CiGroupedSolution|undefined;
-  const transferVoltageMismatch=Boolean(options.backup?.enabled&&options.backup.sts&&options.lineVoltageV&&options.backup.sts.lineVoltageV!==options.lineVoltageV);
+  const transferVoltageMismatch=Boolean(options.backup?.enabled&&options.backup.sts&&options.lineVoltageV&&options.lineVoltageV!==220&&options.backup.sts.lineVoltageV!==options.lineVoltageV);
   if(!transferVoltageMismatch){
     for(const solution of orderCiTechnicalSolutions(compatible.filter(s=>meetsCiStaticRequirements(s,requirements)))){
       const candidate=evaluateScenarioTechnical(inputFor(solution));
@@ -112,5 +118,5 @@ export async function calculatePersistedCi(db:SupabaseClient,options:CommercialI
   const snapshot={options,generation:generation.id,sourceRevision:generation.source_revision,solutionKeys:solutions.map(solution=>solution.key),accessoryContext,stsCatalog,prices:[...prices]};
   const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(snapshot)));
   await assertCiGenerationCurrent(db,generation.id);
-  return {engineVersion:'ci-technical-v1',inputFingerprint:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),solutionGeneration:{id:generation.id,sourceRevision:generation.source_revision,contractVersion:CI_GROUPED_SOLUTION_VERSION},technicalRequirements:{minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,operatingEnergyAcKwh:requirements.operatingEnergyAcKwh,backupEnergyAcKwh:requirements.backupEnergyAcKwh,coveragePercent:requirements.coveragePercent},baseline:baseline.result,scenarios,recommendation,selected,technicalSelection:{scenarioId:chosen?.key??null,reason},technicalIssues,assumptions:{acPowerFactor:options.acPowerFactor??1,generatorPowerFactor:options.generator?.enabled?options.generator.powerFactor:undefined,lineVoltageV:options.lineVoltageV,tariff:options.tariff,financial:options.financialAssumptions,loadCurve:options.loadCurve,rechargeWindow:options.rechargeWindow,dischargeWindow:options.dischargeWindow},warnings:[...(selected?.missingPrices?.length?[`Preços pendentes: ${selected.missingPrices.join(', ')}.`]:[])],backup:selected?.backupResult,accessoryContext,stsContext:chosen?inputFor(chosen).stsContext:undefined};
+  return {engineVersion:'ci-technical-v1',inputFingerprint:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),solutionGeneration:{id:generation.id,sourceRevision:generation.source_revision,contractVersion:CI_GROUPED_SOLUTION_VERSION},technicalRequirements:{minPowerKw:requirements.minPowerKw,minEnergyKwh:requirements.minEnergyKwh,operatingEnergyAcKwh:requirements.operatingEnergyAcKwh,backupEnergyAcKwh:requirements.backupEnergyAcKwh,coveragePercent:requirements.coveragePercent},baseline:baseline.result,scenarios,recommendation,selected,technicalSelection:{scenarioId:chosen?.key??null,reason},technicalIssues,assumptions:{acPowerFactor:options.acPowerFactor??1,generatorPowerFactor:options.generator?.enabled?options.generator.powerFactor:undefined,lineVoltageV:options.lineVoltageV,tariff:options.tariff,financial:options.financialAssumptions,loadCurve:options.loadCurve,rechargeWindow:options.rechargeWindow,dischargeWindow:options.dischargeWindow},warnings:[...(selected?.missingPrices?.length?[`Preços pendentes: ${selected.missingPrices.join(', ')}.`]:[]),...(options.backup?.enabled&&options.lineVoltageV===220?['Rede em 220 V: a linha STS SolaX opera em 380/400 V. Para contingência em 220 V, prever transformador de acoplamento ou chave de transferência externa.']:[])],backup:selected?.backupResult,accessoryContext,stsContext:chosen?inputFor(chosen).stsContext:undefined};
 }

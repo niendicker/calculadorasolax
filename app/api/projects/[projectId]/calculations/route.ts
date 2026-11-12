@@ -63,7 +63,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   }
 
   const savedOptions = project.calculation_options as unknown as CommercialIndustrialOptions | null;
-  const options = savedOptions ? { ...savedOptions, backup: withAutomaticBackupSts(savedOptions.backup) } : null;
+  const options = savedOptions
+    ? {
+        ...savedOptions,
+        backup: withAutomaticBackupSts(savedOptions.backup, {
+          lineVoltageV: savedOptions.lineVoltageV,
+          acPowerFactor: savedOptions.acPowerFactor,
+        }),
+      }
+    : null;
   const isModular = options?.bessSystem?.kind === 'modular';
   const isAutomatic = options?.bessSystem?.kind === 'automatic' || options?.bessSystem?.kind === 'solution' || options?.bessSystem?.kind === 'model';
   if (!options || Object.keys(options).length === 0 || (!isAutomatic && (options.bessSystem?.kind === 'modular' ? !options.bessSystem.compatibilityId : !options.bessProductId))) {
